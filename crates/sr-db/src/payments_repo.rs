@@ -341,6 +341,34 @@ impl PgPaymentRepo {
     }
 }
 
+/// The contributor board query. Movies and episodes are the Cinema credits whose item is a title or an
+/// episode; chapters are the Library credits. `order` is the ORDER BY clause.
+fn contributor_sql(kind: ContributionKind, order: &str, ranked: bool) -> String {
+    let (section, exists) = match kind {
+        ContributionKind::Movies => (
+            "cinema",
+            " AND EXISTS (SELECT 1 FROM video_titles t WHERE t.id = c.ref_id)",
+        ),
+        ContributionKind::Episodes => (
+            "cinema",
+            " AND EXISTS (SELECT 1 FROM video_episodes e WHERE e.id = c.ref_id)",
+        ),
+        ContributionKind::Chapters => ("library", ""),
+    };
+    let rank = if ranked {
+        ", ROW_NUMBER() OVER (ORDER BY count(*) DESC, c.user_id) AS rank"
+    } else {
+        ""
+    };
+    format!(
+        "SELECT * FROM (SELECT c.user_id, count(*)::bigint AS count{rank} \
+         FROM contribution_credits c LEFT JOIN donor_preferences p ON p.user_id = c.user_id \
+         WHERE c.section = '{section}' AND c.revoked_at IS NULL AND c.user_id IS NOT NULL{exists} \
+           AND NOT COALESCE(p.hide_contributions, FALSE) AND NOT COALESCE(p.staff_hidden, FALSE) \
+         GROUP BY c.user_id) t ORDER BY {order}"
+    )
+}
+
 #[async_trait]
 impl PaymentRepo for PgPaymentRepo {
     async fn active_wallet(&self) -> PayResult<Option<Wallet>> {
@@ -1222,7 +1250,7 @@ impl PaymentRepo for PgPaymentRepo {
 
     async fn donor_prefs(&self, user_id: i64) -> PayResult<DonorPrefs> {
         let row = sqlx::query(
-            "SELECT hide_name, hide_amount, hide_badge FROM donor_preferences WHERE user_id = $1",
+            "SELECT hide_name, hide_amount, hide_badge, hide_contributions FROM donor_preferences WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -1233,6 +1261,7 @@ impl PaymentRepo for PgPaymentRepo {
                 hide_name: r.try_get("hide_name").map_err(pe)?,
                 hide_amount: r.try_get("hide_amount").map_err(pe)?,
                 hide_badge: r.try_get("hide_badge").map_err(pe)?,
+                hide_contributions: r.try_get("hide_contributions").map_err(pe)?,
             },
             None => DonorPrefs::default(),
         })
@@ -1240,13 +1269,16 @@ impl PaymentRepo for PgPaymentRepo {
 
     async fn set_donor_prefs(&self, user_id: i64, p: DonorPrefs) -> PayResult<()> {
         sqlx::query(
-            "INSERT INTO donor_preferences (user_id, hide_name, hide_amount, hide_badge) VALUES ($1, $2, $3, $4) \
-             ON CONFLICT (user_id) DO UPDATE SET hide_name = $2, hide_amount = $3, hide_badge = $4",
+            "INSERT INTO donor_preferences (user_id, hide_name, hide_amount, hide_badge, hide_contributions) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (user_id) DO UPDATE SET hide_name = $2, hide_amount = $3, hide_badge = $4, \
+             hide_contributions = $5",
         )
         .bind(user_id)
         .bind(p.hide_name)
         .bind(p.hide_amount)
         .bind(p.hide_badge)
+        .bind(p.hide_contributions)
         .execute(&self.pool)
         .await
         .map_err(pe)?;
@@ -1317,6 +1349,51 @@ impl PaymentRepo for PgPaymentRepo {
         .await
         .map_err(pe)?;
         self.leader_rows(rows, true).await
+    }
+
+    async fn leaderboard_contributors(
+        &self,
+        kind: ContributionKind,
+        limit: u32,
+    ) -> PayResult<Vec<ContributorRow>> {
+        let sql = contributor_sql(kind, "count DESC, user_id LIMIT $1", false);
+        let rows = dynq(sql)
+            .bind(i64::from(limit))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(pe)?;
+        rows.iter()
+            .map(|r| {
+                Ok(ContributorRow {
+                    user_id: r.try_get("user_id").map_err(pe)?,
+                    count: r.try_get("count").map_err(pe)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn contributor_rank(
+        &self,
+        user_id: i64,
+        kind: ContributionKind,
+    ) -> PayResult<Option<(u32, i64)>> {
+        let sql = contributor_sql(kind, "rank LIMIT 1", true)
+            .replace(") t ORDER BY", ") t WHERE user_id = $1 ORDER BY");
+        let row = dynq(sql)
+            .bind(user_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(pe)?;
+        match row {
+            Some(r) => {
+                let rank: i64 = r.try_get("rank").map_err(pe)?;
+                Ok(Some((
+                    u32::try_from(rank).unwrap_or(u32::MAX),
+                    r.try_get("count").map_err(pe)?,
+                )))
+            }
+            None => Ok(None),
+        }
     }
 
     async fn donor_rank(

@@ -60,10 +60,10 @@ Conventions (as Cinema): ids are Snowflakes and travel as decimal **strings**; t
 
 ### 8.1 Concepts and scope
 
-* A channel has a `kind`: `rule_based` (the schedule is generated from `rules`) or `manual` (staff place programmes). `imported_guide` (section 4), the guide import (TV-ADM-004), favorites, reminders and logo upload are **not built yet**; `logo_key` is stored and shown as a signed `/cdn/<key>` URL when set.
+* A channel has a `kind`: `rule_based` (the schedule is generated from `rules`) or `manual` (staff place programmes). `imported_guide` (section 4), the guide import (TV-ADM-004), favorites and logo upload are **not built yet** (reminders are built: `tv_reminders`, migration 0780); `logo_key` is stored and shown as a signed `/cdn/<key>` URL when set.
 * The schedule is a list of non-overlapping **blocks** per channel. Rule-based channels are extended lazily and deterministically (same rules, same catalog, same seed give the same blocks): a read that needs blocks the channel does not have yet generates and stores them, up to 24 h ahead. Staff can also preview and publish a schedule explicitly (8.5).
 * A block is `kind` `program` (a title or an episode from the Cinema catalog), `filler` (a short bumper), `slate` or `off_air` (no media; the client shows its own slate or colour bars). Gaps between programmes are filled by the channel's filler policy.
-* Times of day in rules are in the channel `timezone` (an IANA name from a built-in list, `GET /tv/timezones`; DST rules for US, EU and Australia). The guide itself is in absolute milliseconds; clients render viewer-local or channel time.
+* Times of day in rules are in the channel `timezone` (any IANA zone name, resolved with `jiff` and its bundled tz database; `GET /tv/timezones` lists every zone). The guide itself is in absolute milliseconds; clients render viewer-local or channel time.
 * Age restriction (D-184): restricted titles are scheduled on any channel whose rules include them and are always listed; **opening a stream** (`tune`, the live playlists) whose window contains a restricted programme answers **403 code 900011** until `POST /sr/age-gate {over_18:true}`.
 
 ### 8.2 Shapes
@@ -114,7 +114,9 @@ Items without a runtime or an asset are never scheduled. Bumpers are published t
 | `GET /tv/channels/{id}` | `Channel` |
 | `GET /tv/channels/{id}/now` | `{channel_id, at_ms, offset_ms?, current?: Block, next?: Block, viewers}`; `offset_ms` is how far into the current block's programme the wall clock is (17 minutes in = 1020000) |
 | `GET /tv/guide?from=&to=&channels=` | `{from_ms, to_ms, now_ms, channels: [{channel: Channel (no now/next), blocks: Block[]}]}`; `from` default now rounded down to the half hour, `to` default `from`+4 h, window at most 48 h (400 otherwise), `channels` is a comma list of ids (default all enabled). Blocks overlapping the window are returned whole |
-| `GET /tv/timezones` | `{items: string[]}` |
+| `GET /tv/timezones` | `{items: string[]}` every IANA zone (jiff's bundled database) |
+| `PUT /tv/reminders/{block_id}?lead_minutes=` | 204. Remind the caller before an upcoming programme (default 5 minutes, 0 to 120); setting it again moves it; 400 for a programme that already started. Session only (bots 403). Fired by the `userfeat.tick` job (15 s) as a DM from the system user, which is a notification and a push like any DM. When the block was regenerated away by then, the DM says the reminder was dropped |
+| `DELETE /tv/reminders/{block_id}` | 204 (also when none was set) |
 | `GET /tv/channels/{id}/tune` | `{channel_id, state: "live"\|"off_air", master_url?, current?: Block, offset_ms?, next?: Block, viewers}`; 403 `900011` when the airing programme is restricted and the age is unconfirmed. `master_url` is the API path to use as the HLS source (see 8.4) |
 
 ### 8.4 Live HLS (`TV-HLS`)

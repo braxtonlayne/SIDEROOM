@@ -154,6 +154,7 @@ export interface Prefs {
   hide_name: boolean;
   hide_amount: boolean;
   hide_badge: boolean;
+  hide_contributions: boolean;
 }
 export interface Me {
   patron: Patron;
@@ -207,6 +208,24 @@ export interface Board {
 }
 export const getBoard = (board: 'donors' | 'servers', window: '30d' | 'lifetime') =>
   get<Board>(`/donations/leaderboards/${board}${qs({ window })}`);
+
+export type ContributorKind = 'movies' | 'episodes' | 'chapters';
+export interface ContributorItem {
+  rank: number;
+  user_id: string;
+  name: string;
+  avatar: string | null;
+  count: number;
+}
+export interface ContributorBoard {
+  kind: ContributorKind;
+  items: ContributorItem[];
+  me: { rank: number; count: number } | null;
+  generated_at_ms: number;
+}
+/** G-08: approved movies and episodes (Cinema) and chapters (Library), most first. */
+export const getContributorBoard = (kind: ContributorKind) =>
+  get<ContributorBoard>(`/donations/leaderboards/contributors/${kind}`);
 
 // ---- formatting ----
 

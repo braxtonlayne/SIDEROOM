@@ -16,13 +16,21 @@ export interface StartPartyDialogProps {
   onClose: () => void;
   /** The title to watch; without it the dialog asks. */
   title?: { titleId: string; episodeId?: string | null; variantId?: string | null; label: string };
+  /** A Live TV channel to watch together (G-16): no title is asked for; everyone follows the live edge. */
+  liveChannel?: { channelId: string; label: string };
   /** Preselect a channel or DM (the voice call bar passes its voice channel). */
   channelId?: string | null;
 }
 
 const PRIVATE = '__private';
 
-export function StartPartyDialog({ open, onClose, title, channelId }: StartPartyDialogProps) {
+export function StartPartyDialog({
+  open,
+  onClose,
+  title,
+  liveChannel,
+  channelId,
+}: StartPartyDialogProps) {
   const t = useT();
   const router = useRouter();
   const age = useOptionalAgeGate();
@@ -65,27 +73,32 @@ export function StartPartyDialog({ open, onClose, title, channelId }: StartParty
   );
 
   const chosen: { titleId: string; episodeId: string | null; variantId: string | null } | null =
-    title
-      ? {
-          titleId: title.titleId,
-          episodeId: title.episodeId ?? null,
-          variantId: title.variantId ?? null,
-        }
-      : picked
-        ? { titleId: picked.titleId, episodeId: picked.episodeId, variantId: null }
-        : null;
-  const label = title?.label ?? picked?.label;
+    liveChannel
+      ? { titleId: '', episodeId: null, variantId: null }
+      : title
+        ? {
+            titleId: title.titleId,
+            episodeId: title.episodeId ?? null,
+            variantId: title.variantId ?? null,
+          }
+        : picked
+          ? { titleId: picked.titleId, episodeId: picked.episodeId, variantId: null }
+          : null;
+  const label = liveChannel?.label ?? title?.label ?? picked?.label;
 
   const start = async () => {
     if (!chosen) return;
     setBusy(true);
     setError(null);
-    const input = {
-      title_id: chosen.titleId,
-      episode_id: chosen.episodeId,
-      variant_id: chosen.variantId,
-      channel_id: dest === PRIVATE ? null : dest,
-    };
+    const where = { channel_id: dest === PRIVATE ? null : dest };
+    const input = liveChannel
+      ? { tv_channel_id: liveChannel.channelId, ...where }
+      : {
+          title_id: chosen.titleId,
+          episode_id: chosen.episodeId,
+          variant_id: chosen.variantId,
+          ...where,
+        };
     try {
       let party;
       try {
@@ -132,8 +145,8 @@ export function StartPartyDialog({ open, onClose, title, channelId }: StartParty
       }
     >
       <div className="wp-start">
-        {!title && !picked && <TitlePicker onPick={setPicked} />}
-        {!title && picked && (
+        {!title && !liveChannel && !picked && <TitlePicker onPick={setPicked} />}
+        {!title && !liveChannel && picked && (
           <p className="wp-now">
             {picked.label}{' '}
             <Button size="sm" variant="ghost" onClick={() => setPicked(null)}>

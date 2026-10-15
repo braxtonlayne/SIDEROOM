@@ -5206,6 +5206,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/donations/leaderboards/contributors/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A contributor board: approved `movies`, `episodes` (Cinema) or `chapters` (Library), most first
+         *     (D-074). Accounts that opted out in their preferences are not listed. Cached for an hour.
+         */
+        get: operations["donations_contributor_leaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/donations/leaderboards/{board}": {
         parameters: {
             query?: never;
@@ -8452,6 +8472,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tv/reminders/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Remind the caller before an upcoming programme (a DM from SIDE ROOM and a push notification). Setting it
+         *     again moves it. A programme that already started answers 400.
+         */
+        put: operations["tv_reminder_set"];
+        post?: never;
+        /** Cancel a reminder (cancelling one that is not set is fine). */
+        delete: operations["tv_reminder_clear"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tv/timezones": {
         parameters: {
             query?: never;
@@ -11125,6 +11166,32 @@ export interface components {
             /** Format: int32 */
             year?: number | null;
         };
+        ContributorBoardView: {
+            /** Format: int64 */
+            generated_at_ms: number;
+            items: components["schemas"]["ContributorItem"][];
+            /** @description `movies`, `episodes` or `chapters`. */
+            kind: string;
+            me?: null | components["schemas"]["ContributorRank"];
+        };
+        ContributorItem: {
+            avatar?: string | null;
+            /**
+             * Format: int64
+             * @description Approved items that still count (revoked credits do not).
+             */
+            count: number;
+            name: string;
+            /** Format: int32 */
+            rank: number;
+            user_id: string;
+        };
+        ContributorRank: {
+            /** Format: int64 */
+            count: number;
+            /** Format: int32 */
+            rank: number;
+        };
         ContributorView: {
             anonymous: boolean;
             avatar?: string | null;
@@ -11161,6 +11228,16 @@ export interface components {
             position?: number | null;
             /** Format: int32 */
             rate_limit_per_user?: number | null;
+            /** @description An episode of that title, for a series. */
+            sr_watch_party_episode_id?: string | null;
+            /**
+             * @description SIDE ROOM "Watch party room" preset (D-208): with a voice channel (`type` 2), also start a persistent
+             *     watch party bound to it. Needs `sr_watch_party_title_id`; the party survives being empty and the first
+             *     person to join becomes host.
+             */
+            sr_watch_party_room?: boolean | null;
+            /** @description The title the room starts with (a Cinema title snowflake). */
+            sr_watch_party_title_id?: string | null;
             topic?: string | null;
             /**
              * Format: int32
@@ -13587,11 +13664,14 @@ export interface components {
         PrefsBody: {
             hide_amount?: boolean | null;
             hide_badge?: boolean | null;
+            hide_contributions?: boolean | null;
             hide_name?: boolean | null;
         };
         PrefsView: {
             hide_amount: boolean;
             hide_badge: boolean;
+            /** @description Off the contributor boards (movies, episodes, chapters). */
+            hide_contributions: boolean;
             hide_name: boolean;
         };
         PresenceBody: {
@@ -15916,7 +15996,10 @@ export interface components {
             episode_id?: string | null;
             /** Format: int64 */
             start_ms?: number | null;
-            title_id: string;
+            /** @description The Cinema title, or "0" with `tv_channel_id`. */
+            title_id?: string;
+            /** @description Switch to a Live TV channel. */
+            tv_channel_id?: string | null;
             variant_id?: string | null;
         };
         /** @description Body of `POST /watch-parties/{id}/playback`. */
@@ -15960,7 +16043,10 @@ export interface components {
              * @description Where to start, in milliseconds (default 0).
              */
             start_ms?: number | null;
-            title_id: string;
+            /** @description The Cinema title. Omit it (or send "0") for a Live TV party and give `tv_channel_id` instead. */
+            title_id?: string;
+            /** @description A Live TV channel to watch together (no seeking; everyone follows the live edge). */
+            tv_channel_id?: string | null;
             variant_id?: string | null;
         };
         /** @description Body of `POST /watch-parties/{id}/heartbeat`: the member's liveness, clock estimate and player state. */
@@ -33587,6 +33673,48 @@ export interface operations {
             };
         };
     };
+    donations_contributor_leaderboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `movies`, `episodes` or `chapters` */
+                kind: string;
+                /** @description `30d` (default) or `lifetime`. */
+                window: string | null;
+                /** @description At most 100 (default 50). */
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContributorBoardView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     donations_leaderboard: {
         parameters: {
             query?: never;
@@ -44179,6 +44307,83 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_reminder_set: {
+        parameters: {
+            query?: {
+                /** @description Minutes before the start (0 to 120, default 5). */
+                lead_minutes?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Block snowflake */
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reminder set */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_reminder_clear: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Block snowflake */
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reminder cancelled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: {
                 headers: {

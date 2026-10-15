@@ -26832,6 +26832,89 @@
         ]
       }
     },
+    "/donations/leaderboards/contributors/{kind}": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "A contributor board: approved `movies`, `episodes` (Cinema) or `chapters` (Library), most first\n(D-074). Accounts that opted out in their preferences are not listed. Cached for an hour.",
+        "operationId": "donations_contributor_leaderboard",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "`movies`, `episodes` or `chapters`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "window",
+            "in": "path",
+            "description": "`30d` (default) or `lifetime`.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "path",
+            "description": "At most 100 (default 50).",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContributorBoardView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/donations/leaderboards/{board}": {
       "get": {
         "tags": [
@@ -43725,6 +43808,114 @@
         ]
       }
     },
+    "/tv/reminders/{block_id}": {
+      "put": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Remind the caller before an upcoming programme (a DM from SIDE ROOM and a push notification). Setting it\nagain moves it. A programme that already started answers 400.",
+        "operationId": "tv_reminder_set",
+        "parameters": [
+          {
+            "name": "block_id",
+            "in": "path",
+            "description": "Block snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lead_minutes",
+            "in": "query",
+            "description": "Minutes before the start (0 to 120, default 5).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Reminder set"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Cancel a reminder (cancelling one that is not set is fine).",
+        "operationId": "tv_reminder_clear",
+        "parameters": [
+          {
+            "name": "block_id",
+            "in": "path",
+            "description": "Block snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Reminder cancelled"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/tv/timezones": {
       "get": {
         "tags": [
@@ -53903,6 +54094,91 @@
           }
         }
       },
+      "ContributorBoardView": {
+        "type": "object",
+        "required": [
+          "kind",
+          "items",
+          "generated_at_ms"
+        ],
+        "properties": {
+          "generated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContributorItem"
+            }
+          },
+          "kind": {
+            "type": "string",
+            "description": "`movies`, `episodes` or `chapters`."
+          },
+          "me": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContributorRank"
+              }
+            ]
+          }
+        }
+      },
+      "ContributorItem": {
+        "type": "object",
+        "required": [
+          "rank",
+          "user_id",
+          "name",
+          "count"
+        ],
+        "properties": {
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Approved items that still count (revoked credits do not)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ContributorRank": {
+        "type": "object",
+        "required": [
+          "rank",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "ContributorView": {
         "type": "object",
         "required": [
@@ -54031,6 +54307,27 @@
                 ],
                 "format": "int32",
                 "minimum": 0
+              },
+              "sr_watch_party_episode_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "An episode of that title, for a series."
+              },
+              "sr_watch_party_room": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "SIDE ROOM \"Watch party room\" preset (D-208): with a voice channel (`type` 2), also start a persistent\nwatch party bound to it. Needs `sr_watch_party_title_id`; the party survives being empty and the first\nperson to join becomes host."
+              },
+              "sr_watch_party_title_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The title the room starts with (a Cinema title snowflake)."
               },
               "topic": {
                 "type": [
@@ -62184,6 +62481,12 @@
               "null"
             ]
           },
+          "hide_contributions": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "hide_name": {
             "type": [
               "boolean",
@@ -62197,7 +62500,8 @@
         "required": [
           "hide_name",
           "hide_amount",
-          "hide_badge"
+          "hide_badge",
+          "hide_contributions"
         ],
         "properties": {
           "hide_amount": {
@@ -62205,6 +62509,10 @@
           },
           "hide_badge": {
             "type": "boolean"
+          },
+          "hide_contributions": {
+            "type": "boolean",
+            "description": "Off the contributor boards (movies, episodes, chapters)."
           },
           "hide_name": {
             "type": "boolean"
@@ -69743,9 +70051,6 @@
       "WatchPartyChangeMedia": {
         "type": "object",
         "description": "Body of `PUT /watch-parties/{id}/media`.",
-        "required": [
-          "title_id"
-        ],
         "properties": {
           "episode_id": {
             "type": [
@@ -69761,7 +70066,15 @@
             "format": "int64"
           },
           "title_id": {
-            "type": "string"
+            "type": "string",
+            "description": "The Cinema title, or \"0\" with `tv_channel_id`."
+          },
+          "tv_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Switch to a Live TV channel."
           },
           "variant_id": {
             "type": [
@@ -69831,9 +70144,6 @@
       "WatchPartyCreate": {
         "type": "object",
         "description": "Body of `POST /watch-parties`.",
-        "required": [
-          "title_id"
-        ],
         "properties": {
           "channel_id": {
             "type": [
@@ -69867,7 +70177,15 @@
             "description": "Where to start, in milliseconds (default 0)."
           },
           "title_id": {
-            "type": "string"
+            "type": "string",
+            "description": "The Cinema title. Omit it (or send \"0\") for a Live TV party and give `tv_channel_id` instead."
+          },
+          "tv_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A Live TV channel to watch together (no seeking; everyone follows the live edge)."
           },
           "variant_id": {
             "type": [

@@ -197,6 +197,9 @@ export function CinemaFooter() {
         Side Room <em>Cinema</em>
       </span>
       <span className="cin-footer-tag">{t('cinema.shell.tagline')}</span>
+      <a href="/support/leaderboards?tab=movies" className="cin-footer-link">
+        {t('cinema.shell.contributorBoards')}
+      </a>
       <a href="/house-notes" className="cin-footer-link">
         {t('cinema.shell.aboutLibrary')}
       </a>

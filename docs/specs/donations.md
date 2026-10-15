@@ -94,8 +94,8 @@ States: `open`, `seen` (in mempool), `confirming` (1..depth-1 confirmations), `c
   (`sr_payments::Entitlements`) is the cached read trait other crates use: `user(id)`, `guild(id)`, `limits(user, guild)`.
   Cache TTL 60 s, dropped on every `SR_ENTITLEMENT_UPDATE` this process emits.
 * Download perk: `sr_db::media_repo::EntitlementDownloads` implements `sr_media::downloads::DownloadEntitlements` on top
-  of `Entitlements` (Patron, including grace). The legacy `cinema_download_grants` table still works as a fallback until
-  `SR_DOWNLOADS_LEGACY_FALLBACK=0`; migration `0542` copied the unexpired legacy grants into `entitlement_grants`
+  of `Entitlements` (Patron, including grace). The legacy `cinema_download_grants` table still works as a fallback only when
+  `SR_DOWNLOADS_LEGACY_FALLBACK=1` (off by default since Phase 12); migration `0542` copied the unexpired legacy grants into `entitlement_grants`
   (source `migrated`). Cutover plan in the handoff.
 
 ## 5. Gateway
@@ -121,9 +121,10 @@ installation has no wallet or `enabled` is false: 403 `SR_FEATURE_DISABLED` on c
 | `POST /donations/invoices/{id}/check` | | the "I've paid" button: polls this invoice now (at most once per 10 s per invoice), returns `Invoice` |
 | `POST /donations/invoices/{id}/cancel` | | 200 `Invoice`; only `open` with nothing received (409 otherwise) |
 | `GET /donations/me` | | `{patron:{active,in_grace,permanent,until_ms,started_ms}, limits, preferences}` |
-| `PATCH /donations/me/preferences` | `{hide_name?, hide_amount?, hide_badge?}` | preferences |
+| `PATCH /donations/me/preferences` | `{hide_name?, hide_amount?, hide_badge?, hide_contributions?}` | preferences (`hide_contributions` keeps the account off the contributor boards) |
 | `GET /guilds/{id}/support` | | `{level, pool_cents, next_threshold_cents, grace_until_ms, perks, top_contributors:[{user_id?, name?, cents?}], hidden_from_leaderboard}` (members only) |
 | `PATCH /guilds/{id}/support` | `{hidden_from_leaderboard}` | guild owner only (403 for other members, 404 for non-members) |
+| `GET /donations/leaderboards/contributors/{kind}` | kind `movies` \| `episodes` (Cinema) \| `chapters` (Library); `limit` (<= 100) | `{kind, items:[{rank, user_id, name, avatar?, count}], me:{rank, count}\|null, generated_at_ms}` over `contribution_credits` (credits that were not revoked; a Cinema credit counts as a movie when its item is a title and as an episode when it is an episode). Accounts that opted out or were hidden by staff are left out; cached 1 h, dropped at once when someone opts out |
 | `GET /donations/leaderboards/{board}` | board `donors` \| `servers`; `window` `30d`\|`lifetime`; `limit` (<= 100) | `{board, window, items:[{rank, user_id?, guild_id?, name, avatar?, cents?, anonymous}], me:{rank, cents?}\|null, generated_at_ms}` cached 1 h. Hidden names read "Anonymous patron", hidden amounts are omitted |
 
 `Invoice`: `{id, purpose, state, usd_cents, sats, btc, address, bip21, network, guild_id, months, credits, anonymous,
@@ -162,7 +163,7 @@ creation answers 403 `SR_FEATURE_DISABLED`). Misconfiguration is logged, never f
 | `SR_PAYMENTS_ESPLORA_URL` | Esplora REST base (`https://mempool.space/api` or a self-hosted electrs/mempool). Read-only: `GET /blocks/tip/height` and `GET /address/{a}/txs` for addresses this server derived |
 | `SR_PAYMENTS_RATE_SOURCES` | JSON array `[{"name","url","pointer"}]` of price sources; `pointer` is an RFC 6901 pointer to the USD price (`/data/amount`). At most 5. The median is used; sources that disagree by more than 10% are refused |
 | `SR_PAYMENTS_DESCRIPTOR`, `SR_PAYMENTS_NETWORK` | A watch-only descriptor to register at startup when no wallet exists (`mainnet` default). Admin > Donations > Wallet does the same with a reason and an access-log row |
-| `SR_DOWNLOADS_LEGACY_FALLBACK` | `1` (default): `cinema_download_grants` still grants the download perk; `0`: only entitlements do |
+| `SR_DOWNLOADS_LEGACY_FALLBACK` | `0` (default since Phase 12): only entitlements grant the download perk; `1`: `cinema_download_grants` still does |
 
 Jobs (`sr-server/src/payments_jobs.rs`): `payments.watch` every 15 s (polls invoices whose `next_check_ms` passed: 30 s
 for open and confirming invoices, 5 min for freshly expired ones, hourly for old ones; stops at `finality_confirmations`
@@ -188,8 +189,8 @@ depths, expiry) is `DonationConfig`, edited in Admin > Donations > Pricing and p
    `downloads_per_day` (20).
 2. `EntitlementDownloads` (sr-db) implements `sr_media::downloads::DownloadEntitlements` over `Entitlements`; with
    `SR_DOWNLOADS_LEGACY_FALLBACK=1` it still honours the old table for anyone who is not a Patron yet.
-3. When staff have checked Admin > Entitlements, set `SR_DOWNLOADS_LEGACY_FALLBACK=0`. A later migration may drop
-   `cinema_download_grants` (not done here).
+3. Since Phase 12 the fallback defaults to `0`. Staff check Admin > Entitlements before upgrading; `1` re-enables it
+   temporarily. A later phase removes the flag and drops `cinema_download_grants`.
 
 ## 10. What no test or code here touched
 

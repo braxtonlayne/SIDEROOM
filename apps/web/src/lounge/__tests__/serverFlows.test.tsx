@@ -343,6 +343,43 @@ describe('Create Channel / Category', () => {
     expect(useStore.getState().channels.c2?.name).toBe('book-chat');
   });
 
+  it('the Watch party room preset sends one request with the first title', async () => {
+    seed('1');
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.get('*/api/v1/cinema/search', () =>
+        HttpResponse.json({ titles: [{ id: '10', kind: 'movie', title: 'Akira', year: 1988 }] }),
+      ),
+      http.post('*/api/v1/guilds/g1/channels', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { id: 'v9', type: 2, guild_id: 'g1', name: body.name },
+          { status: 201 },
+        );
+      }),
+    );
+    at('/channels/g1/c1');
+    await openServerMenu();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Create Channel' }));
+    await userEvent.click(screen.getByRole('radio', { name: /Watch party room/ }));
+    await userEvent.type(screen.getByLabelText('Channel name'), 'Movie night');
+    // The room needs a title before it can be made.
+    await userEvent.click(screen.getByRole('button', { name: 'Create Channel' }));
+    expect(await screen.findByText('Pick the title the room starts with.')).toBeInTheDocument();
+    expect(body).toEqual({});
+    await userEvent.type(await screen.findByLabelText('Search the cinema'), 'aki');
+    await userEvent.click(await screen.findByRole('button', { name: 'Select Akira' }));
+    expect(screen.getByText(/Starts with Akira/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Create Channel' }));
+    await waitFor(() => expect(body.name).toBe('Movie night'));
+    expect(body).toEqual({
+      name: 'Movie night',
+      type: 2,
+      sr_watch_party_room: true,
+      sr_watch_party_title_id: '10',
+    });
+  });
+
   it('private voice channel sends a VIEW_CHANNEL overwrite for @everyone', async () => {
     seed('1');
     let body: Record<string, unknown> = {};

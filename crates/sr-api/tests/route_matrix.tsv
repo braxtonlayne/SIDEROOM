@@ -85,6 +85,7 @@ DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
 DELETE	/users/@me/birthday	authenticated	self	deny	-
 DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
+DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-
 DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
@@ -242,6 +243,7 @@ GET	/directory/{guild_id}	authenticated	other	deny	-
 GET	/donations/config	authenticated	other	allow	-
 GET	/donations/invoices	authenticated	other	allow	-
 GET	/donations/invoices/{invoice_id}	authenticated	other	allow	-
+GET	/donations/leaderboards/contributors/{kind}	authenticated	other	allow	-
 GET	/donations/leaderboards/{board}	authenticated	other	allow	-
 GET	/donations/me	authenticated	other	allow	-
 GET	/gateway	public	none	allow	-
@@ -719,6 +721,7 @@ PUT	/sr/auth/username	authenticated	self	deny	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
 PUT	/submissions/{submission_id}/library/series	authenticated	other	allow	-
 PUT	/users/@me/birthday	authenticated	self	deny	-
+PUT	/tv/reminders/{block_id}	authenticated	self	deny	-
 PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-
 PUT	/users/@me/connections/link	authenticated	self	deny	-
 PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-

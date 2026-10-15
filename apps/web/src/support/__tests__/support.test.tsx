@@ -75,7 +75,12 @@ const ME: Me = {
     patron: false,
     guild_level: 0,
   },
-  preferences: { hide_name: false, hide_amount: false, hide_badge: false },
+  preferences: {
+    hide_name: false,
+    hide_amount: false,
+    hide_badge: false,
+    hide_contributions: false,
+  },
 };
 
 const invoice = (over: Partial<Invoice> = {}): Invoice => ({
@@ -287,7 +292,12 @@ describe('Support / Patron settings', () => {
     server.use(
       http.patch('*/api/v1/donations/me/preferences', async ({ request }) => {
         patch = await request.json();
-        return HttpResponse.json({ hide_name: true, hide_amount: false, hide_badge: false });
+        return HttpResponse.json({
+          hide_name: true,
+          hide_amount: false,
+          hide_badge: false,
+          hide_contributions: false,
+        });
       }),
     );
     openSupport();
@@ -297,6 +307,27 @@ describe('Support / Patron settings', () => {
       'href',
       '/support/leaderboards',
     );
+  });
+
+  it('lets a contributor leave the contributor boards', async () => {
+    supportApi();
+    let patch: unknown;
+    server.use(
+      http.patch('*/api/v1/donations/me/preferences', async ({ request }) => {
+        patch = await request.json();
+        return HttpResponse.json({
+          hide_name: false,
+          hide_amount: false,
+          hide_badge: false,
+          hide_contributions: true,
+        });
+      }),
+    );
+    openSupport();
+    await userEvent.click(
+      await screen.findByRole('switch', { name: /Keep me off the contributor boards/ }),
+    );
+    await waitFor(() => expect(patch).toEqual({ hide_contributions: true }));
   });
 
   it('lists the history and opens a receipt for a paid invoice', async () => {

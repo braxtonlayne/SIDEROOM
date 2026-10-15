@@ -1,0 +1,43 @@
+# Handoff: feat/p12-tv-wp-be (Live TV, watch parties, donations follow-ups)
+
+Worktree `SIDEROOM_wt/p12-tv-wp-be`, branch `feat/p12-tv-wp-be` (base: the answers branch with D-185 to D-216). Items G-07, G-08, G-09, G-10, G-11, G-12, G-13, G-14 and G-16 of `docs/dev/answers-followups-p12.md`, all ticked there. Inventory boxes ticked: TV-PLY-005, DON-LB-001, DON-LB-003, WP-BE-009, WP-BE-010; notes updated on TV-UI-006, TV-ENG-001, DON-LB-002, DON-ENT-006, WP-BE-007, WP-FE-008.
+
+## Done
+
+- **G-07 legacy download fallback off.** `SR_DOWNLOADS_LEGACY_FALLBACK` now defaults to `0` (`payments_jobs.rs`); only `1` turns the old `cinema_download_grants` fallback on. `deploy/RUNBOOK.md` has the upgrade note ("check Admin, Entitlements first"), `docs/specs/donations.md` is updated. The flag and the table are still there; removing them (and `07xx_drop_cinema_download_grants.sql`) is next phase's job.
+- **G-08 contributor leaderboards.** Migration `0781_contributor_leaderboards.sql` (`donor_preferences.hide_contributions`). `PaymentRepo::leaderboard_contributors` / `contributor_rank` (Postgres and memory). `GET /donations/leaderboards/contributors/{kind}` (`movies`, `episodes`, `chapters`; hourly cache; the cache is dropped when someone opts out). A Cinema credit counts as a movie when `ref_id` is a `video_titles` row and as an episode when it is a `video_episodes` row; chapters are the `library` credits; revoked credits and staff-hidden accounts are left out. `PATCH /donations/me/preferences` takes `hide_contributions`. Web: movie, episode and chapter tabs on `/support/leaderboards` (`?tab=` opens one), the opt-out switch in Settings, Support, links from the Cinema and Library footers.
+- **G-09 block length from the asset.** `RepoTvCatalog::with_asset_durations(PgAssetDurations)` replaces `duration_ms` with `video_assets.duration_ms` (when probed and positive) before the pool filters run; `runtime_min * 60_000` stays the fallback. Test with a 95 minute title whose asset is 80 minutes 30 seconds.
+- **G-10 TV reminders.** Migration `0780_tv_reminders.sql` (no FK to `tv_blocks` on purpose, so a regenerated block can still be answered). `PUT|DELETE /tv/reminders/{block_id}` (session only; bots 403 by `UserOnly` and listed in `bot_denied`), optional `?lead_minutes=` (0 to 120, default 5). `TvService::fire_reminders` is called by the existing 15 second `userfeat.tick` job; delivery is a DM from the system user (`TvReminders` sink in `sr-server/src/userfeat.rs`), which is a notification and a push exactly like any other DM, so no second push path was built. A block that was regenerated away (gone or moved) gets a "Reminder dropped" DM; a failed send is retried every 30 s until the programme starts; each reminder is handed out once (`DELETE ... RETURNING`, `SKIP LOCKED`). The web "Remind me" button already called the route, nothing to change there.
+- **G-11 all-day daypart.** Pinned with a test (`00:00-00:00`, `00:00-24:00`, `08:00-08:00` give 48 hours of programmes, no slate); the RulesEditor shows "All day: ..." as the end hint when start equals end.
+- **G-12 IANA zones via `jiff`.** `jiff 0.2` with `std` + `tzdb-bundle-always` (downloaded and locked; `cargo deny check licenses bans` passes). `sr-tv/src/tz.rs` is now a thin `Zone` over `jiff::tz::TimeZone`: `parse`, `offset_secs`, `to_local`, `from_local` (gap = jump forward, overlap = first occurrence), `local_day`; `zone_names()` backs `GET /tv/timezones` (every zone). All the old DST tests pass unchanged, plus tests for Kathmandu, Chatham, Lord Howe, Sao Paulo's abolished DST and the pre-2007 US rule. `Zone` is `Clone`, no longer `Copy`.
+- **G-13 watch party room preset.** `POST /guilds/{id}/channels` accepts `sr_watch_party_room: true` + `sr_watch_party_title_id` (+ `sr_watch_party_episode_id`) on a voice channel: the channel is created, then a persistent bound party; the creator leaves it again so the first person to join an empty room hosts. If the party cannot start (unknown title, age gate, party limit) the new channel is deleted again. Bots get 403. Web: a "Watch party room" kind in the create-channel dialog with the title picker (lazy loaded).
+- **G-14 party limits from entitlements.** `EntitlementLimits` (`sr-server/src/watchparty.rs`) over `Entitlements::limits(0, Some(guild))`, wired in `app.rs`; `FreeTier` is gone (`sr_watchparty::FixedLimit(2)` remains as the default when nothing is wired). The cache is invalidated by the payment service on `SR_ENTITLEMENT_UPDATE` as before. Postgres test: a free server stops at 2, the same server at Level 2 stops at 8.
+- **G-16 Live TV parties.** `CreateInput` and `ChangeMediaInput` take `tv_channel_id` (`title_id` is optional then); `PlayGate::resolve_live` (default NotFound) is answered by `TvService` (`sr-tv/src/gate.rs`, `sr-tv` now depends on `sr-watchparty`); the server composes `CatalogAndLiveGate` (Cinema titles from `CinemaPlayGate`, channels from the TV service). The party media has `live: true`, `title_id` and `asset_id` hold the TV channel id, no duration; the state machine already refuses seek, pause and speed for live. Same age rule as `/tv/channels/{id}/tune`. Web: `StartPartyDialog` takes `liveChannel`, `loadPartyMedia` tunes the channel for a live party, "Watch together" on the guide's now panel and in the live player's control bar (`cinema/tv/WatchTogether.tsx`).
+- OpenAPI, the TypeScript client and the MSW handlers are regenerated; the route matrix has the three new rows (reviewed: `self`, `self`, `other`); `docs/specs/watch-parties.md`, `cinema-live-tv.md`, `donations.md` and doc 03 (jiff row) are updated.
+- New i18n fragments: `p12-tvwp-1.ts` (all-day hint), `p12-tvwp-2.ts` (contributor boards), `p12-tvwp-3.ts` (watch party room, Watch together).
+
+## Not done / open
+
+- Nothing from the assigned list was skipped. Not touched: G-15 (spec drift band, another agent), and the WP-FE-008 "message card" entry point (the in-chat party card does not exist; the box stays open).
+- G-07 follow-up: remove the flag and add the drop migration next phase.
+- The reminder DM is not user-configurable per account beyond the per-request lead; there is no "my reminders" list route (the popover cannot show an already-set reminder after a reload; setting it again is idempotent).
+- Live party media identifies the channel by `title_id` (and `asset_id`) rather than a new column; clients must read `media.live` first. A restricted programme that starts after the party began is still gated at tune time, not at party level.
+- `0781` was my pick for the leaderboard migration (the follow-up names none); it must not collide with other branches (0770, 0771, 0790 to 0794, 0796 are named elsewhere).
+
+## Tests run
+
+- `cargo fmt --check`, `cargo clippy -D warnings --all-targets` on sr-tv, sr-watchparty, sr-payments, sr-db, sr-api, sr-server: clean. `cargo deny check licenses bans`: ok.
+- Rust: `sr-tv` (51 unit + 3 Postgres), `sr-watchparty` (39 unit + 22 Postgres incl. the live party test), `sr-payments`, `sr-api` (499 lib + integration incl. route matrix, donations contributor boards, the room preset validation), `sr-db` `payments_repo` contributor board test (Postgres), `sr-server` Postgres tests `tv_wiring_pg_tests` (3 new: asset length, reminders, existing) and `watchparty_pg_tests` (2 new: persistent room, limits by level). Postgres runs used `--include-ignored --test-threads=1` against scratch databases created and dropped by `TestDb`.
+- Web: typecheck, eslint, prettier clean; `vite build` and `scripts/check-bundle-budget.mjs` pass (watch-party 235.9 KB gzip of 600). Whole vitest suite with `--maxWorkers=2`: 1640 of 1642 pass; the two failures (`admin/cinema.test.tsx` navigation) are load timeouts and pass alone. `serverFlows.test.tsx > Add a Server > Create My Own` failed once on the untouched base too (flaky under load, passed in the full run).
+
+## Decisions
+
+- Reminders are delivered as the system-user DM (reusing the DM push path) instead of a new notification type.
+- The room preset needs a first title because a party row requires media; the preset dialog asks for it.
+- `FreeTier` was replaced by `FixedLimit` rather than deleted outright so `PartyService::new` still has a default.
+- Contributor boards use `hide_contributions` on `donor_preferences` (the table already carries the staff-hide flag) instead of a new table.
+
+## Open owner questions
+
+- Should reminders have a user setting for the lead time and a list view ("my reminders")? Today: per-request lead only.
+- Should the Watch party room be able to start empty (no title) so the room can exist before anyone picks something? That needs a nullable media on `watch_parties`.

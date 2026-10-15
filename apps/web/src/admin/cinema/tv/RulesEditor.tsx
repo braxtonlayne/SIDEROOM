@@ -141,7 +141,11 @@ function DaypartEditor({
         <TextInput
           label={t('admin.rulesEditor.end', { n })}
           type="time"
-          hint={t('admin.rulesEditor.endHint')}
+          hint={
+            value.start === value.end
+              ? t('admin.rulesEditor.allDay')
+              : t('admin.rulesEditor.endHint')
+          }
           value={value.end}
           onChange={(e) => onChange({ ...value, end: e.target.value })}
         />

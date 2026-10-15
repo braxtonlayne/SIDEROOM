@@ -1,15 +1,20 @@
 import { Button, Checkbox, Modal, Switch, TextInput } from '@sideroom/ui';
-import { useState, type FormEvent } from 'react';
+import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import { rest, useStore } from '../store';
 import { useGotoGuild } from './AddServerDialog';
 import { useChannels, useCurrentUser, useGuild, useMembers, useRoles } from './data';
 import { slugChannelName } from './inviteFlow';
+import type { PickedTitle } from '../watchparty/TitlePicker';
+
+const TitlePicker = lazy(() =>
+  import('../watchparty/TitlePicker').then((m) => ({ default: m.TitlePicker })),
+);
 
 const VIEW_CHANNEL = (1n << 10n).toString();
 
-type Kind = 'text' | 'voice' | 'announcement' | 'forum' | 'stage' | 'media';
+type Kind = 'text' | 'voice' | 'party' | 'announcement' | 'forum' | 'stage' | 'media';
 
 const KINDS: { kind: Kind; type: number; labelKey: string; blurbKey: string; slug: boolean }[] = [
   {
@@ -24,6 +29,14 @@ const KINDS: { kind: Kind; type: number; labelKey: string; blurbKey: string; slu
     type: 2,
     labelKey: 'lounge.createChannelDialog.kindVoice',
     blurbKey: 'lounge.createChannelDialog.kindVoiceBlurb',
+    slug: false,
+  },
+  {
+    // D-208: no channel type of its own; a voice channel with a persistent party bound to it.
+    kind: 'party',
+    type: 2,
+    labelKey: 'lounge.createChannelDialog.kindParty',
+    blurbKey: 'lounge.createChannelDialog.kindPartyBlurb',
     slug: false,
   },
   {
@@ -85,6 +98,7 @@ export function CreateChannelDialog({
     roles: [],
     members: [],
   });
+  const [title, setTitle] = useState<PickedTitle | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isCategory = !!categoryOnly;
@@ -116,9 +130,18 @@ export function CreateChannelDialog({
             : 'lounge.createChannelDialog.channelNameRequired',
         ),
       );
+    if (!isCategory && kind === 'party' && !title)
+      return setError(t('lounge.createChannelDialog.partyTitleRequired'));
     const body: rest.CreateChannelBody = {
       name: clean,
       type: isCategory ? 4 : def.type,
+      ...(!isCategory && kind === 'party' && title
+        ? {
+            sr_watch_party_room: true,
+            sr_watch_party_title_id: title.titleId,
+            ...(title.episodeId ? { sr_watch_party_episode_id: title.episodeId } : {}),
+          }
+        : {}),
       ...(parentId && !isCategory ? { parent_id: parentId } : {}),
       ...(isPrivate
         ? {
@@ -188,6 +211,22 @@ export function CreateChannelDialog({
               </label>
             ))}
           </fieldset>
+        )}
+        {!isCategory && kind === 'party' && (
+          <div className="lng-party-title">
+            {title ? (
+              <p>
+                {t('lounge.createChannelDialog.partyStartsWith', { label: title.label })}{' '}
+                <Button size="sm" variant="ghost" onClick={() => setTitle(null)}>
+                  {t('lounge.createChannelDialog.partyChange')}
+                </Button>
+              </p>
+            ) : (
+              <Suspense fallback={null}>
+                <TitlePicker onPick={setTitle} />
+              </Suspense>
+            )}
+          </div>
         )}
         <TextInput
           label={

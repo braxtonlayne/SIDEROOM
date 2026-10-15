@@ -627,7 +627,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         routes::tv::TvDeps::new(
             sr_tv::TvService::new(
                 Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
-                Arc::new(crate::tv_catalog::RepoTvCatalog::new(cinema_repo)),
+                Arc::new(
+                    crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(
+                        Arc::new(crate::tv_catalog::PgAssetDurations::new(pool.clone())),
+                    ),
+                ),
                 clock.clone(),
                 id_src.clone(),
             )
@@ -638,6 +642,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
+    let tv_deps_for_reminders = tv_deps.clone();
 
     // Cinema media (CIN-ING-004/010, CIN-DL-001): the Postgres job store behind the Worker API
     // (`/api/v1/transcode/worker`, bearer worker tokens), the staff upload and transcoding admin,
@@ -738,12 +743,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // gateway events on the bus. The timer worker settles buffering waits; the sweep job covers the rest.
     let watchparty_service =
         sr_watchparty::PartyService::new(pool.clone(), clock.clone(), id_src.clone())
-            .with_play_gate(Arc::new(crate::watchparty::CinemaPlayGate::new(
-                cinema_service.clone(),
+            .with_play_gate(Arc::new(crate::watchparty::CatalogAndLiveGate::new(
+                Arc::new(crate::watchparty::CinemaPlayGate::new(
+                    cinema_service.clone(),
+                )),
+                tv_deps.service.clone(),
             )))
             .with_channels(Arc::new(crate::watchparty::ChatChannelAccess::new(
                 PgChatRepo::new(pool.clone()),
                 clock.clone(),
+            )))
+            .with_limits(Arc::new(crate::watchparty::EntitlementLimits::new(
+                payments.entitlements.clone(),
             )))
             .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())))
             .with_chat(Arc::new(crate::userfeat::PartyAnnouncer {
@@ -961,6 +972,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     if feature_poster.set(system_poster.clone()).is_err() {
         tracing::warn!("the feature poster was already set");
     }
+    let system_poster_for_tv = system_poster.clone();
     let feed_policy = unfurl_policy_for_feeds.clone();
     let ticker = Arc::new(sr_userfeat::tick::Ticker::new(
         user_features.clone(),
@@ -1200,7 +1212,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
-    let runner = crate::userfeat::register(runner, &pool, ticker);
+    let tv_reminders = Arc::new(crate::userfeat::TvReminders {
+        tv: tv_deps_for_reminders,
+        poster: system_poster_for_tv,
+        base_url: cfg.server.public_url.trim_end_matches('/').to_owned(),
+    });
+    let runner = crate::userfeat::register(runner, &pool, ticker, Some(tv_reminders));
     let runner = crate::media_jobs::register(
         runner,
         &pool,

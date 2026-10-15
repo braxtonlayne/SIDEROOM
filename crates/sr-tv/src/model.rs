@@ -527,7 +527,7 @@ pub struct ChannelRecord {
 
 impl ChannelRecord {
     pub fn zone(&self) -> Zone {
-        Zone::parse(&self.input.timezone).unwrap_or(Zone::parse("UTC").expect("UTC is built in"))
+        Zone::parse(&self.input.timezone).unwrap_or_else(Zone::utc)
     }
 }
 
@@ -735,4 +735,16 @@ mod tests {
         assert_eq!(parse_hm("9:30"), None);
         assert_eq!(parse_hm("12:60"), None);
     }
+}
+
+/// A member's reminder for one upcoming block (TV-PLY-005). The title and start are a snapshot taken when
+/// the reminder was set, so a notice can still name the programme after the schedule changed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReminderRecord {
+    pub account_id: i64,
+    pub block_id: i64,
+    pub channel_id: i64,
+    pub title: String,
+    pub start_ms: i64,
+    pub remind_at_ms: i64,
 }

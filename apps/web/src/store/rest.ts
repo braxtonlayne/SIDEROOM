@@ -206,6 +206,10 @@ export interface CreateChannelBody {
   parent_id?: string | null;
   topic?: string | null;
   permission_overwrites?: { id: string; type: number; allow?: string; deny?: string }[];
+  /** The "Watch party room" preset (D-208): a voice channel plus a persistent party; needs a title. */
+  sr_watch_party_room?: boolean;
+  sr_watch_party_title_id?: string;
+  sr_watch_party_episode_id?: string;
 }
 
 export type GuildWithChannels = Guild & { channels?: Channel[]; roles?: Role[] };

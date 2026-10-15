@@ -4,12 +4,15 @@
 //! * Only published, non-merged titles and published episodes are offered (the repository's `Public`
 //!   scope), and only when they have an asset and a runtime: a film needs its own `asset_id` and
 //!   `runtime_min`, an episode its own asset and `runtime_min` (falling back to the title's).
+//! * Block length comes from the asset (`video_assets.duration_ms`, G-09) when the asset has been probed;
+//!   the catalog `runtime_min` is the fallback. Pool runtime filters use the same length.
 //! * Age-restricted titles are offered like any other (D-184); the pool filter decides whether a channel
 //!   wants them, and opening the stream is what needs age confirmation.
 //! * An anime without episodes is a film. Genres and tags are lower case (the catalog lower-cases both on
 //!   write), and the item carries both.
 //! * Order: the order of `title_ids` when given, else by title; episodes by season and number.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -20,9 +23,45 @@ use sr_cinema::repo::{CinemaRepository, EpisodeQuery};
 use sr_tv::model::{MediaKind, PoolFilter, Restricted};
 use sr_tv::{CatalogItem, TvCatalog, TvError, TvResult};
 
+/// Probed lengths of video assets, in milliseconds.
+#[async_trait]
+pub trait AssetDurations: Send + Sync {
+    /// Asset id to duration for every asset that has a positive probed duration; others are absent.
+    async fn durations(&self, asset_ids: &[i64]) -> TvResult<HashMap<i64, i64>>;
+}
+
+/// [`AssetDurations`] over `video_assets.duration_ms`.
+pub struct PgAssetDurations {
+    pool: sqlx::PgPool,
+}
+
+impl PgAssetDurations {
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl AssetDurations for PgAssetDurations {
+    async fn durations(&self, asset_ids: &[i64]) -> TvResult<HashMap<i64, i64>> {
+        if asset_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let rows: Vec<(i64, i64)> = sqlx::query_as(
+            "SELECT id, duration_ms FROM video_assets WHERE id = ANY($1) AND duration_ms > 0",
+        )
+        .bind(asset_ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| TvError::Catalog(e.to_string()))?;
+        Ok(rows.into_iter().collect())
+    }
+}
+
 /// [`TvCatalog`] over the catalog repository.
 pub struct RepoTvCatalog {
     repo: Arc<dyn CinemaRepository>,
+    durations: Option<Arc<dyn AssetDurations>>,
 }
 
 /// Titles read per pool at most (ten pages of a hundred).
@@ -31,7 +70,31 @@ const PAGE: u32 = 100;
 
 impl RepoTvCatalog {
     pub fn new(repo: Arc<dyn CinemaRepository>) -> Self {
-        Self { repo }
+        Self {
+            repo,
+            durations: None,
+        }
+    }
+
+    /// Takes block lengths from the probed assets instead of the catalog runtimes.
+    pub fn with_asset_durations(mut self, durations: Arc<dyn AssetDurations>) -> Self {
+        self.durations = Some(durations);
+        self
+    }
+
+    /// Replaces each item's length with its asset's probed duration when there is one.
+    async fn apply_durations(&self, items: &mut [CatalogItem]) -> TvResult<()> {
+        let Some(d) = &self.durations else {
+            return Ok(());
+        };
+        let ids: Vec<i64> = items.iter().map(|i| i.asset_id).collect();
+        let found = d.durations(&ids).await?;
+        for i in items {
+            if let Some(ms) = found.get(&i.asset_id) {
+                i.duration_ms = *ms;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -108,17 +171,19 @@ fn episode_item(t: &TitleRecord, e: &EpisodeRecord) -> Option<CatalogItem> {
 
 impl RepoTvCatalog {
     async fn items_of(&self, t: &TitleRecord) -> TvResult<Vec<CatalogItem>> {
-        if kind_of(t) == MediaKind::Movie {
-            return Ok(film_item(t).into_iter().collect());
-        }
-        Ok(self
-            .repo
-            .list_episodes(t.id, &EpisodeQuery::default(), Scope::Public)
-            .await
-            .map_err(failed)?
-            .iter()
-            .filter_map(|e| episode_item(t, e))
-            .collect())
+        let mut items: Vec<CatalogItem> = if kind_of(t) == MediaKind::Movie {
+            film_item(t).into_iter().collect()
+        } else {
+            self.repo
+                .list_episodes(t.id, &EpisodeQuery::default(), Scope::Public)
+                .await
+                .map_err(failed)?
+                .iter()
+                .filter_map(|e| episode_item(t, e))
+                .collect()
+        };
+        self.apply_durations(&mut items).await?;
+        Ok(items)
     }
 
     async fn titles(&self, f: &PoolFilter, channel_restricted: bool) -> TvResult<Vec<TitleRecord>> {
@@ -204,20 +269,29 @@ impl TvCatalog for RepoTvCatalog {
         else {
             return Ok(None);
         };
-        match episode_id {
-            None => Ok(if kind_of(&t) == MediaKind::Movie {
-                film_item(&t)
-            } else {
-                None
-            }),
-            Some(id) => Ok(self
+        let found = match episode_id {
+            None => {
+                if kind_of(&t) == MediaKind::Movie {
+                    film_item(&t)
+                } else {
+                    None
+                }
+            }
+            Some(id) => self
                 .repo
                 .get_episode(id)
                 .await
                 .map_err(failed)?
                 .filter(|e| e.title_id == title_id)
-                .and_then(|e| episode_item(&t, &e))),
-        }
+                .and_then(|e| episode_item(&t, &e)),
+        };
+        let Some(item) = found else {
+            return Ok(None);
+        };
+        let mut items = [item];
+        self.apply_durations(&mut items).await?;
+        let [item] = items;
+        Ok(Some(item))
     }
 
     async fn bumpers(&self, limit: usize) -> TvResult<Vec<CatalogItem>> {

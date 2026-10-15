@@ -46,6 +46,7 @@ Applied as rules:
 | Archives | `zip`, `unrar` bindings, `sevenz-rust`, `pdfium-render` (PDF raster) | ✅/⚠️ | |
 | EPUB | `epub` crate (metadata, spine). Rendered client-side | ✅ | |
 | Bitcoin | In-house watch-only derivation on `secp256k1`, `bitcoin_hashes`, `bech32` (BIP-32/84/380) and an Esplora client; `bdk_wallet` and `bdk_esplora` are not used (D-207) | ✅ | ADR-0006 and its addendum |
+| Time zones | `jiff` (bundled tz database, `tzdb-bundle-always`; MIT/Unlicense) | ✅ | P8-TV-4, Live TV channel zones |
 | Lightning (later) | LDK (`lightning`, `ldk-node`) | ✅ | |
 | Email (verification, recovery) | `lettre` (SMTP) | ✅ | Operator supplies SMTP |
 | Reverse proxy | **Caddy** | ❌ Go | Only for TLS/HTTP3/static. Optional. `sr-server` can serve TLS itself via `rustls` |

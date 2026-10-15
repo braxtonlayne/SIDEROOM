@@ -6,11 +6,13 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+jiff = { version = "0.2", default-features = false, features = ["std", "tzdb-bundle-always"] }
 serde.workspace = true
 serde_json.workspace = true
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
 sr-core = { path = "../sr-core", default-features = false }
 sr-media = { path = "../sr-media" }
+sr-watchparty = { path = "../sr-watchparty" }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync"] }
 tracing = "0.1"

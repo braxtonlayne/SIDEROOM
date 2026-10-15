@@ -23,7 +23,7 @@ pub use error::{PartyError, PartyResult};
 pub use model::Viewer;
 pub use ports::{
     AgeLookup, Announcement, AnnouncementKind, BusEvents, ChannelAccess, ChannelKind, ChannelPerms,
-    ChatHook, FreeTier, GateError, GuildLimits, NoChannels, NoChat, NoEvents, NoGate, PartyEvents,
-    PgAgeLookup, PlayGate, Resolved,
+    ChatHook, FixedLimit, GateError, GuildLimits, NoChannels, NoChat, NoEvents, NoGate,
+    PartyEvents, PgAgeLookup, PlayGate, Resolved,
 };
 pub use service::{IdSource, PartyService};

@@ -46,14 +46,15 @@ use utoipa::OpenApi;
 
 /// Collaborators of the Live TV endpoints.
 pub struct TvDeps {
-    pub service: TvService,
+    /// Shared: the watch party gate for Live TV is this same service (`sr_tv::gate`).
+    pub service: Arc<TvService>,
     age: Arc<dyn AgeGate>,
 }
 
 impl TvDeps {
     pub fn new(service: TvService) -> Self {
         Self {
-            service,
+            service: Arc::new(service),
             age: Arc::new(NoAgeConfirmed),
         }
     }
@@ -177,6 +178,10 @@ pub fn router() -> Router<AppState> {
         .route("/tv/channels", get(member::channels))
         .route("/tv/timezones", get(member::timezones))
         .route("/tv/guide", get(member::guide))
+        .route(
+            "/tv/reminders/{block_id}",
+            axum::routing::put(member::set_reminder).delete(member::clear_reminder),
+        )
         .route("/tv/channels/{channel_id}", get(member::channel))
         .route("/tv/channels/{channel_id}/now", get(member::now))
         .route("/tv/channels/{channel_id}/tune", get(member::tune))
@@ -234,6 +239,8 @@ pub fn router() -> Router<AppState> {
         member::channels,
         member::timezones,
         member::guide,
+        member::set_reminder,
+        member::clear_reminder,
         member::channel,
         member::now,
         member::tune,

@@ -73,6 +73,14 @@ describe('Live TV guide', () => {
     );
   });
 
+  it('offers Watch together on the now panel and opens the party dialog for the channel', async () => {
+    useTvApi();
+    renderAt('/cinema/tv');
+    const panel = await screen.findByRole('region', { name: /On now, channel 101/ });
+    await userEvent.click(within(panel).getByRole('button', { name: /Watch together/ }));
+    expect(await screen.findByText(/Start a party for Channel 101/)).toBeInTheDocument();
+  });
+
   it('selecting another channel changes the preview', async () => {
     useTvApi();
     renderAt('/cinema/tv');

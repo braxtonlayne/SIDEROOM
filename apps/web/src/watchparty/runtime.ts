@@ -44,6 +44,25 @@ export async function loadPartyMedia(
   startMs: number,
   autoplay: boolean,
 ): Promise<void> {
+  if (media.live) {
+    // A Live TV party (G-16): `title_id` is the TV channel. Everybody tunes it themselves and follows the
+    // live edge, so there is no start offset; the player session is told it is a channel (`tv:<id>`).
+    const { LIVE_MEDIA_PREFIX } = await import('../cinema/player/model');
+    if (
+      session.matches(`${LIVE_MEDIA_PREFIX}${media.title_id}`, null) &&
+      session.state.status !== 'error'
+    ) {
+      session.setMode('full');
+      return;
+    }
+    const [{ tuneChannel }, { liveInfo }] = await Promise.all([
+      import('../cinema/tv/api'),
+      import('../cinema/tv/LiveWatch'),
+    ]);
+    await session.start(liveInfo(await tuneChannel(media.title_id)), { autoplay });
+    session.setMode('full');
+    return;
+  }
   const episode = media.episode_id !== '0' ? media.episode_id : null;
   if (session.matches(media.title_id, episode) && session.state.status !== 'error') {
     session.setMode('full');

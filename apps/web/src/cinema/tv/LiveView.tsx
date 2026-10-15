@@ -23,6 +23,7 @@ import {
   type LiveWindow,
 } from './model';
 import type { TuneGrant } from './types';
+import { WatchTogether } from './WatchTogether';
 import '../player/player.css';
 import './live.css';
 
@@ -548,6 +549,7 @@ export function LiveView({
               </span>
             )}
             <span className="cpl-spacer" />
+            {grant && <WatchTogether channel={grant.channel} className="cpl-btn" iconOnly />}
             <button
               type="button"
               className="cpl-btn ltv-textbtn"

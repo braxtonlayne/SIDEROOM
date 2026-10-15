@@ -20,9 +20,9 @@ use crate::model::{
 };
 use crate::ports::{
     AgeLookup, Announcement, AnnouncementKind, ChannelAccess, ChannelKind, ChannelPerms, ChatHook,
-    EVENT_PARTY_MESSAGE, EVENT_PARTY_PLAYBACK, EVENT_PARTY_REACTION, EVENT_PARTY_UPDATE, FreeTier,
-    GateError, GuildLimits, NoChannels, NoChat, NoEvents, NoGate, PartyEvents, PgAgeLookup,
-    PlayGate, Resolved,
+    EVENT_PARTY_MESSAGE, EVENT_PARTY_PLAYBACK, EVENT_PARTY_REACTION, EVENT_PARTY_UPDATE,
+    FixedLimit, GateError, GuildLimits, NoChannels, NoChat, NoEvents, NoGate, PartyEvents,
+    PgAgeLookup, PlayGate, Resolved,
 };
 use crate::rules::{
     self, DEFAULT_MAX_PARTICIPANTS, IDLE_END_MS, MEMBER_STALE_MS, Standing, Window,
@@ -91,7 +91,7 @@ impl PartyService {
                 pool,
                 play: Arc::new(NoGate),
                 channels: Arc::new(NoChannels),
-                limits: Arc::new(FreeTier),
+                limits: Arc::new(FixedLimit(2)),
                 events: Arc::new(NoEvents),
                 chat: Arc::new(NoChat),
                 clock,
@@ -320,10 +320,39 @@ impl PartyService {
             .play
             .resolve(v.adult, title_id, episode_id, variant_id)
             .await
-            .map_err(|e| match e {
-                GateError::NotFound => PartyError::NotFound("title"),
-                GateError::AgeConfirmationRequired => PartyError::AgeConfirmationRequired,
-            })
+            .map_err(gate_error)
+    }
+
+    /// The media of a request: a Cinema title, or a Live TV channel (`tv_channel_id`, G-16) - one of the two.
+    pub(crate) async fn resolve_media(
+        &self,
+        v: Viewer,
+        title_id: i64,
+        tv_channel_id: Option<i64>,
+        episode_id: Option<i64>,
+        variant_id: Option<i64>,
+    ) -> PartyResult<Resolved> {
+        match tv_channel_id.filter(|c| *c > 0) {
+            Some(channel) => {
+                if title_id > 0 || episode_id.is_some() || variant_id.is_some() {
+                    return Err(PartyError::Invalid(
+                        "Give either a title or a Live TV channel, not both.".to_owned(),
+                    ));
+                }
+                self.inner
+                    .play
+                    .resolve_live(v.adult, channel)
+                    .await
+                    .map_err(|e| match e {
+                        GateError::NotFound => PartyError::NotFound("channel"),
+                        other => gate_error(other),
+                    })
+            }
+            None if title_id > 0 => self.resolve(v, title_id, episode_id, variant_id).await,
+            None => Err(PartyError::Invalid(
+                "Give a title or a Live TV channel.".to_owned(),
+            )),
+        }
     }
 
     // ---- reads ---------------------------------------------------------------------------------------
@@ -481,7 +510,13 @@ impl PartyService {
             ));
         }
         let media = self
-            .resolve(v, input.title_id, input.episode_id, input.variant_id)
+            .resolve_media(
+                v,
+                input.title_id,
+                input.tv_channel_id,
+                input.episode_id,
+                input.variant_id,
+            )
             .await?;
         let now = self.now();
         let start = clamp_start(input.start_ms, media.duration_ms, media.live)?;
@@ -1433,6 +1468,13 @@ pub(crate) fn mask(mut v: PartyView) -> PartyView {
 }
 
 /// Validate a start offset against the media.
+fn gate_error(e: GateError) -> PartyError {
+    match e {
+        GateError::NotFound => PartyError::NotFound("title"),
+        GateError::AgeConfirmationRequired => PartyError::AgeConfirmationRequired,
+    }
+}
+
 pub(crate) fn clamp_start(
     start: Option<i64>,
     duration: Option<i64>,
