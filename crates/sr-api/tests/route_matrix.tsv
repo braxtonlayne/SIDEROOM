@@ -21,7 +21,9 @@ DELETE	/admin/transcode/tokens/{token_id}	authenticated	staff	deny	-
 DELETE	/admin/tv/blocks/{block_id}	authenticated	staff	deny	-
 DELETE	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
 DELETE	/applications/{application_id}	authenticated	owner	deny	-
+DELETE	/applications/{application_id}/assets/{asset_id}	authenticated	owner	deny	-
 DELETE	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-
+DELETE	/applications/{application_id}/emojis/{emoji_id}	authenticated	owner	deny	-
 DELETE	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
 DELETE	/applications/{application_id}/testers/{account_id}	authenticated	owner	deny	-
 DELETE	/channels/{channel_id}	authenticated	membership	allow	-
@@ -169,12 +171,17 @@ GET	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}/schedule	authenticated	staff	deny	-
 GET	/admin/tv/report	authenticated	staff	deny	-
 GET	/announcements/active	authenticated	other	deny	-
+GET	/app-directory	authenticated	other	allow	-
+GET	/app-directory/tags	authenticated	other	allow	-
+GET	/app-directory/{application_id}	authenticated	other	allow	-
 GET	/applications	authenticated	owner	deny	-
 GET	/applications/@me	authenticated	owner	allow	-
 GET	/applications/{application_id}	authenticated	owner	deny	-
+GET	/applications/{application_id}/assets	authenticated	owner	deny	-
 GET	/applications/{application_id}/audit-log	authenticated	owner	deny	-
 GET	/applications/{application_id}/commands	authenticated	owner	allow	-
 GET	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-
+GET	/applications/{application_id}/emojis	authenticated	owner	deny	-
 GET	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
 GET	/applications/{application_id}/guilds/{guild_id}/commands/permissions	authenticated	owner	allow	-
 GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
@@ -408,6 +415,7 @@ PATCH	/admin/settings	authenticated	staff	deny	-
 PATCH	/applications/{application_id}	authenticated	owner	deny	-
 PATCH	/applications/{application_id}/bot	authenticated	owner	deny	-
 PATCH	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-
+PATCH	/applications/{application_id}/emojis/{emoji_id}	authenticated	owner	deny	-
 PATCH	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
 PATCH	/channels/{channel_id}	authenticated	membership	allow	-
 PATCH	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-
@@ -534,8 +542,10 @@ POST	/admin/tv/channels/{channel_id}/blocks	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/preview	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-
 POST	/applications	authenticated	owner	deny	-
+POST	/applications/{application_id}/assets	authenticated	owner	deny	-
 POST	/applications/{application_id}/bot/reset-token	authenticated	owner	deny	-
 POST	/applications/{application_id}/commands	authenticated	owner	allow	-
+POST	/applications/{application_id}/emojis	authenticated	owner	deny	-
 POST	/applications/{application_id}/endpoint/verify	authenticated	owner	deny	-
 POST	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
 POST	/applications/{application_id}/interactions-key	authenticated	owner	deny	-
