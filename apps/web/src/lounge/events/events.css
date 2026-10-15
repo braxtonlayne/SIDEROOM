@@ -107,3 +107,52 @@
   font-size: 0.75rem;
   font-weight: 600;
 }
+
+/* Event cover (G-93): a wide image above the event, and the picker row. */
+.lng-event-cover {
+  inline-size: 100%;
+  max-block-size: 9rem;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.lng-event[data-focus] {
+  outline: 2px solid var(--ui-accent, #5865f2);
+  outline-offset: 2px;
+}
+
+.lng-event-cover-edit {
+  inline-size: 100%;
+}
+
+.lng-event-cover-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.lng-event-cover-preview {
+  inline-size: 8rem;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--ui-surface-raised, rgb(255 255 255 / 4%));
+  border: 1px dashed var(--ui-border, rgb(255 255 255 / 20%));
+  color: var(--ui-text-muted);
+  font-size: 0.8rem;
+}
+
+.lng-event-cover-preview img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.lng-event-cover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

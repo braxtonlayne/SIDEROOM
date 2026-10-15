@@ -19,6 +19,10 @@ export interface ScheduledEvent {
   status: number;
   entity_type: number;
   entity_metadata: { location?: string | null } | null;
+  /** The stage instance (the stage channel id) of a running stage event. */
+  entity_id?: string | null;
+  /** Cover hash: `/cdn/guild-events/<event id>/<hash>.png`. */
+  image?: string | null;
   user_count?: number;
   /** The viewer is interested. */
   user_rsvp?: boolean;
@@ -33,12 +37,16 @@ export interface CreateEventBody {
   scheduled_start_time: string;
   scheduled_end_time?: string;
   privacy_level: 2;
+  /** Cover as a data URI (JPEG, PNG or GIF, 2 MiB at most). */
+  image?: string;
 }
 
 export interface ModifyEventBody {
   name?: string;
   description?: string | null;
   status?: number;
+  /** A new cover data URI, or null to remove it. */
+  image?: string | null;
 }
 
 const base = (guildId: string) => `/guilds/${encodeURIComponent(guildId)}/scheduled-events`;

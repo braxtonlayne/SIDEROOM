@@ -47,6 +47,7 @@ import { matchCustomShortcut } from './shortcuts';
 import { usePrefsStore } from '../settings/user/prefs';
 import { RIGHT_PANEL_MAX, RIGHT_PANEL_MIN, useLoungeUi } from './store';
 import { UserPanel } from './UserPanel';
+import { EventAlerts } from './events/EventAlerts';
 import './lounge.css';
 
 type Pane = 'list' | 'chat' | 'members';
@@ -298,6 +299,7 @@ function Shell() {
     >
       <ToastProvider>
         <SectionBar />
+        <EventAlerts />
         {!isMobile && <TitleStrip title={title} />}
         <ConnectionBanner />
         <NoticesBar />

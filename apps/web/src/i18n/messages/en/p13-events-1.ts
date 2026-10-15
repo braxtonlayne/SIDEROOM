@@ -1,0 +1,18 @@
+export default {
+  'lounge.eventCover.label': 'Cover image',
+  'lounge.eventCover.hint': 'JPEG, PNG or GIF, up to 2 MiB. Shown in the Events list.',
+  'lounge.eventCover.preview': 'Cover image preview',
+  'lounge.eventCover.none': 'No cover image',
+  'lounge.eventCover.noneShort': 'No cover',
+  'lounge.eventCover.upload': 'Add cover',
+  'lounge.eventCover.change': 'Change cover',
+  'lounge.eventCover.remove': 'Remove cover',
+  'lounge.eventCover.file': 'Cover image file',
+  'lounge.eventCover.badType': '{name} is not a JPEG, PNG or GIF image.',
+  'lounge.eventCover.tooLarge': '{name} is larger than 2 MiB.',
+  'lounge.eventCover.readFailed': 'That file could not be read.',
+  'lounge.events.cover': 'Cover',
+  'lounge.events.coverAlt': 'Cover image of {name}',
+  'lounge.eventAlerts.started': '{name} is starting now',
+  'lounge.eventAlerts.view': 'View event',
+} satisfies Record<string, string>;

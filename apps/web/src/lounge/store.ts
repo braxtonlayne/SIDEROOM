@@ -59,7 +59,7 @@ export type LoungeDialog =
       guildId: string;
       tab?: 'rank' | 'suggestions' | 'tickets' | 'birthdays' | undefined;
     }
-  | { kind: 'events'; guildId: string }
+  | { kind: 'events'; guildId: string; eventId?: string | undefined }
   | { kind: 'createEvent'; guildId: string; channelId?: string | undefined };
 
 export interface LoungeUiState {
