@@ -741,6 +741,30 @@ impl<R: SocialRepository> SocialService<R> {
         ))
     }
 
+    /// The full notification verdict for one recipient (LNG-NTF-002): resolves level
+    /// and mute for the channel, then runs [`notifications::decide`].
+    #[allow(clippy::too_many_arguments)]
+    pub async fn decide_notification(
+        &self,
+        user: UserId,
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        category: Option<ChannelId>,
+        guild_default: NotificationLevel,
+        input: notifications::NotifyInput,
+    ) -> SocialResult<notifications::NotifyDecision> {
+        let r = self
+            .resolve_notifications(user, guild, channel, category, guild_default)
+            .await?;
+        let scope = self.repo.get_scope(user, guild).await?;
+        Ok(notifications::decide(
+            r.level,
+            r.muted,
+            scope.as_ref(),
+            input,
+        ))
+    }
+
     // ---- profiles -------------------------------------------------------
 
     pub async fn get_profile(&self, viewer: UserId, user: UserId) -> SocialResult<Profile> {

@@ -5,11 +5,16 @@
 
 pub mod ece;
 pub mod sender;
+pub mod store;
 pub mod vapid;
 
 pub use sender::{
     Notification, PushSender, SendOutcome, Subscription, Urgency, WebPushClient, parse_endpoint,
     topic_for, validate_subscription,
+};
+pub use store::{
+    MAX_SUBSCRIPTIONS_PER_USER, MemoryPushStore, PushStore, StoreError, StoredSubscription,
+    load_or_create_vapid,
 };
 pub use vapid::VapidKey;
 

@@ -71,6 +71,7 @@ DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	
 DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
 DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-
+DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 DELETE	/watch-parties/{party_id}	authenticated	other	allow	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	other	allow	-
@@ -279,6 +280,7 @@ GET	/library/updates	authenticated	other	allow	-
 GET	/oauth2/@me	authenticated	other	allow	any
 GET	/oauth2/authorize	authenticated	other	deny	-
 GET	/oauth2/tokens	authenticated	other	deny	-
+GET	/push/vapid-key	authenticated	self	deny	-
 GET	/requests	authenticated	other	allow	-
 GET	/soundboard-default-sounds	authenticated	other	allow	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	other	allow	-
@@ -530,6 +532,7 @@ POST	/submissions/{submission_id}/library/uploads/{upload_id}/complete	authentic
 POST	/submissions/{submission_id}/submit	authenticated	other	allow	-
 POST	/submissions/{submission_id}/withdraw	authenticated	other	allow	-
 POST	/users/@me/channels	authenticated	self	allow	-
+POST	/users/@me/push-subscriptions	authenticated	self	deny	-
 POST	/users/@me/relationships	authenticated	self	deny	-
 POST	/watch-parties	authenticated	other	allow	-
 POST	/watch-parties/{party_id}/heartbeat	authenticated	other	allow	-

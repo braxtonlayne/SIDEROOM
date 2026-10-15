@@ -46,6 +46,7 @@ pub mod guilds;
 pub mod library;
 pub mod media;
 pub mod messages;
+pub mod push;
 pub mod review;
 pub mod search;
 pub mod settings;
@@ -119,6 +120,7 @@ pub fn all() -> Router<AppState> {
         .merge(developer::router())
         .merge(directory::router())
         .merge(donations::router())
+        .merge(push::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -154,6 +156,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(watchparty::openapi());
     doc.merge(developer::openapi());
     doc.merge(donations::openapi());
+    doc.merge(push::openapi());
     doc
 }
 

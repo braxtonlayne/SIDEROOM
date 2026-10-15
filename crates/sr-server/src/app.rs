@@ -814,6 +814,45 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // each recipient before the message itself.
     let social_api = Arc::new(social_api);
     let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
+
+    // Web Push (LNG-NTF-003): the VAPID key lives in the database sealed with the server
+    // secret; without a configured secret it is per-boot (nothing could open it later).
+    let push_store: Arc<dyn sr_push::PushStore> =
+        Arc::new(crate::push_pg::PgPushStore::new(pool.clone()));
+    let vapid = if cfg.server.secret_key.expose().is_empty() {
+        sr_push::VapidKey::generate().map_err(|e| anyhow::anyhow!("{e}"))?
+    } else {
+        sr_push::load_or_create_vapid(push_store.as_ref(), &master_key)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?
+    };
+    let push_deps = Arc::new(routes::push::PushDeps::new(
+        push_store.clone(),
+        vapid.public_key(),
+        {
+            let ids = ids.clone();
+            Arc::new(move || ids.generate().get())
+        },
+    ));
+    let push_subject = if cfg.server.public_url.starts_with("https://") {
+        cfg.server.public_url.trim_end_matches('/').to_owned()
+    } else {
+        "mailto:admin@localhost.invalid".to_owned()
+    };
+    let push_consumer = crate::push_notify::spawn(
+        lag_bus.tap(),
+        Arc::new(crate::push_notify::PushNotifier {
+            messages: messages.clone(),
+            social: social_api.clone(),
+            store: push_store,
+            sender: Arc::new(sr_push::WebPushClient::new(
+                vapid,
+                push_subject,
+                sr_net::Policy::default(),
+            )),
+            pool: pool.clone(),
+        }),
+    );
     call_recorder.bind(messages.clone());
 
     // Platform admin API: permissions are resolved per request from the Staff Server; every
@@ -884,6 +923,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(messages.clone())
         .extension(threads_deps.clone())
         .extension(social_api)
+        .extension(push_deps)
         .extension(settings_deps.clone())
         .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
             sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
@@ -1097,6 +1137,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     apps_gc_task.abort();
     metrics_task.abort();
     search_consumer.abort();
+    push_consumer.abort();
     if let Some(h) = features_listener {
         h.abort();
     }

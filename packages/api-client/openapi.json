@@ -35240,6 +35240,43 @@
         ]
       }
     },
+    "/push/vapid-key": {
+      "get": {
+        "tags": [],
+        "summary": "The VAPID public key browsers subscribe against.",
+        "operationId": "vapid_key",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VapidKeyObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/read-states/ack-bulk": {
       "post": {
         "tags": [
@@ -40184,6 +40221,104 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileObject"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/push-subscriptions": {
+      "post": {
+        "tags": [],
+        "summary": "Register (or refresh) this browser's push subscription. Re-registering the same\nendpoint replaces it; a user keeps at most 10 devices, the oldest is dropped.",
+        "operationId": "subscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Saved"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Remove this browser's push subscription (idempotent).",
+        "operationId": "unsubscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushUnsubscribeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -54901,6 +55036,55 @@
           }
         }
       },
+      "PushKeys": {
+        "type": "object",
+        "description": "The `keys` of a browser `PushSubscription`.",
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "properties": {
+          "auth": {
+            "type": "string"
+          },
+          "p256dh": {
+            "type": "string"
+          }
+        }
+      },
+      "PushSubscriptionBody": {
+        "type": "object",
+        "description": "A browser push subscription to register for the caller.",
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "properties": {
+          "device_name": {
+            "type": "string",
+            "description": "Free-text device label (at most 100 characters)."
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "The push service URL (https)."
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushKeys"
+          }
+        }
+      },
+      "PushUnsubscribeBody": {
+        "type": "object",
+        "description": "Which subscription to remove.",
+        "required": [
+          "endpoint"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          }
+        }
+      },
       "PutFormBody": {
         "type": "object",
         "properties": {
@@ -60197,6 +60381,19 @@
             "format": "int32",
             "description": "Members who joined through it.",
             "minimum": 0
+          }
+        }
+      },
+      "VapidKeyObject": {
+        "type": "object",
+        "description": "The server's VAPID application-server key.",
+        "required": [
+          "public_key"
+        ],
+        "properties": {
+          "public_key": {
+            "type": "string",
+            "description": "Base64url, uncompressed P-256 point; pass it to `pushManager.subscribe`."
           }
         }
       },

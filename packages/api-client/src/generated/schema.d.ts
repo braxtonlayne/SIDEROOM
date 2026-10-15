@@ -6553,6 +6553,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/push/vapid-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The VAPID public key browsers subscribe against. */
+        get: operations["vapid_key"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/read-states/ack-bulk": {
         parameters: {
             query?: never;
@@ -7739,6 +7756,27 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/push-subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register (or refresh) this browser's push subscription. Re-registering the same
+         *     endpoint replaces it; a user keeps at most 10 devices, the oldest is dropped.
+         */
+        post: operations["subscribe"];
+        /** Remove this browser's push subscription (idempotent). */
+        delete: operations["unsubscribe"];
         options?: never;
         head?: never;
         patch?: never;
@@ -11921,6 +11959,23 @@ export interface components {
             /** @description Members that would be (preview) or were (execute) removed. */
             pruned: number;
         };
+        /** @description The `keys` of a browser `PushSubscription`. */
+        PushKeys: {
+            auth: string;
+            p256dh: string;
+        };
+        /** @description A browser push subscription to register for the caller. */
+        PushSubscriptionBody: {
+            /** @description Free-text device label (at most 100 characters). */
+            device_name?: string;
+            /** @description The push service URL (https). */
+            endpoint: string;
+            keys: components["schemas"]["PushKeys"];
+        };
+        /** @description Which subscription to remove. */
+        PushUnsubscribeBody: {
+            endpoint: string;
+        };
         PutFormBody: {
             description?: string | null;
             /** @description Whether people may apply. */
@@ -13530,6 +13585,11 @@ export interface components {
              * @description Members who joined through it.
              */
             uses: number;
+        };
+        /** @description The server's VAPID application-server key. */
+        VapidKeyObject: {
+            /** @description Base64url, uncompressed P-256 point; pass it to `pushManager.subscribe`. */
+            public_key: string;
         };
         Variant: {
             asset_id?: string | null;
@@ -36366,6 +36426,33 @@ export interface operations {
             };
         };
     };
+    vapid_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VapidKeyObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     ack_bulk: {
         parameters: {
             query?: never;
@@ -39697,6 +39784,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileObject"];
+                };
+            };
+        };
+    };
+    subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionBody"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushUnsubscribeBody"];
+            };
+        };
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
