@@ -11984,6 +11984,11 @@ export interface components {
             /** @description Everyone except the viewer, in join order. */
             recipients: components["schemas"]["UserObject"][];
             /**
+             * @description With `is_message_request`: `server_filter` or `new_account` when a server's Protection
+             *     settings sent the conversation there (D-224). SIDE ROOM extension.
+             */
+            sr_request_reason?: string | null;
+            /**
              * Format: int32
              * @description 1 DM, 3 group DM.
              */
@@ -12575,6 +12580,11 @@ export interface components {
             /** Format: int32 */
             explicit_content_filter: number;
             features: string[];
+            /**
+             * @description Server Protection (D-224): a link whose text names another host is shown as its raw
+             *     target with a warning. Visible to every member; set in `/sr/community`.
+             */
+            hide_suspicious_links: boolean;
             /** @description Icon hash: `/cdn/icons/{id}/{hash}.png` (`a_` prefix = animated). */
             icon?: string | null;
             id: string;
