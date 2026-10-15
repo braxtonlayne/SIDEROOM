@@ -63,7 +63,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-FRD-010** [FE] Pending tab: incoming (accept ✓ / ignore ✕), outgoing (cancel)
 - [x] **LNG-FRD-011** [FE] Add Friend tab: input, submit, success/error states, empty-state art *(icon empty states, no custom art)*
 - [x] **LNG-FRD-012** [FE] Empty states per tab (original illustrations) *(icon empty states, no custom illustrations)*
-- [ ] **LNG-FRD-013** [FE] Active Now column: voice-channel card (members avatars, "+N", server), stream card (thumbnail, LIVE, "Sharing their screen"), game card (platform icon), watching/reading card, party card (Join)
+- [x] **LNG-FRD-013** [FE] Active Now column: voice-channel card (members avatars, "+N", server), stream card (thumbnail, LIVE, "Sharing their screen"), game card (platform icon), watching/reading card, party card (Join) *(`shell/ActiveNow.tsx` + `activeNowModel.ts`; voice and stream cards from voice states, watching/reading/game cards from rich activities, party card from `activity.party.id`; `SR_ACTIVITY_UPDATE` folded into presence; no stream thumbnail yet; test `p11ShellActiveNow.test.tsx`)*
 - [x] **LNG-FRD-014** [FE] Active Now empty state ("It's quiet for now…")
 
 ## LNG-DM — Direct & group messages
