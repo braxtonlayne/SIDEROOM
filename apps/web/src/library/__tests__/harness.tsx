@@ -146,6 +146,17 @@ export function useLibraryApi(
     http.get('*/api/v1/library/me/lists', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/library/lists/featured', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/library/me/unread', () => HttpResponse.json({ items: [] })),
+    // Phase 13: empty by default.
+    http.get('*/api/v1/library/recommendations', () => HttpResponse.json({ rows: [] })),
+    http.get('*/api/v1/library/me/notifications', () => HttpResponse.json({ unread: 0 })),
+    http.get('*/api/v1/library/me/downloads', () =>
+      HttpResponse.json({ entitled: false, per_day: 0, left: 0 }),
+    ),
+    http.put('*/api/v1/library/chapters/:id/presence', () => new HttpResponse(null, { status: 204 })),
+    http.delete('*/api/v1/library/me/presence', () => new HttpResponse(null, { status: 204 })),
+    http.get('*/api/v1/library/chapters/:id/comments', () =>
+      HttpResponse.json({ items: [], next_before: null, total: 0 }),
+    ),
     http.get('*/api/v1/library/search', () =>
       HttpResponse.json({ series: [A, R], authors: ['An Author'], genres: ['fantasy'], tags: [] }),
     ),

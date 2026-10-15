@@ -11,7 +11,7 @@ import {
   useMediaQuery,
   type MenuEntry,
 } from '@sideroom/ui';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
@@ -19,6 +19,7 @@ import { useT, type MessageKey } from '../i18n';
 import { getMe } from '../settings/user/api';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { getFollows, getUpdates, keys } from './api';
+import { getNotificationCount, markNotificationsSeen } from './p13api';
 import { useLibrarySettings, useSetHideRestricted } from './prefs';
 import { SearchBox } from './SearchBox';
 import { updateLine } from './ui';
@@ -164,6 +165,21 @@ function Sidebar({ onNavigate, onHelp }: { onNavigate?: () => void; onHelp: () =
 function Bell() {
   const t = useT();
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  // New chapters of followed series (bell on) since the member last opened the bell (LIB-SOC-007).
+  const count = useQuery({
+    queryKey: ['library', 'bell-count'],
+    queryFn: getNotificationCount,
+    refetchInterval: 120_000,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const unread = count.data?.unread ?? 0;
+  const seen = () => {
+    if (unread === 0) return;
+    qc.setQueryData(['library', 'bell-count'], { unread: 0 });
+    void markNotificationsSeen().catch(() => undefined);
+  };
   const updates = useQuery({
     queryKey: keys.updates(true),
     queryFn: () => getUpdates({ following: true, limit: 6 }),
@@ -197,9 +213,23 @@ function Bell() {
       label={t('library.shell.bell.label')}
       placement="bottom-end"
       items={items}
+      onOpenChange={(open) => open && seen()}
       trigger={
-        <button type="button" className="lib-icon-btn" aria-label={t('library.shell.bell.label')}>
+        <button
+          type="button"
+          className="lib-icon-btn lib-bell"
+          aria-label={
+            unread > 0
+              ? t('library.shell.bell.labelCount', { n: unread })
+              : t('library.shell.bell.label')
+          }
+        >
           <Icon name="bell" size={20} />
+          {unread > 0 && (
+            <span className="lib-bell-badge" aria-hidden="true">
+              {unread >= 99 ? '99+' : unread}
+            </span>
+          )}
         </button>
       }
     />

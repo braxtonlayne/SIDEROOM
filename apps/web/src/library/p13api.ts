@@ -3,6 +3,7 @@
 // LIB-SOC-007.
 import { apiFetch } from '../api/client';
 import { qs } from './api';
+import type { Series } from './types';
 
 const enc = encodeURIComponent;
 
@@ -110,3 +111,32 @@ export const getNotificationCount = () => apiFetch<{ unread: number }>('/library
 
 export const markNotificationsSeen = () =>
   apiFetch<void>('/library/me/notifications/seen', { method: 'POST', retries: 0 });
+
+/* --------------------------------------------- related, recommendations, contributors */
+
+export interface RelatedEntry {
+  score: number;
+  /** `tags` and/or `coread`. */
+  reasons: string[];
+  series: Series;
+}
+
+export const getRelated = (seriesId: string, limit = 12) =>
+  apiFetch<{ items: RelatedEntry[] }>(`/library/series/${enc(seriesId)}/related${qs({ limit })}`);
+
+export interface BecauseRow {
+  seed_id: string;
+  seed_title: string;
+  items: RelatedEntry[];
+}
+
+export const getRecommendations = (limit = 12) =>
+  apiFetch<{ rows: BecauseRow[] }>(`/library/recommendations${qs({ limit })}`);
+
+export interface Contributors {
+  members: { user_id: string; name: string; chapters: number }[];
+  groups: { name: string; chapters: number }[];
+}
+
+export const getContributors = (seriesId: string) =>
+  apiFetch<Contributors>(`/library/series/${enc(seriesId)}/contributors`);

@@ -13,6 +13,7 @@ import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { useT } from '../i18n';
 import { browseSeries, getChapters, getUpdates, keys } from './api';
+import { getRecommendations } from './p13api';
 import { progressApi, progressLine } from './progress';
 import { getFeaturedLists, getRankings, socialKeys, type RankingScope } from './social';
 import type { Series } from './types';
@@ -47,6 +48,7 @@ export function Home() {
       <Spotlight />
       <PickUp />
       <Trending />
+      <Because />
       <Curiosity />
       <div className="lib-two-col">
         <Fresh />
@@ -268,6 +270,37 @@ function SeriesRow({
         />
       ))}
     </div>
+  );
+}
+
+/* ------------------------------------------------- because you read */
+
+/** "Because you read X" rows (LIB-SOC-005): tag similarity plus co-reading among people you know. */
+function Because() {
+  const t = useT();
+  const q = useQuery({
+    queryKey: ['library', 'recommendations'],
+    queryFn: () => getRecommendations(8),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const rows = q.data?.rows ?? [];
+  if (rows.length === 0) return null;
+  return (
+    <>
+      {rows.map((r) => (
+        <section key={r.seed_id} className="lib-section" aria-label={t('library.home.because.title', { title: r.seed_title })}>
+          <div className="lib-section-head">
+            <h2 className="lib-h2">{t('library.home.because.title', { title: r.seed_title })}</h2>
+          </div>
+          <div className="lib-poster-row">
+            {r.items.map((i) => (
+              <SeriesCard key={i.series.id} series={i.series} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }
 

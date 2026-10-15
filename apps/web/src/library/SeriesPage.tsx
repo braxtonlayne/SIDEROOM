@@ -9,7 +9,9 @@ import { ReportButton } from '../moderation/reports';
 import { followSeries, getChapters, getSeries, keys, markReadUpTo, unfollowSeries } from './api';
 import { pickContinue, progressOf, readMark, type ProgressMap } from './continue';
 import { progressApi } from './progress';
+import { CommentsSection } from './Comments';
 import { AddToListButton, RatingBlock, ReviewsTab } from './SeriesSocial';
+import { ChapterDownload, ContributorsTab, RelatedTab, ShareButton } from './SeriesExtras';
 import type { Chapter, Edition, Series, SeriesDetail, Volume } from './types';
 import { AgeBadge, formatDate, KIND_LABEL, label, languageName, STATUS_LABEL } from './ui';
 
@@ -72,19 +74,20 @@ function SeriesView({ detail }: { detail: SeriesDetail }) {
             label: t('library.series.tab.reviews'),
             content: <ReviewsTab seriesId={series.id} />,
           },
-          // Comments, related and contributors arrive with the comment and recommendation work.
           {
             id: 'comments',
             label: t('library.series.tab.comments'),
-            disabled: true,
-            content: null,
+            content: <CommentsSection target={{ kind: 'series', id: series.id }} />,
           },
-          { id: 'related', label: t('library.series.tab.related'), disabled: true, content: null },
+          {
+            id: 'related',
+            label: t('library.series.tab.related'),
+            content: <RelatedTab seriesId={series.id} />,
+          },
           {
             id: 'contributors',
             label: t('library.series.tab.contributors'),
-            disabled: true,
-            content: null,
+            content: <ContributorsTab seriesId={series.id} />,
           },
         ]}
       />
@@ -266,6 +269,13 @@ function Actions({
         {following ? t('library.series.following') : t('library.series.follow')}
       </Button>
       <AddToListButton seriesId={series.id} />
+      <ShareButton seriesId={series.id} />
+      {target && (
+        <ChapterDownload
+          chapterId={target.chapter.id}
+          label={t('library.series.downloadChapter', { n: target.chapter.number })}
+        />
+      )}
       <ReportButton target={{ kind: 'library', id: series.id }} />
       {toggle.isError && <Notice variant="danger">{t('library.series.followError')}</Notice>}
     </div>
@@ -357,6 +367,11 @@ function ChapterList({ series, editionId }: { series: Series; editionId: string 
                       {readMark(c, map)}
                     </span>
                   </Link>
+                  <ChapterDownload
+                    chapterId={c.id}
+                    compact
+                    label={t('library.series.downloadChapterN', { n: c.number })}
+                  />
                   <button
                     type="button"
                     className="lib-chapter-upto"

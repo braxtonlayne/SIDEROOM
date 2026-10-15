@@ -16,7 +16,7 @@ import {
   reportComment,
   type CommentTarget,
   type LibComment,
-} from './comments';
+} from './p13api';
 import { timeAgo } from './ui';
 
 const MAX = 2000;
