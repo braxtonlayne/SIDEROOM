@@ -5,7 +5,7 @@ use super::error::invalid;
 use super::error::{ApiJson, MsgResult};
 use super::events::SocialEvent;
 use super::model::{
-    ConnectionObject, CustomStatusObject, EditSelfBody, GuildMemberProfileObject,
+    BadgeObject, ConnectionObject, CustomStatusObject, EditSelfBody, GuildMemberProfileObject,
     MutualGuildObject, ProfileObject, SelfObject, UserObject, UserProfileFields,
 };
 use super::util::{actor, custom_status, user_id};
@@ -148,7 +148,7 @@ async fn render_profile(
         )
     };
     Ok(Json(ProfileObject {
-        badges: profile.badges.clone(),
+        badges: profile.badges.iter().map(|b| BadgeObject::of(b)).collect(),
         member_since: iso(profile.created_ms),
         guild_member_profile,
         mutual_friends,

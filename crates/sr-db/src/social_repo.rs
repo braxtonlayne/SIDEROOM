@@ -956,20 +956,20 @@ impl ProfileRepository for PgSocialRepo {
         .map_err(db)?;
         let Some(r) = row else { return Ok(None) };
         let flags: i64 = r.try_get("flags").map_err(db)?;
+        // One catalogue (`sr_admin::BADGES`): flag-backed badges read `accounts.flags`, the
+        // rest are derived from the queries above.
         let mut badges = Vec::new();
-        for (on, name) in [
-            (r.try_get::<bool, _>("is_owner").map_err(db)?, "owner"),
-            (r.try_get::<bool, _>("is_staff").map_err(db)?, "staff"),
-            (r.try_get::<bool, _>("is_patron").map_err(db)?, "patron"),
-            (flags & (1 << 9) != 0, "contributor"),
-            (flags & (1 << 8) != 0, "early_member"),
-            (flags & (1 << 10) != 0, "bug_hunter"),
-            (flags & (1 << 11) != 0, "honorary"),
-            (flags & (1 << 1) != 0, "app_developer"),
-            (r.try_get::<bool, _>("is_bot").map_err(db)?, "bot"),
-        ] {
+        for b in sr_admin::BADGES {
+            let on = match (b.flag, b.id) {
+                (Some(bit), _) => flags & bit != 0,
+                (None, "owner") => r.try_get::<bool, _>("is_owner").map_err(db)?,
+                (None, "staff") => r.try_get::<bool, _>("is_staff").map_err(db)?,
+                (None, "patron") => r.try_get::<bool, _>("is_patron").map_err(db)?,
+                (None, "bot") => r.try_get::<bool, _>("is_bot").map_err(db)?,
+                (None, _) => false,
+            };
             if on {
-                badges.push(name.to_owned());
+                badges.push(b.id.to_owned());
             }
         }
         let sql = format!(

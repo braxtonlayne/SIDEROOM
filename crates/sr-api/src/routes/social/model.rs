@@ -431,6 +431,28 @@ pub struct ConnectionObject {
     pub visible: bool,
 }
 
+/// The only stats keys a connection card shows (G-53); the client translates them.
+pub const STAT_KEYS: [&str; 5] = ["followers", "subscribers", "karma", "stars", "repos"];
+
+/// `stats` restricted to [`STAT_KEYS`] (rows stored before the catalogue keep `public_repos`,
+/// which reads as `repos`).
+pub fn clean_stats(stats: &serde_json::Value) -> serde_json::Value {
+    let mut out = serde_json::Map::new();
+    if let Some(m) = stats.as_object() {
+        for (k, v) in m {
+            let key = if k == "public_repos" {
+                "repos"
+            } else {
+                k.as_str()
+            };
+            if STAT_KEYS.contains(&key) && v.is_number() {
+                out.insert(key.to_owned(), v.clone());
+            }
+        }
+    }
+    serde_json::Value::Object(out)
+}
+
 impl From<&Connection> for ConnectionObject {
     fn from(c: &Connection) -> Self {
         Self {
@@ -441,11 +463,37 @@ impl From<&Connection> for ConnectionObject {
             url: c.url.clone(),
             show_activity: c.show_activity,
             stats: if c.show_activity {
-                c.stats.clone()
+                clean_stats(&c.stats)
             } else {
                 serde_json::json!({})
             },
             visible: c.visible,
+        }
+    }
+}
+
+/// A public profile badge: the catalogue id with English fallback text and an icon name
+/// (G-53). Clients translate the ids they know and fall back to `description`.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BadgeObject {
+    pub id: String,
+    pub description: String,
+    pub icon: String,
+}
+
+impl BadgeObject {
+    pub fn of(id: &str) -> Self {
+        match sr_admin::badge(id) {
+            Some(b) => Self {
+                id: b.id.to_owned(),
+                description: b.description.to_owned(),
+                icon: b.icon.to_owned(),
+            },
+            None => Self {
+                id: id.to_owned(),
+                description: String::new(),
+                icon: "info".to_owned(),
+            },
         }
     }
 }
@@ -515,7 +563,7 @@ pub struct ProfileObject {
     pub friends_since: Option<String>,
     /// Public badges: `owner`, `staff`, `patron`, `contributor`, `early_member`,
     /// `bug_hunter`, `honorary`, `app_developer`, `bot`.
-    pub badges: Vec<String>,
+    pub badges: Vec<BadgeObject>,
     /// When the account was created ("Member since").
     pub member_since: String,
     /// The owner's profile in `guild_id` (only when the viewer shares that server).
@@ -626,4 +674,46 @@ pub struct PresenceBody {
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<CustomStatusBody>)]
     pub custom_status: Option<Option<CustomStatusBody>>,
+}
+
+#[cfg(test)]
+mod catalogue_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn badges_carry_the_catalogue_text_and_icon() {
+        let b = BadgeObject::of("bug_hunter");
+        assert_eq!(
+            (b.id.as_str(), b.description.as_str()),
+            ("bug_hunter", "Bug Hunter")
+        );
+        assert_eq!(b.icon, "alert");
+        let unknown = BadgeObject::of("brand-new");
+        assert_eq!(
+            (unknown.id.as_str(), unknown.description.as_str()),
+            ("brand-new", "")
+        );
+        // Every id profiles can send is in the one catalogue.
+        for id in [
+            "owner",
+            "staff",
+            "patron",
+            "early_member",
+            "contributor",
+            "app_developer",
+            "bot",
+        ] {
+            assert!(sr_admin::badge(id).is_some(), "{id}");
+        }
+    }
+
+    #[test]
+    fn stats_keep_only_the_translated_keys() {
+        let cleaned = clean_stats(&json!({
+            "followers": 3, "public_repos": 8, "following": 9, "videos": 2, "karma": "x",
+            "stars": 5,
+        }));
+        assert_eq!(cleaned, json!({"followers": 3, "repos": 8, "stars": 5}));
+    }
 }

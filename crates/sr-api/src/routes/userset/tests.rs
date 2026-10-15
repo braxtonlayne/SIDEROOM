@@ -560,10 +560,7 @@ async fn a_github_link_end_to_end() {
     assert_eq!(c["name"], "octocat");
     assert_eq!(c["verified"], true);
     assert_eq!(c["url"], "https://github.com/octocat");
-    assert_eq!(
-        c["stats"],
-        json!({"public_repos": 8, "followers": 3938, "following": 9})
-    );
+    assert_eq!(c["stats"], json!({"repos": 8, "followers": 3938}));
     assert!(
         !String::from_utf8_lossy(&list.raw).contains("tok123"),
         "no token is kept or shown"
