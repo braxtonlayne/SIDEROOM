@@ -57,6 +57,7 @@ deny = [
         "sr-net",
         "sr-unfurl",
         "sr-push",
+        "sr-sdk",
         "sr-storage",
         "sr-transcoder",
         "oauth2",
