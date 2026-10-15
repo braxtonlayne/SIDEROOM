@@ -1042,9 +1042,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             crate::inbox_pg::PgMentionSource::new(pool.clone()),
         ))))
         .extension(settings_deps.clone())
-        .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
-            sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
-        ))))
+        .extension(Arc::new(
+            routes::directory::DirectoryDeps::new(Arc::new(
+                sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
+            ))
+            .with_features(features.clone()),
+        ))
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
         .extension(library_deps)
@@ -1293,6 +1296,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     registry
         .register(sr_features::ModerationReportsFeature)
         .context("registering the moderation.reports feature")?;
+    registry
+        .register(sr_features::DirectoryHiddenCategoriesFeature)
+        .context("registering the directory.hidden_categories feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
     // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,

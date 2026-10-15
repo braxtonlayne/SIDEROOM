@@ -32,17 +32,42 @@ use sr_chat::settings::directory::{
 use sr_chat::settings::repo::CommunityRepository;
 use sr_core::permissions::Permissions;
 use sr_core::{ApiError, ErrorCode, GuildId, PlatformPermissions as P};
+use sr_features::{FeatureService, HIDDEN_CATEGORIES_ID, ScopeRef, hidden_from};
 use std::sync::Arc;
 use utoipa::{OpenApi, ToSchema};
 
 /// Collaborators of the directory endpoints.
 pub struct DirectoryDeps {
     pub repo: Arc<dyn DirectoryRepository>,
+    features: Option<FeatureService>,
 }
 
 impl DirectoryDeps {
     pub fn new(repo: Arc<dyn DirectoryRepository>) -> Self {
-        Self { repo }
+        Self {
+            repo,
+            features: None,
+        }
+    }
+
+    /// Read the `directory.hidden_categories` platform setting from the feature service.
+    pub fn with_features(mut self, features: FeatureService) -> Self {
+        self.features = Some(features);
+        self
+    }
+
+    /// Category ids the operator hides (G-29). A failing lookup hides nothing.
+    pub async fn hidden_categories(&self) -> Vec<String> {
+        let Some(f) = &self.features else {
+            return Vec::new();
+        };
+        match f
+            .effective_settings(HIDDEN_CATEGORIES_ID, &ScopeRef::Platform)
+            .await
+        {
+            Ok(v) => hidden_from(&v),
+            Err(_) => Vec::new(),
+        }
     }
 }
 
@@ -209,9 +234,19 @@ fn unknown_listing() -> HttpError {
     responses((status = 200, body = Vec<String>), (status = 401, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
 )]
-pub async fn list_categories(p: Principal) -> ApiResult<Json<Vec<&'static str>>> {
+pub async fn list_categories(
+    p: Principal,
+    Ext(dir): Ext<DirectoryDeps>,
+) -> ApiResult<Json<Vec<&'static str>>> {
     actor(&p)?;
-    Ok(Json(CATEGORIES.to_vec()))
+    let hidden = dir.hidden_categories().await;
+    Ok(Json(
+        CATEGORIES
+            .iter()
+            .copied()
+            .filter(|c| !hidden.iter().any(|h| h == c))
+            .collect(),
+    ))
 }
 
 /// Query of `GET /directory`.
@@ -247,13 +282,14 @@ pub async fn search(
     ApiQuery(q): ApiQuery<SearchQuery>,
 ) -> ApiResult<Json<Vec<DirectoryGuildObject>>> {
     let user = actor(&p)?;
+    let hidden = dir.hidden_categories().await;
     let category = match q
         .category
         .as_deref()
         .map(str::trim)
         .filter(|c| !c.is_empty())
     {
-        Some(c) if CATEGORIES.contains(&c) => Some(c),
+        Some(c) if CATEGORIES.contains(&c) && !hidden.iter().any(|h| h == c) => Some(c),
         Some(_) => {
             return Err(HttpError(ApiError::invalid_form().field(
                 "category",
@@ -278,6 +314,9 @@ pub async fn search(
         .map_err(re)?;
     let mut cards = Vec::new();
     for e in &entries {
+        if hidden.iter().any(|h| *h == e.category) {
+            continue;
+        }
         if let Some(c) = card(&deps, e, user).await? {
             let hay = format!(
                 "{} {} {}",
@@ -325,6 +364,9 @@ pub async fn get_listed(
         .await
         .map_err(re)?
         .ok_or_else(unknown_listing)?;
+    if dir.hidden_categories().await.contains(&entry.category) {
+        return Err(unknown_listing());
+    }
     card(&deps, &entry, user)
         .await?
         .map(Json)
@@ -356,6 +398,9 @@ pub async fn join(
         .await
         .map_err(re)?
         .ok_or_else(unknown_listing)?;
+    if dir.hidden_categories().await.contains(&entry.category) {
+        return Err(unknown_listing());
+    }
     if card(&deps, &entry, user).await?.is_none() {
         return Err(unknown_listing());
     }
@@ -448,6 +493,13 @@ pub async fn request_listing(
         deps.guild_access(user, gid).await?.perms,
         Permissions::MANAGE_GUILD,
     )?;
+    if dir.hidden_categories().await.contains(&body.category) {
+        return Err(HttpError(ApiError::invalid_form().field(
+            "category",
+            "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+            "That category is not available in the directory.",
+        )));
+    }
     let community = deps.service.repo().get_community(gid).await.map_err(re)?;
     let existing = dir.repo.get_listing(gid).await.map_err(re)?;
     let entry = directory::request_listing(

@@ -67,6 +67,7 @@ struct World {
     joiner: Arc<settings::InviteMemberJoiner>,
     bus: Arc<InProcessBus>,
     storage: Arc<ObjectStoreStorage>,
+    features: sr_features::FeatureService,
     tokens: HashMap<i64, String>,
 }
 
@@ -181,6 +182,15 @@ async fn world() -> World {
         tokens.insert(uid, t.expose().to_owned());
     }
 
+    let mut feature_registry = sr_features::FeatureRegistry::new();
+    feature_registry
+        .register(sr_features::DirectoryHiddenCategoriesFeature)
+        .unwrap();
+    let features = sr_features::FeatureService::new(
+        Arc::new(feature_registry),
+        Arc::new(sr_features::InMemorySettingsStore::new()),
+        None,
+    );
     let mut api_settings = ApiSettings::default();
     api_settings.rate_limit.enabled = false;
     let state = AppState::builder()
@@ -190,9 +200,10 @@ async fn world() -> World {
         .clock(dyn_clock)
         .extension(Arc::new(guild_api))
         .extension(settings_deps)
-        .extension(Arc::new(DirectoryDeps::new(Arc::new(
-            MemoryDirectory::default(),
-        ))))
+        .extension(Arc::new(
+            DirectoryDeps::new(Arc::new(MemoryDirectory::default()))
+                .with_features(features.clone()),
+        ))
         .extension(Arc::new(AdminDeps::new(admin_svc)))
         .extension(Arc::new(sr_api::routes::media::MediaDeps::new(
             storage.clone(),
@@ -212,6 +223,7 @@ async fn world() -> World {
         joiner,
         bus,
         storage,
+        features,
         tokens,
     }
 }
@@ -1150,4 +1162,61 @@ async fn server_directory_listing_approval_search_and_join() {
     assert_eq!(s, StatusCode::OK, "{d}");
     assert_eq!(d["status"], "removed");
     assert_eq!(w.get(BOB, "/directory").await.1, json!([]));
+}
+
+#[tokio::test]
+async fn hidden_directory_categories_are_not_offered_or_accepted() {
+    let w = world().await;
+    let (gid, general) = w.guild("Chess Club").await;
+    w.community(&gid, &general, json!({})).await;
+    let listing = format!("/guilds/{gid}/directory");
+    let hide = |cats: Value| {
+        w.features.set_settings(
+            sr_features::HIDDEN_CATEGORIES_ID,
+            &sr_features::ScopeRef::Platform,
+            json!({ "categories": cats }).as_object().unwrap().clone(),
+        )
+    };
+    hide(json!(["gaming"])).await.unwrap();
+    let (_, cats) = w.get(CAROL, "/directory/categories").await;
+    assert!(!cats.as_array().unwrap().iter().any(|c| c == "gaming"));
+    assert!(cats.as_array().unwrap().iter().any(|c| c == "music"));
+    let (s, e) = w
+        .put(OWNER, &listing, json!({ "category": "gaming" }))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    assert_eq!(
+        w.get(CAROL, "/directory?category=gaming").await.0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // A listing made before the category was hidden stops showing.
+    hide(json!([])).await.unwrap();
+    assert_eq!(
+        w.put(OWNER, &listing, json!({ "category": "gaming" }))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    let (s, _) = w
+        .patch(
+            STAFF,
+            &format!("/admin/directory/{gid}"),
+            json!({ "decision": "approve" }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(w.get(CAROL, "/directory").await.1.as_array().unwrap().len(), 1);
+    hide(json!(["gaming"])).await.unwrap();
+    assert_eq!(w.get(CAROL, "/directory").await.1, json!([]));
+    assert_eq!(
+        w.get(CAROL, &format!("/directory/{gid}")).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        w.post(CAROL, &format!("/directory/{gid}/join"), json!({}))
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
 }
