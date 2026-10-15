@@ -10,4 +10,13 @@ export default {
   'lounge.gifPicker.unfavorite': 'Remove {title} from favorites',
   'lounge.gifPicker.more': 'Load more',
   'lounge.desktopNotify.mention': '{name} mentioned you',
+  'lounge.notifyButton.notifyFor': 'Notify me for',
+  'lounge.notifyButton.useCategoryDefault': 'Use category default',
+  'lounge.notificationDialog.suppressHighlights': 'Suppress highlights',
+  'lounge.notificationDialog.mobilePush': 'Mobile push notifications',
+  'lounge.notificationDialog.overrides': 'Channel overrides',
+  'lounge.notificationDialog.noOverrides': 'No channel has its own notification setting.',
+  'lounge.notificationDialog.overrideMuted': 'Muted',
+  'lounge.notificationDialog.resetOverride': 'Reset {name}',
+  'lounge.notificationDialog.reset': 'Reset',
 } satisfies Record<string, string>;

@@ -16,7 +16,22 @@ export function NotifyButton({ guildId, channelId }: { guildId: string; channelI
   const muted = isMuted(notif?.channels[channelId]);
   const run = (p: Promise<void>) => void p.catch(() => undefined);
 
+  const level = notif?.channels[channelId]?.level;
   const items: MenuEntry[] = [
+    {
+      type: 'radio-group',
+      label: t('lounge.notifyButton.notifyFor'),
+      value: level === null || level === undefined ? '' : String(level),
+      onValueChange: (v) =>
+        run(patchChannel(guildId, channelId, { level: v === '' ? null : Number(v) })),
+      options: [
+        { value: '', label: t('lounge.notifyButton.useCategoryDefault') },
+        { value: '0', label: t('lounge.notificationDialog.levelAll') },
+        { value: '1', label: t('lounge.notificationDialog.levelMentions') },
+        { value: '2', label: t('lounge.notificationDialog.levelNothing') },
+      ],
+    },
+    { type: 'separator' },
     muted
       ? {
           label: t('lounge.notifyButton.unmute'),

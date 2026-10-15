@@ -22,6 +22,8 @@ const scope = (over: Partial<GuildNotif> = {}): GuildNotif => ({
   level: null,
   suppressEveryone: false,
   suppressRoles: false,
+  suppressHighlights: false,
+  mobilePush: true,
   channels: {},
   ...over,
 });
