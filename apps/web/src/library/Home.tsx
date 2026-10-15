@@ -471,6 +471,9 @@ export function HomeFooter() {
       <nav aria-label={t('library.home.footer.label')} className="lib-footer-links">
         <a href="/house-notes">{t('library.home.footer.about')}</a>
         <a href="/support">{t('library.home.footer.help')}</a>
+        <a href="/support/leaderboards?tab=chapters">
+          {t('library.home.footer.contributorBoards')}
+        </a>
         <a href="/house-notes#image-credits">{t('library.home.footer.imageCredits')}</a>
         <a href="/house-notes#privacy">{t('library.home.footer.privacy')}</a>
         <a href="/house-notes#terms">{t('library.home.footer.terms')}</a>

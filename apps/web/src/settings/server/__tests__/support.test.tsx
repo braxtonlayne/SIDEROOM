@@ -295,6 +295,37 @@ describe('Leaderboards page', () => {
     expect(within(servers).getByText('Book Club')).toBeInTheDocument();
   });
 
+  it('shows the contributor boards with counts and your rank, without the time window', async () => {
+    const asked: string[] = [];
+    server.use(
+      http.get('*/api/v1/donations/leaderboards/donors', () => HttpResponse.json(board('Someone'))),
+      http.get('*/api/v1/donations/leaderboards/contributors/:kind', ({ params }) => {
+        asked.push(String(params.kind));
+        return HttpResponse.json({
+          kind: params.kind,
+          generated_at_ms: 1,
+          me: { rank: 2, count: 1 },
+          items: [
+            { rank: 1, user_id: '9', name: 'Bob', avatar: null, count: 5 },
+            { rank: 2, user_id: '1', name: 'Alice', avatar: null, count: 1 },
+          ],
+        });
+      }),
+    );
+    open();
+    await screen.findByRole('list', { name: 'Top donors' });
+    await userEvent.click(screen.getByRole('tab', { name: 'Top movie contributors' }));
+    const list = await screen.findByRole('list', { name: 'Top movie contributors' });
+    expect(within(list).getByText('Bob')).toBeInTheDocument();
+    expect(within(list).getByText('5 movies')).toBeInTheDocument();
+    expect(within(list).getByText('1 movie')).toBeInTheDocument();
+    expect(screen.getByText('Your rank: #2 (1 item)')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Lifetime' })).toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: 'Top chapter contributors' }));
+    await screen.findByRole('list', { name: 'Top chapter contributors' });
+    expect(asked).toEqual(['movies', 'chapters']);
+  });
+
   it('says so when nobody is on the board yet', async () => {
     server.use(
       http.get('*/api/v1/donations/leaderboards/donors', () =>

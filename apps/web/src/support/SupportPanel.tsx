@@ -389,6 +389,11 @@ function PrefsCard({ me, onChange }: { me: api.Me; onChange: (p: api.Prefs) => v
         checked={p.hide_badge}
         onChange={(e) => void save({ hide_badge: e.target.checked })}
       />
+      <Switch
+        label={t('support.panel.hideContributions')}
+        checked={p.hide_contributions}
+        onChange={(e) => void save({ hide_contributions: e.target.checked })}
+      />
       {error && (
         <Notice variant="danger" role="alert">
           {error}
