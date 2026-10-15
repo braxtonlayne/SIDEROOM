@@ -103,8 +103,14 @@ export function SharePage() {
   }, [navigate, t, searchStr]);
 
   const pick = (target: Target) => {
-    const existing = drafts.get(target.id);
-    drafts.set(target.id, existing ? `${existing}\n${draft}` : draft);
+    if (draft) {
+      const existing = drafts.get(target.id);
+      drafts.set(target.id, existing ? `${existing}\n${draft}` : draft);
+    }
+    if (files.length) {
+      queuedFiles.set(target.id, files);
+      void clearSharedFiles();
+    }
     void navigate({
       to: '/channels/$guildId/$channelId',
       params: { guildId: target.guildId, channelId: target.id },
