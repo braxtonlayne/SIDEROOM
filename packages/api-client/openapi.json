@@ -56036,6 +56036,13 @@
             "description": "1 stage, 2 voice, 3 external.",
             "minimum": 0
           },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover image as a data URI (JPEG, PNG or GIF, 2 MiB at most)."
+          },
           "name": {
             "type": "string"
           },
@@ -60098,7 +60105,7 @@
               },
               {
                 "$ref": "#/components/schemas/InviteGuild",
-                "description": "The server; absent on group DM invites."
+                "description": "The server; `null` on group DM invites (D-221)."
               }
             ]
           },
@@ -62275,6 +62282,13 @@
             ],
             "format": "int32",
             "minimum": 0
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover image data URI; `null` removes the cover."
           },
           "name": {
             "type": [
@@ -67086,7 +67100,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The stage instance (the stage channel id) of a running stage event."
           },
           "entity_metadata": {
             "oneOf": [
@@ -67114,7 +67129,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Cover image hash: `/cdn/guild-events/{id}/{hash}.png` (SIDE ROOM serves JPEG, PNG and GIF)."
           },
           "name": {
             "type": "string"
