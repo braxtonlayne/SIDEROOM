@@ -44,4 +44,55 @@ export const EMOJI_CATEGORIES: ReadonlyArray<{ name: string; emoji: Array<[strin
       ['100', '💯'],
     ],
   },
+  {
+    name: 'Animals',
+    emoji: [
+      ['dog', '🐶'],
+      ['cat', '🐱'],
+      ['fox', '🦊'],
+      ['panda', '🐼'],
+      ['unicorn', '🦄'],
+      ['butterfly', '🦋'],
+      ['turtle', '🐢'],
+      ['octopus', '🐙'],
+    ],
+  },
+  {
+    name: 'Food',
+    emoji: [
+      ['pizza', '🍕'],
+      ['burger', '🍔'],
+      ['fries', '🍟'],
+      ['taco', '🌮'],
+      ['sushi', '🍣'],
+      ['cake', '🍰'],
+      ['coffee', '☕'],
+      ['beer', '🍺'],
+    ],
+  },
+  {
+    name: 'Symbols',
+    emoji: [
+      ['check', '✅'],
+      ['x', '❌'],
+      ['warning', '⚠️'],
+      ['question', '❓'],
+      ['exclamation', '❗'],
+      ['rocket', '🚀'],
+      ['zzz', '💤'],
+      ['bulb', '💡'],
+    ],
+  },
 ];
+
+/** Emoji that take a skin tone modifier. */
+export const TONEABLE: ReadonlySet<string> = new Set([
+  'thumbsup',
+  'thumbsdown',
+  'wave',
+  'clap',
+  'pray',
+  'ok_hand',
+  'raised_hands',
+  'muscle',
+]);

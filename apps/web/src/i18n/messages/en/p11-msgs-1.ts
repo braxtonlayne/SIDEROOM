@@ -34,4 +34,9 @@ export default {
   'lounge.inbox.markRead': 'Mark {name} as read',
   'lounge.inbox.markReadShort': 'Mark read',
   'lounge.inbox.markAllRead': 'Mark all as read',
+  'lounge.emojiPicker.skinTone': 'Skin tone',
+  'lounge.emojiPicker.favorites': 'Favorites',
+  'lounge.emojiPicker.frequent': 'Frequently used',
+  'lounge.emojiPicker.thisServer': 'This server',
+  'lounge.emojiPicker.hint': 'Right-click an emoji to favorite it.',
 } satisfies Record<string, string>;

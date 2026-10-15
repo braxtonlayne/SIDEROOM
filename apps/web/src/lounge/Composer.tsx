@@ -17,6 +17,7 @@ import { usePrefsStore, useSavedPrefs } from '../settings/user/prefs';
 import { convertEmoticons } from './emoticons';
 import { EmojiPicker } from './components/EmojiPicker';
 import { ExpressionPicker, type GuildSticker } from './components/ExpressionPicker';
+import { customEmojiText } from './components/EmojiPicker';
 import { EMOJI_CATEGORIES } from './components/emoji';
 import {
   insertAt,
@@ -902,6 +903,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 }}
                 onSticker={sendSticker}
                 onGif={sendGif}
+                onCustomEmoji={(custom) => {
+                  const { s, e } = sel();
+                  apply(insertAt(text, s, e, customEmojiText(custom)));
+                  ref.current?.focus();
+                }}
               />
             </Popover>
             <Popover
@@ -927,6 +933,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 }}
                 onSticker={sendSticker}
                 onGif={sendGif}
+                onCustomEmoji={(custom) => {
+                  const { s, e } = sel();
+                  apply(insertAt(text, s, e, customEmojiText(custom)));
+                  ref.current?.focus();
+                }}
               />
             </Popover>
           </>
@@ -945,9 +956,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           }
         >
           <EmojiPicker
+            guildId={guildId}
             onPick={(emoji) => {
               const { s, e } = sel();
               apply(insertAt(text, s, e, emoji));
+              ref.current?.focus();
+            }}
+            onPickCustom={(custom) => {
+              const { s, e } = sel();
+              apply(insertAt(text, s, e, customEmojiText(custom)));
               ref.current?.focus();
             }}
           />

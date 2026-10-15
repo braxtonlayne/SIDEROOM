@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
 import { stickerUrl } from '../msg/Sticker';
-import { EmojiPicker } from './EmojiPicker';
+import { EmojiPicker, type GuildEmoji } from './EmojiPicker';
 import { GifPicker, type Gif } from './GifPicker';
 
 export type ExpressionTab = 'gifs' | 'stickers' | 'emoji';
@@ -140,12 +140,14 @@ export function ExpressionPicker({
   onEmoji,
   onSticker,
   onGif,
+  onCustomEmoji,
 }: {
   initial?: ExpressionTab;
   guildId: string | undefined;
   onEmoji: (emoji: string) => void;
   onSticker: (s: GuildSticker) => void;
   onGif?: (g: Gif) => void;
+  onCustomEmoji?: (e: GuildEmoji) => void;
 }) {
   const t = useT();
   const [tab, setTab] = useState<ExpressionTab>(initial);
@@ -183,7 +185,9 @@ export function ExpressionPicker({
             <p className="lng-muted lng-expr-note">{t('lounge.expressionPicker.gifsNotSetUp')}</p>
           ))}
         {tab === 'stickers' && <StickerPicker guildId={guildId} onPick={onSticker} />}
-        {tab === 'emoji' && <EmojiPicker onPick={onEmoji} />}
+        {tab === 'emoji' && (
+          <EmojiPicker onPick={onEmoji} guildId={guildId} onPickCustom={onCustomEmoji} />
+        )}
       </div>
     </div>
   );
