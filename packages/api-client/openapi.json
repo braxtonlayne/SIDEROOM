@@ -57232,6 +57232,7 @@
           "id",
           "owner_id",
           "owner_name",
+          "mine",
           "name",
           "description",
           "visibility",
@@ -57265,6 +57266,10 @@
           "item_count": {
             "type": "integer",
             "format": "int64"
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "The caller owns the list."
           },
           "name": {
             "type": "string"

@@ -12450,6 +12450,8 @@ export interface components {
             id: string;
             /** Format: int64 */
             item_count: number;
+            /** @description The caller owns the list. */
+            mine: boolean;
             name: string;
             owner_id: string;
             owner_name: string;

@@ -75,3 +75,11 @@ export const keys = {
   follows: (shelf?: Shelf) => ['library', 'follows', shelf ?? null] as const,
   search: (q: string) => ['library', 'search', q] as const,
 };
+
+/** Mark a chapter read or unread; with `up_to`, every earlier chapter of the edition too. */
+export const markReadUpTo = (chapterId: string, body: { read: boolean; up_to?: boolean }) =>
+  apiFetch<{ changed: number }>(`/library/chapters/${encodeURIComponent(chapterId)}/read`, {
+    method: 'POST',
+    json: body,
+    retries: 0,
+  });

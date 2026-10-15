@@ -31,12 +31,13 @@ const LIST_COLS: &str = "l.id, l.owner_id, COALESCE(a.display_name, a.username::
 
 const LIST_FROM: &str = "reading_lists l JOIN accounts a ON a.id = l.owner_id";
 
-fn list_from(r: &PgRow, with_contains: bool) -> SocialResult<ReadingList> {
+fn list_from(r: &PgRow, viewer: i64, with_contains: bool) -> SocialResult<ReadingList> {
     let vis: String = r.try_get("visibility")?;
     Ok(ReadingList {
         id: r.try_get("id")?,
         owner_id: r.try_get("owner_id")?,
         owner_name: r.try_get("owner_name")?,
+        mine: r.try_get::<i64, _>("owner_id")? == viewer,
         name: r.try_get("name")?,
         description: r.try_get("description")?,
         visibility: Visibility::parse(&vis).unwrap_or(Visibility::Private),
@@ -77,7 +78,7 @@ impl LibrarySocial {
         .fetch_optional(&self.pool)
         .await?
         .ok_or(SocialError::NotFound("list"))?;
-        list_from(&row, false)
+        list_from(&row, v.user_id, false)
     }
 
     /// A list the viewer owns.
@@ -136,7 +137,7 @@ impl LibrarySocial {
         .fetch_all(&self.pool)
         .await?;
         rows.iter()
-            .map(|r| list_from(r, series.is_some()))
+            .map(|r| list_from(r, v.user_id, series.is_some()))
             .collect()
     }
 
@@ -152,7 +153,9 @@ impl LibrarySocial {
         .bind(owner)
         .fetch_all(&self.pool)
         .await?;
-        rows.iter().map(|r| list_from(r, false)).collect()
+        rows.iter()
+            .map(|r| list_from(r, v.user_id, false))
+            .collect()
     }
 
     /// Staff-featured lists, newest feature first.
@@ -172,7 +175,9 @@ impl LibrarySocial {
         .bind(i64::from(rules::limit(limit)))
         .fetch_all(&self.pool)
         .await?;
-        rows.iter().map(|r| list_from(r, false)).collect()
+        rows.iter()
+            .map(|r| list_from(r, v.user_id, false))
+            .collect()
     }
 
     /// A list and its entries in order.

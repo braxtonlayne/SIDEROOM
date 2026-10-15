@@ -6,9 +6,10 @@ import { useMemo, useState } from 'react';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import { ReportButton } from '../moderation/reports';
-import { followSeries, getChapters, getSeries, keys, unfollowSeries } from './api';
+import { followSeries, getChapters, getSeries, keys, markReadUpTo, unfollowSeries } from './api';
 import { pickContinue, progressOf, readMark, type ProgressMap } from './continue';
 import { progressApi } from './progress';
+import { AddToListButton, RatingBlock, ReviewsTab } from './SeriesSocial';
 import type { Chapter, Edition, Series, SeriesDetail, Volume } from './types';
 import { AgeBadge, formatDate, KIND_LABEL, label, languageName, STATUS_LABEL } from './ui';
 
@@ -66,8 +67,12 @@ function SeriesView({ detail }: { detail: SeriesDetail }) {
             label: t('library.series.tab.chapters'),
             content: <ChapterList series={series} editionId={editionId} />,
           },
-          // These arrive with LIB-SOC-003 (reviews, comments) and the recommendation/credit work.
-          { id: 'reviews', label: t('library.series.tab.reviews'), disabled: true, content: null },
+          {
+            id: 'reviews',
+            label: t('library.series.tab.reviews'),
+            content: <ReviewsTab seriesId={series.id} />,
+          },
+          // Comments, related and contributors arrive with the comment and recommendation work.
           {
             id: 'comments',
             label: t('library.series.tab.comments'),
@@ -150,6 +155,7 @@ function Header({
             </li>
           ))}
         </ul>
+        <RatingBlock seriesId={series.id} />
         {series.synopsis && (
           <div>
             <p className={`lib-synopsis${more || !long ? '' : ' lib-clamp'}`}>{series.synopsis}</p>
@@ -259,6 +265,7 @@ function Actions({
         <Icon name="bell" size={16} />
         {following ? t('library.series.following') : t('library.series.follow')}
       </Button>
+      <AddToListButton seriesId={series.id} />
       <ReportButton target={{ kind: 'library', id: series.id }} />
       {toggle.isError && <Notice variant="danger">{t('library.series.followError')}</Notice>}
     </div>
@@ -272,6 +279,15 @@ function ChapterList({ series, editionId }: { series: Series; editionId: string 
   const { chapters, map } = useSeriesProgress(series, editionId);
   const [desc, setDesc] = useState(true);
   const data = chapters.data;
+  const qc = useQueryClient();
+  const markUpTo = useMutation({
+    mutationFn: (chapterId: string) => markReadUpTo(chapterId, { read: true, up_to: true }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['library', 'chapters', series.id] });
+      void qc.invalidateQueries({ queryKey: ['library', 'unread'] });
+      void qc.invalidateQueries({ queryKey: ['library', 'recent'] });
+    },
+  });
 
   const groups = useMemo(() => {
     const vols = new Map<string, Volume>((data?.volumes ?? []).map((v) => [v.id, v]));
@@ -341,6 +357,16 @@ function ChapterList({ series, editionId }: { series: Series; editionId: string 
                       {readMark(c, map)}
                     </span>
                   </Link>
+                  <button
+                    type="button"
+                    className="lib-chapter-upto"
+                    disabled={markUpTo.isPending}
+                    title={t('library.series.markReadUpTo')}
+                    aria-label={t('library.series.markReadUpToChapter', { n: c.number })}
+                    onClick={() => markUpTo.mutate(c.id)}
+                  >
+                    <Icon name="check" size={16} />
+                  </button>
                 </li>
               );
             })}

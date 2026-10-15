@@ -452,6 +452,7 @@ async fn lists_crud_order_and_visibility() {
         .await
         .unwrap();
     assert_eq!(list.visibility, Visibility::Private);
+    assert!(list.mine);
     for s in [s1, s2, s3] {
         e.svc.add_item(owner, list.id, s, None).await.unwrap();
     }
@@ -481,7 +482,8 @@ async fn lists_crud_order_and_visibility() {
         )
         .await
         .unwrap();
-    assert!(e.svc.get_list(friend, list.id).await.is_ok());
+    let (seen, _) = e.svc.get_list(friend, list.id).await.unwrap();
+    assert!(!seen.mine);
     assert!(e.svc.get_list(stranger, list.id).await.is_err());
     assert_eq!(
         e.svc.user_lists(friend, owner.user_id).await.unwrap().len(),

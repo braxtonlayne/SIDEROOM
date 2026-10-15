@@ -100,6 +100,7 @@ describe('reader', () => {
       bookmarks: () => Promise.resolve([]),
       addBookmark: vi.fn(),
       removeBookmark: vi.fn(),
+      remove: vi.fn(),
     };
     setProgressApi(fake);
     const user = userEvent.setup();

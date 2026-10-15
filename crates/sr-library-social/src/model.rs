@@ -135,6 +135,8 @@ pub struct ReadingList {
     #[schema(value_type = String)]
     pub owner_id: i64,
     pub owner_name: String,
+    /// The caller owns the list.
+    pub mine: bool,
     pub name: String,
     pub description: String,
     pub visibility: Visibility,
