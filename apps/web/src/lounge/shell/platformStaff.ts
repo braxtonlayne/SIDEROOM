@@ -5,6 +5,7 @@
  */
 import { create } from 'zustand';
 import { apiFetch } from '../../api/client';
+import { onDispatch } from '../../store/events';
 
 interface PlatformStaffState {
   staff: boolean;
@@ -36,3 +37,12 @@ export function useIsPlatformStaff(): boolean {
   void load();
   return staff;
 }
+
+/** True for a gateway `SR_STAFF_ALERT` that says the staff appointment of this account ended. */
+export const isStaffRevoked = (event: string, data: unknown): boolean =>
+  event === 'SR_STAFF_ALERT' && (data as { revoked?: unknown } | null)?.revoked === true;
+
+// The server pushes the end of an appointment (ADM-STF-005): the Platform Admin entries disappear at once.
+onDispatch((event, data) => {
+  if (isStaffRevoked(event, data)) usePlatformStaff.setState({ staff: false, loaded: true });
+});

@@ -646,4 +646,26 @@ describe('platform admin entry points (ADM-STF-010, ADM-STF-011)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Staff Server' }));
     expect(await screen.findByRole('menuitem', { name: 'Platform Admin' })).toBeInTheDocument();
   });
+
+  it('offers no invite entry in the Staff Server menu, but does in other servers (ADM-STF-003)', async () => {
+    server.use(
+      http.get('*/api/v1/admin/me', () =>
+        HttpResponse.json({ is_owner: false, platform_permissions: '1', user_id: '1' }),
+      ),
+    );
+    useStore.setState({
+      guilds: { g1: { id: 'g1', name: 'Staff Server', owner_id: '1', is_staff_guild: true } },
+    });
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Staff Server' }));
+    await screen.findByRole('menuitem', { name: 'Platform Admin' });
+    expect(screen.queryByRole('menuitem', { name: /Invite/ })).toBeNull();
+  });
+
+  it('keeps the invite entry in an ordinary server menu', async () => {
+    useStore.setState({ guilds: { g1: { id: 'g1', name: 'Book Club', owner_id: '1' } } });
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Book Club' }));
+    expect(await screen.findByRole('menuitem', { name: /Invite to Server/ })).toBeInTheDocument();
+  });
 });

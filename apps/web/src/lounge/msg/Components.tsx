@@ -1,11 +1,13 @@
 import { Spinner, useToast } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
+import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import type { RawComponent } from '../../store/types';
 import { useChannels, useMembers, useRoles, type Snowflake } from '../data';
 import { newNonce, sendInteraction } from '../apps/interactions';
 import { useReportOutcome } from '../apps/useReportOutcome';
 import { isHttpUrl } from './format';
+import { parseStaffButton, runStaffButton } from './staffActions';
 
 export type { RawComponent };
 
@@ -22,6 +24,8 @@ export interface ComponentContext {
   channelId: Snowflake;
   messageId: Snowflake;
 }
+
+const isStaff = (customId: string | undefined) => parseStaffButton(customId) !== null;
 
 /**
  * Buttons and select menus on app messages (LNG-MSGUI-022). Link buttons open their URL. Everything else
@@ -49,6 +53,28 @@ export function ComponentRows({
   const [busy, setBusy] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
+  // Staff card buttons (`sr:` custom ids) are answered once; afterwards they stay disabled.
+  const [staffDone, setStaffDone] = useState<string | null>(null);
+
+  const staffPress = async (key: string, customId: string | undefined) => {
+    const button = parseStaffButton(customId);
+    if (!button || !context) return;
+    setBusy(key);
+    try {
+      const out = await runStaffButton(button, context);
+      setStaffDone(out.message ?? t('lounge.components.staffDone'));
+    } catch (e) {
+      toast.show({
+        title:
+          e instanceof ApiError && e.body?.message
+            ? e.body.message
+            : t('lounge.components.staffFailed'),
+        variant: 'danger',
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   /** Starts an interaction and keeps the control busy until the app answered or the wait ran out. */
   const interact = (key: string, c: RawComponent, values?: string[]) => {
@@ -109,6 +135,11 @@ export function ComponentRows({
 
   return (
     <div className="lng-components">
+      {staffDone !== null && (
+        <p className="lng-muted" role="status">
+          {staffDone}
+        </p>
+      )}
       {rows
         .filter((r) => r.type === 1)
         .slice(0, 5)
@@ -144,9 +175,15 @@ export function ComponentRows({
                     type="button"
                     className="lng-cbtn"
                     data-style={style}
-                    disabled={c.disabled || busy === key}
+                    disabled={
+                      c.disabled || busy === key || (staffDone !== null && isStaff(c.custom_id))
+                    }
                     aria-busy={busy === key || undefined}
-                    onClick={() => interact(key, c)}
+                    onClick={() =>
+                      isStaff(c.custom_id) && context
+                        ? void staffPress(key, c.custom_id)
+                        : interact(key, c)
+                    }
                   >
                     {busy === key && <Spinner label={t('lounge.components.waitingForApp')} />}
                     {c.label ?? t('lounge.components.buttonDefault')}

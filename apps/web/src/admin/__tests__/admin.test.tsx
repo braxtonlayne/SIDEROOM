@@ -108,6 +108,7 @@ describe('admin shell', () => {
       'Limits & settings',
       'System',
       'Platform audit log',
+      'Private content',
       'Access log',
       'Command line',
     ]);

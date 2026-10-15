@@ -32,6 +32,7 @@ import { ModerationSection } from './sections/Moderation';
 import { OverviewSection } from './sections/Overview';
 import { RolesSection } from './sections/Roles';
 import { ServerSupportSection } from './sections/ServerSupport';
+import { TagSection } from './sections/Tag';
 
 export interface SectionProps {
   guildId: string;
@@ -81,6 +82,13 @@ export const SECTIONS: SectionDef[] = [
     group: 'SERVER',
     visible: (v) => v.isOwner || v.can('MANAGE_GUILD'),
     component: ServerSupportSection,
+  },
+  {
+    id: 'tag',
+    label: 'settings.serverTag.nav',
+    group: 'SERVER',
+    visible: (v) => v.can('MANAGE_GUILD'),
+    component: TagSection,
   },
   {
     id: 'channels',

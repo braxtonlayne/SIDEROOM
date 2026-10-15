@@ -255,19 +255,20 @@ function ChannelRow({
           </>
         )}
         <span className="lng-channel-actions">
-          {(channel.permissions?.createInvite ?? guild.permissions.createInvite) && (
-            <button
-              type="button"
-              className="lng-icon-btn"
-              aria-label={t('lounge.channelSidebar.createInvite')}
-              aria-describedby={nameId}
-              onClick={() =>
-                openDialog({ kind: 'invite', guildId: guild.id, channelId: channel.id })
-              }
-            >
-              <Icon name="users" size={16} />
-            </button>
-          )}
+          {!guild.isStaff &&
+            (channel.permissions?.createInvite ?? guild.permissions.createInvite) && (
+              <button
+                type="button"
+                className="lng-icon-btn"
+                aria-label={t('lounge.channelSidebar.createInvite')}
+                aria-describedby={nameId}
+                onClick={() =>
+                  openDialog({ kind: 'invite', guildId: guild.id, channelId: channel.id })
+                }
+              >
+                <Icon name="users" size={16} />
+              </button>
+            )}
           {(channel.permissions?.manageChannels ?? guild.permissions.manageChannels) && (
             <button
               type="button"
@@ -356,7 +357,7 @@ function GuildHeader({ guild }: { guild: Guild }) {
       label: t('lounge.channelSidebar.serverSupport'),
       onSelect: soon(t('lounge.channelSidebar.serverSupport')),
     },
-    ...(p.createInvite
+    ...(p.createInvite && !guild.isStaff
       ? [
           {
             ...(core.invite as object),

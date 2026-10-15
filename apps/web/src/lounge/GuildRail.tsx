@@ -107,7 +107,8 @@ function GuildIcon({
   );
   const menu: MenuEntry[] = [
     core.markRead,
-    core.invite,
+    // The Staff Server takes no invites (ADM-STF-003): the entry is not shown there.
+    ...(guild.isStaff ? [] : [core.invite]),
     core.mute,
     core.notifications,
     core.hideMuted,
