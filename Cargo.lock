@@ -5490,6 +5490,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "bytes",
  "fs4",
  "futures",
  "http-body-util",

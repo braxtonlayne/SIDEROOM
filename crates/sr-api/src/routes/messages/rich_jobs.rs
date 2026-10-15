@@ -35,6 +35,24 @@ async fn announce_update(deps: &MessagesDeps, msg: &Message) -> MsgResult<()> {
     Ok(())
 }
 
+/// Re-read `message` and announce it as `MESSAGE_UPDATE` (used by the attachment
+/// expiry job, LNG-MSG-022). A message that is gone or hidden is skipped.
+pub async fn announce_message_update(
+    deps: &MessagesDeps,
+    channel: ChannelId,
+    message: MessageId,
+) -> MsgResult<()> {
+    if let Some(msg) = deps
+        .repo
+        .get_message(channel, message)
+        .await?
+        .filter(Message::is_visible)
+    {
+        announce_update(deps, &msg).await?;
+    }
+    Ok(())
+}
+
 /// Recompute the link previews of one message: embeds written by the author or a
 /// bot stay, previous server-generated ones are replaced by fresh previews of the
 /// links currently in the content. `SUPPRESS_EMBEDS` and `<url>` links yield none.

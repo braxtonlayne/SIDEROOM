@@ -976,6 +976,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::jobs::register(
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
         &pool,
+        storage.clone(),
+        messages.clone(),
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
