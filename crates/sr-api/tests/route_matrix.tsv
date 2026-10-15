@@ -8,6 +8,7 @@ DELETE	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
 DELETE	/admin/donations/entitlements/{grant_id}	authenticated	staff	deny	-
+DELETE	/admin/guilds/{guild_id}	authenticated	staff	deny	-
 DELETE	/admin/invites/{invite_id}	authenticated	staff	deny	-
 DELETE	/admin/jobs/{job_id}	authenticated	staff	deny	-
 DELETE	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
@@ -106,8 +107,10 @@ GET	/admin/access-log/verify	authenticated	staff	deny	-
 GET	/admin/accounts	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
+GET	/admin/accounts/{account_id}/guilds	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-descendants	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-tree	authenticated	staff	deny	-
+GET	/admin/accounts/{account_id}/sessions	authenticated	staff	deny	-
 GET	/admin/alerts	authenticated	staff	deny	-
 GET	/admin/announcements	authenticated	staff	deny	-
 GET	/admin/bans	authenticated	staff	deny	-
@@ -131,6 +134,8 @@ GET	/admin/donations/rates	authenticated	staff	deny	-
 GET	/admin/donations/report	authenticated	staff	deny	-
 GET	/admin/donations/status	authenticated	staff	deny	-
 GET	/admin/features	authenticated	staff	deny	-
+GET	/admin/guilds	authenticated	staff	deny	-
+GET	/admin/guilds/{guild_id}	authenticated	staff	deny	-
 GET	/admin/invites	authenticated	staff	deny	-
 GET	/admin/jobs	authenticated	staff	deny	-
 GET	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
@@ -141,6 +146,7 @@ GET	/admin/library/series/{series_id}/chapters	authenticated	staff	deny	-
 GET	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-
 GET	/admin/me	authenticated	staff	deny	-
 GET	/admin/persons/{person_id}	authenticated	staff	deny	-
+GET	/admin/persons/{person_id}/suspicion-log	authenticated	staff	deny	-
 GET	/admin/private/accounts/{account_id}/dms	authenticated	staff	deny	-
 GET	/admin/private/channels/{channel_id}/messages	authenticated	staff	deny	-
 GET	/admin/private/guilds/{guild_id}/channels	authenticated	staff	deny	-
@@ -468,9 +474,12 @@ POST	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/delete-request	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/force-logout	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/force-password-reset	authenticated	staff	deny	-
+POST	/admin/accounts/{account_id}/freeze-invites	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/rename	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/reset-2fa	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/suspend	authenticated	staff	deny	-
+POST	/admin/accounts/{account_id}/unfreeze-invites	authenticated	staff	deny	-
+POST	/admin/accounts/{account_id}/unlink	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/unsuspend	authenticated	staff	deny	-
 POST	/admin/alerts/{alert_id}/ack	authenticated	staff	deny	-
 POST	/admin/announcements	authenticated	staff	deny	-
@@ -500,6 +509,7 @@ POST	/admin/donations/entitlements	authenticated	staff	deny	-
 POST	/admin/donations/invoices/{invoice_id}/resolve	authenticated	staff	deny	-
 POST	/admin/donations/leaderboard/hide	authenticated	staff	deny	-
 POST	/admin/donations/wallet/test	authenticated	staff	deny	-
+POST	/admin/guilds/{guild_id}/transfer-ownership	authenticated	staff	deny	-
 POST	/admin/jobs/{job_id}/retry	authenticated	staff	deny	-
 POST	/admin/library/chapters/{chapter_id}/publish	authenticated	staff	deny	-
 POST	/admin/library/chapters/{chapter_id}/unpublish	authenticated	staff	deny	-
@@ -515,6 +525,7 @@ POST	/admin/library/series/{series_id}/unpublish	authenticated	staff	deny	-
 POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/ban	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/clear-suspicion	authenticated	staff	deny	-
+POST	/admin/persons/{person_id}/link	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/unban	authenticated	staff	deny	-
 POST	/admin/reauth	authenticated	staff	deny	-
 POST	/admin/review/requests/{request_id}/decline	authenticated	staff	deny	-
@@ -529,6 +540,7 @@ POST	/admin/review/submissions/{submission_id}/request-changes	authenticated	sta
 POST	/admin/review/submissions/{submission_id}/revoke-credits	authenticated	staff	deny	-
 POST	/admin/staff	authenticated	staff	deny	-
 POST	/admin/staff/offers	authenticated	staff	deny	-
+POST	/admin/system/email-test	authenticated	staff	deny	-
 POST	/admin/transcode/jobs/{job_id}/cancel	authenticated	staff	deny	-
 POST	/admin/transcode/jobs/{job_id}/retry	authenticated	staff	deny	-
 POST	/admin/transcode/retranscode	authenticated	staff	deny	-
@@ -679,6 +691,7 @@ PUT	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
 PUT	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
 PUT	/admin/library/series/{series_id}	authenticated	staff	deny	-
+PUT	/admin/persons/{person_id}/notes	authenticated	staff	deny	-
 PUT	/admin/review/submissions/{submission_id}/items/{item_id}	authenticated	staff	deny	-
 PUT	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-
 PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-

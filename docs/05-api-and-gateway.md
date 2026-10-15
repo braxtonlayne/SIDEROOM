@@ -252,6 +252,20 @@ overrode; a missing key means the client shows its built-in default. Keys: `no-i
 `{markdown: string|null, reason?}`: up to 20 000 characters, `null` or blank removes the override (204); an unknown key is 404. The
 change is written to the access log with the key and length, not the text.
 
+**Server and staff additions (phase 13).** `GET /guilds/{id}?with_counts=true` adds `approximate_member_count` and, for servers of up
+to 1000 members when a presence source is wired, `approximate_presence_count`. `GET /guilds/{id}/audit-logs` also takes
+`target_id` (entries about one user or object). Staff routes (all session-only, bots are refused; a reason is required where noted):
+`GET /admin/accounts?discord_id=&ip=` (the IP lookup is validated and logged); `GET /admin/accounts/{id}/sessions` (never the token)
+and `/guilds` (`MANAGE_ACCOUNTS`); `POST /admin/accounts/{id}/freeze-invites` and `unfreeze-invites` (`MANAGE_INVITES`, reason; shown as
+`invites_frozen` on `GET /admin/accounts/{id}`); `PUT /admin/persons/{id}/notes` (4 000 characters), `POST /admin/persons/{id}/link`
+`{account_id}` and `POST /admin/accounts/{id}/unlink` (`MANAGE_ACCOUNTS`, reason; 409 while a Person is banned or when the account is
+its Person's only one), `GET /admin/persons/{id}/suspicion-log` (`MANAGE_INVITES`); `GET /admin/guilds?q=&after=&limit=`,
+`GET /admin/guilds/{id}`, `POST /admin/guilds/{id}/transfer-ownership {new_owner_id}` and `DELETE /admin/guilds/{id}`
+(`MANAGE_GUILDS_GLOBAL`, reason; applied as the server's owner through the normal chat stack, the Staff Server is refused);
+`GET /admin/system` lists `integrations` (`smtp`, `discord_oauth`, `voice`, `turn`, `gif`: `{id, configured, detail}`, never a secret) and
+`POST /admin/system/email-test` (`OPERATOR`, fresh second factor) mails a test message to the caller and answers `{sent_to}` with the
+local part masked.
+
 ## 6. Gateway
 
 ### 6.1 Opcodes (Discord numbering)

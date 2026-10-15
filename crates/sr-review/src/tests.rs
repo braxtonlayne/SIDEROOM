@@ -1602,3 +1602,50 @@ async fn the_daily_allowance_follows_the_platform_setting() {
     open.charge_upload(m, u64::MAX / 2).await.unwrap();
     assert_eq!(open.upload_allowance(m).await.unwrap().limit_bytes, None);
 }
+
+struct OpenCap(i64);
+
+#[async_trait::async_trait]
+impl crate::service::AllowanceSource for OpenCap {
+    async fn daily_upload_bytes(&self) -> i64 {
+        0
+    }
+    async fn max_open_per_member(&self) -> i64 {
+        self.0
+    }
+}
+
+#[tokio::test]
+async fn the_open_submission_cap_follows_the_platform_setting() {
+    let w = world();
+    let next = Arc::new(std::sync::atomic::AtomicI64::new(9_000));
+    let with = |n: i64| {
+        let next = next.clone();
+        ReviewService::new(
+            w.repo.clone(),
+            KindRegistry::new().with(w.kind.clone()),
+            w.clock.clone(),
+            Arc::new(move || next.fetch_add(1, std::sync::atomic::Ordering::SeqCst)),
+        )
+        .with_allowance(Arc::new(OpenCap(n)))
+    };
+    let two = with(2);
+    for n in 0..2 {
+        two.create(Caller::member(MEMBER), new_sub(&format!("s{n}")))
+            .await
+            .unwrap();
+    }
+    assert!(matches!(
+        two.create(Caller::member(MEMBER), new_sub("third")).await,
+        Err(ReviewError::Conflict(_))
+    ));
+    // A raised cap admits it; staff stay exempt; a nonsense value never locks everybody out.
+    with(3)
+        .create(Caller::member(MEMBER), new_sub("third"))
+        .await
+        .unwrap();
+    with(0)
+        .create(Caller::member(OTHER), new_sub("first of other"))
+        .await
+        .unwrap();
+}

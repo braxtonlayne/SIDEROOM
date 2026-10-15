@@ -33,6 +33,11 @@ pub const MAX_UPLOAD_BYTES_PER_DAY: i64 = 53_687_091_200;
 #[async_trait::async_trait]
 pub trait AllowanceSource: Send + Sync {
     async fn daily_upload_bytes(&self) -> i64;
+    /// Open submissions a member may have at once (the platform setting
+    /// `submissions.max_open_per_member`); staff are exempt.
+    async fn max_open_per_member(&self) -> i64 {
+        MAX_OPEN_PER_MEMBER
+    }
 }
 const DAY_MS: i64 = 86_400_000;
 /// Idle days before a draft owner is warned, then before the draft is abandoned.
@@ -119,6 +124,14 @@ impl ReviewService {
     pub fn with_allowance(mut self, a: Arc<dyn AllowanceSource>) -> Self {
         self.allowance = Some(a);
         self
+    }
+
+    /// The open-submission cap for members.
+    async fn open_limit(&self) -> i64 {
+        match &self.allowance {
+            Some(a) => a.max_open_per_member().await.max(1),
+            None => MAX_OPEN_PER_MEMBER,
+        }
     }
 
     /// The daily allowance in bytes; `None` when unlimited.
@@ -274,10 +287,13 @@ impl ReviewService {
         input: CreateSubmission,
     ) -> ReviewResult<SubmissionDetail> {
         let kind = self.kinds.get(&input.kind)?.clone();
-        if !c.is_staff() && self.repo.count_open(c.user_id).await? >= MAX_OPEN_PER_MEMBER {
-            return Err(ReviewError::Conflict(format!(
-                "you can have {MAX_OPEN_PER_MEMBER} open submissions at a time; finish or withdraw one first"
-            )));
+        if !c.is_staff() {
+            let limit = self.open_limit().await;
+            if self.repo.count_open(c.user_id).await? >= limit {
+                return Err(ReviewError::Conflict(format!(
+                    "you can have {limit} open submissions at a time; finish or withdraw one first"
+                )));
+            }
         }
         let summary = input.summary.trim().to_owned();
         if summary.chars().count() > 4000 {

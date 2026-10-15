@@ -211,6 +211,24 @@
             }
           },
           {
+            "name": "discord_id",
+            "in": "query",
+            "description": "Accounts linked to this Discord user id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ip",
+            "in": "query",
+            "description": "Accounts that signed in from this IP address",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "after",
             "in": "query",
             "description": "Cursor",
@@ -1073,6 +1091,147 @@
         ]
       }
     },
+    "/admin/accounts/{account_id}/freeze-invites": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Freeze the account's invite creation by hand (`MANAGE_INVITES`, reason required). The member\nsees the generic \"invites are unavailable\" wording.",
+        "operationId": "freeze_invites",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Reason (or X-Audit-Log-Reason header)",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/accounts/{account_id}/guilds": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Servers an account belongs to (`MANAGE_ACCOUNTS`).",
+        "operationId": "account_guilds",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminGuildRef"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/accounts/{account_id}/invite-descendants": {
       "get": {
         "tags": [
@@ -1412,6 +1571,66 @@
         ]
       }
     },
+    "/admin/accounts/{account_id}/sessions": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Open sessions of an account: IP, browser and times, never the token (`MANAGE_ACCOUNTS`).\nThe read is logged.",
+        "operationId": "sessions",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminSession"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/accounts/{account_id}/suspend": {
       "post": {
         "tags": [
@@ -1448,6 +1667,185 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccountSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/accounts/{account_id}/unfreeze-invites": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Lift the manual invite freeze (`MANAGE_INVITES`, reason required). An automatic suspicion\nfreeze stays until the suspicion is cleared.",
+        "operationId": "unfreeze_invites",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Reason (or X-Audit-Log-Reason header)",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/accounts/{account_id}/unlink": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Split an account off into a Person of its own (`MANAGE_ACCOUNTS`, reason required). 409\nwhen it is the only account of its Person or the Person is banned.",
+        "operationId": "unlink_account",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Reason (or X-Audit-Log-Reason header)",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnlinkResult"
                 }
               }
             }
@@ -7452,6 +7850,86 @@
         ]
       }
     },
+    "/admin/entrance/copy/{key}": {
+      "put": {
+        "tags": [
+          "entrance"
+        ],
+        "summary": "Set or reset one copy block (`MANAGE_FEATURES`). Audited with the key and length.",
+        "operationId": "put_copy",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "no-invitation, house-notes, landing-headline, landing-subhead or login-notice",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntranceCopyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/features": {
       "get": {
         "tags": [
@@ -7536,6 +8014,315 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FeatureView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/guilds": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Every server on the platform, by id (`MANAGE_GUILDS_GLOBAL`).",
+        "operationId": "search_guilds",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Name fragment or exact id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1-100, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGuildPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/guilds/{guild_id}": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "One server's metadata (`MANAGE_GUILDS_GLOBAL`).",
+        "operationId": "get_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGuild"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Delete a server (`MANAGE_GUILDS_GLOBAL`, reason required). Applied as the owner: the same soft\ndelete the owner gets, with the 30-day purge window and the usual `GUILD_DELETE`. The Staff\nServer is refused.",
+        "operationId": "delete_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Reason (or X-Audit-Log-Reason header)",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/guilds/{guild_id}/transfer-ownership": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Make another member the owner (`MANAGE_GUILDS_GLOBAL`, reason required). Applied as the\ncurrent owner, so the server hears the usual `GUILD_UPDATE`. The Staff Server is refused.",
+        "operationId": "transfer_ownership",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGuild"
                 }
               }
             }
@@ -10382,6 +11169,246 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/persons/{person_id}/link": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Put an account under this Person (`MANAGE_ACCOUNTS`, reason required). Refused (409) while\neither Person is banned. A Person left without accounts is merged into this one.",
+        "operationId": "link_account",
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "description": "Person snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkAccountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/persons/{person_id}/notes": {
+      "put": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Replace a Person's staff notes (`MANAGE_ACCOUNTS`).",
+        "operationId": "put_notes",
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "description": "Person snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonNotesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/persons/{person_id}/suspicion-log": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "A Person's suspicion history, newest first (`MANAGE_INVITES`).",
+        "operationId": "suspicion_log",
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "description": "Person snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1-200, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SuspicionEvent"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "",
             "content": {
               "application/json": {
@@ -13359,6 +14386,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SystemView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/system/email-test": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Send a test message to your own address through the configured mailer (`OPERATOR`, fresh second\nfactor). A 500 with code 900001 means the mailer refused; the log has the reason, the response does not.",
+        "operationId": "email_test",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailTestResult"
                 }
               }
             }
@@ -19018,6 +20091,17 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "0 normal (default) or 1 burst",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
           }
         ],
         "responses": {
@@ -19168,6 +20252,17 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "0 normal (default) or 1 burst; a member may hold both for one emoji",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
           }
         ],
         "responses": {
@@ -19247,6 +20342,17 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "0 normal (default) or 1 burst",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
           }
         ],
         "responses": {
@@ -19316,6 +20422,17 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "0 normal (default) or 1 burst",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
             }
           }
         ],
@@ -27175,6 +28292,54 @@
         ]
       }
     },
+    "/emojis/{emoji_id}": {
+      "get": {
+        "tags": [],
+        "summary": "An emoji by id, for members of any server (the popout on a cross-server custom emoji).\nUnavailable emoji are hidden from non-members.",
+        "operationId": "get_emoji_info",
+        "parameters": [
+          {
+            "name": "emoji_id",
+            "in": "path",
+            "description": "Emoji snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmojiInfoObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/gateway": {
       "get": {
         "tags": [
@@ -27667,7 +28832,7 @@
         "tags": [
           "guild"
         ],
-        "summary": "Get a guild (members only).",
+        "summary": "Get a guild (members only). With `with_counts=true` the object also carries\n`approximate_member_count` and, for servers of up to 1000 members, `approximate_presence_count`.",
         "operationId": "get_guild",
         "parameters": [
           {
@@ -27677,6 +28842,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "with_counts",
+            "in": "query",
+            "description": "Add the approximate member and online counts",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -27909,7 +29083,7 @@
         "tags": [
           "audit"
         ],
-        "summary": "List audit-log entries, newest first (`VIEW_AUDIT_LOG`). Filter by `user_id`\nand `action_type`; page with `before`.",
+        "summary": "List audit-log entries, newest first (`VIEW_AUDIT_LOG`). Filter by `user_id` (actor),\n`target_id` (who or what the entry is about) and `action_type`; page with `before`.",
         "operationId": "list_audit_log",
         "parameters": [
           {
@@ -27938,6 +29112,15 @@
             "schema": {
               "type": "integer",
               "format": "int32"
+            }
+          },
+          {
+            "name": "target_id",
+            "in": "query",
+            "description": "Target filter: entries about this user or object",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -42293,6 +43476,33 @@
         ]
       }
     },
+    "/sr/entrance/copy": {
+      "get": {
+        "tags": [
+          "entrance"
+        ],
+        "summary": "The copy blocks staff overrode, key to markdown. Public (the Entrance is pre-login); blocks\nwithout an override are missing and the client shows its default. Keys: `no-invitation`,\n`house-notes`, `landing-headline`, `landing-subhead`, `login-notice`.",
+        "operationId": "get_copy",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "propertyNames": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sr/features/flags": {
       "get": {
         "tags": [
@@ -45460,6 +46670,69 @@
         ]
       }
     },
+    "/users/@me/age-confirmation": {
+      "get": {
+        "tags": [
+          "super::account"
+        ],
+        "summary": "`GET /users/@me/age-confirmation`: the stored answer to the age gate (LNG-USET-015).",
+        "operationId": "get_age_confirmation",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgeConfirmationObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "super::account"
+        ],
+        "summary": "`DELETE /users/@me/age-confirmation`: forget the answer, so the age gate asks again\n(\"re-confirm\", LNG-USET-015). Restricted content is hidden until the account answers.",
+        "operationId": "reset_age_confirmation",
+        "responses": {
+          "204": {
+            "description": "Reset"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/birthday": {
       "get": {
         "tags": [
@@ -46088,7 +47361,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LinkBody"
+                "$ref": "#/components/schemas/ConnectionLinkBody"
               }
             }
           },
@@ -47215,6 +48488,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NotificationDefaultsObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/notification-keywords": {
+      "get": {
+        "tags": [
+          "user_settings"
+        ],
+        "summary": "The caller's keyword highlight list (empty by default).",
+        "operationId": "get_notification_keywords",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationKeywordsObject"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "user_settings"
+        ],
+        "summary": "Replace the keyword list. Entries are trimmed; blanks and duplicates (any case) are dropped.\nPublishes `SR_NOTIFICATION_KEYWORDS_UPDATE` to the caller's sessions.",
+        "operationId": "put_notification_keywords",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationKeywordsObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationKeywordsObject"
                 }
               }
             }
@@ -50717,6 +52066,10 @@
               }
             ]
           },
+          "invites_frozen": {
+            "type": "boolean",
+            "description": "Staff froze this account's invite creation by hand (ADM-GRAPH-004)."
+          },
           "invites_issued": {
             "type": "integer",
             "format": "int64"
@@ -50965,6 +52318,112 @@
           }
         }
       },
+      "AdminGuild": {
+        "type": "object",
+        "description": "A server in the platform-wide list (staff only).",
+        "required": [
+          "id",
+          "name",
+          "owner_id",
+          "member_count",
+          "channel_count",
+          "created_at_ms",
+          "is_staff_guild",
+          "deleted",
+          "community_enabled"
+        ],
+        "properties": {
+          "channel_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "community_enabled": {
+            "type": "boolean"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "Soft-deleted, waiting for the purge job."
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_staff_guild": {
+            "type": "boolean",
+            "description": "The Staff Server: cannot be deleted or transferred here."
+          },
+          "member_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "owner_username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminGuildPage": {
+        "type": "object",
+        "description": "A page of servers.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGuild"
+            }
+          },
+          "next_after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminGuildRef": {
+        "type": "object",
+        "description": "A server an account belongs to.",
+        "required": [
+          "id",
+          "name",
+          "owner",
+          "joined_at_ms",
+          "member_count"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "joined_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "member_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "boolean"
+          }
+        }
+      },
       "AdminInvoicePage": {
         "type": "object",
         "required": [
@@ -51070,6 +52529,51 @@
         ],
         "description": "A listing in the staff queue."
       },
+      "AdminSession": {
+        "type": "object",
+        "description": "An open session of an account, as the staff drawer lists it. No token material.",
+        "required": [
+          "id",
+          "created_at_ms",
+          "last_seen_at_ms",
+          "expires_at_ms"
+        ],
+        "properties": {
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "device_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_seen_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "user_agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AdminTitleDetail": {
         "type": "object",
         "description": "Everything about a title, unpublished parts included (staff).",
@@ -51114,6 +52618,33 @@
             "items": {
               "$ref": "#/components/schemas/Variant"
             }
+          }
+        }
+      },
+      "AgeConfirmationObject": {
+        "type": "object",
+        "description": "Where the account stands on the 18+ age gate.",
+        "properties": {
+          "confirmed": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`true` after \"18 or older\", `false` after \"younger\", `null` when never asked or reset."
+          },
+          "confirmed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the account confirmed it was 18 or older (RFC 3339); `null` otherwise."
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How it was confirmed; always `self-declared` (D-032: no ID check)."
           }
         }
       },
@@ -55514,6 +57045,33 @@
           }
         }
       },
+      "ConnectionLinkBody": {
+        "type": "object",
+        "description": "Body of `PUT /users/@me/connections/link`.",
+        "required": [
+          "provider"
+        ],
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The account name shown on the profile (1 to 100 characters). For `website` it\ndefaults to the host."
+          },
+          "provider": {
+            "type": "string",
+            "description": "A link-only provider such as `website`, `xbox`, `roblox` or `tiktok`."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`https://` address of the profile; required for `website`."
+          }
+        }
+      },
       "ConnectionObject": {
         "type": "object",
         "required": [
@@ -57711,6 +59269,74 @@
           }
         }
       },
+      "EmojiGuildObject": {
+        "type": "object",
+        "description": "The server an emoji belongs to.",
+        "required": [
+          "id",
+          "name",
+          "joined",
+          "joinable"
+        ],
+        "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "joinable": {
+            "type": "boolean",
+            "description": "`POST /directory/{guild_id}/join` works for it (it is Directory-listed)."
+          },
+          "joined": {
+            "type": "boolean",
+            "description": "The viewer is a member."
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "EmojiInfoObject": {
+        "type": "object",
+        "description": "What the emoji popout shows for an emoji the viewer may not be able to use.",
+        "required": [
+          "id",
+          "name",
+          "animated",
+          "url"
+        ],
+        "properties": {
+          "animated": {
+            "type": "boolean"
+          },
+          "guild": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EmojiGuildObject",
+                "description": "The owning server, only while it is listed in the Directory (or the viewer is a member).\nOtherwise `null`: the popout then says only that the emoji is from a private server."
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Short-lived signed image URL (`/cdn/...`), valid for an hour."
+          }
+        }
+      },
       "EmojiObject": {
         "type": "object",
         "required": [
@@ -57771,6 +59397,25 @@
             ]
           },
           "verify_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "EntranceCopyBody": {
+        "type": "object",
+        "description": "Body of `PUT /admin/entrance/copy/{key}`.",
+        "properties": {
+          "markdown": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Markdown, at most 20 000 characters. `null` or blank removes the override."
+          },
+          "reason": {
             "type": [
               "string",
               "null"
@@ -59197,6 +60842,24 @@
             "description": "Seconds of voice inactivity before that move: 60, 300, 900, 1800 or 3600.",
             "minimum": 0
           },
+          "approximate_member_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Only with `?with_counts=true` on `GET /guilds/{id}` (Discord shape).",
+            "minimum": 0
+          },
+          "approximate_presence_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Members visibly online; only with `with_counts`, and only for servers of up to 1000 members.",
+            "minimum": 0
+          },
           "banner": {
             "type": [
               "string",
@@ -59791,6 +61454,30 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "IntegrationStatus": {
+        "type": "object",
+        "description": "Whether an optional integration is set up. Never carries a secret.",
+        "required": [
+          "id",
+          "configured"
+        ],
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A short non-secret note, such as the SMTP host."
+          },
+          "id": {
+            "type": "string",
+            "description": "`smtp`, `discord_oauth`, `voice`, `turn`, `gif`, `push` or `connections`."
           }
         }
       },
@@ -61068,6 +62755,25 @@
           "public"
         ]
       },
+      "LinkAccountBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/persons/{person_id}/link`.",
+        "required": [
+          "account_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "The account to move under this Person."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "LinkBody": {
         "type": "object",
         "properties": {
@@ -61294,6 +63000,19 @@
           "credential": {
             "$ref": "#/components/schemas/AssertionCredential",
             "description": "The result of `navigator.credentials.get`."
+          }
+        }
+      },
+      "MailTestResult": {
+        "type": "object",
+        "description": "Result of the mail test.",
+        "required": [
+          "sent_to"
+        ],
+        "properties": {
+          "sent_to": {
+            "type": "string",
+            "description": "The caller's address with the local part masked."
           }
         }
       },
@@ -63013,6 +64732,22 @@
           }
         }
       },
+      "NotificationKeywordsObject": {
+        "type": "object",
+        "description": "The caller's highlight keywords.",
+        "required": [
+          "keywords"
+        ],
+        "properties": {
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Words or phrases (at most 50, 100 characters each). A message containing one as a whole\nword (any case) notifies like a mention, unless the server or channel suppresses highlights."
+          }
+        }
+      },
       "OAuthErrorBody": {
         "type": "object",
         "required": [
@@ -64086,6 +65821,12 @@
               "null"
             ]
           },
+          "dm_spam_filter": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "friend_requests_everyone": {
             "type": [
               "boolean",
@@ -64107,6 +65848,57 @@
           "message_requests": {
             "type": [
               "boolean",
+              "null"
+            ]
+          },
+          "sensitive_media": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PatchSensitiveMedia",
+                "description": "Any of `friends`, `others`, `servers` (each `show`, `blur` or `block`); absent ones stay."
+              }
+            ]
+          },
+          "server_dm_overrides": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Server id to `true`/`false` (set) or `null` (back to the default). At most 200 servers.",
+            "additionalProperties": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PatchSensitiveMedia": {
+        "type": "object",
+        "description": "Partial `sensitive_media`.",
+        "properties": {
+          "friends": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "others": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "servers": {
+            "type": [
+              "string",
               "null"
             ]
           }
@@ -64286,6 +66078,25 @@
           "suspicion_level": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "PersonNotesBody": {
+        "type": "object",
+        "description": "Body of `PUT /admin/persons/{person_id}/notes`.",
+        "required": [
+          "notes"
+        ],
+        "properties": {
+          "notes": {
+            "type": "string",
+            "description": "The whole note, at most 4 000 characters."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -64680,12 +66491,19 @@
           "friend_requests_friends_of_friends",
           "friend_requests_server_members",
           "allow_server_member_dms",
-          "message_requests"
+          "message_requests",
+          "sensitive_media",
+          "dm_spam_filter",
+          "server_dm_overrides"
         ],
         "properties": {
           "allow_server_member_dms": {
             "type": "boolean",
             "description": "DMs from members of shared servers (default on)."
+          },
+          "dm_spam_filter": {
+            "type": "boolean",
+            "description": "Flag likely spam into Message Requests (LNG-USET-013). Stored; no detector reads it yet."
           },
           "friend_requests_everyone": {
             "type": "boolean",
@@ -64702,6 +66520,20 @@
           "message_requests": {
             "type": "boolean",
             "description": "DMs from non-friends land in Message Requests (default on)."
+          },
+          "sensitive_media": {
+            "$ref": "#/components/schemas/SensitiveMediaObject",
+            "description": "How to show sensitive media in DMs, per source (LNG-USET-012)."
+          },
+          "server_dm_overrides": {
+            "type": "object",
+            "description": "Per-server override of `allow_server_member_dms`: server id to allowed.",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },
@@ -65721,24 +67553,78 @@
           }
         }
       },
+      "ReactionCountDetails": {
+        "type": "object",
+        "description": "Normal vs burst reaction counts.",
+        "required": [
+          "burst",
+          "normal"
+        ],
+        "properties": {
+          "burst": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "normal": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "ReactionObject": {
         "type": "object",
         "required": [
           "emoji",
           "count",
-          "me"
+          "count_details",
+          "me",
+          "me_burst",
+          "burst_colors"
         ],
         "properties": {
+          "burst_colors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Always empty; bursts have no colour effect yet."
+          },
           "count": {
             "type": "integer",
             "format": "int32",
+            "description": "Normal and burst reactions together (Discord parity).",
             "minimum": 0
+          },
+          "count_details": {
+            "$ref": "#/components/schemas/ReactionCountDetails"
           },
           "emoji": {
             "$ref": "#/components/schemas/PartialEmoji"
           },
           "me": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "The viewer reacted normally."
+          },
+          "me_burst": {
+            "type": "boolean",
+            "description": "The viewer reacted with a burst."
+          }
+        }
+      },
+      "ReactionTypeQuery": {
+        "type": "object",
+        "description": "Query of the add and remove reaction routes.",
+        "properties": {
+          "type": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "0 normal (default) or 1 burst.",
+            "minimum": 0
           }
         }
       },
@@ -67460,6 +69346,29 @@
           }
         }
       },
+      "SensitiveMediaObject": {
+        "type": "object",
+        "description": "Sensitive-media handling per source; each is `show`, `blur` or `block`.",
+        "required": [
+          "friends",
+          "others",
+          "servers"
+        ],
+        "properties": {
+          "friends": {
+            "type": "string",
+            "description": "DMs from friends (default `show`)."
+          },
+          "others": {
+            "type": "string",
+            "description": "DMs from people who are not friends (default `blur`)."
+          },
+          "servers": {
+            "type": "string",
+            "description": "Messages in servers (default `show`)."
+          }
+        }
+      },
       "Series": {
         "type": "object",
         "description": "A series as the API shows it.",
@@ -69012,6 +70921,49 @@
           }
         }
       },
+      "SuspicionEvent": {
+        "type": "object",
+        "description": "One step of a Person's suspicion history.",
+        "required": [
+          "id",
+          "delta",
+          "level_after",
+          "reason",
+          "created_at_ms"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delta": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "level_after": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_account_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "SweepReport": {
         "type": "object",
         "required": [
@@ -69145,7 +71097,8 @@
         "required": [
           "version",
           "counts",
-          "probes"
+          "probes",
+          "integrations"
         ],
         "properties": {
           "counts": {
@@ -69158,6 +71111,13 @@
             ],
             "description": "Open gateway sessions, when the gateway is attached.",
             "minimum": 0
+          },
+          "integrations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationStatus"
+            },
+            "description": "Which optional integrations are configured (SMTP, Discord sign-in, voice, TURN, GIF search)."
           },
           "probes": {
             "type": "array",
@@ -70181,6 +72141,25 @@
           "teaser",
           "clip"
         ]
+      },
+      "TransferBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/guilds/{guild_id}/transfer-ownership`.",
+        "required": [
+          "new_owner_id"
+        ],
+        "properties": {
+          "new_owner_id": {
+            "type": "string",
+            "description": "A current member of the server."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "TriggerMetadata": {
         "type": "object",
@@ -71231,6 +73210,18 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "UnlinkResult": {
+        "type": "object",
+        "description": "The Person created by an unlink.",
+        "required": [
+          "person_id"
+        ],
+        "properties": {
+          "person_id": {
+            "type": "string"
           }
         }
       },

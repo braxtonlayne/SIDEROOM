@@ -74,6 +74,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 
 - [x] **ADM-PLT-001** [FE] Features page (all modules, platform settings via SchemaForm, kill switches) _(`admin/sections/Features.tsx` kill switches plus `admin/SchemaForm.tsx` platform settings from the feature schema)_
 - [ ] **ADM-PLT-002** [FE] Limits page (cap, initial credits, account-age for inviting, credit price, upload limits, message length, rate limits, retention windows, submission rate limits) _(partly built: every setting the server registers is editable; rate-limit and submission-rate-limit settings are not in the registry yet)_
+   - p13: `submissions.max_open_per_member` is now a platform setting (default 5, 1 to 100; `sr-review` reads it through `AllowanceSource`, test `the_open_submission_cap_follows_the_platform_setting`), so it shows in the generic settings editor. The HTTP API rate limits are still static config (`[server]`/`ApiSettings`), not registry settings.
 - [ ] **ADM-PLT-003** [FE] Entrance page editor (copy blocks, hero image, house notes markdown, no-invitation text)
    - p13 backend half built: `PUT /admin/entrance/copy/{key}` for `no-invitation`, `house-notes`, `landing-headline`, `landing-subhead`, `login-notice`; no hero image route yet.
 - [ ] **ADM-PLT-004** [FE] Themes & Defaults (default theme per section)

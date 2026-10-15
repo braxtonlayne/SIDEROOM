@@ -47,6 +47,44 @@ snowflake-to-time conversion (all other call sites go through it). Tests: `loung
 fixed expectation in `live.test.tsx`. The web-fe branch's Welcome dialog uses the platform epoch separately; it should import this
 constant when the branches merge.
 
-## Still open
+Also built: `GET /admin/system` lists `integrations` and `POST /admin/system/email-test` mails the caller (ADM-DASH-003);
+`submissions.max_open_per_member` is a platform setting (ADM-PLT-002); the web Overview server card shows the online and member
+counts through `?with_counts=true` (LNG-SSET-009, `settings/server/sections/Overview.tsx`, test in `overview.test.tsx`).
 
-See the final lines of this file, filled in at the end of the run.
+## Still open, with reasons
+
+- Web wiring of everything above except the Overview card: the USET-012/013/015 panels, the burst picker, the emoji popout Join,
+  keyword list, Admin Entrance editor, the account and Person drawers (sessions, servers, notes, link/unlink, freeze), the Servers
+  page (ADM-COM-002), the Setup checklist (ADM-DASH-003) and the member drawer's audit history (LNG-SSET-030). The routes, OpenAPI
+  schema, generated client and MSW handlers are in place; these boxes stay unticked because they are `[FE]` items.
+- LNG-SSET-027 join method and signals: nothing stores how a member joined (invite code, vanity, Directory, application) and
+  "unusual activity" has no definition. Needs a join-source column on `guild_members` set by every join path, and an owner decision on signals.
+- LNG-FRM-004 forum post attachments: upload slots are issued per existing channel, and the post thread does not exist before
+  creation. Needs a design (upload against the parent channel, then adopt).
+- ADM-PLT-002 API rate limits: still static config (`ApiSettings`), not registry settings; making them live needs a reload hook in the limiter.
+- ADM-CNT-005 (ingest sources: watched folders, storage imports, naming tester) has no admin routes at all; it needs the ingest
+  watcher design from `docs/specs/ingest-naming-conventions.md`, too large for this pass.
+- ADM-COM-001 (Directory approvals): the queue and decisions exist; a staff preview of a pending listing server and a category
+  manager (the categories are a constant, hiding is the `directory.hidden_categories` feature) are not built.
+- ADM-PLT-005/006, ADM-CNT-003/004: their routes exist or belong to the content agents; not audited further here.
+- The dm_spam_filter has no detector; it is stored only. Sensitive-media `block` and `blur` are client behaviour.
+
+## Tests run
+
+- `cargo test -p sr-chat`, `-p sr-admin`, `-p sr-review`, `-p sr-api --lib`, `-p sr-api --test lounge` and the route matrix
+  (regenerated and reviewed: all new rows are `self`, `other` or `staff`, no `?` left).
+- Postgres (`cargo test -p sr-db -- --include-ignored --test-threads=1` on a scratch database, dropped afterwards): 34 suites green,
+  including the new `p13_settings_admin.rs` (safety prefs, keywords, burst rows, emoji lookup, audit target, entrance copy, link/unlink/
+  notes/freeze, discord and IP search, sessions/servers/guild list, age confirmation reset) and the manual freeze in `member_invites.rs`.
+- `cargo fmt --check`, `cargo clippy --all-targets -D warnings` on sr-chat, sr-admin, sr-db, sr-api, sr-events, sr-gateway,
+  sr-features, sr-auth, sr-review, sr-server.
+- Web: tsc, eslint, prettier, vitest (`--maxWorkers=2`, 160 files; `channelPerms` needs the wasm `dist` copied from the main checkout),
+  `vite build` and `scripts/check-bundle-budget.mjs` (settings 260 KB of 600, admin 290 KB of 600).
+- OpenAPI regenerated (`openapi.json`, generated schema, MSW handlers; `mocks:check` passes). Playwright was not run (shared ports).
+
+## Open owner questions
+
+- Burst cap: 3 per member per message for everyone, or a Patron allowance?
+- Entrance copy permission: `MANAGE_FEATURES` today; should it be a dedicated bit?
+- Staff server deletion/transfer acts as the owner and is audited; should it also DM the owner?
+- Should `dm_spam_filter` get a real detector (Phase 6) or be dropped from the UI?
