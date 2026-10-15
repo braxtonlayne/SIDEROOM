@@ -82,15 +82,19 @@ test.describe('Lounge gaps', () => {
     await page.getByRole('menuitem', { name: 'Mark Unread' }).click();
     await expect(page.getByRole('separator', { name: 'New messages' })).toBeVisible();
 
-    // Bookmark and reminder are stored in the settings blob and survive a reload.
+    // Bookmark and reminder are stored on the server and survive a reload.
+    const bookmarked = page.waitForResponse(
+      (r) => r.url().endsWith('/bookmark') && r.request().method() === 'PUT',
+    );
+    const reminded = page.waitForResponse(
+      (r) => r.url().includes('/users/@me/reminders') && r.request().method() === 'POST',
+    );
     await log.getByText(`alpha ${stamp}`).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Bookmark Message' }).click();
     await log.getByText(`alpha ${stamp}`).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Remind Me' }).click();
     await page.getByRole('menuitem', { name: 'in 24 hours' }).click();
-    await page.waitForResponse(
-      (r) => r.url().includes('/users/@me/settings') && r.request().method() === 'PATCH',
-    );
+    await Promise.all([bookmarked, reminded]);
     await page.reload();
     await expect(page.getByRole('log').first().getByText(`alpha ${stamp}`)).toBeVisible();
     await page.getByRole('log').first().getByText(`alpha ${stamp}`).click({ button: 'right' });
