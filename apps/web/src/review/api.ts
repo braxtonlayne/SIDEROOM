@@ -3,6 +3,7 @@
 import { apiFetch } from '../api/client';
 import type {
   ContentRequest,
+  NamingItem,
   CreateSubmission,
   DraftChapter,
   DraftChapterList,
@@ -82,6 +83,9 @@ export async function putFile(slot: UploadSlot, file: Blob): Promise<void> {
   const res = await fetch(slot.upload_url, { method: slot.upload_method || 'PUT', body: file });
   if (!res.ok) throw new Error(`The upload was refused (${res.status}).`);
 }
+
+export const parseNames = (section: string, names: string[]) =>
+  post<{ items: NamingItem[] }>('/submissions/naming/parse', { section, names });
 
 // ---- requests ----
 

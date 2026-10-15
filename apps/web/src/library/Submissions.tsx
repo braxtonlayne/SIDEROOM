@@ -17,6 +17,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { useT, type MessageKey } from '../i18n';
 import * as rv from '../review/api';
+import { NamingGuide } from '../review/NamingGuide';
 import { errorMessages } from '../review/api';
 import {
   ItemChip,
@@ -121,6 +122,7 @@ export function SubmissionsPage({ series }: { series?: string | undefined }) {
           </Button>
         </div>
       </div>
+      <NamingGuide />
       {creating && <NewSubmission {...(series ? { series } : {})} />}
       {list.isPending && <Spinner label={t('library.submissions.loadingList')} />}
       {list.isError && (
