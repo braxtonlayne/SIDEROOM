@@ -173,6 +173,49 @@ pub async fn fulfil(
         .map_err(map_err)
 }
 
+/// "I'll upload this": tell the others you are working on an open request, with a short note.
+/// One member at a time; claiming again updates the note.
+#[utoipa::path(
+    put, path = "/requests/{request_id}/claim", operation_id = "requests_claim", request_body = ClaimRequestInput,
+    params(("request_id" = String, Path, description = "Request snowflake")),
+    responses((status = 200, body = ContentRequest), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn claim(
+    ctx: MemberCtx,
+    Path(request_id): Path<String>,
+    body: Option<Json<ClaimRequestInput>>,
+) -> ApiResult<Json<ContentRequest>> {
+    let input = body.map(|Json(b)| b).unwrap_or(ClaimRequestInput {
+        note: String::new(),
+    });
+    ctx.svc()
+        .claim_request(ctx.user(), id(&request_id, "request")?, input)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// Give up my claim (reviewers of the section may release anybody's).
+#[utoipa::path(
+    delete, path = "/requests/{request_id}/claim", operation_id = "requests_release",
+    params(("request_id" = String, Path, description = "Request snowflake")),
+    responses((status = 200, body = ContentRequest), (status = 401, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn release(
+    ctx: MemberCtx,
+    Path(request_id): Path<String>,
+) -> ApiResult<Json<ContentRequest>> {
+    ctx.svc()
+        .release_request(ctx.caller, id(&request_id, "request")?)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
 /// Close a request without fulfilling it (reviewers of the section).
 #[utoipa::path(
     post, path = "/admin/review/requests/{request_id}/decline", operation_id = "admin_review_decline_request",

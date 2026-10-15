@@ -5113,6 +5113,7 @@ dependencies = [
  "sr-net",
  "sr-payments",
  "sr-push",
+ "sr-reader",
  "sr-review",
  "sr-search",
  "sr-storage",
@@ -5416,6 +5417,7 @@ dependencies = [
  "bytes",
  "futures",
  "http-body-util",
+ "regex",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -5492,6 +5494,11 @@ dependencies = [
 [[package]]
 name = "sr-reader"
 version = "0.0.0"
+dependencies = [
+ "regex",
+ "serde",
+ "utoipa",
+]
 
 [[package]]
 name = "sr-review"

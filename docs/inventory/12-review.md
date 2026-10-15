@@ -8,10 +8,10 @@ Phase 4 (shared by Cinema, Library, apps, packages). Spec: [submissions-and-revi
 - [x] **REV-CORE-003** [BE] Kind registry (`SubmissionKind` trait: validate payload, processing jobs, publish action, preview data) *(phase 5: `SubmissionKind` + `KindRegistry`; kinds `library.series`, `library.items` in `sr-library::submissions`)*
 - [x] **REV-CORE-004** [BE] Claim/lock (30 min soft lock), release, reassign *(phase 5: 30 min lease, renew by claiming again, release, take-over by holders of the kind's publish permission)*
 - [x] **REV-CORE-005** [BE] Decisions API (approve all / per item, request changes with note, reject with template), direct publish path *(phase 5: per-item approve/reject, request changes and reject with a required reason, approve publishes, publish-now for the submitter holding the publish permission; reject reason templates are chosen in the web UI and joined into the reason)*
-- [ ] **REV-CORE-006** [BE] Contribution credit grant/revoke on publish/unpublish (unique per item) *(not done: no `contribution_credits` table yet)*
+- [x] **REV-CORE-006** [BE] Contribution credit grant/revoke on publish/unpublish (unique per item) *(phase 11: migration 0700 `contribution_credits`, unique per section and item, granted on publish for new items (kinds can exclude replacements via `credit_refs`), revoked by `POST /admin/review/submissions/{id}/revoke-credits`; tests in `sr-review` and `sr-db/tests/review_repo.rs`)*
 - [ ] **REV-CORE-007** [BE] Notifications to submitter (system DM + `SR_SUBMISSION_UPDATE`) and Staff Server card updates *(partial, phase 5: `SR_SUBMISSION_UPDATE` to the submitter and every decision in the staff access log; the system-user DM and the Staff Server card are not built)*
-- [ ] **REV-CORE-008** [BE] Member rate limits (bytes/day, open submissions), staff exemption *(partial, phase 5: 5 open submissions per member, staff exempt; bytes per day is not enforced)*
-- [ ] **REV-CORE-009** [JOB] Purge rejected submission files after 14 days; abandon stale drafts after 30 days (notify first)
+- [x] **REV-CORE-008** [BE] Member rate limits (bytes/day, open submissions), staff exemption *(phase 11: 50 GB per UTC day charged in Library begin-upload (`ReviewService::charge_upload`, table `submission_upload_bytes`), staff exempt, `GET /submissions/quota`; the open-submission limit was already there)*
+- [x] **REV-CORE-009** [JOB] Purge rejected submission files after 14 days; abandon stale drafts after 30 days (notify first) *(phase 11: hourly `review.housekeeping` job (`sr-server/src/review_jobs.rs`) warns at 23 idle days, abandons at 30 after a warning at least 3 days old, purges rejected submissions after 14 days; Library kinds delete unpublished draft content, `library.gc` removes the files; Cinema kinds have no purge yet)*
 
 ## REV-UP — Uploads
 - [ ] **REV-UP-001** [BE] Resumable multipart upload sessions (create, part URLs, complete, abort, list parts for resume) *(not done as specified: Library uploads use one presigned PUT per file, see the library-reader spec section 6; multipart sessions are still to do)*
@@ -20,8 +20,8 @@ Phase 4 (shared by Cinema, Library, apps, packages). Spec: [submissions-and-revi
 - [ ] **REV-UP-004** [BE] Archive pre-inspection (list entries without full extraction) for structure preview
 - [ ] **REV-UP-005** [BE] Watched-folder scanner (polling, stability check, creates drafts)
 - [ ] **REV-UP-006** [BE] Storage import (S3 prefix / local path) with dry-run structure report
-- [ ] **REV-UP-007** [BE] Naming parsers (`sr-media::naming`, `sr-reader::naming`) + ≥ 300 fixture tests
-- [ ] **REV-UP-008** [FE] Naming guide popover + tester (paste names → parsed table)
+- [x] **REV-UP-007** [BE] Naming parsers (`sr-media::naming`, `sr-reader::naming`) + ≥ 300 fixture tests *(phase 11: `sr_media::naming` and `sr_reader::naming` with 700+ and 300+ fixture names in `naming/fixtures.rs`)*
+- [x] **REV-UP-008** [FE] Naming guide popover + tester (paste names → parsed table) *(phase 11: `POST /submissions/naming/parse` and the Naming guide with tester in Library > Submissions (`review/NamingGuide.tsx`); not yet in Admin > Ingest Sources)*
 
 ## REV-ED — Metadata editor
 - [ ] **REV-ED-001** [FE] Two-pane editor: file/structure tree (drag to reorder/reassign, rename, exclude) + kind-specific form
@@ -45,4 +45,4 @@ Phase 4 (shared by Cinema, Library, apps, packages). Spec: [submissions-and-revi
 
 ## REV-REQ — Requests (non-bounty)
 - [x] **REV-REQ-001** [BE] Requests CRUD + upvotes + fulfil link to submission + notify requesters *(phase 5 backend: create, upvote/unvote, fulfil with a published submission and notify voters, decline; `/requests`)*
-- [ ] **REV-REQ-002** [FE] Requests board per section (sort by votes/new, status filters, "I'll upload this" claim note)
+- [x] **REV-REQ-002** [FE] Requests board per section (sort by votes/new, status filters, "I'll upload this" claim note) *(phase 11: `review/RequestsBoard.tsx` at `/library/requests` (section switch, sort, status filter, vote, new request, "I'll upload this" claim with note via migration 0701))*

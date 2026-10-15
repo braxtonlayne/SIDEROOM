@@ -74,6 +74,7 @@ DELETE	/library/series/{series_id}/follow	authenticated	other	allow	-
 DELETE	/library/series/{series_id}/rating	authenticated	other	allow	-
 DELETE	/library/series/{series_id}/review	authenticated	other	allow	-
 DELETE	/oauth2/tokens/{grant_id}	authenticated	other	deny	-
+DELETE	/requests/{request_id}/claim	authenticated	other	allow	-
 DELETE	/requests/{request_id}/vote	authenticated	other	allow	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
@@ -140,6 +141,7 @@ GET	/admin/private/guilds/{guild_id}/channels	authenticated	staff	deny	-
 GET	/admin/reauth	authenticated	staff	deny	-
 GET	/admin/review/queue	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}	authenticated	staff	deny	-
+GET	/admin/review/submissions/{submission_id}/credits	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}/preview	authenticated	staff	deny	-
 GET	/admin/settings	authenticated	staff	deny	-
@@ -329,7 +331,9 @@ GET	/stage-instances/{channel_id}	authenticated	membership	allow	-
 GET	/streams/{stream_key}/preview	authenticated	membership	allow	-
 GET	/submissions	authenticated	other	allow	-
 GET	/submissions/kinds	authenticated	other	allow	-
+GET	/submissions/quota	authenticated	other	allow	-
 GET	/submissions/{submission_id}	authenticated	other	allow	-
+GET	/submissions/{submission_id}/credits	authenticated	other	allow	-
 GET	/submissions/{submission_id}/library/chapters	authenticated	other	allow	-
 GET	/submissions/{submission_id}/library/chapters/{chapter_id}/pages	authenticated	other	allow	-
 GET	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	other	allow	-
@@ -494,6 +498,7 @@ POST	/admin/review/submissions/{submission_id}/publish-now	authenticated	staff	d
 POST	/admin/review/submissions/{submission_id}/reject	authenticated	staff	deny	-
 POST	/admin/review/submissions/{submission_id}/release	authenticated	staff	deny	-
 POST	/admin/review/submissions/{submission_id}/request-changes	authenticated	staff	deny	-
+POST	/admin/review/submissions/{submission_id}/revoke-credits	authenticated	staff	deny	-
 POST	/admin/staff	authenticated	staff	deny	-
 POST	/admin/staff/offers	authenticated	staff	deny	-
 POST	/admin/transcode/jobs/{job_id}/cancel	authenticated	staff	deny	-
@@ -589,6 +594,7 @@ POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-
 POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
 POST	/submissions	authenticated	other	allow	-
+POST	/submissions/naming/parse	authenticated	other	allow	-
 POST	/submissions/{submission_id}/comments	authenticated	other	allow	-
 POST	/submissions/{submission_id}/library/chapters	authenticated	other	allow	-
 POST	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	other	allow	-
@@ -679,6 +685,7 @@ PUT	/library/reviews/{review_id}/helpful	authenticated	other	allow	-
 PUT	/library/series/{series_id}/follow	authenticated	other	allow	-
 PUT	/library/series/{series_id}/rating	authenticated	other	allow	-
 PUT	/library/series/{series_id}/review	authenticated	other	allow	-
+PUT	/requests/{request_id}/claim	authenticated	other	allow	-
 PUT	/requests/{request_id}/vote	authenticated	other	allow	-
 PUT	/sr/auth/username	authenticated	self	deny	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-

@@ -49,6 +49,21 @@ pub trait SubmissionKind: Send + Sync {
     async fn preview(&self, s: &Submission) -> ReviewResult<Value>;
     /// Publish the approved items. Idempotent: a retry after a partial failure must finish.
     async fn publish(&self, s: &Submission, approved: &[SubmissionItem]) -> ReviewResult<()>;
+    /// Which of the published items earn a contribution credit (D-074). Default: all of them,
+    /// since a submission only registers new content. A kind that lets a submission replace
+    /// existing content returns only the new items here.
+    async fn credit_refs(
+        &self,
+        _s: &Submission,
+        published: &[SubmissionItem],
+    ) -> ReviewResult<Vec<i64>> {
+        Ok(published.iter().map(|i| i.ref_id).collect())
+    }
+    /// Delete the files and draft content of a rejected or abandoned submission (the 14 day
+    /// purge, REV-CORE-009). Idempotent; the default keeps everything.
+    async fn purge(&self, _s: &Submission, _items: &[SubmissionItem]) -> ReviewResult<()> {
+        Ok(())
+    }
 }
 
 /// The kinds the server knows.

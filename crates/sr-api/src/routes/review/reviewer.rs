@@ -327,3 +327,78 @@ pub async fn publish_now(
     .await;
     Ok(Json(d))
 }
+
+/// Body of `POST /admin/review/submissions/{id}/revoke-credits`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RevokeCreditsBody {
+    /// Why the content is unpublished or the credit withdrawn (required).
+    pub reason: String,
+    /// Only these published items (item snowflakes); omitted: every credit of the submission.
+    #[serde(default)]
+    pub items: Option<Vec<String>>,
+}
+
+/// Result of a credit revocation.
+#[derive(Debug, serde::Serialize, ToSchema)]
+pub struct RevokedCredits {
+    pub revoked: u64,
+}
+
+/// The credits of a submission, revoked ones included (reviewers of the kind).
+#[utoipa::path(
+    get, path = "/admin/review/submissions/{submission_id}/credits", operation_id = "admin_review_credits",
+    params(("submission_id" = String, Path, description = "Submission snowflake")),
+    responses((status = 200, body = Vec<Credit>), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn credits(
+    ctx: ReviewerCtx,
+    Path(submission_id): Path<String>,
+) -> ApiResult<Json<Vec<Credit>>> {
+    let sid = id(&submission_id, "submission")?;
+    ctx.svc()
+        .credits(ctx.caller(), sid)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// Unpublishing for cause: withdraw the contribution credits of a submission (D-074). Needs
+/// the kind's publish permission and a reason; the rows stay so the same item cannot earn a
+/// second credit. Written to the staff access log.
+#[utoipa::path(
+    post, path = "/admin/review/submissions/{submission_id}/revoke-credits", operation_id = "admin_review_revoke_credits",
+    params(("submission_id" = String, Path, description = "Submission snowflake")),
+    request_body = RevokeCreditsBody,
+    responses((status = 200, body = RevokedCredits), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn revoke_credits(
+    ctx: ReviewerCtx,
+    Path(submission_id): Path<String>,
+    Json(b): Json<RevokeCreditsBody>,
+) -> ApiResult<Json<RevokedCredits>> {
+    let sid = id(&submission_id, "submission")?;
+    let items = match &b.items {
+        None => None,
+        Some(v) => Some(
+            v.iter()
+                .map(|i| id(i, "item"))
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+    };
+    let revoked = ctx
+        .svc()
+        .revoke_credits(ctx.caller(), sid, items, &b.reason)
+        .await
+        .map_err(map_err)?;
+    ctx.audit(
+        "review.credits_revoked",
+        sid,
+        json!({ "revoked": revoked, "reason": b.reason.trim() }),
+    )
+    .await;
+    Ok(Json(RevokedCredits { revoked }))
+}

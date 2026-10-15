@@ -2133,6 +2133,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/review/submissions/{submission_id}/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The credits of a submission, revoked ones included (reviewers of the kind). */
+        get: operations["admin_review_credits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/review/submissions/{submission_id}/items/{item_id}": {
         parameters: {
             query?: never;
@@ -2266,6 +2283,27 @@ export interface paths {
         put?: never;
         /** Send the submission back to the submitter; `reason` is required and visible to them. */
         post: operations["admin_review_request_changes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/review/submissions/{submission_id}/revoke-credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unpublishing for cause: withdraw the contribution credits of a submission (D-074). Needs
+         *     the kind's publish permission and a reason; the rows stay so the same item cannot earn a
+         *     second credit. Written to the staff access log.
+         */
+        post: operations["admin_review_revoke_credits"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6999,6 +7037,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/requests/{request_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * "I'll upload this": tell the others you are working on an open request, with a short note.
+         *     One member at a time; claiming again updates the note.
+         */
+        put: operations["requests_claim"];
+        post?: never;
+        /** Give up my claim (reviewers of the section may release anybody's). */
+        delete: operations["requests_release"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/requests/{request_id}/fulfil": {
         parameters: {
             query?: never;
@@ -7484,6 +7543,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/submissions/naming/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The naming tester: paste names, see how the importer reads them (docs/specs/ingest-naming-conventions.md).
+         *     Pure parsing, nothing is stored.
+         */
+        post: operations["submissions_naming_parse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What I have left of today's upload allowance (50 GB per UTC day for members; staff have no
+         *     limit and get `null` limits).
+         */
+        get: operations["submissions_quota"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/submissions/{submission_id}": {
         parameters: {
             query?: never;
@@ -7513,6 +7612,26 @@ export interface paths {
         put?: never;
         /** Add a note the reviewers can read. */
         post: operations["submissions_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The contribution credits one of my submissions earned (one per new published item;
+         *     replacements earn none). Revoked credits stay listed with their reason.
+         */
+        get: operations["submissions_credits"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -9300,6 +9419,11 @@ export interface components {
             /** @description Staff Server role ids to start with. */
             role_ids: string[];
         };
+        /**
+         * @description Which artwork file.
+         * @enum {string}
+         */
+        ArtworkKind: "poster" | "backdrop" | "logo" | "season_poster" | "episode_thumb";
         ArtworkRequest: {
             /** @description `image/webp`, `image/jpeg` or `image/png`. */
             content_type: string;
@@ -10338,6 +10462,10 @@ export interface components {
              */
             takeover?: boolean;
         };
+        /** @description Body of `PUT /requests/{id}/claim`. */
+        ClaimRequestInput: {
+            note?: string;
+        };
         Collection: {
             blurb?: string | null;
             display: components["schemas"]["CollectionDisplay"];
@@ -10441,6 +10569,11 @@ export interface components {
         };
         /** @description A content request (Library or Cinema board). */
         ContentRequest: {
+            claim_note?: string | null;
+            /** @description A member who said "I'll upload this" (while the request is open). */
+            claimed_by?: string | null;
+            /** @description The caller is the one who claimed it. */
+            claimed_by_me: boolean;
             /** Format: int64 */
             created_at_ms: number;
             creator?: string | null;
@@ -10706,6 +10839,22 @@ export interface components {
             /** @description The secret. It is shown once and only its SHA-256 is stored. */
             secret: string;
             token: components["schemas"]["WorkerToken"];
+        };
+        /** @description A contribution credit (D-074): one per new published item, credited to the submitter. */
+        Credit: {
+            /** Format: int64 */
+            granted_at_ms: number;
+            id: string;
+            label: string;
+            /** @description The published item (chapter, episode, movie). */
+            ref_id: string;
+            revoke_reason?: string | null;
+            /** Format: int64 */
+            revoked_at_ms?: number | null;
+            /** @description `library` or `cinema`. */
+            section: string;
+            submission_id?: string | null;
+            user_id?: string | null;
         };
         CreditLedger: {
             /** Format: int64 */
@@ -11972,6 +12121,11 @@ export interface components {
             patron: components["schemas"]["PatronView"];
             preferences: components["schemas"]["PrefsView"];
         };
+        /**
+         * @description Movie or episode (for a video or the video a subtitle belongs to).
+         * @enum {string}
+         */
+        Media: "movie" | "episode" | "unknown";
         MemberObject: {
             avatar?: string | null;
             /** @description Per-server banner hash (LNG-GLD-012). */
@@ -12290,6 +12444,22 @@ export interface components {
             /** Format: int32 */
             rank: number;
         };
+        /** @description Body of `POST /submissions/naming/parse`. */
+        NamingParseBody: {
+            /** @description Up to 200 file names or relative paths. */
+            names: string[];
+            /** @description `cinema` (movies, episodes, subtitles, artwork) or `library` (chapters, pages). */
+            section: string;
+        };
+        /** @description One parsed name; exactly one of `cinema` and `library` is set, by the requested section. */
+        NamingParseItem: {
+            cinema?: null | components["schemas"]["ParsedVideoName"];
+            library?: null | components["schemas"]["ParsedReaderName"];
+            name: string;
+        };
+        NamingParseResult: {
+            items: components["schemas"]["NamingParseItem"][];
+        };
         NicknameBody: {
             /** @description Empty or null clears the nickname (max 32 characters). */
             nickname?: string | null;
@@ -12444,6 +12614,49 @@ export interface components {
             url: string;
             /** Format: int32 */
             width: number;
+        };
+        ParsedReaderName: {
+            /** Format: double */
+            chapter?: number | null;
+            extension: string;
+            group?: string | null;
+            /** Format: int32 */
+            page?: number | null;
+            role: components["schemas"]["ReaderRole"];
+            series?: string | null;
+            /** @description `_spread` suffix on a page name. */
+            spread: boolean;
+            title?: string | null;
+            /** Format: double */
+            volume?: number | null;
+            warnings: string[];
+        };
+        ParsedVideoName: {
+            /** @description Numbered `Show - 05` without a season (anime absolute order); season is then 1. */
+            absolute: boolean;
+            artwork?: null | components["schemas"]["ArtworkKind"];
+            episode_title?: string | null;
+            /** @description More than one for a multi-episode file (`s01e01-e02`). */
+            episodes: number[];
+            extension: string;
+            forced: boolean;
+            /** @description Subtitle language tag as written (`en`, `pt-BR`). */
+            language?: string | null;
+            media: components["schemas"]["Media"];
+            role: components["schemas"]["Role"];
+            sdh: boolean;
+            /** Format: int32 */
+            season?: number | null;
+            /** @description Season 0 / a `Specials` folder. */
+            special: boolean;
+            /** @description Bracket and parenthesis tags and quality words, in order. */
+            tags: string[];
+            title: string;
+            /** @description Alternate cut of a movie: `Director's Cut`. */
+            variant?: string | null;
+            warnings: string[];
+            /** Format: int32 */
+            year?: number | null;
         };
         PartDone: {
             etag: string;
@@ -13059,6 +13272,8 @@ export interface components {
         ReadStatesResponse: {
             entries: components["schemas"]["ReadStateObject"][];
         };
+        /** @enum {string} */
+        ReaderRole: "page" | "archive" | "document" | "series_json" | "comic_info" | "folder" | "unknown";
         /**
          * @description Default reading mode of a series.
          * @enum {string}
@@ -13266,6 +13481,23 @@ export interface components {
             asset_id: string;
             reason: string;
         };
+        /** @description Body of `POST /admin/review/submissions/{id}/revoke-credits`. */
+        RevokeCreditsBody: {
+            /** @description Only these published items (item snowflakes); omitted: every credit of the submission. */
+            items?: string[] | null;
+            /** @description Why the content is unpublished or the credit withdrawn (required). */
+            reason: string;
+        };
+        /** @description Result of a credit revocation. */
+        RevokedCredits: {
+            /** Format: int64 */
+            revoked: number;
+        };
+        /**
+         * @description What the file is for.
+         * @enum {string}
+         */
+        Role: "video" | "subtitle" | "artwork" | "unknown";
         RoleObject: {
             /** Format: int32 */
             color: number;
@@ -14581,6 +14813,15 @@ export interface components {
             updated_at_ms: number;
             /** @description Ignored files and unreadable metadata. */
             warnings: string[];
+        };
+        /** @description What a member has left of today's upload allowance (`None` limits for staff). */
+        UploadAllowance: {
+            /** Format: int64 */
+            limit_bytes?: number | null;
+            /** Format: int64 */
+            remaining_bytes?: number | null;
+            /** Format: int64 */
+            used_bytes: number;
         };
         /**
          * @description What an uploaded file is expected to be (from the chapter's format).
@@ -22551,6 +22792,52 @@ export interface operations {
             };
         };
     };
+    admin_review_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Credit"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_review_decide_item: {
         parameters: {
             query?: never;
@@ -23006,6 +23293,64 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_review_revoke_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeCreditsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedCredits"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -38965,6 +39310,110 @@ export interface operations {
             };
         };
     };
+    requests_claim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimRequestInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    requests_release: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     requests_fulfil: {
         parameters: {
             query?: never;
@@ -40205,6 +40654,72 @@ export interface operations {
             };
         };
     };
+    submissions_naming_parse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NamingParseBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamingParseResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_quota: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadAllowance"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     submissions_get: {
         parameters: {
             query?: never;
@@ -40350,6 +40865,44 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Credit"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

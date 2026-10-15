@@ -198,6 +198,9 @@ export interface ContentRequest {
   voted: boolean;
   submission_id: string | null;
   created_at_ms: number;
+  claimed_by: string | null;
+  claim_note: string | null;
+  claimed_by_me: boolean;
 }
 
 export interface RequestPage {
@@ -205,4 +208,29 @@ export interface RequestPage {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface NamingItem {
+  name: string;
+  cinema: {
+    role: string;
+    title: string;
+    year: number | null;
+    season: number | null;
+    episodes: number[];
+    episode_title: string | null;
+    variant: string | null;
+    language: string | null;
+    warnings: string[];
+  } | null;
+  library: {
+    role: string;
+    series: string | null;
+    volume: number | null;
+    chapter: number | null;
+    title: string | null;
+    group: string | null;
+    page: number | null;
+    warnings: string[];
+  } | null;
 }
