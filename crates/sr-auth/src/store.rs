@@ -172,6 +172,34 @@ pub struct PasskeyRecord {
     pub last_used_at: Option<i64>,
 }
 
+/// What a completed account deletion removed (LNG-USET-007).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DeletedAccount {
+    /// Servers the account left.
+    pub guilds_left: Vec<i64>,
+    /// Friends whose relationship rows were removed.
+    pub friends: Vec<i64>,
+    /// Other users with a pending or blocked relationship that was removed.
+    pub other_relations: Vec<i64>,
+    /// Invite credits forfeited.
+    pub credits_forfeited: i32,
+    /// Open platform invites revoked.
+    pub invites_revoked: i32,
+    /// Avatar content hash before the scrub (media to delete).
+    pub avatar_key: Option<String>,
+    /// Banner content hash before the scrub.
+    pub banner_key: Option<String>,
+}
+
+/// Why an account could not be deleted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeleteRefusal {
+    /// Unknown or not active.
+    NotActive,
+    /// The account owns these servers (ids); transfer or delete them first.
+    OwnsGuilds(Vec<i64>),
+}
+
 /// Storage used by the auth routes. Implementations must honour the atomicity
 /// notes on each method.
 #[async_trait]
@@ -344,6 +372,15 @@ pub trait AuthStore: Send + Sync {
         backup_state: bool,
         now: i64,
     ) -> StoreResult<bool>;
+
+    // ---- account deletion (D-029) -------------------------------------------
+    /// Delete (scrub) the account in one transaction: see `sr_db::account_deletion`.
+    /// `ledger_id` is the id for the credit-forfeit ledger row.
+    async fn delete_account(
+        &self,
+        id: i64,
+        ledger_id: i64,
+    ) -> StoreResult<Result<DeletedAccount, DeleteRefusal>>;
 
     // ---- platform audit (doc 04 section 7) --------------------------------
     /// Append a platform-scoped audit row.

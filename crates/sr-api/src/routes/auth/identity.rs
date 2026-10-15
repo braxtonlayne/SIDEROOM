@@ -17,7 +17,7 @@ use super::{
     mail,
     mfa::{current_account, reauthenticate},
     sessions::session_id,
-    store::AccountRecord,
+    store::{AccountRecord, DeleteRefusal},
     throttle::Rule,
     validate,
 };
@@ -27,7 +27,7 @@ use axum::{Json, extract::State, http::StatusCode};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sr_auth::email_token::{EmailToken, EmailTokenPurpose};
-use sr_core::ApiError;
+use sr_core::{ApiError, ErrorCode};
 use utoipa::{OpenApi, ToSchema};
 
 /// Username changes allowed per account per day.
@@ -518,16 +518,131 @@ pub(super) async fn apply_email_change(
     Ok(true)
 }
 
+/// Body for `POST /sr/auth/account/delete`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct DeleteAccountBody {
+    /// Current password.
+    password: String,
+    /// The account's username, typed to confirm (case-insensitive).
+    username: String,
+    /// Second factor. Required when the account has two-factor authentication on,
+    /// unless this session passed a second-factor check in the last 15 minutes.
+    #[serde(default)]
+    mfa: Option<MfaProof>,
+}
+
+/// `POST /sr/auth/account/delete {password, username, mfa?}`: delete the signed-in
+/// account (LNG-USET-007, D-029). Needs the password, the typed username and, with
+/// two-factor on, a second factor. The account can never sign in again; messages stay
+/// and show "Deleted User". Sessions, friendships, blocks, server and group memberships
+/// are removed, open platform invites are revoked, unspent invite credits are forfeited
+/// and the username is held for 30 days. Refused with a `guilds` field error while the
+/// account still owns a server (transfer or delete it first). Friends and shared servers
+/// are told through `RELATIONSHIP_REMOVE` and `GUILD_MEMBER_REMOVE`.
+#[utoipa::path(
+    post,
+    path = "/sr/auth/account/delete",
+    request_body = DeleteAccountBody,
+    responses(
+        (status = 204, description = "Account deleted; the session cookie is cleared"),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 429, body = ErrorBody),
+    ),
+    security(("session" = []))
+)]
+pub async fn delete_account(
+    State(state): State<AppState>,
+    UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
+    crate::routes::MaybeExt(social): crate::routes::MaybeExt<crate::routes::social::SocialDeps>,
+    crate::routes::MaybeExt(media): crate::routes::MaybeExt<crate::routes::media::MediaDeps>,
+    Json(body): Json<DeleteAccountBody>,
+) -> R<impl axum::response::IntoResponse> {
+    let sid = session_id(&p)?;
+    let now = state.now_secs();
+    let account = current_account(&svc, p.user_id).await?;
+    if !body.username.trim().eq_ignore_ascii_case(&account.username) {
+        return Err(ApiError::invalid_form()
+            .field(
+                "username",
+                "mismatch",
+                "Type your username exactly to confirm.",
+            )
+            .into());
+    }
+    reauthenticate(&svc, now, &account, &body.password).await?;
+    require_second_factor(&svc, now, &account, sid, body.mfa.as_ref()).await?;
+    let ledger_id = (svc.ids)();
+    let done = match svc.store.delete_account(account.id, ledger_id).await? {
+        Ok(d) => d,
+        Err(DeleteRefusal::NotActive) => return Err(ErrorCode::UnknownAccount.into()),
+        Err(DeleteRefusal::OwnsGuilds(ids)) => {
+            let list: Vec<String> = ids.iter().map(ToString::to_string).collect();
+            return Err(ApiError::invalid_form()
+                .field(
+                    "guilds",
+                    "owns_guilds",
+                    format!(
+                        "You still own {} server(s) ({}). Transfer ownership or delete them first.",
+                        ids.len(),
+                        list.join(", ")
+                    ),
+                )
+                .into());
+        }
+    };
+    svc.store
+        .audit(
+            account.id,
+            "account.delete",
+            Some(account.id),
+            &format!(
+                "user deleted the account; {} credits forfeited, {} invites revoked",
+                done.credits_forfeited, done.invites_revoked
+            ),
+            now,
+        )
+        .await?;
+    if let Some(media) = media {
+        for (kind, key) in [
+            (sr_storage::media::MediaKind::UserAvatar, &done.avatar_key),
+            (sr_storage::media::MediaKind::UserBanner, &done.banner_key),
+        ] {
+            if let (Some(key), Ok(uid)) = (key, u64::try_from(account.id)) {
+                media.remove(kind, uid, key).await;
+            }
+        }
+    }
+    if let Some(social) = social {
+        crate::routes::social::announce_account_deleted(&social, account.id, &done).await;
+    }
+    Ok((
+        StatusCode::NO_CONTENT,
+        axum::response::AppendHeaders([(
+            axum::http::header::SET_COOKIE,
+            super::common::clear_session_cookie(state.settings().secure_cookies),
+        )]),
+    ))
+}
+
 /// OpenAPI fragment for the signed-in account edits.
 #[derive(OpenApi)]
 #[openapi(
-    paths(change_password, change_username, change_email, cancel_change_email),
+    paths(
+        change_password,
+        change_username,
+        change_email,
+        cancel_change_email,
+        delete_account
+    ),
     components(schemas(
         ChangePasswordBody,
         ChangeUsernameBody,
         ChangeEmailBody,
         MfaProof,
-        CancelEmailChangeBody
+        CancelEmailChangeBody,
+        DeleteAccountBody
     ))
 )]
 pub struct IdentityApiDoc;

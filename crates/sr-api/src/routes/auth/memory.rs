@@ -9,8 +9,8 @@ use sr_auth::{
     repo::{SessionRecord, SessionRepository, TotpRecord},
     session::TokenHash,
     store::{
-        AccountRecord, AccountState, AuthStore, InviteState, PasskeyRecord, RegisterRejection,
-        RegisterTx, Registered, StoreResult, TrustedDeviceRecord,
+        AccountRecord, AccountState, AuthStore, DeleteRefusal, DeletedAccount, InviteState,
+        PasskeyRecord, RegisterRejection, RegisterTx, Registered, StoreResult, TrustedDeviceRecord,
     },
 };
 use std::{
@@ -717,6 +717,34 @@ impl AuthStore for MemoryAuthStore {
             }
             None => Ok(false),
         }
+    }
+
+    async fn delete_account(
+        &self,
+        id: i64,
+        _ledger_id: i64,
+    ) -> StoreResult<Result<DeletedAccount, DeleteRefusal>> {
+        {
+            let mut g = self.lock();
+            let Some(a) = g
+                .accounts
+                .get_mut(&id)
+                .filter(|a| a.state == AccountState::Active)
+            else {
+                return Ok(Err(DeleteRefusal::NotActive));
+            };
+            a.state = AccountState::Deleted;
+            a.username = format!("deleted.{id}");
+            a.display_name = Some("Deleted User".to_owned());
+            a.email = format!("deleted.{id}@deleted.invalid");
+            a.password_hash = "!".to_owned();
+            g.totp.remove(&id);
+            g.recovery.remove(&id);
+            g.trusted.retain(|t| t.user_id != id);
+            g.passkeys.retain(|p| p.account_id != id);
+        }
+        let _ = self.sessions.revoke_all_except(id, None).await;
+        Ok(Ok(DeletedAccount::default()))
     }
 
     async fn audit(

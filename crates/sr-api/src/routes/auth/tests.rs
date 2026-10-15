@@ -1857,6 +1857,66 @@ async fn change_username_validates_reauths_and_rate_limits() {
 }
 
 #[tokio::test]
+async fn delete_account_needs_password_and_typed_username_and_ends_the_account() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let del = |username: &str, pw: &str| {
+        h.post(
+            "/api/v1/sr/auth/account/delete",
+            json!({"username": username, "password": pw}),
+        )
+        .session(&s)
+        .send()
+    };
+    // Wrong typed username, wrong password: nothing happens.
+    assert_eq!(del("someone", PW).await.status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        del("alice", "wrong password").await.status,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(h.account(1).state, AccountState::Active);
+    // The typed username is case-insensitive.
+    let ok = del("ALICE", PW).await;
+    assert_eq!(ok.status, StatusCode::NO_CONTENT, "{:?}", ok.body);
+    let a = h.account(1);
+    assert_eq!(a.state, AccountState::Deleted);
+    assert_eq!(a.display_name.as_deref(), Some("Deleted User"));
+    assert!(
+        h.store
+            .audit_rows()
+            .iter()
+            .any(|(_, action, _)| action == "account.delete")
+    );
+    // The session is gone and the account can never sign in again.
+    let again = h.get("/api/v1/sr/auth/sessions").session(&s).send().await;
+    assert_eq!(again.status, StatusCode::UNAUTHORIZED);
+    let login = h
+        .post(
+            "/api/v1/sr/auth/login",
+            json!({"login": "alice", "password": PW}),
+        )
+        .send()
+        .await;
+    assert_ne!(login.status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn delete_account_needs_a_session() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let anon = h
+        .post(
+            "/api/v1/sr/auth/account/delete",
+            json!({"username": "alice", "password": PW}),
+        )
+        .send()
+        .await;
+    assert_eq!(anon.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(h.account(1).state, AccountState::Active);
+}
+
+#[tokio::test]
 async fn change_email_confirms_through_the_verify_link() {
     let h = harness();
     h.add_account(1, "alice", "alice@x.test", AccountState::Active);
