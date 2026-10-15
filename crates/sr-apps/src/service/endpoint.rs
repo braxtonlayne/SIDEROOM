@@ -171,7 +171,7 @@ impl AppsService {
             // Same transaction would be nicer; the audit row is informational.
             let audit = self.audit(
                 app,
-                0,
+                1,
                 "app.interactions_endpoint_disabled",
                 json!({"failures": ENDPOINT_FAILURE_LIMIT}),
             );
