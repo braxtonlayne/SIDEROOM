@@ -59,7 +59,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-CHN-018** [FE] Channel header: icon + name, topic (click → topic modal), thread list icon, notification bell menu, pins popout, member list toggle, search, inbox, help *Partial: name, topic modal, threads list, notification bell menu (mute durations + settings), pins popout, member toggle and search are built. Still open: inbox and help (placeholders).*
 - [x] **LNG-CHN-019** [FE] Channel welcome header ("Welcome to #channel! This is the start of the #channel channel." + Edit Channel) *MessageList welcome row has the Edit Channel button for people who manage channels.*
 - [x] **LNG-CHN-020** [FE] Pins popout (list, jump, unpin) *lounge/header/PinsButton.tsx: list, jump, unpin (GET /channels/{id}/pins).*
-- [ ] **LNG-CHN-021** [FE] Read-only/announcement composer state + "Follow" button *Partial: read-only composer states for rules and announcement channels. The Follow button is not wired yet; the backend now exists (`POST /channels/{id}/followers`, lounge-be LNG-CHN-004).*
+- [x] **LNG-CHN-021** [FE] Read-only/announcement composer state + "Follow" button *Read-only composer states for rules and announcement channels; the Follow button (G-30, `lounge/header/FollowButton.tsx`) opens a channel picker and calls `POST /channels/{id}/followers`; the community's public updates channel carries an "Updates" badge.*
 - [x] **LNG-CHN-022** [FE] Age-gate interstitial for restricted channels *The answer is saved with POST /sr/age-gate and remembered per device (no call reads it back); the message endpoints answer 403 `900011` until the answer is saved (LNG-CHN-006), so retry the request after `POST /sr/age-gate`.*
 - [x] **LNG-CHN-023** [FE] Hide Muted Channels behavior
 - [ ] **LNG-CHN-024** [FE] Rules channel + Updates channel badges (Community) *Partial: Rules and Announcements badges in the channel header. The Updates channel has no field on the guild yet.*
@@ -69,7 +69,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [x] **LNG-THR-002** [BE] Active/archived (public/private/joined) listings with pagination
 - [x] **LNG-THR-003** [GW] THREAD_CREATE/UPDATE/DELETE/LIST_SYNC/MEMBER_UPDATE/MEMBERS_UPDATE
 - [x] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search) *Joined / Active / Archived tabs plus search in lounge/threads/ThreadsButton.tsx.*
-- [x] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view) *lounge/threads/ThreadPane.tsx: members popover (ThreadMembers.tsx), options menu (follow, mute, settings), Open full view (expands the pane over the channel).*
+- [x] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view) *lounge/threads/ThreadPane.tsx: members popover (ThreadMembers.tsx), options menu (follow, mute, settings), Open full view (navigates to `/channels/:guild/:thread`, which shows the thread in full view over its parent; Back to side pane returns, G-31).*
 - [x] **LNG-THR-006** [FE] Thread starter row under message ("N Messages ›" + last message preview) *Shows the thread name and message count; no last-message preview yet.*
 - [x] **LNG-THR-007** [FE] Threads nested in channel list (joined/active) *lounge/threads/NestedThreads.tsx under each channel row (followed threads and the open one).*
 - [x] **LNG-THR-008** [FE] Create Thread composer (name, private toggle, archive duration) *Private thread switch in CreateThreadDialog (standalone threads send type 12).*

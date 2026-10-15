@@ -1,5 +1,6 @@
 import type { MenuEntry } from '@sideroom/ui';
 import { useT } from '../../i18n';
+import { useDeveloperMode } from '../../settings/user/prefs';
 import { useViewer } from '../../settings/server/hooks';
 import { useGuild, useMembers, useRoles } from '../data';
 import { openProfilePopout } from '../profile/popoutStore';
@@ -26,6 +27,7 @@ export function useVoiceUserMenu(
   anchor?: HTMLElement | null,
 ): MenuEntry[] {
   const t = useT();
+  const developerMode = useDeveloperMode();
   const voice = useVoiceMenuEntries(guildId, user, onError, channelHint);
   const viewer = useViewer(guildId);
   const guild = useGuild(guildId);
@@ -89,10 +91,14 @@ export function useVoiceUserMenu(
     { type: 'separator' },
     ...voice,
     ...(moderation.length ? [{ type: 'separator' } as MenuEntry, ...moderation] : []),
-    { type: 'separator' },
-    {
-      label: t('lounge.memberList.copyUserId'),
-      onSelect: () => void navigator.clipboard?.writeText(user.id),
-    },
+    ...(developerMode
+      ? [
+          { type: 'separator' } as MenuEntry,
+          {
+            label: t('lounge.memberList.copyUserId'),
+            onSelect: () => void navigator.clipboard?.writeText(user.id),
+          },
+        ]
+      : []),
   ];
 }

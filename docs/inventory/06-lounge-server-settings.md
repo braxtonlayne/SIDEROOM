@@ -42,7 +42,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Soundboard
 - [ ] **LNG-SSET-025** [FE] Sound list (play, name, emoji, volume, uploader), Upload modal (file, trim to 5s with waveform, name, emoji, volume)
-- [ ] **LNG-SSET-026** [BE] Sound trimming/transcode to Opus (`symphonia` decode + `opus` encode) *(p10: not built. There is no soundboard store or API yet (VOX-SB-001), and the only Opus encoder is the `opus` crate, a binding to the C libopus, which this repo's rustls-only, pure-Rust-first policy (docs/03 section 4, marked with a warning) leaves for an ADR; `symphonia` decode alone is pure Rust. See handoff feat-p10-sset-be)*
+- [x] **LNG-SSET-026** [BE] Sound handling: stored as uploaded, no Opus transcode *(re-scoped 2026-10-15 by D-201: files (MP3/Ogg/WAV, 512 KiB, 5 s) are validated and stored as uploaded and decoded by the browser; `symphonia` decode only when needed; no libopus. Earlier note: p10: not built. There is no soundboard store or API yet (VOX-SB-001), and the only Opus encoder is the `opus` crate, a binding to the C libopus, which this repo's rustls-only, pure-Rust-first policy (docs/03 section 4, marked with a warning) leaves for an ADR; `symphonia` decode alone is pure Rust. See handoff feat-p10-sset-be)*
 
 ## Members
 - [ ] **LNG-SSET-027** [FE] Member table (avatar/name, member since, joined platform, join method/invite code, roles chips, signals), search, sort, filters (roles, join date, unusual activity), pagination *(p5: search and role filter use the server endpoints, with paging. p10: sort by name or join date over the loaded members. Still open: join method and signals (not in the member object), join-date filter)*

@@ -122,7 +122,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-055** [FE] Toggle + options (hide personal info, hide invite links, disable sounds/notifications) _(Own Streamer Mode section: master switch, hide personal info (email stays masked), hide invite links (invite dialog), disable sounds (voice cues and desktop alerts). Saved prefs, no automatic OBS detection (p11-userset-fe))_
 
 ## Advanced
-- [x] **LNG-USET-056** [FE] Developer Mode (Copy ID items), app test mode for developers, reset UI state _(Developer mode flag (Copy ID items stay always shown, decision), App test mode (diagnostics card, pseudo-languages), Reset UI state (p11-userset-fe))_
+- [x] **LNG-USET-056** [FE] Developer Mode (Copy ID items), app test mode for developers, reset UI state _(Developer mode flag (Copy ID items render only while Developer Mode is on, D-195 / G-56), App test mode (diagnostics card, pseudo-languages), Reset UI state (p11-userset-fe))_
 
 ## Removed sections (must not exist)
 - [x] **LNG-USET-057** [TEST] Assert no Nitro, Server Boost (Discord), Subscriptions, Gift Inventory, Billing, Family Center, Clips, Quests sections are rendered

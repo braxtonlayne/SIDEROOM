@@ -61,21 +61,21 @@ Items marked **NEEDS-OWNER** are blocked on the owner's answer; the default in t
 
 - [ ] **G-44 (P11-MSG-1, NEEDS-OWNER artwork) Sticker packs plumbing.** Migration `0794_sticker_packs.sql` (`sticker_packs`, `stickers.pack_id`), message creation accepts a pack sticker id, `GET /sticker-packs`; no default packs shipped. Size: M.
 - [ ] **G-48 (P11-SHL-3, NEEDS-OWNER artwork) Profile catalogue.** `sr_chat::profile::catalog` (effects `sparkle|aurora|snow|embers`; decorations empty) served by `GET /sr/profile-catalog`; `PATCH /users/@me` validates slugs against it. Size: S.
-- [ ] **G-59 (P11-LIB-2, NEEDS-OWNER download) PDF without a server rasterizer.** Library upload: the web renders page 1 with `pdf.js` and submits it as the cover; the reader opens PDFs with `pdf.js` (RDR item); `pdf.rs` keeps validating only. If the owner approves bundling pdfium later, LIB-ING-004's image mode reopens. Size: M (web).
+- [ ] **G-59 (P11-LIB-2, NEEDS-OWNER download) PDF without a server rasterizer.** Library upload: the web renders page 1 with `pdf.js` and submits it as the cover; the reader opens PDFs with `pdf.js` (RDR item); `pdf.rs` keeps validating only. If the owner approves bundling pdfium later, LIB-ING-004's image mode reopens. Size: M (web). *(partial on feat/p12-web-followups: reader and cover renderer behind a not-installed state; pdfjs-dist is not installed; the cover is not submitted yet (needs a cover endpoint for member submissions); left unticked)*
 
 ## Web (TypeScript)
 
-- [ ] **G-18 (P9-PWA-1) Share Target files.** Manifest `share_target` with `method: POST`, `enctype: multipart/form-data`, `files`; `public/sw.js` intercepts the POST, stores files in IndexedDB and redirects to `/share?files=1`; `SharePage` queues them as composer attachments for the chosen channel. Size: M.
-- [ ] **G-26 (P10-ADF-2) Hide Merge without both bits.** `admin/library/`: show Merge only when the viewer holds `PUBLISH_READING` and `DELETE_CONTENT` (D-172). Size: S.
-- [ ] **G-30 (P10-LFE-1) Follow and updates channel.** Announcement channel header: Follow button → `POST /channels/{id}/followers {webhook_channel_id}` with a channel picker; "Updates" badge from `public_updates_channel_id`. Size: S.
-- [ ] **G-31 (P10-LFE-2) Thread route.** `routes/lounge.tsx`: `/channels/$guildId/$channelId` resolves a thread id (from the store or `GET /channels/{id}`) to its parent with the thread pane in full view; "Open full view" navigates there; back closes. Size: S.
-- [ ] **G-35 (P10-SFE-1) Community wizard blocks.** `settings/server/CommunityWizard`: safety step shows the two switches, Next disabled until both are on; Finish never sets them silently. Size: S.
-- [ ] **G-39 (P10-VFE-1, P10-VFE-2) Decline and ring time.** Decline calls `POST /channels/{id}/call/stop-ringing`; the overlay follows `CALL_UPDATE/DELETE`; local fallback timer 45 s. Size: S.
+- [x] **G-18 (P9-PWA-1) Share Target files.** Manifest `share_target` with `method: POST`, `enctype: multipart/form-data`, `files`; `public/sw.js` intercepts the POST, stores files in IndexedDB and redirects to `/share?files=1`; `SharePage` queues them as composer attachments for the chosen channel. Size: M. *(done on feat/p12-web-followups; a POST to /share only works with the service worker active)*
+- [x] **G-26 (P10-ADF-2) Hide Merge without both bits.** `admin/library/`: show Merge only when the viewer holds `PUBLISH_READING` and `DELETE_CONTENT` (D-172). Size: S. *(done on feat/p12-web-followups)*
+- [x] **G-30 (P10-LFE-1) Follow and updates channel.** Announcement channel header: Follow button → `POST /channels/{id}/followers {webhook_channel_id}` with a channel picker; "Updates" badge from `public_updates_channel_id`. Size: S. *(done on feat/p12-web-followups; the Updates badge reads GET /guilds/{id}/sr/community)*
+- [x] **G-31 (P10-LFE-2) Thread route.** `routes/lounge.tsx`: `/channels/$guildId/$channelId` resolves a thread id (from the store or `GET /channels/{id}`) to its parent with the thread pane in full view; "Open full view" navigates there; back closes. Size: S. *(done on feat/p12-web-followups)*
+- [x] **G-35 (P10-SFE-1) Community wizard blocks.** `settings/server/CommunityWizard`: safety step shows the two switches, Next disabled until both are on; Finish never sets them silently. Size: S. *(done on feat/p12-web-followups; the switches write the guild when toggled)*
+- [x] **G-39 (P10-VFE-1, P10-VFE-2) Decline and ring time.** Decline calls `POST /channels/{id}/call/stop-ringing`; the overlay follows `CALL_UPDATE/DELETE`; local fallback timer 45 s. Size: S. *(done on feat/p12-web-followups)*
 - [ ] **G-40 (P10-VFE-3) `CALL_CREATE.video`.** Backend: `crates/sr-gateway/src/voice_call.rs` carries `video: bool` from op 4 `self_video`; web shows "Incoming video call" and Accept with video preselected. Size: S.
-- [ ] **G-49 (P11-SHL-4) One update notice.** `PwaHost`: suppress the toast while the Lounge shell is mounted (the notices bar shows it there). Size: S.
+- [x] **G-49 (P11-SHL-4) One update notice.** `PwaHost`: suppress the toast while the Lounge shell is mounted (the notices bar shows it there). Size: S. *(done on feat/p12-web-followups)*
 - [ ] **G-54 (P11-CLI-2, D-192) Announcement DM rules.** Backend: `POST /admin/announcements {critical, send_dm}`; DMs go to everyone for `critical`, otherwise only when `send_dm` and the recipient's `notifications.platform_dm` is on (settings schema key). Web: compose form fields; `canDismiss` stays false for critical. Size: S.
-- [ ] **G-56 (P11-USF-1, D-195) Copy ID behind Developer Mode.** Every "Copy ID" entry (guild, channel, message, user menus) renders only when `prefs.developerMode`; Copy Link stays. Update the earlier test. Size: S.
-- [ ] **G-17 (P9-I18N-1) One locale.** Language picker writes `PATCH /users/@me {locale}` (backend accepts BCP 47 tags it has catalogues for) and mirrors into the settings blob; `syncFormatting` reads the account value on boot. Size: S.
+- [x] **G-56 (P11-USF-1, D-195) Copy ID behind Developer Mode.** Every "Copy ID" entry (guild, channel, message, user menus) renders only when `prefs.developerMode`; Copy Link stays. Update the earlier test. Size: S. *(done on feat/p12-web-followups)*
+- [x] **G-17 (P9-I18N-1) One locale.** Language picker writes `PATCH /users/@me {locale}` (backend accepts BCP 47 tags it has catalogues for) and mirrors into the settings blob; `syncFormatting` reads the account value on boot. Size: S. *(web part done on feat/p12-web-followups: picker writes PATCH /users/@me {locale} and mirrors into prefs.locale; boot adopts the account locale on a device with no saved language. Backend dependency: PATCH /users/@me does not accept locale yet)*
 
 ## Tests, tooling and ops
 
@@ -85,13 +85,13 @@ Items marked **NEEDS-OWNER** are blocked on the owner's answer; the default in t
 ## Docs and inventory only
 
 - [ ] **G-02 (P8-DEV-2, P8-DEV-4, D-205, D-206) Porting notes.** Doc 05 §7: install permission cap, interaction responses and `SEND_MESSAGES`, privileged intents reviewed at release; doc 11 §2.1 wording. Size: S.
-- [ ] **G-06 (P8-DON-1, D-207) ADR-0006 addendum.** Append "Status: amended 2026-10-15" to `docs/adr/0006-bitcoin-watch-only-bdk.md`: `bdk_wallet`/`bdk_esplora` replaced by in-house derivation on `secp256k1`/`bitcoin_hashes`/`bech32`; revisit trigger (BDK without `hex_lit`, or descriptors beyond `wpkh`). Doc 03 §2 Bitcoin row. Size: S.
-- [ ] **G-15 (P8-WP-3) Watch-party spec.** `docs/specs/watch-parties.md`: drift ignore band 100 ms with 40 ms hysteresis. Size: S.
-- [ ] **G-24 (P10-ADM-8) ADM-GRAPH-003 re-scope.** Inventory 10: "canvas 2D renderer over `sr-graph-wasm`, when the graph exceeds about 500 nodes"; no WebGL. Size: S.
-- [ ] **G-32 (P10-SBE-1, D-201) Voice spec and doc 03.** `docs/specs/lounge-voice-video.md` §7: remove "→ Opus" (files stored as uploaded, decoded by the browser); doc 03 §2 Audio row: `symphonia` (decode, when needed); no `opus` bindings. LNG-SSET-026 re-scoped to "store as uploaded" and ticked. Size: S.
-- [ ] **G-46 (P11-SHL-1, D-193) Doc 05 activity types.** Presence section: type 6 = Reading, fields as type 3. Size: S.
-- [ ] **G-62 (P11-REV-3) REV-CORE-001.** Inventory 16: table names `content_requests` / `content_request_votes`; tick the box. Size: S.
-- [ ] **G-63 (MOD-1 to MOD-11, D-209 to D-216) Moderation spec.** `docs/specs/moderation-compliance.md`: fold the answers into §3.3, §3.4, §4.3, §4.6, §5, §11 and §14 (the NEEDS-OWNER items MOD-4, MOD-5, MOD-6 stay listed with their defaults); doc 07 §3 bits 22 and 23. Size: S.
+- [x] **G-06 (P8-DON-1, D-207) ADR-0006 addendum.** Append "Status: amended 2026-10-15" to `docs/adr/0006-bitcoin-watch-only-bdk.md`: `bdk_wallet`/`bdk_esplora` replaced by in-house derivation on `secp256k1`/`bitcoin_hashes`/`bech32`; revisit trigger (BDK without `hex_lit`, or descriptors beyond `wpkh`). Doc 03 §2 Bitcoin row. Size: S.
+- [x] **G-15 (P8-WP-3) Watch-party spec.** `docs/specs/watch-parties.md`: drift ignore band 100 ms with 40 ms hysteresis. Size: S.
+- [x] **G-24 (P10-ADM-8) ADM-GRAPH-003 re-scope.** Inventory 10: "canvas 2D renderer over `sr-graph-wasm`, when the graph exceeds about 500 nodes"; no WebGL. Size: S.
+- [x] **G-32 (P10-SBE-1, D-201) Voice spec and doc 03.** `docs/specs/lounge-voice-video.md` §7: remove "→ Opus" (files stored as uploaded, decoded by the browser); doc 03 §2 Audio row: `symphonia` (decode, when needed); no `opus` bindings. LNG-SSET-026 re-scoped to "store as uploaded" and ticked. Size: S.
+- [x] **G-46 (P11-SHL-1, D-193) Doc 05 activity types.** Presence section: type 6 = Reading, fields as type 3. Size: S.
+- [x] **G-62 (P11-REV-3) REV-CORE-001.** Inventory 16: table names `content_requests` / `content_request_votes`; tick the box. Size: S.
+- [x] **G-63 (MOD-1 to MOD-11, D-209 to D-216) Moderation spec.** `docs/specs/moderation-compliance.md`: fold the answers into §3.3, §3.4, §4.3, §4.6, §5, §11 and §14 (the NEEDS-OWNER items MOD-4, MOD-5, MOD-6 stay listed with their defaults); doc 07 §3 bits 22 and 23. Size: S.
 - [ ] **G-66 (MOD-6) Deletion and export copy.** Settings → Delete account and the data-export README state what is retained after erasure (Person record, invite graph, invoices, moderation history, D-124) and why; `compliance.data_request_deadline_days` (default 30) declared when the request queue lands. Size: S.
 
 ## Phase 12 handoff answers (G-68 onward)

@@ -3,6 +3,7 @@ import type { MenuEntry } from '@sideroom/ui';
 import { useEffect } from 'react';
 import { t } from '../../i18n';
 import { useOpenUserSettings } from '../../settings/user/nav';
+import { useDeveloperMode } from '../../settings/user/prefs';
 import { useCurrentUser, useLoungeActions, type Guild } from '../data';
 import { useLoungeUi } from '../store';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './notifSettings';
@@ -41,6 +42,7 @@ export function useMuteEntry(guildId: string): MenuEntry {
  * everything the backend already supports is real; the rest stays in the header menu as coming-soon.
  */
 export function useGuildMenuCore(guild: Guild) {
+  const developerMode = useDeveloperMode();
   const me = useCurrentUser();
   const actions = useLoungeActions();
   const navigate = useNavigate();
@@ -128,10 +130,13 @@ export function useGuildMenuCore(guild: Guild) {
       // The owner must transfer ownership first (LNG-GLD-027); the dialog explains it.
       onSelect: () => openDialog({ kind: 'leaveServer', guildId: guild.id }),
     } as MenuEntry,
-    copyId: {
-      label: 'Copy Server ID',
-      onSelect: () => void navigator.clipboard?.writeText(guild.id),
-    } as MenuEntry,
+    // Hidden unless Developer Mode is on (G-56); callers spread `core.copyId` only when it is set.
+    copyId: (developerMode
+      ? {
+          label: 'Copy Server ID',
+          onSelect: () => void navigator.clipboard?.writeText(guild.id),
+        }
+      : null) as MenuEntry | null,
     platformAdmin: {
       label: t('lounge.platformAdmin.menu'),
       onSelect: () => void navigate({ to: '/admin' }),

@@ -11,7 +11,7 @@ import {
 import { memo, useMemo, type CSSProperties } from 'react';
 import { useT } from '../i18n';
 import { useReportEntry } from '../moderation/reports';
-import { useSavedPrefs } from '../settings/user/prefs';
+import { useDeveloperMode, useSavedPrefs } from '../settings/user/prefs';
 import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
 import { isJumbo, parseMarkdown, useMarkdownReady } from './markdown';
@@ -241,6 +241,7 @@ function MessageItemImpl(props: MessageItemProps) {
   const canPinHere = !!onPin && !!canPin && !m.pending;
   const copy = (text: string) => void navigator.clipboard?.writeText(text);
 
+  const developerMode = useDeveloperMode();
   const menu = useMemo<MenuEntry[]>(() => {
     const entries: MenuEntry[] = [
       {
@@ -325,11 +326,14 @@ function MessageItemImpl(props: MessageItemProps) {
     if (appsMenu.length > 0) entries.push({ type: 'separator' }, ...appsMenu);
     const report = reportEntry({ kind: 'message', id: m.id });
     if (report) entries.push({ type: 'separator' }, report);
-    entries.push({ type: 'separator' });
-    entries.push({ label: t('lounge.messageItem.copyMessageId'), onSelect: () => copy(m.id) });
+    if (developerMode) {
+      entries.push({ type: 'separator' });
+      entries.push({ label: t('lounge.messageItem.copyMessageId'), onSelect: () => copy(m.id) });
+    }
     return entries;
   }, [
     t,
+    developerMode,
     m,
     isOwn,
     guildId,

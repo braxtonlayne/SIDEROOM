@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../test/server';
 import { at, baseHandlers, calls, record, seedLounge } from './gapsHelpers';
@@ -38,6 +39,7 @@ describe('LNG-RAIL-012 guild context menu', () => {
   });
 
   it('lists the Discord entries, with Server Settings shortcuts', async () => {
+    usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, developerMode: true } });
     at('/channels/g1/c1');
     const menu = await openRailMenu();
     for (const name of [
@@ -61,6 +63,14 @@ describe('LNG-RAIL-012 guild context menu', () => {
       'aria-disabled',
       'true',
     );
+    usePrefsStore.setState({ prefs: DEFAULT_PREFS });
+  });
+
+  it('G-56 hides Copy Server ID until Developer Mode is on', async () => {
+    at('/channels/g1/c1');
+    const menu = await openRailMenu();
+    expect(within(menu).getByRole('menuitem', { name: 'Invite People' })).toBeTruthy();
+    expect(within(menu).queryByRole('menuitem', { name: 'Copy Server ID' })).toBeNull();
   });
 
   it('saves the per-server profile', async () => {

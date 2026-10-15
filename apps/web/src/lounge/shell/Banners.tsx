@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { resendVerification } from '../../api/entrance';
 import { t, useT } from '../../i18n';
-import { applyPendingUpdate, usePwaState } from '../../pwa/state';
+import { applyPendingUpdate, setNoticesBarMounted, usePwaState } from '../../pwa/state';
 import { useConnectionStatus } from '../../store';
 import { canDismiss, useActiveAnnouncements } from '../announcements';
 
@@ -85,6 +85,11 @@ export function NoticesBar() {
   const [state, setState] = useState<Sent>('idle');
   const [verifyHidden, setVerifyHidden] = useState(false);
   const [updateHidden, setUpdateHidden] = useState(false);
+  // One update notice: while this bar is mounted the PwaHost toast stays away (G-49).
+  useEffect(() => {
+    setNoticesBarMounted(true);
+    return () => setNoticesBarMounted(false);
+  }, []);
   const pwa = usePwaState();
   // One source of truth for announcements (ADM-PLT-009): polled, critical ones cannot be dismissed.
   const announcements = useActiveAnnouncements();

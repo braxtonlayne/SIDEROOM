@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Avatar, Button, Icon } from '@sideroom/ui';
+import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
 import { onDispatch } from '../../store/events';
 import {
@@ -32,14 +33,18 @@ export function acceptCall(call: Call, name: string, withVideo: boolean): void {
   });
 }
 
+/** Decline: stop the local ring at once and tell the server, which announces the new ringing list (G-39). */
 export function declineCall(call: Call): void {
   useCalls.getState().dismiss(call.channelId);
+  void apiFetch(`/channels/${call.channelId}/call/stop-ringing`, { method: 'POST' }).catch(
+    () => undefined,
+  );
 }
 
 /**
  * The incoming call overlay (VOX-UI-010): the caller's avatar and name, Accept (voice), Accept with video and
  * Decline, with a repeating ringtone. Mounted once at the app root next to the voice bridge. It stops ringing
- * by itself after 30 seconds, and when the server says the call ended.
+ * when the server says so (CALL_UPDATE / CALL_DELETE; the server rings for 45 s), with a local 45 s fallback.
  */
 export function IncomingCallOverlay() {
   const t = useT();

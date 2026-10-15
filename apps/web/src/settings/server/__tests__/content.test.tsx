@@ -424,7 +424,21 @@ describe('Community', () => {
     await userEvent.click(await screen.findByRole('switch', { name: /Enable Community/ }));
     const dialog = await screen.findByRole('dialog', { name: 'Enable Community' });
     expect(within(dialog).getByText('Step 1 of 3')).toBeInTheDocument();
-    await within(dialog).findByText(/verification level will be raised to Low/);
+    const verification = await within(dialog).findByRole('switch', {
+      name: /Verified email required to join in/,
+    });
+    const filter = within(dialog).getByRole('switch', {
+      name: /Media from all members is scanned/,
+    });
+    // Next stays disabled until the admin turns both switches on; nothing is sent yet.
+    expect(within(dialog).getByRole('button', { name: 'Next' })).toBeDisabled();
+    expect(guildCap.calls).toHaveLength(0);
+    await userEvent.click(verification);
+    await waitFor(() => expect(guildCap.calls).toHaveLength(1));
+    expect(within(dialog).getByRole('button', { name: 'Next' })).toBeDisabled();
+    await userEvent.click(filter);
+    await waitFor(() => expect(guildCap.calls).toHaveLength(2));
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Next' })).toBeEnabled());
     await userEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
     // Step 2 needs both channels.
     expect(within(dialog).getByRole('button', { name: 'Next' })).toBeDisabled();
@@ -437,11 +451,10 @@ describe('Community', () => {
     await userEvent.click(within(dialog).getByRole('checkbox', { name: /community guidelines/ }));
     await userEvent.click(finish);
     await waitFor(() => expect(comCap.calls).toHaveLength(1));
-    expect(guildCap.calls[0]!.body).toEqual({
-      verification_level: 1,
-      explicit_content_filter: 2,
-      default_message_notifications: 1,
-    });
+    expect(guildCap.calls[0]!.body).toEqual({ verification_level: 1 });
+    expect(guildCap.calls[1]!.body).toEqual({ explicit_content_filter: 2 });
+    // Finish only writes the notification default; it never sets the safety levels itself.
+    expect(guildCap.calls[2]!.body).toEqual({ default_message_notifications: 1 });
     expect(roleCap.calls[0]!.body).toEqual({ permissions: String((1n << 10n) | (1n << 11n)) });
     expect(comCap.calls[0]!.body).toEqual({
       community_enabled: true,

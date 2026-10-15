@@ -3,7 +3,7 @@
 Phase 4 (shared by Cinema, Library, apps, packages). Spec: [submissions-and-review](../specs/submissions-and-review.md), [ingest-naming-conventions](../specs/ingest-naming-conventions.md).
 
 ## REV-CORE — Pipeline
-- [ ] **REV-CORE-001** [DB] submissions, submission_items, submission_events, contribution_credits, requests, request_votes *(partial, phase 5: `submissions`, `submission_items`, `submission_events`, `content_requests`, `content_request_votes` in migration 0290; `contribution_credits` is still missing, see REV-CORE-006)*
+- [x] **REV-CORE-001** [DB] submissions, submission_items, submission_events, contribution_credits, content_requests, content_request_votes *(the request tables are named `content_requests` and `content_request_votes`, P11-REV-3; `submissions`, `submission_items`, `submission_events`, `content_requests`, `content_request_votes` in migration 0290 and `contribution_credits` in migration 0700, see REV-CORE-006)*
 - [x] **REV-CORE-002** [BE] State machine with per-item states, transitions, permission checks per kind *(phase 5: `sr_review::machine` and the guarded writes; per-item states pending/approved/rejected/published; the spec `processing` state is not a state, Library conversion runs in the ingest job while the submission is a draft)*
 - [x] **REV-CORE-003** [BE] Kind registry (`SubmissionKind` trait: validate payload, processing jobs, publish action, preview data) *(phase 5: `SubmissionKind` + `KindRegistry`; kinds `library.series`, `library.items` in `sr-library::submissions`)*
 - [x] **REV-CORE-004** [BE] Claim/lock (30 min soft lock), release, reassign *(phase 5: 30 min lease, renew by claiming again, release, take-over by holders of the kind's publish permission)*

@@ -30,6 +30,7 @@ import {
 } from './model';
 import { ChapterRate } from '../SeriesSocial';
 import { PageImage } from './PageImage';
+import { PdfReader } from '../pdf/PdfReader';
 import { BookmarksPanel, SettingsPanel } from './Panels';
 import { useZoomPan } from './useZoomPan';
 
@@ -110,6 +111,16 @@ function ReaderLoader({ chapterId, page }: ReaderProps) {
       </div>
     );
   }
+  // PDF chapters have no page images: pdf.js reads the original in the browser (G-59).
+  if (manifest.data.chapter.format === 'pdf' && manifest.data.source_url && series.data)
+    return (
+      <PdfReader
+        url={manifest.data.source_url}
+        title={manifest.data.chapter.title || series.data.series.title}
+        seriesId={series.data.series.id}
+        initialPage={(parsePageParam(page, 100000) ?? 0) + 1}
+      />
+    );
   const count = manifest.data.pages.length;
   const urlIndex = parsePageParam(page, count);
   const fromProgress =

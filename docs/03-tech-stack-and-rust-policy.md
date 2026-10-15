@@ -41,11 +41,11 @@ Applied as rules:
 | Frame crypto | `aes-gcm` (RustCrypto) | ✅ | Also WASM |
 | Video transcoding | `ffmpeg-next` bindings → FFmpeg + NVENC | ⚠️ C libs, Rust orchestration | ADR-0005. `rav1e` (Rust AV1) is optional for an AV1 rung later |
 | Media probing | `ffmpeg-next` | ⚠️ | |
-| Audio (soundboard/voice msgs) | `symphonia` (decode), `opus` bindings (encode) | ✅/⚠️ | |
+| Audio (soundboard/voice msgs) | `symphonia` (decode, when needed). No `opus` bindings: files are stored as uploaded and decoded by the browser (D-201) | ✅ | |
 | Images | `image`, `fast_image_resize`, `webp` (libwebp bindings, lossy) | ✅/⚠️ | Manga pages → WebP |
 | Archives | `zip`, `unrar` bindings, `sevenz-rust`, `pdfium-render` (PDF raster) | ✅/⚠️ | |
 | EPUB | `epub` crate (metadata, spine). Rendered client-side | ✅ | |
-| Bitcoin | `bdk_wallet` (watch-only descriptor), `bdk_esplora` | ✅ | ADR-0006 |
+| Bitcoin | In-house watch-only derivation on `secp256k1`, `bitcoin_hashes`, `bech32` (BIP-32/84/380) and an Esplora client; `bdk_wallet` and `bdk_esplora` are not used (D-207) | ✅ | ADR-0006 and its addendum |
 | Lightning (later) | LDK (`lightning`, `ldk-node`) | ✅ | |
 | Email (verification, recovery) | `lettre` (SMTP) | ✅ | Operator supplies SMTP |
 | Reverse proxy | **Caddy** | ❌ Go | Only for TLS/HTTP3/static. Optional. `sr-server` can serve TLS itself via `rustls` |

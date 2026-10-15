@@ -8,7 +8,7 @@ import { isMuted, MUTE_DURATIONS, useNotifSettings } from '../shell/notifSetting
 import { ThreadMembers } from './ThreadMembers';
 import { ThreadSettingsDialog } from './ThreadSettingsDialog';
 import { MessageList } from '../MessageList';
-import { useLoungeGoto } from '../nav';
+import { useLoungeGoto, useLoungeGotoThread } from '../nav';
 import { useMyTimeout } from '../timeout';
 import { useThreads } from './threadStore';
 import './threads.css';
@@ -18,21 +18,24 @@ export function ThreadPane({
   guildId,
   parentId,
   threadId,
+  fullView = false,
 }: {
   guildId: string;
   parentId: string;
   threadId: string;
+  /** The URL is `/channels/:guild/:thread`, the full-view address (G-31). */
+  fullView?: boolean;
 }) {
   const t = useT();
   const thread = useThreads((s) => s.byId[threadId]);
   const guild = useGuild(guildId);
   const timedOutUntil = useMyTimeout(guildId);
   const goto = useLoungeGoto();
+  const gotoThread = useLoungeGotoThread();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const me = useCurrentUser();
   const notif = useNotifSettings((s) => s.byGuild[guildId]);
@@ -104,8 +107,10 @@ export function ThreadPane({
           })),
         },
     {
-      label: expanded ? t('lounge.threadPane.sidePane') : t('lounge.threadPane.fullView'),
-      onSelect: () => setExpanded((v) => !v),
+      // Full view has its own address (`/channels/:guild/:thread`), so the back button and links work (G-31).
+      label: fullView ? t('lounge.threadPane.sidePane') : t('lounge.threadPane.fullView'),
+      onSelect: () =>
+        fullView ? gotoThread(guildId, parentId, threadId) : goto(guildId, threadId),
     },
     ...(canManage
       ? [
@@ -122,7 +127,7 @@ export function ThreadPane({
   return (
     <aside
       className="lng-thread-pane"
-      data-expanded={expanded || undefined}
+      data-expanded={fullView || undefined}
       aria-label={t('lounge.threadPane.label', { name })}
     >
       <header className="lng-thread-head">

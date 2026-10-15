@@ -9,12 +9,16 @@
  *
  * The gateway does not say whether the caller started with video, so `video` stays false unless sent.
  *
- * A ring also stops by itself after `RING_TIMEOUT_MS`.
+ * A ring stops when the server says so; `RING_TIMEOUT_MS` is only a local fallback.
  */
 import { create } from 'zustand';
 import { useStore } from '../store/store';
 
-export const RING_TIMEOUT_MS = 30_000;
+/**
+ * Local fallback only: the server stops the ring after 45 s and says so with CALL_UPDATE / CALL_DELETE, which
+ * the overlay follows (G-39). This timer covers a missed dispatch.
+ */
+export const RING_TIMEOUT_MS = 45_000;
 /** Pause between two repetitions of the ringtone. */
 export const RING_INTERVAL_MS = 3_000;
 

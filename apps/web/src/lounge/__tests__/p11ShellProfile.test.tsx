@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { http, HttpResponse, server } from '../../test/server';
@@ -248,6 +249,7 @@ describe('full profile (LNG-PRF-004..007)', () => {
   });
 
   it('has the profile menu with every entry and copies the username', async () => {
+    usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, developerMode: true } });
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     server.use(
@@ -273,6 +275,7 @@ describe('full profile (LNG-PRF-004..007)', () => {
       expect(within(menu).getByRole('menuitem', { name })).toBeTruthy();
     await userEvent.click(within(menu).getByRole('menuitem', { name: 'Copy Username' }));
     expect(writeText).toHaveBeenCalledWith('bob');
+    usePrefsStore.setState({ prefs: DEFAULT_PREFS });
   });
 
   it('sends a friend request from the header', async () => {

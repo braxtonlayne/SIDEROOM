@@ -1398,3 +1398,40 @@
 .lib-list-title a:hover {
   text-decoration: underline;
 }
+
+.lib-pdf {
+  display: flex;
+  flex-direction: column;
+}
+.lib-pdf-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 8px;
+  padding-inline: 12px;
+}
+.lib-pdf-title {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib-pdf-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lib-pdf-page {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+}
+.lib-pdf-page canvas {
+  max-inline-size: 100%;
+  height: auto;
+  background: #fff;
+}

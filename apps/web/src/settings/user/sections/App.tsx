@@ -8,7 +8,8 @@ import {
   useToast,
 } from '@sideroom/ui';
 import { useState } from 'react';
-import { LOCALES as UI_LOCALES, setLocale, useLocale, useT } from '../../../i18n';
+import { LOCALES as UI_LOCALES, useLocale, useT } from '../../../i18n';
+import { chooseLanguage } from '../../../i18n/accountLocale';
 import pkg from '../../../../package.json';
 import { useLoungeUi } from '../../../lounge/store';
 import { rest, useStore } from '../../../store';
@@ -67,7 +68,9 @@ export function LanguageSection({ prefs, setPrefs }: PrefsFormProps) {
             aria-labelledby="us-ui-lang-label"
             options={uiOptions}
             value={uiLocale}
-            onValueChange={(v) => void setLocale(v)}
+            onValueChange={(v) =>
+              void chooseLanguage(v, !!UI_LOCALES.find((l) => l.code === v)?.pseudo)
+            }
           />
         </div>
       </Card>
