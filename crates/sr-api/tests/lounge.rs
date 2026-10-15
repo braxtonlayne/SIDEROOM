@@ -36,9 +36,10 @@ use sr_chat::memory::MemoryRepo;
 use sr_chat::repo::UserSummary;
 use sr_chat::settings::directory::MemoryDirectory;
 use sr_chat::settings::memory::{MemoryInviteJoin, MemorySettingsRepo};
+use sr_chat::social::repo::DmRepository;
 use sr_chat::{ChatLimits, ChatService, Member};
 use sr_core::PlatformPermissions as P;
-use sr_core::{Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
+use sr_core::{ChannelId, Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
 use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
 use sr_storage::{ObjectStorage, ObjectStoreStorage};
 use std::collections::HashMap;
@@ -1333,7 +1334,11 @@ async fn group_dm_invites_create_resolve_join_and_revoke() {
         .await;
     assert_eq!(s, StatusCode::OK, "{inv}");
     assert_eq!(inv["type"], 1);
-    assert!(inv.get("guild").is_none(), "no server behind a group link");
+    assert!(inv["guild"].is_null(), "no server behind a group link");
+    assert!(
+        inv.as_object().unwrap().contains_key("guild"),
+        "guild is null, not absent"
+    );
     assert_eq!(inv["channel"]["id"], dm.as_str());
     assert_eq!(inv["channel"]["type"], 3);
     assert_eq!(inv["max_age"], 86_400);
@@ -1871,4 +1876,60 @@ async fn scheduled_events_start_and_end_by_the_clock_and_are_audited() {
         .filter_map(|e| e["action_type"].as_u64())
         .collect();
     assert!(actions.contains(&100), "{log}");
+}
+
+#[tokio::test]
+async fn group_dm_invite_is_refused_to_a_joiner_who_blocks_or_is_blocked_by_the_owner() {
+    let w = world().await;
+    let dm = group_dm(&w).await;
+    let (_, inv) = w
+        .post(OWNER, &format!("/channels/{dm}/invites"), json!({}))
+        .await;
+    let code = inv["code"].as_str().unwrap().to_owned();
+    let (owner, dave) = (UserId::new(OWNER as u64), UserId::new(DAVE as u64));
+
+    // The joiner blocked the owner: the link does not exist for them.
+    w.social.service.block(dave, owner).await.unwrap();
+    let (s, _) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // So does the other direction.
+    w.social.service.unblock(dave, owner).await.unwrap();
+    w.social.service.block(owner, dave).await.unwrap();
+    let (s, _) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // Nobody joined meanwhile; once the block is gone the same link works.
+    w.social.service.unblock(owner, dave).await.unwrap();
+    let (s, joined) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{joined}");
+    assert_eq!(joined["approximate_member_count"], 4);
+}
+
+#[tokio::test]
+async fn group_dm_invite_stops_at_ten_recipients() {
+    let w = world().await;
+    let dm = group_dm(&w).await;
+    let (_, inv) = w
+        .post(OWNER, &format!("/channels/{dm}/invites"), json!({}))
+        .await;
+    let code = inv["code"].as_str().unwrap().to_owned();
+    // Seven more seats fill the group (owner, Bob, Carol and seven).
+    let fillers: Vec<UserId> = (100..107).map(UserId::new).collect();
+    let dm_id: ChannelId = dm.parse().unwrap();
+    w.social
+        .service
+        .repo()
+        .add_recipients(dm_id, &fillers)
+        .await
+        .unwrap();
+    let (s, body) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    let (_, mine) = w.get(DAVE, "/users/@me/channels").await;
+    assert!(
+        !mine
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == dm.as_str()),
+        "no seat was taken"
+    );
 }

@@ -69,8 +69,8 @@ pub struct InviteObject {
     #[serde(rename = "type")]
     pub kind: u8,
     pub code: String,
-    /// The server; absent on group DM invites.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The server; `null` on group DM invites (D-221).
+    #[schema(nullable = true)]
     pub guild: Option<InviteGuild>,
     pub channel: InviteChannel,
     pub inviter: UserRef,
