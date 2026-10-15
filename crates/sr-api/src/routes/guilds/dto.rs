@@ -417,6 +417,12 @@ pub struct GuildObject {
     pub rules_channel_id: Option<String>,
     pub public_updates_channel_id: Option<String>,
     pub safety_alerts_channel_id: Option<String>,
+    /// Only with `?with_counts=true` on `GET /guilds/{id}` (Discord shape).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_member_count: Option<u64>,
+    /// Members visibly online; only with `with_counts`, and only for servers of up to 1000 members.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_presence_count: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roles: Option<Vec<RoleObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -450,6 +456,8 @@ impl GuildObject {
             rules_channel_id: g.rules_channel_id.map(|c| c.to_string()),
             public_updates_channel_id: g.public_updates_channel_id.map(|c| c.to_string()),
             safety_alerts_channel_id: g.safety_alerts_channel_id.map(|c| c.to_string()),
+            approximate_member_count: None,
+            approximate_presence_count: None,
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
         }

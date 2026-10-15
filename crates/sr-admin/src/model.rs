@@ -364,6 +364,10 @@ pub struct AccountQuery {
     pub q: Option<String>,
     pub state: Option<AccountState>,
     pub person_id: Option<i64>,
+    /// Accounts linked to this Discord user id.
+    pub discord_id: Option<String>,
+    /// Accounts that signed in from this IP address.
+    pub ip: Option<String>,
     pub after: Option<i64>,
     pub limit: i64,
 }
@@ -396,6 +400,9 @@ pub struct AccountDetail {
     pub suspicion_level: i32,
     pub person_banned: bool,
     pub recent_logins: Vec<LoginEvent>,
+    /// Staff froze this account's invite creation by hand (ADM-GRAPH-004).
+    #[serde(default)]
+    pub invites_frozen: bool,
 }
 
 /// What `reset 2FA` removed.

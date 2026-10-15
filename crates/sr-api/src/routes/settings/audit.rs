@@ -23,6 +23,8 @@ pub struct AuditLogQuery {
     pub user_id: Option<String>,
     /// Discord audit-log event number.
     pub action_type: Option<i16>,
+    /// Only entries about this user (the target of the action).
+    pub target_id: Option<String>,
     /// Entries older than this entry id.
     pub before: Option<String>,
     /// 1 to 100, default 50.
@@ -91,8 +93,8 @@ pub struct AuditLogObject {
     pub auto_moderation_rules: Vec<Value>,
 }
 
-/// List audit-log entries, newest first (`VIEW_AUDIT_LOG`). Filter by `user_id`
-/// and `action_type`; page with `before`.
+/// List audit-log entries, newest first (`VIEW_AUDIT_LOG`). Filter by `user_id` (actor),
+/// `target_id` (who or what the entry is about) and `action_type`; page with `before`.
 #[utoipa::path(
     get,
     path = "/guilds/{guild_id}/audit-logs",
@@ -100,6 +102,7 @@ pub struct AuditLogObject {
         ("guild_id" = String, Path, description = "Guild snowflake"),
         ("user_id" = Option<String>, Query, description = "Actor filter"),
         ("action_type" = Option<i16>, Query, description = "Event number filter"),
+        ("target_id" = Option<String>, Query, description = "Target filter: entries about this user or object"),
         ("before" = Option<String>, Query, description = "Entry id cursor"),
         ("limit" = Option<usize>, Query, description = "1 to 100, default 50"),
     ),
@@ -126,6 +129,9 @@ pub async fn list_audit_log(
             AuditAction::from_code(code)
                 .ok_or_else(|| invalid("action_type", "ENUM_TYPE_BAD_VALUE", "Unknown action."))?,
         );
+    }
+    if let Some(t) = &q.target_id {
+        query.target_id = Some(id::<u64>("target_id", t)?);
     }
     if let Some(b) = &q.before {
         query.before = Some(id::<u64>("before", b)?);

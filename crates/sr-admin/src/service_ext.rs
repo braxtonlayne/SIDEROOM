@@ -7,7 +7,8 @@ use crate::{
     error::{AdminError, AdminResult},
     ext::{
         Announcement, AnnouncementInput, AnnouncementPatch, AnnouncementSeverity, Delegation,
-        ENTRANCE_COPY_KEYS, ENTRANCE_COPY_MAX_CHARS,
+        AdminGuild, AdminGuildRef, AdminSession, ENTRANCE_COPY_KEYS, ENTRANCE_COPY_MAX_CHARS,
+        SuspicionEvent,
         NewAnnouncement, NewOffer, OFFER_TTL_MS, OfferState, PrivateChannel, PrivateMessagePage,
         StaffAlertRow, StaffExtrasRepository, StaffOffer,
     },
@@ -975,6 +976,230 @@ impl AdminService {
             Some(x) => x.active_announcements(self.now_ms()).await,
             None => Ok(Vec::new()),
         }
+    }
+
+    // ===== people and servers ==============================================
+
+    /// Open sessions of an account (`MANAGE_ACCOUNTS`). Shows IPs, so the read is logged.
+    pub async fn account_sessions(&self, c: &Caller, id: i64) -> AdminResult<Vec<AdminSession>> {
+        self.require(c, P::MANAGE_ACCOUNTS, "accounts.sessions")
+            .await?;
+        let out = self.extras()?.account_sessions(id).await?;
+        let e = self.entry(
+            c,
+            AccessKind::Read,
+            "account.sessions",
+            Some(("account", id)),
+            "",
+            json!({ "count": out.len() }),
+        );
+        self.repo().append_log(&e).await?;
+        Ok(out)
+    }
+
+    /// Servers an account belongs to (`MANAGE_ACCOUNTS`).
+    pub async fn account_guilds(&self, c: &Caller, id: i64) -> AdminResult<Vec<AdminGuildRef>> {
+        self.require(c, P::MANAGE_ACCOUNTS, "accounts.guilds")
+            .await?;
+        self.extras()?.account_guilds(id).await
+    }
+
+    /// Freeze or unfreeze the account's invite creation (`MANAGE_INVITES`), on top of the
+    /// automatic suspicion freeze.
+    pub async fn set_invites_frozen(
+        &self,
+        c: &Caller,
+        id: i64,
+        frozen: bool,
+        reason: Option<&str>,
+    ) -> AdminResult<()> {
+        let action = if frozen {
+            "invites.freeze"
+        } else {
+            "invites.unfreeze"
+        };
+        self.require(c, P::MANAGE_INVITES, action).await?;
+        let reason = Self::reason(reason)?;
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            action,
+            Some(("account", id)),
+            &reason,
+            json!({}),
+        );
+        self.extras()?.set_invites_frozen(id, frozen, &audit).await
+    }
+
+    /// Replace the staff notes of a Person (`MANAGE_ACCOUNTS`). The log keeps the length only.
+    pub async fn set_person_notes(
+        &self,
+        c: &Caller,
+        person_id: i64,
+        notes: &str,
+        reason: Option<&str>,
+    ) -> AdminResult<()> {
+        self.require(c, P::MANAGE_ACCOUNTS, "person.notes").await?;
+        if notes.chars().count() > crate::ext::PERSON_NOTES_MAX_CHARS {
+            return Err(AdminError::Invalid(format!(
+                "notes are at most {} characters",
+                crate::ext::PERSON_NOTES_MAX_CHARS
+            )));
+        }
+        let reason = Self::optional_reason(reason)?;
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "person.notes",
+            Some(("person", person_id)),
+            &reason,
+            json!({ "chars": notes.chars().count() }),
+        );
+        self.extras()?
+            .set_person_notes(person_id, notes, &audit)
+            .await
+    }
+
+    /// Put an account under another Person (`MANAGE_ACCOUNTS`, reason required). Refused while
+    /// either Person is banned.
+    pub async fn link_account(
+        &self,
+        c: &Caller,
+        person_id: i64,
+        account_id: i64,
+        reason: Option<&str>,
+    ) -> AdminResult<()> {
+        self.require(c, P::MANAGE_ACCOUNTS, "person.link").await?;
+        let reason = Self::reason(reason)?;
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "person.link",
+            Some(("person", person_id)),
+            &reason,
+            json!({ "account_id": account_id.to_string() }),
+        );
+        self.extras()?
+            .link_account(person_id, account_id, &audit)
+            .await
+            .map(|_| ())
+    }
+
+    /// Split an account off into a Person of its own (`MANAGE_ACCOUNTS`, reason required).
+    /// Returns the new Person id.
+    pub async fn unlink_account(
+        &self,
+        c: &Caller,
+        account_id: i64,
+        reason: Option<&str>,
+    ) -> AdminResult<i64> {
+        self.require(c, P::MANAGE_ACCOUNTS, "person.unlink").await?;
+        let reason = Self::reason(reason)?;
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "person.unlink",
+            Some(("account", account_id)),
+            &reason,
+            json!({}),
+        );
+        self.extras()?.unlink_account(account_id, &audit).await
+    }
+
+    /// Suspicion history of a Person, newest first (`MANAGE_INVITES`).
+    pub async fn suspicion_log(
+        &self,
+        c: &Caller,
+        person_id: i64,
+        limit: Option<i64>,
+    ) -> AdminResult<Vec<SuspicionEvent>> {
+        self.require(c, P::MANAGE_INVITES, "invites.suspicion_log")
+            .await?;
+        self.extras()?
+            .suspicion_log(person_id, limit.unwrap_or(50).clamp(1, 200))
+            .await
+    }
+
+    /// Every server on the platform (`MANAGE_GUILDS_GLOBAL`), paginated by id.
+    pub async fn search_guilds(
+        &self,
+        c: &Caller,
+        q: Option<&str>,
+        after: Option<i64>,
+        limit: Option<i64>,
+    ) -> AdminResult<crate::ext::AdminGuildPage> {
+        self.require(c, P::MANAGE_GUILDS_GLOBAL, "guilds.search")
+            .await?;
+        let limit = limit.unwrap_or(50).clamp(1, 100);
+        let q = q.map(str::trim).filter(|s| !s.is_empty());
+        let mut rows = self.extras()?.search_guilds(q, after, limit + 1).await?;
+        let more = rows.len() as i64 > limit;
+        rows.truncate(limit as usize);
+        let next_after = more
+            .then(|| rows.last().map(|r| r.id.to_string()))
+            .flatten();
+        Ok(crate::ext::AdminGuildPage {
+            items: rows,
+            next_after,
+        })
+    }
+
+    /// One server's metadata (`MANAGE_GUILDS_GLOBAL`).
+    pub async fn get_guild(&self, c: &Caller, id: i64) -> AdminResult<AdminGuild> {
+        self.require(c, P::MANAGE_GUILDS_GLOBAL, "guilds.view")
+            .await?;
+        self.extras()?
+            .get_guild(id)
+            .await?
+            .ok_or(AdminError::NotFound("server"))
+    }
+
+    /// Authorise a server change (`MANAGE_GUILDS_GLOBAL`, reason required) and return the server
+    /// to act on with the trimmed reason. The caller applies the change through the chat stack
+    /// and then calls [`Self::log_guild_action`].
+    pub async fn authorize_guild_change(
+        &self,
+        c: &Caller,
+        id: i64,
+        action: &str,
+        reason: Option<&str>,
+    ) -> AdminResult<(AdminGuild, String)> {
+        self.require(c, P::MANAGE_GUILDS_GLOBAL, action).await?;
+        let reason = Self::reason(reason)?;
+        let g = self
+            .extras()?
+            .get_guild(id)
+            .await?
+            .ok_or(AdminError::NotFound("server"))?;
+        if g.is_staff_guild {
+            return Err(AdminError::Forbidden(
+                "the Staff Server cannot be changed here".into(),
+            ));
+        }
+        if g.deleted {
+            return Err(AdminError::NotFound("server"));
+        }
+        Ok((g, reason))
+    }
+
+    /// Record a server change made through the chat stack.
+    pub async fn log_guild_action(
+        &self,
+        c: &Caller,
+        action: &str,
+        id: i64,
+        reason: &str,
+        detail: serde_json::Value,
+    ) -> AdminResult<()> {
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            action,
+            Some(("guild", id)),
+            reason,
+            detail,
+        );
+        self.extras()?.record_guild_action(&audit).await
     }
 
     // ===== entrance copy ===================================================

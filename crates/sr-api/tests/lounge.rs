@@ -72,6 +72,8 @@ struct World {
     social: Arc<SocialDeps>,
     settings_deps: Arc<settings::SettingsDeps>,
     clock: Arc<ManualClock>,
+    /// The platform admin store (staff, and the server list behind `/admin/guilds`).
+    admin_repo: Arc<MemoryAdminRepo>,
     tokens: HashMap<i64, String>,
 }
 
@@ -152,10 +154,15 @@ async fn world() -> World {
     for (id, name) in [(STAFF, "staff"), (BASIC, "basic")] {
         admin_repo.add_account(id, name, AccountState::Active, None, Some(ADMIN_OWNER));
     }
-    admin_repo.add_role(1, "Directory", 2, P::STAFF_BASIC | P::MANAGE_DIRECTORY);
+    admin_repo.add_role(
+        1,
+        "Directory",
+        2,
+        P::STAFF_BASIC | P::MANAGE_DIRECTORY | P::MANAGE_GUILDS_GLOBAL,
+    );
     admin_repo.add_role(2, "Basic", 1, P::STAFF_BASIC);
     admin_repo.set_owner(ADMIN_OWNER);
-    let admin_svc = AdminService::new(admin_repo.clone());
+    let admin_svc = AdminService::new(admin_repo.clone()).with_extras(admin_repo.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
     admin_svc
         .appoint(&op, STAFF, &[1], Some("t"))
@@ -253,6 +260,7 @@ async fn world() -> World {
         social: social_deps,
         settings_deps,
         clock,
+        admin_repo,
         tokens,
     }
 }
@@ -1871,4 +1879,88 @@ async fn scheduled_events_start_and_end_by_the_clock_and_are_audited() {
         .filter_map(|e| e["action_type"].as_u64())
         .collect();
     assert!(actions.contains(&100), "{log}");
+}
+
+#[tokio::test]
+async fn guild_counts_come_with_with_counts_only() {
+    let w = world().await;
+    let (gid, _) = w.guild("Chess Club").await;
+    let (s, plain) = w.get(OWNER, &format!("/guilds/{gid}")).await;
+    assert_eq!(s, StatusCode::OK, "{plain}");
+    assert!(plain.get("approximate_member_count").is_none());
+    let (s, counted) = w
+        .get(OWNER, &format!("/guilds/{gid}?with_counts=true"))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{counted}");
+    assert_eq!(counted["approximate_member_count"], 2, "owner and bob");
+    // No presence source is wired in this world, so no online count.
+    assert!(counted.get("approximate_presence_count").is_none());
+}
+
+#[tokio::test]
+async fn staff_list_transfer_and_delete_servers_with_a_reason() {
+    let w = world().await;
+    let (gid, _) = w.guild("Chess Club").await;
+    let id: i64 = gid.parse().unwrap();
+    w.admin_repo.add_guild(id, "Chess Club", OWNER, 2);
+    let path = format!("/admin/guilds/{gid}");
+
+    // Only staff with MANAGE_GUILDS_GLOBAL see the list.
+    assert_eq!(w.get(BASIC, "/admin/guilds").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(w.get(OWNER, "/admin/guilds").await.0, StatusCode::FORBIDDEN);
+    let (s, page) = w.get(STAFF, "/admin/guilds?q=chess").await;
+    assert_eq!(s, StatusCode::OK, "{page}");
+    assert_eq!(page["items"][0]["id"], gid.as_str());
+
+    // A reason is required for both changes.
+    let (s, _) = w
+        .post(
+            STAFF,
+            &format!("{path}/transfer-ownership"),
+            json!({"new_owner_id": BOB.to_string()}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(w.delete(STAFF, &path).await.0, StatusCode::BAD_REQUEST);
+
+    // Transfer to a member: the chat stack now says BOB owns it.
+    let (s, v) = w
+        .post(
+            STAFF,
+            &format!("{path}/transfer-ownership"),
+            json!({"new_owner_id": BOB.to_string(), "reason": "owner asked on the help desk"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let (_, g) = w.get(BOB, &format!("/guilds/{gid}")).await;
+    assert_eq!(g["owner_id"], BOB.to_string());
+    // A non-member cannot become the owner.
+    let (s, _) = w
+        .post(
+            STAFF,
+            &format!("{path}/transfer-ownership"),
+            json!({"new_owner_id": CAROL.to_string(), "reason": "test"}),
+        )
+        .await;
+    assert_ne!(s, StatusCode::OK);
+
+    // Delete acts as the owner (the admin store here is a seeded copy, so use a fresh server)
+    // and the server is gone for its members.
+    let (other, _) = w.guild("Gardening").await;
+    w.admin_repo
+        .add_guild(other.parse().unwrap(), "Gardening", OWNER, 2);
+    let other_path = format!("/admin/guilds/{other}");
+    let (s, _) = w
+        .call(
+            STAFF,
+            Method::DELETE,
+            &other_path,
+            Some(json!({"reason": "illegal content, see case 4"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert_eq!(
+        w.get(BOB, &format!("/guilds/{other}")).await.0,
+        StatusCode::NOT_FOUND
+    );
 }

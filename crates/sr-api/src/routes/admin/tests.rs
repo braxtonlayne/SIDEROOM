@@ -2134,3 +2134,137 @@ async fn entrance_copy_is_public_to_read_and_staff_to_write() {
     let (_, v) = e.call(None, Method::GET, "/sr/entrance/copy", None).await;
     assert_eq!(v, json!({}));
 }
+
+#[tokio::test]
+async fn people_views_notes_links_freeze_and_server_list() {
+    let e = env().await;
+    let call = |who: i64, m: Method, p: &str, b: Option<Value>| {
+        let (e, p) = (&e, p.to_owned());
+        async move { e.call(Some(who), m, &p, b).await }
+    };
+
+    // Sessions and servers: MANAGE_ACCOUNTS; the drawer read is logged.
+    let (s, v) = call(MODER, Method::GET, &format!("/admin/accounts/{ALICE}/sessions"), None).await;
+    assert_eq!((s, v), (StatusCode::OK, json!([])));
+    assert_eq!(
+        call(MODER, Method::GET, &format!("/admin/accounts/{ALICE}/guilds"), None).await.1,
+        json!([])
+    );
+    assert_eq!(
+        call(BASIC, Method::GET, &format!("/admin/accounts/{ALICE}/sessions"), None).await.0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Search by login IP: validated, and the lookup is logged.
+    let (s, _) = call(MODER, Method::GET, "/admin/accounts?ip=not-an-ip", None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, v) = call(MODER, Method::GET, "/admin/accounts?ip=203.0.113.9&discord_id=1", None).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+
+    // Person notes: replace, cap, permission.
+    let person = |uid: i64| uid + 500_000;
+    let notes = format!("/admin/persons/{}/notes", person(ALICE));
+    let (s, _) = call(MODER, Method::PUT, &notes, Some(json!({"notes": "knows Bob"}))).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (_, p) = call(MODER, Method::GET, &format!("/admin/persons/{}", person(ALICE)), None).await;
+    assert_eq!(p["notes"], "knows Bob");
+    let long = "n".repeat(4_001);
+    assert_eq!(
+        call(MODER, Method::PUT, &notes, Some(json!({"notes": long}))).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        call(BASIC, Method::PUT, &notes, Some(json!({"notes": "x"}))).await.0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Link needs a reason; the emptied Person is merged (notes carry over).
+    let link = format!("/admin/persons/{}/link", person(BOB));
+    let body = |reason: Option<&str>| json!({"account_id": ALICE.to_string(), "reason": reason});
+    assert_eq!(
+        call(MODER, Method::POST, &link, Some(body(None))).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        call(MODER, Method::POST, &link, Some(body(Some("same household")))).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, p) = call(MODER, Method::GET, &format!("/admin/persons/{}", person(BOB)), None).await;
+    assert_eq!(p["accounts"].as_array().map(Vec::len), Some(2));
+    assert_eq!(p["notes"], "knows Bob");
+    assert_eq!(
+        call(MODER, Method::GET, &format!("/admin/persons/{}", person(ALICE)), None).await.0,
+        StatusCode::NOT_FOUND
+    );
+    // Linking to the Person it is already in is a conflict.
+    assert_eq!(
+        call(MODER, Method::POST, &link, Some(body(Some("again")))).await.0,
+        StatusCode::CONFLICT
+    );
+
+    // Unlink gives the account a Person of its own; the last account of a Person cannot split.
+    let unlink = format!("/admin/accounts/{ALICE}/unlink");
+    let (s, v) = call(MODER, Method::POST, &unlink, Some(json!({"reason": "mistake"}))).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let new_person = v["person_id"].as_str().unwrap().to_owned();
+    assert_ne!(new_person, person(BOB).to_string());
+    assert_eq!(
+        call(MODER, Method::POST, &unlink, Some(json!({"reason": "again"}))).await.0,
+        StatusCode::CONFLICT
+    );
+
+    // Manual invite freeze: MANAGE_INVITES, reported on the drawer.
+    let freeze = format!("/admin/accounts/{ALICE}/freeze-invites");
+    assert_eq!(
+        call(MODER, Method::POST, &freeze, Some(json!({"reason": "spam"}))).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(OWNER, Method::POST, &freeze, Some(json!({"reason": "spam"}))).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, d) = call(OWNER, Method::GET, &format!("/admin/accounts/{ALICE}"), None).await;
+    assert_eq!(d["invites_frozen"], true);
+    assert_eq!(
+        call(
+            OWNER,
+            Method::POST,
+            &format!("/admin/accounts/{ALICE}/unfreeze-invites"),
+            Some(json!({"reason": "resolved"}))
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, d) = call(OWNER, Method::GET, &format!("/admin/accounts/{ALICE}"), None).await;
+    assert_eq!(d["invites_frozen"], false);
+    assert_eq!(
+        call(OWNER, Method::GET, &format!("/admin/persons/{new_person}/suspicion-log"), None)
+            .await
+            .1,
+        json!([])
+    );
+
+    // Server list: MANAGE_GUILDS_GLOBAL, search and cursor.
+    e.repo.add_guild(900, "Chess Club", OWNER, 5);
+    e.repo.add_guild(901, "Chessboxing", OWNER, 2);
+    e.repo.add_guild(902, "Gardening", OWNER, 9);
+    assert_eq!(
+        call(MODER, Method::GET, "/admin/guilds", None).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (s, page) = call(OWNER, Method::GET, "/admin/guilds?q=chess", None).await;
+    assert_eq!(s, StatusCode::OK, "{page}");
+    assert_eq!(page["items"].as_array().map(Vec::len), Some(2));
+    assert_eq!(page["items"][0]["owner_username"], "owner");
+    let (_, page) = call(OWNER, Method::GET, "/admin/guilds?limit=2", None).await;
+    assert_eq!(page["next_after"], "901");
+    let (_, page) = call(OWNER, Method::GET, "/admin/guilds?limit=2&after=901", None).await;
+    assert_eq!(page["items"][0]["name"], "Gardening");
+    let (s, g) = call(OWNER, Method::GET, "/admin/guilds/900", None).await;
+    assert_eq!((s, g["member_count"].as_i64()), (StatusCode::OK, Some(5)));
+    assert_eq!(
+        call(OWNER, Method::GET, "/admin/guilds/12345", None).await.0,
+        StatusCode::NOT_FOUND
+    );
+}

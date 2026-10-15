@@ -24,11 +24,14 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 
 ## Content & Social
 - [ ] **LNG-USET-012** [FE] Sensitive media filters (DMs from friends / others / servers: show, blur, block)
+   - p13 backend half built: `sensitive_media {friends, others, servers}` (show/blur/block) on `GET/PATCH /users/@me/privacy` (`sr-chat social/safety.rs`, migration 0840, test `safety_settings_round_trip_and_validate`). The filter is a client display preference; the server stores it. The settings UI is not wired yet.
    - Needs a server: no media scanning or per-source filter setting exists. The page says so.
 - [ ] **LNG-USET-013** [FE] DM spam filter, message requests toggle, allow DMs from server members (default + per server)
+   - p13 backend half built: `dm_spam_filter` and `server_dm_overrides` on `/users/@me/privacy`. The per-server override is enforced when a DM is opened (`SocialService::open_dm`, test `safety_prefs_update_partially_and_overrides_gate_server_dms`); the spam filter is stored, no detector reads it yet.
    - Built: message requests and allow DMs from server members on `/users/@me/privacy`. Not built, needs server fields: the DM spam filter and a per-server DM override.
 - [x] **LNG-USET-014** [FE] Friend request sources (Everyone, Friends of Friends, Server Members) (Everyone / Friends of friends / Server members)
 - [ ] **LNG-USET-015** [FE] Age-restricted content (shows confirmation state, re-confirm flow)
+   - p13 backend half built: `GET /users/@me/age-confirmation` (`{confirmed, confirmed_at, method}`) and `DELETE` to reset (`routes/auth/account.rs`, test `age_confirmation_can_be_read_and_reset`).
    - Needs a server: no way to read or reset the age confirmation (`POST /sr/age-gate` only records an answer). The page says so.
 - [x] **LNG-USET-016** [FE] Blocked & ignored users list (unblock/unignore)
 

@@ -68,6 +68,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [x] **ADM-PLT-001** [FE] Features page (all modules, platform settings via SchemaForm, kill switches) _(`admin/sections/Features.tsx` kill switches plus `admin/SchemaForm.tsx` platform settings from the feature schema)_
 - [ ] **ADM-PLT-002** [FE] Limits page (cap, initial credits, account-age for inviting, credit price, upload limits, message length, rate limits, retention windows, submission rate limits) _(partly built: every setting the server registers is editable; rate-limit and submission-rate-limit settings are not in the registry yet)_
 - [ ] **ADM-PLT-003** [FE] Entrance page editor (copy blocks, hero image, house notes markdown, no-invitation text)
+   - p13 backend half built: `PUT /admin/entrance/copy/{key}` for `no-invitation`, `house-notes`, `landing-headline`, `landing-subhead`, `login-notice`; no hero image route yet.
 - [ ] **ADM-PLT-004** [FE] Themes & Defaults (default theme per section)
 - [ ] **ADM-PLT-005** [FE] Email & Integrations (SMTP + test send, Discord OAuth app id/secret, GIF provider key, metadata provider keys, unfurl allow/deny lists)
 - [ ] **ADM-PLT-006** [FE] System page (health, versions, backups last run/verify, disk, Garage status, coturn status)

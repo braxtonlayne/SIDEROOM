@@ -3038,3 +3038,37 @@ async fn emoji_popout_works_for_non_members_and_names_only_listed_servers() {
     assert_eq!(e.get("/emojis/12345", "bob").await.0, StatusCode::NOT_FOUND);
     assert_eq!(e.get("/emojis/abc", "bob").await.0, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn audit_log_can_be_filtered_by_target() {
+    let e = env().await;
+    let mut ids = Vec::new();
+    for name in ["alpha", "beta"] {
+        let (s, emoji) = e
+            .post(
+                &e.g("/emojis"),
+                "mod",
+                json!({"name": name, "image": png_uri(8)}),
+            )
+            .await;
+        assert_eq!(s, StatusCode::CREATED, "{emoji}");
+        ids.push(emoji["id"].as_str().unwrap().to_owned());
+    }
+    let (_, all) = e.get(&e.g("/audit-logs"), "owner").await;
+    assert!(all["audit_log_entries"].as_array().unwrap().len() >= 2);
+
+    let (s, only) = e
+        .get(&e.g(&format!("/audit-logs?target_id={}", ids[0])), "owner")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{only}");
+    let entries = only["audit_log_entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1, "{only}");
+    assert_eq!(entries[0]["target_id"], ids[0].as_str());
+
+    let (_, none) = e.get(&e.g("/audit-logs?target_id=12345"), "owner").await;
+    assert!(none["audit_log_entries"].as_array().unwrap().is_empty());
+    assert_eq!(
+        e.get(&e.g("/audit-logs?target_id=abc"), "owner").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}

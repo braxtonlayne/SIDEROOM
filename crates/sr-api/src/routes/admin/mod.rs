@@ -22,6 +22,7 @@ pub use announce::press_review_button;
 mod ctx;
 mod entrance;
 mod invites;
+mod people;
 mod private;
 mod staff;
 mod staff_ext;
@@ -126,6 +127,44 @@ pub fn router() -> Router<AppState> {
             "/admin/accounts/{account_id}/credits",
             get(invites::ledger).post(invites::adjust),
         )
+        .route("/admin/accounts/{account_id}/sessions", get(people::sessions))
+        .route(
+            "/admin/accounts/{account_id}/guilds",
+            get(people::account_guilds),
+        )
+        .route(
+            "/admin/accounts/{account_id}/freeze-invites",
+            post(people::freeze_invites),
+        )
+        .route(
+            "/admin/accounts/{account_id}/unfreeze-invites",
+            post(people::unfreeze_invites),
+        )
+        .route(
+            "/admin/accounts/{account_id}/unlink",
+            post(people::unlink_account),
+        )
+        .route(
+            "/admin/persons/{person_id}/notes",
+            axum::routing::put(people::put_notes),
+        )
+        .route(
+            "/admin/persons/{person_id}/link",
+            post(people::link_account),
+        )
+        .route(
+            "/admin/persons/{person_id}/suspicion-log",
+            get(people::suspicion_log),
+        )
+        .route("/admin/guilds", get(people::search_guilds))
+        .route(
+            "/admin/guilds/{guild_id}",
+            get(people::get_guild).delete(people::delete_guild),
+        )
+        .route(
+            "/admin/guilds/{guild_id}/transfer-ownership",
+            post(people::transfer_ownership),
+        )
         .route("/admin/invites", get(invites::list))
         .route(
             "/admin/invites/{invite_id}",
@@ -223,6 +262,18 @@ pub fn router() -> Router<AppState> {
         announce::edit,
         announce::active,
         entrance::get_copy,
+        people::sessions,
+        people::account_guilds,
+        people::freeze_invites,
+        people::unfreeze_invites,
+        people::put_notes,
+        people::link_account,
+        people::unlink_account,
+        people::suspicion_log,
+        people::search_guilds,
+        people::get_guild,
+        people::transfer_ownership,
+        people::delete_guild,
         entrance::put_copy,
         announce::alerts,
         announce::ack,
@@ -277,6 +328,10 @@ pub fn router() -> Router<AppState> {
         announce::AnnounceBody,
         announce::EditAnnouncementBody,
         entrance::EntranceCopyBody,
+        people::PersonNotesBody,
+        people::LinkAccountBody,
+        people::UnlinkResult,
+        people::TransferBody,
         announce::CardActionBody,
         sr_admin::StaffOffer,
         sr_admin::OfferState,

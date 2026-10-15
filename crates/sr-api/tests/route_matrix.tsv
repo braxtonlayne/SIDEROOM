@@ -84,6 +84,7 @@ DELETE	/sr/invites/{code}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
 DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-
+DELETE	/users/@me/age-confirmation	authenticated	self	deny	-
 DELETE	/users/@me/birthday	authenticated	self	deny	-
 DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
 DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
@@ -246,6 +247,7 @@ GET	/donations/invoices/{invoice_id}	authenticated	other	allow	-
 GET	/donations/leaderboards/contributors/{kind}	authenticated	other	allow	-
 GET	/donations/leaderboards/{board}	authenticated	other	allow	-
 GET	/donations/me	authenticated	other	allow	-
+GET	/emojis/{emoji_id}	authenticated	other	allow	-
 GET	/gateway	public	none	allow	-
 GET	/gateway/bot	authenticated	other	allow	-
 GET	/gifs/categories	authenticated	self	deny	-
@@ -341,6 +343,7 @@ GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	other	allow	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
 GET	/sr/auth/reauth	authenticated	self	deny	-
 GET	/sr/csrf	authenticated	other	allow	-
+GET	/sr/entrance/copy	public	none	deny	-
 GET	/sr/features/flags	authenticated	other	deny	-
 GET	/sr/invites	authenticated	self	deny	-
 GET	/sr/profile-catalog	authenticated	other	deny	-
@@ -369,6 +372,7 @@ GET	/tv/channels/{channel_id}/tune	authenticated	membership	allow	-
 GET	/tv/guide	authenticated	other	allow	-
 GET	/tv/timezones	authenticated	other	allow	-
 GET	/users/@me	authenticated	self	allow	identify
+GET	/users/@me/age-confirmation	authenticated	self	deny	-
 GET	/users/@me/birthday	authenticated	self	deny	-
 GET	/users/@me/bookmarks	authenticated	self	deny	-
 GET	/users/@me/channels	authenticated	self	allow	-
@@ -382,6 +386,7 @@ GET	/users/@me/ignores	authenticated	self	deny	-
 GET	/users/@me/mentions	authenticated	self	deny	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
 GET	/users/@me/notification-defaults	authenticated	self	deny	-
+GET	/users/@me/notification-keywords	authenticated	self	deny	-
 GET	/users/@me/presence	authenticated	self	allow	-
 GET	/users/@me/primary-guild	authenticated	self	deny	-
 GET	/users/@me/privacy	authenticated	self	deny	-
@@ -669,6 +674,7 @@ PUT	/admin/cinema/titles/{title_id}/markers	authenticated	staff	deny	-
 PUT	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
 PUT	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
 PUT	/admin/donations/wallet	authenticated	staff	deny	-
+PUT	/admin/entrance/copy/{key}	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
 PUT	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
@@ -731,6 +737,7 @@ PUT	/users/@me/connections/link	authenticated	self	deny	-
 PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-
 PUT	/users/@me/ignores/{user_id}	authenticated	self	deny	-
 PUT	/users/@me/notes/{user_id}	authenticated	self	deny	-
+PUT	/users/@me/notification-keywords	authenticated	self	deny	-
 PUT	/users/@me/primary-guild	authenticated	self	deny	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	other	allow	-

@@ -305,6 +305,7 @@ impl AuditRepository for PgSettingsRepo {
                AND ($2::bigint IS NULL OR actor_id = $2) \
                AND ($3::smallint IS NULL OR action = $3) \
                AND ($4::bigint IS NULL OR id < $4) \
+               AND ($6::bigint IS NULL OR target_id = $6) \
              ORDER BY id DESC LIMIT $5",
             audit_cols()
         );
@@ -314,6 +315,7 @@ impl AuditRepository for PgSettingsRepo {
             .bind(q.action.map(AuditAction::code))
             .bind(q.before.map(i))
             .bind(q.clamped_limit() as i64)
+            .bind(q.target_id.map(i))
             .fetch_all(&self.pool)
             .await
             .map_err(db)?
