@@ -234,6 +234,9 @@ pub fn announcement_card(a: &Announcement) -> Card {
     }
 }
 
+/// title, kind, submitter name, item count and the name of whoever decided it.
+type ReviewInfoRow = (String, String, Option<String>, i64, Option<String>);
+
 /// What the `#review-queue` card shows about a submission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewCardInfo {
@@ -704,7 +707,7 @@ impl StaffFeed {
     }
 
     async fn review_info(&self, id: i64) -> Option<ReviewCardInfo> {
-        let row: Option<(String, String, Option<String>, i64, Option<String>)> = sqlx::query_as(
+        let row: Option<ReviewInfoRow> = sqlx::query_as(
             "SELECT s.title, s.kind, a.username::text,                     (SELECT count(*) FROM submission_items i WHERE i.submission_id = s.id),                     d.username::text              FROM submissions s              LEFT JOIN accounts a ON a.id = s.submitter_id              LEFT JOIN accounts d ON d.id = s.decided_by              WHERE s.id = $1",
         )
         .bind(id)
