@@ -135,6 +135,7 @@ str_enum!(
         Updated => "updated",
         Title => "title",
         Followers => "followers",
+        Rating => "rating",
     }
 );
 
@@ -553,6 +554,8 @@ pub struct BrowseQuery {
     pub language: Option<String>,
     pub year_from: Option<i16>,
     pub year_to: Option<i16>,
+    /// Series whose average rating (1 to 10) is at least this.
+    pub rating_min: Option<i16>,
     pub age: AgeFilter,
     pub sort: SortKey,
     /// Overrides the natural direction of `sort`.
@@ -576,6 +579,7 @@ impl Default for BrowseQuery {
             language: None,
             year_from: None,
             year_to: None,
+            rating_min: None,
             age: AgeFilter::Include,
             sort: SortKey::Updated,
             descending: None,

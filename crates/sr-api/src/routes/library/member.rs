@@ -27,9 +27,11 @@ pub struct BrowseParams {
     pub language: Option<String>,
     pub year_from: Option<i16>,
     pub year_to: Option<i16>,
+    /// Minimum average rating, 1 to 10.
+    pub rating_min: Option<i16>,
     /// `include` (default), `hide` or `only`. Everyone may see restricted series; opening their pages needs age confirmation. A member who set `library.hide_age_restricted` gets `hide` as the default.
     pub age: Option<AgeFilter>,
-    /// `updated` (default), `newest`, `title` or `followers`.
+    /// `updated` (default), `newest`, `title`, `followers` or `rating`.
     pub sort: Option<SortKey>,
     /// `asc` or `desc`; default depends on the sort.
     pub order: Option<String>,
@@ -60,6 +62,7 @@ impl BrowseParams {
             language: self.language,
             year_from: self.year_from,
             year_to: self.year_to,
+            rating_min: self.rating_min,
             age: self.age.unwrap_or(default_age),
             sort: self.sort.unwrap_or(SortKey::Updated),
             descending: order(&self.order)?,

@@ -74,6 +74,7 @@ fn service(pool: &PgPool) -> LibraryService {
 
 struct World {
     svc: LibraryService,
+    pool: PgPool,
     publisher: Actor,
     member: Viewer,
     adult: Viewer,
@@ -89,6 +90,7 @@ async fn world() -> World {
     let a = account(&pool).await;
     World {
         svc,
+        pool,
         publisher: Actor {
             user_id: p,
             permissions: P::PUBLISH_READING | P::DELETE_CONTENT,
@@ -652,6 +654,28 @@ async fn browse_filters_sort_and_pagination() {
     })
     .await;
     assert_eq!(titles(&years), [ids[1]]);
+    // Ratings: sort by average and filter by a minimum.
+    for (series, score) in [(ids[0], 9_i16), (ids[1], 4)] {
+        sqlx::query("INSERT INTO reading_ratings (user_id, series_id, score) VALUES ($1, $2, $3)")
+            .bind(w.member.user_id)
+            .bind(series)
+            .bind(score)
+            .execute(&w.pool)
+            .await
+            .unwrap();
+    }
+    let best = run(BrowseQuery {
+        sort: SortKey::Rating,
+        ..w.browse()
+    })
+    .await;
+    assert_eq!(titles(&best)[..2], [ids[0], ids[1]]);
+    let good = run(BrowseQuery {
+        rating_min: Some(6),
+        ..w.browse()
+    })
+    .await;
+    assert_eq!(titles(&good), [ids[0]]);
     let mut q = w.browse();
     q.genres.push(format!("romance{}", w.genre));
     let rom = run(BrowseQuery {
