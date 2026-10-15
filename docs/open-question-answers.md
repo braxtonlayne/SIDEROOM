@@ -1822,7 +1822,7 @@ Decision: confirmed; that is what D-186 means by "25 consecutive failures within
 Status: `DEFAULT`. No follow-up.
 
 **P12-DPB-5. Drop the plaintext column `applications.interactions_signing_seed` once every deployment has run `apps.seal_seeds`.**
-Decision: next phase, migration `0800_drop_plaintext_signing_seed.sql`, guarded: it raises (and the server refuses to start) if any row still has a non-NULL plaintext seed, with the message "run the server once on the previous release to seal seeds". The release notes carry the upgrade order. `secret_columns.rs` drops the `PLAINTEXT_OK` legacy entry in the same PR.
+Decision: next phase, migration `0803_drop_plaintext_signing_seed.sql` (renumbered from `0800` on 2026-10-15, P12-LGB-4), guarded: it raises (and the server refuses to start) if any row still has a non-NULL plaintext seed, with the message "run the server once on the previous release to seal seeds". The release notes carry the upgrade order. `secret_columns.rs` drops the `PLAINTEXT_OK` legacy entry in the same PR.
 Status: `DEFAULT`. Follow-up: G-85.
 
 **P12-DPB-6. The Testers list lives on the Installation tab; DEV-PORT-003 stays unticked because Emojis, Webhooks, Rich Presence and Activities are not built.**
@@ -1832,3 +1832,76 @@ Status: `DEFAULT`. No follow-up.
 ### Still with the owner from earlier rounds
 
 Unchanged: the UnRAR licence confirmation (D-170) and the eight remaining NEEDS-OWNER items of the Phase 8 to 11 round (P8-DON-4, P11-MSG-1, P11-SHL-3, P11-CLI-1, P11-USB-2, MOD-4, MOD-5, MOD-6); P11-LIB-2 is closed by D-217. [open-questions.md](open-questions.md) lists them with their defaults.
+
+## Phase 12 backend handoff questions (answered 2026-10-15)
+
+The "decisions to confirm", "not done" judgement calls and listed gaps of the two Lounge backend handoffs of Phase 12 (`docs/dev/handoff/feat-p12-lounge-ch-be.md` on `feat/p12-lounge-ch-be`, `docs/dev/handoff/feat-p12-lounge-gw-be.md` on `feat/p12-lounge-gw-be`), plus a check of [open-questions.md](open-questions.md): every item still listed there is legal, money, artwork or an external account (or a human action), so nothing new is taken from it. Same rules as the earlier rounds: [01-decisions-log.md](01-decisions-log.md) wins; Discord parity by default; privacy and safety per docs 09 and 15; Rust first per doc 03; conservative security defaults; one Owner running a friend-group instance on one node (doc 02 section 5). Status key as before: `ADOPTED` = a product decision, recorded as D-221 onward; `DEFAULT` = engineering default, implement without the owner; `NEEDS-OWNER` = needs the human, with the default that applies meanwhile; `NO-CODE` = informational or already resolved. Follow-ups are G-89 onward in [dev/answers-followups-p12.md](dev/answers-followups-p12.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED | 4 |
+| DEFAULT | 8 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 1 |
+
+13 questions in all. Nothing in this round needs the owner. The two artwork items the handoffs mention again (default sticker packs, avatar decorations) are P11-MSG-1 and P11-SHL-3, already in [open-questions.md](open-questions.md) with their defaults, and are not counted here.
+
+### Lounge chat backend (P12-LCB, branch `feat/p12-lounge-ch-be`)
+
+**P12-LCB-1. Group DM invites reuse `POST /channels/{id}/invites` and make `InviteObject.guild` optional (`type` 1 for groups), a breaking change for typed clients that assumed a guild.**
+Decision: confirmed; it is Discord's shape, not a departure from it. Discord's invite object has `type` (0 guild, 1 group DM, 2 friend) and an optional partial `guild`, so a client that assumed `guild` was assuming something Discord never promised, and ported bots already handle it. The OpenAPI schema says so explicitly (`type` required, `guild` nullable, `channel` carries the group's `id`, `type: 3`, `name` and `icon`), the generated TypeScript client follows, and the web switches on `type` rather than on the presence of `guild`. Two rules are added so a link to a private conversation stays a conversation among people who want each other there: joining by link is refused (404, the same answer as an unknown code, so there is no oracle) when the joiner and the group's owner block each other, and refused with the existing "group is full" error when the group already has Discord's 10 recipients. Twenty-four hours and unlimited uses stay; the link is always in-platform, so D-022's single-use default for links that leave the platform does not apply.
+Status: `ADOPTED` (D-221). Follow-up: G-90.
+
+**P12-LCB-2. Event auto-start: every scheduled event starts at its start time, voice and stage events included; Discord waits for someone to start those.**
+Decision: match Discord for voice and stage events, keep the automatic start for external ones. An external event (`entity_type` 3) has nothing to join, so it goes `ACTIVE` at its start time and `COMPLETED` at its end time by the clock, as Discord does. A voice or stage event (`entity_type` 2 or 1) stays `SCHEDULED` at its start time until either someone with `MANAGE_EVENTS` starts it by `PATCH {status: 2}` or any member joins the linked channel at or after the start time (the gateway's new `VoiceJoined` domain event is the hook); an "Active" event over an empty room misleads everyone who looks at the Events list, and the join-to-start rule means a friend group never has to remember a Start button. An event that is still `SCHEDULED` 24 hours after its start time is marked `CANCELED` by the clock (not deleted: the audit entry and the interested list stay), with `GUILD_SCHEDULED_EVENT_UPDATE` as for any status change. A voice or stage event that is `ACTIVE` ends when its end time passes or, with no end time, when the linked channel has been empty for 15 minutes; a stage event also ends when its stage instance is closed. Nothing changes for `PATCH` by hand.
+Status: `ADOPTED` (D-222). Follow-up: G-91.
+
+**P12-LCB-3. The server 2FA requirement (`mfa_level`) gates kick, ban, unban, bulk ban, prune, roles, channels, overwrites and server edit or delete only, not message moderation, webhooks, invites or AutoMod; bots are exempt.**
+Decision: widen the scope to Discord's elevated-permission list and keep the bot exemption with Discord's condition. Discord's requirement covers every action behind `KICK_MEMBERS`, `BAN_MEMBERS`, `ADMINISTRATOR`, `MANAGE_CHANNELS`, `MANAGE_GUILD`, `MANAGE_MESSAGES`, `MANAGE_ROLES`, `MANAGE_WEBHOOKS`, `MANAGE_THREADS`, `MANAGE_GUILD_EXPRESSIONS` and `MODERATE_MEMBERS`, so here the `MfaGate` is also applied to deleting someone else's message, bulk delete, pinning, timeouts and the other `MODERATE_MEMBERS` edits, webhook create, edit and delete, thread edit, archive and delete by a non-author, emoji, sticker and soundboard management, AutoMod rules, the community and safety settings, and invite deletion. Invite creation is not gated (`CREATE_INSTANT_INVITE` is not elevated on Discord either), and neither is anything a member does to their own content. The gate answers the existing 403 `900004` when the session has a second factor but has not proved it in the last 15 minutes (the re-auth dialog handles it), and a new 403 `900122 MFA_ENROLLMENT_REQUIRED` when the account has no TOTP and no passkey at all, so the client can send the person to Settings → My Account instead of asking for a code they cannot produce. Bots are exempt as on Discord, on Discord's condition: the application's owner account must have a second factor enrolled; a bot whose owner has none gets the same `900122` in a server with `mfa_level` 1. The Owner's own requirement to hold a second factor before raising the level stays.
+Status: `ADOPTED` (D-223). Follow-ups: G-94 (backend), G-97 (web).
+
+**P12-LCB-4. The scheduled-event clock task runs on every node, so a multi-node deployment may announce a start twice.**
+Decision: no bug today (v1 is one `sr-server` node with the `InProcessBus`, doc 02 section 5), but the clock should not be the thing that breaks first when a second node appears. Move the tick into the job queue that doc 02 section 6 already names for "scheduled-event reminders": a `scheduled_events.tick` job leased with `FOR UPDATE SKIP LOCKED` every 30 seconds and re-enqueued by its runner, so exactly one node advances events. The status update stays idempotent, as the handoff says.
+Status: `DEFAULT`. Follow-up: G-92.
+
+**P12-LCB-5. `dm_spam_filter`, `explicit_media_filter_dms`, `hide_suspicious_links` and `warn_new_account_days` are stored and audited but nothing reads them.**
+Decision: enforce them with what exists, without a scanner. (a) `dm_spam_filter`: a direct message from a member who is not the recipient's friend lands in Message Requests (the `is_message_request` plumbing of D-181) when every server the two share has the filter on; the server setting can only tighten the recipient's own DM privacy setting, never loosen it. (b) `warn_new_account_days`: the same routing applies when the sender's account is younger than the largest `warn_new_account_days` of the servers the two share, and the request carries `sr_request_reason: "new_account"` (otherwise `"server_filter"`) so the client can show "This account is N days old" on the request card; account age comes from the snowflake, so no new user field. (c) `explicit_media_filter_dms`: no image classifier ships (none is pure Rust, none is accurate enough to act on, and LNG-SSET-054 only ever promised an operator-configurable scanner hook, default off). While the setting is on in any shared server, attachments in a message-request conversation are delivered with the spoiler flag set, so nothing explicit is shown before the recipient chooses; the scanner hook itself is not built until an operator asks for one. (d) `hide_suspicious_links`: in a server with the setting on, a link whose visible text names a different host than its target is rendered as its raw target with a warning, Discord's behaviour; the setting is exposed to members on the community block of the guild object so the web can apply it. Nothing here deletes a message or blocks a sender; these are routing and display rules.
+Status: `ADOPTED` (D-224). Follow-up: G-95.
+
+**P12-LCB-6. Scheduled events have no cover image, no recurrence, no `entity_id` for stage instances and no notification to interested members when an event starts.**
+Decision: cover image yes, start notification yes, stage link yes, recurrence no. `image` (Discord's field: one JPEG, PNG or GIF up to 2 MiB as a data URI on create and patch, `MediaKind::EventCover`, CDN kind `guild-events`) is part of the Discord object every client renders. When an event becomes `ACTIVE`, every member who marked Interested gets the ordinary notification path (gateway dispatch to their sessions, Web Push under the D-191 rule) with the event name and a link; Discord does the same. Starting a stage event opens the stage instance on its channel with the event's name as topic and records its id as `entity_id`; ending the event closes the instance, and closing the instance ends the event (D-222). Recurrence (`recurrence_rule`) is skipped: it is a recent, complex Discord addition that a friend group can live without, and it would multiply the clock and notification rules; revisit when someone asks.
+Status: `DEFAULT`. Follow-up: G-93.
+
+**P12-LCB-7. Join-to-create: one room per member, at most 50 rooms per server, no lock or limit chat commands (the creator uses the normal channel editor through their overwrite).**
+Decision: accepted as built. The overwrite is the Discord-native way to give a creator control, the two caps keep a prank from filling the channel list, and chat commands can arrive later as module slash commands if anyone misses them.
+Status: `DEFAULT`. No follow-up.
+
+### Lounge gateway and settings backend (P12-LGB, branch `feat/p12-lounge-gw-be`)
+
+**P12-LGB-1. `activity.hide_age_restricted` defaults to true on the server (the web default and D-190); cinema tests that expect adult activity set it to false.**
+Decision: confirmed. Hiding age-restricted titles from shared activity by default is the privacy-preserving reading of D-120 and D-190, and the web already assumed it; a default that differs between server and client would show a friend a title the member thought was hidden.
+Status: `DEFAULT`. No follow-up.
+
+**P12-LGB-2. `activity.share_tv` is stored and exposed by `activity_shares(uid, 'tv')`, but TV has no shareable server-side activity, so nothing reads it.**
+Decision: keep it. The toggle is part of the D-190 set and the Activity Privacy section writes all five keys at once; removing one and re-adding it when Live TV presence lands would churn the settings blob for nothing. When TV watching becomes an activity (`SR_ACTIVITY_UPDATE` from the TV player), it reads this key like the other sections do; no toggle appears in the UI for a section that has nothing to share until then.
+Status: `DEFAULT`. No follow-up.
+
+**P12-LGB-3. Library rankings are still one anonymous global aggregate; there are no scoped (friends, "people you know") rankings to filter by the activity settings.**
+Decision: build the scoped rankings so D-190 is true for the Library as it is for Cinema: `GET /library/rankings?scope=friends|known` next to the global one, counting only members who share their library activity (`activity_shares(uid, 'library')`), excluding age-restricted titles for members hiding them, with the same minimum-count floor the Cinema scopes use so a scope of two friends does not reveal what one of them reads. The global aggregate stays anonymous and unfiltered.
+Status: `DEFAULT`. Follow-up: G-96.
+
+**P12-LGB-4. Migration numbers: `0796_activity_settings.sql` on this branch collides with `0796_group_dm_invites.sql` on `feat/p12-lounge-ch-be`; which one is renumbered, and to what?**
+Decision: the gateway branch renumbers. `feat/p12-lounge-ch-be` was handed `0796` by name for G-47 and its handoff lists it; `feat/p12-lounge-gw-be` picked `0796` for G-58 because no number was named and offered to move. `0796_activity_settings.sql` becomes `0797_activity_settings.sql` (header comment included); `sqlx::migrate!` refuses duplicate versions, so the two branches cannot both merge until this is done. The same check found a second collision: `0800_scheduled_events.sql` on the chat branch takes the number G-85 reserved for the plaintext signing-seed drop, which is not written yet, so G-85 moves to `0803_drop_plaintext_signing_seed.sql`. Numbers in use after this round: 0790 to 0797 and 0800 to 0803 for Phase 12 branches, 0810 to 0819 for the running TV and watch-party agent, 0820 to 0829 for this round's follow-ups. No further renumbering.
+Status: `DEFAULT`. Follow-up: G-89.
+
+**P12-LGB-5. API-shape notes: message flag `SYSTEM_TAG = 1 << 30` is a SIDE ROOM extension set when the message object is built and never stored; push suppression treats a session that never sent op 3 as active, and `dnd` and `invisible` sessions as active too.**
+Decision: both confirmed. Bit 30 is outside Discord's assigned message flags, is derived from the author (so nothing can forge it by storing a flag) and is what D-188 asked for; doc 05 names it. For push, a session that has not said it is idle is being used, and `dnd` and `invisible` are statuses the person chose while present; treating any of them as "away" would push a notification to a phone next to the open laptop, which is what D-191 exists to stop.
+Status: `DEFAULT`. Follow-up: G-98 (doc rows only).
+
+**P12-LGB-6. Implementation notes: `Member.extras` and `GuildMembership.extras` are boxed; the system user id is the constant `sr_chat::SYSTEM_USER_ID = 1` for the guards while the SQL filters use the `FLAG_SYSTEM` account flag; G-52's validation is slug and range based until the G-48 catalogue is plugged into `admin_rules.rs::apply_extras`.**
+Decision: fine as built; the catalogue hook-up is integration work between the two branches (G-48 landed on `feat/p12-lounge-ch-be`), so whoever merges second plugs `sr_chat::profile::catalog` into `apply_extras` and drops the slug check.
+Status: `NO-CODE`.
+
+### Still with the owner from earlier rounds
+
+Unchanged: the UnRAR licence confirmation (D-170) and the eight NEEDS-OWNER items of the Phase 8 to 11 round listed in [open-questions.md](open-questions.md); this round adds none.
