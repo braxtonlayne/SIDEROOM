@@ -59,4 +59,6 @@ export default {
   'settings.activityHistory.readingChapter': 'Chapter {number} · {percent}% read',
   'settings.activityHistory.libraryPreloadMissing':
     'A page preload count is not offered yet: the reader has no preload setting.',
+  // LNG-USET-042 text-to-speech speed
+  'settings.accessibility.ttsRate': 'Text-to-speech speed',
 } satisfies Record<string, string>;

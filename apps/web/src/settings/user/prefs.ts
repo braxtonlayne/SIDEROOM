@@ -62,6 +62,8 @@ export interface UserPrefs {
   stickerAnimation: Animation;
   emojiAnimation: Animation;
   showSendButton: boolean;
+  /** Text-to-speech speed for "Speak message", percent of normal, 50..200 (LNG-USET-042). */
+  ttsRate: number;
   // Text and images
   linkPreviews: boolean;
   showEmbeds: boolean;
@@ -128,6 +130,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   stickerAnimation: 'always',
   emojiAnimation: 'always',
   showSendButton: true,
+  ttsRate: 100,
   linkPreviews: true,
   showEmbeds: true,
   inlineAttachments: true,
@@ -164,6 +167,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   appTestMode: false,
 };
 
+export const TTS_RATE_RANGE = [50, 200] as const;
 export const FONT_SCALE_RANGE = [75, 150] as const;
 export const ZOOM_RANGE = [50, 200] as const;
 export const MESSAGE_GAP_RANGE = [0, 24] as const;
@@ -218,6 +222,7 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     stickerAnimation: oneOf(r.stickerAnimation, anim, d.stickerAnimation),
     emojiAnimation: oneOf(r.emojiAnimation, anim, d.emojiAnimation),
     showSendButton: bool(r.showSendButton, d.showSendButton),
+    ttsRate: clamp(r.ttsRate, TTS_RATE_RANGE[0], TTS_RATE_RANGE[1], d.ttsRate),
     linkPreviews: bool(r.linkPreviews, d.linkPreviews),
     showEmbeds: bool(r.showEmbeds, d.showEmbeds),
     inlineAttachments: bool(r.inlineAttachments, d.inlineAttachments),
@@ -237,7 +242,6 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     titleBlink: bool(r.titleBlink, d.titleBlink),
     reactionNotifications: bool(r.reactionNotifications, d.reactionNotifications),
     dmToasts: bool(r.dmToasts, d.dmToasts),
-    welcomeDone: bool(r.welcomeDone, d.welcomeDone),
     pushInactiveMinutes: (PUSH_INACTIVE_CHOICES as readonly number[]).includes(
       r.pushInactiveMinutes as number,
     )
@@ -251,6 +255,7 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     pauseHistory: bool(r.pauseHistory, d.pauseHistory),
     activityAsStatus: bool(r.activityAsStatus, d.activityAsStatus),
     shareDetectedActivities: bool(r.shareDetectedActivities, d.shareDetectedActivities),
+    welcomeDone: bool(r.welcomeDone, d.welcomeDone),
     locale: typeof r.locale === 'string' && LOCALE.test(r.locale) ? r.locale : d.locale,
     timeFormat: oneOf(r.timeFormat, ['auto', '12h', '24h'] as const, d.timeFormat),
     keybinds,

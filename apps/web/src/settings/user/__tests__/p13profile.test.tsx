@@ -61,3 +61,13 @@ describe('profile decoration and theme (LNG-USET-009)', () => {
     await waitFor(() => expect(body).toEqual({ avatar_decoration: 'halo' }));
   });
 });
+
+describe('TTS speed pref (LNG-USET-042)', () => {
+  it('clamps the speed and defaults to normal', async () => {
+    const { sanitizePrefs } = await import('../prefs');
+    expect(sanitizePrefs({}).ttsRate).toBe(100);
+    expect(sanitizePrefs({ ttsRate: 500 }).ttsRate).toBe(200);
+    expect(sanitizePrefs({ ttsRate: 10 }).ttsRate).toBe(50);
+    expect(sanitizePrefs({ ttsRate: 'fast' }).ttsRate).toBe(100);
+  });
+});
