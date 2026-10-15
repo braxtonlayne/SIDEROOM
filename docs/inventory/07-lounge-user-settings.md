@@ -12,7 +12,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-005** [FE] Password & Authentication: Change Password modal, Enable Authenticator App wizard (QR, secret, verify code, backup codes download), View Backup Codes, Remove 2FA, Security Keys/Passkeys list (add, rename, remove) (Change Password on `POST /sr/auth/password` with optional sign-out of other devices; View Backup Codes is regenerate-only because codes are stored hashed)
 - [ ] **LNG-USET-006** [FE] Account Removal: Delete Account (explains permanence, D-029: messages remain, need a new invite to return), confirm with password + 2FA + typed username
    - Card shown with the D-029 wording and a "not available yet" notice: the server has no account deletion (LNG-USET-007).
-- [ ] **LNG-USET-007** [BE] Account deletion process (state=deleted, profile scrub, remove relationships/memberships/sessions, revoke open invites, forfeit credits, release username after 30d)
+- [x] **LNG-USET-007** [BE] Account deletion process (state=deleted, profile scrub, remove relationships/memberships/sessions, revoke open invites, forfeit credits, release username after 30d) *(POST /sr/auth/account/delete; sr-db account_deletion.rs, migration 0660; tests account_deletion.rs and auth tests)*
 
 ## Profiles
 - [x] **LNG-USET-008** [FE] Tabs: Main Profile / Per-server Profiles (server picker) (main profile and per-server tabs; the per-server profile is the nickname only)
@@ -38,7 +38,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
    - Same: stored, not yet read by any activity feature.
 - [ ] **LNG-USET-019** [FE] Request my data (status, download link)
    - The Request my data card states that the export builder (LNG-USET-020) does not exist; the button is disabled.
-- [ ] **LNG-USET-020** [BE][JOB] Data export package builder (JSON + attachment index, zipped, 7-day link)
+- [x] **LNG-USET-020** [BE][JOB] Data export package builder (JSON + attachment index, zipped, 7-day link) *(sr-db data_export.rs, sr-server userset_jobs.rs, routes /users/@me/data-export; tests data_export.rs, userset_pg_tests.rs)*
 
 ## Authorized Apps
 - [x] **LNG-USET-021** [FE] OAuth2 grants list (app, scopes, Deauthorize)
@@ -50,7 +50,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 ## Connections
 - [ ] **LNG-USET-023** [FE] Add connection buttons (providers grid), connected cards (display on profile toggle, show stats toggle, remove)
    - Page built with the Discord status and a read-only list; add/remove/refresh needs LNG-USET-024.
-- [ ] **LNG-USET-024** [BE] Connection OAuth flows per provider (Discord, GitHub, Spotify, Steam (OpenID), Twitch, YouTube, Reddit, Xbox/TikTok/Roblox where available) + unverified link connections + periodic stats refresh
+- [x] **LNG-USET-024** [BE] Connection OAuth flows per provider (Discord, GitHub, Spotify, Steam (OpenID), Twitch, YouTube, Reddit, Xbox/TikTok/Roblox where available) + unverified link connections + periodic stats refresh *(sr-api routes/userset connections.rs and providers.rs: GitHub, Discord, Spotify, Twitch, YouTube, Reddit, Steam behind [connections]; other providers link-only; GitHub/Reddit stats refresh job; tests userset/tests.rs)*
    - Discord is login/register only; `intent=link`, an unlink route and the other providers do not exist.
 
 ## SIDE ROOM: Invites
