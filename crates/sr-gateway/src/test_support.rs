@@ -68,6 +68,8 @@ impl Authenticator for TestAuth {
 pub struct TestDirectory {
     guilds: Mutex<HashMap<UserId, Vec<GuildId>>>,
     hidden: Mutex<HashSet<(UserId, ChannelId)>>,
+    restricted: Mutex<HashSet<ChannelId>>,
+    adults: Mutex<HashSet<UserId>>,
 }
 
 #[async_trait]
@@ -77,6 +79,12 @@ impl GuildDirectory for TestDirectory {
     }
     async fn can_view_channel(&self, user: UserId, _guild: GuildId, channel: ChannelId) -> bool {
         !lock(&self.hidden).contains(&(user, channel))
+    }
+    async fn channel_age_restricted(&self, channel: ChannelId) -> bool {
+        lock(&self.restricted).contains(&channel)
+    }
+    async fn age_confirmed(&self, user: UserId) -> bool {
+        lock(&self.adults).contains(&user)
     }
 }
 
@@ -113,6 +121,16 @@ impl TestWorld {
     /// Deny `user` `VIEW_CHANNEL` on `channel`.
     pub fn hide_channel(&self, user: UserId, channel: ChannelId) {
         lock(&self.dir.hidden).insert((user, channel));
+    }
+
+    /// Mark `channel` as age-restricted (`nsfw`, or a thread of an `nsfw` channel).
+    pub fn restrict_channel(&self, channel: ChannelId) {
+        lock(&self.dir.restricted).insert(channel);
+    }
+
+    /// Record that `user` answered yes to the age gate.
+    pub fn confirm_age(&self, user: UserId) {
+        lock(&self.dir.adults).insert(user);
     }
 
     /// Publish a domain event on every topic it belongs to.
@@ -317,5 +335,91 @@ mod tests {
         c.send(json!({"op": 2, "d": {"token": "nope", "intents": 0}}))
             .await;
         assert_eq!(c.recv_close().await, crate::close::AUTHENTICATION_FAILED);
+    }
+}
+
+#[cfg(test)]
+mod age_gate_tests {
+    use super::*;
+    use crate::intents;
+
+    fn event(name: &str, channel: u64) -> DomainEvent {
+        let (g, c) = (GuildId::new(1), ChannelId::new(channel));
+        match name {
+            "MESSAGE_CREATE" => DomainEvent::MessageSent {
+                guild: Some(g),
+                channel: c,
+                message_id: 5,
+                author: UserId::new(9),
+                data: json!({
+                    "id": "5", "channel_id": channel.to_string(), "guild_id": "1",
+                    "author": { "id": "9" }, "content": "x", "mentions": [],
+                }),
+            },
+            "TYPING_START" => DomainEvent::TypingStarted {
+                guild: Some(g),
+                channel: c,
+                user: UserId::new(9),
+                timestamp: 1,
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    const INTENTS: u64 = intents::GUILDS | intents::GUILD_MESSAGES | intents::GUILD_MESSAGE_TYPING;
+
+    #[tokio::test]
+    async fn restricted_channels_are_silent_for_unconfirmed_sessions() {
+        let w = TestWorld::new(GatewayConfig::default());
+        for u in 1..=2 {
+            w.add_member(UserId::new(u), GuildId::new(1));
+        }
+        w.restrict_channel(ChannelId::new(10));
+        w.confirm_age(UserId::new(2));
+        let mut users = w.connect_users(&[1, 2], INTENTS).await;
+        for name in ["MESSAGE_CREATE", "TYPING_START"] {
+            w.emit(event(name, 10)).await;
+            assert!(
+                users[0]
+                    .try_dispatch(name, Duration::from_millis(150))
+                    .await
+                    .is_none()
+            );
+            users[1].await_dispatch(name).await;
+        }
+        // An unrestricted channel reaches both.
+        w.emit(event("MESSAGE_CREATE", 11)).await;
+        users[0].await_dispatch("MESSAGE_CREATE").await;
+    }
+
+    #[tokio::test]
+    async fn confirming_mid_session_opens_the_channel_after_sr_user_update() {
+        let w = TestWorld::new(GatewayConfig::default());
+        w.add_member(UserId::new(1), GuildId::new(1));
+        w.restrict_channel(ChannelId::new(10));
+        let mut c = w.connect_users(&[1], INTENTS).await.remove(0);
+        w.emit(event("MESSAGE_CREATE", 10)).await;
+        assert!(
+            c.try_dispatch("MESSAGE_CREATE", Duration::from_millis(150))
+                .await
+                .is_none()
+        );
+        // The answer is cached per session until the account update arrives.
+        w.confirm_age(UserId::new(1));
+        w.emit(event("MESSAGE_CREATE", 10)).await;
+        assert!(
+            c.try_dispatch("MESSAGE_CREATE", Duration::from_millis(150))
+                .await
+                .is_none()
+        );
+        w.emit(DomainEvent::UserScoped {
+            users: vec![UserId::new(1)],
+            name: "SR_USER_UPDATE".into(),
+            payload: json!({ "age_confirmed": true }),
+        })
+        .await;
+        c.await_dispatch("SR_USER_UPDATE").await;
+        w.emit(event("MESSAGE_CREATE", 10)).await;
+        c.await_dispatch("MESSAGE_CREATE").await;
     }
 }

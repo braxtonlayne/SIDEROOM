@@ -200,6 +200,14 @@ pub fn required_guild_permission(name: &str) -> Option<Permissions> {
     }
 }
 
+/// Dispatches of an age-restricted channel that sessions without the 18+ answer do not
+/// receive (D-199).
+fn age_gated(name: &str) -> bool {
+    name.starts_with("MESSAGE_")
+        || name.starts_with("THREAD_")
+        || matches!(name, "TYPING_START" | "CHANNEL_PINS_UPDATE")
+}
+
 /// Per-session view of a dispatch. Without `MESSAGE_CONTENT` a bot sees message
 /// content, embeds, attachments, components and polls only for DMs, messages that
 /// mention it, and its own messages (Discord rule, docs/05 section 6.2).
@@ -820,6 +828,11 @@ impl Gateway {
             return;
         }
         if let DomainEvent::UserScoped { name, payload, .. } = &ev {
+            if name == "SR_USER_UPDATE" {
+                for s in self.user_sessions(user) {
+                    s.clear_age_cache();
+                }
+            }
             self.dispatch_user(user, name, payload.clone()).await;
             return;
         }
@@ -947,11 +960,29 @@ impl Gateway {
             .await
             .into_iter()
             .collect();
+        let gate = match channel {
+            Some(ch) if age_gated(name) => self.inner.dir.channel_age_restricted(ch).await,
+            _ => false,
+        };
         for s in targets {
-            if allowed.get(&s.user).copied().unwrap_or(false) {
-                deliver_to(&s, name, &data);
+            if !allowed.get(&s.user).copied().unwrap_or(false) {
+                continue;
             }
+            if gate && !self.session_age_confirmed(&s).await {
+                continue;
+            }
+            deliver_to(&s, name, &data);
         }
+    }
+
+    /// The session age-gate answer, looked up once and cached until `SR_USER_UPDATE`.
+    async fn session_age_confirmed(&self, s: &Session) -> bool {
+        if let Some(v) = s.age_cached() {
+            return v;
+        }
+        let v = self.inner.dir.age_confirmed(s.user).await;
+        s.set_age_cached(v);
+        v
     }
 
     /// Deliver to every session of `user` (DM and self events; no guild check).

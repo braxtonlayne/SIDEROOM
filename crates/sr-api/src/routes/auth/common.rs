@@ -208,6 +208,28 @@ impl AuthService {
         }
     }
 
+    /// `SR_USER_UPDATE` to the user own sessions (account facts the gateway caches, such as
+    /// the age-gate answer). Best effort.
+    pub(super) async fn notify_user_update(&self, user_id: i64, payload: serde_json::Value) {
+        let (Some(bus), Ok(uid)) = (&self.bus, u64::try_from(user_id)) else {
+            return;
+        };
+        let user = sr_core::UserId::new(uid);
+        if let Err(e) = bus
+            .publish(
+                sr_events::Topic::User(user),
+                sr_events::DomainEvent::UserScoped {
+                    users: vec![user],
+                    name: "SR_USER_UPDATE".to_owned(),
+                    payload,
+                },
+            )
+            .await
+        {
+            tracing::warn!(error = %e, "failed to publish SR_USER_UPDATE");
+        }
+    }
+
     /// Post a card to a Staff Server feed (`#new-members`). Best effort, like alerts.
     pub(super) async fn staff_feed(
         &self,

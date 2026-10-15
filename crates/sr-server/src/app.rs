@@ -814,6 +814,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     gateway.start();
     gateway_presence.attach(gateway.clone());
     temporary_members.attach(gateway.clone());
+    temporary_members.schedule_startup_sweep(pool.clone());
 
     // Social endpoints (relationships, DMs, acks, notification settings, profiles):
     // their own service on its own snowflake worker (process id + 3).

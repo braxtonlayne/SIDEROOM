@@ -588,6 +588,22 @@ impl GuildDirectory for PgGuildDirectory {
         }
     }
 
+    async fn channel_age_restricted(&self, channel: ChannelId) -> bool {
+        match sqlx::query_scalar::<_, bool>(
+            "SELECT c.nsfw OR COALESCE(p.nsfw, FALSE) FROM channels c \n             LEFT JOIN channels p ON p.id = c.parent_id AND c.type IN (10, 11, 12) \n             WHERE c.id = $1",
+        )
+        .bind(channel.get() as i64)
+        .fetch_optional(&self.pool)
+        .await
+        {
+            Ok(v) => v.unwrap_or(false),
+            Err(e) => {
+                tracing::warn!(error = %e, "age-restriction lookup failed; withholding the dispatch");
+                true
+            }
+        }
+    }
+
     async fn voice_limits(&self, user: UserId, guild: Option<GuildId>) -> VoiceLimits {
         let Some(ents) = &self.entitlements else {
             return VoiceLimits::free();
@@ -785,6 +801,50 @@ impl TemporaryMembers {
 
     pub fn attach(&self, gateway: sr_gateway::Gateway) {
         let _ = self.gateway.set(gateway);
+    }
+
+    /// Remove the temporary memberships of accounts that have no live session. Run once after
+    /// boot (D-200): a restart ends every session without a `user_offline` call, so members who
+    /// were offline for good would otherwise keep their seat. Returns how many accounts lost a
+    /// membership.
+    pub async fn sweep(&self, pool: &PgPool) -> usize {
+        let users: Vec<i64> = match sqlx::query_scalar(
+            "SELECT DISTINCT user_id FROM guild_members WHERE temporary",
+        )
+        .fetch_all(pool)
+        .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!(error = %e, "temporary-member sweep failed");
+                return 0;
+            }
+        };
+        let mut swept = 0;
+        for id in users {
+            let user = UserId::new(id as u64);
+            let live = self
+                .gateway
+                .get()
+                .and_then(|gw| gw.presence(user))
+                .is_some_and(|p| p.status != "offline");
+            if !live && !self.joiner.drop_temporary(user).await.is_empty() {
+                swept += 1;
+            }
+        }
+        swept
+    }
+
+    /// Run [`Self::sweep`] once, after the offline grace has let reconnecting clients return.
+    pub fn schedule_startup_sweep(self: &Arc<Self>, pool: PgPool) {
+        let me = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(me.grace).await;
+            let n = me.sweep(&pool).await;
+            if n > 0 {
+                tracing::info!(accounts = n, "removed stale temporary memberships");
+            }
+        });
     }
 
     /// `user` just went offline: after the grace period, drop their temporary memberships
