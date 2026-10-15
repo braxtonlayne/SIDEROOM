@@ -18,6 +18,7 @@
 mod accounts;
 mod accounts_ext;
 mod announce;
+pub use announce::press_review_button;
 mod ctx;
 mod invites;
 mod private;

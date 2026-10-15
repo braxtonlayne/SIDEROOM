@@ -57,6 +57,9 @@ pub struct AlertSettings {
 pub struct CardActionResult {
     pub ok: bool,
     pub message: String,
+    /// An app path to open next (the review page for a rejection that needs a reason).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
 }
 
 /// Lower-case username rules of the entrance (`^[a-z0-9_.]{2,32}$`).
@@ -969,6 +972,7 @@ impl AdminService {
                 Ok(CardActionResult {
                     ok: true,
                     message: "Acknowledged".into(),
+                    link: None,
                 })
             }
             "clear-suspicion" => {
@@ -977,6 +981,7 @@ impl AdminService {
                 Ok(CardActionResult {
                     ok: true,
                     message: "Suspicion cleared".into(),
+                    link: None,
                 })
             }
             "retry-job" => {
@@ -985,6 +990,7 @@ impl AdminService {
                 Ok(CardActionResult {
                     ok: true,
                     message: "Job queued again".into(),
+                    link: None,
                 })
             }
             _ => Err(AdminError::Invalid("unknown staff action".into())),

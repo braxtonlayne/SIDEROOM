@@ -978,7 +978,11 @@ async fn an_active_announcement_can_be_edited_but_not_an_ended_one() {
         .iter()
         .rfind(|r| r.action == "announcement.edit")
         .expect("the edit is audited");
-    assert!(row.detail.contains("Downtime moved") && row.detail.contains("diff"), "{}", row.detail);
+    assert!(
+        row.detail.contains("Downtime moved") && row.detail.contains("diff"),
+        "{}",
+        row.detail
+    );
     // Once ended, an edit is a conflict.
     e.svc.end_announcement(&o, a.id, None).await.unwrap();
     assert!(matches!(

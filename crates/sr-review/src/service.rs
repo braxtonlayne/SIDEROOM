@@ -50,6 +50,10 @@ const MAX_REASON: usize = 4000;
 #[async_trait::async_trait]
 pub trait ReviewEvents: Send + Sync {
     async fn emit(&self, users: Vec<i64>, payload: Value);
+
+    /// A submission entered review (`outcome: None`) or reached `outcome`; the Staff Server's
+    /// `#review-queue` card follows (G-68). Does nothing unless the implementation cares.
+    async fn card(&self, _submission_id: i64, _outcome: Option<&str>) {}
 }
 
 /// The acting account and its platform permissions (empty for a plain member).
@@ -198,6 +202,12 @@ impl ReviewService {
             ))
         } else {
             Ok(())
+        }
+    }
+
+    async fn card(&self, s: &Submission, outcome: Option<&str>) {
+        if let Some(ev) = &self.events {
+            ev.card(s.id, outcome).await;
         }
     }
 
@@ -405,6 +415,7 @@ impl ReviewService {
             Some(s) => s,
             None => return Err(self.why_not(id, action).await),
         };
+        self.card(&s, None).await;
         self.detail(s, false).await
     }
 
@@ -470,6 +481,7 @@ impl ReviewService {
             Some(s) => s,
             None => return Err(self.why_not(id, Action::Withdraw).await),
         };
+        self.card(&s, Some("withdrawn")).await;
         self.detail(s, false).await
     }
 
@@ -708,6 +720,7 @@ impl ReviewService {
             Some(s) => {
                 self.notify(&s, event_kind, json!({ "reason": reason }))
                     .await;
+                self.card(&s, Some(event_kind)).await;
                 Ok(s)
             }
             None => Err(self.why_not(id, action).await),
@@ -825,6 +838,7 @@ impl ReviewService {
         match self.repo.transition(s.id, &t, &ev).await? {
             Some(done) => {
                 self.notify(&done, "published", json!({})).await;
+                self.card(&done, Some("published")).await;
                 Ok(())
             }
             None => Err(self.why_not(s.id, Action::Publish).await),

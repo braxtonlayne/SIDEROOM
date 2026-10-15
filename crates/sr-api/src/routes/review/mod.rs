@@ -321,6 +321,16 @@ impl BusReviewEvents {
 
 #[async_trait::async_trait]
 impl sr_review::ReviewEvents for BusReviewEvents {
+    async fn card(&self, submission_id: i64, outcome: Option<&str>) {
+        let ev = sr_events::DomainEvent::ReviewCard {
+            submission_id,
+            outcome: outcome.map(str::to_owned),
+        };
+        if let Err(e) = self.bus.publish(sr_events::Topic::Platform, ev).await {
+            tracing::warn!(error = %e, "publishing a review card event failed");
+        }
+    }
+
     async fn emit(&self, users: Vec<i64>, payload: serde_json::Value) {
         let users: Vec<UserId> = users
             .into_iter()

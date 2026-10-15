@@ -493,6 +493,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         | DomainEvent::StaffAlert { .. }
         | DomainEvent::StaffFeed { .. }
         | DomainEvent::PlatformBroadcast { .. }
+        | DomainEvent::ReviewCard { .. }
         // Merged with the live sessions by `Gateway::on_user_event`.
         | DomainEvent::PresenceChanged { .. }
         | DomainEvent::UserScoped { .. } => return None,
