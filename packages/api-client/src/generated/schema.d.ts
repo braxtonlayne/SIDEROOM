@@ -7106,6 +7106,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/submissions/naming/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The naming tester: paste names, see how the importer reads them (docs/specs/ingest-naming-conventions.md).
+         *     Pure parsing, nothing is stored.
+         */
+        post: operations["submissions_naming_parse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/submissions/quota": {
         parameters: {
             query?: never;
@@ -8653,6 +8673,11 @@ export interface components {
             /** @description Staff Server role ids to start with. */
             role_ids: string[];
         };
+        /**
+         * @description Which artwork file.
+         * @enum {string}
+         */
+        ArtworkKind: "poster" | "backdrop" | "logo" | "season_poster" | "episode_thumb";
         ArtworkRequest: {
             /** @description `image/webp`, `image/jpeg` or `image/png`. */
             content_type: string;
@@ -11174,6 +11199,11 @@ export interface components {
             patron: components["schemas"]["PatronView"];
             preferences: components["schemas"]["PrefsView"];
         };
+        /**
+         * @description Movie or episode (for a video or the video a subtitle belongs to).
+         * @enum {string}
+         */
+        Media: "movie" | "episode" | "unknown";
         MemberObject: {
             avatar?: string | null;
             /** @description Per-server banner hash (LNG-GLD-012). */
@@ -11485,6 +11515,22 @@ export interface components {
             /** Format: int32 */
             rank: number;
         };
+        /** @description Body of `POST /submissions/naming/parse`. */
+        NamingParseBody: {
+            /** @description Up to 200 file names or relative paths. */
+            names: string[];
+            /** @description `cinema` (movies, episodes, subtitles, artwork) or `library` (chapters, pages). */
+            section: string;
+        };
+        /** @description One parsed name; exactly one of `cinema` and `library` is set, by the requested section. */
+        NamingParseItem: {
+            cinema?: null | components["schemas"]["ParsedVideoName"];
+            library?: null | components["schemas"]["ParsedReaderName"];
+            name: string;
+        };
+        NamingParseResult: {
+            items: components["schemas"]["NamingParseItem"][];
+        };
         NicknameBody: {
             /** @description Empty or null clears the nickname (max 32 characters). */
             nickname?: string | null;
@@ -11639,6 +11685,49 @@ export interface components {
             url: string;
             /** Format: int32 */
             width: number;
+        };
+        ParsedReaderName: {
+            /** Format: double */
+            chapter?: number | null;
+            extension: string;
+            group?: string | null;
+            /** Format: int32 */
+            page?: number | null;
+            role: components["schemas"]["ReaderRole"];
+            series?: string | null;
+            /** @description `_spread` suffix on a page name. */
+            spread: boolean;
+            title?: string | null;
+            /** Format: double */
+            volume?: number | null;
+            warnings: string[];
+        };
+        ParsedVideoName: {
+            /** @description Numbered `Show - 05` without a season (anime absolute order); season is then 1. */
+            absolute: boolean;
+            artwork?: null | components["schemas"]["ArtworkKind"];
+            episode_title?: string | null;
+            /** @description More than one for a multi-episode file (`s01e01-e02`). */
+            episodes: number[];
+            extension: string;
+            forced: boolean;
+            /** @description Subtitle language tag as written (`en`, `pt-BR`). */
+            language?: string | null;
+            media: components["schemas"]["Media"];
+            role: components["schemas"]["Role"];
+            sdh: boolean;
+            /** Format: int32 */
+            season?: number | null;
+            /** @description Season 0 / a `Specials` folder. */
+            special: boolean;
+            /** @description Bracket and parenthesis tags and quality words, in order. */
+            tags: string[];
+            title: string;
+            /** @description Alternate cut of a movie: `Director's Cut`. */
+            variant?: string | null;
+            warnings: string[];
+            /** Format: int32 */
+            year?: number | null;
         };
         PartDone: {
             etag: string;
@@ -12149,6 +12238,8 @@ export interface components {
         ReadStatesResponse: {
             entries: components["schemas"]["ReadStateObject"][];
         };
+        /** @enum {string} */
+        ReaderRole: "page" | "archive" | "document" | "series_json" | "comic_info" | "folder" | "unknown";
         /**
          * @description Default reading mode of a series.
          * @enum {string}
@@ -12342,6 +12433,11 @@ export interface components {
             /** Format: int64 */
             revoked: number;
         };
+        /**
+         * @description What the file is for.
+         * @enum {string}
+         */
+        Role: "video" | "subtitle" | "artwork" | "unknown";
         RoleObject: {
             /** Format: int32 */
             color: number;
@@ -38031,6 +38127,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KindInfo"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_naming_parse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NamingParseBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamingParseResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             401: {

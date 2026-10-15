@@ -5,7 +5,7 @@
 use super::*;
 
 struct Want {
-    role: Role,
+    role: ReaderRole,
     series: Option<&'static str>,
     volume: Option<f64>,
     chapter: Option<f64>,
@@ -14,7 +14,7 @@ struct Want {
     page: Option<u32>,
 }
 
-fn w(role: Role) -> Want {
+fn w(role: ReaderRole) -> Want {
     Want {
         role,
         series: None,
@@ -50,7 +50,7 @@ fn archive(
         chapter,
         title,
         group,
-        ..w(Role::Archive)
+        ..w(ReaderRole::Archive)
     }
 }
 
@@ -59,7 +59,7 @@ fn page(series: &'static str, chapter: f64, page: u32) -> Want {
         series: Some(series),
         chapter: Some(chapter),
         page: Some(page),
-        ..w(Role::Page)
+        ..w(ReaderRole::Page)
     }
 }
 
@@ -176,7 +176,7 @@ fn handwritten() -> Vec<(&'static str, Want)> {
             "Some Novel.epub",
             Want {
                 series: Some("Some Novel"),
-                ..w(Role::Document)
+                ..w(ReaderRole::Document)
             },
         ),
         (
@@ -184,7 +184,7 @@ fn handwritten() -> Vec<(&'static str, Want)> {
             Want {
                 series: Some("Some Novel"),
                 volume: Some(2.0),
-                ..w(Role::Document)
+                ..w(ReaderRole::Document)
             },
         ),
         (
@@ -193,7 +193,7 @@ fn handwritten() -> Vec<(&'static str, Want)> {
                 series: Some("Some Novel"),
                 chapter: Some(3.0),
                 title: Some("Part Three"),
-                ..w(Role::Document)
+                ..w(ReaderRole::Document)
             },
         ),
         // 2.1 folders of images
@@ -258,10 +258,10 @@ fn handwritten() -> Vec<(&'static str, Want)> {
             "Series/series.json",
             Want {
                 series: Some("Series"),
-                ..w(Role::SeriesJson)
+                ..w(ReaderRole::SeriesJson)
             },
         ),
-        ("series.json", w(Role::SeriesJson)),
+        ("series.json", w(ReaderRole::SeriesJson)),
         (
             "Series/Series c001.cbz",
             archive("Series", None, Some(1.0), None, None),
@@ -270,7 +270,7 @@ fn handwritten() -> Vec<(&'static str, Want)> {
             "Series/ComicInfo.xml",
             Want {
                 series: Some("Series"),
-                ..w(Role::ComicInfo)
+                ..w(ReaderRole::ComicInfo)
             },
         ),
         (
@@ -278,7 +278,7 @@ fn handwritten() -> Vec<(&'static str, Want)> {
             Want {
                 series: Some("Series"),
                 chapter: Some(2.0),
-                ..w(Role::ComicInfo)
+                ..w(ReaderRole::ComicInfo)
             },
         ),
         // refused or unknown
@@ -287,17 +287,17 @@ fn handwritten() -> Vec<(&'static str, Want)> {
             Want {
                 series: Some("Series"),
                 chapter: Some(1.0),
-                ..w(Role::Unknown)
+                ..w(ReaderRole::Unknown)
             },
         ),
         (
             "Series/notes.txt",
             Want {
                 series: Some("Series"),
-                ..w(Role::Unknown)
+                ..w(ReaderRole::Unknown)
             },
         ),
-        ("", w(Role::Unknown)),
+        ("", w(ReaderRole::Unknown)),
     ]
 }
 

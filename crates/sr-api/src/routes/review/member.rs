@@ -225,3 +225,59 @@ pub async fn credits(
         .map(Json)
         .map_err(map_err)
 }
+
+/// Body of `POST /submissions/naming/parse`.
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub struct NamingParseBody {
+    /// `cinema` (movies, episodes, subtitles, artwork) or `library` (chapters, pages).
+    pub section: String,
+    /// Up to 200 file names or relative paths.
+    pub names: Vec<String>,
+}
+
+/// One parsed name; exactly one of `cinema` and `library` is set, by the requested section.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct NamingParseItem {
+    pub name: String,
+    pub cinema: Option<sr_media::naming::ParsedVideoName>,
+    pub library: Option<sr_reader::naming::ParsedReaderName>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct NamingParseResult {
+    pub items: Vec<NamingParseItem>,
+}
+
+/// The naming tester: paste names, see how the importer reads them (docs/specs/ingest-naming-conventions.md).
+/// Pure parsing, nothing is stored.
+#[utoipa::path(
+    post, path = "/submissions/naming/parse", operation_id = "submissions_naming_parse", request_body = NamingParseBody,
+    responses((status = 200, body = NamingParseResult), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn naming_parse(
+    _ctx: MemberCtx,
+    Json(b): Json<NamingParseBody>,
+) -> ApiResult<Json<NamingParseResult>> {
+    let bad = |m: &str| -> crate::error::HttpError {
+        sr_core::ApiError::with_message(sr_core::ErrorCode::InvalidFormBody, m.to_owned()).into()
+    };
+    if b.names.len() > 200 {
+        return Err(bad("at most 200 names at a time"));
+    }
+    let cinema = match b.section.as_str() {
+        "cinema" => true,
+        "library" => false,
+        _ => return Err(bad("section must be cinema or library")),
+    };
+    let items = b
+        .names
+        .into_iter()
+        .map(|name| NamingParseItem {
+            cinema: cinema.then(|| sr_media::naming::parse_path(&name)),
+            library: (!cinema).then(|| sr_reader::naming::parse_path(&name)),
+            name,
+        })
+        .collect();
+    Ok(Json(NamingParseResult { items }))
+}

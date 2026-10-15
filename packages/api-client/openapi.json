@@ -37478,6 +37478,62 @@
         ]
       }
     },
+    "/submissions/naming/parse": {
+      "post": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The naming tester: paste names, see how the importer reads them (docs/specs/ingest-naming-conventions.md).\nPure parsing, nothing is stored.",
+        "operationId": "submissions_naming_parse",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamingParseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamingParseResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/submissions/quota": {
       "get": {
         "tags": [
@@ -44153,6 +44209,17 @@
             "description": "Staff Server role ids to start with."
           }
         }
+      },
+      "ArtworkKind": {
+        "type": "string",
+        "description": "Which artwork file.",
+        "enum": [
+          "poster",
+          "backdrop",
+          "logo",
+          "season_poster",
+          "episode_thumb"
+        ]
       },
       "ArtworkRequest": {
         "type": "object",
@@ -52482,6 +52549,15 @@
           }
         }
       },
+      "Media": {
+        "type": "string",
+        "description": "Movie or episode (for a video or the video a subtitle belongs to).",
+        "enum": [
+          "movie",
+          "episode",
+          "unknown"
+        ]
+      },
       "MemberObject": {
         "type": "object",
         "required": [
@@ -53558,6 +53634,73 @@
           }
         }
       },
+      "NamingParseBody": {
+        "type": "object",
+        "description": "Body of `POST /submissions/naming/parse`.",
+        "required": [
+          "section",
+          "names"
+        ],
+        "properties": {
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Up to 200 file names or relative paths."
+          },
+          "section": {
+            "type": "string",
+            "description": "`cinema` (movies, episodes, subtitles, artwork) or `library` (chapters, pages)."
+          }
+        }
+      },
+      "NamingParseItem": {
+        "type": "object",
+        "description": "One parsed name; exactly one of `cinema` and `library` is set, by the requested section.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "cinema": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ParsedVideoName"
+              }
+            ]
+          },
+          "library": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ParsedReaderName"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "NamingParseResult": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamingParseItem"
+            }
+          }
+        }
+      },
       "NicknameBody": {
         "type": "object",
         "properties": {
@@ -54075,6 +54218,185 @@
           },
           "width": {
             "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "ParsedReaderName": {
+        "type": "object",
+        "required": [
+          "role",
+          "spread",
+          "extension",
+          "warnings"
+        ],
+        "properties": {
+          "chapter": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "role": {
+            "$ref": "#/components/schemas/ReaderRole"
+          },
+          "series": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spread": {
+            "type": "boolean",
+            "description": "`_spread` suffix on a page name."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "volume": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ParsedVideoName": {
+        "type": "object",
+        "required": [
+          "role",
+          "media",
+          "title",
+          "episodes",
+          "absolute",
+          "special",
+          "forced",
+          "sdh",
+          "tags",
+          "extension",
+          "warnings"
+        ],
+        "properties": {
+          "absolute": {
+            "type": "boolean",
+            "description": "Numbered `Show - 05` without a season (anime absolute order); season is then 1."
+          },
+          "artwork": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ArtworkKind"
+              }
+            ]
+          },
+          "episode_title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "More than one for a multi-episode file (`s01e01-e02`)."
+          },
+          "extension": {
+            "type": "string"
+          },
+          "forced": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Subtitle language tag as written (`en`, `pt-BR`)."
+          },
+          "media": {
+            "$ref": "#/components/schemas/Media"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "sdh": {
+            "type": "boolean"
+          },
+          "season": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "special": {
+            "type": "boolean",
+            "description": "Season 0 / a `Specials` folder."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Bracket and parenthesis tags and quality words, in order."
+          },
+          "title": {
+            "type": "string"
+          },
+          "variant": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Alternate cut of a movie: `Director's Cut`."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int32",
             "minimum": 0
           }
@@ -55723,6 +56045,18 @@
           }
         }
       },
+      "ReaderRole": {
+        "type": "string",
+        "enum": [
+          "page",
+          "archive",
+          "document",
+          "series_json",
+          "comic_info",
+          "folder",
+          "unknown"
+        ]
+      },
       "ReadingDirection": {
         "type": "string",
         "description": "Default reading mode of a series.",
@@ -56278,6 +56612,16 @@
             "minimum": 0
           }
         }
+      },
+      "Role": {
+        "type": "string",
+        "description": "What the file is for.",
+        "enum": [
+          "video",
+          "subtitle",
+          "artwork",
+          "unknown"
+        ]
       },
       "RoleObject": {
         "type": "object",

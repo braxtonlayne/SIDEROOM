@@ -528,6 +528,7 @@ POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-
 POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
 POST	/submissions	authenticated	other	allow	-
+POST	/submissions/naming/parse	authenticated	other	allow	-
 POST	/submissions/{submission_id}/comments	authenticated	other	allow	-
 POST	/submissions/{submission_id}/library/chapters	authenticated	other	allow	-
 POST	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	other	allow	-

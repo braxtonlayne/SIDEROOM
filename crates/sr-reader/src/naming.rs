@@ -16,7 +16,7 @@ const MAX_PATH: usize = 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum Role {
+pub enum ReaderRole {
     /// An image page inside a chapter folder.
     Page,
     /// A `.cbz`/`.zip`/`.cbr`/`.rar`/`.cb7`/`.7z` chapter archive.
@@ -34,7 +34,7 @@ pub enum Role {
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 pub struct ParsedReaderName {
-    pub role: Role,
+    pub role: ReaderRole,
     pub series: Option<String>,
     pub volume: Option<f64>,
     pub chapter: Option<f64>,
@@ -104,7 +104,7 @@ fn num(s: &str) -> Option<f64> {
     s.parse::<f64>().ok().filter(|n| n.is_finite())
 }
 
-fn blank(ext: String, role: Role) -> ParsedReaderName {
+fn blank(ext: String, role: ReaderRole) -> ParsedReaderName {
     ParsedReaderName {
         role,
         series: None,
@@ -196,7 +196,7 @@ pub fn parse_path(path: &str) -> ParsedReaderName {
     let norm = path.replace('\\', "/");
     let mut parts: Vec<&str> = norm.split('/').filter(|p| !p.is_empty()).collect();
     let Some(file) = parts.pop() else {
-        let mut p = blank(String::new(), Role::Unknown);
+        let mut p = blank(String::new(), ReaderRole::Unknown);
         p.warnings.push("empty name".into());
         return p;
     };
@@ -220,12 +220,12 @@ pub fn parse_path(path: &str) -> ParsedReaderName {
 
     let lower = file.to_ascii_lowercase();
     if lower == "series.json" {
-        let mut p = blank("json".into(), Role::SeriesJson);
+        let mut p = blank("json".into(), ReaderRole::SeriesJson);
         p.series = ctx.series;
         return p;
     }
     if lower == "comicinfo.xml" {
-        let mut p = blank("xml".into(), Role::ComicInfo);
+        let mut p = blank("xml".into(), ReaderRole::ComicInfo);
         p.series = ctx.series;
         p.volume = ctx.volume;
         p.chapter = ctx.chapter;
@@ -236,9 +236,9 @@ pub fn parse_path(path: &str) -> ParsedReaderName {
         parse_page(stem, ext, &ctx)
     } else if ARCHIVE_EXT.contains(&ext.as_str()) || DOC_EXT.contains(&ext.as_str()) {
         let role = if ARCHIVE_EXT.contains(&ext.as_str()) {
-            Role::Archive
+            ReaderRole::Archive
         } else {
-            Role::Document
+            ReaderRole::Document
         };
         let f = read_name(stem);
         let mut p = blank(ext, role);
@@ -252,14 +252,14 @@ pub fn parse_path(path: &str) -> ParsedReaderName {
         }
         p
     } else if ext == "avif" {
-        let mut p = blank(ext, Role::Unknown);
+        let mut p = blank(ext, ReaderRole::Unknown);
         p.warnings
             .push("AVIF pages are not accepted; convert them to JPEG, PNG or WebP first".into());
         p
     } else if ext.is_empty() {
         // A folder name.
         let f = read_name(file);
-        let mut p = blank(ext, Role::Folder);
+        let mut p = blank(ext, ReaderRole::Folder);
         p.series = f.series.or(ctx.series.clone());
         p.volume = f.volume.or(ctx.volume);
         p.chapter = f.chapter.or(ctx.chapter);
@@ -267,7 +267,7 @@ pub fn parse_path(path: &str) -> ParsedReaderName {
         p.group = f.group.or(ctx.group.clone());
         p
     } else {
-        let mut p = blank(ext, Role::Unknown);
+        let mut p = blank(ext, ReaderRole::Unknown);
         p.warnings.push("not a page, archive or document".into());
         p
     };
@@ -282,7 +282,7 @@ pub fn parse_path(path: &str) -> ParsedReaderName {
 }
 
 fn parse_page(stem: &str, ext: String, ctx: &Fields) -> ParsedReaderName {
-    let mut p = blank(ext, Role::Page);
+    let mut p = blank(ext, ReaderRole::Page);
     p.series = ctx.series.clone();
     p.volume = ctx.volume;
     p.chapter = ctx.chapter;

@@ -27,6 +27,7 @@ sr-features = { path = "../sr-features" }
 sr-library = { path = "../sr-library" }
 sr-cinema = { path = "../sr-cinema" }
 sr-media = { path = "../sr-media" }
+sr-reader = { path = "../sr-reader" }
 sr-tv = { path = "../sr-tv" }
 sr-cinema-social = { path = "../sr-cinema-social" }
 sr-watchparty = { path = "../sr-watchparty" }

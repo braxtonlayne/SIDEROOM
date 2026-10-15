@@ -349,6 +349,7 @@ pub fn router() -> Router<AppState> {
         // Members.
         .route("/submissions/kinds", get(member::kinds))
         .route("/submissions/quota", get(member::quota))
+        .route("/submissions/naming/parse", post(member::naming_parse))
         .route("/submissions", get(member::list).post(member::create))
         .route(
             "/submissions/{submission_id}",
@@ -483,6 +484,7 @@ pub fn router() -> Router<AppState> {
         member::withdraw,
         member::comment,
         member::quota,
+        member::naming_parse,
         member::credits,
         library::update_series,
         library::chapters,
@@ -521,6 +523,15 @@ pub fn router() -> Router<AppState> {
     components(schemas(
         ErrorBody,
         member::PreviewBody,
+        member::NamingParseBody,
+        member::NamingParseItem,
+        member::NamingParseResult,
+        sr_media::naming::ParsedVideoName,
+        sr_media::naming::Role,
+        sr_media::naming::Media,
+        sr_media::naming::ArtworkKind,
+        sr_reader::naming::ParsedReaderName,
+        sr_reader::naming::ReaderRole,
         requests::CreateRequestBody,
         requests::FulfilBody,
         reviewer::ClaimBody,

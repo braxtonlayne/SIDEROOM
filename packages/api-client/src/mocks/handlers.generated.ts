@@ -551,6 +551,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"submissions_submit","method":"post","path":"/submissions/:submission_id/submit","status":200,"body":{"events":[{}],"items":[{}],"kind_label":"string","submission":{"created_at_ms":0,"flags":[],"id":"1","kind":"string","payload":{},"state":"Draft","summary":"string","title":"string","updated_at_ms":0}}},
   {"id":"submissions_withdraw","method":"post","path":"/submissions/:submission_id/withdraw","status":200,"body":{"events":[{}],"items":[{}],"kind_label":"string","submission":{"created_at_ms":0,"flags":[],"id":"1","kind":"string","payload":{},"state":"Draft","summary":"string","title":"string","updated_at_ms":0}}},
   {"id":"submissions_kinds","method":"get","path":"/submissions/kinds","status":200,"body":[{"id":"1","label":"string"}]},
+  {"id":"submissions_naming_parse","method":"post","path":"/submissions/naming/parse","status":200,"body":{"items":[{}]}},
   {"id":"submissions_quota","method":"get","path":"/submissions/quota","status":200,"body":{"used_bytes":0}},
   {"id":"tv_channels","method":"get","path":"/tv/channels","status":200,"body":{"items":[{}]}},
   {"id":"tv_channel","method":"get","path":"/tv/channels/:channel_id","status":200,"body":{"age_restricted":false,"enabled":false,"filler_policy":"bumpers","id":"1","kind":"rule_based","name":"string","number":0,"timezone":"string","viewers":0}},

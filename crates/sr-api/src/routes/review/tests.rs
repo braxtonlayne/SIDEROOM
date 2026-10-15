@@ -274,6 +274,11 @@ fn member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
     vec![
         (Method::GET, "/submissions/kinds", None),
         (Method::GET, "/submissions/quota", None),
+        (
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "cinema", "names": ["a.mkv"] })),
+        ),
         (Method::GET, "/submissions/7/credits", None),
         (Method::GET, "/submissions", None),
         (
@@ -873,6 +878,7 @@ fn openapi_lists_the_review_paths() {
         "/requests/{request_id}/vote",
         "/admin/review/queue",
         "/submissions/quota",
+        "/submissions/naming/parse",
         "/submissions/{submission_id}/credits",
         "/admin/review/submissions/{submission_id}/credits",
         "/admin/review/submissions/{submission_id}/revoke-credits",
@@ -890,4 +896,51 @@ fn openapi_lists_the_review_paths() {
     ] {
         assert!(schemas.contains_key(s), "{s}");
     }
+}
+
+#[tokio::test]
+async fn the_naming_tester_parses_both_sections() {
+    let e = env().await;
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "cinema", "names": ["Show - s01e02 - Pilot.mkv"] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["items"][0]["cinema"]["season"], 1);
+    assert_eq!(b["items"][0]["cinema"]["episodes"][0], 2);
+    assert!(b["items"][0]["library"].is_null());
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "library", "names": ["Series v02 c013 [Grp].cbz"] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["items"][0]["library"]["chapter"], 13.0);
+    assert_eq!(b["items"][0]["library"]["group"], "Grp");
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "tv", "names": [] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    let many: Vec<String> = (0..201).map(|i| format!("{i}.mkv")).collect();
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "cinema", "names": many })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
 }

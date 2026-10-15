@@ -5110,6 +5110,7 @@ dependencies = [
  "sr-markdown",
  "sr-media",
  "sr-payments",
+ "sr-reader",
  "sr-review",
  "sr-search",
  "sr-storage",
