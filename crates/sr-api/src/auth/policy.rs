@@ -61,6 +61,7 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/gifs/")
         || p.starts_with("/users/@me/mentions")
         || p.starts_with("/users/@me/primary-guild")
+        || p.starts_with("/tv/reminders")
     {
         return true;
     }

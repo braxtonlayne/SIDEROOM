@@ -379,3 +379,40 @@ async fn block_length_comes_from_the_asset_when_it_is_shorter_than_the_runtime()
     );
     w.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn reminders_are_stored_replaced_taken_once_and_follow_the_account() {
+    use sr_tv::model::ReminderRecord;
+    use sr_tv::repo::TvRepository;
+    let db = TestDb::new().await.unwrap();
+    let who = account(db.pool()).await;
+    let repo = PgTvRepo::new(db.pool().clone());
+    let r = |block, at| ReminderRecord {
+        account_id: who,
+        block_id: block,
+        channel_id: 5,
+        title: "Cowboy Bebop".into(),
+        start_ms: at + 300_000,
+        remind_at_ms: at,
+    };
+    repo.put_reminder(&r(1, 1_000)).await.unwrap();
+    repo.put_reminder(&r(2, 9_000)).await.unwrap();
+    // Setting it again replaces the row.
+    repo.put_reminder(&r(1, 2_000)).await.unwrap();
+    assert!(repo.take_due_reminders(500, 10).await.unwrap().is_empty());
+    let due = repo.take_due_reminders(5_000, 10).await.unwrap();
+    assert_eq!(due, vec![r(1, 2_000)]);
+    assert!(repo.take_due_reminders(5_000, 10).await.unwrap().is_empty());
+    assert!(repo.delete_reminder(who, 2).await.unwrap());
+    assert!(!repo.delete_reminder(who, 2).await.unwrap());
+    // Deleting the account removes what is left.
+    repo.put_reminder(&r(3, 1)).await.unwrap();
+    sqlx::query("DELETE FROM accounts WHERE id = $1")
+        .bind(who)
+        .execute(db.pool())
+        .await
+        .unwrap();
+    assert!(repo.take_due_reminders(i64::MAX, 10).await.unwrap().is_empty());
+    db.cleanup().await.unwrap();
+}

@@ -25,7 +25,7 @@ pub use catalog::{CatalogItem, MemoryCatalog, TvCatalog};
 pub use error::{TvError, TvResult};
 pub use presence::{MemoryPresence, Presence};
 pub use repo::{MemoryTvRepo, TvRepository};
-pub use service::{Actor, LiveDeps, TvService, Viewer};
+pub use service::{Actor, LiveDeps, ReminderNotice, ReminderSink, TvService, Viewer};
 
 #[cfg(test)]
 mod service_tests;

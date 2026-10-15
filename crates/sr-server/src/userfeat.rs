@@ -409,15 +409,93 @@ impl Poster for SystemPoster {
 
 // ------------------------------------------------------------------ the scheduler job
 
+/// Live TV reminders (TV-PLY-005): the same 15 second pass asks the TV service for due reminders and sends
+/// each as a DM from the system user. A DM is a notification and a push to the member's devices like any
+/// other (LNG-NTF-003), so there is no separate delivery path.
+pub struct TvReminders {
+    pub tv: Arc<sr_api::routes::tv::TvDeps>,
+    pub poster: Arc<dyn Poster>,
+    pub base_url: String,
+}
+
+#[async_trait]
+impl sr_tv::ReminderSink for TvReminders {
+    async fn notify(&self, notice: &sr_tv::ReminderNotice) -> Result<(), String> {
+        let (user, card) = tv_reminder_card(notice, &self.base_url);
+        self.poster.dm(user, card).await.map(|_| ())
+    }
+}
+
+/// The recipient and the DM for a Live TV reminder notice.
+pub fn tv_reminder_card(notice: &sr_tv::ReminderNotice, base: &str) -> (i64, Card) {
+    match notice {
+        sr_tv::ReminderNotice::Starting {
+            account_id,
+            channel_number,
+            channel_name,
+            title,
+            start_ms,
+            ..
+        } => (
+            *account_id,
+            Card {
+                title: Some(format!("Starting soon: {title}")),
+                description: Some(format!(
+                    "On channel {channel_number}, {channel_name}, <t:{}:R>.",
+                    start_ms / 1000
+                )),
+                url: absolute(base, Some("/cinema/tv")),
+                color: 0x3498DB,
+                ..Card::default()
+            },
+        ),
+        sr_tv::ReminderNotice::Dropped {
+            account_id,
+            title,
+            start_ms,
+            ..
+        } => (
+            *account_id,
+            Card {
+                title: Some("Reminder dropped".into()),
+                description: Some(format!(
+                    "The schedule changed, so {title} is no longer on at <t:{}:t>. Your reminder was removed.",
+                    start_ms / 1000
+                )),
+                url: absolute(base, Some("/cinema/tv")),
+                color: 0xE67E22,
+                ..Card::default()
+            },
+        ),
+    }
+}
+
 /// Register `userfeat.tick`. Pair with [`schedule`].
-pub fn register(runner: JobRunner, pool: &PgPool, ticker: Arc<Ticker>) -> JobRunner {
+pub fn register(
+    runner: JobRunner,
+    pool: &PgPool,
+    ticker: Arc<Ticker>,
+    tv: Option<Arc<TvReminders>>,
+) -> JobRunner {
     let pool = pool.clone();
     runner.register(TICK_KIND, 1, move |job| {
-        Box::pin(tick(pool.clone(), ticker.clone(), job))
+        Box::pin(tick(pool.clone(), ticker.clone(), tv.clone(), job))
     })
 }
 
-async fn tick(pool: PgPool, ticker: Arc<Ticker>, job: Job) -> Result<(), HandlerError> {
+async fn tick(
+    pool: PgPool,
+    ticker: Arc<Ticker>,
+    tv: Option<Arc<TvReminders>>,
+    job: Job,
+) -> Result<(), HandlerError> {
+    if let Some(tv) = &tv {
+        match tv.tv.service.fire_reminders(tv.as_ref()).await {
+            Ok(n) if n > 0 => tracing::info!(sent = n, "tv reminders sent"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!(error = %e, "tv reminders failed"),
+        }
+    }
     let report = ticker.run_once(false).await;
     let busy = report.scheduled_sent
         + report.scheduled_failed

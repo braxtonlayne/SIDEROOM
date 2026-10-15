@@ -177,6 +177,10 @@ pub fn router() -> Router<AppState> {
         .route("/tv/channels", get(member::channels))
         .route("/tv/timezones", get(member::timezones))
         .route("/tv/guide", get(member::guide))
+        .route(
+            "/tv/reminders/{block_id}",
+            axum::routing::put(member::set_reminder).delete(member::clear_reminder),
+        )
         .route("/tv/channels/{channel_id}", get(member::channel))
         .route("/tv/channels/{channel_id}/now", get(member::now))
         .route("/tv/channels/{channel_id}/tune", get(member::tune))
@@ -234,6 +238,8 @@ pub fn router() -> Router<AppState> {
         member::channels,
         member::timezones,
         member::guide,
+        member::set_reminder,
+        member::clear_reminder,
         member::channel,
         member::now,
         member::tune,

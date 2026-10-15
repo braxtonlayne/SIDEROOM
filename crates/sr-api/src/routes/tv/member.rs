@@ -60,6 +60,53 @@ pub async fn timezones(_ctx: MemberCtx) -> Json<TimezoneList> {
 
 #[derive(Debug, Default, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
+pub struct ReminderParams {
+    /// Minutes before the start (0 to 120, default 5).
+    pub lead_minutes: Option<i64>,
+}
+
+/// Remind the caller before an upcoming programme (a DM from SIDE ROOM and a push notification). Setting it
+/// again moves it. A programme that already started answers 400.
+#[utoipa::path(
+    put, path = "/tv/reminders/{block_id}", operation_id = "tv_reminder_set",
+    params(("block_id" = String, Path, description = "Block snowflake"), ReminderParams),
+    responses(
+        (status = 204, description = "Reminder set"), (status = 400, body = ErrorBody),
+        (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)
+    ),
+    security(("session" = []))
+)]
+pub async fn set_reminder(
+    ctx: MemberCtx,
+    Path(block_id): Path<String>,
+    Query(p): Query<ReminderParams>,
+) -> ApiResult<StatusCode> {
+    ctx.deps
+        .service
+        .set_reminder(ctx.viewer, id(&block_id, "block")?, p.lead_minutes)
+        .await
+        .map_err(map_err)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Cancel a reminder (cancelling one that is not set is fine).
+#[utoipa::path(
+    delete, path = "/tv/reminders/{block_id}", operation_id = "tv_reminder_clear",
+    params(("block_id" = String, Path, description = "Block snowflake")),
+    responses((status = 204, description = "Reminder cancelled"), (status = 401, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn clear_reminder(ctx: MemberCtx, Path(block_id): Path<String>) -> ApiResult<StatusCode> {
+    ctx.deps
+        .service
+        .clear_reminder(ctx.viewer, id(&block_id, "block")?)
+        .await
+        .map_err(map_err)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Default, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct GuideParams {
     /// Start of the window, Unix milliseconds. Default: now rounded down to the half hour.
     pub from: Option<i64>,

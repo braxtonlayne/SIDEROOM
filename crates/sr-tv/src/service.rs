@@ -1109,3 +1109,150 @@ impl TvService {
         })
     }
 }
+
+// ---- reminders (TV-PLY-005, G-10) ----------------------------------------------------------------
+
+/// How far ahead of the start a reminder fires unless the member asks otherwise.
+pub const REMINDER_LEAD_MIN: i64 = 5;
+/// The longest lead a member can pick.
+pub const REMINDER_MAX_LEAD_MIN: i64 = 120;
+/// Reminders handed to the sink per pass.
+const REMINDER_BATCH: i64 = 100;
+/// A failed notice is tried again after this long while the programme has not started.
+const REMINDER_RETRY_MS: i64 = 30_000;
+
+/// What a member is told.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReminderNotice {
+    /// The programme starts soon (or is on now).
+    Starting {
+        account_id: i64,
+        channel_id: i64,
+        channel_number: i32,
+        channel_name: String,
+        title: String,
+        start_ms: i64,
+    },
+    /// The schedule changed and the programme is no longer there: the reminder was dropped.
+    Dropped {
+        account_id: i64,
+        channel_id: i64,
+        title: String,
+        start_ms: i64,
+    },
+}
+
+/// Delivers a notice (a DM from the system user, which also reaches the member's devices as a push).
+#[async_trait::async_trait]
+pub trait ReminderSink: Send + Sync {
+    async fn notify(&self, notice: &ReminderNotice) -> Result<(), String>;
+}
+
+fn block_label(b: &BlockRecord) -> String {
+    match &b.episode_title {
+        Some(e) if !e.is_empty() => format!("{} - {e}", b.title),
+        _ => b.title.clone(),
+    }
+}
+
+impl TvService {
+    /// Remind the member before an upcoming programme (`lead_min` minutes, default 5). Setting it again
+    /// moves it. A block that already started, or that is not a programme, cannot be reminded.
+    pub async fn set_reminder(
+        &self,
+        viewer: Viewer,
+        block_id: i64,
+        lead_min: Option<i64>,
+    ) -> TvResult<()> {
+        let lead = lead_min.unwrap_or(REMINDER_LEAD_MIN);
+        if !(0..=REMINDER_MAX_LEAD_MIN).contains(&lead) {
+            return Err(TvError::Invalid(format!(
+                "lead_minutes must be between 0 and {REMINDER_MAX_LEAD_MIN}"
+            )));
+        }
+        let block = self
+            .repo
+            .get_block(block_id)
+            .await?
+            .ok_or(TvError::NotFound("block"))?;
+        self.public_channel(block.channel_id).await?;
+        let now = self.clock_ms();
+        if block.kind != BlockKind::Program {
+            return Err(TvError::Invalid("Only programmes can have a reminder".into()));
+        }
+        if block.start_ms <= now {
+            return Err(TvError::Invalid(
+                "That programme has already started".into(),
+            ));
+        }
+        self.repo
+            .put_reminder(&ReminderRecord {
+                account_id: viewer.user_id,
+                block_id,
+                channel_id: block.channel_id,
+                title: block_label(&block),
+                start_ms: block.start_ms,
+                remind_at_ms: (block.start_ms - lead * 60_000).max(now),
+            })
+            .await
+    }
+
+    /// Cancel a reminder. Cancelling one that does not exist is fine.
+    pub async fn clear_reminder(&self, viewer: Viewer, block_id: i64) -> TvResult<()> {
+        self.repo.delete_reminder(viewer.user_id, block_id).await?;
+        Ok(())
+    }
+
+    /// Deliver the reminders that are due. Returns how many notices went out. A reminder whose block was
+    /// regenerated away (gone, or moved) is answered with a "dropped" notice; one whose programme is over
+    /// is discarded quietly.
+    pub async fn fire_reminders(&self, sink: &dyn ReminderSink) -> TvResult<usize> {
+        let now = self.clock_ms();
+        let mut sent = 0;
+        for r in self.repo.take_due_reminders(now, REMINDER_BATCH).await? {
+            let block = self.repo.get_block(r.block_id).await?;
+            let notice = match block {
+                Some(b) if b.start_ms == r.start_ms && b.kind == BlockKind::Program => {
+                    if now >= b.end_ms {
+                        continue;
+                    }
+                    let Some(ch) = self.repo.get_channel(b.channel_id).await? else {
+                        continue;
+                    };
+                    if !ch.input.enabled {
+                        continue;
+                    }
+                    ReminderNotice::Starting {
+                        account_id: r.account_id,
+                        channel_id: ch.id,
+                        channel_number: ch.input.number,
+                        channel_name: ch.input.name.clone(),
+                        title: block_label(&b),
+                        start_ms: b.start_ms,
+                    }
+                }
+                _ => ReminderNotice::Dropped {
+                    account_id: r.account_id,
+                    channel_id: r.channel_id,
+                    title: r.title.clone(),
+                    start_ms: r.start_ms,
+                },
+            };
+            match sink.notify(&notice).await {
+                Ok(()) => sent += 1,
+                Err(e) => {
+                    tracing::warn!(account = r.account_id, block = r.block_id, error = %e, "tv reminder not delivered");
+                    if now < r.start_ms {
+                        self.repo
+                            .put_reminder(&ReminderRecord {
+                                remind_at_ms: now + REMINDER_RETRY_MS,
+                                ..r
+                            })
+                            .await?;
+                    }
+                }
+            }
+        }
+        Ok(sent)
+    }
+}

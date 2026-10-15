@@ -7,7 +7,7 @@ use sqlx::{PgPool, Row, postgres::PgRow};
 use crate::error::{TvError, TvResult};
 use crate::model::{
     BlockKind, BlockRecord, BlockSource, ChannelInput, ChannelKind, ChannelRecord, ChannelRules,
-    Cursor, FillerPolicy, MediaKind,
+    Cursor, FillerPolicy, MediaKind, ReminderRecord,
 };
 use crate::repo::TvRepository;
 use crate::schedule::Change;
@@ -373,5 +373,60 @@ impl TvRepository for PgTvRepo {
         let s: Option<i64> = row.try_get("seq_base").map_err(db)?;
         let d: Option<i64> = row.try_get("disc_base").map_err(db)?;
         Ok((s.unwrap_or(seq_base), d.unwrap_or(disc_base)))
+    }
+
+    async fn put_reminder(&self, r: &ReminderRecord) -> TvResult<()> {
+        sqlx::query(
+            "INSERT INTO tv_reminders (account_id, block_id, channel_id, title, start_ms, remind_at)              VALUES (        Ok((s.unwrap_or(seq_base), d.unwrap_or(disc_base)))
+    }
+, $2, $3, $4, $5, $6)              ON CONFLICT (account_id, block_id) DO UPDATE SET channel_id = EXCLUDED.channel_id,              title = EXCLUDED.title, start_ms = EXCLUDED.start_ms, remind_at = EXCLUDED.remind_at",
+        )
+        .bind(r.account_id)
+        .bind(r.block_id)
+        .bind(r.channel_id)
+        .bind(&r.title)
+        .bind(r.start_ms)
+        .bind(r.remind_at_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn delete_reminder(&self, account_id: i64, block_id: i64) -> TvResult<bool> {
+        let done = sqlx::query("DELETE FROM tv_reminders WHERE account_id =         Ok((s.unwrap_or(seq_base), d.unwrap_or(disc_base)))
+    }
+ AND block_id = $2")
+            .bind(account_id)
+            .bind(block_id)
+            .execute(&self.pool)
+            .await
+            .map_err(db)?;
+        Ok(done.rows_affected() > 0)
+    }
+
+    async fn take_due_reminders(&self, now_ms: i64, limit: i64) -> TvResult<Vec<ReminderRecord>> {
+        let rows = sqlx::query(
+            "DELETE FROM tv_reminders WHERE (account_id, block_id) IN (                  SELECT account_id, block_id FROM tv_reminders WHERE remind_at <=         Ok((s.unwrap_or(seq_base), d.unwrap_or(disc_base)))
+    }
+                  ORDER BY remind_at LIMIT $2 FOR UPDATE SKIP LOCKED)              RETURNING account_id, block_id, channel_id, title, start_ms, remind_at",
+        )
+        .bind(now_ms)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(ReminderRecord {
+                    account_id: r.try_get("account_id").map_err(db)?,
+                    block_id: r.try_get("block_id").map_err(db)?,
+                    channel_id: r.try_get("channel_id").map_err(db)?,
+                    title: r.try_get("title").map_err(db)?,
+                    start_ms: r.try_get("start_ms").map_err(db)?,
+                    remind_at_ms: r.try_get("remind_at").map_err(db)?,
+                })
+            })
+            .collect()
     }
 }

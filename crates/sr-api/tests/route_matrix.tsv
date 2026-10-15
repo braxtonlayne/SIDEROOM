@@ -79,6 +79,7 @@ DELETE	/requests/{request_id}/vote	authenticated	other	allow	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
+DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-
 DELETE	/users/@me/birthday	authenticated	self	allow	-
 DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	allow	-
 DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
@@ -692,6 +693,7 @@ PUT	/requests/{request_id}/vote	authenticated	other	allow	-
 PUT	/sr/auth/username	authenticated	self	deny	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
 PUT	/submissions/{submission_id}/library/series	authenticated	other	allow	-
+PUT	/tv/reminders/{block_id}	authenticated	self	deny	-
 PUT	/users/@me/birthday	authenticated	self	allow	-
 PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-
 PUT	/users/@me/connections/link	authenticated	self	deny	-
