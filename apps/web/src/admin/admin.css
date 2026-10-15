@@ -227,6 +227,19 @@
 .adm-dt-count {
   margin-block: 8px 0;
 }
+/* One row of a list of groups in a schema form (module settings: panels, stickies, schedules) */
+.adm-form-row {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--ui-border);
+}
+.adm-form-row > .adm-form {
+  align-self: stretch;
+}
 
 /* Invite graph (ADM-GRAPH-004/005) */
 .adm-graph {

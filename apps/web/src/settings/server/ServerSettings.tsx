@@ -24,6 +24,7 @@ import { ChannelsSection } from './sections/Channels';
 import { CommunitySection } from './sections/Community';
 import { DeleteServerSection } from './sections/DeleteServer';
 import { ExpressionsSection } from './sections/Expressions';
+import { FeaturesSection } from './sections/Features';
 import { IntegrationsSection } from './sections/Integrations';
 import { InvitesSection } from './sections/Invites';
 import { MembersSection } from './sections/Members';
@@ -115,6 +116,13 @@ export const SECTIONS: SectionDef[] = [
     group: 'PEOPLE',
     visible: (v) => v.can('BAN_MEMBERS'),
     component: BansSection,
+  },
+  {
+    id: 'features',
+    label: 'settings.server.features',
+    group: 'APPS',
+    visible: (v) => v.can('MANAGE_GUILD'),
+    component: FeaturesSection,
   },
   {
     id: 'integrations',

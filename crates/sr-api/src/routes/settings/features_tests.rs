@@ -13,7 +13,6 @@ use sr_features::{FeatureCtx, FeatureRegistry, FeatureService, InMemorySettingsS
 /// its own tests).
 struct MemoryRoles {
     backend: MemoryBackend,
-    calls: Arc<std::sync::Mutex<Vec<(u64, u64, u64, bool)>>>,
 }
 
 #[async_trait]
@@ -29,10 +28,6 @@ impl RoleAssigner for MemoryRoles {
         if actor.get() != OWNER {
             return Err(ChatError::MissingPermissions);
         }
-        self.calls
-            .lock()
-            .unwrap()
-            .push((actor.get(), user.get(), role.get(), add));
         let mut d = self.backend.data();
         let m = d
             .members
@@ -72,7 +67,6 @@ pub(super) fn wire(
         },
         roles: Arc::new(MemoryRoles {
             backend: backend.clone(),
-            calls: Arc::default(),
         }),
     }
 }

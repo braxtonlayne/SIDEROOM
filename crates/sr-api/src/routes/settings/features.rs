@@ -269,7 +269,7 @@ pub async fn patch_feature(
         }
         gf.ctx
             .settings
-            .set_settings(&feature.id().to_owned(), &scope, values.clone())
+            .set_settings(feature.id(), &scope, values.clone())
             .await
             .map_err(feature_err)?;
     }
