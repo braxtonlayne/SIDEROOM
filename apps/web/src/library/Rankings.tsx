@@ -1,11 +1,11 @@
-// Rankings (LIB-BRW-002): the most read series of the week, the month, or all time. Global scope only for
-// now; the Friends and People you know scopes wait for a reading-privacy setting.
+// Rankings (LIB-BRW-002): the most read series of the week, the month, or all time, for everyone, for friends
+// or for people you know (G-96; the scoped ones count only members who share their reading, D-190).
 import { EmptyState, Icon, Notice, SegmentedControl, Skeleton } from '@sideroom/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { formatNumber, useT } from '../i18n';
-import { getRankings, socialKeys, type RankingPeriod } from './social';
+import { getRankings, socialKeys, type RankingPeriod, type RankingScope } from './social';
 import { scoreText } from './SeriesSocial';
 import type { SeriesKind } from './types';
 import { AgeBadge, KIND_LABEL, label, STATUS_LABEL } from './ui';
@@ -16,15 +16,27 @@ export function RankingsPage() {
   const t = useT();
   const [period, setPeriod] = useState<RankingPeriod>('week');
   const [kind, setKind] = useState('');
+  const [scope, setScope] = useState<RankingScope>('global');
   const q = useQuery({
-    queryKey: socialKeys.rankings(period, kind || undefined),
-    queryFn: () => getRankings({ period, kind: kind || undefined, limit: 50 }),
+    queryKey: socialKeys.rankings(period, kind || undefined, scope),
+    queryFn: () => getRankings({ period, scope, kind: kind || undefined, limit: 50 }),
   });
   return (
     <div className="lib-rankings">
       <div className="lib-page-head">
         <h1 className="lib-h1">{t('library.rankings.title')}</h1>
         <div className="lib-browse-tools">
+          <SegmentedControl
+            label={t('library.rankings.scope')}
+            size="sm"
+            value={scope}
+            onValueChange={(v) => setScope(v as RankingScope)}
+            options={[
+              { value: 'friends', label: t('library.home.trending.friends') },
+              { value: 'known', label: t('library.home.trending.known') },
+              { value: 'global', label: t('library.home.trending.global') },
+            ]}
+          />
           <SegmentedControl
             label={t('library.rankings.period')}
             size="sm"
@@ -49,7 +61,9 @@ export function RankingsPage() {
           </label>
         </div>
       </div>
-      <p className="lib-muted">{t('library.rankings.note')}</p>
+      <p className="lib-muted">
+        {scope === 'global' ? t('library.rankings.note') : t('library.rankings.scopedNote')}
+      </p>
       {q.isPending ? (
         <Skeleton height={240} />
       ) : q.isError ? (

@@ -158,7 +158,7 @@ Work implied by the "Phase 12 backend handoff questions (answered 2026-10-15)" s
 
 #### Library
 
-- [ ] **G-96 (P12-LGB-3) Scoped library rankings.** `GET /library/rankings?scope=friends|known` in `sr-library-social`, counting members with `activity_shares(uid, 'library')`, excluding age-restricted titles for members with `activity_hides_restricted`, with the Cinema scopes' minimum-count floor; the global aggregate unchanged. Web: scope picker on the Library rankings page, as Cinema has. Postgres test per scope. Size: S. Lands on `feat/p12-lounge-gw-be` or after it.
+- [x] **G-96 (P12-LGB-3) Scoped library rankings.** `GET /library/rankings?scope=friends|known` in `sr-library-social`, counting members with `activity_shares(uid, 'library')`, excluding age-restricted titles for members with `activity_hides_restricted`, with the Cinema scopes' minimum-count floor; the global aggregate unchanged. Web: scope picker on the Library rankings page, as Cinema has. Postgres test per scope. Size: S. Lands on `feat/p12-lounge-gw-be` or after it. *(done phase 13: `RankingScope` in `sr-library-social::discover`, `scope` on `GET /library/rankings`, picker on Rankings and the Home trending row; Postgres test `scoped_rankings_respect_the_activity_settings`. Scoped `all` counts distinct readers over all time.)*
 
 ### Web (TypeScript)
 

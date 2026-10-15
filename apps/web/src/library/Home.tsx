@@ -14,7 +14,7 @@ import { useMemo, useState } from 'react';
 import { useT } from '../i18n';
 import { browseSeries, getChapters, getUpdates, keys } from './api';
 import { progressApi, progressLine } from './progress';
-import { getFeaturedLists, socialKeys } from './social';
+import { getFeaturedLists, getRankings, socialKeys, type RankingScope } from './social';
 import type { Series } from './types';
 import {
   AgeBadge,
@@ -207,10 +207,13 @@ function PickUp() {
 
 function Trending() {
   const t = useT();
-  const [scope, setScope] = useState('global');
+  const [scope, setScope] = useState<RankingScope>('global');
   const q = useQuery({
-    queryKey: keys.browse({ sort: 'followers', limit: 5 }),
-    queryFn: () => browseSeries({ sort: 'followers', limit: 5 }),
+    queryKey: scope === 'global' ? keys.browse({ sort: 'followers', limit: 5 }) : socialKeys.rankings('week', undefined, scope),
+    queryFn: async () =>
+      scope === 'global'
+        ? browseSeries({ sort: 'followers', limit: 5 })
+        : { items: (await getRankings({ period: 'week', scope, limit: 5 })).items.map((r) => r.series) },
   });
   return (
     <section className="lib-section" aria-labelledby="lib-trending">
@@ -225,11 +228,10 @@ function Trending() {
           label={t('library.home.trending.scope')}
           size="sm"
           value={scope}
-          onValueChange={setScope}
+          onValueChange={(v) => setScope(v as RankingScope)}
           options={[
-            // Scoped trending needs the social graph and the trending job (LIB-SOC-002, LIB-SOC-004).
-            { value: 'friends', label: t('library.home.trending.friends'), disabled: true },
-            { value: 'known', label: t('library.home.trending.known'), disabled: true },
+            { value: 'friends', label: t('library.home.trending.friends') },
+            { value: 'known', label: t('library.home.trending.known') },
             { value: 'global', label: t('library.home.trending.global') },
           ]}
         />

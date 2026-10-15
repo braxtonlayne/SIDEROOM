@@ -34,7 +34,7 @@ describe('Library home', () => {
       screen.getByRole('heading', { name: 'Finished stories, new beginnings' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Library footer' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Friends' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Friends' })).toBeEnabled();
     // restricted titles are shown with an 18+ badge (D-184)
     expect((await screen.findAllByText('Dark Tale')).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Age-restricted, 18 or older/).length).toBeGreaterThan(0);
