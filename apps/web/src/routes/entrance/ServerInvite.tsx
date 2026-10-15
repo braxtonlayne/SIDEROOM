@@ -75,7 +75,9 @@ export function ServerInvite() {
 
   const counts = (inv: ServerInvitePreview) =>
     !inv.guild && inv.approximate_member_count ? (
-      <p>{t('entrance.invite.groupMembers', { count: formatNumber(inv.approximate_member_count) })}</p>
+      <p>
+        {t('entrance.invite.groupMembers', { count: formatNumber(inv.approximate_member_count) })}
+      </p>
     ) : inv.approximate_member_count || inv.approximate_presence_count ? (
       <p>
         {formatNumber(inv.approximate_presence_count ?? 0)} online ·{' '}
@@ -100,11 +102,7 @@ export function ServerInvite() {
         {state.kind === 'ready' && (
           <>
             <div className="ent-invite-icon" aria-hidden="true">
-              {iconUrl ? (
-                <img src={iconUrl} alt="" width={72} height={72} />
-              ) : (
-                initial(shownName)
-              )}
+              {iconUrl ? <img src={iconUrl} alt="" width={72} height={72} /> : initial(shownName)}
             </div>
             <p>{isGroup ? t('entrance.invite.groupInvited') : 'You’ve been invited to join'}</p>
             <h1>{shownName}</h1>

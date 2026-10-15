@@ -314,7 +314,7 @@ pub async fn search(
         .map_err(re)?;
     let mut cards = Vec::new();
     for e in &entries {
-        if hidden.iter().any(|h| *h == e.category) {
+        if hidden.contains(&e.category) {
             continue;
         }
         if let Some(c) = card(&deps, e, user).await? {

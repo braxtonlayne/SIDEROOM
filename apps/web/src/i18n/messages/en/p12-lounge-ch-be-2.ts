@@ -30,7 +30,8 @@ export default {
   'lounge.createEvent.kindStage': 'Stage channel',
   'lounge.createEvent.kindStageBlurb': 'Host a talk with speakers and an audience.',
   'lounge.createEvent.kindExternal': 'Somewhere else',
-  'lounge.createEvent.kindExternalBlurb': 'A place outside this server, with a location and an end time.',
+  'lounge.createEvent.kindExternalBlurb':
+    'A place outside this server, with a location and an end time.',
   'lounge.createEvent.location': 'Location',
   'lounge.createEvent.channel': 'Channel',
   'lounge.createEvent.noChannels': 'No channels of this type',

@@ -350,7 +350,11 @@ impl FeatureActions for FakeActions {
     }
 
     async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Vec<UserId>> {
-        Ok(self.occupants_of(channel.get()).into_iter().map(UserId::new).collect())
+        Ok(self
+            .occupants_of(channel.get())
+            .into_iter()
+            .map(UserId::new)
+            .collect())
     }
 
     async fn move_member(&self, guild: GuildId, user: UserId, to: ChannelId) -> ActionResult<()> {

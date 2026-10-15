@@ -54,7 +54,9 @@ describe('System messages and the widget (Overview)', () => {
     seed({ perms: [MANAGE.guild] });
     const cap = capture();
     server.use(
-      http.get('*/api/v1/guilds/g1', () => HttpResponse.json(guildObj({ system_channel_flags: 4 }))),
+      http.get('*/api/v1/guilds/g1', () =>
+        HttpResponse.json(guildObj({ system_channel_flags: 4 })),
+      ),
       http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community())),
       http.get('*/api/v1/guilds/g1/widget', () =>
         HttpResponse.json({ enabled: false, channel_id: null }),
@@ -109,9 +111,7 @@ describe('System messages and the widget (Overview)', () => {
 
 describe('Protection (Moderation)', () => {
   const baseline = () =>
-    server.use(
-      http.get('*/api/v1/guilds/g1/auto-moderation/rules', () => HttpResponse.json([])),
-    );
+    server.use(http.get('*/api/v1/guilds/g1/auto-moderation/rules', () => HttpResponse.json([])));
 
   it('the owner switches on the 2FA requirement for moderators', async () => {
     seed({ perms: [MANAGE.guild], ownerId: '1' });
@@ -157,7 +157,7 @@ describe('Protection (Moderation)', () => {
       http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community())),
       http.patch('*/api/v1/guilds/g1/sr/community', async ({ request }) => {
         await cap.record(request);
-        return HttpResponse.json(community(await request.clone().json()));
+        return HttpResponse.json(community((await request.clone().json()) as object));
       }),
     );
     await openSettings('moderation');

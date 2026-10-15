@@ -89,7 +89,8 @@ export function CreateEventDialog({
       return setError(t('lounge.createEvent.endRequired'));
     if (endAt && endAt.getTime() <= startAt.getTime())
       return setError(t('lounge.createEvent.endBeforeStart'));
-    if (kind === 'external' && !location.trim()) return setError(t('lounge.createEvent.locationRequired'));
+    if (kind === 'external' && !location.trim())
+      return setError(t('lounge.createEvent.locationRequired'));
     if (kind !== 'external' && !chosen) return setError(t('lounge.createEvent.channelRequired'));
     setBusy(true);
     setError(null);
@@ -164,7 +165,9 @@ export function CreateEventDialog({
               value={chosen}
               onChange={(e) => setChannel(e.target.value)}
             >
-              {pickable.length === 0 && <option value="">{t('lounge.createEvent.noChannels')}</option>}
+              {pickable.length === 0 && (
+                <option value="">{t('lounge.createEvent.noChannels')}</option>
+              )}
               {pickable.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -190,7 +193,9 @@ export function CreateEventDialog({
           <TextInput
             type="datetime-local"
             label={
-              kind === 'external' ? t('lounge.createEvent.end') : t('lounge.createEvent.endOptional')
+              kind === 'external'
+                ? t('lounge.createEvent.end')
+                : t('lounge.createEvent.endOptional')
             }
             value={end}
             onChange={(e) => setEnd(e.target.value)}

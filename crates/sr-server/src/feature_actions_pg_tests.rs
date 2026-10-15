@@ -560,6 +560,7 @@ async fn join_to_create_makes_and_removes_rooms_through_the_real_services() {
     use sr_features::modules::join_to_create::JOIN_TO_CREATE_ID;
     let f = fx().await;
     let voice = Arc::new(FakeVoice::default());
+    let dyn_clock: Arc<dyn Clock> = Arc::new(SystemClock);
     let actions = Arc::new(
         PgFeatureActions::new(
             f.pool.clone(),
@@ -567,8 +568,8 @@ async fn join_to_create_makes_and_removes_rooms_through_the_real_services() {
             Arc::new(ThreadsDeps::new(
                 sr_chat::threads::ThreadService::new(
                     PgChatRepo::new(f.pool.clone()),
-                    Arc::new(SystemClock),
-                    SnowflakeGenerator::new(SystemClock, 27, 27).unwrap(),
+                    dyn_clock.clone(),
+                    SnowflakeGenerator::new(dyn_clock.clone(), 27, 27).unwrap(),
                 ),
                 f.bus.clone(),
             )),
@@ -632,22 +633,21 @@ async fn join_to_create_makes_and_removes_rooms_through_the_real_services() {
     rt.dispatch(&joined(hub)).await;
     let room = ChannelId::new(voice.at(5).expect("moved"));
     assert_ne!(room, hub);
-    let row = sqlx::query(
-        "SELECT name, type, user_limit, parent_id FROM channels WHERE id = $1",
-    )
-    .bind(room.get() as i64)
-    .fetch_one(&f.pool)
-    .await
-    .unwrap();
+    let row = sqlx::query("SELECT name, type, user_limit, parent_id FROM channels WHERE id = $1")
+        .bind(room.get() as i64)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
     use sqlx::Row;
     assert_eq!(row.get::<String, _>("name"), "ann's room");
     assert_eq!(row.get::<i16, _>("type"), 2);
     assert_eq!(row.get::<Option<i32>, _>("user_limit"), Some(3));
-    let hub_parent: Option<i64> = sqlx::query_scalar("SELECT parent_id FROM channels WHERE id = $1")
-        .bind(hub.get() as i64)
-        .fetch_one(&f.pool)
-        .await
-        .unwrap();
+    let hub_parent: Option<i64> =
+        sqlx::query_scalar("SELECT parent_id FROM channels WHERE id = $1")
+            .bind(hub.get() as i64)
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
     assert_eq!(row.get::<Option<i64>, _>("parent_id"), hub_parent);
     let ow: Vec<(i64, i64)> = sqlx::query_as(
         "SELECT target_id, allow FROM permission_overwrites WHERE channel_id = $1 AND target_type = 'member'",
@@ -658,8 +658,7 @@ async fn join_to_create_makes_and_removes_rooms_through_the_real_services() {
     .unwrap();
     assert_eq!(ow.len(), 1);
     assert_eq!(ow[0].0, 5, "the owner's overwrite");
-    let manage =
-        i64::try_from(sr_core::permissions::Permissions::MANAGE_CHANNELS.bits()).unwrap();
+    let manage = i64::try_from(sr_core::permissions::Permissions::MANAGE_CHANNELS.bits()).unwrap();
     assert_ne!(ow[0].1 & manage, 0, "can manage the room");
 
     // Bob joins the room, Ann leaves: it stays. Bob leaves: the room is deleted.
@@ -674,13 +673,11 @@ async fn join_to_create_makes_and_removes_rooms_through_the_real_services() {
     let exists = |id: ChannelId| {
         let pool = f.pool.clone();
         async move {
-            sqlx::query_scalar::<_, bool>(
-                "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)",
-            )
-            .bind(id.get() as i64)
-            .fetch_one(&pool)
-            .await
-            .unwrap_or(false)
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)")
+                .bind(id.get() as i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap_or(false)
         }
     };
     assert!(exists(room).await);

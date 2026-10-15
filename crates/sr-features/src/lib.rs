@@ -18,10 +18,10 @@ pub mod store;
 pub mod template;
 pub mod testing;
 
+pub use directory::{DirectoryHiddenCategoriesFeature, HIDDEN_CATEGORIES_ID, hidden_from};
 pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
-pub use directory::{DirectoryHiddenCategoriesFeature, HIDDEN_CATEGORIES_ID, hidden_from};
 pub use moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
 pub use runtime::FeatureRuntime;
 pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};

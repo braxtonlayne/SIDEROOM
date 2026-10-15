@@ -484,10 +484,12 @@ export interface ReauthStatus {
 export const getReauthStatus = () =>
   apiFetch<ReauthStatus>('/admin/reauth', { retries: 0 }).catch((e: unknown) => {
     if (!(e instanceof ApiError) || e.status !== 403) throw e;
-    return apiFetch<Omit<ReauthStatus, 'required'>>('/sr/auth/reauth', { retries: 0 }).then((s) => ({
-      ...s,
-      required: true,
-    }));
+    return apiFetch<Omit<ReauthStatus, 'required'>>('/sr/auth/reauth', { retries: 0 }).then(
+      (s) => ({
+        ...s,
+        required: true,
+      }),
+    );
   });
 export const submitReauth = (method: 'totp' | 'recovery' | 'passkey', code: string) =>
   apiFetch<ReauthStatus>('/admin/reauth', {

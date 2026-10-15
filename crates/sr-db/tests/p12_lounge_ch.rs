@@ -360,7 +360,12 @@ async fn scheduled_events_round_trip_interest_and_due_queries() {
         location: (kind == EntityType::External).then(|| "park".to_owned()),
         created_at_ms: t0,
     };
-    let a = mk(test_ids.generate().get(), t0 + 3_000, None, EntityType::Voice);
+    let a = mk(
+        test_ids.generate().get(),
+        t0 + 3_000,
+        None,
+        EntityType::Voice,
+    );
     let b = mk(
         test_ids.generate().get(),
         t0 + 1_000,
@@ -372,10 +377,7 @@ async fn scheduled_events_round_trip_interest_and_due_queries() {
 
     // Soonest first, round-trips every field, counts only open ones.
     let open = repo.list_open_events(g).await.unwrap();
-    assert_eq!(
-        open.iter().map(|e| e.id).collect::<Vec<_>>(),
-        [b.id, a.id]
-    );
+    assert_eq!(open.iter().map(|e| e.id).collect::<Vec<_>>(), [b.id, a.id]);
     assert_eq!(open[0], b);
     assert_eq!(open[1], a);
     assert_eq!(repo.count_open_events(g).await.unwrap(), 2);

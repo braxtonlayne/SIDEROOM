@@ -123,7 +123,9 @@ export function EventsDialog({ guildId, onClose }: { guildId: string; onClose: (
                     disabled={busy === e.id}
                     onClick={() => void run(e.id, () => setInterested(guildId, e.id, !e.user_rsvp))}
                   >
-                    {e.user_rsvp ? t('lounge.events.interestedOn') : t('lounge.events.interestedOff')}
+                    {e.user_rsvp
+                      ? t('lounge.events.interestedOn')
+                      : t('lounge.events.interestedOff')}
                   </Button>
                   {manage && e.status === EVENT_STATUS.scheduled && (
                     <Button

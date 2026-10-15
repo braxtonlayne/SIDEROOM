@@ -5793,6 +5793,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/mfa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the 2FA requirement for moderation (owner only; Discord parity). Switching it on
+         *     needs the owner to have a second factor of their own. Emits `GUILD_UPDATE` and writes a
+         *     `GUILD_UPDATE` audit entry with the `mfa_level` change.
+         */
+        post: operations["set_mfa_level"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/modules": {
         parameters: {
             query?: never;
@@ -6024,6 +6045,87 @@ export interface paths {
         head?: never;
         /** Change a feed's channel, filters, interval or on/off state (`MANAGE_GUILD`). */
         patch: operations["patch_feed"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scheduled-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open (scheduled or running) events of a server, soonest first (any member). */
+        get: operations["list_events"];
+        put?: never;
+        /**
+         * Create an event (`CREATE_EVENTS` or `MANAGE_EVENTS`). Voice and stage events need
+         *     `VIEW_CHANNEL` and `CONNECT` in their channel. Emits `GUILD_SCHEDULED_EVENT_CREATE`.
+         */
+        post: operations["create_event"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scheduled-events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One event of the server in any state (any member). */
+        get: operations["get_event"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an event for good (`MANAGE_EVENTS`, or the creator with `CREATE_EVENTS`). Emits
+         *     `GUILD_SCHEDULED_EVENT_DELETE`.
+         */
+        delete: operations["delete_event"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit, start (`status` 2), end (3) or cancel (4) an event (`MANAGE_EVENTS`, or the creator
+         *     with `CREATE_EVENTS`). Emits `GUILD_SCHEDULED_EVENT_UPDATE`.
+         */
+        patch: operations["modify_event"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scheduled-events/{event_id}/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Members interested in an event, ascending by user id (any member). */
+        get: operations["list_interested"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scheduled-events/{event_id}/users/@me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark yourself interested in an open event. Emits `GUILD_SCHEDULED_EVENT_USER_ADD`. */
+        put: operations["mark_interested"];
+        post?: never;
+        /** Clear your interest. Emits `GUILD_SCHEDULED_EVENT_USER_REMOVE`. */
+        delete: operations["clear_interested"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/guilds/{guild_id}/soundboard-sounds": {
@@ -6605,6 +6707,27 @@ export interface paths {
         head?: never;
         /** Edit the welcome screen (`MANAGE_GUILD`): up to 5 channel cards. */
         patch: operations["modify_welcome_screen"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/widget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The widget settings (any member; they are part of the server object anyway). */
+        get: operations["get_widget"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Enable or disable the widget and pick its invite channel (`MANAGE_GUILD`). Emits
+         *     `GUILD_UPDATE`; the audit entry carries `widget_enabled` / `widget_channel_id` changes.
+         */
+        patch: operations["set_widget"];
         trace?: never;
     };
     "/interactions": {
@@ -7689,6 +7812,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/auth/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Is this session's second-factor window open? (browser sessions only) */
+        get: operations["reauth_status"];
+        put?: never;
+        /** Prove a second factor to open the 15-minute window for this session. */
+        post: operations["reauth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/auth/username": {
         parameters: {
             query?: never;
@@ -7719,6 +7860,26 @@ export interface paths {
         };
         /** The CSRF token for the current session. */
         get: operations["csrf_token"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/profile-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The approved profile effects and avatar decorations. `PATCH /users/@me` only accepts
+         *     slugs listed here.
+         */
+        get: operations["get_catalog"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7807,6 +7968,40 @@ export interface paths {
         head?: never;
         /** Change a stage's topic (moderators). Announced as `STAGE_INSTANCE_UPDATE`. */
         patch: operations["modify_stage_instance"];
+        trace?: never;
+    };
+    "/sticker-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The published sticker packs (any signed-in user). Empty while no pack is installed. */
+        get: operations["list_packs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stickers/{sticker_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A short-lived signed CDN URL for a pack sticker (any signed-in user). */
+        get: operations["sticker_url"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/streams/{stream_key}/preview": {
@@ -10194,6 +10389,14 @@ export interface components {
             message: string;
             ok: boolean;
         };
+        /** @description One approved effect or decoration. */
+        CatalogEntryObject: {
+            /** @description Image file stem under `/cdn/avatar-decorations/` (decorations only). */
+            asset?: string | null;
+            /** @description Web i18n key of the display name. */
+            label_key: string;
+            slug: string;
+        };
         /** @description Result of verifying the whole chain. */
         ChainReport: {
             /**
@@ -10870,8 +11073,14 @@ export interface components {
             age_restricted: boolean;
             community_enabled: boolean;
             description?: string | null;
+            /** @description DM and spam protection: flag spam in direct messages between members. */
+            dm_spam_filter: boolean;
+            /** @description Blur explicit media in direct messages between members. */
+            explicit_media_filter_dms: boolean;
             guide_enabled: boolean;
             guild_id: string;
+            /** @description Hide the preview of suspicious links. */
+            hide_suspicious_links: boolean;
             /** @description Security Actions: invites are paused for everyone (LNG-SSET-038). */
             invites_paused: boolean;
             onboarding_enabled: boolean;
@@ -10891,6 +11100,11 @@ export interface components {
              */
             screening_enabled: boolean;
             screening_rules: string[];
+            /**
+             * Format: int32
+             * @description Warn moderators about accounts younger than this many days (0 = off, at most 365).
+             */
+            warn_new_account_days: number;
             welcome_screen_enabled: boolean;
         };
         CompleteUploadRequest: {
@@ -10999,6 +11213,28 @@ export interface components {
             name: string;
             /** @description Role ids that may use the emoji; empty or absent = everyone. */
             roles?: string[];
+        };
+        /** @description Body of `POST /guilds/{id}/scheduled-events`. */
+        CreateEventBody: {
+            /** @description The voice or stage channel; omit for an external event. */
+            channel_id?: string | null;
+            description?: string | null;
+            entity_metadata?: null | components["schemas"]["EventMetadata"];
+            /**
+             * Format: int32
+             * @description 1 stage, 2 voice, 3 external.
+             */
+            entity_type: number;
+            name: string;
+            /**
+             * Format: int32
+             * @description Only 2 (server members) exists.
+             */
+            privacy_level?: number | null;
+            /** @description ISO 8601; required for external events. */
+            scheduled_end_time?: string | null;
+            /** @description ISO 8601; must be in the future. */
+            scheduled_start_time: string;
         };
         CreateGuildBody: {
             /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
@@ -11592,6 +11828,17 @@ export interface components {
             /** @description Human-readable message. */
             message: string;
         };
+        /** @description `entity_metadata` of an event. */
+        EventMetadata: {
+            /** @description Where an external event happens (at most 100 characters). */
+            location?: string | null;
+        };
+        /** @description One interested member. */
+        EventUserObject: {
+            guild_scheduled_event_id: string;
+            member?: null | components["schemas"]["MemberObject"];
+            user: components["schemas"]["UserRef"];
+        };
         ExecuteWebhookBody: {
             avatar_url?: string | null;
             components?: Record<string, never>[] | null;
@@ -11943,17 +12190,31 @@ export interface components {
              *     in the rail and show the staff badge.
              */
             is_staff_guild?: boolean;
+            /**
+             * Format: int32
+             * @description 0 none, 1 elevated: moderator actions need a recent second factor
+             *     (`POST /guilds/{id}/mfa`).
+             */
+            mfa_level: number;
             name: string;
             owner_id: string;
             preferred_locale: string;
             roles?: components["schemas"]["RoleObject"][] | null;
             /** @description Invite splash hash, same URL shape as the icon. */
             splash?: string | null;
+            /**
+             * Format: int32
+             * @description Discord `system_channel_flags` bits (1 suppress join messages, 2 boost messages,
+             *     4 setup tips, 8 sticker reply buttons, 16 role subscription messages, 32 their replies).
+             */
+            system_channel_flags: number;
             system_channel_id?: string | null;
             /** @description Vanity invite code (LNG-INV-004). */
             vanity_url_code?: string | null;
             /** Format: int32 */
             verification_level: number;
+            widget_channel_id?: string | null;
+            widget_enabled: boolean;
         };
         /** @description Entry of `GET /users/@me/guilds`. */
         GuildPreviewObject: {
@@ -12118,6 +12379,8 @@ export interface components {
             username?: string | null;
         };
         InviteChannel: {
+            /** @description Group DM icon hash (`/cdn/channel-icons/{id}/{hash}`); group invites only. */
+            icon?: string | null;
             id: string;
             name?: string | null;
             /** Format: int32 */
@@ -12173,7 +12436,7 @@ export interface components {
             code: string;
             created_at: string;
             expires_at?: string | null;
-            guild: components["schemas"]["InviteGuild"];
+            guild?: null | components["schemas"]["InviteGuild"];
             inviter: components["schemas"]["UserRef"];
             /**
              * Format: int32
@@ -12185,7 +12448,7 @@ export interface components {
             temporary: boolean;
             /**
              * Format: int32
-             * @description Always 0 (guild invite).
+             * @description 0 = guild invite, 1 = group DM invite (no `guild`).
              */
             type: number;
             /** Format: int32 */
@@ -12672,6 +12935,19 @@ export interface components {
             /** @description `accepted`, `ignored` or `spam`. */
             state: string;
         };
+        /** @description Body of `POST /guilds/{id}/mfa`. */
+        MfaLevelBody: {
+            /**
+             * Format: int32
+             * @description 0 = none, 1 = elevated (moderator actions need a second factor).
+             */
+            level: number;
+        };
+        /** @description Result of `POST /guilds/{id}/mfa`. */
+        MfaLevelObject: {
+            /** Format: int32 */
+            level: number;
+        };
         /** @description A second-factor proof (D-167). */
         MfaProof: {
             /** @description The authenticator code or an unused recovery code. */
@@ -12682,6 +12958,18 @@ export interface components {
              *     `navigator.credentials.get`).
              */
             method: string;
+        };
+        /** @description Where the session stands on the second-factor window. */
+        MfaStatus: {
+            /** @description The account has a second factor (TOTP or passkey). */
+            enrolled: boolean;
+            /** @description A second factor was checked on this session in the last 15 minutes. */
+            fresh: boolean;
+            /**
+             * Format: int64
+             * @description Length of the window in seconds.
+             */
+            window_secs: number;
         };
         ModifyChannelBody: components["schemas"]["ForumSettingsBody"] & {
             applied_tags?: string[] | null;
@@ -12720,7 +13008,10 @@ export interface components {
             age_restricted?: boolean | null;
             community_enabled?: boolean | null;
             description?: string | null;
+            dm_spam_filter?: boolean | null;
+            explicit_media_filter_dms?: boolean | null;
             guide_enabled?: boolean | null;
+            hide_suspicious_links?: boolean | null;
             invites_paused?: boolean | null;
             onboarding_enabled?: boolean | null;
             preferred_locale?: string | null;
@@ -12732,11 +13023,31 @@ export interface components {
             screening_description?: string | null;
             screening_enabled?: boolean | null;
             screening_rules?: string[] | null;
+            /** Format: int32 */
+            warn_new_account_days?: number | null;
             welcome_screen_enabled?: boolean | null;
         };
         ModifyEmojiBody: {
             name?: string | null;
             roles?: string[] | null;
+        };
+        /** @description Body of `PATCH /guilds/{id}/scheduled-events/{event_id}`. */
+        ModifyEventBody: {
+            channel_id?: string | null;
+            description?: string | null;
+            entity_metadata?: null | components["schemas"]["EventMetadata"];
+            /** Format: int32 */
+            entity_type?: number | null;
+            name?: string | null;
+            /** Format: int32 */
+            privacy_level?: number | null;
+            scheduled_end_time?: string | null;
+            scheduled_start_time?: string | null;
+            /**
+             * Format: int32
+             * @description 2 starts a scheduled event, 3 ends a running one, 4 cancels a scheduled one.
+             */
+            status?: number | null;
         };
         ModifyGuildBody: {
             /** @description A voice channel of the server; `null` clears it. */
@@ -12764,6 +13075,11 @@ export interface components {
             preferred_locale?: string | null;
             /** @description Invite splash image data URI; `null` removes it. */
             splash?: string | null;
+            /**
+             * Format: int32
+             * @description Discord `system_channel_flags` bits (see the server object).
+             */
+            system_channel_flags?: number | null;
             system_channel_id?: string | null;
             /** Format: int32 */
             verification_level?: number | null;
@@ -12860,6 +13176,11 @@ export interface components {
             description?: string | null;
             enabled?: boolean | null;
             welcome_channels?: components["schemas"]["WelcomeChannelDto"][] | null;
+        };
+        /** @description Body of `PATCH /guilds/{id}/widget`. */
+        ModifyWidgetBody: {
+            channel_id?: string | null;
+            enabled?: boolean | null;
         };
         /** @description The modules of this crate and whether each is on in the server, so menus show only what works. Members only. */
         ModuleFlags: {
@@ -13020,6 +13341,25 @@ export interface components {
             global_name?: string | null;
             id: string;
             username?: string | null;
+        };
+        /** @description A sticker inside a pack. */
+        PackStickerObject: {
+            available: boolean;
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description 1 PNG, 2 APNG, 3 Lottie, 4 GIF.
+             */
+            format_type: number;
+            id: string;
+            name: string;
+            pack_id: string;
+            tags: string;
+            /**
+             * Format: int32
+             * @description 1 = standard sticker.
+             */
+            type: number;
         };
         /** @description Pixels of the full-size page to cut off on each side. */
         PageCrop: {
@@ -13469,6 +13809,13 @@ export interface components {
             error?: string | null;
             name: string;
             ok: boolean;
+        };
+        /** @description What a profile may use (G-48). */
+        ProfileCatalogObject: {
+            /** @description Avatar decorations; empty until artwork is approved. */
+            decorations: components["schemas"]["CatalogEntryObject"][];
+            /** @description Animated profile effects (built-in CSS). */
+            effects: components["schemas"]["CatalogEntryObject"][];
         };
         ProfileObject: {
             /**
@@ -14138,6 +14485,43 @@ export interface components {
             /** @description ISO 8601 time to send, between a minute and a year from now. */
             send_at: string;
         };
+        /** @description Discord's guild scheduled event object. */
+        ScheduledEventObject: {
+            channel_id?: string | null;
+            creator: components["schemas"]["UserRef"];
+            creator_id: string;
+            description?: string | null;
+            entity_id?: string | null;
+            entity_metadata?: null | components["schemas"]["EventMetadata"];
+            /**
+             * Format: int32
+             * @description 1 stage, 2 voice, 3 external.
+             */
+            entity_type: number;
+            guild_id: string;
+            id: string;
+            image?: string | null;
+            name: string;
+            /**
+             * Format: int32
+             * @description Always 2 (server members only).
+             */
+            privacy_level: number;
+            scheduled_end_time?: string | null;
+            scheduled_start_time: string;
+            /**
+             * Format: int32
+             * @description 1 scheduled, 2 active, 3 completed, 4 canceled.
+             */
+            status: number;
+            /**
+             * Format: int32
+             * @description Members who marked themselves interested; with `with_user_count=true`.
+             */
+            user_count?: number | null;
+            /** @description The caller is interested (SIDE ROOM extension; absent on gateway dispatches). */
+            user_rsvp?: boolean | null;
+        };
         ScheduledMessage: {
             channel_id: string;
             content: string;
@@ -14512,6 +14896,18 @@ export interface components {
              */
             type: number;
             user: components["schemas"]["UserRef"];
+        };
+        /** @description A sticker pack. */
+        StickerPackObject: {
+            cover_sticker_id?: string | null;
+            description?: string | null;
+            id: string;
+            name: string;
+            stickers: components["schemas"]["PackStickerObject"][];
+        };
+        /** @description Body of `GET /sticker-packs`. */
+        StickerPacksObject: {
+            sticker_packs: components["schemas"]["StickerPackObject"][];
         };
         StreamPreviewBody: {
             /** @description `data:image/jpeg;base64,...`, at most 256 KiB once decoded. */
@@ -15883,6 +16279,12 @@ export interface components {
             description?: string | null;
             enabled: boolean;
             welcome_channels: components["schemas"]["WelcomeChannelDto"][];
+        };
+        /** @description The server widget settings. */
+        WidgetSettings: {
+            /** @description The channel the widget invites to. */
+            channel_id?: string | null;
+            enabled: boolean;
         };
         WorkerCapabilities: {
             /** Format: int32 */
@@ -35288,6 +35690,56 @@ export interface operations {
             };
         };
     };
+    set_mfa_level: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaLevelBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaLevelObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     modules: {
         parameters: {
             query?: never;
@@ -36213,6 +36665,374 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RssFeed"];
                 };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_events: {
+        parameters: {
+            query?: {
+                /** @description Include the number of interested members */
+                with_user_count?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledEventObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_event: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEventBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledEventObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_event: {
+        parameters: {
+            query?: {
+                /** @description Include the number of interested members */
+                with_user_count?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Event snowflake */
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledEventObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_event: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Event snowflake */
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_event: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Event snowflake */
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyEventBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledEventObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_interested: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 100 */
+                limit?: number;
+                /** @description Include the member object */
+                with_member?: boolean;
+                /** @description Only users below this id */
+                before?: string;
+                /** @description Only users above this id */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Event snowflake */
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventUserObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    mark_interested: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Event snowflake */
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Marked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_interested: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Event snowflake */
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -38523,6 +39343,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WelcomeScreenObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_widget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WidgetSettings"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_widget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyWidgetBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WidgetSettings"];
                 };
             };
             400: {
@@ -41754,6 +42662,80 @@ export interface operations {
             };
         };
     };
+    reauth_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaStatus"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reauth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReauthBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     change_username: {
         parameters: {
             query?: never;
@@ -41815,6 +42797,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CsrfToken"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_catalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileCatalogObject"];
                 };
             };
             401: {
@@ -42053,6 +43062,76 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_packs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StickerPacksObject"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sticker_url: {
+        parameters: {
+            query?: {
+                /** @description Power of two, 16 to 4096 */
+                size?: number;
+                /** @description png, jpg, webp or gif */
+                format?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Pack sticker snowflake */
+                sticker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedUrlObject"];
+                };
+            };
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

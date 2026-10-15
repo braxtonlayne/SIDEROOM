@@ -503,7 +503,7 @@ impl DmRepository for MemoryRepo {
             .filter(|i| i.channel_id == channel)
             .cloned()
             .collect();
-        v.sort_by(|a, b| b.created_at_ms.cmp(&a.created_at_ms));
+        v.sort_by_key(|i| std::cmp::Reverse(i.created_at_ms));
         Ok(v)
     }
 }

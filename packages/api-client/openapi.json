@@ -30240,6 +30240,86 @@
         ]
       }
     },
+    "/guilds/{guild_id}/mfa": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Set the 2FA requirement for moderation (owner only; Discord parity). Switching it on\nneeds the owner to have a second factor of their own. Emits `GUILD_UPDATE` and writes a\n`GUILD_UPDATE` audit entry with the `mfa_level` change.",
+        "operationId": "set_mfa_level",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaLevelBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaLevelObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/modules": {
       "get": {
         "tags": [
@@ -31760,6 +31840,632 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scheduled-events": {
+      "get": {
+        "tags": [
+          "scheduled_events"
+        ],
+        "summary": "Open (scheduled or running) events of a server, soonest first (any member).",
+        "operationId": "list_events",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "with_user_count",
+            "in": "query",
+            "description": "Include the number of interested members",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScheduledEventObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "scheduled_events"
+        ],
+        "summary": "Create an event (`CREATE_EVENTS` or `MANAGE_EVENTS`). Voice and stage events need\n`VIEW_CHANNEL` and `CONNECT` in their channel. Emits `GUILD_SCHEDULED_EVENT_CREATE`.",
+        "operationId": "create_event",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEventBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledEventObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scheduled-events/{event_id}": {
+      "get": {
+        "tags": [
+          "scheduled_events"
+        ],
+        "summary": "One event of the server in any state (any member).",
+        "operationId": "get_event",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "description": "Event snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "with_user_count",
+            "in": "query",
+            "description": "Include the number of interested members",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledEventObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "scheduled_events"
+        ],
+        "summary": "Delete an event for good (`MANAGE_EVENTS`, or the creator with `CREATE_EVENTS`). Emits\n`GUILD_SCHEDULED_EVENT_DELETE`.",
+        "operationId": "delete_event",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "description": "Event snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "scheduled_events"
+        ],
+        "summary": "Edit, start (`status` 2), end (3) or cancel (4) an event (`MANAGE_EVENTS`, or the creator\nwith `CREATE_EVENTS`). Emits `GUILD_SCHEDULED_EVENT_UPDATE`.",
+        "operationId": "modify_event",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "description": "Event snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyEventBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledEventObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scheduled-events/{event_id}/users": {
+      "get": {
+        "tags": [
+          "scheduled_events"
+        ],
+        "summary": "Members interested in an event, ascending by user id (any member).",
+        "operationId": "list_interested",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "description": "Event snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "with_member",
+            "in": "query",
+            "description": "Include the member object",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Only users below this id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Only users above this id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventUserObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scheduled-events/{event_id}/users/@me": {
+      "put": {
+        "tags": [
+          "scheduled_events"
+        ],
+        "summary": "Mark yourself interested in an open event. Emits `GUILD_SCHEDULED_EVENT_USER_ADD`.",
+        "operationId": "mark_interested",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "description": "Event snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Marked"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "scheduled_events"
+        ],
+        "summary": "Clear your interest. Emits `GUILD_SCHEDULED_EVENT_USER_REMOVE`.",
+        "operationId": "clear_interested",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "description": "Event snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cleared"
           },
           "400": {
             "description": "",
@@ -35584,6 +36290,144 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WelcomeScreenObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/widget": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The widget settings (any member; they are part of the server object anyway).",
+        "operationId": "get_widget",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Enable or disable the widget and pick its invite channel (`MANAGE_GUILD`). Emits\n`GUILD_UPDATE`; the audit entry carries `widget_enabled` / `widget_channel_id` changes.",
+        "operationId": "set_widget",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyWidgetBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetSettings"
                 }
               }
             }
@@ -40506,6 +41350,106 @@
         ]
       }
     },
+    "/sr/auth/reauth": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Is this session's second-factor window open? (browser sessions only)",
+        "operationId": "reauth_status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Prove a second factor to open the 15-minute window for this session.",
+        "operationId": "reauth",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReauthBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/auth/username": {
       "put": {
         "tags": [],
@@ -40591,6 +41535,45 @@
           }
         },
         "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/profile-catalog": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "The approved profile effects and avatar decorations. `PATCH /users/@me` only accepts\nslugs listed here.",
+        "operationId": "get_catalog",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileCatalogObject"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
           {
             "session": []
           }
@@ -40921,6 +41904,125 @@
             }
           },
           "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sticker-packs": {
+      "get": {
+        "tags": [
+          "sticker_packs"
+        ],
+        "summary": "The published sticker packs (any signed-in user). Empty while no pack is installed.",
+        "operationId": "list_packs",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StickerPacksObject"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/stickers/{sticker_id}/url": {
+      "get": {
+        "tags": [
+          "sticker_packs"
+        ],
+        "summary": "A short-lived signed CDN URL for a pack sticker (any signed-in user).",
+        "operationId": "sticker_url",
+        "parameters": [
+          {
+            "name": "sticker_id",
+            "in": "path",
+            "description": "Pack sticker snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Power of two, 16 to 4096",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "png, jpg, webp or gif",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedUrlObject"
+                }
+              }
+            }
+          },
+          "400": {
             "description": "",
             "content": {
               "application/json": {
@@ -50811,6 +51913,30 @@
           }
         }
       },
+      "CatalogEntryObject": {
+        "type": "object",
+        "description": "One approved effect or decoration.",
+        "required": [
+          "slug",
+          "label_key"
+        ],
+        "properties": {
+          "asset": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Image file stem under `/cdn/avatar-decorations/` (decorations only)."
+          },
+          "label_key": {
+            "type": "string",
+            "description": "Web i18n key of the display name."
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
       "ChainReport": {
         "type": "object",
         "description": "Result of verifying the whole chain.",
@@ -53051,6 +54177,10 @@
           "guide_enabled",
           "invites_paused",
           "raid_alert_joins_per_minute",
+          "dm_spam_filter",
+          "explicit_media_filter_dms",
+          "hide_suspicious_links",
+          "warn_new_account_days",
           "age_restricted",
           "screening_enabled",
           "screening_rules"
@@ -53068,11 +54198,23 @@
               "null"
             ]
           },
+          "dm_spam_filter": {
+            "type": "boolean",
+            "description": "DM and spam protection: flag spam in direct messages between members."
+          },
+          "explicit_media_filter_dms": {
+            "type": "boolean",
+            "description": "Blur explicit media in direct messages between members."
+          },
           "guide_enabled": {
             "type": "boolean"
           },
           "guild_id": {
             "type": "string"
+          },
+          "hide_suspicious_links": {
+            "type": "boolean",
+            "description": "Hide the preview of suspicious links."
           },
           "invites_paused": {
             "type": "boolean",
@@ -53123,6 +54265,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "warn_new_account_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Warn moderators about accounts younger than this many days (0 = off, at most 365).",
+            "minimum": 0
           },
           "welcome_screen_enabled": {
             "type": "boolean"
@@ -53509,6 +54657,69 @@
               "type": "string"
             },
             "description": "Role ids that may use the emoji; empty or absent = everyone."
+          }
+        }
+      },
+      "CreateEventBody": {
+        "type": "object",
+        "description": "Body of `POST /guilds/{id}/scheduled-events`.",
+        "required": [
+          "name",
+          "entity_type",
+          "scheduled_start_time"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The voice or stage channel; omit for an external event."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entity_metadata": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventMetadata"
+              }
+            ]
+          },
+          "entity_type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 stage, 2 voice, 3 external.",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "privacy_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Only 2 (server members) exists.",
+            "minimum": 0
+          },
+          "scheduled_end_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601; required for external events."
+          },
+          "scheduled_start_time": {
+            "type": "string",
+            "description": "ISO 8601; must be in the future."
           }
         }
       },
@@ -55394,6 +56605,45 @@
           }
         }
       },
+      "EventMetadata": {
+        "type": "object",
+        "description": "`entity_metadata` of an event.",
+        "properties": {
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where an external event happens (at most 100 characters)."
+          }
+        }
+      },
+      "EventUserObject": {
+        "type": "object",
+        "description": "One interested member.",
+        "required": [
+          "guild_scheduled_event_id",
+          "user"
+        ],
+        "properties": {
+          "guild_scheduled_event_id": {
+            "type": "string"
+          },
+          "member": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberObject"
+              }
+            ]
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserRef"
+          }
+        }
+      },
       "ExecuteWebhookBody": {
         "type": "object",
         "properties": {
@@ -56509,6 +57759,9 @@
           "verification_level",
           "default_message_notifications",
           "explicit_content_filter",
+          "mfa_level",
+          "system_channel_flags",
+          "widget_enabled",
           "preferred_locale",
           "features"
         ],
@@ -56578,6 +57831,12 @@
             "type": "boolean",
             "description": "Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it\nin the rail and show the staff badge."
           },
+          "mfa_level": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 none, 1 elevated: moderator actions need a recent second factor\n(`POST /guilds/{id}/mfa`).",
+            "minimum": 0
+          },
           "name": {
             "type": "string"
           },
@@ -56603,6 +57862,12 @@
             ],
             "description": "Invite splash hash, same URL shape as the icon."
           },
+          "system_channel_flags": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Discord `system_channel_flags` bits (1 suppress join messages, 2 boost messages,\n4 setup tips, 8 sticker reply buttons, 16 role subscription messages, 32 their replies).",
+            "minimum": 0
+          },
           "system_channel_id": {
             "type": [
               "string",
@@ -56620,6 +57885,15 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          },
+          "widget_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "widget_enabled": {
+            "type": "boolean"
           }
         }
       },
@@ -57180,6 +58454,13 @@
           "type"
         ],
         "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Group DM icon hash (`/cdn/channel-icons/{id}/{hash}`); group invites only."
+          },
           "id": {
             "type": "string"
           },
@@ -57310,7 +58591,6 @@
         "required": [
           "type",
           "code",
-          "guild",
           "channel",
           "inviter",
           "uses",
@@ -57354,7 +58634,15 @@
             ]
           },
           "guild": {
-            "$ref": "#/components/schemas/InviteGuild"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InviteGuild",
+                "description": "The server; absent on group DM invites."
+              }
+            ]
           },
           "inviter": {
             "$ref": "#/components/schemas/UserRef"
@@ -57376,7 +58664,7 @@
           "type": {
             "type": "integer",
             "format": "int32",
-            "description": "Always 0 (guild invite).",
+            "description": "0 = guild invite, 1 = group DM invite (no `guild`).",
             "minimum": 0
           },
           "uses": {
@@ -59021,6 +60309,35 @@
           }
         }
       },
+      "MfaLevelBody": {
+        "type": "object",
+        "description": "Body of `POST /guilds/{id}/mfa`.",
+        "required": [
+          "level"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 = none, 1 = elevated (moderator actions need a second factor).",
+            "minimum": 0
+          }
+        }
+      },
+      "MfaLevelObject": {
+        "type": "object",
+        "description": "Result of `POST /guilds/{id}/mfa`.",
+        "required": [
+          "level"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "MfaProof": {
         "type": "object",
         "description": "A second-factor proof (D-167).",
@@ -59036,6 +60353,30 @@
           "method": {
             "type": "string",
             "description": "`totp`, `recovery` or `passkey` (then `code` is the JSON text of\n`{ceremony_id, credential}` from `POST /sr/auth/passkeys/verify/begin` and\n`navigator.credentials.get`)."
+          }
+        }
+      },
+      "MfaStatus": {
+        "type": "object",
+        "description": "Where the session stands on the second-factor window.",
+        "required": [
+          "fresh",
+          "enrolled",
+          "window_secs"
+        ],
+        "properties": {
+          "enrolled": {
+            "type": "boolean",
+            "description": "The account has a second factor (TOTP or passkey)."
+          },
+          "fresh": {
+            "type": "boolean",
+            "description": "A second factor was checked on this session in the last 15 minutes."
+          },
+          "window_secs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Length of the window in seconds."
           }
         }
       },
@@ -59183,7 +60524,25 @@
               "null"
             ]
           },
+          "dm_spam_filter": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "explicit_media_filter_dms": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "guide_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "hide_suspicious_links": {
             "type": [
               "boolean",
               "null"
@@ -59254,6 +60613,14 @@
               "type": "string"
             }
           },
+          "warn_new_account_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
           "welcome_screen_enabled": {
             "type": [
               "boolean",
@@ -59279,6 +60646,77 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "ModifyEventBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/scheduled-events/{event_id}`.",
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entity_metadata": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventMetadata"
+              }
+            ]
+          },
+          "entity_type": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privacy_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "scheduled_end_time": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scheduled_start_time": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "2 starts a scheduled event, 3 ends a running one, 4 cancels a scheduled one.",
+            "minimum": 0
           }
         }
       },
@@ -59362,6 +60800,15 @@
               "null"
             ],
             "description": "Invite splash image data URI; `null` removes it."
+          },
+          "system_channel_flags": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Discord `system_channel_flags` bits (see the server object).",
+            "minimum": 0
           },
           "system_channel_id": {
             "type": [
@@ -59676,6 +61123,24 @@
             "items": {
               "$ref": "#/components/schemas/WelcomeChannelDto"
             }
+          }
+        }
+      },
+      "ModifyWidgetBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/widget`.",
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         }
       },
@@ -60205,6 +61670,53 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "PackStickerObject": {
+        "type": "object",
+        "description": "A sticker inside a pack.",
+        "required": [
+          "id",
+          "name",
+          "tags",
+          "type",
+          "format_type",
+          "available",
+          "pack_id"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "format_type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 PNG, 2 APNG, 3 Lottie, 4 GIF."
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pack_id": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "string"
+          },
+          "type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 = standard sticker.",
+            "minimum": 0
           }
         }
       },
@@ -61758,6 +63270,30 @@
           },
           "ok": {
             "type": "boolean"
+          }
+        }
+      },
+      "ProfileCatalogObject": {
+        "type": "object",
+        "description": "What a profile may use (G-48).",
+        "required": [
+          "effects",
+          "decorations"
+        ],
+        "properties": {
+          "decorations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogEntryObject"
+            },
+            "description": "Avatar decorations; empty until artwork is approved."
+          },
+          "effects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogEntryObject"
+            },
+            "description": "Animated profile effects (built-in CSS)."
           }
         }
       },
@@ -63813,6 +65349,115 @@
           }
         }
       },
+      "ScheduledEventObject": {
+        "type": "object",
+        "description": "Discord's guild scheduled event object.",
+        "required": [
+          "id",
+          "guild_id",
+          "creator_id",
+          "creator",
+          "name",
+          "scheduled_start_time",
+          "privacy_level",
+          "status",
+          "entity_type"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creator": {
+            "$ref": "#/components/schemas/UserRef"
+          },
+          "creator_id": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entity_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entity_metadata": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventMetadata"
+              }
+            ]
+          },
+          "entity_type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 stage, 2 voice, 3 external.",
+            "minimum": 0
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "privacy_level": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Always 2 (server members only).",
+            "minimum": 0
+          },
+          "scheduled_end_time": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scheduled_start_time": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 scheduled, 2 active, 3 completed, 4 canceled.",
+            "minimum": 0
+          },
+          "user_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Members who marked themselves interested; with `with_user_count=true`.",
+            "minimum": 0
+          },
+          "user_rsvp": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "The caller is interested (SIDE ROOM extension; absent on gateway dispatches)."
+          }
+        }
+      },
       "ScheduledMessage": {
         "type": "object",
         "required": [
@@ -65066,6 +66711,56 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserRef"
+          }
+        }
+      },
+      "StickerPackObject": {
+        "type": "object",
+        "description": "A sticker pack.",
+        "required": [
+          "id",
+          "name",
+          "stickers"
+        ],
+        "properties": {
+          "cover_sticker_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "stickers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackStickerObject"
+            }
+          }
+        }
+      },
+      "StickerPacksObject": {
+        "type": "object",
+        "description": "Body of `GET /sticker-packs`.",
+        "required": [
+          "sticker_packs"
+        ],
+        "properties": {
+          "sticker_packs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StickerPackObject"
+            }
           }
         }
       },
@@ -69508,6 +71203,25 @@
             "items": {
               "$ref": "#/components/schemas/WelcomeChannelDto"
             }
+          }
+        }
+      },
+      "WidgetSettings": {
+        "type": "object",
+        "description": "The server widget settings.",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The channel the widget invites to."
+          },
+          "enabled": {
+            "type": "boolean"
           }
         }
       },

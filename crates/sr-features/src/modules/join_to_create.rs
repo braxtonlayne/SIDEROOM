@@ -112,7 +112,11 @@ impl JoinToCreate {
                 .delete(JOIN_TO_CREATE_ID, guild, &owner_key(user.get()))
                 .await?;
         }
-        let open = ctx.state.list(JOIN_TO_CREATE_ID, guild, "room:").await?.len();
+        let open = ctx
+            .state
+            .list(JOIN_TO_CREATE_ID, guild, "room:")
+            .await?
+            .len();
         if open >= MAX_ROOMS {
             tracing::warn!(guild = guild.get(), "join-to-create: too many open rooms");
             return Ok(());
@@ -342,7 +346,10 @@ impl Feature for JoinToCreate {
             for guild in ctx.settings.enabled_guilds(JOIN_TO_CREATE_ID).await? {
                 let rooms = ctx.state.list(JOIN_TO_CREATE_ID, guild, "room:").await?;
                 for r in rooms {
-                    let Some(ch) = r.key.strip_prefix("room:").and_then(|c| c.parse::<u64>().ok())
+                    let Some(ch) = r
+                        .key
+                        .strip_prefix("room:")
+                        .and_then(|c| c.parse::<u64>().ok())
                     else {
                         continue;
                     };
@@ -396,7 +403,8 @@ mod tests {
         h.actions.put_user(101, "Bob");
         h.actions.put_channel(voice(HUB, Some(CATEGORY)));
         h.actions.put_channel(voice(LOUNGE, None));
-        h.configure(JOIN_TO_CREATE_ID, json!({"hubs": ["10"]})).await;
+        h.configure(JOIN_TO_CREATE_ID, json!({"hubs": ["10"]}))
+            .await;
         h
     }
 
@@ -440,7 +448,10 @@ mod tests {
         assert_eq!(room_name("{user}'s room", "Alice", "Club"), "Alice's room");
         assert_eq!(room_name("{server} / {user}", "A\nB", "Club"), "Club / AB");
         assert_eq!(room_name("   ", "Alice", "Club"), "Room");
-        assert_eq!(room_name("{user}", &"x".repeat(300), "c").chars().count(), 100);
+        assert_eq!(
+            room_name("{user}", &"x".repeat(300), "c").chars().count(),
+            100
+        );
     }
 
     #[tokio::test]

@@ -1145,7 +1145,10 @@ async fn voice_joins_moves_and_leaves_are_published_on_the_bus() {
     // Moving yourself is a leave then a join; a moderator's move reads the same.
     a.voice(1, Some(ROOM_B.get()), false, false).await;
     a.event("VOICE_SERVER_UPDATE").await;
-    assert_eq!(voice_events(&mut stream).await, [('-', 20, 1), ('+', 21, 1)]);
+    assert_eq!(
+        voice_events(&mut stream).await,
+        [('-', 20, 1), ('+', 21, 1)]
+    );
     m.drain().await;
     e.gw.moderate_voice(
         u(MOD),
@@ -1158,11 +1161,17 @@ async fn voice_joins_moves_and_leaves_are_published_on_the_bus() {
     )
     .await
     .unwrap();
-    assert_eq!(voice_events(&mut stream).await, [('-', 21, 1), ('+', 20, 1)]);
+    assert_eq!(
+        voice_events(&mut stream).await,
+        [('-', 21, 1), ('+', 20, 1)]
+    );
 
     // Disconnecting, and then a lost session, both end with a leave.
     a.voice(1, None, false, false).await;
     assert_eq!(voice_events(&mut stream).await, [('-', 20, 1)]);
     assert!(e.gw.voice_leave(u(MEMBER)).await.is_none());
-    assert!(voice_events(&mut stream).await.is_empty(), "nothing to leave");
+    assert!(
+        voice_events(&mut stream).await.is_empty(),
+        "nothing to leave"
+    );
 }

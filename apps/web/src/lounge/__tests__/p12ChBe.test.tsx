@@ -260,7 +260,9 @@ describe('Events', () => {
     await within(dialog).findByText('Live now');
     await userEvent.click(within(dialog).getByRole('button', { name: 'End' }));
     await waitFor(() => expect(calls).toEqual(['patch 2', 'patch 3']));
-    await userEvent.click(await within(dialog).findByRole('button', { name: 'Delete Movie night' }));
+    await userEvent.click(
+      await within(dialog).findByRole('button', { name: 'Delete Movie night' }),
+    );
     await within(dialog).findByText('No events yet');
     expect(calls.at(-1)).toBe('delete');
   });
