@@ -12,6 +12,7 @@
 pub mod catalog;
 pub mod engine;
 pub mod error;
+pub mod gate;
 pub mod live;
 pub mod model;
 pub mod pg;

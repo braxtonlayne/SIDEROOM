@@ -5734,6 +5734,7 @@ dependencies = [
  "sr-core",
  "sr-db",
  "sr-media",
+ "sr-watchparty",
  "thiserror 2.0.21",
  "tokio",
  "tracing",

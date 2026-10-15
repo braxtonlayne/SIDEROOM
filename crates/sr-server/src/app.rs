@@ -720,8 +720,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // gateway events on the bus. The timer worker settles buffering waits; the sweep job covers the rest.
     let watchparty_service =
         sr_watchparty::PartyService::new(pool.clone(), clock.clone(), id_src.clone())
-            .with_play_gate(Arc::new(crate::watchparty::CinemaPlayGate::new(
-                cinema_service.clone(),
+            .with_play_gate(Arc::new(crate::watchparty::CatalogAndLiveGate::new(
+                Arc::new(crate::watchparty::CinemaPlayGate::new(
+                    cinema_service.clone(),
+                )),
+                tv_deps.service.clone(),
             )))
             .with_channels(Arc::new(crate::watchparty::ChatChannelAccess::new(
                 PgChatRepo::new(pool.clone()),

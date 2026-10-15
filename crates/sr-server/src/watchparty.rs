@@ -101,6 +101,37 @@ impl PlayGate for CinemaPlayGate {
     }
 }
 
+/// Cinema titles from the catalog gate, Live TV channels (`tv:<channel>`, G-16) from the TV service.
+pub struct CatalogAndLiveGate {
+    vod: Arc<dyn PlayGate>,
+    live: Arc<dyn PlayGate>,
+}
+
+impl CatalogAndLiveGate {
+    pub fn new(vod: Arc<dyn PlayGate>, live: Arc<dyn PlayGate>) -> Self {
+        Self { vod, live }
+    }
+}
+
+#[async_trait]
+impl PlayGate for CatalogAndLiveGate {
+    async fn resolve(
+        &self,
+        adult: bool,
+        title_id: i64,
+        episode_id: Option<i64>,
+        variant_id: Option<i64>,
+    ) -> Result<Resolved, GateError> {
+        self.vod
+            .resolve(adult, title_id, episode_id, variant_id)
+            .await
+    }
+
+    async fn resolve_live(&self, adult: bool, channel_id: i64) -> Result<Resolved, GateError> {
+        self.live.resolve_live(adult, channel_id).await
+    }
+}
+
 /// Concurrent parties per server from the server level (docs/08 section 2.2: 2, 4, 8 and 16 for Level 0 to
 /// 3, or whatever Admin > Pricing and perks sets). The entitlement cache is dropped whenever the payment
 /// service emits `SR_ENTITLEMENT_UPDATE`, so a new level applies at once.

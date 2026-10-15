@@ -46,14 +46,15 @@ use utoipa::OpenApi;
 
 /// Collaborators of the Live TV endpoints.
 pub struct TvDeps {
-    pub service: TvService,
+    /// Shared: the watch party gate for Live TV is this same service (`sr_tv::gate`).
+    pub service: Arc<TvService>,
     age: Arc<dyn AgeGate>,
 }
 
 impl TvDeps {
     pub fn new(service: TvService) -> Self {
         Self {
-            service,
+            service: Arc::new(service),
             age: Arc::new(NoAgeConfirmed),
         }
     }

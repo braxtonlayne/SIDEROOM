@@ -234,6 +234,7 @@ async fn parties_run_on_the_real_catalog_and_chat_data() {
         )));
     let create = |title: i64, channel: Option<i64>| CreateInput {
         title_id: title,
+        tv_channel_id: None,
         episode_id: None,
         variant_id: None,
         channel_id: channel,
@@ -387,6 +388,7 @@ async fn rig(n: usize, limits: Option<Arc<dyn sr_watchparty::GuildLimits>>) -> R
 fn create(title: i64, channel: i64, persistent: bool) -> CreateInput {
     CreateInput {
         title_id: title,
+        tv_channel_id: None,
         episode_id: None,
         variant_id: None,
         channel_id: Some(channel),

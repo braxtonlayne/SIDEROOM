@@ -100,6 +100,28 @@ struct FakeGate;
 
 #[async_trait]
 impl PlayGate for FakeGate {
+    async fn resolve_live(&self, adult: bool, channel_id: i64) -> Result<Resolved, GateError> {
+        let restricted = match channel_id {
+            77 => false,
+            78 => true,
+            _ => return Err(GateError::NotFound),
+        };
+        if restricted && !adult {
+            return Err(GateError::AgeConfirmationRequired);
+        }
+        Ok(Resolved {
+            title_id: channel_id,
+            episode_id: 0,
+            variant_id: None,
+            asset_id: channel_id,
+            title: "7 Toonami".to_owned(),
+            episode_label: Some("Cowboy Bebop".to_owned()),
+            duration_ms: None,
+            age_restricted: restricted,
+            live: true,
+        })
+    }
+
     async fn resolve(
         &self,
         adult: bool,
@@ -256,6 +278,7 @@ impl Env {
 fn create(title: i64) -> CreateInput {
     CreateInput {
         title_id: title,
+        tv_channel_id: None,
         episode_id: None,
         variant_id: None,
         channel_id: None,
@@ -502,6 +525,7 @@ async fn shared_control_is_enforced_by_the_server() {
                 party.id,
                 ChangeMediaInput {
                     title_id: 2,
+                    tv_channel_id: None,
                     episode_id: None,
                     variant_id: None,
                     start_ms: None
@@ -1009,6 +1033,7 @@ async fn restricted_titles_need_age_confirmation_from_everyone() {
             open.id,
             ChangeMediaInput {
                 title_id: 3,
+                tv_channel_id: None,
                 episode_id: None,
                 variant_id: None,
                 start_ms: None,
@@ -1416,4 +1441,87 @@ async fn playback_events_carry_increasing_versions_and_the_server_clock() {
     assert_eq!(evs[0].1["reason"], "play");
     assert_eq!(evs[1].1["reason"], "seek");
     assert_eq!(evs[2].1["reason"], "pause");
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
+    let e = env().await;
+    let (host, minor) = (e.adult().await, e.user().await);
+    let v = e.v(host).await;
+    let live = |channel: i64| CreateInput {
+        tv_channel_id: Some(channel),
+        ..create(0)
+    };
+    // Unknown channel, a title and a channel together, and neither.
+    assert!(matches!(
+        e.svc.create(v, live(99)).await,
+        Err(PartyError::NotFound(_))
+    ));
+    assert!(matches!(
+        e.svc
+            .create(
+                v,
+                CreateInput {
+                    tv_channel_id: Some(77),
+                    ..create(1)
+                }
+            )
+            .await,
+        Err(PartyError::Invalid(_))
+    ));
+    assert!(matches!(
+        e.svc.create(v, create(0)).await,
+        Err(PartyError::Invalid(_))
+    ));
+    // A restricted programme needs the age confirmation.
+    assert_eq!(
+        e.svc
+            .create(e.v(minor).await, live(78))
+            .await
+            .unwrap_err(),
+        PartyError::AgeConfirmationRequired
+    );
+
+    let party = e.svc.create(v, live(77)).await.unwrap();
+    assert!(party.media.live && party.playback.live);
+    assert_eq!(party.media.title_id, 77);
+    assert!(party.playback.playing, "a live party starts on the live edge");
+    assert_eq!(party.playback.duration_ms, None);
+    // Seeking and pausing are refused for everybody.
+    assert!(e.svc.command(v, party.id, seek(10_000)).await.is_err());
+    assert!(e.svc.command(v, party.id, cmd(Action::Pause)).await.is_err());
+    // Switching to a film and back works for the host.
+    let film = e
+        .svc
+        .change_media(
+            v,
+            party.id,
+            ChangeMediaInput {
+                title_id: 1,
+                tv_channel_id: None,
+                episode_id: None,
+                variant_id: None,
+                start_ms: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert!(!film.media.live);
+    let back = e
+        .svc
+        .change_media(
+            v,
+            party.id,
+            ChangeMediaInput {
+                title_id: 0,
+                tv_channel_id: Some(77),
+                episode_id: None,
+                variant_id: None,
+                start_ms: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert!(back.media.live);
 }

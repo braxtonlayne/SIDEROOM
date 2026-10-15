@@ -239,9 +239,14 @@ pub struct YouView {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[schema(as = WatchPartyCreate)]
 pub struct CreateInput {
-    #[serde(with = "id")]
+    /// The Cinema title. Omit it (or send "0") for a Live TV party and give `tv_channel_id` instead.
+    #[serde(with = "id", default)]
     #[schema(value_type = String)]
     pub title_id: i64,
+    /// A Live TV channel to watch together (no seeking; everyone follows the live edge).
+    #[serde(with = "opt_id", default)]
+    #[schema(value_type = Option<String>)]
+    pub tv_channel_id: Option<i64>,
     #[serde(with = "opt_id", default)]
     #[schema(value_type = Option<String>)]
     pub episode_id: Option<i64>,
@@ -307,9 +312,14 @@ pub struct CommandInput {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[schema(as = WatchPartyChangeMedia)]
 pub struct ChangeMediaInput {
-    #[serde(with = "id")]
+    /// The Cinema title, or "0" with `tv_channel_id`.
+    #[serde(with = "id", default)]
     #[schema(value_type = String)]
     pub title_id: i64,
+    /// Switch to a Live TV channel.
+    #[serde(with = "opt_id", default)]
+    #[schema(value_type = Option<String>)]
+    pub tv_channel_id: Option<i64>,
     #[serde(with = "opt_id", default)]
     #[schema(value_type = Option<String>)]
     pub episode_id: Option<i64>,

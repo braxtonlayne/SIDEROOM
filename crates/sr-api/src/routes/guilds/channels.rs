@@ -342,6 +342,7 @@ async fn start_room(room: &RoomRequest, channel: ChannelId) -> Result<(), HttpEr
             viewer,
             CreateInput {
                 title_id: room.title_id,
+                tv_channel_id: None,
                 episode_id: room.episode_id,
                 variant_id: None,
                 channel_id: i64::try_from(channel.get()).ok(),

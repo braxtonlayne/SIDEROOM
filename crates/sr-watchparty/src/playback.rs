@@ -123,7 +123,13 @@ impl PartyService {
     ) -> PartyResult<PartyView> {
         self.limit(v.user_id, "command", 5_000, 12)?;
         let media = self
-            .resolve(v, input.title_id, input.episode_id, input.variant_id)
+            .resolve_media(
+                v,
+                input.title_id,
+                input.tv_channel_id,
+                input.episode_id,
+                input.variant_id,
+            )
             .await?;
         let start = clamp_start(input.start_ms, media.duration_ms, media.live)?;
         let mut tx = self.begin().await?;

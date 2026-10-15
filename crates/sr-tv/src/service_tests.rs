@@ -750,3 +750,64 @@ async fn a_failed_notice_is_tried_again_until_the_programme_starts() {
     assert_eq!(e.svc.fire_reminders(&sink).await.unwrap(), 1);
     assert_eq!(sink.count(), 1);
 }
+
+// ---- the watch party gate for Live TV (G-16) ----------------------------------------------------
+
+#[tokio::test]
+async fn the_watch_party_gate_resolves_live_channels_only() {
+    use sr_watchparty::{GateError, PlayGate};
+    let e = env();
+    let id = channel(&e, 101, marathon()).await;
+    let r = e.svc.resolve_live(false, id).await.unwrap();
+    assert!(r.live && r.duration_ms.is_none());
+    assert_eq!((r.title_id, r.asset_id, r.episode_id), (id, id, 0));
+    assert_eq!(r.title, "101 Channel 101");
+    assert_eq!(r.episode_label.as_deref(), Some("Cowboy Bebop"));
+    assert!(!r.age_restricted);
+    // Not a Cinema gate, an unknown channel, a disabled one and one with nothing on air.
+    assert_eq!(
+        e.svc.resolve(true, 7, None, None).await,
+        Err(GateError::NotFound)
+    );
+    assert_eq!(e.svc.resolve_live(true, 4242).await, Err(GateError::NotFound));
+    let empty = channel(&e, 200, ChannelRules::default()).await;
+    assert_eq!(e.svc.resolve_live(true, empty).await, Err(GateError::NotFound));
+    let mut off = input(101, marathon());
+    off.enabled = false;
+    e.svc.update_channel(e.staff, id, off).await.unwrap();
+    assert_eq!(e.svc.resolve_live(true, id).await, Err(GateError::NotFound));
+}
+
+#[tokio::test]
+async fn a_restricted_programme_needs_age_confirmation_for_a_live_party_too() {
+    use sr_watchparty::{GateError, PlayGate};
+    let e = env();
+    let mut film = item(80, "Adult Film", 120);
+    film.age_restricted = true;
+    film.asset_id = 8000;
+    e.catalog.add(film);
+    let mut c = input(
+        666,
+        ChannelRules {
+            grid_minutes: 0,
+            no_repeat_window: 0,
+            dayparts: vec![daypart(
+                "Late",
+                PickMode::Sequential,
+                PoolFilter {
+                    title_ids: vec![80],
+                    restricted: Some(Restricted::Only),
+                    ..PoolFilter::default()
+                },
+            )],
+        },
+    );
+    c.age_restricted = true;
+    let id = e.svc.create_channel(e.staff, c).await.unwrap().id;
+    assert_eq!(
+        e.svc.resolve_live(false, id).await,
+        Err(GateError::AgeConfirmationRequired)
+    );
+    let r = e.svc.resolve_live(true, id).await.unwrap();
+    assert!(r.age_restricted);
+}
