@@ -416,6 +416,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"modify_own_member","method":"patch","path":"/guilds/:guild_id/members/@me","status":200,"body":{"deaf":false,"flags":0,"joined_at":"2026-01-01T00:00:00.000Z","mute":false,"pending":false,"roles":["string"],"user":{"id":"1"}}},
   {"id":"search_members","method":"get","path":"/guilds/:guild_id/members/search","status":200,"body":[{"deaf":false,"flags":0,"joined_at":"2026-01-01T00:00:00.000Z","mute":false,"pending":false,"roles":["string"],"user":{}}]},
   {"id":"search_guild","method":"get","path":"/guilds/:guild_id/messages/search","status":200,"body":{"doing_deep_historical_index":false,"messages":[[{}]],"total_results":0}},
+  {"id":"modules","method":"get","path":"/guilds/:guild_id/modules","status":200,"body":{"modules":{}}},
   {"id":"get_onboarding","method":"get","path":"/guilds/:guild_id/onboarding","status":200,"body":{"default_channel_ids":["string"],"enabled":false,"guild_id":"1","prompts":[{}]}},
   {"id":"put_onboarding","method":"put","path":"/guilds/:guild_id/onboarding","status":200,"body":{"default_channel_ids":["string"],"enabled":false,"guild_id":"1","prompts":[{}]}},
   {"id":"post_onboarding_responses","method":"post","path":"/guilds/:guild_id/onboarding-responses","status":200,"body":{"channel_ids":["string"],"role_ids":["string"]}},

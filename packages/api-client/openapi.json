@@ -29688,6 +29688,56 @@
         ]
       }
     },
+    "/guilds/{guild_id}/modules": {
+      "get": {
+        "tags": [
+          "community"
+        ],
+        "summary": "Which feature modules are switched on in a server.",
+        "operationId": "modules",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleFlags"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/onboarding": {
       "get": {
         "tags": [
@@ -40625,6 +40675,15 @@
             "schema": {
               "type": "integer",
               "format": "int64"
+            }
+          },
+          {
+            "name": "messages",
+            "in": "query",
+            "description": "false to leave the messages out",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -55287,6 +55346,25 @@
             ],
             "items": {
               "$ref": "#/components/schemas/WelcomeChannelDto"
+            }
+          }
+        }
+      },
+      "ModuleFlags": {
+        "type": "object",
+        "description": "The modules of this crate and whether each is on in the server, so menus show only what works. Members only.",
+        "required": [
+          "modules"
+        ],
+        "properties": {
+          "modules": {
+            "type": "object",
+            "description": "Feature id -> on in this server.",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "propertyNames": {
+              "type": "string"
             }
           }
         }

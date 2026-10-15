@@ -5626,6 +5626,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Which feature modules are switched on in a server. */
+        get: operations["modules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/onboarding": {
         parameters: {
             query?: never;
@@ -11760,6 +11777,13 @@ export interface components {
             description?: string | null;
             enabled?: boolean | null;
             welcome_channels?: components["schemas"]["WelcomeChannelDto"][] | null;
+        };
+        /** @description The modules of this crate and whether each is on in the server, so menus show only what works. Members only. */
+        ModuleFlags: {
+            /** @description Feature id -> on in this server. */
+            modules: {
+                [key: string]: boolean;
+            };
         };
         /** @description Mute window of a change that sets `muted: true`. */
         MuteConfigIn: {
@@ -33574,6 +33598,36 @@ export interface operations {
             };
         };
     };
+    modules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleFlags"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_onboarding: {
         parameters: {
             query?: never;
@@ -40484,6 +40538,8 @@ export interface operations {
                 before?: string;
                 /** @description 1 to 100, default 50 */
                 limit?: number;
+                /** @description false to leave the messages out */
+                messages?: boolean;
             };
             header?: never;
             path?: never;

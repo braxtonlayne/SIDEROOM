@@ -250,6 +250,7 @@ GET	/guilds/{guild_id}/members	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/members/search	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/messages/search	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/modules	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-
