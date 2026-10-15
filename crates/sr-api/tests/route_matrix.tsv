@@ -77,6 +77,7 @@ DELETE	/oauth2/tokens/{grant_id}	authenticated	other	deny	-
 DELETE	/requests/{request_id}/claim	authenticated	other	allow	-
 DELETE	/requests/{request_id}/vote	authenticated	other	allow	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
+DELETE	/sr/invites/{code}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
 DELETE	/users/@me/birthday	authenticated	self	allow	-
@@ -147,6 +148,7 @@ GET	/admin/review/submissions/{submission_id}/preview	authenticated	staff	deny	-
 GET	/admin/settings	authenticated	staff	deny	-
 GET	/admin/staff	authenticated	staff	deny	-
 GET	/admin/staff/delegations	authenticated	staff	deny	-
+GET	/admin/staff/former	authenticated	staff	deny	-
 GET	/admin/staff/offers	authenticated	staff	deny	-
 GET	/admin/staff/roles	authenticated	staff	deny	-
 GET	/admin/stats	authenticated	staff	deny	-
@@ -327,6 +329,8 @@ GET	/soundboard-default-sounds	authenticated	other	allow	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	other	allow	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
 GET	/sr/csrf	authenticated	other	allow	-
+GET	/sr/features/flags	authenticated	other	deny	-
+GET	/sr/invites	authenticated	self	deny	-
 GET	/sr/voice/turn	authenticated	other	allow	-
 GET	/stage-instances/{channel_id}	authenticated	membership	allow	-
 GET	/streams/{stream_key}/preview	authenticated	membership	allow	-
@@ -592,6 +596,7 @@ POST	/sr/auth/passkeys/register/begin	authenticated	self	deny	-
 POST	/sr/auth/passkeys/register/finish	authenticated	self	deny	-
 POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-
 POST	/sr/auth/password	authenticated	self	deny	-
+POST	/sr/invites	authenticated	self	deny	-
 POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-
 POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
@@ -732,6 +737,5 @@ PUT	/watch-parties/{party_id}/media	authenticated	other	allow	-
 #undocumented	/sr/auth/trusted-devices/{id}
 #undocumented	/sr/auth/verify-email
 #undocumented	/sr/auth/verify-email/resend
-#undocumented	/sr/invites/{code}
 #undocumented	/sr/register
 #undocumented	/sr/usernames/check

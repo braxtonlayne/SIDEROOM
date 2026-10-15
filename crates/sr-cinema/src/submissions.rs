@@ -61,6 +61,14 @@ pub struct AssetFacts {
 #[async_trait]
 pub trait AssetLookup: Send + Sync {
     async fn asset(&self, id: i64) -> Result<Option<AssetFacts>, String>;
+
+    /// Give up the unpublished assets of a rejected or abandoned submission: queue their
+    /// transcode output for collection and mark them removed, so the retention sweep deletes
+    /// the original and the review proxy after its grace period. Published assets are never
+    /// touched. Idempotent.
+    async fn discard(&self, _ids: &[i64]) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 /// Nothing is playable (tests, installations without the media pipeline).
@@ -509,6 +517,76 @@ impl SubmissionKind for CinemaKind {
             "existing_episodes": detail.episodes.iter().filter(|e| e.published).count(),
             "episodes": episodes.into_iter().map(episode_facts).collect::<Vec<_>>(),
         }))
+    }
+
+    /// Only items that still exist in the catalog earn a credit: a reference whose row is gone
+    /// (replaced or deleted since) is skipped (G-61).
+    async fn credit_refs(
+        &self,
+        s: &Submission,
+        published: &[SubmissionItem],
+    ) -> ReviewResult<Vec<i64>> {
+        let detail = match self.detail(s).await {
+            Ok(d) => d,
+            Err(ReviewError::NotFound(_)) => return Ok(Vec::new()),
+            Err(e) => return Err(e),
+        };
+        Ok(published
+            .iter()
+            .map(|i| i.ref_id)
+            .filter(|r| *r == detail.title.id || detail.episodes.iter().any(|e| e.id == *r))
+            .collect())
+    }
+
+    /// Delete the unpublished draft of a rejected or abandoned submission and discard the videos
+    /// it uploaded (originals and transcode output); published content stays (G-61).
+    async fn purge(&self, s: &Submission, items: &[SubmissionItem]) -> ReviewResult<()> {
+        let by = sponsor(s.submitter_id.unwrap_or(0));
+        let title_id = match s.ref_id {
+            Some(t) => t,
+            None => return Ok(()),
+        };
+        let detail = match self.svc.admin_title(by, title_id).await {
+            Ok(d) => d,
+            Err(CinemaError::NotFound(_)) => return Ok(()),
+            Err(e) => return Err(e.into()),
+        };
+        let mut assets: Vec<i64> = Vec::new();
+        if self.new_title {
+            if detail.title.published {
+                return Ok(());
+            }
+            assets.extend(detail.title.asset_id);
+            assets.extend(detail.episodes.iter().filter_map(|e| e.asset_id));
+            match self.svc.delete_title(by, title_id).await {
+                Ok(()) | Err(CinemaError::NotFound(_)) => {}
+                Err(e) => return Err(e.into()),
+            }
+        } else {
+            for it in items
+                .iter()
+                .filter(|i| i.state != sr_review::model::ItemState::Published)
+            {
+                let Some(ep) = detail.episodes.iter().find(|e| e.id == it.ref_id) else {
+                    continue;
+                };
+                if ep.published {
+                    continue;
+                }
+                assets.extend(ep.asset_id);
+                match self.svc.delete_episode(by, ep.id).await {
+                    Ok(()) | Err(CinemaError::NotFound(_)) => {}
+                    Err(e) => return Err(e.into()),
+                }
+            }
+        }
+        if !assets.is_empty() {
+            self.assets
+                .discard(&assets)
+                .await
+                .map_err(ReviewError::Storage)?;
+        }
+        Ok(())
     }
 
     async fn publish(&self, s: &Submission, approved: &[SubmissionItem]) -> ReviewResult<()> {

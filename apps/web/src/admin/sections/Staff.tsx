@@ -62,6 +62,9 @@ export function StaffSection() {
   const viewer = useAdminViewer();
   const staff = useResource('admin:staff', api.listStaff);
   const roles = useResource('admin:staff-roles', api.listStaffRoles);
+  const former = useResource('admin:staff-former', () =>
+    api.listFormerStaff().catch(() => [] as api.FormerStaff[]),
+  );
   const [appointing, setAppointing] = useState(false);
   // An offer (the appointee accepts by DM) is the normal path; the direct appoint stays behind it, Owner only.
   const [offering, setOffering] = useState(false);
@@ -159,6 +162,34 @@ export function StaffSection() {
       </Async>
       <OffersCard reloadKey={offersKey} />
       {viewer.isOwner && staff.data && <DelegationsCard members={staff.data} />}
+      <Async res={former} label={t('admin.staff.loading')}>
+        {(list) =>
+          list.length > 0 ? (
+            <>
+              <h3 className="ss-sub" style={{ marginTop: 24 }}>
+                {t('admin.staff.formerTitle')}
+              </h3>
+              <ul className="ss-list" aria-label={t('admin.staff.formerLabel')}>
+                {list.map((f) => (
+                  <li key={`${f.account_id}-${f.revoked_at_ms}`} className="ss-row">
+                    <div className="ss-grow">
+                      <div className="ss-name">@{f.username}</div>
+                      <div className="ss-meta">
+                        {f.revoked_reason === 'left'
+                          ? t('admin.staff.formerReason.left')
+                          : f.revoked_reason === 'kicked'
+                            ? t('admin.staff.formerReason.kicked')
+                            : t('admin.staff.formerReason.revoked')}{' '}
+                        · {t('admin.staff.formerWhen', { when: fmtMs(f.revoked_at_ms) })}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null
+        }
+      </Async>
       {!viewer.isOwner && (
         <p className="ss-sub" style={{ marginTop: 16 }}>
           {t('admin.staff.ownerOnlyNote')} {t('admin.staff.ownershipMovesWith')}{' '}

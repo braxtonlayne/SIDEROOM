@@ -21,6 +21,7 @@ mod discord;
 mod identity;
 mod invites;
 mod login;
+mod member_invites;
 mod mfa;
 mod passkeys;
 mod recovery;
@@ -61,6 +62,11 @@ pub async fn staff_mfa_state(
     identity::staff_mfa_state(svc, now_secs, user_id, session_id).await
 }
 
+/// Does the account have a confirmed TOTP or a passkey?
+pub async fn has_second_factor(svc: &AuthService, user_id: i64) -> Result<bool, AuthRouteError> {
+    identity::has_second_factor(svc, user_id).await
+}
+
 /// Open the 15-minute window with a second-factor proof.
 pub async fn staff_mfa_prove(
     svc: &AuthService,
@@ -89,6 +95,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     use utoipa::OpenApi;
     let mut doc = identity::IdentityApiDoc::openapi();
     doc.merge(passkeys::PasskeysApiDoc::openapi());
+    doc.merge(member_invites::MemberInvitesApiDoc::openapi());
     doc
 }
 
@@ -96,7 +103,14 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 /// registered on `AppState`; without one they answer 500.
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/sr/invites/{code}", get(invites::check_invite))
+        .route(
+            "/sr/invites",
+            get(member_invites::list).post(member_invites::create),
+        )
+        .route(
+            "/sr/invites/{code}",
+            get(invites::check_invite).delete(member_invites::revoke),
+        )
         .route("/sr/usernames/check", get(invites::check_username))
         .route("/sr/register", post(register::register))
         .route("/sr/age-gate", post(account::age_gate))

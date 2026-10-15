@@ -70,6 +70,11 @@ pub trait GuildAdminRepository: Send + Sync {
     async fn update_member(&self, member: &Member) -> RepoResult<()>;
     /// Remove the membership row (and its role assignments).
     async fn remove_member(&self, guild: GuildId, user: UserId) -> RepoResult<()>;
+    /// Remove the membership because a moderator kicked the member. Stores that track why a
+    /// staff appointment ended (G-23) override this; the default is a plain removal.
+    async fn remove_member_kicked(&self, guild: GuildId, user: UserId) -> RepoResult<()> {
+        self.remove_member(guild, user).await
+    }
     /// Members a prune with `criteria` would remove, ordered by user id, at most `limit`.
     /// Role hierarchy is the caller's business; this only applies the criteria.
     async fn prune_candidates(

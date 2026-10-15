@@ -2,8 +2,9 @@
 // `moderation.reports` flag is off by default, so none of this renders. If an operator turns the flag on before the
 // backend exists, choosing Report opens a dialog that says so, rather than sending anything.
 import { Button, Modal, type MenuEntry } from '@sideroom/ui';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { create } from 'zustand';
+import { apiFetch } from '../api/client';
 import { useT } from '../i18n';
 
 /** The feature id registered in sr-features (`ModerationReportsFeature`). */
@@ -25,12 +26,32 @@ interface ReportsState {
 }
 
 export const useReports = create<ReportsState>(() => ({
-  // Build-time seed until the client has a flag feed: `VITE_FEATURE_MODERATION_REPORTS=true`.
-  enabled: import.meta.env.VITE_FEATURE_MODERATION_REPORTS === 'true',
+  // Off until the server says otherwise (`GET /sr/features/flags`, D-216).
+  enabled: false,
   target: null,
 }));
 
-/** Set the resolved flag (called by the flag feed once the server exposes one). */
+/** Reads the client-visible platform flags once (D-216). A failure leaves the flag off. */
+export async function loadClientFlags(): Promise<void> {
+  try {
+    const res = await apiFetch<{ flags: Record<string, boolean> }>('/sr/features/flags', {
+      retries: 0,
+    });
+    setReportsEnabled(res.flags?.[REPORTS_FLAG] === true);
+  } catch {
+    // Signed out, or the server predates the endpoint: reporting stays hidden.
+  }
+}
+
+/** Mounted once at the app root: loads the flags at boot. Renders nothing. */
+export function ReportsFlagSync() {
+  useEffect(() => {
+    void loadClientFlags();
+  }, []);
+  return null;
+}
+
+/** Set the resolved flag (called by the flag feed). */
 export function setReportsEnabled(enabled: boolean): void {
   useReports.setState({ enabled });
 }

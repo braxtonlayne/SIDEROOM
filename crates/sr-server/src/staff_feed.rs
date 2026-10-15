@@ -201,7 +201,7 @@ pub fn offer_card(offer: &StaffOffer) -> Card {
             title: Some("Staff appointment".into()),
             kind: Some("rich".into()),
             description: Some(format!(
-                "@{} would like you to join the staff as {roles}.{reason}\n\nYou join only if you accept. The offer expires after seven days.",
+                "@{} would like you to join the staff as {roles}.{reason}\n\nYou join only if you accept, and accepting needs an authenticator app or a passkey on your account (Settings, Security). The offer expires after seven days.",
                 offer.offered_by_name
             )),
             color: BLUE,
@@ -425,10 +425,14 @@ impl StaffNotifier for StaffVoice {
         let a = a.clone();
         tokio::spawn(async move {
             let voice = StaffVoice::new(pool.clone(), messages, &base);
+            // D-192: a critical announcement reaches everyone; an ordinary one only reaches accounts
+            // that have not turned off `notifications.platform_dm` (default on).
+            let critical = a.severity == sr_admin::AnnouncementSeverity::Critical;
             let ids: Vec<i64> = sqlx::query_scalar(
-                "SELECT id FROM accounts WHERE state = 'active' AND id <> $1 AND NOT is_bot ORDER BY id",
+                "SELECT a.id FROM accounts a WHERE a.state = 'active' AND a.id <> $1 AND NOT a.is_bot                  AND ($2 OR COALESCE((SELECT us.settings #>> '{notifications,platform_dm}'                                       FROM user_settings us WHERE us.user_id = a.id), 'true') <> 'false')                  ORDER BY a.id",
             )
             .bind(SYSTEM_USER_ID)
+            .bind(critical)
             .fetch_all(&pool)
             .await
             .unwrap_or_default();

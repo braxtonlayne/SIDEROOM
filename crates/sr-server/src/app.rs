@@ -757,7 +757,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 clock.clone(),
                 id_src.clone(),
             )
-            .with_events(Arc::new(routes::review::BusReviewEvents::new(bus.clone()))),
+            .with_events(Arc::new(routes::review::BusReviewEvents::new(bus.clone())))
+            .with_allowance(Arc::new(crate::review_jobs::PlatformAllowance::new(
+                pool.clone(),
+            ))),
         )
         .with_library(sr_library::submissions::LibraryDraftOps::new(
             library_service.clone(),
@@ -994,13 +997,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         std::env::var("SR_ADMIN_REQUIRE_REAUTH").as_deref(),
         Ok("0" | "false" | "off")
     );
-    let admin = routes::admin::AdminDeps::new(admin_service)
+    let mut admin = routes::admin::AdminDeps::new(admin_service)
         .with_features(features.clone())
         .with_reauth(require_reauth)
         .with_gateway_sessions({
             let gw = gateway.clone();
             Arc::new(move || gw.session_count())
         });
+    if let Some(v) = &voice_setup {
+        let live = v.sfu.live_stats();
+        admin = admin.with_voice_stats(Arc::new(move || (live.rooms(), live.egress_bytes())));
+    }
 
     let settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,

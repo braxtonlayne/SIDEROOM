@@ -377,3 +377,31 @@ export async function listGuildTags(): Promise<GuildTagChoice[]> {
       : [],
   );
 }
+
+// ---- platform invites (G-57, LNG-USET-025..029) ----
+
+export interface MemberInvite {
+  /** Display form, `XXXXX-XXXXX`. */
+  code: string;
+  /** Path of the share link; prefix with the site origin. */
+  link: string;
+  note: string;
+  created_at_ms: number;
+  redeemed_by?: { id: string; username: string } | null;
+  redeemed_at_ms?: number | null;
+}
+export interface MemberInvites {
+  credits: number;
+  open: MemberInvite[];
+  redeemed: MemberInvite[];
+  /** Why a code cannot be created now; `null` when it can. */
+  blocked: {
+    reason: 'unverified' | 'too_new' | 'at_cap' | 'no_credits' | 'frozen';
+    days?: number | null;
+  } | null;
+}
+export const listMemberInvites = () => apiFetch<MemberInvites>('/sr/invites', { retries: 0 });
+export const createMemberInvite = (note: string) =>
+  apiPost<MemberInvite>('/sr/invites', { note: note.trim() || undefined }, { retries: 0 });
+export const revokeMemberInvite = (code: string) =>
+  apiFetch<void>(`/sr/invites/${encodeURIComponent(code)}`, { method: 'DELETE', retries: 0 });

@@ -64,6 +64,18 @@ export function ComponentRows({
       const out = await runStaffButton(button, context);
       setStaffDone(out.message ?? t('lounge.components.staffDone'));
     } catch (e) {
+      // D-198: accepting an appointment needs an authenticator app or a passkey first.
+      if (e instanceof ApiError && e.body?.code === 900014) {
+        toast.show({
+          title: t('lounge.components.staffNeedsSecondFactor'),
+          description: (
+            <a href="/settings/user/account">{t('lounge.components.staffOpenSecurity')}</a>
+          ),
+          variant: 'warning',
+          duration: 0,
+        });
+        return;
+      }
       toast.show({
         title:
           e instanceof ApiError && e.body?.message

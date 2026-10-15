@@ -67,6 +67,15 @@ export const USER_SETTINGS_SECTIONS = [
     },
   },
   {
+    id: 'invites',
+    get label() {
+      return t('settings.userNav.invites');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
     id: 'support',
     get label() {
       return t('settings.userNav.support');

@@ -9,7 +9,7 @@ use crate::{
     model::{
         AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountState, AccountSummary,
         AuditEntry, BanCategory, BanOutcome, BanRecord, ChainReport, CreditLedger, DeleteRequest,
-        InviteDescendants, InviteQuery, InviteRow, InviteTree, JobRow, PersonDetail,
+        FormerStaff, InviteDescendants, InviteQuery, InviteRow, InviteTree, JobRow, PersonDetail,
         Reset2faReport, StaffMember, StaffRole, Standing, StoredSetting, SuspectPerson,
         SystemCounts, UnbanOutcome,
     },
@@ -30,6 +30,10 @@ pub trait AdminRepository: Send + Sync {
     async fn staff_roles(&self) -> AdminResult<Vec<StaffRole>>;
     async fn list_staff(&self) -> AdminResult<Vec<StaffMember>>;
     async fn get_staff(&self, account_id: i64) -> AdminResult<Option<StaffMember>>;
+    /// Most recently closed appointments, newest first (G-23).
+    async fn former_staff(&self, _limit: i64) -> AdminResult<Vec<FormerStaff>> {
+        Ok(Vec::new())
+    }
     /// Create the appointment, add the account to the Staff Server and give it `role_ids`.
     async fn appoint(
         &self,

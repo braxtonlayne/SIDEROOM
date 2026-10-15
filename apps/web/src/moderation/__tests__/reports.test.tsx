@@ -37,3 +37,25 @@ describe('moderation.reports flag (XC-MOD-002)', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('report a message');
   });
 });
+
+describe('client flag feed (D-216)', () => {
+  it('turns reporting on from GET /sr/features/flags and leaves it off on failure', async () => {
+    const { http, HttpResponse, server } = await import('../../test/server');
+    const { loadClientFlags, useReports } = await import('../reports');
+    server.use(
+      http.get('*/api/v1/sr/features/flags', () =>
+        HttpResponse.json({ flags: { 'moderation.reports': true } }),
+      ),
+    );
+    await loadClientFlags();
+    expect(useReports.getState().enabled).toBe(true);
+    setReportsEnabled(false);
+    server.use(
+      http.get('*/api/v1/sr/features/flags', () =>
+        HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
+      ),
+    );
+    await loadClientFlags();
+    expect(useReports.getState().enabled).toBe(false);
+  });
+});

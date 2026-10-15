@@ -103,6 +103,9 @@ pub enum StaffCmd {
         /// Role name, e.g. "Moderator" (repeatable).
         #[arg(long = "role", required = true)]
         roles: Vec<String>,
+        /// Issuer recorded as the appointer and audit target (username or email; default: the Owner).
+        #[arg(long)]
+        issuer: Option<String>,
         #[arg(long)]
         reason: String,
     },

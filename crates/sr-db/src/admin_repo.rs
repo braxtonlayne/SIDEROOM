@@ -14,9 +14,9 @@ use sr_admin::{
     AccessKind, AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountRef,
     AccountState, AccountSummary, AdminError, AdminRepository, AdminResult, AuditEntry,
     BanCategory, BanOutcome, BanRecord, ChainReport, CreditLedger, Delegation, DeleteRequest,
-    InviteDescendants, InviteNode, InviteQuery, InviteRow, InviteStats, InviteTree, JobRow,
-    LedgerEntry, LoginEvent, PersonDetail, Reset2faReport, StaffMember, StaffRole, Standing,
-    StoredSetting, SuspectPerson, SuspicionChange, SystemCounts, UnbanOutcome,
+    FormerStaff, InviteDescendants, InviteNode, InviteQuery, InviteRow, InviteStats, InviteTree,
+    JobRow, LedgerEntry, LoginEvent, PersonDetail, Reset2faReport, StaffMember, StaffRole,
+    Standing, StoredSetting, SuspectPerson, SuspicionChange, SystemCounts, UnbanOutcome,
     chain::{self, ChainVerifier},
 };
 use sr_core::PlatformPermissions as P;
@@ -484,6 +484,31 @@ impl AdminRepository for PgAdminRepo {
         Self::staff_members(&mut c, None).await
     }
 
+    async fn former_staff(&self, limit: i64) -> AdminResult<Vec<FormerStaff>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT a.id, a.username::text AS username, ap.revoked_reason,                     COALESCE(ap.revoke_reason, '') AS note, {} AS revoked_ms              FROM staff_appointments ap JOIN accounts a ON a.id = ap.account_id              WHERE ap.revoked_at IS NOT NULL ORDER BY ap.revoked_at DESC LIMIT $1",
+            ms("ap.revoked_at")
+        )))
+        .bind(limit.clamp(1, 500))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(FormerStaff {
+                    account_id: r.try_get("id").map_err(db)?,
+                    username: r.try_get("username").map_err(db)?,
+                    revoked_reason: r
+                        .try_get::<Option<String>, _>("revoked_reason")
+                        .map_err(db)?
+                        .unwrap_or_else(|| "revoked".into()),
+                    revoked_at_ms: r.try_get("revoked_ms").map_err(db)?,
+                    note: r.try_get("note").map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
     async fn get_staff(&self, account_id: i64) -> AdminResult<Option<StaffMember>> {
         let mut c = self.pool.acquire().await.map_err(db)?;
         Ok(Self::staff_members(&mut c, Some(account_id)).await?.pop())
@@ -599,7 +624,7 @@ impl AdminRepository for PgAdminRepo {
             return Err(AdminError::Forbidden("The Owner cannot be revoked".into()));
         }
         let closed = sqlx::query(
-            "UPDATE staff_appointments SET revoked_at = now(), revoked_by = $2, revoke_reason = $3 \
+            "UPDATE staff_appointments SET revoked_at = now(), revoked_by = $2, revoke_reason = $3, revoked_reason = 'revoked' \
              WHERE account_id = $1 AND revoked_at IS NULL",
         )
         .bind(account_id)

@@ -24,6 +24,7 @@ pub mod library_repo;
 pub mod library_state_repo;
 pub mod lock;
 pub mod media_repo;
+pub mod member_invites;
 pub mod partitions;
 pub mod payments_repo;
 mod pool;

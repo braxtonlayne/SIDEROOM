@@ -159,7 +159,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 ## 7. Staff
 
-`staff_appointments` (account_id, appointed_by, appointed_at, revoked_at, revoked_by, reason). Staff status = active appointment **AND** current member of the staff guild (D-130/D-132). `appointment_delegations` (who may appoint). `staff_access_log` (append-only: id, staff_account_id, action, target_type, target_id, reason, created_at, prev_hash, hash). `audit_log_entries` (guild-scoped, Discord-compatible) + `platform_audit_log` (platform-scoped).
+`staff_appointments` (account_id, appointed_by, appointed_at, revoked_at, revoked_by, reason, revoked_reason `left`|`kicked`|`revoked`, migration 0790). Staff status = active appointment **AND** current member of the staff guild (D-130/D-132). `appointment_delegations` (who may appoint). `staff_access_log` (append-only: id, staff_account_id, action, target_type, target_id, reason, created_at, prev_hash, hash). `audit_log_entries` (guild-scoped, Discord-compatible) + `platform_audit_log` (platform-scoped).
 
 `moderation_holds` (id, reason, created_by, case_ref). Phase 7 expands these into cases and reports.
 

@@ -177,6 +177,7 @@ fn is_user_target(a: AuditAction) -> bool {
             | AuditAction::MemberUpdate
             | AuditAction::MemberRoleUpdate
             | AuditAction::BotAdd
+            | AuditAction::ApplicationDecision
     )
 }
 

@@ -313,6 +313,22 @@ impl GuildAdminRepository for PgChatRepo {
         tx.commit().await.map_err(db)
     }
 
+    async fn remove_member_kicked(&self, guild: GuildId, user: UserId) -> RepoResult<()> {
+        // The staff-member-left trigger reads this to record `kicked` instead of `left` (G-23).
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        sqlx::query("SELECT set_config('sr.member_removal', 'kicked', true)")
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        sqlx::query("DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2")
+            .bind(i(guild.get()))
+            .bind(i(user.get()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        tx.commit().await.map_err(db)
+    }
+
     async fn remove_member(&self, guild: GuildId, user: UserId) -> RepoResult<()> {
         // member_roles rows cascade.
         sqlx::query("DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2")
@@ -441,6 +457,10 @@ impl GuildAdminRepository for PgChatRepo {
         .execute(&mut *tx)
         .await
         .map_err(db)?;
+        sqlx::query("SELECT set_config('sr.member_removal', 'kicked', true)")
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
         sqlx::query("DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2")
             .bind(i(ban.guild_id.get()))
             .bind(i(ban.user_id.get()))

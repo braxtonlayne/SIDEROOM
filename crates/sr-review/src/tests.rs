@@ -1347,7 +1347,10 @@ async fn upload_allowance_is_per_day_and_staff_are_exempt() {
     ));
     let a = w.svc.upload_allowance(m).await.unwrap();
     assert_eq!(a.used_bytes, 30_000_000_000);
-    assert_eq!(a.remaining_bytes, Some(20_000_000_000));
+    assert_eq!(
+        a.remaining_bytes,
+        Some(crate::service::MAX_UPLOAD_BYTES_PER_DAY - 30_000_000_000)
+    );
     // A refused reservation counts for nothing.
     w.svc.charge_upload(m, 20_000_000_000).await.unwrap();
     // The next UTC day starts afresh; one file larger than the whole allowance never fits.
@@ -1564,4 +1567,38 @@ async fn one_member_at_a_time_says_they_will_upload_a_request() {
             .await,
         Err(ReviewError::Conflict(_))
     ));
+}
+
+struct FixedAllowance(i64);
+
+#[async_trait::async_trait]
+impl crate::service::AllowanceSource for FixedAllowance {
+    async fn daily_upload_bytes(&self) -> i64 {
+        self.0
+    }
+}
+
+#[tokio::test]
+async fn the_daily_allowance_follows_the_platform_setting() {
+    let w = world();
+    let with = |n: i64| {
+        ReviewService::new(
+            w.repo.clone(),
+            KindRegistry::new().with(w.kind.clone()),
+            w.clock.clone(),
+            Arc::new(|| 9_000),
+        )
+        .with_allowance(Arc::new(FixedAllowance(n)))
+    };
+    let m = Caller::member(MEMBER);
+    // A lower limit applies at once and is reported.
+    let small = with(1_000);
+    small.charge_upload(m, 600).await.unwrap();
+    assert!(small.charge_upload(m, 600).await.is_err());
+    let a = small.upload_allowance(m).await.unwrap();
+    assert_eq!((a.limit_bytes, a.remaining_bytes), (Some(1_000), Some(400)));
+    // 0 means unlimited: nothing is refused and no limit is reported.
+    let open = with(0);
+    open.charge_upload(m, u64::MAX / 2).await.unwrap();
+    assert_eq!(open.upload_allowance(m).await.unwrap().limit_bytes, None);
 }

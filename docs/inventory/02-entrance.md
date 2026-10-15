@@ -23,7 +23,7 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [x] **ENT-INV-001** [BE] Invite code generator (Crockford base32 10 chars, dash formatting, normalization)
 - [x] **ENT-INV-002** [BE] `GET /sr/invites/{code}` validity check (valid/invalid/closed), per-IP rate limits, no issuer leak
 - [ ] **ENT-INV-003** [BE] Create invite (eligibility: active, verified, age ≥ N days, open < credits, cap not reached, not frozen)
-- [ ] **ENT-INV-004** [BE] Revoke invite (race-safe vs redemption)
+- [x] **ENT-INV-004** [BE] Revoke invite (race-safe vs redemption) _(`PgAuthStore::revoke_member_invite` revokes only an `open` code of the issuer in one guarded `UPDATE`, so a redemption that already locked the row wins; test `member_invites.rs`)_
 - [x] **ENT-INV-005** [BE] Credits ledger + balance query + initial grant on registration
 - [ ] **ENT-INV-006** [BE] Account cap service: counted accounts query, advisory lock, `is_closed()`
 - [x] **ENT-INV-007** [BE] `POST /sr/register` transactional redemption (invite lock, cap check, issuer credit −1, Person matching, banned-Person rejection)

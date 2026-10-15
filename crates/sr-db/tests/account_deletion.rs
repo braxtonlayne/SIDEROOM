@@ -274,3 +274,39 @@ async fn group_dm_ownership_passes_on() {
         0
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn staff_and_the_owner_cannot_delete_themselves() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    account(pool, 1, "boss").await;
+    account(pool, 2, "helper").await;
+    sqlx::query(
+        "INSERT INTO guilds (id, name, owner_id, is_staff_guild) VALUES (10, 'Staff', 1, TRUE)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO staff_appointments (id, account_id, appointed_by) VALUES (1, 2, 1)")
+        .execute(pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        delete_account(pool, 1, 9).await.unwrap(),
+        Err(Blocked::Owner)
+    );
+    assert_eq!(
+        delete_account(pool, 2, 9).await.unwrap(),
+        Err(Blocked::Staff)
+    );
+    // Once the appointment ends, the deletion goes through.
+    sqlx::query(
+        "UPDATE staff_appointments SET revoked_at = now(), revoked_by = 1, \
+         revoked_reason = 'revoked' WHERE account_id = 2",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    assert!(delete_account(pool, 2, 9).await.unwrap().is_ok());
+}

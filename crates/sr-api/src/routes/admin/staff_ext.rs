@@ -5,7 +5,7 @@ use super::ctx::{ReasonBody, StaffCtx, id, map_err, reason};
 use crate::{auth::UserOnly, error::ApiResult, openapi::ErrorBody, routes::Ext};
 use axum::{
     Json,
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::HeaderMap,
 };
 use serde::Deserialize;
@@ -13,6 +13,12 @@ use sr_admin::{Delegation, StaffOffer};
 use utoipa::ToSchema;
 
 use super::ctx::AdminDeps;
+use crate::{
+    error::HttpError,
+    routes::auth::{AuthRouteError, AuthService},
+    state::AppState,
+};
+use sr_core::{ApiError, ErrorCode};
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct OfferBody {
@@ -120,10 +126,27 @@ pub struct RespondBody {
 )]
 pub async fn respond(
     UserOnly(p): UserOnly,
+    State(state): State<AppState>,
     Ext(deps): Ext<AdminDeps>,
     Path(offer_id): Path<String>,
     Json(b): Json<RespondBody>,
 ) -> ApiResult<Json<StaffOffer>> {
+    // D-198: accepting needs a second factor on the account (TOTP or passkey).
+    if b.accept
+        && let Some(auth) = state.extension::<AuthService>()
+        && !crate::routes::auth::has_second_factor(&auth, p.user_id)
+            .await
+            .map_err(|e| match e {
+                AuthRouteError::Api(h) => h,
+                AuthRouteError::Throttled { .. } => HttpError::from(ErrorCode::SrInternal),
+            })?
+    {
+        return Err(ApiError::with_message(
+            ErrorCode::SrSecondFactorRequired,
+            "Enrol a second factor first (Settings, Security), then accept the offer.",
+        )
+        .into());
+    }
     deps.service
         .respond_to_offer(p.user_id, id(&offer_id)?, b.accept, None)
         .await

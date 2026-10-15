@@ -176,8 +176,23 @@ export const forcePasswordReset = (id: string, reason: string) =>
     'POST',
     reasonBody(reason),
   );
-export const banAccount = (id: string, category: BanCategory, reason: string) =>
-  send<BanOutcome>(`/admin/accounts/${id}/ban`, 'POST', { category, reason });
+/** Why an account is banned (D-211); each has a default category the dialog starts from. */
+export type BanReason =
+  'illegal_content' | 'child_safety' | 'fraud' | 'platform_abuse' | 'harassment' | 'ban_evasion';
+export const BAN_REASONS: { value: BanReason; serious: boolean }[] = [
+  { value: 'illegal_content', serious: true },
+  { value: 'child_safety', serious: true },
+  { value: 'fraud', serious: true },
+  { value: 'platform_abuse', serious: true },
+  { value: 'harassment', serious: false },
+  { value: 'ban_evasion', serious: false },
+];
+export const banAccount = (
+  id: string,
+  category: BanCategory,
+  reason: string,
+  reason_category?: BanReason,
+) => send<BanOutcome>(`/admin/accounts/${id}/ban`, 'POST', { category, reason, reason_category });
 
 // ---- persons and bans ----
 
@@ -320,6 +335,14 @@ export interface StaffMember {
   roles: StaffRole[];
 }
 export const listStaff = () => get<StaffMember[]>('/admin/staff');
+export interface FormerStaff {
+  account_id: string;
+  username: string;
+  revoked_reason: 'left' | 'kicked' | 'revoked';
+  revoked_at_ms: number;
+  note: string;
+}
+export const listFormerStaff = () => get<FormerStaff[]>('/admin/staff/former');
 export const listStaffRoles = () => get<StaffRole[]>('/admin/staff/roles');
 export const appoint = (account_id: string, role_ids: string[], reason: string) =>
   send<StaffMember>('/admin/staff', 'POST', { account_id, role_ids, reason });

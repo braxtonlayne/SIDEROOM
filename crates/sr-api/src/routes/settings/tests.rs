@@ -2897,6 +2897,19 @@ async fn membership_applications_flow() {
     assert_eq!(s, StatusCode::OK, "{ok}");
     assert_eq!(ok["status"], "approved");
     assert_eq!(ok["reviewed_by"], MOD.to_string().as_str());
+    // G-33: both decisions are in the guild audit log (action 200) with status and application id.
+    let (s, log) = e.get(&e.g("/audit-logs"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{log}");
+    let decided: Vec<_> = log["audit_log_entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|x| x["action_type"] == 200)
+        .collect();
+    assert_eq!(decided.len(), 2, "{log}");
+    assert_eq!(decided[0]["options"]["status"], "approved");
+    assert_eq!(decided[1]["options"]["status"], "rejected");
+    assert_eq!(decided[1]["options"]["application_id"], app_id.as_str());
 }
 
 #[path = "soundboard_tests.rs"]

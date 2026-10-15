@@ -29,6 +29,10 @@ bitflags! {
         const APPOINT_STAFF = 1 << 19;
         const MANAGE_TRANSCODE = 1 << 20;
         const OPERATOR = 1 << 21;
+        /// Moderation cases, holds and appeals (D-210, D-213).
+        const MANAGE_CASES = 1 << 22;
+        /// Takedown notices and their records (D-210).
+        const MANAGE_TAKEDOWNS = 1 << 23;
         /// Implicit for the Staff Server owner. Everything.
         const OWNER = 1 << 63;
     }

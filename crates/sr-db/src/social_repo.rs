@@ -937,9 +937,13 @@ impl ProfileRepository for PgSocialRepo {
             "SELECT a.avatar_key, a.banner_key, a.accent_color, a.bio, a.pronouns, a.display_name, \
              a.avatar_decoration, a.profile_effect, a.theme_primary, a.theme_accent, a.is_bot, \
              a.flags, (EXTRACT(EPOCH FROM a.created_at) * 1000)::BIGINT AS created_ms, \
-             EXISTS(SELECT 1 FROM staff_appointments s \
-                    WHERE s.account_id = a.id AND s.revoked_at IS NULL) AS is_staff, \
-             EXISTS(SELECT 1 FROM guilds g WHERE g.is_staff_guild AND g.owner_id = a.id) AS is_owner, \
+             (EXISTS(SELECT 1 FROM staff_appointments s \
+                     WHERE s.account_id = a.id AND s.revoked_at IS NULL) \
+              AND COALESCE((SELECT us.settings #>> '{staff,show_badge}' FROM user_settings us \
+                            WHERE us.user_id = a.id), 'true') <> 'false') AS is_staff, \
+             (EXISTS(SELECT 1 FROM guilds g WHERE g.is_staff_guild AND g.owner_id = a.id) \
+              AND COALESCE((SELECT us.settings #>> '{staff,show_badge}' FROM user_settings us \
+                            WHERE us.user_id = a.id), 'true') <> 'false') AS is_owner, \
              (EXISTS(SELECT 1 FROM entitlement_grants e \
                      WHERE e.kind = 'patron' AND e.user_id = a.id AND e.revoked_ms IS NULL \
                        AND (e.permanent OR e.ends_ms > (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT \

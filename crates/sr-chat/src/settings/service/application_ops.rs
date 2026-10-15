@@ -137,9 +137,26 @@ impl<R: SettingsRepository> SettingsService<R> {
     ) -> SettingsResult<Application> {
         require(perms, Permissions::MANAGE_GUILD)?;
         let reason = applications::normalize_rejection_reason(reason)?;
-        self.repo
+        let app = self
+            .repo
             .decide_application(guild, id, approve, reviewer, self.now(), reason.as_deref())
             .await?
-            .ok_or(SettingsError::UnknownApplication)
+            .ok_or(SettingsError::UnknownApplication)?;
+        // G-33: the decision lands in the guild audit log; the applicant is the target.
+        let entry = super::super::audit::AuditEntry::new(
+            self.ids.generate().get(),
+            guild,
+            reviewer,
+            AuditAction::ApplicationDecision,
+            Some(app.user_id.get()),
+            reason.as_deref(),
+            self.now(),
+        )?
+        .with_options(serde_json::json!({
+            "status": app.status.as_str(),
+            "application_id": app.id.to_string(),
+        }));
+        self.store_audit(&entry).await?;
+        Ok(app)
     }
 }

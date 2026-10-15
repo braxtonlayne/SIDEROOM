@@ -416,9 +416,15 @@ async fn staff(
         StaffCmd::Appoint {
             user,
             roles,
+            issuer,
             reason,
         } => {
             let id = account_by_name(pool, &user).await?;
+            // D-197: the CLI is the only direct path; the audit row reads `staff.appoint_cli`.
+            let issuer_id = match issuer {
+                Some(who) => account_by_name(pool, &who).await?,
+                None => oldest_owner(pool).await?,
+            };
             let all = svc
                 .staff_roles(&op)
                 .await
@@ -432,7 +438,7 @@ async fn staff(
                 role_ids.push(found.id);
             }
             let m = svc
-                .appoint(&op, id, &role_ids, Some(&reason))
+                .appoint_cli(&op, id, &role_ids, issuer_id, Some(&reason))
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("appointed {} as {}", m.username, roles.join(", "));

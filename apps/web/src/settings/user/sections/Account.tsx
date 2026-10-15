@@ -595,6 +595,7 @@ export function AccountSection({ me }: { me: Resource<Me>; onSignedOut: () => vo
               title={t('settings.account.removalTitle')}
               description={t('settings.account.removalDesc')}
             >
+              <p>{t('settings.account.removalRetained')}</p>
               <Unavailable>{t('settings.account.removalUnavailable')}</Unavailable>
             </Card>
           </>

@@ -1355,8 +1355,8 @@ Status: `ADOPTED` (D-203). Follow-up: G-20.
 ### Phase 10 admin (P10-ADM, P10-ADF)
 
 **P10-ADM-1. Direct `POST /admin/staff` (appoint without acceptance) is still there, behind re-auth. Remove it, or restrict to the Owner?**
-Decision: remove it. Doc 07 section 4 says the appointee accepts, and the offer flow is that path; bootstrap and emergencies use `sr-cli staff appoint` (the D-157 pattern: an operator CLI action with a `platform_audit_log` row), which needs host access, not a web session.
-Status: `ADOPTED` (D-197). Follow-up: G-21.
+Decision (owner, 2026-10-15, overrides the earlier "remove it" default): keep it, restricted to the Owner (everyone else, including staff with `APPOINT_STAFF`, is refused) and still behind re-auth. Offers stay the default path for everyone; `sr-cli staff appoint` (an operator CLI action with a `platform_audit_log` row, `staff.appoint_cli`) covers bootstrap and emergencies.
+Status: `ADOPTED` (D-197, amended). Follow-up: G-21.
 
 **P10-ADM-2. Delegations give `APPOINT_STAFF` with a ceiling; the Senior Staff template also grants it outright. Both?**
 Decision: both, as built. The template bit is the D-162 default for the Owner's most trusted role; a delegation is the scoped form for anyone else. The Admin → Staff page explains the difference in one line.

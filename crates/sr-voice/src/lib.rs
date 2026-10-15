@@ -16,5 +16,5 @@ pub mod speaking;
 pub mod ws;
 
 pub use config::SfuConfig;
-pub use server::{SfuEvent, SfuEventKind, SfuHandle, StartError, start};
+pub use server::{LiveStats, SfuEvent, SfuEventKind, SfuHandle, StartError, start};
 pub use ws::router;

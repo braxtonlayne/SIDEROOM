@@ -622,7 +622,10 @@ async fn the_whole_review_runs_over_http() {
         .call(Some(MEMBER), Method::GET, "/submissions/quota", None)
         .await;
     assert_eq!(st, StatusCode::OK, "{q}");
-    assert_eq!(q["limit_bytes"], 50_000_000_000_i64);
+    assert_eq!(
+        q["limit_bytes"],
+        sr_review::service::MAX_UPLOAD_BYTES_PER_DAY
+    );
     // Another member sees nothing of it; a plain reviewer cannot revoke.
     let (st, _) = e
         .call(

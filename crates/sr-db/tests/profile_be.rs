@@ -99,6 +99,16 @@ async fn profile_fields_round_trip_and_badges_are_derived() {
             .badges
             .contains(&"patron".to_owned())
     );
+    // G-25: `staff.show_badge = false` hides the staff and owner badges.
+    sqlx::query(
+        "INSERT INTO user_settings (user_id, settings, version)          VALUES (11, '{\"staff\": {\"show_badge\": false}}', 1)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    let hidden = repo.get_profile(me).await.unwrap().unwrap().badges;
+    assert!(!hidden.contains(&"staff".to_owned()) && !hidden.contains(&"owner".to_owned()));
+    assert!(hidden.contains(&"contributor".to_owned()));
     assert!(
         repo.get_profile(plain)
             .await

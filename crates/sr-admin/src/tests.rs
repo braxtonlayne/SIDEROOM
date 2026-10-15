@@ -955,3 +955,45 @@ async fn transfer_owner_is_operator_only() {
     ));
     let _ = e.repo.verify_log().await.unwrap();
 }
+
+#[tokio::test]
+async fn cli_appointment_is_audited_and_idempotent() {
+    let e = env();
+    let op = Caller::operator(SYSTEM_USER_ID);
+    let m = e
+        .svc
+        .appoint_cli(&op, MOD, &[R_MOD], OWNER, Some("ops"))
+        .await
+        .unwrap();
+    assert_eq!(m.appointed_by, Some(OWNER));
+    // Same roles again: no change, no second audit row.
+    let again = e
+        .svc
+        .appoint_cli(&op, MOD, &[R_MOD], OWNER, Some("ops"))
+        .await
+        .unwrap();
+    assert_eq!(again.account_id, MOD);
+    let rows: Vec<_> = e
+        .repo
+        .log_rows()
+        .into_iter()
+        .filter(|r| r.action == "staff.appoint_cli")
+        .collect();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].actor_id, SYSTEM_USER_ID);
+    assert_eq!(rows[0].target_id, Some(OWNER));
+    // Different roles on an existing member conflict (use set_roles).
+    assert!(matches!(
+        e.svc
+            .appoint_cli(&op, MOD, &[R_SUPPORT], OWNER, Some("ops"))
+            .await,
+        Err(AdminError::Conflict(_))
+    ));
+    // The Owner role still cannot be handed out.
+    assert!(matches!(
+        e.svc
+            .appoint_cli(&op, ALICE, &[R_OWNER], OWNER, Some("ops"))
+            .await,
+        Err(AdminError::Forbidden(_))
+    ));
+}

@@ -53,15 +53,11 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
    - Discord is login/register only; `intent=link`, an unlink route and the other providers do not exist.
 
 ## SIDE ROOM: Invites
-- [ ] **LNG-USET-025** [FE] Credits balance card ("You can bring N more people"), eligibility explanations
-   - Open (backend): no route returns the account invite credit balance or eligibility (`GET /donations/me` has none). Credits can already be bought on the Support page.
-- [ ] **LNG-USET-026** [FE] Create invite (note field) → code + copy + share link `/join/<code>`
-   - Open (backend): no route creates, lists or revokes registration invites for the signed-in account (only `GET /sr/invites/{code}` and guild invites exist).
-- [ ] **LNG-USET-027** [FE] Open codes list (note, created, Revoke), redeemed list (who joined, when)
-   - Open (backend): same as LNG-USET-026 (open and redeemed codes lists).
+- [x] **LNG-USET-025** [FE] Credits balance card ("You can bring N more people"), eligibility explanations _(Settings > Invites: credits card from `GET /sr/invites`, with the reason a code cannot be made (`sections/Invites.tsx`, p12-admin-mod-be))_
+- [x] **LNG-USET-026** [FE] Create invite (note field) → code + copy + share link `/join/<code>` _(create form with a private note on `POST /sr/invites`, copy code and `/join/<code>` link; tests `p12invites.test.tsx`, `sr-db/tests/member_invites.rs`)_
+- [x] **LNG-USET-027** [FE] Open codes list (note, created, Revoke), redeemed list (who joined, when) _(open codes with Revoke (`DELETE /sr/invites/{code}`) and the redeemed list with who joined)_
 - [x] **LNG-USET-028** [FE] Buy an invite ($20 BTC) → invoice modal _(Settings > Support / Patron "Invite credits": buy 1 to 5 for the configured price, then the invoice dialog (`support/SupportPanel.tsx`, test in `support/__tests__/support.test.tsx`))_
-- [ ] **LNG-USET-029** [FE] Frozen/suspicion state notice (generic wording)
-   - Open (backend): no frozen/suspicion state is exposed to the account.
+- [x] **LNG-USET-029** [FE] Frozen/suspicion state notice (generic wording) _(the suspicion freeze is shown as the generic `frozen` reason only)_
 
 ## SIDE ROOM: Support & Perks
 - [x] **LNG-USET-030** [FE] Patron status (active until, grace), Become a Patron / Extend (1/3/6/12 months) _(Patron card: active until, grace, permanent, 1/3/6/12 month buttons (`support/SupportPanel.tsx`))_
