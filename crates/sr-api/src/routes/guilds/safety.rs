@@ -302,7 +302,10 @@ pub async fn set_mfa_level(
 ) -> ApiResult<Json<MfaLevelObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    // Only the owner may change it; the enrolment check is theirs alone (others get the 403 below).
+    let is_owner = api.get_guild(user, gid).await.map_err(ce)?.0.owner_id == user;
     if body.level == 1
+        && is_owner
         && let (Some(auth), Some(session)) = (&gate.auth, gate.session)
     {
         let st = staff_mfa_state(auth, gate.now_secs, p.user_id, session)
