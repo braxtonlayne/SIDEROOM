@@ -139,6 +139,10 @@ pub struct Guild {
     pub preferred_locale: String,
     /// Vanity invite code (`/invite/<code>`), free of charge (LNG-INV-004).
     pub vanity_code: Option<String>,
+    /// Community channels (G-76): where the rules, public updates and safety alerts live.
+    pub rules_channel_id: Option<ChannelId>,
+    pub public_updates_channel_id: Option<ChannelId>,
+    pub safety_alerts_channel_id: Option<ChannelId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

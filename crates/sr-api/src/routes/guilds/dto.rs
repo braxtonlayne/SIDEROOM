@@ -405,6 +405,10 @@ pub struct GuildObject {
     /// Vanity invite code (LNG-INV-004).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vanity_url_code: Option<String>,
+    /// Community channels (Discord shape, null when unset; G-76).
+    pub rules_channel_id: Option<String>,
+    pub public_updates_channel_id: Option<String>,
+    pub safety_alerts_channel_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roles: Option<Vec<RoleObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -431,6 +435,9 @@ impl GuildObject {
             features: Vec::new(),
             is_staff_guild: g.is_staff_guild,
             vanity_url_code: g.vanity_code.clone(),
+            rules_channel_id: g.rules_channel_id.map(|c| c.to_string()),
+            public_updates_channel_id: g.public_updates_channel_id.map(|c| c.to_string()),
+            safety_alerts_channel_id: g.safety_alerts_channel_id.map(|c| c.to_string()),
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
         }

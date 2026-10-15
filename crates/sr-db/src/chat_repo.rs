@@ -73,7 +73,7 @@ fn vis_parse(s: &str) -> RepoResult<Visibility> {
 pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key, splash_key, \
     owner_id, is_staff_guild, system_channel_id, verification_level, default_message_notifications, \
     explicit_content_filter, preferred_locale, afk_channel_id, afk_timeout, \
-    vanity_code::text AS vanity_code";
+    vanity_code::text AS vanity_code, rules_channel_id, public_updates_channel_id,     (SELECT gc.safety_alerts_channel_id FROM guild_community gc WHERE gc.guild_id = guilds.id)         AS safety_alerts_channel_id";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
     Ok(Guild {
@@ -101,6 +101,15 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
             .unwrap_or(0),
         preferred_locale: r.try_get("preferred_locale")?,
         vanity_code: r.try_get("vanity_code")?,
+        rules_channel_id: r
+            .try_get::<Option<i64>, _>("rules_channel_id")?
+            .map(|v| ChannelId::new(u(v))),
+        public_updates_channel_id: r
+            .try_get::<Option<i64>, _>("public_updates_channel_id")?
+            .map(|v| ChannelId::new(u(v))),
+        safety_alerts_channel_id: r
+            .try_get::<Option<i64>, _>("safety_alerts_channel_id")?
+            .map(|v| ChannelId::new(u(v))),
     })
 }
 

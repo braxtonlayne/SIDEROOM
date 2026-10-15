@@ -268,10 +268,21 @@ async fn emoji_rules_templates_and_community_round_trip() {
     let mut c = CommunitySettings::new(g);
     c.rules_channel_id = Some(ch);
     c.updates_channel_id = Some(ch);
+    c.safety_alerts_channel_id = Some(ch);
     c.community_enabled = true;
     c.invites_paused = true;
     repo.put_community(&c).await.unwrap();
     assert_eq!(repo.get_community(g).await.unwrap(), c);
+    // G-76: the guild itself carries the three community channels.
+    use sr_chat::repo::GuildRepository as _;
+    let guild_row = PgChatRepo::new(pool.clone())
+        .get_guild(g)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(guild_row.rules_channel_id, Some(ch));
+    assert_eq!(guild_row.public_updates_channel_id, Some(ch));
+    assert_eq!(guild_row.safety_alerts_channel_id, Some(ch));
     let ob = Onboarding {
         guild_id: g,
         enabled: false,
