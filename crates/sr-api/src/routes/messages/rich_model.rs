@@ -3,7 +3,7 @@
 
 use super::deps::MessagesDeps;
 use super::error::MsgResult;
-use super::model::{AttachmentObject, MessageObject, iso};
+use super::model::{AttachmentObject, MessageObject, UserRef, iso};
 use serde_json::{Value, json};
 use sr_chat::Message;
 use sr_chat::message::{ForwardSnapshot, Poll};
@@ -144,6 +144,30 @@ pub async fn decorate(
             .collect();
         if let Some(f) = m.reference.as_ref().and_then(|r| r.forward.as_ref()) {
             o.message_snapshots = vec![snapshot_value(deps, f)];
+        }
+    }
+    // Webhook-posted messages show the webhook (or the per-call override) as the author.
+    if let Some(store) = &deps.rich.store {
+        let ids: Vec<_> = msgs.iter().map(|m| m.id).collect();
+        let authors = store.webhook_authors(&ids).await?;
+        if !authors.is_empty() {
+            for (m, o) in msgs.iter().zip(objs.iter_mut()) {
+                let Some(a) = authors.get(&m.id) else {
+                    continue;
+                };
+                o.webhook_id = Some(a.webhook_id.to_string());
+                o.author = UserRef {
+                    id: a.webhook_id.to_string(),
+                    username: Some(a.username.clone()),
+                    global_name: Some(a.username.clone()),
+                    bot: true,
+                    primary_guild: None,
+                    avatar_url: a
+                        .avatar_url
+                        .as_deref()
+                        .and_then(|u| deps.proxy_external_image(u)),
+                };
+            }
         }
     }
     Ok(())

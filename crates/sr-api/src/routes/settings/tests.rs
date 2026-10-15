@@ -207,7 +207,14 @@ async fn env_with(opts: Opts) -> Env {
         1,
         1,
     )
-    .unwrap();
+    .unwrap()
+    .with_rich(crate::routes::messages::rich::RichDeps {
+        store: Some(Arc::new(backend.clone())),
+        ..Default::default()
+    })
+    .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
+        b"webhook-avatar-test-secret-0123456".to_vec(),
+    ));
     let mut builder = AppState::builder()
         .bots(bots)
         .sessions(sessions.clone())
@@ -2968,3 +2975,75 @@ async fn nobody_creates_or_redeems_invites_to_the_staff_server() {
 
 #[path = "features_tests.rs"]
 mod features_tests;
+
+// ---- webhook author (DEV-BOT-006) -------------------------------------------------
+
+#[tokio::test]
+async fn webhook_messages_show_the_webhook_or_the_per_call_override() {
+    let e = env().await;
+    let (_, wh) = e
+        .post(
+            &format!("/channels/{}/webhooks", e.ch),
+            "mod",
+            json!({"name": "Deploys"}),
+        )
+        .await;
+    let (id, token) = (wh["id"].as_str().unwrap(), wh["token"].as_str().unwrap());
+    let exec = format!("/webhooks/{id}/{token}?wait=true");
+
+    // No override: the webhook name, the webhook id as author id, marked as a bot.
+    let (s, m) = e
+        .call(Method::POST, &exec, None, Some(json!({"content": "plain"})))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["webhook_id"], id);
+    assert_eq!(m["author"]["id"], id);
+    assert_eq!(m["author"]["username"], "Deploys");
+    assert_eq!(m["author"]["bot"], true);
+    assert!(m["author"].get("avatar_url").is_none());
+
+    // Override name and avatar for one message; the avatar is served through the image proxy.
+    let (s, m) = e
+        .call(
+            Method::POST,
+            &exec,
+            None,
+            Some(json!({
+                "content": "custom",
+                "username": "  Build Bot ",
+                "avatar_url": "https://img.example/a.png"
+            })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["author"]["username"], "Build Bot");
+    assert_eq!(m["author"]["global_name"], "Build Bot");
+    let avatar = m["author"]["avatar_url"].as_str().unwrap();
+    assert!(avatar.starts_with("/cdn/external/"), "{avatar}");
+    assert!(
+        !avatar.contains("img.example"),
+        "never the raw URL: {avatar}"
+    );
+
+    // The history shows the same authors (also for a reader who is not the creator).
+    let (_, history) = e.get(&format!("/channels/{}/messages", e.ch), "bob").await;
+    let names: Vec<_> = history
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["author"]["username"].as_str().unwrap().to_owned())
+        .collect();
+    assert!(names.contains(&"Build Bot".to_owned()) && names.contains(&"Deploys".to_owned()));
+
+    // Bad overrides are refused before anything is posted.
+    for body in [
+        json!({"content": "x", "username": "n".repeat(81)}),
+        json!({"content": "x", "avatar_url": "http://img.example/a.png"}),
+        json!({"content": "x", "avatar_url": "javascript:alert(1)"}),
+    ] {
+        let (s, _) = e.call(Method::POST, &exec, None, Some(body)).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+    let (_, history) = e.get(&format!("/channels/{}/messages", e.ch), "bob").await;
+    assert_eq!(history.as_array().unwrap().len(), 2);
+}

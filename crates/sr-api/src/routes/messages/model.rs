@@ -47,6 +47,9 @@ pub struct UserRef {
     /// The server tag the author displays (LNG-SSET-012).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub primary_guild: Option<crate::routes::social::model::PrimaryGuildObject>,
+    /// Webhook authors only (DEV-BOT-006): the per-message avatar, an image-proxy path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
 }
 
 impl UserRef {
@@ -65,6 +68,7 @@ impl UserRef {
                 .get(&id)
                 .and_then(|u| u.primary_guild.as_ref())
                 .map(crate::routes::social::model::PrimaryGuildObject::of),
+            avatar_url: None,
         }
     }
 }
@@ -164,6 +168,10 @@ pub struct MessageObject {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<Object>)]
     pub call: Option<serde_json::Value>,
+    /// Set when the message was posted through a webhook (DEV-BOT-006); `author` is then the
+    /// webhook, not the person who created it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_id: Option<String>,
 }
 
 impl MessageObject {
@@ -237,6 +245,7 @@ impl MessageObject {
             sticker_items: Vec::new(),
             message_snapshots: Vec::new(),
             call,
+            webhook_id: None,
         }
     }
 

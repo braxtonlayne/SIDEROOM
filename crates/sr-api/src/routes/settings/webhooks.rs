@@ -5,10 +5,10 @@
 //! `POST /webhooks/{id}/reset-token`, which replaces it); only its
 //! SHA-256 is stored. `POST /webhooks/{id}/{token}` supports `?wait`.
 //!
-//! TODO(webhook-author): `Message.author_id` is a user id, so executed messages are
-//! posted as the webhook's creator (their channel permissions apply) with the
-//! webhook name in the `username` field of the request ignored. Showing the webhook
-//! name/avatar and `authorType:webhook` search needs `webhook_id` on the message row.
+//! DEV-BOT-006: an executed message is shown as the webhook, or as the `username` and
+//! `avatar_url` of the call (`message_webhook_authors`, rendered by `rich_model::decorate`);
+//! `messages.author_id` stays the creator, whose channel permissions applied when sending.
+//! `authorType:webhook` search is not built.
 
 use super::deps::{SettingsDeps, actor, id, invalid, re, se};
 use super::events::SettingsEvent;
@@ -578,7 +578,7 @@ pub struct ExecuteQuery {
 #[derive(Debug, Default, Deserialize, ToSchema)]
 pub struct ExecuteWebhookBody {
     pub content: Option<String>,
-    /// Accepted; see the module docs (TODO(webhook-author)).
+    /// Shown instead of the webhook name for this message (1 to 80 characters).
     pub username: Option<String>,
     pub avatar_url: Option<String>,
     pub tts: Option<bool>,
@@ -640,6 +640,11 @@ pub async fn execute_webhook(
             ),
         )));
     }
+    let shown_as = webhook_display(
+        &w.name,
+        body.username.as_deref(),
+        body.avatar_url.as_deref(),
+    )?;
     let embeds = body.embeds.unwrap_or_default();
     let content = body.content.unwrap_or_default();
     if content.trim().is_empty() && embeds.is_empty() {
@@ -677,6 +682,20 @@ pub async fn execute_webhook(
             },
         )
         .await?;
+    if let Some(store) = &messages.rich.store {
+        let author = sr_chat::rich_repo::WebhookAuthor {
+            webhook_id: w.id.get(),
+            username: shown_as.0,
+            avatar_url: shown_as.1,
+        };
+        store
+            .set_webhook_author(msg.id, &author)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e.0, "recording the webhook author failed");
+                MsgError::from(ErrorCode::SrInternal)
+            })?;
+    }
     let data = event_payload(&messages, &msg).await?;
     messages
         .publish(DomainEvent::MessageSent {
@@ -692,5 +711,85 @@ pub async fn execute_webhook(
         Ok(Json(out).into_response())
     } else {
         Ok(StatusCode::NO_CONTENT.into_response())
+    }
+}
+
+/// Longest `username` a webhook execution may carry (Discord: 80).
+const MAX_WEBHOOK_USERNAME: usize = 80;
+/// Longest `avatar_url`.
+const MAX_WEBHOOK_AVATAR_URL: usize = 512;
+
+/// The name and avatar a webhook message is shown with: the per-call override when given,
+/// else the webhook's own name. The avatar must be an absolute `https` URL; viewers load it
+/// through the image proxy, never directly (DEV-BOT-006).
+fn webhook_display(
+    webhook_name: &str,
+    username: Option<&str>,
+    avatar_url: Option<&str>,
+) -> MsgResult<(String, Option<String>)> {
+    let name = match username.map(str::trim) {
+        None | Some("") => webhook_name.to_owned(),
+        Some(n) if n.chars().count() > MAX_WEBHOOK_USERNAME => {
+            return Err(MsgError::from(invalid(
+                "username",
+                "BASE_TYPE_MAX_LENGTH",
+                "Must be 80 or fewer in length.",
+            )));
+        }
+        Some(n) => n.to_owned(),
+    };
+    let avatar = match avatar_url.map(str::trim) {
+        None | Some("") => None,
+        Some(u)
+            if u.len() > MAX_WEBHOOK_AVATAR_URL
+                || !u
+                    .get(..8)
+                    .is_some_and(|p| p.eq_ignore_ascii_case("https://"))
+                || u.chars().any(|c| c.is_control() || c.is_whitespace()) =>
+        {
+            return Err(MsgError::from(invalid(
+                "avatar_url",
+                "URL_TYPE_INVALID_URL",
+                "Must be an https URL of at most 512 characters.",
+            )));
+        }
+        Some(u) => Some(u.to_owned()),
+    };
+    Ok((name, avatar))
+}
+
+#[cfg(test)]
+mod display_tests {
+    use super::webhook_display;
+
+    #[test]
+    fn username_defaults_to_the_webhook_name_and_is_length_checked() {
+        assert_eq!(
+            webhook_display("Hook", None, None).unwrap(),
+            ("Hook".into(), None)
+        );
+        assert_eq!(webhook_display("Hook", Some("  "), None).unwrap().0, "Hook");
+        assert_eq!(
+            webhook_display("Hook", Some(" Bot9 "), None).unwrap().0,
+            "Bot9"
+        );
+        assert!(webhook_display("Hook", Some(&"x".repeat(81)), None).is_err());
+        assert!(webhook_display("Hook", Some(&"x".repeat(80)), None).is_ok());
+    }
+
+    #[test]
+    fn avatar_must_be_a_short_https_url_without_whitespace() {
+        let ok = webhook_display("H", None, Some("https://cdn.example/a.png")).unwrap();
+        assert_eq!(ok.1.as_deref(), Some("https://cdn.example/a.png"));
+        for bad in [
+            "http://cdn.example/a.png",
+            "javascript:alert(1)",
+            "https://x.example/a b.png",
+            "//cdn.example/a.png",
+        ] {
+            assert!(webhook_display("H", None, Some(bad)).is_err(), "{bad}");
+        }
+        let long = format!("https://x.example/{}", "a".repeat(600));
+        assert!(webhook_display("H", None, Some(&long)).is_err());
     }
 }

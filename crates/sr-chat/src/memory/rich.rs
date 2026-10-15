@@ -13,6 +13,26 @@ use std::collections::HashMap;
 
 #[async_trait]
 impl RichStore for MemoryBackend {
+    async fn set_webhook_author(
+        &self,
+        message: MessageId,
+        author: &crate::rich_repo::WebhookAuthor,
+    ) -> StoreResult<()> {
+        self.data().webhook_authors.insert(message, author.clone());
+        Ok(())
+    }
+
+    async fn webhook_authors(
+        &self,
+        messages: &[MessageId],
+    ) -> StoreResult<HashMap<MessageId, crate::rich_repo::WebhookAuthor>> {
+        let d = self.data();
+        Ok(messages
+            .iter()
+            .filter_map(|m| d.webhook_authors.get(m).map(|a| (*m, a.clone())))
+            .collect())
+    }
+
     async fn set_embeds(&self, message: MessageId, embeds: &[Embed]) -> StoreResult<()> {
         if let Some(m) = self.data().messages.iter_mut().find(|m| m.id == message) {
             m.embeds = embeds.to_vec();
