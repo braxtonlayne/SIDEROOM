@@ -45,8 +45,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-HOME-009** [FE] DM list ordering by last message, virtualized
 - [x] **LNG-HOME-010** [FE] User panel: avatar w/ status (click → status picker & account switcher popout), name, custom status line *(no account switcher yet)*
 - [x] **LNG-HOME-011** [FE] Status picker popout: Online, Idle, Do Not Disturb (with durations), Invisible; Set custom status (emoji + text + clear-after) *(custom status has text and clear-after, no emoji yet)*
-- [ ] **LNG-HOME-012** [FE] Mic toggle + dropdown (input devices, input volume, "Voice settings")
-- [ ] **LNG-HOME-013** [FE] Headphone toggle + dropdown (output devices, output volume)
+- [x] **LNG-HOME-012** [FE] Mic toggle + dropdown (input devices, input volume, "Voice settings") *(`shell/DevicePopover.tsx` arrow beside the mic in `UserPanel.tsx`; test `p11ShellDevices.test.tsx`)*
+- [x] **LNG-HOME-013** [FE] Headphone toggle + dropdown (output devices, output volume) *(same popover for output; device switch needs `setSinkId`, the popover says so otherwise)*
 - [x] **LNG-HOME-014** [FE] Settings gear → User Settings
 - [x] **LNG-HOME-015** [FE] Copy username on name click (toast "Copied!")
 

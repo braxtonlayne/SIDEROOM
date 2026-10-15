@@ -3,6 +3,7 @@ import { useT } from '../i18n';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { useCurrentUser, usePresence } from './data';
 import { useSelfPresence } from './shell/selfPresence';
+import { DevicePopover } from './shell/DevicePopover';
 import { statusLabel, StatusMenu } from './shell/StatusMenu';
 import { voiceController } from '../voice/controller';
 import { useVoiceSession } from '../voice/session';
@@ -52,46 +53,52 @@ export function UserPanel() {
             </span>
           </span>
         </button>
-        <Tooltip
-          content={
-            serverMuted
-              ? t('lounge.userPanel.mutedByMod')
-              : micMuted
-                ? t('lounge.userPanel.unmute')
-                : t('lounge.userPanel.mute')
-          }
-        >
-          <button
-            type="button"
-            className="lng-icon-btn"
-            aria-label={micMuted ? t('lounge.userPanel.unmute') : t('lounge.userPanel.mute')}
-            aria-pressed={micMuted}
-            disabled={serverMuted}
-            onClick={toggleMic}
+        <span className="lng-split">
+          <Tooltip
+            content={
+              serverMuted
+                ? t('lounge.userPanel.mutedByMod')
+                : micMuted
+                  ? t('lounge.userPanel.unmute')
+                  : t('lounge.userPanel.mute')
+            }
           >
-            <Icon name={micMuted ? 'mic-off' : 'mic'} size={20} />
-          </button>
-        </Tooltip>
-        <Tooltip
-          content={
-            serverDeaf
-              ? t('lounge.userPanel.deafenedByMod')
-              : deafened
-                ? t('lounge.userPanel.undeafen')
-                : t('lounge.userPanel.deafen')
-          }
-        >
-          <button
-            type="button"
-            className="lng-icon-btn"
-            aria-label={deafened ? t('lounge.userPanel.undeafen') : t('lounge.userPanel.deafen')}
-            aria-pressed={deafened}
-            disabled={serverDeaf}
-            onClick={toggleDeafen}
+            <button
+              type="button"
+              className="lng-icon-btn"
+              aria-label={micMuted ? t('lounge.userPanel.unmute') : t('lounge.userPanel.mute')}
+              aria-pressed={micMuted}
+              disabled={serverMuted}
+              onClick={toggleMic}
+            >
+              <Icon name={micMuted ? 'mic-off' : 'mic'} size={20} />
+            </button>
+          </Tooltip>
+          <DevicePopover kind="input" />
+        </span>
+        <span className="lng-split">
+          <Tooltip
+            content={
+              serverDeaf
+                ? t('lounge.userPanel.deafenedByMod')
+                : deafened
+                  ? t('lounge.userPanel.undeafen')
+                  : t('lounge.userPanel.deafen')
+            }
           >
-            <Icon name={deafened ? 'volume-off' : 'headphones'} size={20} />
-          </button>
-        </Tooltip>
+            <button
+              type="button"
+              className="lng-icon-btn"
+              aria-label={deafened ? t('lounge.userPanel.undeafen') : t('lounge.userPanel.deafen')}
+              aria-pressed={deafened}
+              disabled={serverDeaf}
+              onClick={toggleDeafen}
+            >
+              <Icon name={deafened ? 'volume-off' : 'headphones'} size={20} />
+            </button>
+          </Tooltip>
+          <DevicePopover kind="output" />
+        </span>
         <Tooltip content={t('lounge.userPanel.settings')}>
           <button
             type="button"
