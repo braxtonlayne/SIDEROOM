@@ -5,6 +5,7 @@ import type { TouchEvent } from 'react';
 import { useT } from '../i18n';
 import { useAppBadge } from '../pwa/useAppBadge';
 import { useDesktopNotify } from './shell/desktopNotify';
+import { DmToasts } from './shell/DmToasts';
 import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
 import { useVisualViewport } from './useVisualViewport';
 import { ChannelSidebar } from './ChannelSidebar';
@@ -297,6 +298,7 @@ function Shell() {
       data-pane={isMobile ? pane : undefined}
     >
       <ToastProvider>
+        <DmToasts />
         <SectionBar />
         {!isMobile && <TitleStrip title={title} />}
         <ConnectionBanner />

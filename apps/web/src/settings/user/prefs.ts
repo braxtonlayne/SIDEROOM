@@ -79,6 +79,8 @@ export interface UserPrefs {
   unreadBadge: boolean;
   titleBlink: boolean;
   reactionNotifications: boolean;
+  /** A toast inside the app for a direct message that arrives while another channel is open (LNG-NTF-009). */
+  dmToasts: boolean;
   /** Minutes without activity before notifications go to the phone instead (0 = never). */
   pushInactiveMinutes: number;
   emailDigest: boolean;
@@ -138,6 +140,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   unreadBadge: true,
   titleBlink: false,
   reactionNotifications: true,
+  dmToasts: true,
   pushInactiveMinutes: 10,
   emailDigest: false,
   shareActivity: true,
@@ -230,6 +233,7 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     unreadBadge: bool(r.unreadBadge, d.unreadBadge),
     titleBlink: bool(r.titleBlink, d.titleBlink),
     reactionNotifications: bool(r.reactionNotifications, d.reactionNotifications),
+    dmToasts: bool(r.dmToasts, d.dmToasts),
     pushInactiveMinutes: (PUSH_INACTIVE_CHOICES as readonly number[]).includes(
       r.pushInactiveMinutes as number,
     )

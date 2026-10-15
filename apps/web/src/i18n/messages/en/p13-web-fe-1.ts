@@ -37,4 +37,9 @@ export default {
   'settings.dataExport.expiresAt': 'Link works until {when}',
   'settings.dataExport.requestAgain': 'Request my data again',
   'settings.dataExport.error': 'The request failed',
+  // LNG-NTF-009 DM toasts
+  'settings.notifications.dmToasts': 'Pop-up for direct messages',
+  'settings.notifications.dmToastsDesc':
+    'Show a small pop-up when a direct message arrives while you are looking at another channel.',
+  'lounge.dmToast.title': '{name} sent you a message',
 } satisfies Record<string, string>;
