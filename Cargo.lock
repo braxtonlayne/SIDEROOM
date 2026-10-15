@@ -5395,6 +5395,7 @@ dependencies = [
  "bytes",
  "futures",
  "http-body-util",
+ "regex",
  "serde",
  "serde_json",
  "sha2 0.11.0",
