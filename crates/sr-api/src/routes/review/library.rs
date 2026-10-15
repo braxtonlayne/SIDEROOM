@@ -329,3 +329,38 @@ pub async fn review_pages(
         .map(Json)
         .map_err(map_err)
 }
+
+/// Body of `POST /library/submissions/{id}/cover`.
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct CoverBody {
+    /// `data:image/jpeg;base64,...` or `data:image/png;base64,...`: one image of at most 2 MiB.
+    pub image: String,
+}
+
+/// Largest request body of the cover route: a 2 MiB image as base64 plus the JSON around it.
+pub const COVER_BODY_LIMIT: usize = 3 * 1024 * 1024 + 512 * 1024;
+
+/// Set the cover of my draft series (G-78): one JPEG or PNG up to 2 MiB, sniffed from its content
+/// and re-encoded (metadata stripped, at most 600 x 900). Only the submitter, and only while the
+/// submission is a draft or has changes requested. The web app sends the first page of an uploaded
+/// PDF here, rendered in the browser. New series (`library.series`) only.
+#[utoipa::path(
+    post, path = "/library/submissions/{submission_id}/cover", operation_id = "submissions_library_set_cover", request_body = CoverBody,
+    params(("submission_id" = String, Path, description = "Submission snowflake")),
+    responses((status = 200, body = Series), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn set_cover(
+    ctx: MemberCtx,
+    Path(submission_id): Path<String>,
+    Json(b): Json<CoverBody>,
+) -> ApiResult<Json<Series>> {
+    let s = editable(&ctx, &submission_id).await?;
+    let bytes = crate::routes::settings::expressions::decode_data_uri("image", &b.image)?;
+    ops(&ctx)?
+        .set_cover(&s, ctx.user(), &bytes)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}

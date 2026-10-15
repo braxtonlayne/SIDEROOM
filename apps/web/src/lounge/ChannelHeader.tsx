@@ -1,6 +1,7 @@
 import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../i18n';
+import { FollowButton } from './header/FollowButton';
 import { NotifyButton } from './header/NotifyButton';
 import { InboxButton } from './inbox/InboxButton';
 import { SavedButton } from './features/SavedButton';
@@ -40,6 +41,8 @@ export interface ChannelHeaderProps {
   canUnpin?: boolean | undefined;
   /** Small label after the name for Community channels: "Rules", "Announcements". */
   badge?: string | undefined;
+  /** An announcement channel: show the Follow button (G-30). */
+  followable?: boolean | undefined;
 }
 
 function Soon({ icon, label }: { icon: IconName; label: string }) {
@@ -74,6 +77,7 @@ export function ChannelHeader({
   channelId,
   canUnpin,
   badge,
+  followable,
 }: ChannelHeaderProps) {
   const t = useT();
   const [topicOpen, setTopicOpen] = useState(false);
@@ -156,6 +160,7 @@ export function ChannelHeader({
             </Tooltip>
           </>
         )}
+        {!isDm && followable && channelId && <FollowButton channelId={channelId} />}
         {!isDm && guildId && channelId && <ThreadsButton guildId={guildId} channelId={channelId} />}
         {guildId && channelId ? (
           <>

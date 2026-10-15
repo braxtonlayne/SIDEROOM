@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { verifyEmail } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
+import { useT } from '../../i18n/react';
 
 type State = 'verifying' | 'done' | 'expired' | 'error';
 
 /** ENT-UI-020: `/verify-email/:token`. The token is single use, so the request is sent once. */
 export function VerifyEmail() {
+  const t = useT();
   const { token } = useParams({ strict: false }) as { token: string };
   const [state, setState] = useState<State>('verifying');
   const sent = useRef(false);
@@ -24,38 +26,38 @@ export function VerifyEmail() {
 
   return (
     <AuthSplit
-      eyebrow="Almost there."
-      heading="Check the"
-      accent="door."
-      copy="One click confirms this address belongs to you."
-      footLabel="Member entrance / 03"
+      eyebrow={t('entrance.verifyEmail.eyebrow')}
+      heading={t('entrance.verifyEmail.heading')}
+      accent={t('entrance.verifyEmail.headingAccent')}
+      copy={t('entrance.verifyEmail.copy')}
+      footLabel={t('entrance.verifyEmail.footLabel')}
     >
-      <FormHead eyebrow="Verify email" title="Confirming your address." />
+      <FormHead
+        eyebrow={t('entrance.verifyEmail.formEyebrow')}
+        title={t('entrance.verifyEmail.title')}
+      />
       {state === 'verifying' && (
         <p role="status" className="ent-sub">
-          One moment…
+          {t('entrance.common.oneMoment')}
         </p>
       )}
       {state === 'done' && (
         <p role="status" className="ent-sub">
-          Your email is verified. Thanks for confirming. If you were changing your address, the new
-          one is now what you sign in with.
+          {t('entrance.verifyEmail.done')}
         </p>
       )}
       {state === 'expired' && (
         <p role="alert" className="ent-sub">
-          That link has expired or was already used. Sign in and ask for a new one from the banner
-          in the lounge, or, if you were changing your email, start the change again from Settings,
-          My Account.
+          {t('entrance.verifyEmail.expired')}
         </p>
       )}
       {state === 'error' && (
         <p role="alert" className="ent-sub">
-          We couldn't reach the door. Check your connection and try again.
+          {t('entrance.common.unreachable')}
         </p>
       )}
       <p className="ent-footnote">
-        <Link to="/login">Back to sign in</Link>
+        <Link to="/login">{t('entrance.common.backToSignIn')}</Link>
       </p>
     </AuthSplit>
   );

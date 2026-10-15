@@ -18,13 +18,13 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Server Tag
 - [x] **LNG-SSET-011** [FE] Tag text (≤ 4 chars), badge picker (icon set + color), preview next to a member name, "Members can choose to display" toggle *(p11: section `tag` in server settings, `settings/server/sections/Tag.tsx` on `GET/PUT/DELETE /guilds/{id}/tag`; 16 glyphs in `lib/serverTag.ts` for badge ids 0 to 15; test `settings/server/__tests__/tag.test.tsx`)*
-- [x] **LNG-SSET-012** [BE] Tag adoption by members (User Settings → Profiles) + global display *(p10: `guild_tags` + `user_primary_guilds` (migration 0631), `GET/PUT/DELETE /guilds/{id}/tag`, `GET/PUT /users/@me/primary-guild`; other users see `primary_guild` on message authors and user objects while the tag exists, members may display it and the user is still a member; tests `guild_tags_are_adopted_only_while_members_may_display_them`, `server_tags_are_managed_by_managers_and_adopted_by_members`, `server_tag_adoption_shows_only_for_members_while_allowed`); p11 client: the picker is a card on User Settings > Profiles > Servers (`settings/user/sections/ServerTagCard.tsx`, `GET/PUT /users/@me/primary-guild`, test `settings/user/__tests__/serverTag.test.tsx`); the tag is not yet drawn next to names in chat*
+- [x] **LNG-SSET-012** [BE] Tag adoption by members (User Settings → Profiles) + global display *(p10: `guild_tags` + `user_primary_guilds` (migration 0631), `GET/PUT/DELETE /guilds/{id}/tag`, `GET/PUT /users/@me/primary-guild`; other users see `primary_guild` on message authors and user objects while the tag exists, members may display it and the user is still a member; tests `guild_tags_are_adopted_only_while_members_may_display_them`, `server_tags_are_managed_by_managers_and_adopted_by_members`, `server_tag_adoption_shows_only_for_members_while_allowed`); p11 client: the picker is a card on User Settings > Profiles > Servers (`settings/user/sections/ServerTagCard.tsx`, `GET/PUT /users/@me/primary-guild`, test `settings/user/__tests__/serverTag.test.tsx`); p12 web: the tag is drawn next to author names in chat, in the member list and in the DM list (`lounge/components/ServerTagChip.tsx`, fed by `primary_guild` through `serverTagOf` in `lounge/liveMap.ts`; nothing is drawn when the API omits it, which it does once the server stops members displaying the tag or the member leaves, and `identity_enabled: false` is honoured too); test `lounge/__tests__/p12FeatUi.test.tsx` server tag chip*
 
 ## Engagement
-- [ ] **LNG-SSET-013** [FE] System Messages channel + toggles (random welcome message, sticker reply button, support contribution messages, setup tips) *(p5: system messages channel select is built; the four toggles need server support (no system_channel_flags))*
+- [x] **LNG-SSET-013** [FE] System Messages channel + toggles (random welcome message, sticker reply button, support contribution messages, setup tips) *(p5: system messages channel select is built; the four toggles need server support (no system_channel_flags))* *(p12 lounge-ch-be: the four switches are `system_channel_flags` bits (Overview → System messages); the support contribution message has no bit of its own, bits 16 and 32 are accepted)*
 - [x] **LNG-SSET-014** [FE] Default Notification Settings (All / Only @mentions)
 - [x] **LNG-SSET-015** [FE] Inactive channel (AFK) + timeout *(p5: stored on the guild; voice is not built, so nothing moves members yet)*
-- [ ] **LNG-SSET-016** [FE] Activity feed / widget settings (server widget JSON toggle)
+- [x] **LNG-SSET-016** [FE] Activity feed / widget settings (server widget JSON toggle) *(p12 lounge-ch-be: Overview → Server widget, `GET|PATCH /guilds/{id}/widget`)*
 
 ## Server Support (replaces Boost Perks)
 - [x] **LNG-SSET-017** [FE] Current level card, pool this month vs next threshold progress bar, grace-period notice *(built with Server Support (DON-UI-004): level card, pool progress bar, grace notice, `ServerSupport.tsx`)*
@@ -42,7 +42,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Soundboard
 - [ ] **LNG-SSET-025** [FE] Sound list (play, name, emoji, volume, uploader), Upload modal (file, trim to 5s with waveform, name, emoji, volume)
-- [ ] **LNG-SSET-026** [BE] Sound trimming/transcode to Opus (`symphonia` decode + `opus` encode) *(p10: not built. There is no soundboard store or API yet (VOX-SB-001), and the only Opus encoder is the `opus` crate, a binding to the C libopus, which this repo's rustls-only, pure-Rust-first policy (docs/03 section 4, marked with a warning) leaves for an ADR; `symphonia` decode alone is pure Rust. See handoff feat-p10-sset-be)*
+- [x] **LNG-SSET-026** [BE] Sound handling: stored as uploaded, no Opus transcode *(re-scoped 2026-10-15 by D-201: files (MP3/Ogg/WAV, 512 KiB, 5 s) are validated and stored as uploaded and decoded by the browser; `symphonia` decode only when needed; no libopus. Earlier note: p10: not built. There is no soundboard store or API yet (VOX-SB-001), and the only Opus encoder is the `opus` crate, a binding to the C libopus, which this repo's rustls-only, pure-Rust-first policy (docs/03 section 4, marked with a warning) leaves for an ADR; `symphonia` decode alone is pure Rust. See handoff feat-p10-sset-be)*
 
 ## Members
 - [ ] **LNG-SSET-027** [FE] Member table (avatar/name, member since, joined platform, join method/invite code, roles chips, signals), search, sort, filters (roles, join date, unusual activity), pagination *(p5: search and role filter use the server endpoints, with paging. p10: sort by name or join date over the loaded members. Still open: join method and signals (not in the member object), join-date filter)*
@@ -82,10 +82,10 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-051** [FE] Watch Parties & Library (who can start parties, default party channel, library feed channel & filters)
 
 ## Safety Setup
-- [ ] **LNG-SSET-052** [FE] DM & spam protection (filter DMs from members, hide suspicious links, warn on new accounts)
+- [x] **LNG-SSET-052** [FE] DM & spam protection (filter DMs from members, hide suspicious links, warn on new accounts) *(p12 lounge-ch-be: Moderation → DM and spam protection stores `dm_spam_filter`, `hide_suspicious_links`, `warn_new_account_days`; no DM filter enforces them yet)*
 - [ ] **LNG-SSET-053** [FE] Raid protection (join rate alerts, auto-lockdown, CAPTCHA **omitted**: invite-only platform)
-- [ ] **LNG-SSET-054** [FE] Explicit media content filter (operator-configurable scanner hook; default off)
-- [ ] **LNG-SSET-055** [FE] Require 2FA for moderator actions
+- [x] **LNG-SSET-054** [FE] Explicit media content filter (operator-configurable scanner hook; default off) *(p12 lounge-ch-be: the switch `explicit_media_filter_dms` is stored; the scanner hook is operator work)*
+- [x] **LNG-SSET-055** [FE] Require 2FA for moderator actions *(p12 lounge-ch-be: Moderation → Two-factor authentication for moderation, `POST /guilds/{id}/mfa`, enforced by `MfaGate`)*
 
 ## Audit Log
 - [x] **LNG-SSET-056** [BE] Audit log entry writing for all guild mutations (Discord action types) + X-Audit-Log-Reason *(p10: every guild mutation writes an entry (guild, channel, overwrite, role, member, ban, kick, prune, invite, webhook, emoji, sticker, automod, onboarding questions, thread create/update/delete, pin, unpin, message delete by a moderator, bulk delete); `X-Audit-Log-Reason` is scoped per request (`router.rs` audit_reason_scope, `settings/audit.rs` ambient reason). Soundboard, scheduled event and integration actions have no feature to audit yet)*

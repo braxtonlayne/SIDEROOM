@@ -50,9 +50,17 @@ export type LoungeDialog =
   | { kind: 'memberAction'; action: 'timeout' | 'kick' | 'ban'; guildId: string; userId: string }
   | { kind: 'editChannel'; guildId: string; channelId: string }
   | { kind: 'deleteChannel'; guildId: string; channelId: string }
+  | { kind: 'slowmode'; guildId: string; channelId: string }
   | { kind: 'notifications'; guildId: string; channelId?: string | undefined }
   | { kind: 'createThread'; guildId: string; channelId: string; messageId?: string | undefined }
-  | { kind: 'transferOwnership'; guildId: string; userId: string };
+  | { kind: 'transferOwnership'; guildId: string; userId: string }
+  | {
+      kind: 'community';
+      guildId: string;
+      tab?: 'rank' | 'suggestions' | 'tickets' | 'birthdays' | undefined;
+    }
+  | { kind: 'events'; guildId: string }
+  | { kind: 'createEvent'; guildId: string; channelId?: string | undefined };
 
 export interface LoungeUiState {
   /** Where to land on `/channels` after a reload (LNG-SHL-005). */

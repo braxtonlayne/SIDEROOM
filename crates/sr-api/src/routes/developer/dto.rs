@@ -84,6 +84,10 @@ pub struct ApplicationObject {
     /// only, present once the key exists).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verify_key: Option<String>,
+    /// `enabled` or `disabled` (owner view only, with an endpoint URL): the endpoint is switched
+    /// off after 25 consecutive failed deliveries within 10 minutes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interactions_endpoint_state: Option<String>,
     /// Staff view of a suspension.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suspended_reason: Option<String>,
@@ -153,6 +157,7 @@ impl ApplicationObject {
                 .filter(|_| !app.client_secret_hint.is_empty()),
             interactions_endpoint_url: None,
             verify_key: None,
+            interactions_endpoint_state: None,
             suspended_reason: staff_view.then(|| app.suspended_reason.clone()).flatten(),
             created_at: iso(app.created_at_ms),
         }
@@ -675,4 +680,48 @@ pub struct CommandIndex {
     /// Discord command objects the caller may use here.
     #[schema(value_type = Vec<Object>)]
     pub application_commands: Vec<Value>,
+}
+
+/// A tester of an application (D-204).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TesterObject {
+    /// Invitation id.
+    pub id: String,
+    /// The tester's account.
+    pub user_id: String,
+    pub username: Option<String>,
+    pub global_name: Option<String>,
+    /// `invited` or `accepted`.
+    pub state: String,
+    pub created_at: String,
+}
+
+/// Body of `POST /applications/{id}/testers`: a username or an account id.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct TesterBody {
+    pub username: Option<String>,
+    pub user_id: Option<String>,
+}
+
+/// Body of `POST /developers/tester-invites/{id}/respond`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct TesterRespondBody {
+    pub accept: bool,
+}
+
+/// The answer to a tester invitation.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TesterRespondResult {
+    pub application_id: String,
+    pub name: String,
+    pub accepted: bool,
+}
+
+/// State of an application's HTTP interactions endpoint (D-186).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct EndpointStatusObject {
+    pub interactions_endpoint_url: Option<String>,
+    /// `enabled`, or `disabled` after 25 consecutive failed deliveries within 10 minutes.
+    pub interactions_endpoint_state: String,
+    pub verify_key: Option<String>,
 }

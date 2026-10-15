@@ -6,6 +6,8 @@ import { getMe, getServerInvite, type ServerInvitePreview } from '../../api/entr
 import { inviteErrorMessage } from '../../lounge/inviteFlow';
 import { useStore } from '../../store';
 import { formatNumber } from '../../i18n';
+import { t as tr } from '../../i18n/runtime';
+import { useT } from '../../i18n/react';
 import '../../components/entrance.css';
 
 type State =
@@ -21,6 +23,7 @@ const initial = (name: string) => name.slice(0, 1).toUpperCase();
  * the server and opens it in the Lounge.
  */
 export function ServerInvite() {
+  const t = useT();
   const { code } = useParams({ strict: false }) as { code: string };
   const navigate = useNavigate();
   const [state, setState] = useState<State>({ kind: 'loading' });
@@ -44,7 +47,7 @@ export function ServerInvite() {
             signedIn: false,
             invite: {
               code,
-              guild: { id: '', name: 'a server', icon: null },
+              guild: { id: '', name: tr('entrance.serverInvite.someServer'), icon: null },
               approximate_member_count: 0,
               approximate_presence_count: 0,
             },
@@ -61,9 +64,10 @@ export function ServerInvite() {
     setError(null);
     try {
       const joined = await useStore.getState().acceptInvite(code);
+      // A group DM invite has no server: the group opens under Direct Messages.
       await navigate({
         to: '/channels/$guildId/$channelId',
-        params: { guildId: joined.guild.id, channelId: joined.channel.id },
+        params: { guildId: joined.guild?.id ?? '@me', channelId: joined.channel.id },
       });
     } catch (e) {
       setError(inviteErrorMessage(e));
@@ -72,34 +76,42 @@ export function ServerInvite() {
   };
 
   const counts = (inv: ServerInvitePreview) =>
-    inv.approximate_member_count || inv.approximate_presence_count ? (
+    !inv.guild && inv.approximate_member_count ? (
       <p>
-        {formatNumber(inv.approximate_presence_count ?? 0)} online ·{' '}
-        {formatNumber(inv.approximate_member_count ?? 0)} members
+        {t('entrance.invite.groupMembers', { count: formatNumber(inv.approximate_member_count) })}
+      </p>
+    ) : inv.approximate_member_count || inv.approximate_presence_count ? (
+      <p>
+        {t('entrance.serverInvite.counts', {
+          online: formatNumber(inv.approximate_presence_count ?? 0),
+          members: formatNumber(inv.approximate_member_count ?? 0),
+        })}
       </p>
     ) : null;
+
+  const inv = state.kind === 'ready' ? state.invite : null;
+  const isGroup = !!inv && !inv.guild;
+  const shownName = inv?.guild?.name ?? inv?.channel?.name ?? t('entrance.invite.groupName');
+  const iconUrl = inv?.guild?.icon
+    ? `/cdn/icons/${inv.guild.id}/${inv.guild.icon}.png`
+    : inv?.channel?.icon
+      ? `/cdn/channel-icons/${inv.channel.id}/${inv.channel.icon}.png`
+      : null;
 
   return (
     <ThemeProvider section="lounge" className="ent-invite-page">
       <main className="ent-invite-card" aria-busy={state.kind === 'loading'}>
-        {state.kind === 'loading' && <p role="status">Loading invite…</p>}
-        {state.kind === 'invalid' && <p role="alert">This invite is invalid or has expired.</p>}
+        {state.kind === 'loading' && <p role="status">{t('entrance.serverInvite.loading')}</p>}
+        {state.kind === 'invalid' && <p role="alert">{t('entrance.serverInvite.invalid')}</p>}
         {state.kind === 'ready' && (
           <>
             <div className="ent-invite-icon" aria-hidden="true">
-              {state.invite.guild.icon ? (
-                <img
-                  src={`/cdn/icons/${state.invite.guild.id}/${state.invite.guild.icon}.png`}
-                  alt=""
-                  width={72}
-                  height={72}
-                />
-              ) : (
-                initial(state.invite.guild.name)
-              )}
+              {iconUrl ? <img src={iconUrl} alt="" width={72} height={72} /> : initial(shownName)}
             </div>
-            <p>You’ve been invited to join</p>
-            <h1>{state.invite.guild.name}</h1>
+            <p>
+              {isGroup ? t('entrance.invite.groupInvited') : t('entrance.serverInvite.invited')}
+            </p>
+            <h1>{shownName}</h1>
             {counts(state.invite)}
             {state.signedIn ? (
               <>
@@ -108,13 +120,13 @@ export function ServerInvite() {
                   loading={accepting}
                   onClick={() => void accept()}
                 >
-                  Accept invite
+                  {t('entrance.serverInvite.accept')}
                 </Button>
                 {error && <p role="alert">{error}</p>}
               </>
             ) : (
               <Link to="/login" search={{ next: `/invite/${code}` }} className="ent-invite-cta">
-                Log in to accept
+                {t('entrance.serverInvite.login')}
               </Link>
             )}
           </>

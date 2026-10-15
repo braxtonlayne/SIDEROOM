@@ -92,6 +92,31 @@ impl StaffAlertKind {
     }
 }
 
+/// Which `GUILD_SCHEDULED_EVENT_*` dispatch a [`DomainEvent::ScheduledEvent`] becomes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScheduledEventKind {
+    Create,
+    Update,
+    Delete,
+    /// A member marked themselves interested; `payload` is
+    /// `{guild_scheduled_event_id, user_id, guild_id}`.
+    UserAdd,
+    UserRemove,
+}
+
+impl ScheduledEventKind {
+    pub const fn dispatch_name(self) -> &'static str {
+        match self {
+            Self::Create => "GUILD_SCHEDULED_EVENT_CREATE",
+            Self::Update => "GUILD_SCHEDULED_EVENT_UPDATE",
+            Self::Delete => "GUILD_SCHEDULED_EVENT_DELETE",
+            Self::UserAdd => "GUILD_SCHEDULED_EVENT_USER_ADD",
+            Self::UserRemove => "GUILD_SCHEDULED_EVENT_USER_REMOVE",
+        }
+    }
+}
+
 /// Events emitted by domain logic. Extend as modules need them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -299,6 +324,20 @@ pub enum DomainEvent {
         /// Admin path the card links to (`/admin/...`), when there is one.
         link: Option<String>,
     },
+    /// A submission entered review (`outcome: None`) or was decided (`approved`, `rejected`,
+    /// `changes_requested`, `published`, `withdrawn`): the `#review-queue` card of the Staff Server
+    /// is posted or edited to match (G-68). Like [`Self::StaffFeed`] only the card poster reads it.
+    ReviewCard {
+        submission_id: i64,
+        outcome: Option<String>,
+    },
+    /// A dispatch for every connected session (`SR_FEATURE_UPDATE`, `SR_ANNOUNCEMENT_UPDATE`):
+    /// the gateway sends `name` and `payload` as-is to all sessions that signed in. Published on
+    /// `Topic::Platform`.
+    PlatformBroadcast {
+        name: String,
+        payload: Value,
+    },
     /// A Discord dispatch addressed to specific users (relationship, ack, note,
     /// user-settings and similar self-scoped events). Producers publish it to each
     /// addressed user's `Topic::User`; the gateway sends `name` and `payload`
@@ -354,6 +393,25 @@ pub enum DomainEvent {
     SoundboardUpdated {
         guild: GuildId,
         payload: Value,
+    },
+    /// `GUILD_SCHEDULED_EVENT_*`; `payload` is the event object (or the user pair).
+    ScheduledEvent {
+        guild: GuildId,
+        kind: ScheduledEventKind,
+        payload: Value,
+    },
+    /// A member entered a guild voice or stage channel (a fresh join or a move; a move is a
+    /// `VoiceLeft` followed by this). Internal: clients learn it from `VOICE_STATE_UPDATE`.
+    VoiceJoined {
+        guild: GuildId,
+        channel: ChannelId,
+        user: UserId,
+    },
+    /// A member left a guild voice or stage channel (disconnected, moved away, or lost).
+    VoiceLeft {
+        guild: GuildId,
+        channel: ChannelId,
+        user: UserId,
     },
     /// `SR_ENTITLEMENT_UPDATE` for the members of a guild (its support level or pool changed);
     /// `payload` is `{type:"guild", guild_id, level, pool_cents}`.
@@ -511,6 +569,9 @@ impl DomainEvent {
             | Self::EmojisUpdated { guild, .. }
             | Self::StickersUpdated { guild, .. }
             | Self::SoundboardUpdated { guild, .. }
+            | Self::ScheduledEvent { guild, .. }
+            | Self::VoiceJoined { guild, .. }
+            | Self::VoiceLeft { guild, .. }
             | Self::GuildEntitlementUpdated { guild, .. }
             | Self::WebhooksUpdated { guild, .. }
             | Self::AutoModRuleCreated { guild, .. }
@@ -552,6 +613,8 @@ impl DomainEvent {
             Self::UserScoped { users, .. } => users.iter().map(|u| Topic::User(*u)).collect(),
             Self::PresenceChanged { user, .. } => vec![Topic::User(*user)],
             Self::FeatureSettingsChanged { .. }
+            | Self::PlatformBroadcast { .. }
+            | Self::ReviewCard { .. }
             | Self::StaffAlert { .. }
             | Self::StaffFeed { .. } => vec![Topic::Platform],
         }

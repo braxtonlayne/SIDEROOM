@@ -396,6 +396,14 @@ pub struct GuildObject {
     pub verification_level: u8,
     pub default_message_notifications: u8,
     pub explicit_content_filter: u8,
+    /// 0 none, 1 elevated: moderator actions need a recent second factor
+    /// (`POST /guilds/{id}/mfa`).
+    pub mfa_level: u8,
+    /// Discord `system_channel_flags` bits (1 suppress join messages, 2 boost messages,
+    /// 4 setup tips, 8 sticker reply buttons, 16 role subscription messages, 32 their replies).
+    pub system_channel_flags: u32,
+    pub widget_enabled: bool,
+    pub widget_channel_id: Option<String>,
     pub preferred_locale: String,
     pub features: Vec<String>,
     /// Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
@@ -405,6 +413,10 @@ pub struct GuildObject {
     /// Vanity invite code (LNG-INV-004).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vanity_url_code: Option<String>,
+    /// Community channels (Discord shape, null when unset; G-76).
+    pub rules_channel_id: Option<String>,
+    pub public_updates_channel_id: Option<String>,
+    pub safety_alerts_channel_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roles: Option<Vec<RoleObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -427,10 +439,17 @@ impl GuildObject {
             verification_level: g.verification_level,
             default_message_notifications: g.default_message_notifications,
             explicit_content_filter: g.explicit_content_filter,
+            mfa_level: g.mfa_level,
+            system_channel_flags: g.system_channel_flags,
+            widget_enabled: g.widget_enabled,
+            widget_channel_id: g.widget_channel_id.map(|c| c.to_string()),
             preferred_locale: g.preferred_locale.clone(),
             features: Vec::new(),
             is_staff_guild: g.is_staff_guild,
             vanity_url_code: g.vanity_code.clone(),
+            rules_channel_id: g.rules_channel_id.map(|c| c.to_string()),
+            public_updates_channel_id: g.public_updates_channel_id.map(|c| c.to_string()),
+            safety_alerts_channel_id: g.safety_alerts_channel_id.map(|c| c.to_string()),
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
         }
@@ -463,6 +482,18 @@ pub struct MemberObject {
     /// Per-server bio (LNG-GLD-012).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bio: Option<String>,
+    /// Per-server pronouns (G-52).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pronouns: Option<String>,
+    /// Per-server profile theme, `[primary, accent]` as 0xRRGGBB.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme_colors: Option<[u32; 2]>,
+    /// Per-server profile effect slug.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_effect: Option<String>,
+    /// Per-server avatar decoration slug.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_decoration: Option<String>,
     pub roles: Vec<String>,
     pub joined_at: String,
     pub premium_since: Option<String>,
@@ -484,6 +515,10 @@ impl MemberObject {
             avatar: m.avatar_key.clone(),
             banner: m.banner_key.clone(),
             bio: m.bio.clone(),
+            pronouns: m.extras.pronouns.clone(),
+            theme_colors: m.extras.theme_colors,
+            profile_effect: m.extras.profile_effect.clone(),
+            avatar_decoration: m.extras.avatar_decoration.clone(),
             roles: m.role_ids.iter().map(ToString::to_string).collect(),
             joined_at: iso8601(m.joined_at_ms),
             premium_since: None,
@@ -544,6 +579,8 @@ pub struct ModifyGuildBody {
     pub verification_level: Option<u8>,
     pub default_message_notifications: Option<u8>,
     pub explicit_content_filter: Option<u8>,
+    /// Discord `system_channel_flags` bits (see the server object).
+    pub system_channel_flags: Option<u32>,
     pub preferred_locale: Option<String>,
     /// Transfers ownership (owner only).
     pub owner_id: Option<String>,
@@ -630,6 +667,15 @@ pub struct CreateChannelBody {
     pub flags: Option<u32>,
     #[serde(flatten)]
     pub forum: ForumSettingsBody,
+    /// SIDE ROOM "Watch party room" preset (D-208): with a voice channel (`type` 2), also start a persistent
+    /// watch party bound to it. Needs `sr_watch_party_title_id`; the party survives being empty and the first
+    /// person to join becomes host.
+    #[serde(default)]
+    pub sr_watch_party_room: Option<bool>,
+    /// The title the room starts with (a Cinema title snowflake).
+    pub sr_watch_party_title_id: Option<String>,
+    /// An episode of that title, for a series.
+    pub sr_watch_party_episode_id: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, ToSchema)]

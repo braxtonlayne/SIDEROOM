@@ -79,6 +79,18 @@ async fn followup_route(
     }
 }
 
+/// Records the system DMs the developer platform sends.
+#[derive(Default)]
+pub(super) struct DmLog(pub(super) std::sync::Mutex<Vec<(i64, super::SystemCard)>>);
+
+#[async_trait]
+impl super::SystemDm for DmLog {
+    async fn dm(&self, to: i64, card: super::SystemCard) -> bool {
+        self.0.lock().unwrap().push((to, card));
+        true
+    }
+}
+
 struct Pw;
 
 #[async_trait]
@@ -108,6 +120,7 @@ pub(super) struct Env {
     pub(super) clock: Arc<ManualClock>,
     pub(super) bus: Arc<InProcessBus>,
     pub(super) tokens: HashMap<i64, String>,
+    pub(super) dms: Arc<DmLog>,
     pub(super) guild: GuildId,
     pub(super) ch: ChannelId,
 }
@@ -153,6 +166,7 @@ pub(super) async fn env_full(
         avatar_key: None,
         banner_key: None,
         bio: None,
+        extras: Default::default(),
     });
     for (id, name) in [
         (OWNER, "owner"),
@@ -244,6 +258,8 @@ pub(super) async fn env_full(
     if let Some(c) = endpoint {
         dev = dev.with_endpoint_client(c);
     }
+    let dms = Arc::new(DmLog::default());
+    dev.set_system_dm(dms.clone());
     let messages = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
@@ -292,6 +308,7 @@ pub(super) async fn env_full(
         clock,
         bus,
         tokens,
+        dms,
         guild,
         ch,
     }
@@ -451,6 +468,7 @@ impl Env {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
     }
 

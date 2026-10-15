@@ -235,8 +235,12 @@ async fn env_with(reauth: bool) -> Env {
             flags: 0,
         });
     }
-    auth.totp_put_pending(MODER, &TOTP_SECRET).await.unwrap();
-    auth.totp_confirm(MODER, 1).await.unwrap();
+    // D-198: accepting an appointment needs a second factor, so the offer tests' invitees have one;
+    // OUTSIDER has none.
+    for uid in [MODER, ALICE, BOB] {
+        auth.totp_put_pending(uid, &TOTP_SECRET).await.unwrap();
+        auth.totp_confirm(uid, 1).await.unwrap();
+    }
     let next = Arc::new(std::sync::atomic::AtomicI64::new(50_000));
     let auth_svc = Arc::new(
         AuthService::new(
@@ -347,6 +351,12 @@ fn endpoints() -> Vec<(Method, String, Option<&'static str>, Option<Value>)> {
             Some(
                 json!({ "account_id": ALICE.to_string(), "role_ids": [R_BASIC.to_string()], "reason": "r" }),
             ),
+        ),
+        (
+            Method::GET,
+            "/admin/staff/former".into(),
+            Some("APPOINT_STAFF"),
+            None,
         ),
         (
             Method::PUT,
@@ -1948,4 +1958,114 @@ async fn alerts_list_and_acknowledge() {
         .call(Some(OUTSIDER), Method::GET, "/admin/alerts", None)
         .await;
     assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn direct_appointment_is_owner_only() {
+    let e = env().await;
+    // A delegate holding APPOINT_STAFF is refused; offers are their path.
+    e.repo
+        .add_role(77, "Delegate", 2, P::STAFF_BASIC | P::APPOINT_STAFF);
+    let svc = AdminService::new(e.repo.clone()).with_clock(e.clock.clone());
+    svc.appoint(
+        &Caller::operator(SYSTEM_USER_ID),
+        BOB,
+        &[77],
+        Some("delegate"),
+    )
+    .await
+    .unwrap();
+    let body = json!({ "account_id": ALICE.to_string(), "role_ids": [R_BASIC.to_string()], "reason": "r" });
+    let (s, _) = e
+        .call(Some(BOB), Method::POST, "/admin/staff", Some(body.clone()))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = e
+        .call(Some(OWNER), Method::POST, "/admin/staff", Some(body))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn ban_reasons_set_the_default_category() {
+    // D-211: illegal content, child safety, fraud and platform abuse default to serious;
+    // harassment and ban evasion to standard; an explicit category always wins.
+    for (reason_category, explicit, want) in [
+        ("fraud", None, "serious"),
+        ("child_safety", None, "serious"),
+        ("harassment", None, "standard"),
+        ("ban_evasion", None, "standard"),
+        ("harassment", Some("serious"), "serious"),
+        ("fraud", Some("standard"), "standard"),
+    ] {
+        let e = env().await;
+        let mut body = json!({ "reason_category": reason_category, "reason": "because" });
+        if let Some(c) = explicit {
+            body["category"] = json!(c);
+        }
+        let (s, b) = e
+            .call(
+                Some(OWNER),
+                Method::POST,
+                &format!("/admin/accounts/{ALICE}/ban"),
+                Some(body),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{reason_category}: {b}");
+        assert_eq!(b["ban"]["category"], want, "{reason_category} {explicit:?}");
+    }
+    // Neither a category nor a reason category: refused.
+    let e = env().await;
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &format!("/admin/accounts/{ALICE}/ban"),
+            Some(json!({ "reason": "because" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn accepting_an_appointment_needs_a_second_factor() {
+    let e = env().await;
+    let (s, offer) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/staff/offers",
+            Some(json!({ "account_id": OUTSIDER.to_string(), "role_ids": [R_BASIC.to_string()], "reason": "r" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{offer}");
+    let oid = offer["id"].as_str().unwrap();
+    // No authenticator and no passkey: refused with 900014, and the offer stays pending.
+    let (s, b) = e
+        .call(
+            Some(OUTSIDER),
+            Method::POST,
+            &format!("/staff/offers/{oid}/respond"),
+            Some(json!({ "accept": true })),
+        )
+        .await;
+    assert_eq!(
+        (s, b["code"].as_u64()),
+        (StatusCode::FORBIDDEN, Some(900_014)),
+        "{b}"
+    );
+    let (_, list) = e
+        .call(Some(OWNER), Method::GET, "/admin/staff/offers", None)
+        .await;
+    assert_eq!(list[0]["state"], "pending");
+    // Declining needs no second factor.
+    let (s, b) = e
+        .call(
+            Some(OUTSIDER),
+            Method::POST,
+            &format!("/staff/offers/{oid}/respond"),
+            Some(json!({ "accept": false })),
+        )
+        .await;
+    assert_eq!((s, b["state"].as_str()), (StatusCode::OK, Some("declined")));
 }

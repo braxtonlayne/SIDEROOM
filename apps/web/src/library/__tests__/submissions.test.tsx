@@ -5,6 +5,7 @@ import { detail, event, item, preview, submission } from '../../review/__tests__
 import type { DraftChapter, SubmissionDetail, Upload } from '../../review/types';
 import { emitDispatch } from '../../store/events';
 import { http, HttpResponse, server } from '../../test/server';
+import { __setPdfjsForTests, type PdfjsLike } from '../pdf/pdfjs';
 import { renderAt, useLibraryApi } from './harness';
 
 const draftChapter = (n: number, o: Partial<DraftChapter> = {}): DraftChapter => ({
@@ -278,6 +279,68 @@ describe('Library submission page', () => {
     // The editing controls are gone.
     expect(screen.queryByRole('form', { name: 'Add a chapter' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Submit for review' })).toBeNull();
+  });
+
+  it('sends the first page of an uploaded PDF as the series cover (G-78)', async () => {
+    const fake: PdfjsLike = {
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 2,
+          getPage: () =>
+            Promise.resolve({
+              getViewport: ({ scale }: { scale: number }) => ({
+                width: 500 * scale,
+                height: 700 * scale,
+              }),
+              render: () => ({ promise: Promise.resolve() }),
+            }),
+          destroy: () => undefined,
+        }),
+      }),
+    };
+    __setPdfjsForTests(() => Promise.resolve(fake));
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      {} as unknown as CanvasRenderingContext2D,
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((cb) =>
+      cb(new Blob(['jpeg-bytes'], { type: 'image/jpeg' })),
+    );
+    const log = useSubmissionsApi({ chapters: [draftChapter(1, { format: 'pdf' })] });
+    server.use(
+      http.post('*/api/v1/submissions/:id/library/chapters/:c/uploads', () =>
+        HttpResponse.json(
+          {
+            upload: upload({ status: 'awaiting_upload' }),
+            upload_url: 'http://storage.test/put/u1',
+            upload_method: 'PUT',
+            expires_in_secs: 600,
+            max_bytes: 1000,
+          },
+          { status: 201 },
+        ),
+      ),
+      http.put('http://storage.test/put/u1', () => new HttpResponse(null, { status: 200 })),
+      http.post('*/api/v1/submissions/:id/library/uploads/:u/complete', () =>
+        HttpResponse.json(upload({ status: 'queued' }), { status: 202 }),
+      ),
+      http.post('*/api/v1/library/submissions/:id/cover', async ({ request }) => {
+        log.posts.push({ path: 'cover', body: await request.clone().json() });
+        return HttpResponse.json({});
+      }),
+    );
+    try {
+      const user = userEvent.setup();
+      renderAt('/library/submissions/1');
+      await screen.findByRole('table', { name: 'Chapters of this submission' });
+      const file = new File(['%PDF-1.7'], 'vol1.pdf', { type: 'application/pdf' });
+      await user.upload(screen.getByLabelText('Choose a file for chapter 1'), file);
+      await waitFor(() => expect(log.posts.some((p) => p.path === 'cover')).toBe(true));
+      const body = log.posts.find((p) => p.path === 'cover')?.body as { image: string };
+      expect(body.image).toMatch(/^data:image\/jpeg;base64,/);
+    } finally {
+      __setPdfjsForTests(null);
+      vi.restoreAllMocks();
+    }
   });
 
   it('lists what is not ready when the server refuses the submit', async () => {

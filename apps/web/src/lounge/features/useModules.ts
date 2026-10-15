@@ -2,7 +2,7 @@
 // when its module is on, so a switched-off module costs nothing in the UI.
 import { useEffect } from 'react';
 import { create } from 'zustand';
-import { getModules } from './api';
+import { getModules, type ModuleCapabilities } from './api';
 
 export const MODULE = {
   scheduled: 'chat.scheduled_messages',
@@ -18,8 +18,14 @@ export const MODULE = {
   tickets: 'community.tickets',
 } as const;
 
+/** Whether the server runs a module that has a member-facing tab in the Community dialog. */
+export const hasMemberModule = (m: Record<string, boolean> | undefined): boolean =>
+  !!m && [MODULE.leveling, MODULE.suggestions, MODULE.tickets, MODULE.birthdays].some((k) => m[k]);
+
 interface ModulesState {
   byGuild: Record<string, Record<string, boolean>>;
+  /** What the viewer may do per module, per server (G-71). */
+  capsByGuild: Record<string, Record<string, ModuleCapabilities>>;
   requested: Record<string, true>;
   load(guildId: string): Promise<void>;
   reset(): void;
@@ -27,19 +33,23 @@ interface ModulesState {
 
 export const useModulesStore = create<ModulesState>()((set, get) => ({
   byGuild: {},
+  capsByGuild: {},
   requested: {},
   load: async (guildId) => {
     if (get().requested[guildId]) return;
     set((s) => ({ requested: { ...s.requested, [guildId]: true } }));
     try {
-      const { modules } = await getModules(guildId);
-      set((s) => ({ byGuild: { ...s.byGuild, [guildId]: modules } }));
+      const { modules, member_capabilities } = await getModules(guildId);
+      set((s) => ({
+        byGuild: { ...s.byGuild, [guildId]: modules },
+        capsByGuild: { ...s.capsByGuild, [guildId]: member_capabilities ?? {} },
+      }));
     } catch {
       // Not a member, or the server is unreachable: no entries. Asked again after a reload.
       set((s) => ({ byGuild: { ...s.byGuild, [guildId]: {} } }));
     }
   },
-  reset: () => set({ byGuild: {}, requested: {} }),
+  reset: () => set({ byGuild: {}, capsByGuild: {}, requested: {} }),
 }));
 
 /** The modules of a server, loading them on first use. `undefined` until known. */
@@ -50,4 +60,15 @@ export function useGuildModules(guildId: string | undefined): Record<string, boo
     if (guildId) void load(guildId);
   }, [guildId, load]);
   return flags;
+}
+
+/**
+ * Whether the viewer can respond in a module: answer suggestions, see every ticket (G-71). The server decides
+ * (Manage Server or the module's staff role); until it has answered, or on a server that does not say, false.
+ */
+export function useCanRespond(guildId: string | undefined, module: string): boolean {
+  useGuildModules(guildId);
+  return useModulesStore((s) =>
+    guildId ? s.capsByGuild[guildId]?.[module]?.can_respond === true : false,
+  );
 }

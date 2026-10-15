@@ -93,11 +93,10 @@ function UserProfilePanel({ userId }: { userId: string }) {
 
 /**
  * Group name and icon, open to every member like on Discord. The server edits group DMs at
- * `PATCH /users/@me/channels/{id}` (`/channels/{id}` belongs to guild channels). It stores the icon as a key and
- * does not accept an image upload yet, so only removing the icon is offered (see feat-p11-integration.md).
+ * `PATCH /users/@me/channels/{id}` (`/channels/{id}` belongs to guild channels). The icon is an image data URI
+ * that the server stores through the media pipeline (`/cdn/channel-icons/{id}/{hash}`), as for guild icons.
  */
-/** Turn on once the server turns an uploaded group icon (data URI) into a stored image, as for guild icons. */
-const GROUP_ICON_UPLOAD = false;
+const GROUP_ICON_UPLOAD = true;
 
 function GroupSettingsDialog({ dm, onClose }: { dm: DmChannel; onClose: () => void }) {
   const t = useT();

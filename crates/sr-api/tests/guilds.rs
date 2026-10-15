@@ -182,6 +182,7 @@ async fn guild(f: &Fx) -> (String, Value) {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
     }
     (id, g)
@@ -1529,4 +1530,62 @@ async fn editing_a_channel_without_changing_its_type_is_not_a_conversion() {
         (c["type"].as_u64(), c["name"].as_str()),
         (Some(2), Some("lounge"))
     );
+}
+
+#[tokio::test]
+async fn the_watch_party_room_preset_is_validated_before_anything_is_created() {
+    let f = fixture();
+    let (gid, _) = guild(&f).await;
+    let path = format!("/guilds/{gid}/channels");
+    let channels = async |f: &_| {
+        let (_, list) = get(f, &path, "owner").await;
+        list.as_array().unwrap().len()
+    };
+    let before = channels(&f).await;
+
+    // A room is a voice channel.
+    let (s, body) = post(
+        &f,
+        &path,
+        "owner",
+        json!({"name": "Movie night", "type": 0, "sr_watch_party_room": true, "sr_watch_party_title_id": "5"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body["errors"]["sr_watch_party_room"].is_object(), "{body}");
+
+    // It starts with a title.
+    let (s, body) = post(
+        &f,
+        &path,
+        "owner",
+        json!({"name": "Movie night", "type": 2, "sr_watch_party_room": true}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body["errors"]["sr_watch_party_title_id"].is_object(),
+        "{body}"
+    );
+
+    // The preset is for people (this fixture's callers are bots), and it is refused before anything is made.
+    let (s, body) = post(
+        &f,
+        &path,
+        "owner",
+        json!({"name": "Movie night", "type": 2, "sr_watch_party_room": true, "sr_watch_party_title_id": "5"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(channels(&f).await, before, "no channel was left behind");
+
+    // Without the flag it is an ordinary voice channel.
+    let (s, body) = post(
+        &f,
+        &path,
+        "owner",
+        json!({"name": "Plain voice", "type": 2, "sr_watch_party_room": false}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "{body}");
 }

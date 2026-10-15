@@ -19,6 +19,7 @@ pub mod insights;
 pub mod invites;
 pub mod join;
 pub mod repo;
+pub mod scheduled_events;
 pub mod service;
 pub mod soundboard;
 pub mod tags;

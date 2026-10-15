@@ -153,6 +153,48 @@ pub trait AppsRepository: Send + Sync {
         seed_if_absent: Option<crate::signing::SigningSeed>,
         audit: Option<AuditRow>,
     ) -> AppsResult<()>;
+
+    /// Record one delivery to the HTTP endpoint (D-186). Applies
+    /// [`crate::service::endpoint_health_step`] atomically; `true` when this outcome flipped
+    /// the endpoint to `disabled`.
+    async fn record_endpoint_outcome(&self, app: i64, ok: bool, now_ms: i64) -> AppsResult<bool>;
+    /// Set the endpoint state (resetting the failure counter) and append the audit row.
+    async fn set_endpoint_state(
+        &self,
+        app: i64,
+        state: EndpointState,
+        audit: AuditRow,
+    ) -> AppsResult<()>;
+
+    // ----- testers (D-204)
+    /// Look an account up by username (case-insensitive); only active, non-bot accounts.
+    async fn account_by_username(&self, username: &str) -> AppsResult<Option<AccountBrief>>;
+    /// Insert an `invited` tester. `Conflict` when the account already is one, or when the
+    /// application holds [`MAX_TESTERS`] rows.
+    async fn invite_tester(&self, t: &Tester, audit: AuditRow) -> AppsResult<Tester>;
+    /// Testers of an application, oldest first.
+    async fn testers(&self, app: i64) -> AppsResult<Vec<Tester>>;
+    /// One invitation by id.
+    async fn tester_by_id(&self, id: i64) -> AppsResult<Option<Tester>>;
+    /// The tester row of an account, if any.
+    async fn tester_of(&self, app: i64, account: i64) -> AppsResult<Option<Tester>>;
+    /// `invited -> accepted` exactly once; `Conflict` otherwise.
+    async fn accept_tester(&self, id: i64, audit: AuditRow) -> AppsResult<Tester>;
+    /// Delete a tester row (removal by the owner, or a decline). `false` when none.
+    async fn remove_tester(&self, app: i64, account: i64, audit: AuditRow) -> AppsResult<bool>;
+    /// A decline: delete the row like [`Self::remove_tester`] and remember the time for the
+    /// re-invite cooldown (G-84).
+    async fn decline_tester(
+        &self,
+        app: i64,
+        account: i64,
+        now_ms: i64,
+        audit: AuditRow,
+    ) -> AppsResult<bool>;
+    /// Did `account` decline an invitation to `app` at or after `since_ms`?
+    async fn declined_since(&self, app: i64, account: i64, since_ms: i64) -> AppsResult<bool>;
+    /// Forget declines older than `before_ms`; returns how many.
+    async fn purge_tester_declines(&self, before_ms: i64) -> AppsResult<u64>;
     /// Replace the client secret.
     async fn rotate_secret(
         &self,

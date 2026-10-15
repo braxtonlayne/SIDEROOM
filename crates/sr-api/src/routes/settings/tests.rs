@@ -56,6 +56,8 @@ struct Env {
     guild: GuildId,
     ch: ChannelId,
     voice: ChannelId,
+    /// What the feature modules act on (with `Opts::features`).
+    actions: Arc<sr_features::testing::FakeActions>,
 }
 
 #[derive(Default)]
@@ -96,6 +98,7 @@ async fn env_with(opts: Opts) -> Env {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
     }
     let mod_role = RoleId::new(gen_ids.generate().get());
@@ -123,6 +126,7 @@ async fn env_with(opts: Opts) -> Env {
         }
     }
 
+    let actions = Arc::new(sr_features::testing::FakeActions::new());
     let sessions = Arc::new(MemorySessions::new());
     let bots = Arc::new(MemoryBots::new());
     for (tok, uid) in [
@@ -223,7 +227,17 @@ async fn env_with(opts: Opts) -> Env {
         builder = builder.extension(Arc::new(crate::routes::voice::VoiceApi(v)));
     }
     if opts.features {
-        let gf = features_tests::wire(&backend, dyn_clock.clone(), bus.clone());
+        actions.put_channel(sr_features::actions::ChannelInfo {
+            id: ch,
+            guild: Some(guild),
+            kind: 0,
+            name: "general".into(),
+            nsfw: false,
+            parent: None,
+            rate_limit_per_user: 5,
+            everyone_can_view: true,
+        });
+        let gf = features_tests::wire(&backend, dyn_clock.clone(), bus.clone(), actions.clone());
         builder = builder.extension(Arc::new(gf));
     }
     let state = builder.build();
@@ -241,6 +255,7 @@ async fn env_with(opts: Opts) -> Env {
         guild,
         ch,
         voice,
+        actions,
     }
 }
 
@@ -2174,6 +2189,7 @@ async fn admin_timeouter_sets_the_deadline_and_announces_the_member() {
         avatar_key: None,
         banner_key: None,
         bio: None,
+        extras: Default::default(),
     });
     let bus = Arc::new(InProcessBus::new());
     let mut events = bus.subscribe(Topic::Guild(guild));
@@ -2897,6 +2913,19 @@ async fn membership_applications_flow() {
     assert_eq!(s, StatusCode::OK, "{ok}");
     assert_eq!(ok["status"], "approved");
     assert_eq!(ok["reviewed_by"], MOD.to_string().as_str());
+    // G-33: both decisions are in the guild audit log (action 200) with status and application id.
+    let (s, log) = e.get(&e.g("/audit-logs"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{log}");
+    let decided: Vec<_> = log["audit_log_entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|x| x["action_type"] == 200)
+        .collect();
+    assert_eq!(decided.len(), 2, "{log}");
+    assert_eq!(decided[0]["options"]["status"], "approved");
+    assert_eq!(decided[1]["options"]["status"], "rejected");
+    assert_eq!(decided[1]["options"]["application_id"], app_id.as_str());
 }
 
 #[path = "soundboard_tests.rs"]

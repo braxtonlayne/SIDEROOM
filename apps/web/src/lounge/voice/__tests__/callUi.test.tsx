@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { DEFAULT_PREFS, usePrefsStore } from '../../../settings/user/prefs';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { afterAll, beforeAll, vi } from 'vitest';
@@ -394,6 +395,7 @@ describe('call controls', () => {
 
 describe('voice user menu (VOX-UI-008)', () => {
   it('offers Profile, Mention, Message, Add Note, volume, Mute and Copy User ID on a tile', async () => {
+    usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, developerMode: true } });
     const user = userEvent.setup();
     await joined(user);
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -407,6 +409,7 @@ describe('voice user menu (VOX-UI-008)', () => {
     expect(within(menu).getByRole('menuitemcheckbox', { name: 'Mute' })).toBeInTheDocument();
     await user.click(within(menu).getByRole('menuitem', { name: 'Mention' }));
     expect(writeText).toHaveBeenCalledWith('<@2>');
+    usePrefsStore.setState({ prefs: DEFAULT_PREFS });
   });
 
   it('has no menu on your own tile', async () => {

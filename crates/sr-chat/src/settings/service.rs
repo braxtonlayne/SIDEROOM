@@ -7,7 +7,9 @@ use std::sync::Arc;
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, Clock, EmojiId, GuildId, RoleId, SnowflakeGenerator, StickerId, UserId};
 
-use super::audit::{AuditAction, AuditChange, AuditEntry, AuditQuery, AuditRetention};
+use super::audit::{
+    AuditAction, AuditChange, AuditEntry, AuditQuery, AuditRetention, SYSTEM_USER_ID,
+};
 use super::automod::{
     self, AutoModRule, CompiledRule, MessageContext, PresetLists, ProfileContext, RuleCache,
     RuleMatch, SpamWindow, Trigger,
@@ -28,12 +30,14 @@ pub type Entropy = Arc<dyn Fn() -> u64 + Send + Sync>;
 
 mod application_ops;
 mod community_ops;
+mod event_ops;
 mod expression_ops;
 mod sound_ops;
 mod tag_ops;
 mod template_ops;
 mod webhook_ops;
 
+pub use event_ops::EventStats;
 pub use expression_ops::StickerPatch;
 pub use sound_ops::{NewSound, SoundPatch};
 pub use webhook_ops::WebhookPatch;
@@ -184,6 +188,32 @@ impl<R: SettingsRepository> SettingsService<R> {
             self.now(),
         )?
         .with_changes(changes);
+        self.store_audit(&entry).await?;
+        Ok(entry)
+    }
+
+    /// Append an entry written by a built-in feature module (D-187): the actor is the system
+    /// user and `options.module` names the module, so the viewer shows "SIDE ROOM · <module>".
+    pub async fn record_audit_as_module(
+        &self,
+        guild: GuildId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        changes: Vec<AuditChange>,
+        reason: Option<&str>,
+        module: (&str, &str),
+    ) -> SettingsResult<AuditEntry> {
+        let entry = AuditEntry::new(
+            self.ids.generate().get(),
+            guild,
+            UserId::new(SYSTEM_USER_ID),
+            action,
+            target_id,
+            reason,
+            self.now(),
+        )?
+        .with_changes(changes)
+        .with_options(serde_json::json!({ "module": module.1, "module_id": module.0 }));
         self.store_audit(&entry).await?;
         Ok(entry)
     }

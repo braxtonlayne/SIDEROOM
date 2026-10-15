@@ -16,6 +16,7 @@ pub const MAX_WELCOME_DESCRIPTION: usize = 140;
 pub const MAX_SCREENING_RULES: usize = 16;
 pub const MAX_SCREENING_RULE_CHARS: usize = 300;
 pub const MAX_SCREENING_DESCRIPTION: usize = 300;
+pub const MAX_NEW_ACCOUNT_DAYS: u32 = 365;
 
 /// Per-guild community and safety flags.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -34,6 +35,17 @@ pub struct CommunitySettings {
     pub invites_paused: bool,
     /// Raid protection: alert when joins per minute exceed this (0 = off).
     pub raid_alert_joins_per_minute: u32,
+    /// DM and spam protection (LNG-SSET-052): flag direct messages that members of this
+    /// server send to each other when they look like spam.
+    pub dm_spam_filter: bool,
+    /// Blur explicit media in direct messages between members (LNG-SSET-054); the scanner
+    /// is operator configuration, so this only records the server's choice.
+    pub explicit_media_filter_dms: bool,
+    /// Hide the preview of links that look suspicious.
+    pub hide_suspicious_links: bool,
+    /// Warn moderators when an account younger than this many days joins (0 = off, at most
+    /// [`MAX_NEW_ACCOUNT_DAYS`]).
+    pub warn_new_account_days: u32,
     pub age_restricted: bool,
     /// Membership screening (LNG-GLD-008): new members stay `pending` until they agree to
     /// the rules below. Only takes effect while Community is on.

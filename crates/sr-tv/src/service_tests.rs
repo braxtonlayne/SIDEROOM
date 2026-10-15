@@ -611,3 +611,213 @@ async fn channels_without_media_are_off_air() {
     let g = e.svc.guide(None, None, &[]).await.unwrap();
     assert!(g.channels[0].blocks.is_empty());
 }
+
+// ---- reminders (G-10) ------------------------------------------------------------------------
+
+#[derive(Default)]
+struct Sink {
+    seen: std::sync::Mutex<Vec<crate::service::ReminderNotice>>,
+    fail: std::sync::atomic::AtomicBool,
+}
+
+#[async_trait::async_trait]
+impl crate::service::ReminderSink for Sink {
+    async fn notify(&self, n: &crate::service::ReminderNotice) -> Result<(), String> {
+        if self.fail.load(Ordering::SeqCst) {
+            return Err("offline".into());
+        }
+        self.seen.lock().unwrap().push(n.clone());
+        Ok(())
+    }
+}
+
+impl Sink {
+    fn count(&self) -> usize {
+        self.seen.lock().unwrap().len()
+    }
+}
+
+/// The channel and its block that starts at 20:30 (the clock stands at 20:00).
+async fn next_block(e: &Env) -> (i64, i64) {
+    let id = channel(e, 101, marathon()).await;
+    let next = e.svc.now(id).await.unwrap().next.unwrap();
+    assert_eq!(next.start_ms, utc(2025, 6, 2, 20, 30));
+    (id, next.id)
+}
+
+#[tokio::test]
+async fn a_reminder_fires_once_five_minutes_before_the_programme() {
+    let e = env();
+    let (_, block) = next_block(&e).await;
+    let sink = Sink::default();
+    e.svc.set_reminder(MEMBER, block, None).await.unwrap();
+    // Setting it again moves it, it does not duplicate it.
+    e.svc.set_reminder(MEMBER, block, None).await.unwrap();
+
+    e.clock.advance_ms(24 * MIN);
+    assert_eq!(e.svc.fire_reminders(&sink).await.unwrap(), 0);
+    e.clock.advance_ms(MIN);
+    assert_eq!(e.svc.fire_reminders(&sink).await.unwrap(), 1);
+    assert_eq!(e.svc.fire_reminders(&sink).await.unwrap(), 0, "once only");
+    match &sink.seen.lock().unwrap()[0] {
+        crate::service::ReminderNotice::Starting {
+            account_id,
+            channel_number,
+            title,
+            start_ms,
+            ..
+        } => {
+            assert_eq!(*account_id, MEMBER.user_id);
+            assert_eq!(*channel_number, 101);
+            assert!(title.starts_with("Cowboy Bebop"));
+            assert_eq!(*start_ms, utc(2025, 6, 2, 20, 30));
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_reminder_can_be_cancelled_and_a_lead_can_be_chosen() {
+    let e = env();
+    let (_, block) = next_block(&e).await;
+    let sink = Sink::default();
+    e.svc.set_reminder(MEMBER, block, Some(10)).await.unwrap();
+    e.svc.set_reminder(ADULT, block, None).await.unwrap();
+    e.svc.clear_reminder(ADULT, block).await.unwrap();
+    e.svc.clear_reminder(ADULT, block).await.unwrap();
+    e.clock.advance_ms(20 * MIN);
+    assert_eq!(
+        e.svc.fire_reminders(&sink).await.unwrap(),
+        1,
+        "10 minutes before 20:30"
+    );
+    assert!(matches!(
+        sink.seen.lock().unwrap()[0],
+        crate::service::ReminderNotice::Starting { account_id: 5, .. }
+    ));
+    assert!(matches!(
+        e.svc.set_reminder(MEMBER, block, Some(500)).await,
+        Err(TvError::Invalid(_))
+    ));
+    assert!(matches!(
+        e.svc.set_reminder(MEMBER, block, Some(-1)).await,
+        Err(TvError::Invalid(_))
+    ));
+}
+
+#[tokio::test]
+async fn reminders_need_an_upcoming_programme() {
+    let e = env();
+    let id = channel(&e, 101, marathon()).await;
+    let now_block = e.svc.now(id).await.unwrap().current.unwrap();
+    assert!(matches!(
+        e.svc.set_reminder(MEMBER, now_block.id, None).await,
+        Err(TvError::Invalid(_))
+    ));
+    assert_eq!(
+        e.svc.set_reminder(MEMBER, 999_999, None).await,
+        Err(TvError::NotFound("block"))
+    );
+}
+
+#[tokio::test]
+async fn a_reminder_for_a_block_that_was_regenerated_away_ends_with_a_notice() {
+    let e = env();
+    let (id, block) = next_block(&e).await;
+    let sink = Sink::default();
+    e.svc.set_reminder(MEMBER, block, None).await.unwrap();
+    e.svc.remove_block(e.staff, block).await.unwrap();
+    e.clock.advance_ms(26 * MIN);
+    assert_eq!(e.svc.fire_reminders(&sink).await.unwrap(), 1);
+    match &sink.seen.lock().unwrap()[0] {
+        crate::service::ReminderNotice::Dropped {
+            channel_id, title, ..
+        } => {
+            assert_eq!(*channel_id, id);
+            assert!(title.starts_with("Cowboy Bebop"));
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_failed_notice_is_tried_again_until_the_programme_starts() {
+    let e = env();
+    let (_, block) = next_block(&e).await;
+    let sink = Sink::default();
+    e.svc.set_reminder(MEMBER, block, None).await.unwrap();
+    sink.fail.store(true, Ordering::SeqCst);
+    e.clock.advance_ms(26 * MIN);
+    assert_eq!(e.svc.fire_reminders(&sink).await.unwrap(), 0);
+    sink.fail.store(false, Ordering::SeqCst);
+    e.clock.advance_ms(MIN);
+    assert_eq!(e.svc.fire_reminders(&sink).await.unwrap(), 1);
+    assert_eq!(sink.count(), 1);
+}
+
+// ---- the watch party gate for Live TV (G-16) ----------------------------------------------------
+
+#[tokio::test]
+async fn the_watch_party_gate_resolves_live_channels_only() {
+    use sr_watchparty::{GateError, PlayGate};
+    let e = env();
+    let id = channel(&e, 101, marathon()).await;
+    let r = e.svc.resolve_live(false, id).await.unwrap();
+    assert!(r.live && r.duration_ms.is_none());
+    assert_eq!((r.title_id, r.asset_id, r.episode_id), (id, id, 0));
+    assert_eq!(r.title, "101 Channel 101");
+    assert_eq!(r.episode_label.as_deref(), Some("Cowboy Bebop"));
+    assert!(!r.age_restricted);
+    // Not a Cinema gate, an unknown channel, a disabled one and one with nothing on air.
+    assert_eq!(
+        e.svc.resolve(true, 7, None, None).await,
+        Err(GateError::NotFound)
+    );
+    assert_eq!(
+        e.svc.resolve_live(true, 4242).await,
+        Err(GateError::NotFound)
+    );
+    let empty = channel(&e, 200, ChannelRules::default()).await;
+    assert_eq!(
+        e.svc.resolve_live(true, empty).await,
+        Err(GateError::NotFound)
+    );
+    let mut off = input(101, marathon());
+    off.enabled = false;
+    e.svc.update_channel(e.staff, id, off).await.unwrap();
+    assert_eq!(e.svc.resolve_live(true, id).await, Err(GateError::NotFound));
+}
+
+#[tokio::test]
+async fn a_restricted_programme_needs_age_confirmation_for_a_live_party_too() {
+    use sr_watchparty::{GateError, PlayGate};
+    let e = env();
+    let mut film = item(80, "Adult Film", 120);
+    film.age_restricted = true;
+    film.asset_id = 8000;
+    e.catalog.add(film);
+    let mut c = input(
+        666,
+        ChannelRules {
+            grid_minutes: 0,
+            no_repeat_window: 0,
+            dayparts: vec![daypart(
+                "Late",
+                PickMode::Sequential,
+                PoolFilter {
+                    title_ids: vec![80],
+                    restricted: Some(Restricted::Only),
+                    ..PoolFilter::default()
+                },
+            )],
+        },
+    );
+    c.age_restricted = true;
+    let id = e.svc.create_channel(e.staff, c).await.unwrap().id;
+    assert_eq!(
+        e.svc.resolve_live(false, id).await,
+        Err(GateError::AgeConfirmationRequired)
+    );
+    let r = e.svc.resolve_live(true, id).await.unwrap();
+    assert!(r.age_restricted);
+}

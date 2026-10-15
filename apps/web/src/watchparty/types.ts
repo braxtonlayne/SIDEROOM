@@ -98,8 +98,10 @@ export interface CommandInput {
   expected_version?: number;
 }
 
+/** A Cinema title (`title_id`) or a Live TV channel (`tv_channel_id`, G-16): one of the two. */
 export interface CreateInput {
-  title_id: string;
+  title_id?: string;
+  tv_channel_id?: string | null;
   episode_id?: string | null;
   variant_id?: string | null;
   channel_id?: string | null;

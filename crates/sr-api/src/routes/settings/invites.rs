@@ -4,6 +4,8 @@
 use super::deps::{ChannelAccess, SettingsDeps, actor, id, re, se};
 use super::events::SettingsEvent;
 use crate::routes::guilds::dto::{UserRef, iso8601};
+use crate::routes::social::SocialDeps;
+use crate::routes::social::group_invites;
 use crate::routes::{Ext, MaybeExt};
 use crate::{
     HttpError, Principal, auth::UserOnly, error::ApiResult, openapi::ErrorBody, state::AppState,
@@ -55,16 +57,21 @@ pub struct InviteChannel {
     pub name: Option<String>,
     #[serde(rename = "type")]
     pub kind: i16,
+    /// Group DM icon hash (`/cdn/channel-icons/{id}/{hash}`); group invites only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 /// Discord-shaped invite object.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct InviteObject {
-    /// Always 0 (guild invite).
+    /// 0 = guild invite, 1 = group DM invite (no `guild`).
     #[serde(rename = "type")]
     pub kind: u8,
     pub code: String,
-    pub guild: InviteGuild,
+    /// The server; absent on group DM invites.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guild: Option<InviteGuild>,
     pub channel: InviteChannel,
     pub inviter: UserRef,
     pub uses: u32,
@@ -93,7 +100,7 @@ impl InviteObject {
         Self {
             kind: 0,
             code: inv.code.clone(),
-            guild: InviteGuild {
+            guild: Some(InviteGuild {
                 id: guild.id.to_string(),
                 name: guild.name.clone(),
                 icon: guild.icon_key.clone(),
@@ -101,11 +108,12 @@ impl InviteObject {
                 banner: guild.banner_key.clone(),
                 description: guild.description.clone(),
                 vanity_url_code: guild.vanity_code.clone(),
-            },
+            }),
             channel: InviteChannel {
                 id: channel.id.to_string(),
                 name: channel.name.clone(),
                 kind: channel.kind.code(),
+                icon: None,
             },
             inviter: UserRef::of(inv.inviter_id, users),
             uses: inv.uses,
@@ -190,12 +198,22 @@ fn need(perms: Permissions, flag: Permissions) -> ApiResult<()> {
 pub async fn create_invite(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(social): MaybeExt<SocialDeps>,
     Path(channel_id): Path<String>,
     body: Option<Json<CreateInviteBody>>,
 ) -> ApiResult<Json<InviteObject>> {
     let user = actor(&p)?;
     let channel_id: ChannelId = id("channel_id", &channel_id)?;
     let body = body.map(|Json(b)| b).unwrap_or_default();
+    // A group DM: the owner makes a 24-hour, unlimited-use link (G-47).
+    if let Some(social) = &social
+        && let Some(out) = group_invites::create(social, user, channel_id, || {
+            sr_chat::settings::invites::generate_code(|| deps.service.random_u64())
+        })
+        .await?
+    {
+        return Ok(Json(out));
+    }
     let acc = deps.channel_access(user, channel_id).await?;
     // Ordinary invites to the Staff Server are refused; staff join by appointment.
     if acc.guild.guild.is_staff_guild {
@@ -234,10 +252,16 @@ pub async fn create_invite(
 pub async fn list_channel_invites(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(social): MaybeExt<SocialDeps>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<Vec<InviteObject>>> {
     let user = actor(&p)?;
     let channel_id: ChannelId = id("channel_id", &channel_id)?;
+    if let Some(social) = &social
+        && let Some(out) = group_invites::list(social, user, channel_id).await?
+    {
+        return Ok(Json(out));
+    }
     let acc: ChannelAccess = deps.channel_access(user, channel_id).await?;
     need(acc.perms, Permissions::MANAGE_CHANNELS)?;
     let now = deps.now_ms();
@@ -407,10 +431,24 @@ async fn usable_invite(deps: &SettingsDeps, code: &str) -> ApiResult<GuildInvite
 pub async fn get_invite(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(social): MaybeExt<SocialDeps>,
     Path(code): Path<String>,
     Query(q): Query<InviteQuery>,
 ) -> ApiResult<Json<InviteObject>> {
     actor(&p)?;
+    if let Some(social) = &social
+        && sr_chat::settings::invites::is_valid_code(&code)
+        && deps
+            .service
+            .repo()
+            .get_invite(&code)
+            .await
+            .map_err(re)?
+            .is_none()
+        && let Some(out) = group_invites::resolve(social, &code).await?
+    {
+        return Ok(Json(out));
+    }
     let inv = usable_invite(&deps, &code).await?;
     let mut out = render_one(&deps, &inv).await?;
     if q.with_counts.unwrap_or(false) {
@@ -434,10 +472,16 @@ pub async fn get_invite(
 pub async fn delete_invite(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(social): MaybeExt<SocialDeps>,
     headers: axum::http::HeaderMap,
     Path(code): Path<String>,
 ) -> ApiResult<Json<InviteObject>> {
     let user = actor(&p)?;
+    if let Some(social) = &social
+        && let Some(out) = group_invites::revoke(social, user, &code).await?
+    {
+        return Ok(Json(out));
+    }
     let inv = stored_invite(&deps, &code).await?;
     let out = render_one(&deps, &inv).await?;
     let guild = deps.guild_access(user, inv.guild_id).await?;
@@ -481,11 +525,25 @@ pub async fn accept_invite(
     UserOnly(p): UserOnly,
     Ext(deps): Ext<SettingsDeps>,
     MaybeExt(messages): MaybeExt<crate::routes::messages::MessagesDeps>,
+    MaybeExt(social): MaybeExt<SocialDeps>,
     Path(code): Path<String>,
 ) -> ApiResult<Json<InviteObject>> {
     let user = actor(&p)?;
     if !sr_chat::settings::invites::is_valid_code(&code) {
         return Err(ErrorCode::UnknownInvite.into());
+    }
+    // A group DM link: add the caller to the group (G-47).
+    if let Some(social) = &social
+        && deps
+            .service
+            .repo()
+            .get_invite(&code)
+            .await
+            .map_err(re)?
+            .is_none()
+        && let Some(out) = group_invites::accept(social, user, &code).await?
+    {
+        return Ok(Json(out));
     }
     let outcome = deps
         .joiner()

@@ -533,6 +533,36 @@ pub struct GuildBrief {
     pub member_count: i64,
 }
 
+/// Whether the platform delivers interactions to the configured HTTP endpoint (D-186).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EndpointState {
+    /// Deliveries go to the URL.
+    #[default]
+    Enabled,
+    /// Too many consecutive failures: interactions use the gateway until the owner verifies
+    /// the endpoint again.
+    Disabled,
+}
+
+impl EndpointState {
+    /// Database / API spelling.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Enabled => "enabled",
+            Self::Disabled => "disabled",
+        }
+    }
+
+    /// Inverse of [`Self::as_str`].
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "enabled" => Some(Self::Enabled),
+            "disabled" => Some(Self::Disabled),
+            _ => None,
+        }
+    }
+}
+
 /// HTTP interactions endpoint settings of one application (DEV-BOT-005).
 #[derive(Debug, Clone, Default)]
 pub struct InteractionsConfig {
@@ -540,4 +570,58 @@ pub struct InteractionsConfig {
     pub endpoint_url: Option<String>,
     /// Private signing seed, created on demand.
     pub seed: Option<crate::signing::SigningSeed>,
+    /// Delivery state; `Disabled` after 25 consecutive failures within 10 minutes.
+    pub state: EndpointState,
+    /// Consecutive failed deliveries in the current window.
+    pub failures: i32,
+    /// When the current failure window started.
+    pub failure_window_start_ms: Option<i64>,
+}
+
+/// Testers one application may have, invited and accepted together (D-204).
+pub const MAX_TESTERS: i64 = 25;
+
+/// Where a tester invitation stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TesterState {
+    /// Sent, not answered. Declining deletes the row.
+    Invited,
+    /// The invitee accepted.
+    Accepted,
+}
+
+impl TesterState {
+    /// Database / API spelling.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Invited => "invited",
+            Self::Accepted => "accepted",
+        }
+    }
+
+    /// Inverse of [`Self::as_str`].
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "invited" => Some(Self::Invited),
+            "accepted" => Some(Self::Accepted),
+            _ => None,
+        }
+    }
+}
+
+/// An application tester (G-01, D-204).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Tester {
+    /// Invitation id.
+    pub id: i64,
+    /// Application.
+    pub application_id: i64,
+    /// The tester's account.
+    pub account_id: i64,
+    /// Invited or accepted.
+    pub state: TesterState,
+    /// The owner who invited them.
+    pub invited_by: i64,
+    /// When invited.
+    pub created_at_ms: i64,
 }

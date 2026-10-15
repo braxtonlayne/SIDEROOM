@@ -72,6 +72,7 @@ import { useReportOutcome } from './apps/useReportOutcome';
 import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
 import { UploadTray } from './msg/UploadTray';
+import { queuedFiles } from './queuedFiles';
 import { MAX_FILES, uploadFiles, type PendingFile } from './msg/upload';
 import { imageMeta } from './msg/blurhash';
 import { VoiceRecorder, type VoiceClip } from './msg/VoiceRecorder';
@@ -338,6 +339,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     [toast, t],
   );
   useImperativeHandle(handle, () => ({ addFiles }), [addFiles]);
+  // Files shared into this channel from another app (Share Target, G-18) arrive as attachments.
+  useEffect(() => {
+    addFiles(queuedFiles.take(channelId));
+  }, [channelId, addFiles]);
 
   const patchFile = useCallback((id: string, patch: Partial<PendingFile>) => {
     setFiles((cur) => cur.map((f) => (f.id === id ? { ...f, ...patch } : f)));
@@ -510,6 +515,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         return;
       case 'thread':
         if (guildId) openDialog({ kind: 'createThread', guildId, channelId });
+        done();
+        return;
+      case 'community':
+        if (guildId) openDialog({ kind: 'community', guildId, tab: r.tab });
         done();
         return;
       case 'msg':
@@ -1094,6 +1103,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       )}
       <PollModal
         open={pollOpen}
+        guildId={guildId}
         onClose={() => setPollOpen(false)}
         onCreate={(poll) => {
           setPollOpen(false);

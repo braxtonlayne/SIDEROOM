@@ -49,6 +49,9 @@ pub enum AppsError {
     /// The application is suspended (900121).
     #[error("application suspended")]
     Suspended,
+    /// The invitee declined less than 24 hours ago (900122).
+    #[error("tester recently declined")]
+    TesterRecentlyDeclined,
     /// Unknown or expired interaction (10062).
     #[error("unknown interaction")]
     UnknownInteraction,

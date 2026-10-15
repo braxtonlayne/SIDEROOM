@@ -41,11 +41,12 @@ Applied as rules:
 | Frame crypto | `aes-gcm` (RustCrypto) | ✅ | Also WASM |
 | Video transcoding | `ffmpeg-next` bindings → FFmpeg + NVENC | ⚠️ C libs, Rust orchestration | ADR-0005. `rav1e` (Rust AV1) is optional for an AV1 rung later |
 | Media probing | `ffmpeg-next` | ⚠️ | |
-| Audio (soundboard/voice msgs) | `symphonia` (decode), `opus` bindings (encode) | ✅/⚠️ | |
+| Audio (soundboard/voice msgs) | `symphonia` (decode, when needed). No `opus` bindings: files are stored as uploaded and decoded by the browser (D-201) | ✅ | |
 | Images | `image`, `fast_image_resize`, `webp` (libwebp bindings, lossy) | ✅/⚠️ | Manga pages → WebP |
 | Archives | `zip`, `unrar` bindings, `sevenz-rust`, `pdfium-render` (PDF raster) | ✅/⚠️ | |
 | EPUB | `epub` crate (metadata, spine). Rendered client-side | ✅ | |
-| Bitcoin | `bdk_wallet` (watch-only descriptor), `bdk_esplora` | ✅ | ADR-0006 |
+| Bitcoin | In-house watch-only derivation on `secp256k1`, `bitcoin_hashes`, `bech32` (BIP-32/84/380) and an Esplora client; `bdk_wallet` and `bdk_esplora` are not used (D-207) | ✅ | ADR-0006 and its addendum |
+| Time zones | `jiff` (bundled tz database, `tzdb-bundle-always`; MIT/Unlicense) | ✅ | P8-TV-4, Live TV channel zones |
 | Lightning (later) | LDK (`lightning`, `ldk-node`) | ✅ | |
 | Email (verification, recovery) | `lettre` (SMTP) | ✅ | Operator supplies SMTP |
 | Reverse proxy | **Caddy** | ❌ Go | Only for TLS/HTTP3/static. Optional. `sr-server` can serve TLS itself via `rustls` |
@@ -63,7 +64,7 @@ Applied as rules:
 | Styling | CSS Modules + CSS custom properties (design tokens). No Tailwind in the Lounge kit, to keep Discord-like precision |
 | Virtualized lists | TanStack Virtual (message list, member list, grids) |
 | Video player | hls.js (Safari uses native HLS) |
-| Reader | Custom canvas/IMG reader. `pdf.js` for PDFs. `foliate-js` for EPUB |
+| Reader | Custom canvas/IMG reader. `pdfjs-dist` (pdf.js) for PDFs, rendered in the browser with its own worker (D-217). `foliate-js` for EPUB |
 | PWA | `vite-plugin-pwa` (Workbox). Web Push via VAPID (Rust `web-push` crate server-side) |
 | Tests | Vitest + Testing Library. Playwright e2e |
 | Lint/format | ESLint + Prettier (or Biome) |
@@ -87,7 +88,7 @@ These are the **only** non-Rust runtime components. Adding another needs an ADR.
 |---|---|---|---|
 | PostgreSQL | C | No Rust relational DB is mature enough to be the system of record | 0001 |
 | FFmpeg libs (via bindings) | C | No Rust equivalent for full decode/scale/H.264 NVENC | 0005 |
-| libwebp, pdfium, unrar (via bindings) | C/C++ | Format support | 0005 |
+| libwebp, pdfium, unrar (via bindings) | C/C++ | Format support. pdfium: approved, not used: PDFs are rendered client-side (D-217) | 0005 |
 | coturn | C | No maintained Rust TURN server | 0004 |
 | Caddy (optional) | Go | Convenience. Can be replaced by rustls in `sr-server` | — |
 | Browser JS ecosystem | TS | Frontend (D-151) | — |

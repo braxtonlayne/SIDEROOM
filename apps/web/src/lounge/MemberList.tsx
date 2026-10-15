@@ -1,6 +1,7 @@
 import { Avatar, ContextMenu, Icon, VirtualList, type MenuEntry } from '@sideroom/ui';
 import { useMemo, useRef } from 'react';
 import { useT } from '../i18n';
+import { useDeveloperMode } from '../settings/user/prefs';
 import { useViewer, type Viewer } from '../settings/server/hooks';
 import { useAppsMenu } from './apps/useAppsMenu';
 import { useCurrentUser, useGuild, useMembers, usePresenceMap, useRoles } from './data';
@@ -11,6 +12,7 @@ import { useOpenDm } from './shell/dm';
 import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
 import { useVoiceMenuEntries } from './voice/useVoiceMenu';
+import { ServerTagChip } from './components/ServerTagChip';
 
 const OFFLINE_HIDE_THRESHOLD = 1000;
 
@@ -28,6 +30,7 @@ function MemberRowView({
   viewer: Viewer;
 }) {
   const t = useT();
+  const developerMode = useDeveloperMode();
   const rowRef = useRef<HTMLButtonElement | null>(null);
   const { member, presence, color } = entry;
   const u = member.user;
@@ -131,11 +134,15 @@ function MemberRowView({
         ]
       : []),
     ...(appsMenu.length > 0 ? [{ type: 'separator' } as MenuEntry, ...appsMenu] : []),
-    { type: 'separator' },
-    {
-      label: t('lounge.memberList.copyUserId'),
-      onSelect: () => void navigator.clipboard?.writeText(u.id),
-    },
+    ...(developerMode
+      ? [
+          { type: 'separator' } as MenuEntry,
+          {
+            label: t('lounge.memberList.copyUserId'),
+            onSelect: () => void navigator.clipboard?.writeText(u.id),
+          },
+        ]
+      : []),
   ];
   return (
     <ContextMenu items={menu} label={t('lounge.memberList.actions', { name })}>
@@ -164,7 +171,7 @@ function MemberRowView({
               <Icon name="star" size={16} label={t('lounge.memberList.serverOwner')} />
             )}
             {u.bot && <span className="lng-bot">{t('lounge.memberList.app')}</span>}
-            {u.tag && <span className="lng-tag">{u.tag}</span>}
+            <ServerTagChip user={u} />
           </span>
           {presence.activity && <span className="lng-member-sub">{presence.activity.text}</span>}
         </span>

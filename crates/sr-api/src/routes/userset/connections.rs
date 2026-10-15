@@ -170,7 +170,7 @@ fn unknown_connection() -> MsgError {
 /// others.
 fn owner_object(c: &Connection) -> ConnectionObject {
     let mut o = ConnectionObject::from(c);
-    o.stats = c.stats.clone();
+    o.stats = crate::routes::social::model::clean_stats(&c.stats);
     o
 }
 

@@ -1,0 +1,57 @@
+/* Community dialog (FTR-LVL/SUGG/TICK/BDAY): member-facing tabs. Shares the saved-list look with features.css. */
+.lng-comm-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lng-comm-h {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+.lng-rank-card {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+.lng-rank-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+.lng-cboard {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lng-cboard li {
+  display: grid;
+  grid-template-columns: 36px 32px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+.lng-cboard-me {
+  background: var(--ui-bg-hover);
+}
+.lng-cboard-rank {
+  font-weight: 700;
+  text-align: center;
+}
+.lng-cboard-name {
+  overflow-wrap: anywhere;
+}
+.lng-rewards {
+  margin: 4px 0 0;
+  padding-inline-start: 20px;
+}
+.lng-sugg-response {
+  margin: 4px 0;
+  padding-inline-start: 8px;
+  border-inline-start: 3px solid var(--brand);
+  overflow-wrap: anywhere;
+}

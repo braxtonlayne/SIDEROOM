@@ -40,6 +40,7 @@ import { PopoutHost } from './profile/ProfilePopout';
 import { ReminderTicker } from './shell/ReminderTicker';
 import { InteractionModalHost } from './apps/InteractionModal';
 import { ThreadPane } from './threads/ThreadPane';
+import { useThreadRoute } from './threads/useThreadRoute';
 import { useShellBoot } from './shell/useShellBoot';
 import { ShortcutSheet } from './ShortcutSheet';
 import { matchCustomShortcut } from './shortcuts';
@@ -158,8 +159,18 @@ function useSwipe(order: Pane[], pane: Pane, setPane: (p: Pane) => void) {
 }
 
 function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
-  const { guildId, channelId, threadId } = useLoungeRoute();
+  const route = useLoungeRoute();
+  const { guildId } = route;
   const channels = useChannels(guildId && guildId !== HOME ? guildId : undefined);
+  // /channels/:guild/:thread shows the thread's parent with the thread in full view (G-31).
+  const resolved = useThreadRoute(
+    guildId === HOME ? undefined : guildId,
+    route.channelId,
+    route.threadId,
+    channels.map((c) => c.id),
+  );
+  const channelId = route.channelId ? resolved.parentId : undefined;
+  const threadId = resolved.threadId;
   const navigate = useNavigate();
   const remembered = useLoungeUi((s) => (guildId ? s.lastChannelByGuild[guildId] : undefined));
   // A thread of an age-restricted channel stays closed until the channel's question is answered.
@@ -183,6 +194,7 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
 
   if (!guildId) return null;
   if (!channelId) return guildId === HOME ? <HomeFriends /> : <PickChannel guildId={guildId} />;
+  if (resolved.pending) return null;
   return (
     <>
       <ChannelView
@@ -192,7 +204,13 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
         onBack={isMobile ? onBack : undefined}
       />
       {threadId && guildId !== HOME && !restrictedParent && (
-        <ThreadPane key={threadId} guildId={guildId} parentId={channelId} threadId={threadId} />
+        <ThreadPane
+          key={threadId}
+          guildId={guildId}
+          parentId={channelId}
+          threadId={threadId}
+          fullView={resolved.fullView}
+        />
       )}
     </>
   );

@@ -50,6 +50,8 @@ Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions
 | 19 | `APPOINT_STAFF` | Appoint or revoke staff (Owner-delegated, D-132) |
 | 20 | `MANAGE_TRANSCODE` | Manage transcode workers and the job queue |
 | 21 | `OPERATOR` | Infrastructure settings: storage, wallet, SMTP, backups |
+| 22 | `MANAGE_CASES` | Open, assign, act on and close moderation cases; place and release holds (D-210, D-213) |
+| 23 | `MANAGE_TAKEDOWNS` | The takedown register and the data-request queue (D-210) |
 | 63 | `OWNER` | Implicit for the Staff Server owner. Everything |
 
 "High-level platform staff" (D-125) = any role holding `READ_PRIVATE_CONTENT`. Only the Owner can grant that bit.
@@ -60,7 +62,7 @@ Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions
 - Shows in the guild list with a distinct badge/frame.
 - Default channels: `#staff-announcements`, `#review-queue` (bot-fed feed of submissions with Approve/Deny buttons), `#reports` (Phase 7), `#alerts` (suspicion, payment, transcode failures), `#general`, `#ops`, plus a voice channel.
 - Default roles: `Owner`, `Senior Staff` (APPOINT_STAFF, READ_PRIVATE_CONTENT, …), `Moderator`, `Media Curator`, `Library Curator`, `App Reviewer`, `Support`.
-**Default role permission bits (D-162).** The table below is the default. `sr-cli bootstrap` instantiates these from the `staff_role_templates` table (migration 0130; the same values live in `sr_admin::rules::default_staff_roles` and a database test keeps them equal). Changing a default means a new migration; roles already created in a Staff Server are ordinary roles and can be edited.
+**Default role permission bits (D-162).** The table below is the default. `sr-cli bootstrap` instantiates these from the `staff_role_templates` table (migration 0130; the same values live in `sr_admin::rules::default_staff_roles` and a database test keeps them equal). Moderator and Senior Staff gained the case and takedown bits on 2026-10-15 (D-210; migration `0793_staff_role_templates_cases.sql`, G-64). Changing a default means a new migration; roles already created in a Staff Server are ordinary roles and can be edited.
 
 | Role | Bits | Platform permissions |
 |---|---|---|
@@ -68,13 +70,13 @@ Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions
 | App Reviewer | 769 | STAFF_BASIC, REVIEW_APPS, REVIEW_PACKAGES |
 | Library Curator | 85 | STAFF_BASIC, REVIEW_READING, PUBLISH_READING, MANAGE_COLLECTIONS |
 | Media Curator | 203 | STAFF_BASIC, REVIEW_MEDIA, PUBLISH_MEDIA, MANAGE_COLLECTIONS, MANAGE_TV |
-| Moderator | 7169 | STAFF_BASIC, MANAGE_DIRECTORY, MANAGE_ACCOUNTS, PLATFORM_BAN |
-| Senior Staff | 1818623 | Everything except OWNER, MANAGE_DONATIONS, VIEW_ACCESS_LOG and OPERATOR (so it includes APPOINT_STAFF and READ_PRIVATE_CONTENT) |
+| Moderator | 4201473 | STAFF_BASIC, MANAGE_DIRECTORY, MANAGE_ACCOUNTS, PLATFORM_BAN, MANAGE_CASES (D-210; was 7169, migration 0793) |
+| Senior Staff | 14401535 | Everything except OWNER, MANAGE_DONATIONS, VIEW_ACCESS_LOG and OPERATOR (so it includes APPOINT_STAFF, READ_PRIVATE_CONTENT, MANAGE_CASES and MANAGE_TAKEDOWNS; was 1818623, migration 0793) |
 | Owner | bit 63 | OWNER |
 
 Enforcement rules built on these (also the default, D-162): only the Owner may grant `READ_PRIVATE_CONTENT`, `APPOINT_STAFF`, `VIEW_ACCESS_LOG` or `OPERATOR`; a delegate can grant only bits they hold; the Owner role is never assignable (transfer is `sr-cli staff transfer-owner`); only the Owner can suspend, ban or reset 2FA of a staff account.
 
-- **Joining:** server invites to the Staff Server are disabled. The only way in is an **appointment**: a member with `APPOINT_STAFF` opens Admin → Staff → Appoint, picks an account, and selects starting roles. The appointee receives a system DM and accepts, then is added. Everything is logged.
+- **Joining:** server invites to the Staff Server are disabled. The only way in is an **appointment**: a member with `APPOINT_STAFF` opens Admin → Staff → Appoint, picks an account, and selects starting roles. The appointee receives a system DM and accepts, then is added. Everything is logged. The offer is the normal path. The Owner may also appoint directly from Admin → Staff ("Appoint directly (emergency)", behind re-auth and logged); `sr-cli staff appoint` covers bootstrap, before any web session exists (D-197 as amended).
 - **Leaving or removal** revokes staff status instantly: active admin sessions are invalidated and the gateway pushes `SR_STAFF_ALERT {revoked}`.
 - Staff membership is shown as a "SIDE ROOM Staff" badge on profiles (configurable).
 

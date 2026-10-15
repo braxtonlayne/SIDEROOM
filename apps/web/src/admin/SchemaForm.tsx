@@ -5,6 +5,7 @@
 // pickers are real choosers instead of id text boxes.
 // The server validates every value; this form only keeps the shape right and shows the schema's own limits.
 import { Button, Checkbox, MultiSelect, Select, TextInput } from '@sideroom/ui';
+import type { ReactNode } from 'react';
 import { useT } from '../i18n';
 import './admin.css';
 
@@ -98,16 +99,28 @@ export function overridesOf(fields: SchemaField[], values: SettingsValues): Sett
 
 const textList = (v: unknown) => (Array.isArray(v) ? v.join(', ') : '');
 
+/**
+ * Lets a screen draw a plain text field its own way (for example a message picker for an id field). Return
+ * `undefined` to keep the default text box.
+ */
+export type CustomText = (
+  field: SchemaField,
+  value: string,
+  set: (next: string) => void,
+) => ReactNode | undefined;
+
 export function SchemaForm({
   fields,
   values,
   onChange,
   pickers,
+  customText,
 }: {
   fields: SchemaField[];
   values: SettingsValues;
   onChange: (next: SettingsValues) => void;
   pickers?: PickerChoices;
+  customText?: CustomText;
 }) {
   const t = useT();
   const set = (key: string, v: unknown) => onChange({ ...values, [key]: v });
@@ -212,6 +225,7 @@ export function SchemaForm({
                         fields={itemFields}
                         values={isObj(row) ? row : {}}
                         {...(pickers ? { pickers } : {})}
+                        {...(customText ? { customText } : {})}
                         onChange={(inner) =>
                           set(
                             f.key,
@@ -298,6 +312,7 @@ export function SchemaForm({
                   fields={f.fields ?? []}
                   values={isObj(v) ? v : {}}
                   {...(pickers ? { pickers } : {})}
+                  {...(customText ? { customText } : {})}
                   onChange={(inner) => set(f.key, inner)}
                 />
               </fieldset>
@@ -331,7 +346,11 @@ export function SchemaForm({
           }
           case 'emoji_picker':
             return idInput(f, v);
-          default:
+          default: {
+            const custom = customText?.(f, typeof v === 'string' ? v : '', (next) =>
+              set(f.key, next),
+            );
+            if (custom !== undefined) return <div key={f.key}>{custom}</div>;
             return (
               <TextInput
                 key={f.key}
@@ -342,6 +361,7 @@ export function SchemaForm({
                 onChange={(e) => set(f.key, e.target.value)}
               />
             );
+          }
         }
       })}
     </div>

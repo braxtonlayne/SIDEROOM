@@ -4,6 +4,8 @@
  */
 import { AddServerDialog } from './AddServerDialog';
 import { CreateChannelDialog } from './CreateChannelDialog';
+import { CreateEventDialog } from './events/CreateEventDialog';
+import { EventsDialog } from './events/EventsDialog';
 import { InviteDialog } from './InviteDialog';
 import { GuildProfileDialog } from './shell/GuildProfileDialog';
 import { DirectoryDialog } from './shell/DirectoryDialog';
@@ -16,7 +18,9 @@ import { MemberActionDialog } from './shell/MemberDialogs';
 import { NicknameDialog, NoteDialog } from './shell/UserDialogs';
 import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
+import { SlowmodeDialog } from './shell/SlowmodeDialog';
 import { TransferOwnershipDialog } from './shell/TransferOwnershipDialog';
+import { CommunityDialog } from './community/CommunityDialog';
 import { CreateThreadDialog } from './threads/CreateThreadDialog';
 import { useLoungeUi } from './store';
 import './shell/shell.css';
@@ -26,6 +30,8 @@ export function LoungeDialogs() {
   const close = useLoungeUi((s) => s.closeDialog);
   if (!dialog) return null;
   switch (dialog.kind) {
+    case 'community':
+      return <CommunityDialog guildId={dialog.guildId} tab={dialog.tab} onClose={close} />;
     case 'addServer':
       return <AddServerDialog onClose={close} />;
     case 'guildProfile':
@@ -41,6 +47,12 @@ export function LoungeDialogs() {
           onClose={close}
         />
       );
+    case 'events':
+      return <EventsDialog guildId={dialog.guildId} onClose={close} />;
+    case 'createEvent':
+      return (
+        <CreateEventDialog guildId={dialog.guildId} channelId={dialog.channelId} onClose={close} />
+      );
     case 'invite':
       return <InviteDialog guildId={dialog.guildId} channelId={dialog.channelId} onClose={close} />;
     case 'editChannel':
@@ -54,6 +66,10 @@ export function LoungeDialogs() {
           channelId={dialog.channelId}
           onClose={close}
         />
+      );
+    case 'slowmode':
+      return (
+        <SlowmodeDialog guildId={dialog.guildId} channelId={dialog.channelId} onClose={close} />
       );
     case 'memberAction':
       return (

@@ -34,6 +34,11 @@ export interface LoungeUser {
   bot?: boolean;
   /** Server-tag chip (short text), shown next to the name. */
   tag?: string;
+  /** Badge id (0 to 15) and 24-bit colour of the server tag; the chip draws them when present. */
+  tagBadge?: number;
+  tagColor?: number;
+  /** The system user "SIDE ROOM" (message flag SYSTEM_TAG, D-188): shown with a SYSTEM badge. */
+  system?: boolean;
 }
 
 export interface Activity {
@@ -74,6 +79,10 @@ export interface GuildPermissions {
   mentionEveryone?: boolean;
   /** Any permission that opens Server Settings (Manage Server/Roles/Channels, Ban Members, View Audit Log, ...). */
   serverSettings?: boolean;
+  /** Create scheduled events (and edit or delete their own). */
+  createEvents?: boolean;
+  /** Edit, start, end and delete anyone's scheduled events. */
+  manageEvents?: boolean;
 }
 
 export interface Guild {

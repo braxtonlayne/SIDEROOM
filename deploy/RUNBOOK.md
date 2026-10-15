@@ -59,3 +59,7 @@ The Staff Server's `#alerts`, `#new-members` and `#donations` channels are fed b
 | `alerts.email_to_owner` | off | Also email each alert to the Staff Server owner, at most one mail per kind every 30 minutes. Needs `[smtp]`. |
 
 Sensitive admin actions (reading private content, changing an account's email, forcing a password reset, resetting 2FA, appointing or revoking staff, announcements) need a second factor checked on the session in the last 15 minutes. Staff without TOTP or a passkey cannot use them until they enroll. For local development and end-to-end tests set `SR_ADMIN_REQUIRE_REAUTH=0` to switch the check off; never do that on a real installation.
+
+## Upgrade note: legacy download fallback is off
+
+`SR_DOWNLOADS_LEGACY_FALLBACK` now defaults to `0`: only entitlements grant the Patron download perk. Before upgrading, check Admin > Entitlements that everyone who should keep downloads has a grant (migration 0542 already copied unexpired legacy grants). Set `SR_DOWNLOADS_LEGACY_FALLBACK=1` to restore the old behaviour temporarily. A later phase removes the flag and drops `cinema_download_grants`.

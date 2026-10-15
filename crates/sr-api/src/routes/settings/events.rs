@@ -16,10 +16,12 @@
 //! | `AutoModActionExecuted` | `AUTO_MODERATION_ACTION_EXECUTION` |
 //! | `AuditLogEntryCreated` | `GUILD_AUDIT_LOG_ENTRY_CREATE` |
 //! | `CommunityChanged` | `GUILD_UPDATE` (full guild object) |
+//! | `ScheduledEvent` | `GUILD_SCHEDULED_EVENT_CREATE/UPDATE/DELETE/USER_ADD/USER_REMOVE` |
 
 use async_trait::async_trait;
 use serde_json::Value;
 use sr_core::{ChannelId, GuildId, UserId};
+pub use sr_events::ScheduledEventKind as ScheduledEventDispatch;
 use sr_events::{DomainEvent, EventBus};
 use std::sync::Arc;
 
@@ -80,6 +82,13 @@ pub enum SettingsEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// A scheduled event changed, or a member marked or cleared their interest; `payload` is
+    /// the event object or `{guild_scheduled_event_id, user_id, guild_id}`.
+    ScheduledEvent {
+        guild: GuildId,
+        kind: ScheduledEventDispatch,
+        payload: Value,
+    },
     /// A membership application was approved; `payload` is the member object.
     MemberJoined {
         guild: GuildId,
@@ -103,6 +112,7 @@ impl SettingsEvent {
             | Self::AutoModActionExecuted { guild, .. }
             | Self::AuditLogEntryCreated { guild, .. }
             | Self::CommunityChanged { guild, .. }
+            | Self::ScheduledEvent { guild, .. }
             | Self::MemberJoined { guild, .. } => *guild,
         }
     }
@@ -121,6 +131,7 @@ impl SettingsEvent {
             Self::AutoModActionExecuted { .. } => "AUTO_MODERATION_ACTION_EXECUTION",
             Self::AuditLogEntryCreated { .. } => "GUILD_AUDIT_LOG_ENTRY_CREATE",
             Self::CommunityChanged { .. } => "GUILD_UPDATE",
+            Self::ScheduledEvent { kind, .. } => kind.dispatch_name(),
             Self::MemberJoined { .. } => "GUILD_MEMBER_ADD",
         }
     }
@@ -199,6 +210,15 @@ impl SettingsEvent {
             Self::CommunityChanged { guild, payload } => {
                 DomainEvent::GuildUpdated { guild, payload }
             }
+            Self::ScheduledEvent {
+                guild,
+                kind,
+                payload,
+            } => DomainEvent::ScheduledEvent {
+                guild,
+                kind,
+                payload,
+            },
             Self::MemberJoined {
                 guild,
                 user,

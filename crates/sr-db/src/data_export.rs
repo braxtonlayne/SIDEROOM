@@ -252,7 +252,14 @@ This archive holds the data tied to your account, as JSON files.\n\
   messages/           the messages you wrote that you have not deleted, one file per channel\n\
 \n\
 Passwords, tokens and keys are never part of this package.\n\
-Messages you deleted are hidden from everyone and are not listed.\n";
+Messages you deleted are hidden from everyone and are not listed.\n\
+\n\
+What stays after you delete your account\n\
+Some records are kept after erasure so that bans, invoices and moderation decisions keep\n\
+their history: your Person record (the link between your accounts), the invite graph,\n\
+your invoices and the staff-side moderation history. They are kept to stop banned people\n\
+from returning, to meet accounting duties and to keep staff decisions accountable.\n\
+Your profile and your sign-in data are removed.\n";
 
 /// Write the package for `user` into `out` (a zip). Returns the number of messages written.
 pub async fn build_package<W: Write + Seek>(

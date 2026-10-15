@@ -48,6 +48,16 @@
 		reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080}
 	}
 
+	# A Web Share Target POST that no service worker intercepted: send the browser to the
+	# share page with a GET (303), which asks the person to open SIDE ROOM once and share again.
+	@sharePost {
+		method POST
+		path /share
+	}
+	handle @sharePost {
+		redir /share 303
+	}
+
 	# The single-page app.
 	handle {
 		root * {$SR_WEB_ROOT:/srv/web}

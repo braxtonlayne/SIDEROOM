@@ -1,7 +1,7 @@
 //! Repository traits for the social domain. Postgres implementations live in
 //! `sr-db` (`social_repo`); [`super::memory::MemoryRepo`] backs the tests.
 
-use super::dm::{DmChannel, DmPrivacy, RequestState};
+use super::dm::{DmChannel, DmPrivacy, GroupInvite, RequestState};
 use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
@@ -28,6 +28,8 @@ pub struct GuildMembership {
     pub avatar_key: Option<String>,
     pub banner_key: Option<String>,
     pub bio: Option<String>,
+    /// Per-server pronouns, theme, effect and decoration (G-52).
+    pub extras: Box<crate::domain::MemberExtras>,
 }
 
 /// Per-user privacy preferences relevant to relationships and DMs.
@@ -113,6 +115,13 @@ pub trait DmRepository: Send + Sync {
         id: ChannelId,
         state: RequestState,
     ) -> RepoResult<()>;
+    /// Group DM invites (G-47).
+    async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()>;
+    async fn get_group_invite(&self, code: &str) -> RepoResult<Option<GroupInvite>>;
+    /// Mark one revoked; `false` when no such invite.
+    async fn revoke_group_invite(&self, code: &str) -> RepoResult<bool>;
+    /// Invites of a group, newest first (revoked and expired ones included).
+    async fn list_group_invites(&self, channel: ChannelId) -> RepoResult<Vec<GroupInvite>>;
 }
 
 #[async_trait]

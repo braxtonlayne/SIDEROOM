@@ -4,7 +4,7 @@ import { useT } from '../../../i18n';
 import { snowflakeTime } from '../../../lounge/liveMap';
 import { useChannels, useGuild, useMembers } from '../../../store';
 import * as api from '../api';
-import { AUDIT_FILTERS, describeEntry, diffLines, type Names } from '../auditText';
+import { AUDIT_FILTERS, actorLabel, describeEntry, diffLines, type Names } from '../auditText';
 import { useGuildEvents } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Loading, SectionHeader, formatDateTime } from '../ui';
@@ -152,7 +152,7 @@ export function AuditLogSection({ guildId }: SectionProps) {
             <li key={e.id} className="ss-row" style={{ alignItems: 'flex-start' }}>
               <div className="ss-grow">
                 <div className="ss-name" style={{ whiteSpace: 'normal' }}>
-                  {describeEntry(e, userName(e.user_id), names)}
+                  {describeEntry(e, actorLabel(e, userName(e.user_id)), names)}
                 </div>
                 <div className="ss-meta">
                   {formatDateTime(snowflakeTime(e.id))}

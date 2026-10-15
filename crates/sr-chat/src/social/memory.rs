@@ -1,7 +1,7 @@
 //! In-memory implementation of the social repository traits, for tests of this
 //! crate and of consumers that need a database-free fake.
 
-use super::dm::{DmChannel, DmKind, RequestState};
+use super::dm::{DmChannel, DmKind, GroupInvite, RequestState};
 use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
@@ -39,6 +39,8 @@ pub struct Store {
     pub notes: HashMap<(UserId, UserId), String>,
     /// Message Request state per `(recipient, channel)`; absent means accepted.
     pub requests: HashMap<(UserId, ChannelId), RequestState>,
+    /// Group DM invites by code (G-47).
+    pub group_invites: HashMap<String, GroupInvite>,
     pub user_settings: HashMap<UserId, super::user_settings::UserSettings>,
     pub default_levels: HashMap<UserId, super::notifications::NotificationLevel>,
 }
@@ -470,6 +472,39 @@ impl DmRepository for MemoryRepo {
     ) -> RepoResult<()> {
         self.lock()?.requests.insert((user, id), state);
         Ok(())
+    }
+
+    async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()> {
+        self.lock()?
+            .group_invites
+            .insert(invite.code.clone(), invite.clone());
+        Ok(())
+    }
+
+    async fn get_group_invite(&self, code: &str) -> RepoResult<Option<GroupInvite>> {
+        Ok(self.lock()?.group_invites.get(code).cloned())
+    }
+
+    async fn revoke_group_invite(&self, code: &str) -> RepoResult<bool> {
+        Ok(match self.lock()?.group_invites.get_mut(code) {
+            Some(i) => {
+                i.revoked = true;
+                true
+            }
+            None => false,
+        })
+    }
+
+    async fn list_group_invites(&self, channel: ChannelId) -> RepoResult<Vec<GroupInvite>> {
+        let mut v: Vec<_> = self
+            .lock()?
+            .group_invites
+            .values()
+            .filter(|i| i.channel_id == channel)
+            .cloned()
+            .collect();
+        v.sort_by_key(|i| std::cmp::Reverse(i.created_at_ms));
+        Ok(v)
     }
 }
 

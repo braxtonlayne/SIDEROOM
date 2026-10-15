@@ -6,9 +6,9 @@
 use crate::{
     error::{AdminError, AdminResult},
     ext::{
-        Announcement, AnnouncementInput, AnnouncementSeverity, Delegation, NewAnnouncement,
-        NewOffer, OFFER_TTL_MS, OfferState, PrivateChannel, PrivateMessagePage, StaffAlertRow,
-        StaffExtrasRepository, StaffOffer,
+        Announcement, AnnouncementInput, AnnouncementPatch, AnnouncementSeverity, Delegation,
+        NewAnnouncement, NewOffer, OFFER_TTL_MS, OfferState, PrivateChannel, PrivateMessagePage,
+        StaffAlertRow, StaffExtrasRepository, StaffOffer,
     },
     model::{AccessKind, AccountState, AccountSummary, Caller, SystemCounts},
     rules,
@@ -28,14 +28,92 @@ const MAX_BODY_CHARS: usize = 2_000;
 const MAX_DISPLAY_NAME_CHARS: usize = 64;
 const MAX_PRIVATE_PAGE: i64 = 100;
 
-/// Public badges staff may grant (`accounts.flags` bits 8 and up; bit 0 is the system
-/// user and bit 1 the app developer, which approval sets).
-pub const BADGES: &[(&str, i64)] = &[
-    ("early_member", 1 << 8),
-    ("contributor", 1 << 9),
-    ("bug_hunter", 1 << 10),
-    ("honorary", 1 << 11),
+/// One public profile badge: the id profiles send, its English text for clients that do not
+/// know the id, and the icon name the web UI kit draws it with (G-53).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Badge {
+    pub id: &'static str,
+    /// The `accounts.flags` bit that carries it; `None` for derived badges (owner, staff,
+    /// patron, bot).
+    pub flag: Option<i64>,
+    /// Staff may grant and revoke it (`POST /admin/accounts/{id}/badges`).
+    pub grantable: bool,
+    pub description: &'static str,
+    pub icon: &'static str,
+}
+
+/// The one badge catalogue. `accounts.flags` bit 0 is the system user and bit 1 the app
+/// developer, which approval sets; bits 8 and up are the staff-granted badges.
+pub const BADGES: &[Badge] = &[
+    Badge {
+        id: "owner",
+        flag: None,
+        grantable: false,
+        description: "SIDE ROOM Owner",
+        icon: "shield",
+    },
+    Badge {
+        id: "staff",
+        flag: None,
+        grantable: false,
+        description: "SIDE ROOM Staff",
+        icon: "shield",
+    },
+    Badge {
+        id: "patron",
+        flag: None,
+        grantable: false,
+        description: "Patron",
+        icon: "heart",
+    },
+    Badge {
+        id: "contributor",
+        flag: Some(1 << 9),
+        grantable: true,
+        description: "Contributor",
+        icon: "sparkle",
+    },
+    Badge {
+        id: "early_member",
+        flag: Some(1 << 8),
+        grantable: true,
+        description: "Early Member",
+        icon: "clock",
+    },
+    Badge {
+        id: "bug_hunter",
+        flag: Some(1 << 10),
+        grantable: true,
+        description: "Bug Hunter",
+        icon: "alert",
+    },
+    Badge {
+        id: "honorary",
+        flag: Some(1 << 11),
+        grantable: true,
+        description: "Honorary Member",
+        icon: "heart",
+    },
+    Badge {
+        id: "app_developer",
+        flag: Some(1 << 1),
+        grantable: false,
+        description: "App Developer",
+        icon: "settings",
+    },
+    Badge {
+        id: "bot",
+        flag: None,
+        grantable: false,
+        description: "App",
+        icon: "settings",
+    },
 ];
+
+/// The catalogue entry of a badge id.
+pub fn badge(id: &str) -> Option<&'static Badge> {
+    BADGES.iter().find(|b| b.id == id)
+}
 
 /// Thresholds and paths of the staff alerts (ADM-ALR-001, ADM-ALR-003).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +135,9 @@ pub struct AlertSettings {
 pub struct CardActionResult {
     pub ok: bool,
     pub message: String,
+    /// An app path to open next (the review page for a rejection that needs a reason).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
 }
 
 /// Lower-case username rules of the entrance (`^[a-z0-9_.]{2,32}$`).
@@ -537,8 +618,8 @@ impl AdminService {
         let bit = |name: &String| -> AdminResult<i64> {
             BADGES
                 .iter()
-                .find(|(n, _)| n == name)
-                .map(|(_, b)| *b)
+                .find(|b| b.grantable && b.id == name)
+                .and_then(|b| b.flag)
                 .ok_or_else(|| AdminError::Invalid(format!("unknown badge {name}")))
         };
         let mut set = 0_i64;
@@ -738,11 +819,17 @@ impl AdminService {
         {
             return Err(AdminError::Invalid("it must end after it starts".into()));
         }
+        // `critical: true` is the same as severity `critical`; a critical notice is always DM'd (D-192).
+        let severity = if input.critical {
+            AnnouncementSeverity::Critical
+        } else {
+            input.severity.unwrap_or(AnnouncementSeverity::Info)
+        };
         let new = NewAnnouncement {
             title,
             body,
-            severity: input.severity.unwrap_or(AnnouncementSeverity::Info),
-            send_dm: input.send_dm,
+            severity,
+            send_dm: input.send_dm || severity == AnnouncementSeverity::Critical,
             created_by: c.user_id,
             starts_at_ms: starts,
             ends_at_ms: input.ends_at_ms,
@@ -756,6 +843,7 @@ impl AdminService {
             json!({ "title": new.title, "severity": new.severity.as_str(), "send_dm": new.send_dm }),
         );
         let a = self.extras()?.create_announcement(&new, &audit).await?;
+        self.announcement_update("create", &a).await;
         if a.send_dm
             && let Some(n) = &self.notifier
         {
@@ -781,7 +869,97 @@ impl AdminService {
             &reason,
             json!({}),
         );
-        self.extras()?.end_announcement(id, &audit).await
+        let a = self.extras()?.end_announcement(id, &audit).await?;
+        self.announcement_update("end", &a).await;
+        Ok(a)
+    }
+
+    /// Tell every session that the banner list changed (`SR_ANNOUNCEMENT_UPDATE`); clients re-read
+    /// `GET /announcements/active`.
+    async fn announcement_update(&self, change: &str, a: &Announcement) {
+        self.broadcast(
+            "SR_ANNOUNCEMENT_UPDATE",
+            json!({ "change": change, "announcement": a }),
+        )
+        .await;
+    }
+
+    /// Edit the text or the end of an announcement that is still showing (G-69, `MANAGE_FEATURES`).
+    /// Severity, `critical` and `send_dm` never change and no DM is sent again. `Conflict` once
+    /// it has ended. The audit entry carries the diff.
+    pub async fn edit_announcement(
+        &self,
+        c: &Caller,
+        id: i64,
+        patch: AnnouncementPatch,
+        reason: Option<&str>,
+    ) -> AdminResult<Announcement> {
+        self.require(c, P::MANAGE_FEATURES, "announcement.edit")
+            .await?;
+        let reason = Self::optional_reason(reason)?;
+        let patch = AnnouncementPatch {
+            title: patch.title.map(|t| t.trim().to_owned()),
+            body: patch.body.map(|b| b.trim().to_owned()),
+            ends_at_ms: patch.ends_at_ms,
+        };
+        if patch.title.is_none() && patch.body.is_none() && patch.ends_at_ms.is_none() {
+            return Err(AdminError::Invalid(
+                "send a title, a message or an end time".into(),
+            ));
+        }
+        if let Some(t) = &patch.title
+            && (t.is_empty() || t.chars().count() > MAX_TITLE_CHARS)
+        {
+            return Err(AdminError::Invalid(format!(
+                "a title is 1 to {MAX_TITLE_CHARS} characters"
+            )));
+        }
+        if let Some(b) = &patch.body
+            && (b.is_empty() || b.chars().count() > MAX_BODY_CHARS)
+        {
+            return Err(AdminError::Invalid(format!(
+                "a message is 1 to {MAX_BODY_CHARS} characters"
+            )));
+        }
+        let now = self.now_ms();
+        let cur = self.extras()?.get_announcement(id).await?;
+        if cur.ended_at_ms.is_some() || cur.ends_at_ms.is_some_and(|e| e <= now) {
+            return Err(AdminError::Conflict("this announcement has ended".into()));
+        }
+        if let Some(end) = patch.ends_at_ms
+            && (end <= now || end <= cur.starts_at_ms)
+        {
+            return Err(AdminError::Invalid(
+                "it must end in the future, after it starts".into(),
+            ));
+        }
+        let mut diff = serde_json::Map::new();
+        if let Some(t) = patch.title.as_ref().filter(|t| **t != cur.title) {
+            diff.insert("title".into(), json!({ "from": cur.title, "to": t }));
+        }
+        if let Some(b) = patch.body.as_ref().filter(|b| **b != cur.body) {
+            diff.insert("body".into(), json!({ "from": cur.body, "to": b }));
+        }
+        if let Some(e) = patch.ends_at_ms.filter(|e| Some(*e) != cur.ends_at_ms) {
+            diff.insert(
+                "ends_at_ms".into(),
+                json!({ "from": cur.ends_at_ms, "to": e }),
+            );
+        }
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "announcement.edit",
+            Some(("announcement", id)),
+            &reason,
+            json!({ "diff": diff }),
+        );
+        let a = self
+            .extras()?
+            .edit_announcement(id, &patch, now, &audit)
+            .await?;
+        self.announcement_update("edit", &a).await;
+        Ok(a)
     }
 
     pub async fn list_announcements(&self, c: &Caller) -> AdminResult<Vec<Announcement>> {
@@ -872,6 +1050,7 @@ impl AdminService {
                 Ok(CardActionResult {
                     ok: true,
                     message: "Acknowledged".into(),
+                    link: None,
                 })
             }
             "clear-suspicion" => {
@@ -880,6 +1059,7 @@ impl AdminService {
                 Ok(CardActionResult {
                     ok: true,
                     message: "Suspicion cleared".into(),
+                    link: None,
                 })
             }
             "retry-job" => {
@@ -888,6 +1068,7 @@ impl AdminService {
                 Ok(CardActionResult {
                     ok: true,
                     message: "Job queued again".into(),
+                    link: None,
                 })
             }
             _ => Err(AdminError::Invalid("unknown staff action".into())),

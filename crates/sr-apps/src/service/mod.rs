@@ -5,11 +5,13 @@ mod commands;
 mod endpoint;
 mod interactions;
 mod oauth;
+mod testers;
 
 pub use commands::*;
 pub use endpoint::*;
 pub use interactions::*;
 pub use oauth::*;
+pub use testers::*;
 
 use crate::{
     error::{AppsError, AppsResult, FieldProblem},
@@ -857,7 +859,8 @@ impl AppsService {
             .guild_stats(req.guild_id)
             .await?
             .ok_or(AppsError::NotFound("guild"))?;
-        perms::check_install(&app, req.installer, req.installer_perms, stats)?;
+        let is_tester = self.is_tester(app.id, req.installer).await?;
+        perms::check_install(&app, req.installer, req.installer_perms, is_tester, stats)?;
         let with_bot = req.scopes.contains(&Scope::Bot);
         let granted = if with_bot {
             perms::granted_permissions(

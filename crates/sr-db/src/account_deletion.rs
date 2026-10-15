@@ -49,6 +49,10 @@ pub enum Blocked {
     NotActive,
     /// The account owns servers; ownership must be transferred or the servers deleted first.
     OwnsGuilds(Vec<i64>),
+    /// An appointment is active (D-194): leave the Staff Server first.
+    Staff,
+    /// The account owns the Staff Server, i.e. it is the platform Owner (D-194).
+    Owner,
 }
 
 /// Delete (scrub) account `id`.
@@ -71,6 +75,25 @@ pub async fn delete_account(
     let state: String = row.try_get("state")?;
     if state != "active" {
         return Ok(Err(Blocked::NotActive));
+    }
+    // D-194: staff and the Owner cannot delete their own account.
+    let is_owner: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM guilds WHERE is_staff_guild AND owner_id = $1)",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if is_owner {
+        return Ok(Err(Blocked::Owner));
+    }
+    let is_staff: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM staff_appointments WHERE account_id = $1 AND revoked_at IS NULL)",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if is_staff {
+        return Ok(Err(Blocked::Staff));
     }
     let owned: Vec<i64> = sqlx::query_scalar(
         "SELECT id FROM guilds WHERE owner_id = $1 AND deleted_at IS NULL ORDER BY id",
@@ -174,6 +197,10 @@ pub async fn delete_account(
     .bind(id)
     .execute(&mut *tx)
     .await?;
+    sqlx::query("DELETE FROM app_testers WHERE account_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM oauth2_grants WHERE user_id = $1")
         .bind(id)
         .execute(&mut *tx)

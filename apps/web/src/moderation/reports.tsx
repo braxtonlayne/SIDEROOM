@@ -2,9 +2,11 @@
 // `moderation.reports` flag is off by default, so none of this renders. If an operator turns the flag on before the
 // backend exists, choosing Report opens a dialog that says so, rather than sending anything.
 import { Button, Modal, type MenuEntry } from '@sideroom/ui';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { create } from 'zustand';
+import { apiFetch } from '../api/client';
 import { useT } from '../i18n';
+import { onDispatch } from '../store/events';
 
 /** The feature id registered in sr-features (`ModerationReportsFeature`). */
 export const REPORTS_FLAG = 'moderation.reports';
@@ -25,12 +27,63 @@ interface ReportsState {
 }
 
 export const useReports = create<ReportsState>(() => ({
-  // Build-time seed until the client has a flag feed: `VITE_FEATURE_MODERATION_REPORTS=true`.
-  enabled: import.meta.env.VITE_FEATURE_MODERATION_REPORTS === 'true',
+  // Off until the server says otherwise (`GET /sr/features/flags`, D-216).
+  enabled: false,
   target: null,
 }));
 
-/** Set the resolved flag (called by the flag feed once the server exposes one). */
+/** The client-visible platform flags (D-216), as the server last sent them. A flag that is absent is off. */
+export const useClientFlags = create<{ flags: Record<string, boolean> }>(() => ({ flags: {} }));
+
+/** Replace the whole flag map (boot read, or `SR_FEATURE_UPDATE`, G-81) and derive what depends on it. */
+export function setClientFlags(flags: Record<string, boolean>): void {
+  useClientFlags.setState({ flags });
+  setReportsEnabled(flags[REPORTS_FLAG] === true);
+}
+
+/** Whether a client-visible platform flag is on. */
+export function useClientFlag(id: string): boolean {
+  return useClientFlags((s) => s.flags[id] === true);
+}
+
+/** Reads the client-visible platform flags once (D-216). A failure leaves the flags as they were. */
+export async function loadClientFlags(): Promise<void> {
+  try {
+    const res = await apiFetch<{ flags: Record<string, boolean> }>('/sr/features/flags', {
+      retries: 0,
+    });
+    setClientFlags(res.flags ?? {});
+  } catch {
+    // Signed out, or the server predates the endpoint: reporting stays hidden.
+  }
+}
+
+/** The map inside a gateway `SR_FEATURE_UPDATE` (`{scope: "platform", flags}`), or null for anything else. */
+export function flagsOfUpdate(event: string, data: unknown): Record<string, boolean> | null {
+  if (event !== 'SR_FEATURE_UPDATE') return null;
+  const d = data as { scope?: unknown; flags?: unknown } | null;
+  if (d?.scope !== 'platform' || !d.flags || typeof d.flags !== 'object') return null;
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(d.flags as Record<string, unknown>)) out[k] = v === true;
+  return out;
+}
+
+/**
+ * Mounted once at the app root: loads the flags at boot and replaces the map whenever the gateway says a
+ * client-visible platform flag changed (`SR_FEATURE_UPDATE`, G-81). Renders nothing.
+ */
+export function ReportsFlagSync() {
+  useEffect(() => {
+    void loadClientFlags();
+    return onDispatch((event, data) => {
+      const flags = flagsOfUpdate(event, data);
+      if (flags) setClientFlags(flags);
+    });
+  }, []);
+  return null;
+}
+
+/** Set the resolved flag (called by the flag feed). */
 export function setReportsEnabled(enabled: boolean): void {
   useReports.setState({ enabled });
 }

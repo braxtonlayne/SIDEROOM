@@ -47,6 +47,21 @@ deny = [
     { crate = "openssl" },
     { crate = "openssl-sys" },
     { crate = "native-tls" },
+    # D-203: every outbound request to a non-constant address goes through sr_net::SafeClient.
+    # `wrappers` lists the only crates allowed to depend on reqwest directly, or through
+    # `oauth2` (fixed-URL Discord OAuth) and `object_store` (S3)). A new crate that
+    # adds a reqwest dependency fails this check; add it here only with a decision.
+    # sr-push, sr-storage, sr-transcoder and sr-unfurl are grandfathered: operator-configured
+    # fixed endpoints (push services, S3, transcoder worker) or SafeClient transports.
+    { crate = "reqwest", wrappers = [
+        "sr-net",
+        "sr-unfurl",
+        "sr-push",
+        "sr-storage",
+        "sr-transcoder",
+        "oauth2",
+        "object_store",
+    ] },
 ]
 
 [sources]

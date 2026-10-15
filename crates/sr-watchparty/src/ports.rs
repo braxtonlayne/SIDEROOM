@@ -99,6 +99,14 @@ pub trait PlayGate: Send + Sync {
         episode_id: Option<i64>,
         variant_id: Option<i64>,
     ) -> Result<Resolved, GateError>;
+
+    /// A Live TV channel (`tv:<channel>`, G-16): it must exist, be enabled and not be off air, and what is on
+    /// now needs the account's age confirmation when it is restricted. The party's media then names the
+    /// channel: `title_id` and `asset_id` carry the TV channel id, `live` is set, there is no duration and
+    /// nobody seeks (everybody follows the live edge). The default knows no channels.
+    async fn resolve_live(&self, _adult: bool, _channel_id: i64) -> Result<Resolved, GateError> {
+        Err(GateError::NotFound)
+    }
 }
 
 /// No catalog: nothing is playable.
@@ -149,13 +157,14 @@ pub trait GuildLimits: Send + Sync {
     async fn max_parties(&self, guild: i64) -> usize;
 }
 
-/// Level 0 limits until the server levels land: 2 concurrent parties.
-pub struct FreeTier;
+/// The same limit for every server. The default when no entitlements are wired in (tests, tools); the
+/// server uses `sr_server::watchparty::EntitlementLimits`, which follows the server level.
+pub struct FixedLimit(pub usize);
 
 #[async_trait]
-impl GuildLimits for FreeTier {
+impl GuildLimits for FixedLimit {
     async fn max_parties(&self, _guild: i64) -> usize {
-        2
+        self.0
     }
 }
 

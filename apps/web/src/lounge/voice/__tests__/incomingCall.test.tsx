@@ -181,6 +181,30 @@ describe('incoming call overlay', () => {
     expect(useVoiceSession.getState().camera).toBe(true);
   });
 
+  it('G-39 decline tells the server to stop ringing', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const calls: string[] = [];
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      calls.push(`${init?.method ?? 'GET'} ${String(input)}`);
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    try {
+      renderOverlay();
+      act(() =>
+        applyCallEvent('CALL_CREATE', { channel_id: 'd1', initiator_id: '2', ringing: ['1'] }),
+      );
+      await user.click(await screen.findByRole('button', { name: 'Decline' }));
+      await vi.waitFor(() => expect(calls).toContain('POST /api/v1/channels/d1/call/stop-ringing'));
+      expect(screen.queryByTestId('incoming-call')).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('the local fallback timer matches the server ring (45 s)', () => {
+    expect(RING_TIMEOUT_MS).toBe(45_000);
+  });
+
   it('decline dismisses without joining, and a ring times out by itself', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderOverlay();

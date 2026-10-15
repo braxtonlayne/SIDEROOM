@@ -10,9 +10,9 @@ Synchronized playback of Cinema content (VOD or a Live TV channel) for a group, 
 |---|---|
 | Title page → **Watch together** | Choose: a Lounge text/voice channel you can post in, a DM/group DM, or "Private party" (shareable link to friends) |
 | Lounge voice channel → **Start Watch Party** (call bar button) | Party bound to that voice channel. Voice continues as normal (E2EE call) |
-| **Watch Party channel** type (server) | A voice channel variant whose main view is the theatre. The party persists while anyone is in it |
+| **Watch party room** preset (create-channel dialog, D-208) | There is no channel type of its own: `POST /guilds/{id}/channels {type: 2, sr_watch_party_room: true, sr_watch_party_title_id, sr_watch_party_episode_id?}` creates the voice channel and a persistent party bound to it in one request (the new channel is removed again when the party cannot start). The creator is not left in the party; the first person to join the empty room becomes host |
 | Lounge message `<cinema:…>` card → **Watch together** | Starts a party in that channel |
-| Live TV → **Watch together** | Party on a live channel (no seeking; everyone on the live edge) |
+| Live TV → **Watch together** (guide now panel, live player) | Party on a live channel: `POST /watch-parties {tv_channel_id}` (instead of `title_id`). The media has `live: true`, `title_id` and `asset_id` carry the TV channel id, there is no duration, nobody seeks or pauses, and every participant tunes the channel themselves (`GET /tv/channels/{id}/tune`, age check included). `PUT /watch-parties/{id}/media {tv_channel_id}` switches a party to a channel; a live channel cannot be queued. `sr-tv` answers the `PlayGate::resolve_live` check |
 
 A system message in the channel ("@host started a watch party: *Akira* ▶ Join") updates live (viewers count, now playing).
 
@@ -29,7 +29,7 @@ A system message in the channel ("@host started a watch party: *Akira* ▶ Join"
 - **Sync protocol** (gateway op 100 `WATCH_PARTY_SYNC`, server-authoritative):
   - Server holds `{media_id, rendition_set, state: playing|paused|buffering, position_ms, at_server_ts, rate}`.
   - Clients estimate clock offset (NTP-style ping on join and every 30s) and compute the expected position = `position_ms + (now_server - at_server_ts) × rate`.
-  - Drift handling: |drift| < 250 ms → ignore. 250 ms–2 s → adjust playbackRate 0.95/1.05 until converged. > 2 s → hard seek.
+  - Drift handling: |drift| < 100 ms → ignore (the ignore band; a client already nudging keeps nudging until drift is under 40 ms, the hysteresis, so it does not flap at the edge). 100 ms–2 s → adjust playbackRate 0.95/1.05 until converged. > 2 s → hard seek. The band is 100 ms rather than 250 ms because the 10-client simulation needs viewers within 300 ms of each other (section 7.2, "Clock and drift").
   - **Buffering:** if any participant reports buffering > 1.5 s, the server may auto-pause everyone ("Waiting for @x…") (setting: on/off, max wait 10 s, then continue without them).
   - Late joiners seek to the expected position.
 - Party ends when empty for 5 minutes (non-channel parties), or when the host ends it.
@@ -86,7 +86,7 @@ session, and use snowflakes as decimal strings. Times are unix milliseconds on t
 
 **Who may join.** Private: the invite code (404 otherwise, so parties cannot be probed). Bound: anyone who can see the channel. Always: not kicked, not full, and for a restricted title age-confirmed (else 403 900011; the client shows "This party is showing age-restricted content"). An account is in at most one party at a time: joining or creating leaves the previous party.
 
-**Clock and drift.** Clients estimate `offset = server_time_ms - (client_now_at_response - rtt/2)` from `GET /watch-parties/time` and each heartbeat (median of recent samples) and compute the expected position with it. Drift thresholds as built in the web client: below 100 ms ignore, 100 ms to 2 s nudge the playback rate by 5 percent (0.95 or 1.05 times the party rate) until under 40 ms, above 2 s hard seek. The ignore band is 100 ms rather than the 250 ms of section 4 because with 250 ms the 10-client simulation left two viewers up to 440 ms apart, and acceptance asks for 300 ms. Heartbeats carry `rtt_ms` so the participant list can show connection quality. The gateway op `100 WATCH_PARTY_SYNC` stays reserved: clock samples go over HTTP.
+**Clock and drift.** Clients estimate `offset = server_time_ms - (client_now_at_response - rtt/2)` from `GET /watch-parties/time` and each heartbeat (median of recent samples) and compute the expected position with it. Drift thresholds as built in the web client: below 100 ms ignore, 100 ms to 2 s nudge the playback rate by 5 percent (0.95 or 1.05 times the party rate) until under 40 ms, above 2 s hard seek. The ignore band is 100 ms rather than the 250 ms the first draft of section 4 proposed because with 250 ms the 10-client simulation left two viewers up to 440 ms apart, and acceptance asks for 300 ms. Heartbeats carry `rtt_ms` so the participant list can show connection quality. The gateway op `100 WATCH_PARTY_SYNC` stays reserved: clock samples go over HTTP.
 
 **Buffering.** A client that stalls more than about 1.5 s sends `heartbeat {buffering: true}` and `false` once it recovers. With `auto_pause_buffering` the server pauses everybody (`auto_paused: true`, "Waiting for ...") and resumes when nobody is stalled, or after `max_wait_ms` continues without the stalled participants. Reports are limited to 12 per minute per account.
 
@@ -100,4 +100,4 @@ session, and use snowflakes as decimal strings. Times are unix milliseconds on t
 Events are hints for latency; the heartbeat answer and `GET /watch-parties/{id}` are the repair path.
 
 ### 7.4 Not in this build
-A dedicated "Watch Party" channel *type* (a bound voice channel with `persistent` covers the behaviour), the live-updating chat card (the `ChatHook` port exists; no chat message type for it yet), Live TV parties (the `live` flag and rules exist; the Live TV catalog supplies the gate when it lands), and per-server limits by level (a constant 2 until server levels exist).
+A dedicated "Watch Party" channel *type* (D-208: the "Watch party room" preset covers it) and the live-updating chat card (the `ChatHook` port exists; no chat message type for it yet). Concurrent parties per server follow the server level (2, 4, 8, 16 for Level 0 to 3, `sr_server::watchparty::EntitlementLimits` over `Entitlements`, refreshed on `SR_ENTITLEMENT_UPDATE`).

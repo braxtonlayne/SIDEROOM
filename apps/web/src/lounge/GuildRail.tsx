@@ -101,6 +101,7 @@ function GuildIcon({
   const voice = inVoice || guild.voiceConnected;
   const pill: RailPillState = selected ? 'selected' : guild.unread ? 'unread' : 'none';
   const setLayout = useLoungeUi((s) => s.setRailLayout);
+  const openDialog = useLoungeUi((s) => s.openDialog);
   const core = useGuildMenuCore(guild);
   const folders = rail.filter(
     (e): e is Extract<RailEntry, { kind: 'folder' }> => e.kind === 'folder',
@@ -119,7 +120,15 @@ function GuildIcon({
     core.editProfile,
     core.createChannel,
     core.createCategory,
-    { label: t('lounge.guildMenu.createEvent'), disabled: true },
+    {
+      label: t('lounge.guildMenu.createEvent'),
+      disabled: !(
+        guild.permissions.createEvents ||
+        guild.permissions.manageEvents ||
+        guild.permissions.manageGuild
+      ),
+      onSelect: () => openDialog({ kind: 'createEvent', guildId: guild.id }),
+    },
     { type: 'separator' },
     ...(inFolder
       ? [
@@ -152,7 +161,7 @@ function GuildIcon({
       : []),
     { type: 'separator' },
     core.leave,
-    core.copyId,
+    ...(core.copyId ? [core.copyId] : []),
   ];
   return (
     <ContextMenu items={menu} label={t('lounge.guildRail.guildMenu', { name: guild.name })}>

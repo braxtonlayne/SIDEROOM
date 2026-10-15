@@ -8,9 +8,9 @@ use crate::{
     model::{
         AccessKind, AccessLogFilter, AccessLogPage, AccountDetail, AccountPage, AccountQuery,
         AccountState, AccountSummary, AuditEntry, BanCategory, BanOutcome, BanPage, Caller,
-        ChainReport, CreditLedger, DeleteRequest, InviteDescendants, InvitePage, InviteQuery,
-        InviteTree, JobPage, PersonDetail, Reset2faReport, StaffMember, StaffRole, SuspectPerson,
-        SystemCounts, UnbanOutcome,
+        ChainReport, CreditLedger, DeleteRequest, FormerStaff, InviteDescendants, InvitePage,
+        InviteQuery, InviteTree, JobPage, PersonDetail, Reset2faReport, StaffMember, StaffRole,
+        SuspectPerson, SystemCounts, UnbanOutcome,
     },
     repo::AdminRepository,
     rules,
@@ -162,6 +162,21 @@ impl AdminService {
         }
     }
 
+    /// Send a dispatch to every connected session (`SR_ANNOUNCEMENT_UPDATE`).
+    pub(crate) async fn broadcast(&self, name: &str, payload: Value) {
+        if let Some(bus) = &self.bus {
+            let _ = bus
+                .publish(
+                    Topic::Platform,
+                    DomainEvent::PlatformBroadcast {
+                        name: name.to_owned(),
+                        payload,
+                    },
+                )
+                .await;
+        }
+    }
+
     pub(crate) fn entry(
         &self,
         c: &Caller,
@@ -242,6 +257,12 @@ impl AdminService {
         self.repo.list_staff().await
     }
 
+    /// Closed appointments with why they ended (`APPOINT_STAFF`).
+    pub async fn former_staff(&self, c: &Caller) -> AdminResult<Vec<FormerStaff>> {
+        self.require(c, P::APPOINT_STAFF, "staff.former").await?;
+        self.repo.former_staff(100).await
+    }
+
     pub(crate) async fn roles_by_id(&self, ids: &[i64]) -> AdminResult<Vec<StaffRole>> {
         if ids.is_empty() {
             return Err(AdminError::Invalid("at least one role is required".into()));
@@ -298,6 +319,60 @@ impl AdminService {
         );
         self.repo
             .appoint(account_id, role_ids, c.user_id, &reason, &audit)
+            .await
+    }
+
+    /// Operator CLI appointment (D-197): the only direct path to staff. Audited as `staff.appoint_cli`
+    /// with the system user as actor and the operator-named `issuer` as the target and appointer.
+    /// Idempotent: an account that already holds exactly these roles is returned unchanged.
+    pub async fn appoint_cli(
+        &self,
+        c: &Caller,
+        account_id: i64,
+        role_ids: &[i64],
+        issuer: i64,
+        reason: Option<&str>,
+    ) -> AdminResult<StaffMember> {
+        let reason = Self::reason(reason)?;
+        if account_id == SYSTEM_USER_ID {
+            return Err(AdminError::Forbidden(
+                "The system user cannot be staff".into(),
+            ));
+        }
+        let roles = self.roles_by_id(role_ids).await?;
+        rules::check_assignable_within(c, &roles, self.ceiling_of(c).await?)?;
+        if let Some(existing) = self.repo.get_staff(account_id).await? {
+            let mut have: Vec<i64> = existing.roles.iter().map(|r| r.id).collect();
+            let mut want = role_ids.to_vec();
+            have.sort_unstable();
+            want.sort_unstable();
+            want.dedup();
+            if have == want {
+                return Ok(existing);
+            }
+            return Err(AdminError::Conflict("The account is already staff".into()));
+        }
+        let account = self
+            .repo
+            .account_detail(account_id)
+            .await?
+            .ok_or(AdminError::NotFound("account"))?;
+        if account.account.state != AccountState::Active {
+            return Err(AdminError::Conflict(
+                "Only an active account can be appointed".into(),
+            ));
+        }
+        let names: Vec<_> = roles.iter().map(|r| r.name.clone()).collect();
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "staff.appoint_cli",
+            Some(("account", issuer)),
+            &reason,
+            json!({ "roles": names, "appointee": account_id.to_string() }),
+        );
+        self.repo
+            .appoint(account_id, role_ids, issuer, &reason, &audit)
             .await
     }
 

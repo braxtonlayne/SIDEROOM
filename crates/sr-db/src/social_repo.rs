@@ -10,7 +10,7 @@ use sqlx::postgres::PgRow;
 use sqlx::{PgPool, Row};
 
 use sr_chat::error::RepoError;
-use sr_chat::social::dm::{DmChannel, DmKind, DmPrivacy, RequestState};
+use sr_chat::social::dm::{DmChannel, DmKind, DmPrivacy, GroupInvite, RequestState};
 use sr_chat::social::notifications::{ChannelOverride, Mute, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::{CustomStatus, PresencePrefs, Status};
 use sr_chat::social::profile::{Connection, Profile};
@@ -258,7 +258,7 @@ impl RelationshipRepository for PgSocialRepo {
 
     async fn list_guild_memberships(&self, user: UserId) -> RepoResult<Vec<GuildMembership>> {
         let sql = format!(
-            "SELECT guild_id, nick, avatar_key, banner_key, bio, {} AS joined_ms \
+            "SELECT guild_id, nick, avatar_key, banner_key, bio, pronouns, theme_primary, theme_accent, profile_effect, avatar_decoration, {} AS joined_ms \
              FROM guild_members WHERE user_id = $1 ORDER BY guild_id",
             ms("joined_at")
         );
@@ -276,6 +276,7 @@ impl RelationshipRepository for PgSocialRepo {
                     avatar_key: r.try_get("avatar_key").map_err(db)?,
                     banner_key: r.try_get("banner_key").map_err(db)?,
                     bio: r.try_get("bio").map_err(db)?,
+                    extras: crate::chat_repo::extras_from(r).map_err(db)?,
                 })
             })
             .collect()
@@ -692,6 +693,73 @@ impl DmRepository for PgSocialRepo {
         .map_err(db)?;
         Ok(())
     }
+
+    async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO group_dm_invites (code, channel_id, inviter_id, created_at, expires_at) \
+             VALUES ($1, $2, $3, to_timestamp($4::bigint / 1000.0), to_timestamp($5::bigint / 1000.0))",
+        )
+        .bind(&invite.code)
+        .bind(i(invite.channel_id.get()))
+        .bind(i(invite.inviter_id.get()))
+        .bind(invite.created_at_ms)
+        .bind(invite.expires_at_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn get_group_invite(&self, code: &str) -> RepoResult<Option<GroupInvite>> {
+        let row = sqlx::query(GROUP_INVITE_SELECT_ONE)
+            .bind(code)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?;
+        row.as_ref().map(group_invite_from).transpose()
+    }
+
+    async fn revoke_group_invite(&self, code: &str) -> RepoResult<bool> {
+        let r = sqlx::query(
+            "UPDATE group_dm_invites SET revoked_at = now() WHERE code = $1 AND revoked_at IS NULL",
+        )
+        .bind(code)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn list_group_invites(&self, channel: ChannelId) -> RepoResult<Vec<GroupInvite>> {
+        let rows = sqlx::query(GROUP_INVITE_SELECT_CHANNEL)
+            .bind(i(channel.get()))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?;
+        rows.iter().map(group_invite_from).collect()
+    }
+}
+
+const GROUP_INVITE_SELECT_ONE: &str = "SELECT code, channel_id, inviter_id, \
+    (EXTRACT(EPOCH FROM created_at) * 1000)::bigint AS created_ms, \
+    (EXTRACT(EPOCH FROM expires_at) * 1000)::bigint AS expires_ms, \
+    revoked_at IS NOT NULL AS revoked FROM group_dm_invites WHERE code = $1";
+
+const GROUP_INVITE_SELECT_CHANNEL: &str = "SELECT code, channel_id, inviter_id, \
+    (EXTRACT(EPOCH FROM created_at) * 1000)::bigint AS created_ms, \
+    (EXTRACT(EPOCH FROM expires_at) * 1000)::bigint AS expires_ms, \
+    revoked_at IS NOT NULL AS revoked FROM group_dm_invites WHERE channel_id = $1 \
+    ORDER BY created_at DESC";
+
+fn group_invite_from(r: &PgRow) -> RepoResult<GroupInvite> {
+    Ok(GroupInvite {
+        code: r.try_get("code").map_err(db)?,
+        channel_id: ChannelId::new(r.try_get::<i64, _>("channel_id").map_err(db)? as u64),
+        inviter_id: uid(r.try_get("inviter_id").map_err(db)?),
+        created_at_ms: r.try_get("created_ms").map_err(db)?,
+        expires_at_ms: r.try_get("expires_ms").map_err(db)?,
+        revoked: r.try_get("revoked").map_err(db)?,
+    })
 }
 
 // ---- read states ----
@@ -937,9 +1005,13 @@ impl ProfileRepository for PgSocialRepo {
             "SELECT a.avatar_key, a.banner_key, a.accent_color, a.bio, a.pronouns, a.display_name, \
              a.avatar_decoration, a.profile_effect, a.theme_primary, a.theme_accent, a.is_bot, \
              a.flags, (EXTRACT(EPOCH FROM a.created_at) * 1000)::BIGINT AS created_ms, \
-             EXISTS(SELECT 1 FROM staff_appointments s \
-                    WHERE s.account_id = a.id AND s.revoked_at IS NULL) AS is_staff, \
-             EXISTS(SELECT 1 FROM guilds g WHERE g.is_staff_guild AND g.owner_id = a.id) AS is_owner, \
+             (EXISTS(SELECT 1 FROM staff_appointments s \
+                     WHERE s.account_id = a.id AND s.revoked_at IS NULL) \
+              AND COALESCE((SELECT us.settings #>> '{staff,show_badge}' FROM user_settings us \
+                            WHERE us.user_id = a.id), 'true') <> 'false') AS is_staff, \
+             (EXISTS(SELECT 1 FROM guilds g WHERE g.is_staff_guild AND g.owner_id = a.id) \
+              AND COALESCE((SELECT us.settings #>> '{staff,show_badge}' FROM user_settings us \
+                            WHERE us.user_id = a.id), 'true') <> 'false') AS is_owner, \
              (EXISTS(SELECT 1 FROM entitlement_grants e \
                      WHERE e.kind = 'patron' AND e.user_id = a.id AND e.revoked_ms IS NULL \
                        AND (e.permanent OR e.ends_ms > (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT \
@@ -955,20 +1027,20 @@ impl ProfileRepository for PgSocialRepo {
         .map_err(db)?;
         let Some(r) = row else { return Ok(None) };
         let flags: i64 = r.try_get("flags").map_err(db)?;
+        // One catalogue (`sr_admin::BADGES`): flag-backed badges read `accounts.flags`, the
+        // rest are derived from the queries above.
         let mut badges = Vec::new();
-        for (on, name) in [
-            (r.try_get::<bool, _>("is_owner").map_err(db)?, "owner"),
-            (r.try_get::<bool, _>("is_staff").map_err(db)?, "staff"),
-            (r.try_get::<bool, _>("is_patron").map_err(db)?, "patron"),
-            (flags & (1 << 9) != 0, "contributor"),
-            (flags & (1 << 8) != 0, "early_member"),
-            (flags & (1 << 10) != 0, "bug_hunter"),
-            (flags & (1 << 11) != 0, "honorary"),
-            (flags & (1 << 1) != 0, "app_developer"),
-            (r.try_get::<bool, _>("is_bot").map_err(db)?, "bot"),
-        ] {
+        for b in sr_admin::BADGES {
+            let on = match (b.flag, b.id) {
+                (Some(bit), _) => flags & bit != 0,
+                (None, "owner") => r.try_get::<bool, _>("is_owner").map_err(db)?,
+                (None, "staff") => r.try_get::<bool, _>("is_staff").map_err(db)?,
+                (None, "patron") => r.try_get::<bool, _>("is_patron").map_err(db)?,
+                (None, "bot") => r.try_get::<bool, _>("is_bot").map_err(db)?,
+                (None, _) => false,
+            };
             if on {
-                badges.push(name.to_owned());
+                badges.push(b.id.to_owned());
             }
         }
         let sql = format!(

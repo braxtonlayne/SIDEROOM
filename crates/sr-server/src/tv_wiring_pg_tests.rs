@@ -349,3 +349,82 @@ async fn a_channel_is_scheduled_from_the_real_catalog_and_tables() {
     assert_eq!(kinds, ["program", "slate", "program", "slate"]);
     w.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn block_length_comes_from_the_asset_when_it_is_shorter_than_the_runtime() {
+    let w = World::new().await;
+    // The catalog says 95 minutes, the probed asset is 80 minutes and 30 seconds.
+    let film = w.film(TitleKind::Movie, "Short Cut", false, &[], 95).await;
+    let other = w.film(TitleKind::Movie, "Unprobed", false, &[], 60).await;
+    sqlx::query(
+        "INSERT INTO video_assets (id, filename, original_key, original_ext, original_size, duration_ms) \
+         VALUES ($1, 'a.mkv', 'originals/x/source.mkv', 'mkv', 10, 4830000)",
+    )
+    .bind(film.asset_id.unwrap())
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    let cat = RepoTvCatalog::new(w.repo.clone()).with_asset_durations(Arc::new(
+        crate::tv_catalog::PgAssetDurations::new(w.db.pool().clone()),
+    ));
+    let pool = cat.pool(&PoolFilter::default(), false, 10).await.unwrap();
+    let short = pool.iter().find(|i| i.title_id == film.id).unwrap();
+    assert_eq!(
+        short.duration_ms, 4_830_000,
+        "the asset wins over runtime_min"
+    );
+    let unprobed = pool.iter().find(|i| i.title_id == other.id).unwrap();
+    assert_eq!(
+        unprobed.duration_ms,
+        60 * 60_000,
+        "no asset row: runtime_min"
+    );
+    assert_eq!(
+        cat.item(film.id, None).await.unwrap().unwrap().duration_ms,
+        4_830_000
+    );
+    w.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn reminders_are_stored_replaced_taken_once_and_follow_the_account() {
+    use sr_tv::model::ReminderRecord;
+    use sr_tv::repo::TvRepository;
+    let db = TestDb::new().await.unwrap();
+    let who = account(db.pool()).await;
+    let repo = PgTvRepo::new(db.pool().clone());
+    let r = |block, at| ReminderRecord {
+        account_id: who,
+        block_id: block,
+        channel_id: 5,
+        title: "Cowboy Bebop".into(),
+        start_ms: at + 300_000,
+        remind_at_ms: at,
+    };
+    repo.put_reminder(&r(1, 1_000)).await.unwrap();
+    repo.put_reminder(&r(2, 9_000)).await.unwrap();
+    // Setting it again replaces the row.
+    repo.put_reminder(&r(1, 2_000)).await.unwrap();
+    assert!(repo.take_due_reminders(500, 10).await.unwrap().is_empty());
+    let due = repo.take_due_reminders(5_000, 10).await.unwrap();
+    assert_eq!(due, vec![r(1, 2_000)]);
+    assert!(repo.take_due_reminders(5_000, 10).await.unwrap().is_empty());
+    assert!(repo.delete_reminder(who, 2).await.unwrap());
+    assert!(!repo.delete_reminder(who, 2).await.unwrap());
+    // Deleting the account removes what is left.
+    repo.put_reminder(&r(3, 1)).await.unwrap();
+    sqlx::query("DELETE FROM accounts WHERE id = $1")
+        .bind(who)
+        .execute(db.pool())
+        .await
+        .unwrap();
+    assert!(
+        repo.take_due_reminders(i64::MAX, 10)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    db.cleanup().await.unwrap();
+}

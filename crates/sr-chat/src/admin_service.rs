@@ -18,6 +18,15 @@ use crate::service::ChatService;
 use sr_core::permissions::{Overwrite, OverwriteKind, Permissions};
 use sr_core::{ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
 
+/// The system user is not a visible member and cannot be kicked, banned or given roles; the
+/// answer is Discord's `50013` (D-188).
+fn refuse_system_target(user: UserId) -> ChatResult<()> {
+    if user.get() == crate::domain::SYSTEM_USER_ID {
+        return Err(ChatError::MissingPermissions);
+    }
+    Ok(())
+}
+
 /// Page size bounds for member and ban listings (Discord: 1..=1000).
 pub const MAX_PAGE: usize = 1000;
 
@@ -106,6 +115,20 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
                 .is_some_and(|ch| ch.guild_id == Some(id) && ch.kind == ChannelType::Voice),
             None => true,
         };
+        if let Some(Some(cid)) = patch.widget_channel_id {
+            let ok = self
+                .repo
+                .get_channel(cid)
+                .await?
+                .is_some_and(|ch| ch.guild_id == Some(id) && ch.kind != ChannelType::Category);
+            if !ok {
+                return Err(ChatError::invalid(
+                    "channel_id",
+                    "CHANNEL_INVALID",
+                    "Must be a channel of this server.",
+                ));
+            }
+        }
         let updated = plan_edit_guild(
             actor,
             &c.actor,
@@ -420,6 +443,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         role: RoleId,
         add: bool,
     ) -> ChatResult<Member> {
+        refuse_system_target(user)?;
         let c = self.ctx(actor, id).await?;
         let r = c
             .roles
@@ -640,6 +664,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
     }
 
     pub async fn kick_member(&self, actor: UserId, id: GuildId, user: UserId) -> ChatResult<()> {
+        refuse_system_target(user)?;
         let c = self.ctx(actor, id).await?;
         let target = self.target_member(id, user).await?;
         check_moderation(
@@ -651,7 +676,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
             top_role_position(&target, &c.roles),
             guild_permissions(&c.guild, &target, &c.roles),
         )?;
-        self.repo.remove_member(id, user).await?;
+        self.repo.remove_member_kicked(id, user).await?;
         Ok(())
     }
 
@@ -710,6 +735,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         reason: Option<String>,
         delete_message_seconds: u32,
     ) -> ChatResult<BanOutcome> {
+        refuse_system_target(user)?;
         let c = self.ctx(actor, id).await?;
         let reason = admin_rules::validate_ban_reason(reason)?;
         let was_member = match self.repo.get_member(id, user).await? {

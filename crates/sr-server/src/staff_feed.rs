@@ -201,7 +201,7 @@ pub fn offer_card(offer: &StaffOffer) -> Card {
             title: Some("Staff appointment".into()),
             kind: Some("rich".into()),
             description: Some(format!(
-                "@{} would like you to join the staff as {roles}.{reason}\n\nYou join only if you accept. The offer expires after seven days.",
+                "@{} would like you to join the staff as {roles}.{reason}\n\nYou join only if you accept, and accepting needs an authenticator app or a passkey on your account (Settings, Security). The offer expires after seven days.",
                 offer.offered_by_name
             )),
             color: BLUE,
@@ -232,6 +232,110 @@ pub fn announcement_card(a: &Announcement) -> Card {
         }),
         buttons: Vec::new(),
     }
+}
+
+/// title, kind, submitter name, item count and the name of whoever decided it.
+type ReviewInfoRow = (String, String, Option<String>, i64, Option<String>);
+
+/// What the `#review-queue` card shows about a submission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewCardInfo {
+    pub id: i64,
+    pub title: String,
+    pub kind: String,
+    pub submitter: String,
+    pub items: i64,
+    /// Name of the reviewer who decided it, for the outcome card.
+    pub decided_by: Option<String>,
+}
+
+fn kind_label(kind: &str) -> &str {
+    match kind {
+        "library.series" => "Library series",
+        "library.items" => "Library chapters",
+        "cinema.title" => "Cinema title",
+        "cinema.episodes" => "Cinema episodes",
+        other => other,
+    }
+}
+
+/// The card for a submission that waits for review: what it is, who sent it, and the two buttons
+/// (G-68). Approve runs the review service under the presser's own review permission; Reject only
+/// opens the review page because a reason is required (D-082).
+pub fn review_card(i: &ReviewCardInfo, base_url: &str) -> Card {
+    let page = review_page_url(base_url, i.id);
+    Card {
+        content: String::new(),
+        embed: Some(Embed {
+            title: Some(clip(&format!("Review: {}", i.title), 200)),
+            kind: Some("rich".into()),
+            description: Some(format!(
+                "{} from @{}, {} item{}.
+
+[Open the review page]({page})",
+                kind_label(&i.kind),
+                i.submitter,
+                i.items,
+                if i.items == 1 { "" } else { "s" },
+            )),
+            color: AMBER,
+            footer: Some(sr_chat::message::EmbedFooter {
+                text: format!("#{}", i.id),
+                ..Default::default()
+            }),
+            ..Embed::default()
+        }),
+        buttons: vec![
+            button(SUCCESS, "Approve", format!("sr:review-approve:{}", i.id)),
+            button(DANGER, "Reject", format!("sr:review-reject:{}", i.id)),
+            link_button("Open review page", page),
+        ],
+    }
+}
+
+/// The card after the submission was decided: the outcome, no buttons.
+pub fn review_outcome_card(i: &ReviewCardInfo, outcome: &str, base_url: &str) -> Card {
+    let (label, color) = match outcome {
+        "approved" | "published" => ("Approved", GREEN),
+        "rejected" => ("Rejected", RED),
+        "changes_requested" => ("Changes requested", AMBER),
+        "withdrawn" => ("Withdrawn by the submitter", BLUE),
+        "resubmitted" => ("Sent again; a new card replaces this one", BLUE),
+        _ => ("Decided", BLUE),
+    };
+    let by = i
+        .decided_by
+        .as_deref()
+        .map(|n| format!(" by @{n}"))
+        .unwrap_or_default();
+    Card {
+        content: String::new(),
+        embed: Some(Embed {
+            title: Some(clip(&format!("Review: {}", i.title), 200)),
+            kind: Some("rich".into()),
+            description: Some(format!(
+                "{label}{by}.
+{} from @{}.
+
+[Open the review page]({})",
+                kind_label(&i.kind),
+                i.submitter,
+                review_page_url(base_url, i.id),
+            )),
+            color,
+            footer: Some(sr_chat::message::EmbedFooter {
+                text: format!("#{}", i.id),
+                ..Default::default()
+            }),
+            ..Embed::default()
+        }),
+        buttons: Vec::new(),
+    }
+}
+
+/// The review page of a submission in the admin app (opens the reviewer workspace on it).
+pub fn review_page_url(base_url: &str, id: i64) -> String {
+    format!("{base_url}/admin/review?submission={id}")
 }
 
 /// Used percent of a disk, rounded down. `None` for an empty or unreadable one.
@@ -363,6 +467,52 @@ impl StaffVoice {
         self.deliver(channel, card).await.is_some()
     }
 
+    /// Post a card to a Staff Server channel and return the channel and message ids.
+    pub async fn post_ids(&self, channel_name: &str, card: Card) -> Option<(i64, i64)> {
+        self.ensure_member().await;
+        let channel = self.channel(channel_name).await?;
+        let message = self.deliver(channel, card).await?;
+        Some((i64::try_from(channel.get()).ok()?, message))
+    }
+
+    /// Rewrite one of the system user's own cards in place (embeds and buttons are not editable
+    /// through the message service) and tell the clients.
+    pub async fn rewrite(&self, channel: i64, message: i64, card: Card) -> bool {
+        let (Ok(c), Ok(m)) = (u64::try_from(channel), u64::try_from(message)) else {
+            return false;
+        };
+        let (channel_id, message_id) = (ChannelId::new(c), sr_core::MessageId::new(m));
+        let send = card.into_send();
+        let embeds = serde_json::to_value(&send.embeds).unwrap_or(serde_json::Value::Null);
+        let components = serde_json::to_value(&send.components).unwrap_or(serde_json::Value::Null);
+        let updated = sqlx::query(
+            "UPDATE messages SET content = $2, embeds = $3, components = $4, edited_at = now()              WHERE id = $1 AND author_id = $5",
+        )
+        .bind(message)
+        .bind(&send.content)
+        .bind(embeds)
+        .bind(components)
+        .bind(SYSTEM_USER_ID)
+        .execute(&self.pool)
+        .await;
+        if !matches!(updated, Ok(ref r) if r.rows_affected() == 1) {
+            return false;
+        }
+        if let Ok(Some(msg)) = self.messages.repo.get_message(channel_id, message_id).await
+            && let Ok(data) = event_payload(&self.messages, &msg).await
+        {
+            self.messages
+                .publish(DomainEvent::MessageEdited {
+                    guild: msg.guild_id,
+                    channel: channel_id,
+                    message_id: msg.id.get(),
+                    data,
+                })
+                .await;
+        }
+        true
+    }
+
     /// DM `to` from the system user. Returns the DM channel and message ids.
     pub async fn dm(&self, to: i64, card: Card) -> Option<(i64, i64)> {
         let social = PgSocialRepo::new(self.pool.clone());
@@ -399,6 +549,36 @@ impl StaffVoice {
     }
 }
 
+/// Developer platform DMs (tester invitations, endpoint warnings) go out as the system user.
+#[async_trait]
+impl sr_api::routes::developer::SystemDm for StaffVoice {
+    async fn dm(&self, to: i64, card: sr_api::routes::developer::SystemCard) -> bool {
+        let embed = (!card.title.is_empty()).then(|| Embed {
+            title: Some(clip(&card.title, 200)),
+            kind: Some("rich".into()),
+            description: Some(clip(&card.description, 1500)),
+            color: BLUE,
+            ..Embed::default()
+        });
+        let buttons = card
+            .buttons
+            .iter()
+            .take(5)
+            .map(|b| button(b.style, &clip(&b.label, 80), b.custom_id.clone()))
+            .collect();
+        self.dm(
+            to,
+            Card {
+                content: clip(&card.content, 1900),
+                embed,
+                buttons,
+            },
+        )
+        .await
+        .is_some()
+    }
+}
+
 #[async_trait]
 impl StaffNotifier for StaffVoice {
     async fn appointment_offer(&self, offer: &StaffOffer) -> Option<(i64, i64)> {
@@ -425,10 +605,14 @@ impl StaffNotifier for StaffVoice {
         let a = a.clone();
         tokio::spawn(async move {
             let voice = StaffVoice::new(pool.clone(), messages, &base);
+            // D-192: a critical announcement reaches everyone; an ordinary one only reaches accounts
+            // that have not turned off `notifications.platform_dm` (default on).
+            let critical = a.severity == sr_admin::AnnouncementSeverity::Critical;
             let ids: Vec<i64> = sqlx::query_scalar(
-                "SELECT id FROM accounts WHERE state = 'active' AND id <> $1 AND NOT is_bot ORDER BY id",
+                "SELECT a.id FROM accounts a WHERE a.state = 'active' AND a.id <> $1 AND NOT a.is_bot                  AND ($2 OR COALESCE((SELECT us.settings #>> '{notifications,platform_dm}'                                       FROM user_settings us WHERE us.user_id = a.id), 'true') <> 'false')                  ORDER BY a.id",
             )
             .bind(SYSTEM_USER_ID)
+            .bind(critical)
             .fetch_all(&pool)
             .await
             .unwrap_or_default();
@@ -522,6 +706,72 @@ impl StaffFeed {
         }
     }
 
+    async fn review_info(&self, id: i64) -> Option<ReviewCardInfo> {
+        let row: Option<ReviewInfoRow> = sqlx::query_as(
+            "SELECT s.title, s.kind, a.username::text,                     (SELECT count(*) FROM submission_items i WHERE i.submission_id = s.id),                     d.username::text              FROM submissions s              LEFT JOIN accounts a ON a.id = s.submitter_id              LEFT JOIN accounts d ON d.id = s.decided_by              WHERE s.id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.voice.pool)
+        .await
+        .ok()
+        .flatten();
+        row.map(
+            |(title, kind, submitter, items, decided_by)| ReviewCardInfo {
+                id,
+                title,
+                kind,
+                submitter: submitter.unwrap_or_else(|| "deleted account".into()),
+                items,
+                decided_by,
+            },
+        )
+    }
+
+    /// G-68: a submission entered review (post its `#review-queue` card, replacing an older one of a
+    /// resubmission) or reached an outcome (edit the card, which loses its buttons).
+    pub async fn on_review_card(&self, submission: i64, outcome: Option<&str>) {
+        let Some(info) = self.review_info(submission).await else {
+            return;
+        };
+        let base = self.voice.base_url().to_owned();
+        let card: Option<(i64, i64)> = sqlx::query_as(
+            "SELECT channel_id, message_id FROM review_queue_cards WHERE submission_id = $1",
+        )
+        .bind(submission)
+        .fetch_optional(&self.voice.pool)
+        .await
+        .ok()
+        .flatten();
+        match (outcome, card) {
+            (None, old) => {
+                if let Some((channel, message)) = old {
+                    let card = review_outcome_card(&info, "resubmitted", &base);
+                    self.voice.rewrite(channel, message, card).await;
+                }
+                let Some((channel, message)) = self
+                    .voice
+                    .post_ids("review-queue", review_card(&info, &base))
+                    .await
+                else {
+                    return;
+                };
+                let _ = sqlx::query(
+                    "INSERT INTO review_queue_cards (submission_id, channel_id, message_id)                      VALUES ($1, $2, $3)                      ON CONFLICT (submission_id) DO UPDATE                        SET channel_id = EXCLUDED.channel_id, message_id = EXCLUDED.message_id, created_at = now()",
+                )
+                .bind(submission)
+                .bind(channel)
+                .bind(message)
+                .execute(&self.voice.pool)
+                .await;
+            }
+            (Some(outcome), Some((channel, message))) => {
+                let card = review_outcome_card(&info, outcome, &base);
+                self.voice.rewrite(channel, message, card).await;
+            }
+            (Some(_), None) => {}
+        }
+    }
+
     /// A feed card.
     pub async fn on_feed(
         &self,
@@ -575,6 +825,10 @@ impl StaffFeed {
                 detail,
                 link,
             } => self.on_feed(feed, &title, &detail, link.as_deref()).await,
+            DomainEvent::ReviewCard {
+                submission_id,
+                outcome,
+            } => self.on_review_card(submission_id, outcome.as_deref()).await,
             DomainEvent::MemberLeft { guild, user } => {
                 if let (Ok(g), Ok(u)) = (i64::try_from(guild.get()), i64::try_from(user.get())) {
                     self.on_member_left(g, u).await;

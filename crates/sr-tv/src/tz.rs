@@ -1,85 +1,30 @@
-//! A small built-in time zone table (D-103: schedules are defined in a channel time zone).
+//! IANA time zones for channel schedules (D-103: schedules are defined in a channel time zone; G-12).
 //!
-//! The workspace carries no time zone database and a schedule only needs the offset of a handful of
-//! well-known zones, so this module knows the standard offset and the daylight-saving rule family of the
-//! zones in [`ZONES`]: the United States rule (second Sunday of March to first Sunday of November, 02:00
-//! local), the European Union rule (last Sunday of March to last Sunday of October, 01:00 UTC) and the
-//! Australian south-east rule (first Sunday of October to first Sunday of April). Rules are the current
-//! ones; historical rule changes (before 2007 for the US) are not modelled.
+//! Zones come from `jiff` with its bundled tz database, so every IANA zone works on every platform and
+//! historical rule changes are honoured. [`Zone`] keeps the small millisecond-based surface the engine
+//! uses: offsets at a UTC instant, local wall-clock mapping with gap and overlap handling, and the local
+//! calendar position.
 
-const MS_HOUR: i64 = 3_600_000;
+use jiff::Timestamp;
+use jiff::civil::DateTime;
+use jiff::tz::TimeZone;
+
 pub const MS_DAY: i64 = 86_400_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Dst {
-    None,
-    Us,
-    Eu,
-    Au,
-}
-
-/// A supported time zone.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A time zone from the IANA database.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Zone {
-    name: &'static str,
-    /// Standard offset from UTC in seconds.
-    std_secs: i32,
-    dst: Dst,
+    name: String,
+    tz: TimeZone,
 }
 
-macro_rules! z {
-    ($n:expr, $h:expr, $m:expr, $d:ident) => {
-        Zone {
-            name: $n,
-            std_secs: ($h as i32) * 3600 + (($h as i32).signum() * ($m as i32) * 60),
-            dst: Dst::$d,
-        }
-    };
+/// The name of every zone a channel may use, sorted.
+pub fn zone_names() -> Vec<String> {
+    let mut names: Vec<String> = jiff::tz::db().available().map(|n| n.to_string()).collect();
+    names.sort();
+    names.dedup();
+    names
 }
-
-/// Every zone a channel may use.
-pub const ZONES: &[Zone] = &[
-    z!("UTC", 0, 0, None),
-    z!("America/New_York", -5, 0, Us),
-    z!("America/Toronto", -5, 0, Us),
-    z!("America/Chicago", -6, 0, Us),
-    z!("America/Denver", -7, 0, Us),
-    z!("America/Phoenix", -7, 0, None),
-    z!("America/Los_Angeles", -8, 0, Us),
-    z!("America/Anchorage", -9, 0, Us),
-    z!("Pacific/Honolulu", -10, 0, None),
-    z!("America/Mexico_City", -6, 0, None),
-    z!("America/Sao_Paulo", -3, 0, None),
-    z!("Europe/London", 0, 0, Eu),
-    z!("Europe/Dublin", 0, 0, Eu),
-    z!("Europe/Lisbon", 0, 0, Eu),
-    z!("Europe/Paris", 1, 0, Eu),
-    z!("Europe/Berlin", 1, 0, Eu),
-    z!("Europe/Madrid", 1, 0, Eu),
-    z!("Europe/Rome", 1, 0, Eu),
-    z!("Europe/Amsterdam", 1, 0, Eu),
-    z!("Europe/Brussels", 1, 0, Eu),
-    z!("Europe/Vienna", 1, 0, Eu),
-    z!("Europe/Stockholm", 1, 0, Eu),
-    z!("Europe/Oslo", 1, 0, Eu),
-    z!("Europe/Copenhagen", 1, 0, Eu),
-    z!("Europe/Zurich", 1, 0, Eu),
-    z!("Europe/Prague", 1, 0, Eu),
-    z!("Europe/Warsaw", 1, 0, Eu),
-    z!("Europe/Athens", 2, 0, Eu),
-    z!("Europe/Helsinki", 2, 0, Eu),
-    z!("Europe/Kyiv", 2, 0, Eu),
-    z!("Asia/Dubai", 4, 0, None),
-    z!("Asia/Kolkata", 5, 30, None),
-    z!("Asia/Shanghai", 8, 0, None),
-    z!("Asia/Hong_Kong", 8, 0, None),
-    z!("Asia/Singapore", 8, 0, None),
-    z!("Asia/Tokyo", 9, 0, None),
-    z!("Asia/Seoul", 9, 0, None),
-    z!("Australia/Sydney", 10, 0, Au),
-    z!("Australia/Melbourne", 10, 0, Au),
-    z!("Australia/Brisbane", 10, 0, None),
-];
 
 /// Days since 1970-01-01 of a civil date (Hinnant's algorithm).
 pub fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
@@ -112,62 +57,34 @@ pub fn weekday(days: i64) -> u8 {
     (days + 3).rem_euclid(7) as u8
 }
 
-/// Day of the month of the `n`-th (1-based) Sunday.
-fn nth_sunday(y: i64, m: i64, n: i64) -> i64 {
-    let first = days_from_civil(y, m, 1);
-    let to_sunday = (6 - i64::from(weekday(first))).rem_euclid(7);
-    first + to_sunday + (n - 1) * 7
-}
-
-fn last_sunday(y: i64, m: i64) -> i64 {
-    let next = if m == 12 {
-        days_from_civil(y + 1, 1, 1)
-    } else {
-        days_from_civil(y, m + 1, 1)
-    };
-    let last = next - 1;
-    last - i64::from((weekday(last) + 1) % 7)
-}
-
 impl Zone {
     /// Look a zone up by IANA name.
     pub fn parse(name: &str) -> Option<Zone> {
-        ZONES.iter().copied().find(|z| z.name == name)
+        // Only names from the database; no POSIX strings or offsets.
+        let tz = jiff::tz::db().get(name).ok()?;
+        let name = tz.iana_name().unwrap_or(name).to_owned();
+        Some(Zone { name, tz })
     }
 
-    pub fn name(&self) -> &'static str {
-        self.name
-    }
-
-    /// Whether daylight saving time is in force at the UTC instant.
-    fn dst_at(&self, utc_ms: i64) -> bool {
-        let std = i64::from(self.std_secs) * 1000;
-        let year = civil_from_days((utc_ms + std).div_euclid(MS_DAY)).0;
-        match self.dst {
-            Dst::None => false,
-            Dst::Us => {
-                // 02:00 local standard time to 02:00 local daylight time.
-                let start = nth_sunday(year, 3, 2) * MS_DAY + 2 * MS_HOUR - std;
-                let end = nth_sunday(year, 11, 1) * MS_DAY + 2 * MS_HOUR - (std + MS_HOUR);
-                utc_ms >= start && utc_ms < end
-            }
-            Dst::Eu => {
-                let start = last_sunday(year, 3) * MS_DAY + MS_HOUR;
-                let end = last_sunday(year, 10) * MS_DAY + MS_HOUR;
-                utc_ms >= start && utc_ms < end
-            }
-            Dst::Au => {
-                // Southern hemisphere: daylight time from October until April, 02:00 standard time.
-                let start = nth_sunday(year, 10, 1) * MS_DAY + 2 * MS_HOUR - std;
-                let end = nth_sunday(year, 4, 1) * MS_DAY + 2 * MS_HOUR - std;
-                utc_ms >= start || utc_ms < end
-            }
+    pub fn utc() -> Zone {
+        Zone {
+            name: "UTC".to_owned(),
+            tz: TimeZone::UTC,
         }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn stamp(utc_ms: i64) -> Timestamp {
+        Timestamp::from_millisecond(utc_ms.clamp(-62_135_596_800_000, 253_402_300_799_000))
+            .unwrap_or(Timestamp::UNIX_EPOCH)
     }
 
     /// UTC offset in seconds at a UTC instant.
     pub fn offset_secs(&self, utc_ms: i64) -> i32 {
-        self.std_secs + if self.dst_at(utc_ms) { 3600 } else { 0 }
+        self.tz.to_offset(Self::stamp(utc_ms)).seconds()
     }
 
     /// Local wall-clock milliseconds (as if the local time were UTC) of a UTC instant.
@@ -179,17 +96,11 @@ impl Zone {
     /// first occurrence; a time that does not exist (clocks going forward) resolves to the instant the
     /// clocks jump to, so a 02:30 start becomes 03:30.
     pub fn from_local(&self, local_ms: i64) -> i64 {
-        let std = i64::from(self.std_secs) * 1000;
-        let as_dst = local_ms - std - MS_HOUR;
-        if self.dst_at(as_dst) {
-            return as_dst;
+        let dt: DateTime = Self::stamp(local_ms).to_zoned(TimeZone::UTC).datetime();
+        match self.tz.to_timestamp(dt) {
+            Ok(ts) => ts.as_millisecond(),
+            Err(_) => local_ms - i64::from(self.offset_secs(local_ms)) * 1000,
         }
-        let as_std = local_ms - std;
-        if !self.dst_at(as_std) {
-            return as_std;
-        }
-        // In the gap: the standard-time reading falls inside daylight time already.
-        as_std
     }
 
     /// Local calendar position of a UTC instant: `(days since epoch, weekday 0 = Monday, minute of day)`.
@@ -203,6 +114,8 @@ impl Zone {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const MS_HOUR: i64 = 3_600_000;
 
     fn utc(y: i64, m: i64, d: i64, h: i64, min: i64) -> i64 {
         days_from_civil(y, m, d) * MS_DAY + h * MS_HOUR + min * 60_000
@@ -250,6 +163,57 @@ mod tests {
             19_800
         );
         assert!(Zone::parse("Mars/Olympus").is_none());
+    }
+
+    #[test]
+    fn every_iana_zone_is_available_not_just_a_handful() {
+        let names = zone_names();
+        assert!(names.len() > 300, "{} zones", names.len());
+        for n in [
+            "UTC",
+            "Asia/Kathmandu",
+            "Pacific/Chatham",
+            "America/St_Johns",
+            "Africa/Cairo",
+            "Pacific/Auckland",
+        ] {
+            assert!(names.iter().any(|x| x == n), "{n} is listed");
+            assert!(Zone::parse(n).is_some(), "{n} parses");
+        }
+        // Only database names: not offsets, not POSIX strings.
+        assert!(Zone::parse("+01:00").is_none());
+        assert!(Zone::parse("").is_none());
+        assert!(Zone::parse("EST5EDT,M3.2.0,M11.1.0").is_none());
+        for n in &names {
+            assert_eq!(
+                Zone::parse(n).unwrap().name().to_lowercase(),
+                n.to_lowercase()
+            );
+        }
+    }
+
+    #[test]
+    fn zones_beyond_the_old_table_follow_their_rules() {
+        // Nepal is +05:45 with no daylight time.
+        let ktm = Zone::parse("Asia/Kathmandu").unwrap();
+        assert_eq!(ktm.offset_secs(utc(2025, 7, 1, 0, 0)), 5 * 3600 + 45 * 60);
+        // Chatham: +12:45 standard, +13:45 in southern summer.
+        let cha = Zone::parse("Pacific/Chatham").unwrap();
+        assert_eq!(cha.offset_secs(utc(2025, 7, 1, 0, 0)), 12 * 3600 + 45 * 60);
+        assert_eq!(cha.offset_secs(utc(2025, 1, 1, 0, 0)), 13 * 3600 + 45 * 60);
+        // Brazil abolished daylight time in 2019 and had it in 2018.
+        let sp = Zone::parse("America/Sao_Paulo").unwrap();
+        assert_eq!(sp.offset_secs(utc(2018, 12, 1, 12, 0)), -2 * 3600);
+        assert_eq!(sp.offset_secs(utc(2019, 12, 1, 12, 0)), -3 * 3600);
+        // The US rule before 2007 started in April.
+        let ny = Zone::parse("America/New_York").unwrap();
+        assert_eq!(ny.offset_secs(utc(2006, 3, 20, 12, 0)), -5 * 3600);
+        // Lord Howe has a 30 minute daylight shift.
+        let lh = Zone::parse("Australia/Lord_Howe").unwrap();
+        assert_eq!(
+            lh.offset_secs(utc(2025, 1, 15, 0, 0)) - lh.offset_secs(utc(2025, 7, 15, 0, 0)),
+            1800
+        );
     }
 
     #[test]

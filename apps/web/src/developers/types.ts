@@ -8,6 +8,8 @@ export interface BotUser {
   id: string;
   username: string;
   global_name: string | null;
+  /** `disabled` after 25 consecutive failed deliveries within 10 minutes (D-186); owner view, with a URL. */
+  interactions_endpoint_state?: 'enabled' | 'disabled';
   avatar: string | null;
   bot: true;
 }
@@ -38,6 +40,8 @@ export interface DevApp {
   interactions_endpoint_url?: string | null;
   /** Ed25519 public key (hex) that verifies those requests; absent until created. */
   verify_key?: string | null;
+  /** `disabled` after 25 consecutive failed deliveries within 10 minutes (D-186); owner view, with a URL. */
+  interactions_endpoint_state?: 'enabled' | 'disabled';
   created_at: string;
 }
 
@@ -189,5 +193,16 @@ export interface OAuthGrant {
   id: string;
   application: { id: string; name: string; icon: string | null };
   scopes: string[];
+  created_at: string;
+}
+
+/** An application tester (D-204): invited accounts answer a system DM; accepted ones may install a development app. */
+export interface AppTester {
+  /** Invitation id. */
+  id: string;
+  user_id: string;
+  username: string | null;
+  global_name: string | null;
+  state: 'invited' | 'accepted';
   created_at: string;
 }

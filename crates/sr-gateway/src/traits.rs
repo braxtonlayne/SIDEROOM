@@ -128,6 +128,13 @@ pub trait GuildDirectory: Send + Sync {
         false
     }
 
+    /// Whether `channel`, or the parent of a thread, is age-restricted (`nsfw`). The gateway
+    /// withholds message, reaction, typing, pin and thread dispatches of such a channel from
+    /// sessions whose account has not answered yes to the age gate (D-199). Default: no.
+    async fn channel_age_restricted(&self, _channel: ChannelId) -> bool {
+        false
+    }
+
     /// The video allowance `user` has in `guild` (`None`: a DM call): sender and viewer caps
     /// from the server level, Patron exemption (D-050..D-052). Default: the free tier.
     async fn voice_limits(

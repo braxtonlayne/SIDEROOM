@@ -416,9 +416,15 @@ async fn staff(
         StaffCmd::Appoint {
             user,
             roles,
+            issuer,
             reason,
         } => {
             let id = account_by_name(pool, &user).await?;
+            // D-197: the CLI is the only direct path; the audit row reads `staff.appoint_cli`.
+            let issuer_id = match issuer {
+                Some(who) => account_by_name(pool, &who).await?,
+                None => oldest_owner(pool).await?,
+            };
             let all = svc
                 .staff_roles(&op)
                 .await
@@ -432,7 +438,7 @@ async fn staff(
                 role_ids.push(found.id);
             }
             let m = svc
-                .appoint(&op, id, &role_ids, Some(&reason))
+                .appoint_cli(&op, id, &role_ids, issuer_id, Some(&reason))
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("appointed {} as {}", m.username, roles.join(", "));
@@ -494,6 +500,25 @@ async fn rotate_secret_key(pool: &PgPool, cfg: &Config, ids: IdSource) -> Result
         "re-encrypting TOTP secrets (is the old key still listed in server.secret_key_previous?)",
     )?;
     println!("re-encrypted {n} TOTP secret(s) under the current key");
+    // The sealed interactions signing seeds (D-185) use the same key.
+    let current = parse_secret_key(cfg.server.secret_key.expose())
+        .map_err(|e| anyhow::anyhow!("server.secret_key: {e}"))?;
+    let previous = cfg
+        .server
+        .secret_key_previous
+        .iter()
+        .map(|k| parse_secret_key(k.expose()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| anyhow::anyhow!("server.secret_key_previous: {e}"))?;
+    let apps = sr_db::apps_repo::PgAppsRepo::new(
+        pool.clone(),
+        sr_db::sealed::SecretBox::new(current).with_previous_keys(previous),
+    );
+    let seeds = apps
+        .rotate_sealed_seeds()
+        .await
+        .map_err(|e| anyhow::anyhow!("re-encrypting interactions signing seeds: {e}"))?;
+    println!("re-encrypted {seeds} interactions signing seed(s) under the current key");
     Ok(())
 }
 

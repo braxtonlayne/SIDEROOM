@@ -5,11 +5,11 @@ import { ApiError } from '../../api/client';
 import { forgotPassword, resetPassword } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { FormError } from '../../components/FormParts';
+import { useT } from '../../i18n/react';
 import { minutesFromSeconds, validateEmail, validatePassword } from '../../lib/validation';
 
-const NETWORK = "We couldn't reach the door. Check your connection and try again.";
-
 export function Forgot() {
+  const t = useT();
   const [email, setEmail] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,35 +28,34 @@ export function Forgot() {
       setSent(true);
     } catch (ex) {
       if (ex instanceof ApiError && ex.status === 429) {
-        const m = minutesFromSeconds(ex.retryAfter);
-        setError(`Too many tries. Try again in ${m} minute${m === 1 ? '' : 's'}.`);
-      } else setError(NETWORK);
+        setError(t('entrance.common.tooManyTries', { minutes: minutesFromSeconds(ex.retryAfter) }));
+      } else setError(t('entrance.common.unreachable'));
       setBusy(false);
     }
   };
 
   return (
     <AuthSplit
-      eyebrow="Locked out?"
-      heading="No harm,"
-      accent="no fuss."
-      copy="We'll send a link to get you back in."
-      footLabel="Member entrance / 01"
+      eyebrow={t('entrance.forgot.eyebrow')}
+      heading={t('entrance.forgot.heading')}
+      accent={t('entrance.forgot.headingAccent')}
+      copy={t('entrance.forgot.copy')}
+      footLabel={t('entrance.forgot.footLabel')}
     >
       <FormHead
-        eyebrow="Forgot password"
-        title="Let’s fix that."
-        sub="Enter the email on your account."
+        eyebrow={t('entrance.forgot.formEyebrow')}
+        title={t('entrance.forgot.title')}
+        sub={t('entrance.forgot.sub')}
       />
       {sent ? (
         <p role="status" className="ent-sub">
-          If that address is on the list, a link is on its way. It works once, for 30 minutes.
+          {t('entrance.forgot.sent')}
         </p>
       ) : (
         <form className="ent-form" onSubmit={onSubmit} noValidate>
           <FormError>{error}</FormError>
           <TextInput
-            label="Email"
+            label={t('entrance.forgot.email')}
             type="email"
             autoComplete="email"
             value={email}
@@ -64,18 +63,19 @@ export function Forgot() {
             error={err ?? undefined}
           />
           <GoldButton type="submit" arrow disabled={busy} aria-busy={busy}>
-            {busy ? 'Sending…' : 'Send the link'}
+            {busy ? t('entrance.forgot.sending') : t('entrance.forgot.submit')}
           </GoldButton>
         </form>
       )}
       <p className="ent-footnote">
-        <Link to="/login">Back to sign in</Link>
+        <Link to="/login">{t('entrance.common.backToSignIn')}</Link>
       </p>
     </AuthSplit>
   );
 }
 
 export function Reset() {
+  const t = useT();
   const { token } = useParams({ strict: false }) as { token: string };
   const [pw, setPw] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -88,7 +88,7 @@ export function Reset() {
     e.preventDefault();
     const next = {
       pw: validatePassword(pw) ?? undefined,
-      confirm: confirm !== pw ? "Those passwords don't match." : undefined,
+      confirm: confirm !== pw ? t('entrance.reset.mismatch') : undefined,
     };
     setErrors(next);
     setError(null);
@@ -108,8 +108,8 @@ export function Reset() {
       }
       setError(
         ex instanceof ApiError && (ex.status === 400 || ex.status === 404 || ex.status === 410)
-          ? 'That link has expired or was already used. Ask for a new one.'
-          : NETWORK,
+          ? t('entrance.reset.expired')
+          : t('entrance.common.unreachable'),
       );
       setBusy(false);
     }
@@ -117,41 +117,41 @@ export function Reset() {
 
   return (
     <AuthSplit
-      eyebrow="Fresh start."
-      heading="A new key,"
-      accent="same door."
-      copy="Choose a password you haven't used anywhere else."
-      footLabel="Member entrance / 01"
+      eyebrow={t('entrance.reset.eyebrow')}
+      heading={t('entrance.reset.heading')}
+      accent={t('entrance.reset.headingAccent')}
+      copy={t('entrance.reset.copy')}
+      footLabel={t('entrance.reset.footLabel')}
     >
-      <FormHead eyebrow="Reset password" title="Choose a new one." />
+      <FormHead eyebrow={t('entrance.reset.formEyebrow')} title={t('entrance.reset.title')} />
       {done ? (
         <>
           <p role="status" className="ent-sub">
-            Password changed. If you use two-step sign-in, you’ll still be asked for your code.
+            {t('entrance.reset.done')}
           </p>
-          <Link to="/login">Back to sign in</Link>
+          <Link to="/login">{t('entrance.common.backToSignIn')}</Link>
         </>
       ) : (
         <form className="ent-form" onSubmit={onSubmit} noValidate>
           <FormError>{error}</FormError>
           <PasswordInput
-            label="New password"
+            label={t('entrance.reset.password')}
             showStrength
             autoComplete="new-password"
             value={pw}
             onChange={(e) => setPw(e.target.value)}
-            hint="At least 10 characters."
+            hint={t('entrance.reset.passwordHint')}
             error={errors.pw}
           />
           <PasswordInput
-            label="Confirm new password"
+            label={t('entrance.reset.confirm')}
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             error={errors.confirm}
           />
           <GoldButton type="submit" arrow disabled={busy} aria-busy={busy}>
-            {busy ? 'Saving…' : 'Set password'}
+            {busy ? t('entrance.reset.saving') : t('entrance.reset.submit')}
           </GoldButton>
         </form>
       )}

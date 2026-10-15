@@ -4,7 +4,7 @@ use super::ctx::{ReasonBody, StaffCtx, id, map_err, reason};
 use crate::{error::ApiResult, openapi::ErrorBody};
 use axum::{Json, extract::Path, http::HeaderMap};
 use serde::{Deserialize, Serialize};
-use sr_admin::{StaffMember, StaffRole};
+use sr_admin::{FormerStaff, StaffMember, StaffRole};
 use utoipa::ToSchema;
 
 /// The caller's own platform standing.
@@ -44,6 +44,20 @@ pub async fn list(ctx: StaffCtx) -> ApiResult<Json<Vec<StaffMember>>> {
         .map_err(map_err)
 }
 
+/// Closed appointments and why each ended: `left`, `kicked` or `revoked` (`APPOINT_STAFF`).
+#[utoipa::path(
+    get, path = "/admin/staff/former",
+    responses((status = 200, body = Vec<FormerStaff>), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn former(ctx: StaffCtx) -> ApiResult<Json<Vec<FormerStaff>>> {
+    ctx.svc()
+        .former_staff(&ctx.caller)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
 /// Staff Server roles that can be assigned (`APPOINT_STAFF`).
 #[utoipa::path(
     get, path = "/admin/staff/roles",
@@ -77,7 +91,8 @@ fn ids(raw: &[String]) -> Result<Vec<i64>, crate::HttpError> {
     raw.iter().map(|r| id(r)).collect()
 }
 
-/// Appoint an account: adds it to the Staff Server with the roles (`APPOINT_STAFF`).
+/// Appoint an account directly, without its acceptance (Owner only, behind re-auth; D-197 as amended
+/// 2026-10-15). Everyone else appoints through offers.
 #[utoipa::path(
     post, path = "/admin/staff", request_body = AppointBody,
     responses((status = 200, body = StaffMember), (status = 400, body = ErrorBody),
@@ -90,6 +105,17 @@ pub async fn appoint(
     headers: HeaderMap,
     Json(b): Json<AppointBody>,
 ) -> ApiResult<Json<StaffMember>> {
+    // Callers without APPOINT_STAFF fall through to the service for the usual missing-permission answer.
+    if !ctx.caller.is_owner
+        && ctx
+            .caller
+            .permissions
+            .has(sr_core::PlatformPermissions::APPOINT_STAFF)
+    {
+        return Err(map_err(sr_admin::AdminError::Forbidden(
+            "Only the Owner can appoint directly; send an offer instead".into(),
+        )));
+    }
     let r = reason(&headers, b.reason.as_deref());
     ctx.require_reauth().await?;
     ctx.svc()

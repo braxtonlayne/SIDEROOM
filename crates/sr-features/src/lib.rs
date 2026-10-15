@@ -6,6 +6,7 @@
 //! only through the [`actions::FeatureActions`] port.
 
 pub mod actions;
+pub mod directory;
 pub mod feature;
 pub mod moderation;
 pub mod modules;
@@ -17,11 +18,12 @@ pub mod store;
 pub mod template;
 pub mod testing;
 
+pub use directory::{DirectoryHiddenCategoriesFeature, HIDDEN_CATEGORIES_ID, hidden_from};
 pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
 pub use moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
-pub use runtime::FeatureRuntime;
+pub use runtime::{FeatureRuntime, current_module, scope_module};
 pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};
 pub use service::FeatureService;
 pub use store::{InMemorySettingsStore, SettingsRecord, SettingsStore};

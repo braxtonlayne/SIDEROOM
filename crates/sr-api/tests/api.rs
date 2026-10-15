@@ -134,6 +134,24 @@ async fn health_and_ready() {
     assert_eq!(s, StatusCode::OK);
 }
 
+#[tokio::test]
+async fn a_post_to_share_is_answered_with_see_other() {
+    let f = fixture();
+    let req = Request::post("/share")
+        .header(header::CONTENT_TYPE, "multipart/form-data; boundary=x")
+        .body(Body::from(
+            "--x
+
+ignored
+--x--
+",
+        ))
+        .unwrap();
+    let (s, h, _) = send(&app(&f), req).await;
+    assert_eq!(s, StatusCode::SEE_OTHER);
+    assert_eq!(h[header::LOCATION], "/share");
+}
+
 struct Down;
 #[async_trait]
 impl ReadinessCheck for Down {

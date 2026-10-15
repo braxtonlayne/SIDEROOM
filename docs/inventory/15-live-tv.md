@@ -3,7 +3,7 @@
 Phase 5. Spec: [cinema-live-tv](../specs/cinema-live-tv.md). Mockup: `cinema-live-tv.jpg`.
 
 ## TV-ENG — Schedule engine (`sr-tv`)
-- [ ] **TV-ENG-001** [DB] tv_channels, tv_schedule_slots, tv_guide_imports, tv_favorites, tv_reminders _(p8: tv_channels and tv_blocks exist (0460, 0461); slots, guide imports, favorites and reminders do not)_
+- [ ] **TV-ENG-001** [DB] tv_channels, tv_schedule_slots, tv_guide_imports, tv_favorites, tv_reminders _(p8: tv_channels and tv_blocks exist (0460, 0461); p12: tv_reminders (0780); slots, guide imports and favorites do not)_
 - [x] **TV-ENG-002** [BE] Channel model (number, call sign, name, era label, logo, kind, timezone, age-restricted, filler policy, rules) _(p8: sr-tv model; kinds rule_based and manual, no imported_guide yet)_
 - [ ] **TV-ENG-003** [BE] Resolver for `imported_guide` (weekly slots → concrete blocks, skip missing, overrun/cut policies) _(p8: not built)_
 - [x] **TV-ENG-004** [BE] Resolver for `rule_based` (content pool filters, ordering sequential/shuffle/weighted, dayparts, rerun spacing, seeded RNG per channel-week) _(p8: sr-tv engine, seeded RNG kept in a cursor so the schedule rolls on)_
@@ -25,7 +25,7 @@ Phase 5. Spec: [cinema-live-tv](../specs/cinema-live-tv.md). Mockup: `cinema-liv
 - [x] **TV-UI-003** [FE] Filter chips (All, Anime & animation, Movies, Series, Custom, Favorites)
 - [x] **TV-UI-004** [FE] Time window navigation (← Evening lineup →, Now)
 - [x] **TV-UI-005** [FE] Guide grid: channel column (☆, number, call sign/logo, sub-label), monospace half-hour header, duration-sized program cells (NOW/start time, title, type · year), current highlight, now-line, horizontal virtualization (web: one day per request instead of horizontal virtualization; arrow-key grid navigation)
-- [x] **TV-UI-006** [FE] Program popover (synopsis, Tune in / Remind me / Go to title) (web: Remind me calls a reminders route the server does not have yet and says "not available yet"; synopsis and rating come from the catalog)
+- [x] **TV-UI-006** [FE] Program popover (synopsis, Tune in / Remind me / Go to title) (web: Remind me calls `PUT /tv/reminders/{block_id}`; synopsis and rating come from the catalog)
 - [x] **TV-UI-007** [FE] Favorites (☆) persistence
 - [x] **TV-UI-008** [FE] Local time vs channel time toggle
 - [x] **TV-UI-009** [FE] Footer note (operator-editable) (web: shows the default text; the server has no operator-editable setting yet)
@@ -36,7 +36,7 @@ Phase 5. Spec: [cinema-live-tv](../specs/cinema-live-tv.md). Mockup: `cinema-liv
 - [x] **TV-PLY-002** [FE] Channel OSD (number + logo + program, fades), channel up/down, mini-guide overlay (G)
 - [x] **TV-PLY-003** [FE] Tuning static transition + sound (toggle) (web: noise burst, optional sound, switchable)
 - [x] **TV-PLY-004** [FE] CRT filter toggle (scanlines, curvature, vignette; reduced-motion aware)
-- [ ] **TV-PLY-005** [BE][FE] Reminders ("Remind me" → notification at program start) (web: the Remind me button exists; no server route yet)
+- [x] **TV-PLY-005** [BE][FE] Reminders ("Remind me" → notification at program start) _(p12: `PUT|DELETE /tv/reminders/{block_id}`, table `tv_reminders` (0780), fired by `userfeat.tick` as a DM + push 5 minutes ahead; a regenerated-away block ends with a "dropped" notice; tests in `sr-tv` service_tests, `sr-server` tv_wiring_pg_tests, `sr-api` tv tests)_
 
 ## TV-ADM — Admin
 - [x] **TV-ADM-001** [FE] Channel list & editor (fields, logo upload, enable) (web: logo upload is not on the server yet)

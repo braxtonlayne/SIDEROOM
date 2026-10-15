@@ -29,6 +29,8 @@ pub struct AdminDeps {
     pub service: AdminService,
     pub features: Option<FeatureService>,
     pub gateway_sessions: Option<Arc<dyn Fn() -> usize + Send + Sync>>,
+    /// Live voice counts (rooms, egress bytes) when the SFU runs in this process.
+    pub voice_stats: Option<Arc<dyn Fn() -> (u64, u64) + Send + Sync>>,
     /// Sensitive actions need a second factor checked within the last 15 minutes
     /// (ADM-STF-009). Off by default so tests and development need no authenticator.
     pub require_reauth: bool,
@@ -40,6 +42,7 @@ impl AdminDeps {
             service,
             features: None,
             gateway_sessions: None,
+            voice_stats: None,
             require_reauth: false,
         }
     }
@@ -54,6 +57,12 @@ impl AdminDeps {
     /// account email and password, 2FA reset, staff changes, announcements).
     pub fn with_reauth(mut self, on: bool) -> Self {
         self.require_reauth = on;
+        self
+    }
+
+    /// Source of the live voice room count and egress bytes for the dashboard.
+    pub fn with_voice_stats(mut self, f: Arc<dyn Fn() -> (u64, u64) + Send + Sync>) -> Self {
+        self.voice_stats = Some(f);
         self
     }
 

@@ -18,6 +18,7 @@
 mod accounts;
 mod accounts_ext;
 mod announce;
+pub use announce::press_review_button;
 mod ctx;
 mod invites;
 mod private;
@@ -43,6 +44,7 @@ pub fn router() -> Router<AppState> {
         .route("/admin/me", get(staff::me))
         .route("/admin/staff", get(staff::list).post(staff::appoint))
         .route("/admin/staff/roles", get(staff::roles))
+        .route("/admin/staff/former", get(staff::former))
         .route(
             "/admin/staff/offers",
             get(staff_ext::list_offers).post(staff_ext::create_offer),
@@ -174,7 +176,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/admin/announcements/{announcement_id}",
-            axum::routing::delete(announce::end),
+            axum::routing::delete(announce::end).patch(announce::edit),
         )
         .route("/announcements/active", get(announce::active))
         .route("/admin/alerts", get(announce::alerts))
@@ -189,6 +191,7 @@ pub fn router() -> Router<AppState> {
         staff::me,
         staff::list,
         staff::roles,
+        staff::former,
         staff::appoint,
         staff::set_roles,
         staff::revoke,
@@ -211,6 +214,7 @@ pub fn router() -> Router<AppState> {
         announce::list,
         announce::create,
         announce::end,
+        announce::edit,
         announce::active,
         announce::alerts,
         announce::ack,
@@ -263,6 +267,7 @@ pub fn router() -> Router<AppState> {
         private::ReauthStatus,
         private::ReauthBody,
         announce::AnnounceBody,
+        announce::EditAnnouncementBody,
         announce::CardActionBody,
         sr_admin::StaffOffer,
         sr_admin::OfferState,
@@ -270,6 +275,7 @@ pub fn router() -> Router<AppState> {
         sr_admin::Announcement,
         sr_admin::AnnouncementSeverity,
         sr_admin::AnnouncementInput,
+        sr_admin::AnnouncementPatch,
         sr_admin::StaffAlertRow,
         sr_admin::PrivateChannel,
         sr_admin::PrivateEdit,
@@ -319,6 +325,7 @@ pub fn router() -> Router<AppState> {
         sr_admin::InvitePage,
         sr_admin::SuspectPerson,
         sr_admin::SystemCounts,
+        system::StatsView,
         sr_admin::JobRow,
         sr_admin::JobPage,
     ))

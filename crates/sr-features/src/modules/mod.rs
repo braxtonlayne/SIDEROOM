@@ -11,6 +11,7 @@ use crate::feature::{FeatureError, FeatureRegistry};
 
 pub mod auto_roles;
 pub mod auto_thread;
+pub mod join_to_create;
 pub mod message_quotes;
 pub mod mod_log;
 pub mod reaction_roles;
@@ -37,6 +38,7 @@ pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> 
         mod_log::ModLog,
         stat_channels::StatChannels,
         message_quotes::MessageQuotes,
+        join_to_create::JoinToCreate,
         // new-feature:register
     )
 }

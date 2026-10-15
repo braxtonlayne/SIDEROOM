@@ -455,3 +455,77 @@ async fn new_episodes_for_a_published_series_publish_only_what_was_approved() {
         .collect();
     assert_eq!(published, vec![1, 2]);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn housekeeping_purges_a_rejected_cinema_submission() {
+    let w = world().await;
+    let (ready, busy) = (
+        w.asset(w.member, true).await,
+        w.asset(w.member, false).await,
+    );
+    let s = w
+        .create(w.member, KIND_TITLE, series_payload(ready, busy))
+        .await
+        .unwrap();
+    let title = s.ref_id.unwrap();
+    // Make both videos playable so the submission can be submitted, then drop one back to
+    // "still processing" with a transcode prefix: it is the one the purge must collect.
+    sqlx::query("UPDATE video_assets SET state = 'published', hls_prefix = $2 WHERE id = $1")
+        .bind(busy)
+        .bind("transcode/busy/1")
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    w.review.submit(w.member, s.id).await.unwrap();
+    w.review.claim(w.reviewer, s.id, false).await.unwrap();
+    sqlx::query("UPDATE video_assets SET state = 'transcoding' WHERE id = $1")
+        .bind(busy)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    w.review
+        .reject(
+            w.reviewer,
+            s.id,
+            rm::DecisionInput {
+                reason: Some("not a fit".into()),
+            },
+        )
+        .await
+        .unwrap();
+    // Not purged before the 14 day wait.
+    assert_eq!(w.review.housekeeping().await.unwrap().purged, 0);
+    assert!(w.cinema.admin_title(w.staff(), title).await.is_ok());
+    sqlx::query("UPDATE submissions SET decided_at = now() - interval '15 days' WHERE id = $1")
+        .bind(s.id)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    let report = w.review.housekeeping().await.unwrap();
+    assert_eq!((report.purged, report.failed), (1, 0));
+    // The draft title is gone; the published asset stays, the unpublished one is removed and its
+    // transcode output is queued for collection.
+    assert!(w.cinema.admin_title(w.staff(), title).await.is_err());
+    let state = |id: i64| {
+        let pool = w.pool.clone();
+        async move {
+            sqlx::query_scalar::<_, String>("SELECT state FROM video_assets WHERE id = $1")
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(state(ready).await, "published");
+    assert_eq!(state(busy).await, "removed");
+    let queued: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM cinema_media_gc WHERE prefix = 'transcode/busy/1'",
+    )
+    .fetch_one(&w.pool)
+    .await
+    .unwrap();
+    assert_eq!(queued, 1);
+    // Idempotent.
+    assert_eq!(w.review.housekeeping().await.unwrap().purged, 0);
+}

@@ -90,7 +90,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-PRF-010** [FE] Profile theme colors (two-color gradient) applied to popout/modal *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
 - [x] **LNG-PRF-011** [FE] Per-server profile rendering in guild context *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
 - [x] **LNG-PRF-012** [BE] User notes CRUD (private)
-- [ ] **LNG-PRF-013** [BE][FE] Presence: status, custom status, activities (game, watching, reading, listening), client platform icons (web/mobile)
+- [x] **LNG-PRF-013** [BE][FE] Presence: status, custom status, activities (game, watching, reading, listening), client platform icons (web/mobile) *(G-51 on feat/p12-lounge-gw-be: the web sends op 3 `afk` after 10 minutes, the gateway keeps `platform`, `party.id`, `expires_at_ms`, and the activity sharing settings of G-58 decide who sees watching and reading)*
    - Backend done (sanitised activities incl. type 6 Reading, client_status per platform, custom status); the FE half belongs to the shell agent.
 - [x] **LNG-PRF-014** [GW] `PRESENCE_UPDATE` fan-out (friends + shared guilds, intent-filtered) *(fan-out to friends and shared guilds already existed; now carries client_status and the merged sessions; gateway tests)*
 - [x] **LNG-PRF-015** [BE] Idle detection (client reports AFK after 10 min) + multi-session presence merging *(sr-gateway presence.rs: per-session afk/idle merge; gateway tests)*

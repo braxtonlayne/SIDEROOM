@@ -37,6 +37,7 @@ pub mod invites;
 pub mod join;
 pub mod presence;
 pub mod repo;
+pub mod scheduled_events;
 pub mod soundboard;
 pub mod tags;
 pub mod templates;
@@ -79,6 +80,7 @@ pub fn router() -> Router<AppState> {
         .merge(guide::routes())
         .merge(features::routes())
         .merge(applications::routes())
+        .merge(scheduled_events::routes())
 }
 
 /// OpenAPI fragment for these routes; merge into [`crate::openapi::base`].
@@ -155,10 +157,13 @@ pub fn router() -> Router<AppState> {
         insights::get_insights,
         guide::get_guide,
         guide::put_guide,
+        features::client_flags,
         features::list_features,
         features::patch_feature,
         features::list_temp_roles,
         features::grant_temp_role,
+        features::slowmode_presets,
+        features::apply_slowmode,
         features::revoke_temp_role,
         applications::get_form,
         applications::put_form,
@@ -166,6 +171,14 @@ pub fn router() -> Router<AppState> {
         applications::get_my_application,
         applications::list_applications,
         applications::decide_application,
+        scheduled_events::list_events,
+        scheduled_events::create_event,
+        scheduled_events::get_event,
+        scheduled_events::modify_event,
+        scheduled_events::delete_event,
+        scheduled_events::list_interested,
+        scheduled_events::mark_interested,
+        scheduled_events::clear_interested,
     ),
     components(schemas(
         ErrorBody,
@@ -226,9 +239,15 @@ pub fn router() -> Router<AppState> {
         guide::GuideResourceDto,
         guide::PutGuideBody,
         features::GuildFeatureObject,
+        features::ClientFlagsObject,
         features::PatchGuildFeatureBody,
         features::TempRoleObject,
         features::GrantTempRoleBody,
+        features::SlowmodePresetObject,
+        features::SlowmodePresetsObject,
+        features::ApplySlowmodeBody,
+        features::AppliedSlowmodeObject,
+        features::ApplySlowmodeResult,
         applications::QuestionDto,
         applications::PutFormBody,
         applications::FormObject,
@@ -237,6 +256,11 @@ pub fn router() -> Router<AppState> {
         applications::AnswerBody,
         applications::SubmitBody,
         applications::DecisionBody,
+        scheduled_events::EventMetadata,
+        scheduled_events::ScheduledEventObject,
+        scheduled_events::CreateEventBody,
+        scheduled_events::ModifyEventBody,
+        scheduled_events::EventUserObject,
         insights::InsightsDayObject,
         insights::InsightsChannelObject,
         crate::routes::social::model::PrimaryGuildObject,

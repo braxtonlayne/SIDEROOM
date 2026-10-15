@@ -322,6 +322,13 @@ impl AuthStore for MemoryAuthStore {
         Ok(())
     }
 
+    async fn set_locale(&self, id: i64, locale: &str) -> StoreResult<()> {
+        if let Some(a) = self.lock().accounts.get_mut(&id) {
+            a.locale = locale.to_owned();
+        }
+        Ok(())
+    }
+
     async fn set_display_name(&self, id: i64, display_name: Option<&str>) -> StoreResult<()> {
         if let Some(a) = self.lock().accounts.get_mut(&id) {
             a.display_name = display_name.map(str::to_owned);

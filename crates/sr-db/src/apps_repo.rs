@@ -15,17 +15,161 @@ use sr_apps::{
 };
 use sr_auth::session::TokenHash;
 
+use crate::sealed::SecretBox;
+
 /// The repository.
 #[derive(Clone)]
 pub struct PgAppsRepo {
     pool: PgPool,
+    secrets: SecretBox,
 }
 
 impl PgAppsRepo {
-    /// Wrap a pool.
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    /// Wrap a pool; interactions signing seeds are sealed with `secrets` (D-185).
+    pub fn new(pool: PgPool, secrets: SecretBox) -> Self {
+        Self { pool, secrets }
     }
+
+    /// Associated data binding a sealed seed to its application.
+    fn seed_aad(app: i64) -> Vec<u8> {
+        let mut aad = b"sideroom/app-signing-seed/v1".to_vec();
+        aad.extend_from_slice(&app.to_be_bytes());
+        aad
+    }
+
+    fn seal_seed(&self, app: i64, seed: &SigningSeed) -> AppsResult<Vec<u8>> {
+        self.secrets
+            .seal(&Self::seed_aad(app), seed.as_bytes())
+            .map_err(|e| AppsError::Storage(e.to_string()))
+    }
+
+    /// `None` (with a warning) when the blob does not open: a changed `server.secret_key`
+    /// then behaves like a missing key, and the owner can create a new one.
+    fn open_seed(&self, app: i64, blob: &[u8]) -> Option<SigningSeed> {
+        match self.secrets.open(&Self::seed_aad(app), blob) {
+            Ok(plain) => SigningSeed::from_slice(&plain),
+            Err(_) => {
+                tracing::warn!(
+                    app,
+                    "interactions signing seed does not open with server.secret_key"
+                );
+                None
+            }
+        }
+    }
+
+    /// Rows whose seed is still stored in the legacy plaintext column of migration 0710.
+    pub async fn legacy_seed_count(&self) -> AppsResult<i64> {
+        sqlx::query_scalar(
+            "SELECT count(*) FROM applications WHERE interactions_signing_seed IS NOT NULL",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    /// Job `apps.seal_seeds` (D-185): encrypt every plaintext seed once with the server
+    /// secret and clear the plaintext column. Idempotent; returns the rows converted.
+    pub async fn seal_legacy_seeds(&self) -> AppsResult<u64> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let rows = sqlx::query(
+            "SELECT id, interactions_signing_seed, interactions_signing_seed_sealed \
+             FROM applications WHERE interactions_signing_seed IS NOT NULL FOR UPDATE",
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(db)?;
+        let mut n = 0;
+        for r in &rows {
+            let app: i64 = r.try_get("id").map_err(db)?;
+            let plain: Vec<u8> = r.try_get("interactions_signing_seed").map_err(db)?;
+            let sealed: Option<Vec<u8>> =
+                r.try_get("interactions_signing_seed_sealed").map_err(db)?;
+            let blob = match (sealed, SigningSeed::from_slice(&plain)) {
+                (Some(existing), _) => existing,
+                (None, Some(seed)) => self.seal_seed(app, &seed)?,
+                (None, None) => {
+                    // Not a valid seed (cannot happen: 0710 checks the length): drop it.
+                    sqlx::query(
+                        "UPDATE applications SET interactions_signing_seed = NULL WHERE id = $1",
+                    )
+                    .bind(app)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db)?;
+                    continue;
+                }
+            };
+            sqlx::query(
+                "UPDATE applications SET interactions_signing_seed_sealed = $2, \
+                 interactions_signing_seed = NULL WHERE id = $1",
+            )
+            .bind(app)
+            .bind(blob)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+            n += 1;
+        }
+        tx.commit().await.map_err(db)?;
+        Ok(n)
+    }
+
+    /// Re-encrypt every sealed seed under the current key (`sr-cli rotate-secret-key`).
+    pub async fn rotate_sealed_seeds(&self) -> AppsResult<u64> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let rows = sqlx::query(
+            "SELECT id, interactions_signing_seed_sealed FROM applications \
+             WHERE interactions_signing_seed_sealed IS NOT NULL FOR UPDATE",
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(db)?;
+        let mut n = 0;
+        for r in &rows {
+            let app: i64 = r.try_get("id").map_err(db)?;
+            let blob: Vec<u8> = r.try_get("interactions_signing_seed_sealed").map_err(db)?;
+            let plain = self
+                .secrets
+                .open(&Self::seed_aad(app), &blob)
+                .map_err(|e| AppsError::Storage(format!("application {app}: {e}")))?;
+            let resealed = self
+                .secrets
+                .seal(&Self::seed_aad(app), &plain)
+                .map_err(|e| AppsError::Storage(e.to_string()))?;
+            sqlx::query(
+                "UPDATE applications SET interactions_signing_seed_sealed = $2 WHERE id = $1",
+            )
+            .bind(app)
+            .bind(resealed)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+            n += 1;
+        }
+        tx.commit().await.map_err(db)?;
+        Ok(n)
+    }
+}
+
+const TESTER_COLS: &str = "id, application_id, account_id, state, invited_by, \
+    (extract(epoch FROM created_at) * 1000)::bigint AS created_ms";
+
+/// A query over a statement assembled from this module's own column lists (no user input).
+fn q(sql: String) -> sqlx::query::Query<'static, Postgres, sqlx::postgres::PgArguments> {
+    sqlx::query(sqlx::AssertSqlSafe(sql))
+}
+
+fn tester_row(r: &PgRow) -> AppsResult<Tester> {
+    let state: String = r.try_get("state").map_err(db)?;
+    Ok(Tester {
+        id: r.try_get("id").map_err(db)?,
+        application_id: r.try_get("application_id").map_err(db)?,
+        account_id: r.try_get("account_id").map_err(db)?,
+        state: TesterState::parse(&state).unwrap_or(TesterState::Invited),
+        invited_by: r.try_get("invited_by").map_err(db)?,
+        created_at_ms: r.try_get("created_ms").map_err(db)?,
+    })
 }
 
 fn db(e: sqlx::Error) -> AppsError {
@@ -637,19 +781,24 @@ impl AppsRepository for PgAppsRepo {
     }
 
     async fn interactions_config(&self, app: i64) -> AppsResult<InteractionsConfig> {
-        let r = sqlx::query(
-            "SELECT interactions_endpoint_url, interactions_signing_seed \
-             FROM applications WHERE id = $1",
-        )
+        let r = q(format!(
+            "SELECT interactions_endpoint_url, interactions_signing_seed_sealed, endpoint_state, \
+             endpoint_failures, {} FROM applications WHERE id = $1",
+            ms("endpoint_failure_window_start", "window_ms")
+        ))
         .bind(app)
         .fetch_optional(&self.pool)
         .await
         .map_err(db)?
         .ok_or(AppsError::NotFound("application"))?;
-        let seed: Option<Vec<u8>> = r.try_get("interactions_signing_seed").map_err(db)?;
+        let sealed: Option<Vec<u8>> = r.try_get("interactions_signing_seed_sealed").map_err(db)?;
+        let state: String = r.try_get("endpoint_state").map_err(db)?;
         Ok(InteractionsConfig {
             endpoint_url: r.try_get("interactions_endpoint_url").map_err(db)?,
-            seed: seed.as_deref().and_then(SigningSeed::from_slice),
+            seed: sealed.as_deref().and_then(|b| self.open_seed(app, b)),
+            state: EndpointState::parse(&state).unwrap_or_default(),
+            failures: r.try_get("endpoint_failures").map_err(db)?,
+            failure_window_start_ms: r.try_get("window_ms").map_err(db)?,
         })
     }
 
@@ -661,29 +810,290 @@ impl AppsRepository for PgAppsRepo {
         audit: Option<AuditRow>,
     ) -> AppsResult<()> {
         let mut tx = self.pool.begin().await.map_err(db)?;
+        let existing: Option<Vec<u8>> = sqlx::query_scalar(
+            "SELECT interactions_signing_seed_sealed FROM applications WHERE id = $1 FOR UPDATE",
+        )
+        .bind(app)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?
+        .ok_or(AppsError::NotFound("application"))?;
         let mut qb = QueryBuilder::<Postgres>::new("UPDATE applications SET updated_at = now()");
         if let Some(u) = endpoint_url {
+            // A newly saved URL passed the PING check: start healthy.
+            if u.is_some() {
+                qb.push(
+                    ", endpoint_state = 'enabled', endpoint_failures = 0, \
+                     endpoint_failure_window_start = NULL",
+                );
+            }
             qb.push(", interactions_endpoint_url = ").push_bind(u);
         }
         if let Some(seed) = seed_if_absent {
-            qb.push(", interactions_signing_seed = COALESCE(interactions_signing_seed, ")
-                .push_bind(seed.as_bytes().to_vec())
-                .push(")");
+            // Keep a seed that opens; replace one that does not (a changed server secret).
+            let usable = existing
+                .as_deref()
+                .is_some_and(|b| self.open_seed(app, b).is_some());
+            if !usable {
+                qb.push(", interactions_signing_seed_sealed = ")
+                    .push_bind(self.seal_seed(app, &seed)?);
+            }
         }
         qb.push(" WHERE id = ").push_bind(app);
-        let n = qb
-            .build()
-            .execute(&mut *tx)
-            .await
-            .map_err(db)?
-            .rows_affected();
-        if n == 0 {
-            return Err(AppsError::NotFound("application"));
-        }
+        qb.build().execute(&mut *tx).await.map_err(db)?;
         if let Some(a) = audit {
             audit_in(&mut tx, &a).await?;
         }
         tx.commit().await.map_err(db)
+    }
+
+    async fn record_endpoint_outcome(&self, app: i64, ok: bool, now_ms: i64) -> AppsResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let r = q(format!(
+            "SELECT endpoint_state, endpoint_failures, {} FROM applications WHERE id = $1 FOR UPDATE",
+            ms("endpoint_failure_window_start", "window_ms")
+        ))
+        .bind(app)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?
+        .ok_or(AppsError::NotFound("application"))?;
+        let state: String = r.try_get("endpoint_state").map_err(db)?;
+        let mut cfg = InteractionsConfig {
+            state: EndpointState::parse(&state).unwrap_or_default(),
+            failures: r.try_get("endpoint_failures").map_err(db)?,
+            failure_window_start_ms: r.try_get("window_ms").map_err(db)?,
+            ..InteractionsConfig::default()
+        };
+        let flipped = sr_apps::service::endpoint_health_step(&mut cfg, ok, now_ms);
+        sqlx::query(
+            "UPDATE applications SET endpoint_state = $2, endpoint_failures = $3, \
+             endpoint_failure_window_start = CASE WHEN $4::bigint IS NULL THEN NULL \
+                 ELSE to_timestamp($4::double precision / 1000.0) END \
+             WHERE id = $1",
+        )
+        .bind(app)
+        .bind(cfg.state.as_str())
+        .bind(cfg.failures)
+        .bind(cfg.failure_window_start_ms)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        tx.commit().await.map_err(db)?;
+        Ok(flipped)
+    }
+
+    async fn set_endpoint_state(
+        &self,
+        app: i64,
+        state: EndpointState,
+        audit: AuditRow,
+    ) -> AppsResult<()> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let n = sqlx::query(
+            "UPDATE applications SET endpoint_state = $2, endpoint_failures = 0, \
+             endpoint_failure_window_start = NULL, updated_at = now() WHERE id = $1",
+        )
+        .bind(app)
+        .bind(state.as_str())
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        if n == 0 {
+            return Err(AppsError::NotFound("application"));
+        }
+        audit_in(&mut tx, &audit).await?;
+        tx.commit().await.map_err(db)
+    }
+
+    async fn account_by_username(&self, username: &str) -> AppsResult<Option<AccountBrief>> {
+        let r = sqlx::query(
+            "SELECT id, username::text AS username, display_name, is_bot FROM accounts \
+             WHERE username = $1::citext AND state = 'active' AND NOT is_bot",
+        )
+        .bind(username)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        r.map(|r| {
+            Ok(AccountBrief {
+                id: r.try_get("id").map_err(db)?,
+                username: r.try_get("username").map_err(db)?,
+                display_name: r.try_get("display_name").map_err(db)?,
+                is_bot: r.try_get("is_bot").map_err(db)?,
+            })
+        })
+        .transpose()
+    }
+
+    async fn invite_tester(&self, t: &Tester, audit: AuditRow) -> AppsResult<Tester> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        // The application row serialises concurrent invitations so the cap holds.
+        sqlx::query("SELECT 1 FROM applications WHERE id = $1 FOR UPDATE")
+            .bind(t.application_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db)?
+            .ok_or(AppsError::NotFound("application"))?;
+        let n: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM app_testers WHERE application_id = $1")
+                .bind(t.application_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(db)?;
+        if n >= MAX_TESTERS {
+            return Err(AppsError::Conflict(format!(
+                "An application can have at most {MAX_TESTERS} testers."
+            )));
+        }
+        let r = sqlx::query(
+            "INSERT INTO app_testers (id, application_id, account_id, state, invited_by, created_at) \
+             VALUES ($1, $2, $3, 'invited', $4, to_timestamp($5::double precision / 1000.0))",
+        )
+        .bind(t.id)
+        .bind(t.application_id)
+        .bind(t.account_id)
+        .bind(t.invited_by)
+        .bind(t.created_at_ms)
+        .execute(&mut *tx)
+        .await;
+        match r {
+            Ok(_) => {}
+            Err(e) if is_unique(&e) => return Err(AppsError::Conflict("Already invited.".into())),
+            Err(e) => return Err(db(e)),
+        }
+        audit_in(&mut tx, &audit).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(t.clone())
+    }
+
+    async fn testers(&self, app: i64) -> AppsResult<Vec<Tester>> {
+        q(format!(
+            "SELECT {TESTER_COLS} FROM app_testers WHERE application_id = $1 ORDER BY id"
+        ))
+        .bind(app)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?
+        .iter()
+        .map(tester_row)
+        .collect()
+    }
+
+    async fn tester_by_id(&self, id: i64) -> AppsResult<Option<Tester>> {
+        q(format!(
+            "SELECT {TESTER_COLS} FROM app_testers WHERE id = $1"
+        ))
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?
+        .as_ref()
+        .map(tester_row)
+        .transpose()
+    }
+
+    async fn tester_of(&self, app: i64, account: i64) -> AppsResult<Option<Tester>> {
+        q(format!(
+            "SELECT {TESTER_COLS} FROM app_testers WHERE application_id = $1 AND account_id = $2"
+        ))
+        .bind(app)
+        .bind(account)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?
+        .as_ref()
+        .map(tester_row)
+        .transpose()
+    }
+
+    async fn accept_tester(&self, id: i64, audit: AuditRow) -> AppsResult<Tester> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let r = q(format!(
+            "UPDATE app_testers SET state = 'accepted' WHERE id = $1 AND state = 'invited' \
+             RETURNING {TESTER_COLS}"
+        ))
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?
+        .ok_or_else(|| AppsError::Conflict("Already answered.".into()))?;
+        audit_in(&mut tx, &audit).await?;
+        tx.commit().await.map_err(db)?;
+        tester_row(&r)
+    }
+
+    async fn decline_tester(
+        &self,
+        app: i64,
+        account: i64,
+        now_ms: i64,
+        audit: AuditRow,
+    ) -> AppsResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let n =
+            sqlx::query("DELETE FROM app_testers WHERE application_id = $1 AND account_id = $2")
+                .bind(app)
+                .bind(account)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?
+                .rows_affected();
+        if n > 0 {
+            sqlx::query(
+                "INSERT INTO app_tester_declines (application_id, account_id, declined_at)                  VALUES ($1, $2, to_timestamp($3::double precision / 1000.0))                  ON CONFLICT (application_id, account_id) DO UPDATE SET declined_at = EXCLUDED.declined_at",
+            )
+            .bind(app)
+            .bind(account)
+            .bind(now_ms)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+            audit_in(&mut tx, &audit).await?;
+        }
+        tx.commit().await.map_err(db)?;
+        Ok(n > 0)
+    }
+
+    async fn declined_since(&self, app: i64, account: i64, since_ms: i64) -> AppsResult<bool> {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM app_tester_declines              WHERE application_id = $1 AND account_id = $2                AND declined_at >= to_timestamp($3::double precision / 1000.0))",
+        )
+        .bind(app)
+        .bind(account)
+        .bind(since_ms)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn purge_tester_declines(&self, before_ms: i64) -> AppsResult<u64> {
+        Ok(sqlx::query(
+            "DELETE FROM app_tester_declines              WHERE declined_at < to_timestamp($1::double precision / 1000.0)",
+        )
+        .bind(before_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?
+        .rows_affected())
+    }
+
+    async fn remove_tester(&self, app: i64, account: i64, audit: AuditRow) -> AppsResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let n =
+            sqlx::query("DELETE FROM app_testers WHERE application_id = $1 AND account_id = $2")
+                .bind(app)
+                .bind(account)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?
+                .rows_affected();
+        if n > 0 {
+            audit_in(&mut tx, &audit).await?;
+        }
+        tx.commit().await.map_err(db)?;
+        Ok(n > 0)
     }
 
     async fn set_bot_name(&self, app: i64, name: &str, audit: AuditRow) -> AppsResult<()> {

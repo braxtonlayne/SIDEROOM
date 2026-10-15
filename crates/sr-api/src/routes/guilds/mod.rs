@@ -25,6 +25,7 @@ pub mod guild;
 pub mod members;
 pub mod prune;
 pub mod roles;
+pub mod safety;
 pub mod util;
 pub mod vanity;
 
@@ -46,6 +47,7 @@ pub fn router() -> Router<AppState> {
         .merge(prune::routes())
         .merge(bans::routes())
         .merge(vanity::routes())
+        .merge(safety::routes())
 }
 
 /// OpenAPI fragment for these routes; merge it into [`crate::openapi::base`].
@@ -90,6 +92,11 @@ pub fn router() -> Router<AppState> {
         bans::bulk_ban,
         vanity::get_vanity,
         vanity::set_vanity,
+        safety::set_mfa_level,
+        safety::get_widget,
+        safety::set_widget,
+        safety::reauth_status,
+        safety::reauth,
     ),
     components(schemas(
         dto::UserRef,
@@ -117,6 +124,12 @@ pub fn router() -> Router<AppState> {
         bans::BulkBanBody,
         vanity::VanityObject,
         vanity::VanityBody,
+        safety::MfaStatus,
+        safety::ReauthBody,
+        safety::MfaLevelBody,
+        safety::MfaLevelObject,
+        safety::WidgetSettings,
+        safety::ModifyWidgetBody,
         bans::BulkBanResult,
     ))
 )]

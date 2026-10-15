@@ -78,6 +78,22 @@ export const chapterUploads = (id: string, chapter: string) =>
     `/submissions/${enc(id)}/library/chapters/${enc(chapter)}/uploads`,
   );
 
+/** A blob as a `data:` URI (the cover route takes images that way, like Discord's icon and avatar fields). */
+function blobToDataUri(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error ?? new Error('read failed'));
+    r.readAsDataURL(blob);
+  });
+}
+/**
+ * Set the cover of my draft series (G-78): one JPEG or PNG up to 2 MiB; the server sniffs and re-encodes it. The
+ * web app sends the first page of an uploaded PDF, rendered in the browser.
+ */
+export const setCover = async (id: string, image: Blob) =>
+  post<unknown>(`/library/submissions/${enc(id)}/cover`, { image: await blobToDataUri(image) });
+
 /** PUT the file bytes to the presigned URL of an upload slot. */
 export async function putFile(slot: UploadSlot, file: Blob): Promise<void> {
   const res = await fetch(slot.upload_url, { method: slot.upload_method || 'PUT', body: file });

@@ -86,6 +86,20 @@ export interface ChangeEmailBody {
 /** `POST /sr/auth/email/change`: mails a confirmation link to the new address (204). */
 export const changeEmail = (body: ChangeEmailBody) => apiPost<void>('/sr/auth/email/change', body);
 
+export interface DeleteAccountBody {
+  password: string;
+  /** The account's username, typed to confirm (case-insensitive). */
+  username: string;
+  /** Required with two-factor on, unless this session passed a check in the last 15 minutes. */
+  mfa?: { method: 'totp' | 'recovery'; code: string };
+}
+/**
+ * `POST /sr/auth/account/delete` (204, the session cookie is cleared). Refused with a field error `staff`, `owner`
+ * or `guilds` while the account is on the staff, is the Owner, or still owns a server.
+ */
+export const deleteAccount = (body: DeleteAccountBody) =>
+  apiPost<void>('/sr/auth/account/delete', body);
+
 export interface TotpEnrollment {
   otpauth_uri: string;
   manual_entry_key: string;
@@ -126,8 +140,11 @@ export interface OwnProfile {
     pronouns: string | null;
     banner: string | null;
     accent_color: number | null;
+    profile_effect?: string | null;
   };
   connected_accounts: Connection[];
+  /** Platform badges (`staff` and `owner` only while `staff.show_badge` is on). */
+  badges?: { id: string }[];
 }
 export const getOwnProfile = () => apiFetch<OwnProfile>('/users/@me/profile', { retries: 0 });
 export const getPresence = () =>
@@ -145,7 +162,15 @@ export interface ProfilePatch {
   pronouns?: string | null;
   accent_color?: number | null;
   custom_status?: { text: string | null } | null;
+  /** A slug from `GET /sr/profile-catalog`; null removes the effect. */
+  profile_effect?: string | null;
 }
+export interface ProfileCatalog {
+  effects: { slug: string; label_key: string }[];
+  decorations: { slug: string; asset?: string | null; label_key: string }[];
+}
+export const getProfileCatalog = () =>
+  apiFetch<ProfileCatalog>('/sr/profile-catalog', { retries: 0 });
 export const patchSelf = (body: ProfilePatch) =>
   apiFetch<{ user?: OwnProfile['user'] }>('/users/@me', {
     method: 'PATCH',
@@ -377,3 +402,31 @@ export async function listGuildTags(): Promise<GuildTagChoice[]> {
       : [],
   );
 }
+
+// ---- platform invites (G-57, LNG-USET-025..029) ----
+
+export interface MemberInvite {
+  /** Display form, `XXXXX-XXXXX`. */
+  code: string;
+  /** Path of the share link; prefix with the site origin. */
+  link: string;
+  note: string;
+  created_at_ms: number;
+  redeemed_by?: { id: string; username: string } | null;
+  redeemed_at_ms?: number | null;
+}
+export interface MemberInvites {
+  credits: number;
+  open: MemberInvite[];
+  redeemed: MemberInvite[];
+  /** Why a code cannot be created now; `null` when it can. */
+  blocked: {
+    reason: 'unverified' | 'too_new' | 'at_cap' | 'no_credits' | 'frozen';
+    days?: number | null;
+  } | null;
+}
+export const listMemberInvites = () => apiFetch<MemberInvites>('/sr/invites', { retries: 0 });
+export const createMemberInvite = (note: string) =>
+  apiPost<MemberInvite>('/sr/invites', { note: note.trim() || undefined }, { retries: 0 });
+export const revokeMemberInvite = (code: string) =>
+  apiFetch<void>(`/sr/invites/${encodeURIComponent(code)}`, { method: 'DELETE', retries: 0 });

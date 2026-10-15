@@ -84,8 +84,9 @@ pub fn default_staff_roles() -> Vec<RoleTemplate> {
             permissions: P::STAFF_BASIC
                 | P::MANAGE_DIRECTORY
                 | P::MANAGE_ACCOUNTS
-                | P::PLATFORM_BAN,
-            description: "Accounts, platform bans and the server directory.",
+                | P::PLATFORM_BAN
+                | P::MANAGE_CASES,
+            description: "Accounts, platform bans, moderation cases and the server directory.",
         },
         RoleTemplate {
             name: "Senior Staff",
@@ -218,6 +219,15 @@ mod tests {
         let senior = roles.iter().find(|r| r.name == "Senior Staff").unwrap();
         assert!(senior.permissions.contains(P::APPOINT_STAFF));
         assert!(senior.permissions.contains(P::READ_PRIVATE_CONTENT));
+        // D-210: Senior Staff holds both new bits, Moderator only cases.
+        assert!(
+            senior
+                .permissions
+                .contains(P::MANAGE_CASES | P::MANAGE_TAKEDOWNS)
+        );
+        let moderator = roles.iter().find(|r| r.name == "Moderator").unwrap();
+        assert!(moderator.permissions.contains(P::MANAGE_CASES));
+        assert!(!moderator.permissions.contains(P::MANAGE_TAKEDOWNS));
         assert!(!senior.permissions.contains(P::VIEW_ACCESS_LOG));
         let positions: Vec<_> = roles.iter().map(|r| r.position).collect();
         assert!(positions.windows(2).all(|w| w[0] < w[1]));

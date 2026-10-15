@@ -198,6 +198,52 @@ pub enum DeleteRefusal {
     NotActive,
     /// The account owns these servers (ids); transfer or delete them first.
     OwnsGuilds(Vec<i64>),
+    /// An appointment is active; leave the Staff Server first (D-194).
+    Staff,
+    /// The account is the platform Owner; transfer ownership first (D-194).
+    Owner,
+}
+
+/// Why an account cannot create another platform invite right now (doc 06 section 5.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InviteBlock {
+    /// The email address is not verified yet.
+    Unverified,
+    /// The account is younger than `invites.min_account_age_days`.
+    TooNew { days: i64 },
+    /// The account cap is reached (D-014): creating and redeeming are blocked.
+    AtCap,
+    /// Open codes already equal the remaining credits (D-026).
+    NoCredits,
+    /// The suspicion freeze applies (doc 06 section 5.4). Shown with generic wording.
+    Frozen,
+}
+
+/// One platform invite as the issuer sees it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberInviteRow {
+    /// Canonical code.
+    pub code: String,
+    /// The issuer's private note.
+    pub note: String,
+    /// Unix seconds.
+    pub created_at: i64,
+    /// Who redeemed it (id, username) and when (unix seconds); redeemed rows only.
+    pub redeemed_by: Option<(i64, String)>,
+    pub redeemed_at: Option<i64>,
+}
+
+/// What the Invites section of User Settings shows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberInvites {
+    /// Remaining credits (ledger balance).
+    pub balance: i64,
+    /// Open codes, newest first.
+    pub open: Vec<MemberInviteRow>,
+    /// Redeemed codes, newest first.
+    pub redeemed: Vec<MemberInviteRow>,
+    /// `None` when the account may create a code now.
+    pub blocked: Option<InviteBlock>,
 }
 
 /// Storage used by the auth routes. Implementations must honour the atomicity
@@ -239,6 +285,8 @@ pub trait AuthStore: Send + Sync {
     async fn mark_email_verified(&self, id: i64) -> StoreResult<()>;
     /// Record the age-gate answer (doc 06 section 7).
     async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()>;
+    /// Set the account's BCP 47 locale (already normalised); mails, push text and system DMs follow it.
+    async fn set_locale(&self, id: i64, locale: &str) -> StoreResult<()>;
 
     // ---- account identity edits (display name, username, email) --------
     /// Set (or clear) the display name.
@@ -372,6 +420,33 @@ pub trait AuthStore: Send + Sync {
         backup_state: bool,
         now: i64,
     ) -> StoreResult<bool>;
+
+    // ---- member platform invites (G-57) ---------------------------------------
+    /// The account's credits, codes and whether it may create one now.
+    async fn member_invites(&self, _account: i64, _now: i64) -> StoreResult<MemberInvites> {
+        Err(StoreError(
+            "member invites are not supported by this store".into(),
+        ))
+    }
+    /// Create an open code after re-checking every rule in one transaction.
+    async fn create_member_invite(
+        &self,
+        _account: i64,
+        _invite_id: i64,
+        _code: &InviteCode,
+        _note: &str,
+        _now: i64,
+    ) -> StoreResult<Result<(), InviteBlock>> {
+        Err(StoreError(
+            "member invites are not supported by this store".into(),
+        ))
+    }
+    /// Revoke an open code the account issued; `false` when it is not open or not theirs.
+    async fn revoke_member_invite(&self, _account: i64, _code: &InviteCode) -> StoreResult<bool> {
+        Err(StoreError(
+            "member invites are not supported by this store".into(),
+        ))
+    }
 
     // ---- account deletion (D-029) -------------------------------------------
     /// Delete (scrub) the account in one transaction: see `sr_db::account_deletion`.

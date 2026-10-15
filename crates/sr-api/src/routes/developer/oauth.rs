@@ -82,6 +82,11 @@ pub async fn authorize_info(
     let me = users.get(&UserId::new(p.user_id as u64));
     let mut guilds = Vec::new();
     if v.wants_install() {
+        let is_tester = deps
+            .apps
+            .is_tester(v.app.id, p.user_id)
+            .await
+            .map_err(app_err)?;
         for g in deps.apps.user_guilds(p.user_id).await.map_err(app_err)? {
             let Some(acc) = deps.guild_access(p.user_id, g.id).await? else {
                 continue;
@@ -90,7 +95,7 @@ pub async fn authorize_info(
                 owner_id: g.owner_id,
                 member_count: g.member_count,
             };
-            let verdict = perms::check_install(&v.app, p.user_id, acc.perms, stats);
+            let verdict = perms::check_install(&v.app, p.user_id, acc.perms, is_tester, stats);
             guilds.push(GuildChoice {
                 id: g.id.to_string(),
                 name: g.name,

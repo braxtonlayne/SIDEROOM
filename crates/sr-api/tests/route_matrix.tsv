@@ -23,6 +23,7 @@ DELETE	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
 DELETE	/applications/{application_id}	authenticated	owner	deny	-
 DELETE	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-
 DELETE	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
+DELETE	/applications/{application_id}/testers/{account_id}	authenticated	owner	deny	-
 DELETE	/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/messages/{message_id}/reactions	authenticated	membership	allow	-
@@ -57,6 +58,8 @@ DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	member
 DELETE	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
@@ -77,18 +80,20 @@ DELETE	/oauth2/tokens/{grant_id}	authenticated	other	deny	-
 DELETE	/requests/{request_id}/claim	authenticated	other	allow	-
 DELETE	/requests/{request_id}/vote	authenticated	other	allow	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
+DELETE	/sr/invites/{code}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
-DELETE	/users/@me/birthday	authenticated	self	allow	-
-DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	allow	-
+DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-
+DELETE	/users/@me/birthday	authenticated	self	deny	-
+DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
 DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
 DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-
 DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-DELETE	/users/@me/reminders/{id}	authenticated	self	allow	-
-DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	allow	-
+DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-
+DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
 DELETE	/watch-parties/{party_id}	authenticated	other	allow	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	other	allow	-
 DELETE	/watch-parties/{party_id}/queue/{item_id}	authenticated	other	allow	-
@@ -147,6 +152,7 @@ GET	/admin/review/submissions/{submission_id}/preview	authenticated	staff	deny	-
 GET	/admin/settings	authenticated	staff	deny	-
 GET	/admin/staff	authenticated	staff	deny	-
 GET	/admin/staff/delegations	authenticated	staff	deny	-
+GET	/admin/staff/former	authenticated	staff	deny	-
 GET	/admin/staff/offers	authenticated	staff	deny	-
 GET	/admin/staff/roles	authenticated	staff	deny	-
 GET	/admin/stats	authenticated	staff	deny	-
@@ -174,6 +180,7 @@ GET	/applications/{application_id}/guilds/{guild_id}/commands/permissions	authen
 GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
 GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	owner	allow	-
 GET	/applications/{application_id}/installs	authenticated	owner	deny	-
+GET	/applications/{application_id}/testers	authenticated	owner	deny	-
 GET	/applications/{application_id}/versions	authenticated	owner	deny	-
 GET	/channels/{channel_id}	authenticated	membership	allow	-
 GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-
@@ -236,6 +243,7 @@ GET	/directory/{guild_id}	authenticated	other	deny	-
 GET	/donations/config	authenticated	other	allow	-
 GET	/donations/invoices	authenticated	other	allow	-
 GET	/donations/invoices/{invoice_id}	authenticated	other	allow	-
+GET	/donations/leaderboards/contributors/{kind}	authenticated	other	allow	-
 GET	/donations/leaderboards/{board}	authenticated	other	allow	-
 GET	/donations/me	authenticated	other	allow	-
 GET	/gateway	public	none	allow	-
@@ -273,6 +281,9 @@ GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles/{role_id}/members	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/scheduled-events/{event_id}/users	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}/audio	authenticated	membership	allow	-
@@ -283,6 +294,7 @@ GET	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/features	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/insights	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/slowmode/presets	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stage-instances	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
@@ -297,6 +309,7 @@ GET	/guilds/{guild_id}/tickets	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/webhooks	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/widget	authenticated	membership	allow	-
 GET	/invites/{code}	authenticated	membership	allow	-
 GET	/library/chapters/{chapter_id}/bookmarks	authenticated	other	allow	-
 GET	/library/chapters/{chapter_id}/pages	authenticated	other	allow	-
@@ -326,9 +339,15 @@ GET	/requests	authenticated	other	allow	-
 GET	/soundboard-default-sounds	authenticated	other	allow	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	other	allow	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
+GET	/sr/auth/reauth	authenticated	self	deny	-
 GET	/sr/csrf	authenticated	other	allow	-
+GET	/sr/features/flags	authenticated	other	deny	-
+GET	/sr/invites	authenticated	self	deny	-
+GET	/sr/profile-catalog	authenticated	other	deny	-
 GET	/sr/voice/turn	authenticated	other	allow	-
 GET	/stage-instances/{channel_id}	authenticated	membership	allow	-
+GET	/sticker-packs	authenticated	other	allow	-
+GET	/stickers/{sticker_id}/url	authenticated	other	allow	-
 GET	/streams/{stream_key}/preview	authenticated	membership	allow	-
 GET	/submissions	authenticated	other	allow	-
 GET	/submissions/kinds	authenticated	other	allow	-
@@ -350,8 +369,8 @@ GET	/tv/channels/{channel_id}/tune	authenticated	membership	allow	-
 GET	/tv/guide	authenticated	other	allow	-
 GET	/tv/timezones	authenticated	other	allow	-
 GET	/users/@me	authenticated	self	allow	identify
-GET	/users/@me/birthday	authenticated	self	allow	-
-GET	/users/@me/bookmarks	authenticated	self	allow	-
+GET	/users/@me/birthday	authenticated	self	deny	-
+GET	/users/@me/bookmarks	authenticated	self	deny	-
 GET	/users/@me/channels	authenticated	self	allow	-
 GET	/users/@me/connections	authenticated	self	deny	-
 GET	/users/@me/data-export	authenticated	self	deny	-
@@ -370,8 +389,8 @@ GET	/users/@me/profile	authenticated	self	allow	-
 GET	/users/@me/read-states	authenticated	self	allow	-
 GET	/users/@me/relationships	authenticated	self	deny	-
 GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-GET	/users/@me/reminders	authenticated	self	allow	-
-GET	/users/@me/scheduled-messages	authenticated	self	allow	-
+GET	/users/@me/reminders	authenticated	self	deny	-
+GET	/users/@me/scheduled-messages	authenticated	self	deny	-
 GET	/users/@me/settings	authenticated	self	deny	-
 GET	/users/{user_id}/profile	authenticated	other	allow	-
 GET	/watch-parties/me	authenticated	other	allow	-
@@ -381,6 +400,7 @@ GET	/watch-parties/{party_id}/audit	authenticated	other	allow	-
 GET	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
 GET	/webhooks/{webhook_id}	authenticated	other	allow	-
 GET	/webhooks/{webhook_id}/{token}	public	none	allow	-
+PATCH	/admin/announcements/{announcement_id}	authenticated	staff	deny	-
 PATCH	/admin/directory/{guild_id}	authenticated	staff	deny	-
 PATCH	/admin/donations/config	authenticated	staff	deny	-
 PATCH	/admin/features/{feature_id}	authenticated	staff	deny	-
@@ -404,6 +424,7 @@ PATCH	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	a
 PATCH	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/sr/features/{feature_id}	authenticated	membership	allow	-
@@ -414,12 +435,13 @@ PATCH	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/voice-states/{user_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/widget	authenticated	membership	allow	-
 PATCH	/library/lists/{list_id}	authenticated	other	allow	-
 PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-
 PATCH	/stage-instances/{channel_id}	authenticated	membership	allow	-
 PATCH	/submissions/{submission_id}	authenticated	other	allow	-
 PATCH	/users/@me	authenticated	self	allow	-
-PATCH	/users/@me/bookmarks/{message_id}	authenticated	self	allow	-
+PATCH	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
 PATCH	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 PATCH	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
 PATCH	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-
@@ -427,7 +449,7 @@ PATCH	/users/@me/notification-defaults	authenticated	self	deny	-
 PATCH	/users/@me/presence	authenticated	self	allow	-
 PATCH	/users/@me/privacy	authenticated	self	deny	-
 PATCH	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-PATCH	/users/@me/scheduled-messages/{id}	authenticated	self	allow	-
+PATCH	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
 PATCH	/users/@me/settings	authenticated	self	deny	-
 PATCH	/watch-parties/{party_id}	authenticated	other	allow	-
 PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	other	allow	-
@@ -514,9 +536,11 @@ POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-
 POST	/applications	authenticated	owner	deny	-
 POST	/applications/{application_id}/bot/reset-token	authenticated	owner	deny	-
 POST	/applications/{application_id}/commands	authenticated	owner	allow	-
+POST	/applications/{application_id}/endpoint/verify	authenticated	owner	deny	-
 POST	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
 POST	/applications/{application_id}/interactions-key	authenticated	owner	deny	-
 POST	/applications/{application_id}/reset-secret	authenticated	owner	deny	-
+POST	/applications/{application_id}/testers	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions/{version_id}/withdraw	authenticated	owner	deny	-
 POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-
@@ -532,7 +556,7 @@ POST	/channels/{channel_id}/messages/{message_id}/crosspost	authenticated	member
 POST	/channels/{channel_id}/messages/{message_id}/threads	authenticated	membership	allow	-
 POST	/channels/{channel_id}/pins/ack	authenticated	membership	allow	-
 POST	/channels/{channel_id}/polls/{message_id}/expire	authenticated	membership	allow	-
-POST	/channels/{channel_id}/scheduled-messages	authenticated	membership	allow	-
+POST	/channels/{channel_id}/scheduled-messages	authenticated	membership	deny	-
 POST	/channels/{channel_id}/send-soundboard-sound	authenticated	membership	allow	-
 POST	/channels/{channel_id}/threads	authenticated	membership	allow	-
 POST	/channels/{channel_id}/typing	authenticated	membership	allow	-
@@ -546,6 +570,7 @@ POST	/cinema/titles/{title_id}/downloads	authenticated	other	allow	-
 POST	/cinema/titles/{title_id}/episodes/{episode_id}/comments	authenticated	other	allow	-
 POST	/cinema/titles/{title_id}/watched	authenticated	other	allow	-
 POST	/developers/apply	authenticated	owner	deny	-
+POST	/developers/tester-invites/{invite_id}/respond	authenticated	self	deny	-
 POST	/directory/{guild_id}/join	authenticated	membership	deny	-
 POST	/donations/invoices	authenticated	other	allow	-
 POST	/donations/invoices/{invoice_id}/cancel	authenticated	other	allow	-
@@ -557,14 +582,17 @@ POST	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/bulk-ban	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/mfa	authenticated	owner	allow	-
 POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/sr/applications	authenticated	other	allow	-
 POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/sr/slowmode/apply	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/suggestions	authenticated	membership	allow	-
@@ -576,6 +604,7 @@ POST	/interactions/{interaction_id}/{token}/callback	public	none	allow	-
 POST	/invites/{code}	authenticated	membership	deny	-
 POST	/library/chapters/{chapter_id}/read	authenticated	other	allow	-
 POST	/library/lists	authenticated	other	allow	-
+POST	/library/submissions/{submission_id}/cover	authenticated	other	allow	-
 POST	/oauth2/authorize	authenticated	other	deny	-
 POST	/oauth2/introspect	public	none	allow	-
 POST	/oauth2/token	public	none	allow	-
@@ -592,6 +621,8 @@ POST	/sr/auth/passkeys/register/begin	authenticated	self	deny	-
 POST	/sr/auth/passkeys/register/finish	authenticated	self	deny	-
 POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-
 POST	/sr/auth/password	authenticated	self	deny	-
+POST	/sr/auth/reauth	authenticated	self	deny	-
+POST	/sr/invites	authenticated	self	deny	-
 POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-
 POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
@@ -609,7 +640,7 @@ POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-
 POST	/users/@me/data-export	authenticated	self	deny	-
 POST	/users/@me/push-subscriptions	authenticated	self	deny	-
 POST	/users/@me/relationships	authenticated	self	deny	-
-POST	/users/@me/reminders	authenticated	self	allow	-
+POST	/users/@me/reminders	authenticated	self	deny	-
 POST	/watch-parties	authenticated	other	allow	-
 POST	/watch-parties/{party_id}/heartbeat	authenticated	other	allow	-
 POST	/watch-parties/{party_id}/host	authenticated	other	allow	-
@@ -674,6 +705,7 @@ PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/tag	authenticated	membership	allow	-
@@ -692,7 +724,8 @@ PUT	/requests/{request_id}/vote	authenticated	other	allow	-
 PUT	/sr/auth/username	authenticated	self	deny	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
 PUT	/submissions/{submission_id}/library/series	authenticated	other	allow	-
-PUT	/users/@me/birthday	authenticated	self	allow	-
+PUT	/tv/reminders/{block_id}	authenticated	self	deny	-
+PUT	/users/@me/birthday	authenticated	self	deny	-
 PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-
 PUT	/users/@me/connections/link	authenticated	self	deny	-
 PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-
@@ -711,6 +744,7 @@ PUT	/watch-parties/{party_id}/media	authenticated	other	allow	-
 #undocumented	/internal/metrics
 #undocumented	/openapi.json
 #undocumented	/readyz
+#undocumented	/share
 #undocumented	/sr/age-gate
 #undocumented	/sr/auth/2fa
 #undocumented	/sr/auth/discord/callback
@@ -732,6 +766,5 @@ PUT	/watch-parties/{party_id}/media	authenticated	other	allow	-
 #undocumented	/sr/auth/trusted-devices/{id}
 #undocumented	/sr/auth/verify-email
 #undocumented	/sr/auth/verify-email/resend
-#undocumented	/sr/invites/{code}
 #undocumented	/sr/register
 #undocumented	/sr/usernames/check

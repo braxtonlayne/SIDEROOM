@@ -1471,3 +1471,255 @@ async fn deleting_an_application_removes_the_bot_and_its_credentials() {
     );
     assert!(e.svc.application(c.application.id).await.is_err());
 }
+
+// ---------------------------------------------------------------- testers (G-01, D-204)
+
+#[tokio::test]
+async fn accepted_testers_can_install_a_development_app_but_invitees_cannot_yet() {
+    let e = env();
+    let c = app(&e).await;
+    let id = c.application.id;
+    e.repo.add_guild(60, OTHER, &[]);
+
+    // not a tester: refused
+    assert_eq!(
+        e.svc
+            .install(install_req(&c, OTHER, 60, Permissions::MANAGE_GUILD, 0))
+            .await
+            .err(),
+        Some(AppsError::NotReleased)
+    );
+    // only the owner invites; yourself and unknown users are refused
+    assert!(
+        e.svc
+            .invite_tester(OTHER, id, TesterTarget::Id(OWNER))
+            .await
+            .is_err()
+    );
+    assert!(matches!(
+        e.svc
+            .invite_tester(OWNER, id, TesterTarget::Id(OWNER))
+            .await,
+        Err(AppsError::Invalid(_))
+    ));
+    assert!(
+        e.svc
+            .invite_tester(OWNER, id, TesterTarget::Username("nobody".into()))
+            .await
+            .is_err()
+    );
+    let (t, _) = e
+        .svc
+        .invite_tester(OWNER, id, TesterTarget::Username("OTHER".into()))
+        .await
+        .unwrap();
+    assert_eq!(t.state, TesterState::Invited);
+    // an open invitation grants nothing
+    assert!(!e.svc.is_tester(id, OTHER).await.unwrap());
+    assert_eq!(
+        e.svc
+            .install(install_req(&c, OTHER, 60, Permissions::MANAGE_GUILD, 0))
+            .await
+            .err(),
+        Some(AppsError::NotReleased)
+    );
+    // a second invitation for the same account conflicts
+    assert!(matches!(
+        e.svc
+            .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+            .await,
+        Err(AppsError::Conflict(_))
+    ));
+    // only the invitee may answer, and only once
+    assert!(e.svc.respond_tester(OWNER, t.id, true).await.is_err());
+    let ans = e.svc.respond_tester(OTHER, t.id, true).await.unwrap();
+    assert!(ans.accepted);
+    assert!(matches!(
+        e.svc.respond_tester(OTHER, t.id, true).await,
+        Err(AppsError::Conflict(_))
+    ));
+    assert!(e.svc.is_tester(id, OTHER).await.unwrap());
+
+    // the tester installs in a small guild they manage, not in a big one, not without MANAGE_GUILD
+    assert!(
+        e.svc
+            .install(install_req(&c, OTHER, 60, Permissions::MANAGE_GUILD, 0))
+            .await
+            .is_ok()
+    );
+    let big: Vec<i64> = (100..130).collect();
+    e.repo.add_guild(61, OTHER, &big);
+    assert_eq!(
+        e.svc
+            .install(install_req(&c, OTHER, 61, Permissions::MANAGE_GUILD, 0))
+            .await
+            .err(),
+        Some(AppsError::NotReleased)
+    );
+    e.repo.add_guild(62, OWNER, &[OTHER]);
+    assert_eq!(
+        e.svc
+            .install(install_req(&c, OTHER, 62, Permissions::SEND_MESSAGES, 0))
+            .await
+            .err(),
+        Some(AppsError::MissingPermissions)
+    );
+
+    // removal takes the right away again
+    e.svc.remove_tester(OWNER, id, OTHER).await.unwrap();
+    assert!(!e.svc.is_tester(id, OTHER).await.unwrap());
+    assert!(e.svc.remove_tester(OWNER, id, OTHER).await.is_err());
+    assert_eq!(e.svc.list_testers(OWNER, id).await.unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn declining_deletes_the_invitation_and_the_cap_is_25() {
+    let e = env();
+    let c = app(&e).await;
+    let id = c.application.id;
+    let (t, _) = e
+        .svc
+        .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+        .await
+        .unwrap();
+    let ans = e.svc.respond_tester(OTHER, t.id, false).await.unwrap();
+    assert!(!ans.accepted);
+    assert!(e.svc.list_testers(OWNER, id).await.unwrap().is_empty());
+    assert!(e.svc.respond_tester(OTHER, t.id, true).await.is_err());
+
+    for n in 0..25 {
+        let acct = 500 + n;
+        e.repo.add_account(acct, &format!("tester{n}"));
+        e.svc
+            .invite_tester(OWNER, id, TesterTarget::Id(acct))
+            .await
+            .unwrap();
+    }
+    e.repo.add_account(600, "one-too-many");
+    assert!(matches!(
+        e.svc.invite_tester(OWNER, id, TesterTarget::Id(600)).await,
+        Err(AppsError::Conflict(_))
+    ));
+}
+
+#[tokio::test]
+async fn a_decline_blocks_a_new_invitation_for_a_day() {
+    let e = env();
+    let c = app(&e).await;
+    let id = c.application.id;
+    let (t, _) = e
+        .svc
+        .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+        .await
+        .unwrap();
+    e.svc.respond_tester(OTHER, t.id, false).await.unwrap();
+    // Within the window the owner cannot ask again.
+    assert!(matches!(
+        e.svc
+            .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+            .await,
+        Err(AppsError::TesterRecentlyDeclined)
+    ));
+    e.clock.advance_ms(23 * 3_600_000);
+    assert!(matches!(
+        e.svc
+            .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+            .await,
+        Err(AppsError::TesterRecentlyDeclined)
+    ));
+    // After 24 hours it is allowed again, and the housekeeping forgets the old row.
+    e.clock.advance_ms(2 * 3_600_000);
+    assert_eq!(e.svc.purge_tester_declines().await.unwrap(), 1);
+    e.svc
+        .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+        .await
+        .unwrap();
+    // Removing a tester is not a decline.
+    e.svc.remove_tester(OWNER, id, OTHER).await.unwrap();
+    e.svc
+        .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+        .await
+        .unwrap();
+}
+
+// ------------------------------------------------- endpoint auto-disable (G-05, D-186)
+
+#[test]
+fn endpoint_health_counts_consecutive_failures_inside_the_window() {
+    let mut c = InteractionsConfig::default();
+    let t = T0;
+    // 24 failures do nothing; a success resets the streak
+    for i in 0..24 {
+        assert!(!endpoint_health_step(&mut c, false, t + i * 1000));
+    }
+    assert_eq!(c.failures, 24);
+    assert!(!endpoint_health_step(&mut c, true, t + 30_000));
+    assert_eq!((c.failures, c.failure_window_start_ms), (0, None));
+    // a streak that outlives the 10 minute window restarts
+    assert!(!endpoint_health_step(&mut c, false, t));
+    assert!(!endpoint_health_step(
+        &mut c,
+        false,
+        t + ENDPOINT_FAILURE_WINDOW_MS + 1
+    ));
+    assert_eq!(c.failures, 1);
+    // the 25th consecutive failure inside the window flips the state, once
+    let mut c = InteractionsConfig::default();
+    let mut flips = 0;
+    for i in 0..30 {
+        if endpoint_health_step(&mut c, false, t + i * 1000) {
+            flips += 1;
+        }
+    }
+    assert_eq!(flips, 1);
+    assert_eq!(c.state, EndpointState::Disabled);
+    // a disabled endpoint ignores further outcomes
+    assert!(!endpoint_health_step(&mut c, true, t + 99_000));
+    assert_eq!(c.state, EndpointState::Disabled);
+}
+
+#[tokio::test]
+async fn a_failing_endpoint_is_disabled_and_verification_re_enables_it() {
+    let e = env();
+    let c = app(&e).await;
+    let id = c.application.id;
+    e.svc
+        .set_endpoint(OWNER, id, Some("https://bot.example.com/i".into()))
+        .await
+        .unwrap();
+    assert!(e.svc.endpoint_target(id).await.unwrap().is_some());
+
+    for _ in 0..24 {
+        assert!(!e.svc.record_delivery(id, false).await.unwrap());
+    }
+    // a success in the middle resets the count
+    assert!(!e.svc.record_delivery(id, true).await.unwrap());
+    for _ in 0..24 {
+        assert!(!e.svc.record_delivery(id, false).await.unwrap());
+    }
+    assert!(e.svc.endpoint_target(id).await.unwrap().is_some());
+    assert!(e.svc.record_delivery(id, false).await.unwrap());
+    // dispatch falls back to the gateway
+    assert!(e.svc.endpoint_target(id).await.unwrap().is_none());
+    assert_eq!(
+        e.svc.endpoint_info(id).await.unwrap().state,
+        EndpointState::Disabled
+    );
+    // no second flip (no second DM)
+    assert!(!e.svc.record_delivery(id, false).await.unwrap());
+
+    assert!(e.svc.reenable_endpoint(OTHER, id).await.is_err());
+    let info = e.svc.reenable_endpoint(OWNER, id).await.unwrap();
+    assert_eq!(info.state, EndpointState::Enabled);
+    assert!(e.svc.endpoint_target(id).await.unwrap().is_some());
+    let actions: Vec<String> = e
+        .svc
+        .audit_log(OWNER, id, 100, None)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|a| a.action)
+        .collect();
+    assert!(actions.contains(&"app.interactions_endpoint_disabled".to_string()));
+    assert!(actions.contains(&"app.interactions_endpoint_reenabled".to_string()));
+}

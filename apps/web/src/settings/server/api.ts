@@ -1,14 +1,21 @@
 // REST helpers for the server settings screens. Paths and shapes mirror crates/sr-api/src/routes/{guilds,settings}.
 // Mutations never retry on 429 (retries: 0) so the user sees the error.
 import { ApiError, apiFetch } from '../../api/client';
+import { withReauth } from '../../admin/reauth';
 
+/**
+ * A server that requires 2FA for moderator actions (`mfa_level` 1) answers `900004` until this session proved a
+ * second factor; `withReauth` asks for one (the app-root dialog) and retries the call once.
+ */
 const send = <T>(path: string, method: string, json?: unknown, headers?: Record<string, string>) =>
-  apiFetch<T>(path, {
-    method,
-    retries: 0,
-    ...(json !== undefined ? { json } : {}),
-    ...(headers ? { headers } : {}),
-  });
+  withReauth(() =>
+    apiFetch<T>(path, {
+      method,
+      retries: 0,
+      ...(json !== undefined ? { json } : {}),
+      ...(headers ? { headers } : {}),
+    }),
+  );
 
 /** Reason header for audit-logged actions (Discord compatible). */
 const reasonHeader = (reason?: string) =>
@@ -40,6 +47,12 @@ export interface GuildObject {
   verification_level: number;
   default_message_notifications: number;
   explicit_content_filter: number;
+  /** 0 none, 1 moderator actions need a recent second factor (`POST /guilds/{id}/mfa`, owner only). */
+  mfa_level?: number;
+  /** Discord `system_channel_flags`; see {@link SYSTEM_FLAGS}. */
+  system_channel_flags?: number;
+  widget_enabled?: boolean;
+  widget_channel_id?: string | null;
   preferred_locale: string;
   features: string[];
 }
@@ -52,6 +65,7 @@ export interface ModifyGuildBody {
   verification_level?: number;
   default_message_notifications?: number;
   explicit_content_filter?: number;
+  system_channel_flags?: number;
   preferred_locale?: string;
   /** Data URI to set, null to remove. */
   icon?: string | null;
@@ -65,6 +79,23 @@ export const AFK_TIMEOUTS = [
   { seconds: 1800, label: '30 minutes' },
   { seconds: 3600, label: '1 hour' },
 ];
+/** Bits of `system_channel_flags` (Discord values); a set bit turns that message off. */
+export const SYSTEM_FLAGS = {
+  suppressJoin: 1,
+  suppressBoost: 1 << 1,
+  suppressSetupTips: 1 << 2,
+  suppressJoinReplies: 1 << 3,
+} as const;
+export const setMfaLevel = (g: string, level: 0 | 1) =>
+  send<{ level: number }>(`/guilds/${g}/mfa`, 'POST', { level });
+export interface WidgetSettings {
+  enabled: boolean;
+  channel_id: string | null;
+}
+export const getWidget = (g: string) =>
+  apiFetch<WidgetSettings>(`/guilds/${g}/widget`, { retries: 0 });
+export const modifyWidget = (g: string, body: { enabled?: boolean; channel_id?: string | null }) =>
+  send<WidgetSettings>(`/guilds/${g}/widget`, 'PATCH', body);
 export const getGuild = (id: string) => apiFetch<GuildObject>(`/guilds/${id}`, { retries: 0 });
 export const modifyGuild = (id: string, body: ModifyGuildBody) =>
   send<GuildObject>(`/guilds/${id}`, 'PATCH', body);
@@ -452,6 +483,12 @@ export interface CommunityObject {
   guide_enabled: boolean;
   invites_paused: boolean;
   raid_alert_joins_per_minute: number;
+  /** DM and spam protection (LNG-SSET-052/054). */
+  dm_spam_filter?: boolean;
+  explicit_media_filter_dms?: boolean;
+  hide_suspicious_links?: boolean;
+  /** Warn moderators about accounts younger than this many days; 0 = off. */
+  warn_new_account_days?: number;
   age_restricted: boolean;
 }
 export type CommunityPatch = Partial<

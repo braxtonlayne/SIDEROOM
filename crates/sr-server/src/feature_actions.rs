@@ -46,11 +46,75 @@ use sr_features::actions::{
 /// Content limit of a message (Discord: 2000 characters).
 const CONTENT_MAX: usize = 2000;
 
+/// Why a voice move failed.
+#[derive(Debug)]
+pub enum VoiceMoveError {
+    NotInVoice,
+    Refused(String),
+}
+
+/// What join-to-create needs from the live voice layer (the gateway keeps voice states in
+/// memory, so this cannot be answered from Postgres).
+#[async_trait]
+pub trait VoiceControl: Send + Sync {
+    /// Members connected to `channel`.
+    fn occupants(&self, channel: ChannelId) -> Vec<UserId>;
+    /// Move `user` to `to` as `actor` (a moderator action: checked and announced like one).
+    async fn move_member(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        user: UserId,
+        to: ChannelId,
+    ) -> Result<(), VoiceMoveError>;
+}
+
+/// The gateway as a [`VoiceControl`].
+pub struct GatewayVoice(pub sr_gateway::Gateway);
+
+#[async_trait]
+impl VoiceControl for GatewayVoice {
+    fn occupants(&self, channel: ChannelId) -> Vec<UserId> {
+        self.0
+            .voice_occupants(channel)
+            .into_iter()
+            .map(|s| s.user_id)
+            .collect()
+    }
+
+    async fn move_member(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        user: UserId,
+        to: ChannelId,
+    ) -> Result<(), VoiceMoveError> {
+        use sr_gateway::{ModError, ModPatch};
+        self.0
+            .moderate_voice(
+                actor,
+                guild,
+                user,
+                ModPatch {
+                    channel: Some(Some(to)),
+                    ..ModPatch::default()
+                },
+            )
+            .await
+            .map(|_| ())
+            .map_err(|e| match e {
+                ModError::NotInVoice => VoiceMoveError::NotInVoice,
+                other => VoiceMoveError::Refused(format!("{other:?}")),
+            })
+    }
+}
+
 pub struct PgFeatureActions {
     pool: PgPool,
     messages: Arc<MessagesDeps>,
     threads: Arc<ThreadsDeps>,
     guilds: Arc<dyn GuildBackend>,
+    voice: Option<Arc<dyn VoiceControl>>,
     base_url: String,
 }
 
@@ -89,8 +153,15 @@ impl PgFeatureActions {
             messages,
             threads,
             guilds,
+            voice: None,
             base_url: public_url.trim_end_matches('/').to_owned(),
         }
+    }
+
+    /// Give modules a view of, and a hand in, live voice (join-to-create).
+    pub fn with_voice(mut self, voice: Arc<dyn VoiceControl>) -> Self {
+        self.voice = Some(voice);
+        self
     }
 
     fn system() -> UserId {
@@ -199,6 +270,7 @@ impl PgFeatureActions {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         };
         sr_chat::threads::access::guild_channel_permissions(
             &**repo,
@@ -599,6 +671,74 @@ impl FeatureActions for PgFeatureActions {
                 },
                 ChannelMove::default(),
             )
+            .await
+            .map(|_| ())
+            .map_err(chat)
+    }
+
+    async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Vec<UserId>> {
+        Ok(self
+            .voice
+            .as_ref()
+            .map(|v| v.occupants(channel))
+            .unwrap_or_default())
+    }
+
+    async fn move_member(&self, guild: GuildId, user: UserId, to: ChannelId) -> ActionResult<()> {
+        let voice = self
+            .voice
+            .as_ref()
+            .ok_or_else(|| ActionError::Backend("voice is not available".into()))?;
+        let owner = self.owner_of(guild).await?;
+        voice
+            .move_member(owner, guild, user, to)
+            .await
+            .map_err(|e| match e {
+                VoiceMoveError::NotInVoice => ActionError::NotFound,
+                VoiceMoveError::Refused(why) => ActionError::Forbidden(why),
+            })
+    }
+
+    async fn create_voice_channel(
+        &self,
+        guild: GuildId,
+        name: &str,
+        parent: Option<ChannelId>,
+        user_limit: u32,
+        owner: Option<UserId>,
+    ) -> ActionResult<ChannelId> {
+        let acting = self.owner_of(guild).await?;
+        let mut input = sr_chat::channel_rules::NewChannel::new(ChannelType::Voice, name);
+        input.parent_id = parent;
+        input.user_limit = (user_limit > 0).then_some(user_limit);
+        // The room's creator manages that one channel: rename, limit, lock, move members.
+        let overwrites = owner
+            .map(|o| {
+                vec![sr_core::permissions::Overwrite {
+                    id: sr_core::Snowflake::new(o.get()),
+                    kind: sr_core::permissions::OverwriteKind::Member,
+                    allow: Permissions::VIEW_CHANNEL
+                        | Permissions::CONNECT
+                        | Permissions::MANAGE_CHANNELS
+                        | Permissions::MOVE_MEMBERS,
+                    deny: Permissions::empty(),
+                }]
+            })
+            .unwrap_or_default();
+        self.guilds
+            .create_channel(acting, guild, input, overwrites)
+            .await
+            .map(|v| v.channel.id)
+            .map_err(chat)
+    }
+
+    async fn delete_channel(&self, channel: ChannelId) -> ActionResult<()> {
+        let ch = self.channel(channel).await?;
+        let owner = self
+            .owner_of(ch.guild_id.ok_or(ActionError::NotFound)?)
+            .await?;
+        self.guilds
+            .delete_channel(owner, channel)
             .await
             .map(|_| ())
             .map_err(chat)

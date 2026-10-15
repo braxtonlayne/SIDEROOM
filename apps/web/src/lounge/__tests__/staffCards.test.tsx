@@ -39,6 +39,25 @@ describe('parseStaffButton', () => {
     expect(parseStaffButton('some-app-button')).toBeNull();
     expect(parseStaffButton(undefined)).toBeNull();
   });
+
+  it('knows the two #review-queue buttons (G-68)', () => {
+    expect(parseStaffButton('sr:review-approve:123')).toEqual({
+      kind: 'review',
+      submissionId: '123',
+      approve: true,
+      customId: 'sr:review-approve:123',
+    });
+    expect(parseStaffButton('sr:review-reject:9')).toMatchObject({
+      kind: 'review',
+      submissionId: '9',
+      approve: false,
+    });
+    // Anything else under the prefix is an ordinary card action for the server to judge.
+    expect(parseStaffButton('sr:review-approve:x')).toEqual({
+      kind: 'card',
+      customId: 'sr:review-approve:x',
+    });
+  });
 });
 
 describe('staff card buttons', () => {
@@ -90,6 +109,70 @@ describe('staff card buttons', () => {
       expect(body).toEqual({ channel_id: '500', message_id: '900', custom_id: 'sr:ack:3' }),
     );
     expect(await screen.findByText('Alert acknowledged.')).toBeInTheDocument();
+  });
+
+  const reviewRows = [
+    {
+      type: 1,
+      components: [
+        { type: 2, style: 3, label: 'Approve', custom_id: 'sr:review-approve:42' },
+        { type: 2, style: 4, label: 'Reject', custom_id: 'sr:review-reject:42' },
+      ],
+    },
+  ];
+
+  it('approves from a review card through the card-actions route', async () => {
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/admin/card-actions', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ ok: true, message: 'Approved and published.' });
+      }),
+    );
+    view(reviewRows);
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        channel_id: '500',
+        message_id: '900',
+        custom_id: 'sr:review-approve:42',
+      }),
+    );
+    expect(await screen.findByText('Approved and published.')).toBeInTheDocument();
+  });
+
+  it('sends Reject to the review page, where the reason is asked for', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+    try {
+      server.use(
+        http.post('*/api/v1/admin/card-actions', () =>
+          HttpResponse.json({
+            ok: true,
+            message: 'Rejecting needs a reason. Opening the review page.',
+            link: '/admin/review?submission=42&reject=1',
+          }),
+        ),
+      );
+      view(reviewRows);
+      await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
+      await waitFor(() =>
+        expect(assign).toHaveBeenCalledWith('/admin/review?submission=42&reject=1'),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('says so when a second press finds the submission already decided', async () => {
+    server.use(
+      http.post('*/api/v1/admin/card-actions', () =>
+        HttpResponse.json({ ok: false, message: 'Already decided.' }),
+      ),
+    );
+    view(reviewRows);
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('Already decided.')).toBeInTheDocument();
   });
 
   it('keeps the buttons usable after a refusal', async () => {

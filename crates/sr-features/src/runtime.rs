@@ -15,6 +15,24 @@ use tokio::task::JoinHandle;
 
 use crate::feature::{FeatureCtx, ScopeRef};
 
+tokio::task_local! {
+    /// The module whose handler is running: (id, display name). Audit writes made on its behalf
+    /// name the system user and this module (D-187).
+    static CURRENT_MODULE: (String, String);
+}
+
+/// Run `fut` as module `id` / `name` for the audit log.
+pub async fn scope_module<F: std::future::Future>(id: &str, name: &str, fut: F) -> F::Output {
+    CURRENT_MODULE
+        .scope((id.to_owned(), name.to_owned()), fut)
+        .await
+}
+
+/// The module running in this task, as (id, display name); `None` outside a module handler.
+pub fn current_module() -> Option<(String, String)> {
+    CURRENT_MODULE.try_with(Clone::clone).ok()
+}
+
 /// Default interval between ticks.
 pub const TICK_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -33,7 +51,9 @@ pub fn guild_of(ev: &DomainEvent) -> Option<GuildId> {
         | E::MemberUpdated { guild, .. }
         | E::MemberBanned { guild, .. }
         | E::MemberUnbanned { guild, .. }
-        | E::ThreadCreated { guild, .. } => Some(*guild),
+        | E::ThreadCreated { guild, .. }
+        | E::VoiceJoined { guild, .. }
+        | E::VoiceLeft { guild, .. } => Some(*guild),
         E::MessageSent { guild, .. }
         | E::MessageEdited { guild, .. }
         | E::MessageDeleted { guild, .. }
@@ -70,7 +90,9 @@ impl FeatureRuntime {
                     continue;
                 }
             }
-            if let Err(e) = feature.on_event(ev, &self.ctx).await {
+            let name = feature.meta().name;
+            if let Err(e) = scope_module(feature.id(), &name, feature.on_event(ev, &self.ctx)).await
+            {
                 tracing::warn!(feature = feature.id(), error = %e, "feature event handler failed");
             }
         }
@@ -79,7 +101,8 @@ impl FeatureRuntime {
     /// Run every module's tick once.
     pub async fn tick(&self) {
         for feature in self.ctx.settings.registry().iter() {
-            if let Err(e) = feature.on_tick(&self.ctx).await {
+            let name = feature.meta().name;
+            if let Err(e) = scope_module(feature.id(), &name, feature.on_tick(&self.ctx)).await {
                 tracing::warn!(feature = feature.id(), error = %e, "feature tick failed");
             }
         }

@@ -55,8 +55,8 @@ Category (the section 8 vocabulary plus "something else"), a free-text note (up 
 
 ### 3.3 Reporter privacy
 
-- The reported person never sees who reported them. Server moderators see the reporter only if the reporter agreed; platform staff always see it.
-- Reporter identity is access-logged like private content (D-125).
+- The reported person never sees who reported them. Server moderators do not see the reporter unless the reporter ticks "moderators may see my name" in the report form (off by default); platform staff always see it (D-209).
+- Reporter identity, when platform staff open it, is access-logged like private content (D-125).
 - Rate limit: reports per account per day (a platform setting), and one open report per (reporter, target).
 - Reporting never auto-actions. Nothing is hidden or removed from the reported person until a human acts.
 - Reporters get a status they can read (received, under review, closed) and a short outcome line, never the other party's details.
@@ -65,12 +65,14 @@ Category (the section 8 vocabulary plus "something else"), a free-text note (up 
 
 | Target lives in | Goes to |
 |---|---|
-| A guild | The guild's moderators (`MANAGE_MESSAGES` or a configured report channel), with an escalate button to platform staff |
+| A guild | The guild's moderators (`MANAGE_MESSAGES` or a configured report channel) and only them, with an escalate button to platform staff. Platform staff see it once it is escalated (D-209) |
 | A DM or group DM | Platform staff only (no guild moderator may read DMs) |
 | Library or cinema item | Reviewers (`REVIEW_READING` / `REVIEW_MEDIA`) and `DELETE_CONTENT` holders |
 | A user outside any guild context, a server itself, anything flagged illegal content or child safety | Platform staff (`PLATFORM_BAN`, `MANAGE_ACCOUNTS`) |
 
-Reports in the child-safety and illegal-content categories always go to platform staff regardless of where they were filed.
+Reports in the child-safety and illegal-content categories (`child_safety`, `illegal_content`) are always escalated to platform staff regardless of where they were filed (D-209).
+
+**Reported DMs (D-214).** A platform reviewer may read a reported DM message within the snapshot only: the reported message and the ten before and after it, taken at report time by the reporter's own action (a participant exposing a conversation they are part of). Opening the snapshot is access-logged with the case id as the reason. Reading anything beyond the snapshot needs `READ_PRIVATE_CONTENT` and the normal D-125 flow.
 
 ## 4. Cases
 
@@ -86,7 +88,8 @@ A **case** groups everything about one problem: one or more reports, evidence, h
 
 ### 4.3 Holds
 
-- Placing a hold needs a reason and a case. Releasing a hold needs a reason. Both are logged.
+- Placing a hold needs a reason and a case, and is a platform-staff action (`MANAGE_CASES`, D-213): server moderators delete, time out, kick and ban inside their server, but a hold overrides the author's deletion rights (D-122) and is therefore not theirs to invoke. Releasing a hold needs a reason. Both are logged.
+- Holds never expire by themselves and nothing silently unfreezes. A hold older than `moderation.hold_review_days` (default 90) is flagged for review on the holds dashboard (D-212).
 - Hold scope: a message (and its attachments and edit history), an attachment, a submission, or all of a user's messages in a window.
 - A held message stays visible to high-level staff (`READ_PRIVATE_CONTENT`) indefinitely, even after the author deletes it (D-122); the author's user view still hides it.
 - Releasing a hold on a row whose `purge_after` is long past makes it purgeable on the next job run; the job logs the count.
@@ -102,7 +105,7 @@ When an action is taken against a person, they receive a system DM stating what 
 
 ### 4.6 Appeals
 
-Banned or suspended accounts cannot log in (D-124 keeps the account). The ban screen offers an appeal form that creates an appeal linked to the case, reviewed by a different staff member than the one who decided, one appeal per decision.
+Appeals are wanted at launch, kept minimal (D-215). Banned or suspended accounts cannot log in (D-124 keeps the account). The ban screen offers an appeal form that creates an appeal linked to the case: one appeal per decision, reviewed by a different staff member than the one who decided; when nobody else holds the bit, the Owner reviews it; there is no second appeal.
 
 ## 5. Takedown workflow
 
@@ -113,8 +116,8 @@ Two kinds: **copyright** notices and **illegal-content** notices (anything the o
 3. **Hold, then disable.** Place a hold on the affected rows (so evidence and the stored object survive) and make the content unavailable: unpublish a library or cinema item, set a message to `staff_removed`, block the stored object on the media/CDN path. Held and removed are different: removed content stays out of every user view; held content stays in the evidence store.
 4. **Notify the uploader or author.** System DM with the notice summary (not the notifier's personal data unless required), and the counter-notice path where the operator's policy has one.
 5. **Counter-notice and restore.** Staff can record a counter-notice, set a restore-after date if the operator's policy uses one, and restore content. Restore is a logged action.
-6. **Repeat-infringer tracking.** Each upheld takedown against an account is a strike event on the Person. An operator-configurable threshold (default off) opens a case for suspension review.
-7. **Closure and retention.** Notices, evidence and outcome are kept for a configurable period (default forever, since the Person record is permanent, D-124). The takedown register is exportable (CSV/JSON).
+6. **Repeat-infringer tracking.** Each upheld takedown against an account is a strike event on the Person. Default (MOD-4, owner's call, see section 14): staff-entered notices only, counter-notices recorded by staff, and `moderation.strike_review_threshold` = 3 upheld takedowns in 12 months opens a review case, never an automatic suspension. The threshold is operator-configurable.
+7. **Closure and retention.** Closed cases, evidence snapshots and takedown notices are kept forever, consistent with the permanent Person record (D-124, D-212). The takedown register is exportable (CSV/JSON). The register and the data-request queue need `MANAGE_TAKEDOWNS` (D-210).
 
 The platform never judges whether a notice is valid in law. It records, holds, removes on staff action, and keeps the trail.
 
@@ -128,7 +131,7 @@ Extends the self-service export (`docs/09` section 4) and the deletion request s
 | Rectification | Self-service profile and settings. Staff can correct Person-link errors with a logged reason |
 | Erasure | The user starts deletion (D-029); the account becomes "Deleted User" and messages follow the 30-day purge (D-121). The Person record, invite graph, invoices and staff-side moderation history are **retained** (D-124, doc 09). The user is told this up front. Held rows are retained while held |
 | Restriction / objection | Staff tool to hide an account's activity from discovery while a request is reviewed; no data is deleted |
-| Request log | Each request is a `data_requests` row (kind, requester, verified by, state, due date, outcome). The Admin queue shows due dates against the operator's configured deadline |
+| Request log | Each request is a `data_requests` row (kind, requester, verified by, state, due date, outcome). The Admin queue shows due dates against the operator's configured deadline: `compliance.data_request_deadline_days`, default 30 (MOD-6 default, the owner names the jurisdiction) |
 
 When a deletion request meets a hold, the held rows are kept, the request outcome says why, and the hold's case is flagged for a decision (release, or retain with a stated legal basis). Staff, not the system, decide.
 
@@ -139,7 +142,7 @@ Product behaviour already decided: a one-time 18+ confirmation stored on the acc
 Staff tooling to add:
 - **Mark and unmark** content as age-restricted (series, titles, channels) from a case or the item page, logged; the change applies on the next request.
 - **Misplaced NSFW**: a report category "adult content outside an age-restricted place". Actions: move or delete the message, mark the channel `nsfw`, warn the author.
-- **Underage handling.** For an account found to be under 18 (self-declared or reported), staff can reset the age confirmation, which re-prompts. Whether being underage is a ban reason is the operator's call (open question 5). Child-safety reports always escalate (section 3.4) and carry the `child_safety` reason category.
+- **Underage handling.** For an account found to be under 18 (self-declared or reported), staff can reset the age confirmation, which re-prompts. Default (MOD-5, owner's call, see section 14): a minimum registration age of 13 (`accounts.minimum_age`, self-declared, stated on the invite landing); an account found to be under 18 is reset-and-restricted, not banned; one found under 13 is suspended with `reason_category = other` and a note, and the inviter is told only that the invitee did not meet the entry rules. Child-safety reports always escalate (section 3.4) and carry the `child_safety` reason category.
 - **Previews**: unfurls and embeds from age-restricted channels are not shown in places that do not require the age gate.
 - **Dashboard metrics**: counts of age-restricted items, recent age-gate resets, open child-safety cases.
 
@@ -150,16 +153,16 @@ Staff tooling to add:
 | Value | Meaning | Typical severity |
 |---|---|---|
 | `spam` | Unsolicited bulk content, scams | standard |
-| `harassment` | Harassment, hate, threats | standard or serious |
+| `harassment` | Harassment, hate, threats | standard (staff can raise it) |
 | `illegal_content` | Content unlawful to host | serious |
 | `child_safety` | Sexual content involving minors, grooming | serious |
-| `ban_evasion` | Returning after a ban | standard or serious |
+| `ban_evasion` | Returning after a ban | standard (staff can raise it) |
 | `fraud` | Payment fraud, chargeback abuse, impersonation | serious |
 | `platform_abuse` | Attacks on the service, scraping, exploit abuse | serious |
 | `nsfw_policy` | Adult content outside allowed places | standard |
 | `other` | A note is required | standard |
 
-The severity staff choose is stored in `category`, which is what the invite graph reads, so changing the default mapping later never rewrites history. Adding a value is a forward-only migration.
+Serious by default (D-211): `illegal_content`, `child_safety`, `fraud`, `platform_abuse`. `harassment` and `ban_evasion` default to standard and the ban dialog lets staff raise them; `spam`, `nsfw_policy` and `other` default to standard. These are presets only. The severity staff choose is stored in `category`, which is what the invite graph reads, so changing the default mapping later never rewrites history. Adding a value is a forward-only migration.
 
 ## 9. Staff dashboards (Admin -> Moderation)
 
@@ -187,7 +190,7 @@ Builds on D-031 and doc 06 section 5.4, which already define the rule (a serious
 
 ## 11. Permissions
 
-No new bit is required to start: reports use existing guild bits and the platform bits `PLATFORM_BAN`, `MANAGE_ACCOUNTS`, `MANAGE_INVITES`, `DELETE_CONTENT`, `READ_PRIVATE_CONTENT` and `VIEW_ACCESS_LOG`. If the owner wants separate `MANAGE_CASES` and `MANAGE_TAKEDOWNS` bits they would be added to doc 07 as new platform bits (open question 2).
+Two platform bits are added (D-210, doc 07 section 3): `MANAGE_CASES` (bit 22: open, assign, act on and close cases; place and release holds) and `MANAGE_TAKEDOWNS` (bit 23: the takedown register and the data-request queue). Moderator gains `MANAGE_CASES`; Senior Staff gains both. Reports otherwise use existing guild bits and the platform bits `PLATFORM_BAN`, `MANAGE_ACCOUNTS`, `MANAGE_INVITES`, `DELETE_CONTENT`, `READ_PRIVATE_CONTENT` and `VIEW_ACCESS_LOG`.
 
 ## 12. Threat model additions (feed `docs/15`)
 
@@ -199,7 +202,7 @@ No new bit is required to start: reports use existing guild bits and the platfor
 
 ## 13. Delivery plan
 
-1. Cases, reports (guild-scoped), hold UI and release; turn `moderation.reports` on for a pilot guild.
+1. Cases, reports (guild-scoped), hold UI and release; turn `moderation.reports` on for a pilot guild. The web client reads the flag from `GET /sr/features/flags` (D-216), so it can be turned on per environment without a rebuild.
 2. Takedown register and library/cinema integration.
 3. Data-request queue.
 4. Dashboards and metrics.
@@ -207,16 +210,21 @@ No new bit is required to start: reports use existing guild bits and the platfor
 
 Each step ships behind its own flag and adds the retention-guard test for any purge it touches.
 
-## 14. Open owner questions
+## 14. Owner questions: answered, and still open
 
-1. Who triages reports in a server: moderators only, or platform staff too by default? Should reporter identity ever be visible to server moderators (section 3.3 proposes opt-in)?
-2. Dedicated `MANAGE_CASES` and `MANAGE_TAKEDOWNS` platform bits, or reuse existing bits (section 11)?
-3. Which `reason_category` values count as serious by default for D-031 (section 8 proposes `illegal_content`, `child_safety`, `fraud`, `platform_abuse`, with `harassment` and `ban_evasion` chosen by staff)? Is the list itself right?
-4. Copyright: a public takedown form and a formal counter-notice process, or staff-entered notices only (section 5 proposes staff-entered)? Repeat-infringer threshold?
-5. Underage accounts: is being under 18 a ban reason, or a reset-and-restrict action? Is there a minimum registration age at all?
-6. Data-subject deadlines and jurisdiction: which regime must the request queue track, and what deadline does it show? Is keeping the Person record after erasure (D-124) acceptable under it, and should the deletion copy say so?
-7. How long are closed cases, evidence snapshots and takedown notices kept (section 5 proposes forever, matching D-124)? Should holds expire or require periodic review?
-8. May server moderators place holds on their own server's messages, or only platform staff (section 4.3 proposes platform staff only)?
-9. May a platform reviewer see a reported DM message, given D-125 only covers staff reads with a reason? Proposed: yes, only the reported message and ten around it, snapshotted by the reporter's action.
-10. Are appeals wanted at launch, and who reviews them when staff are few?
-11. Should the web client get a flag-read endpoint now, so `moderation.reports` can be turned on per environment without a rebuild? Today the client reads a build-time seed.
+Answered 2026-10-15 (docs/open-question-answers.md, MOD-1 to MOD-11). Adopted, folded into the sections above:
+
+1. MOD-1, D-209: report routing and reporter visibility (sections 3.3 and 3.4).
+2. MOD-2, D-210: the `MANAGE_CASES` and `MANAGE_TAKEDOWNS` bits (section 11, doc 07 section 3).
+3. MOD-3, D-211: serious-by-default ban reasons (section 8).
+7. MOD-7, D-212: closed cases and evidence are kept forever; holds are flagged for review after `moderation.hold_review_days` (sections 4.3 and 5).
+8. MOD-8, D-213: holds are placed by platform staff only (section 4.3).
+9. MOD-9, D-214: reported DM messages are readable within the snapshot (section 3.4).
+10. MOD-10, D-215: minimal appeals at launch (section 4.6).
+11. MOD-11, D-216: `GET /sr/features/flags` for `client_visible` platform flags, replacing the build-time `VITE_FEATURE_MODERATION_REPORTS` seed (section 13).
+
+Still open, `NEEDS-OWNER` (legal), with the default that applies until the owner decides:
+
+4. MOD-4, copyright: staff-entered notices only; counter-notices recorded by staff; repeat-infringer review at 3 upheld takedowns in 12 months (`moderation.strike_review_threshold`), never automatic suspension (section 5).
+5. MOD-5, underage accounts: minimum age 13 by self-declaration (`accounts.minimum_age`); under 18 is reset-and-restrict; under 13 is a suspension (section 7).
+6. MOD-6, data-subject deadlines and jurisdiction: the queue shows a due date from `compliance.data_request_deadline_days` (default 30); the deletion screen and the data-export README say that the Person record, invite graph, invoices and staff-side moderation history are kept (D-124) and why (G-66). Whether that retention is lawful where the instance runs is the owner's call (section 6).

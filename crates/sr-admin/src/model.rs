@@ -109,6 +109,41 @@ impl BanCategory {
     }
 }
 
+/// Why the staff member bans (D-211). Each has a default [`BanCategory`] the ban dialog starts
+/// from; staff can raise or lower it before confirming, and the stored category is what the
+/// inviter suspicion rule reads (D-031).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BanReason {
+    IllegalContent,
+    ChildSafety,
+    Fraud,
+    PlatformAbuse,
+    Harassment,
+    BanEvasion,
+}
+
+impl BanReason {
+    pub const ALL: [Self; 6] = [
+        Self::IllegalContent,
+        Self::ChildSafety,
+        Self::Fraud,
+        Self::PlatformAbuse,
+        Self::Harassment,
+        Self::BanEvasion,
+    ];
+
+    /// Serious by default: illegal content, child safety, fraud and platform abuse (D-211).
+    pub const fn default_category(self) -> BanCategory {
+        match self {
+            Self::IllegalContent | Self::ChildSafety | Self::Fraud | Self::PlatformAbuse => {
+                BanCategory::Serious
+            }
+            Self::Harassment | Self::BanEvasion => BanCategory::Standard,
+        }
+    }
+}
+
 /// Why an access-log row exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -250,6 +285,20 @@ pub struct StaffMember {
     pub appointed_by: Option<i64>,
     pub appointed_at_ms: i64,
     pub reason: String,
+}
+
+/// A closed appointment (G-23): who stopped being staff and how it ended.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct FormerStaff {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub account_id: i64,
+    pub username: String,
+    /// `left`, `kicked` or `revoked`.
+    pub revoked_reason: String,
+    pub revoked_at_ms: i64,
+    /// The note staff gave when revoking (or the system text for leaving).
+    pub note: String,
 }
 
 /// The resolved platform standing of an account.

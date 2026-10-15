@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use async_trait::async_trait;
 
 use crate::error::{TvError, TvResult};
-use crate::model::{BlockRecord, BlockSource, ChannelInput, ChannelRecord};
+use crate::model::{BlockRecord, BlockSource, ChannelInput, ChannelRecord, ReminderRecord};
 use crate::schedule::Change;
 
 #[async_trait]
@@ -49,12 +49,21 @@ pub trait TvRepository: Send + Sync {
     -> TvResult<usize>;
     /// Record the HLS bases of a block unless it has them. Returns the stored pair.
     async fn set_bases(&self, id: i64, seq_base: i64, disc_base: i64) -> TvResult<(i64, i64)>;
+
+    /// Store a reminder; setting it again replaces the earlier one.
+    async fn put_reminder(&self, r: &ReminderRecord) -> TvResult<()>;
+    /// Remove a reminder. `false` when there was none.
+    async fn delete_reminder(&self, account_id: i64, block_id: i64) -> TvResult<bool>;
+    /// Remove and return up to `limit` reminders due at `now_ms`, oldest first. Each is handed out once
+    /// (concurrent callers never get the same row).
+    async fn take_due_reminders(&self, now_ms: i64, limit: i64) -> TvResult<Vec<ReminderRecord>>;
 }
 
 #[derive(Default)]
 struct State {
     channels: Vec<ChannelRecord>,
     blocks: Vec<BlockRecord>,
+    reminders: Vec<ReminderRecord>,
 }
 
 /// In-memory repository.
@@ -247,5 +256,35 @@ impl TvRepository for MemoryTvRepo {
         b.seq_base = Some(seq_base);
         b.disc_base = Some(disc_base);
         Ok((seq_base, disc_base))
+    }
+
+    async fn put_reminder(&self, r: &ReminderRecord) -> TvResult<()> {
+        let mut s = self.lock();
+        s.reminders
+            .retain(|x| !(x.account_id == r.account_id && x.block_id == r.block_id));
+        s.reminders.push(r.clone());
+        Ok(())
+    }
+
+    async fn delete_reminder(&self, account_id: i64, block_id: i64) -> TvResult<bool> {
+        let mut s = self.lock();
+        let before = s.reminders.len();
+        s.reminders
+            .retain(|x| !(x.account_id == account_id && x.block_id == block_id));
+        Ok(s.reminders.len() != before)
+    }
+
+    async fn take_due_reminders(&self, now_ms: i64, limit: i64) -> TvResult<Vec<ReminderRecord>> {
+        let mut s = self.lock();
+        let mut due: Vec<ReminderRecord> = s
+            .reminders
+            .iter()
+            .filter(|r| r.remind_at_ms <= now_ms)
+            .cloned()
+            .collect();
+        due.sort_by_key(|r| (r.remind_at_ms, r.account_id, r.block_id));
+        due.truncate(usize::try_from(limit).unwrap_or(0));
+        s.reminders.retain(|x| !due.contains(x));
+        Ok(due)
     }
 }

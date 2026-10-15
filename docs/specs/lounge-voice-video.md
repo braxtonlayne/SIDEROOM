@@ -145,7 +145,7 @@ Modeled on Discord's DAVE:
 coturn with ephemeral credentials from `GET /api/v1/sr/voice/turn` (HMAC, TTL 1h). ICE servers are delivered in `VOICE_SERVER_UPDATE`. TURN/TLS on 443 via Caddy layer-4 is optional for strict networks.
 
 ## 7. Soundboard
-Server sounds (≤ 5 s, ≤ 512 KB, MP3/OGG/WAV → Opus), default sounds, per-user volume, cooldown, "use sounds from other servers" (free, D-044). Sounds are played client-side and sent as an audio stream through the user's mic path into the E2EE pipeline.
+Server sounds (≤ 5 s, ≤ 512 KB, MP3/OGG/WAV, stored as uploaded and decoded by the browser, D-201), default sounds, per-user volume, cooldown, "use sounds from other servers" (free, D-044). Sounds are played client-side and sent as an audio stream through the user's mic path into the E2EE pipeline.
 
 **Implementation (VOX-SB-001).** Server side the sound is only a file and an announcement.
 - Guild sounds (48 per server for everyone): `GET|POST /guilds/{id}/soundboard-sounds`, `GET|PATCH|DELETE .../{sound_id}`, `GET .../{sound_id}/audio` (the file as uploaded, members only). Upload is a data URI (`name`, `sound`, `volume` 0 to 1, `emoji_id` or `emoji_name`); the server sniffs MP3, Ogg (Opus or Vorbis) or WAV, measures the length (at most 5 s) and refuses over 512 KiB. Needs Create or Manage Expressions; the uploader may change their own with Create. The "-> Opus" transcode is not done on the server (browsers decode all three with `decodeAudioData`). Changes are announced as `GUILD_SOUNDBOARD_SOUNDS_UPDATE {guild_id, soundboard_sounds}`; gateway op 31 `REQUEST_SOUNDBOARD_SOUNDS {guild_ids}` answers `SOUNDBOARD_SOUNDS` per guild.

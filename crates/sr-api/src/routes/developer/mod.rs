@@ -10,7 +10,7 @@
 //! Wiring, in the composition root:
 //!
 //! ```ignore
-//! let apps = AppsService::new(Arc::new(PgAppsRepo::new(pool)), clock, ids);
+//! let apps = AppsService::new(Arc::new(PgAppsRepo::new(pool, SecretBox::new(key))), clock, ids);
 //! let deps = DevDeps::new(apps, chat, bus, Arc::new(AuthPasswordConfirm::new(auth_service)), clock, public_url);
 //! let state = AppState::builder()
 //!     .bots(Arc::new(AppsAuth::new(apps.clone()))).bearers(Arc::new(AppsAuth::new(apps)))
@@ -25,14 +25,51 @@ mod endpoint;
 mod interactions;
 mod oauth;
 mod portal;
+mod testers;
 
 pub use endpoint::{EndpointClient, EndpointReply, MAX_ENDPOINT_REPLY};
+
+/// One button of a [`SystemCard`] (a Discord button component with a `custom_id`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemButton {
+    /// Discord button style (1 to 4).
+    pub style: u8,
+    /// Label.
+    pub label: String,
+    /// `sr:<action>:<id>`.
+    pub custom_id: String,
+}
+
+/// A direct message from the SIDE ROOM system user: text, one embed and a row of buttons.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SystemCard {
+    /// Message text.
+    pub content: String,
+    /// Embed title (empty = no embed).
+    pub title: String,
+    /// Embed description.
+    pub description: String,
+    /// Buttons, at most five.
+    pub buttons: Vec<SystemButton>,
+}
+
+/// Sends a [`SystemCard`] as a DM from the system user. The composition root wires the
+/// production sender (the Staff Server's voice); without one DMs are skipped.
+#[async_trait]
+pub trait SystemDm: Send + Sync {
+    /// `true` when the DM was delivered.
+    async fn dm(&self, to: i64, card: SystemCard) -> bool;
+}
 pub(crate) use interactions::try_followup;
 
+#[cfg(test)]
+mod endpoint_health_tests;
 #[cfg(test)]
 mod endpoint_tests;
 #[cfg(test)]
 mod flow_tests;
+#[cfg(test)]
+mod tester_tests;
 #[cfg(test)]
 mod tests;
 
@@ -110,6 +147,7 @@ pub struct DevDeps {
     public_url: String,
     ack_window: std::time::Duration,
     endpoint: Option<Arc<dyn EndpointClient>>,
+    system_dm: std::sync::OnceLock<Arc<dyn SystemDm>>,
 }
 
 impl DevDeps {
@@ -132,6 +170,7 @@ impl DevDeps {
             public_url: public_url.trim_end_matches('/').to_owned(),
             ack_window: std::time::Duration::from_millis(3_100),
             endpoint: None,
+            system_dm: std::sync::OnceLock::new(),
         }
     }
 
@@ -148,6 +187,23 @@ impl DevDeps {
     pub fn with_endpoint_client(mut self, c: Arc<dyn EndpointClient>) -> Self {
         self.endpoint = Some(c);
         self
+    }
+
+    /// Wire the sender of system DMs (tester invitations, endpoint warnings). Set once, after
+    /// construction, because the sender needs services built later in the composition root.
+    pub fn set_system_dm(&self, dm: Arc<dyn SystemDm>) {
+        let _ = self.system_dm.set(dm);
+    }
+
+    /// DM `to` from the system user; a missing sender or a refused DM is only logged.
+    pub(crate) async fn dm_user(&self, to: i64, card: SystemCard) {
+        let Some(dm) = self.system_dm.get() else {
+            tracing::debug!("no system DM sender wired; developer platform DM skipped");
+            return;
+        };
+        if !dm.dm(to, card).await {
+            tracing::warn!(to, "developer platform DM was not delivered");
+        }
     }
 
     pub(crate) fn ack_window(&self) -> std::time::Duration {
@@ -306,6 +362,7 @@ pub(crate) fn app_err(e: AppsError) -> MsgError {
         AppsError::Conflict(m) => ApiError::with_message(C::SrConflict, m),
         AppsError::NotReleased => ApiError::new(C::SrAppNotReleased),
         AppsError::Suspended => ApiError::new(C::SrAppSuspended),
+        AppsError::TesterRecentlyDeclined => ApiError::new(C::SrTesterRecentlyDeclined),
         AppsError::UnknownInteraction => ApiError::new(C::UnknownInteraction),
         AppsError::AlreadyAcknowledged => ApiError::new(C::InteractionAlreadyAcknowledged),
         AppsError::InvalidToken => ApiError::new(C::InvalidWebhookToken),
@@ -392,6 +449,22 @@ pub fn router() -> Router<AppState> {
         .route(
             "/applications/{application_id}/interactions-key",
             post(portal::ensure_interactions_key),
+        )
+        .route(
+            "/applications/{application_id}/endpoint/verify",
+            post(portal::verify_endpoint),
+        )
+        .route(
+            "/applications/{application_id}/testers",
+            get(testers::list).post(testers::invite),
+        )
+        .route(
+            "/applications/{application_id}/testers/{account_id}",
+            delete(testers::remove),
+        )
+        .route(
+            "/developers/tester-invites/{invite_id}/respond",
+            post(testers::respond),
         )
         .route(
             "/applications/{application_id}/reset-secret",
@@ -489,7 +562,8 @@ pub fn router() -> Router<AppState> {
         portal::apply, portal::status, portal::admin_requests, portal::admin_decide_request,
         portal::admin_versions, portal::admin_decide_version, portal::admin_suspend,
         portal::admin_unsuspend, portal::list_apps, portal::create_app, portal::get_app,
-        portal::patch_app, portal::ensure_interactions_key, portal::delete_app, portal::patch_bot, portal::reset_secret,
+        portal::patch_app, portal::ensure_interactions_key, portal::verify_endpoint,
+        testers::list, testers::invite, testers::remove, testers::respond, portal::delete_app, portal::patch_bot, portal::reset_secret,
         portal::reset_token, portal::audit_log, portal::installs, portal::list_versions,
         portal::submit_version, portal::withdraw_version,
         oauth::authorize_info, oauth::authorize, oauth::token, oauth::revoke, oauth::introspect,
@@ -507,7 +581,8 @@ pub fn router() -> Router<AppState> {
         ErrorBody, ApplyBody, DeveloperRequestObject, DeveloperRequestAdmin, DeveloperStatus,
         DecideRequestBody, ApplicationObject, BotUserObject, OwnerObject, IntentsObject,
         InstallParamsObject, CreatedApplication, CreateApplicationBody, PatchApplicationBody,
-        PatchBotBody, InteractionsKeyObject, PasswordBody, ResetSecretResult, ResetTokenResult, AuditEntryObject,
+        PatchBotBody, InteractionsKeyObject, TesterObject, TesterBody, TesterRespondBody,
+        TesterRespondResult, EndpointStatusObject, PasswordBody, ResetSecretResult, ResetTokenResult, AuditEntryObject,
         InstallObject, SubmitVersionBody, AppVersionObject, AppVersionAdmin,
         DecideVersionBody, SuspendBody, AuthorizeInfo, AuthorizeBody, AuthorizeResult,
         ScopeObject, GuildChoice, AuthorizedApp, OAuthMe, TokenResponseBody, TokenRequestBody,

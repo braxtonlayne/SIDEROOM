@@ -6,6 +6,8 @@ use sr_core::{GuildId, UserId};
 
 use super::error::{SettingsError, SettingsResult};
 
+/// The SIDE ROOM system user (accounts.id 1), the actor of built-in module writes.
+pub const SYSTEM_USER_ID: u64 = 1;
 pub const MAX_REASON_CHARS: usize = 512;
 pub const DEFAULT_PAGE: usize = 50;
 pub const MAX_PAGE: usize = 100;
@@ -106,6 +108,7 @@ audit_actions! {
     OnboardingPromptDelete = 165,
     OnboardingCreate = 166,
     OnboardingUpdate = 167,
+    ApplicationDecision = 200,
 }
 
 /// One changed key, Discord shape: `{key, old_value, new_value}`.

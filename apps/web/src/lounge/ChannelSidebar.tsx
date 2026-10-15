@@ -33,9 +33,11 @@ import {
 import { useLoungeRoute } from './nav';
 import { NestedThreads } from './threads/NestedThreads';
 import { useGuildMenuCore } from './shell/useGuildMenu';
+import { hasMemberModule, useGuildModules } from './features/useModules';
 import { useChannelDnd, type ChannelDropMark } from './shell/useChannelDnd';
 import { useChannelMenu } from './shell/useChannelMenu';
 import { useLoungeUi } from './store';
+import { useGuildEvents } from './events/useEvents';
 
 export const CHANNEL_ICON: Record<Channel['type'], IconName> = {
   text: 'hash',
@@ -349,6 +351,8 @@ function CategoryHead({
 function GuildHeader({ guild }: { guild: Guild }) {
   const t = useT();
   const core = useGuildMenuCore(guild);
+  const modules = useGuildModules(guild.id);
+  const openDialog = useLoungeUi((s) => s.openDialog);
   const [coming, setComing] = useState<string | null>(null);
   const soon = (title: string) => () => setComing(title);
   const p = guild.permissions;
@@ -367,20 +371,27 @@ function GuildHeader({ guild }: { guild: Guild }) {
       : []),
     ...(guild.isStaff ? [core.platformAdmin] : []),
     ...((p.serverSettings ?? p.manageGuild) ? [core.settings] : []),
-    ...(p.manageChannels
+    ...(p.manageChannels ? [core.createChannel, core.createCategory] : []),
+    ...(p.createEvents || p.manageEvents || p.manageGuild
       ? [
-          core.createChannel,
-          core.createCategory,
           {
             label: t('lounge.channelSidebar.createEvent'),
-            onSelect: soon(t('lounge.channelSidebar.createEvent')),
-          },
+            onSelect: () => openDialog({ kind: 'createEvent', guildId: guild.id }),
+          } as MenuEntry,
         ]
       : []),
     {
       label: t('lounge.channelSidebar.appDirectory'),
       onSelect: soon(t('lounge.channelSidebar.appDirectory')),
     },
+    ...(hasMemberModule(modules)
+      ? [
+          {
+            label: t('lounge.guildMenu.community'),
+            onSelect: () => openDialog({ kind: 'community', guildId: guild.id }),
+          } as MenuEntry,
+        ]
+      : []),
     core.notifications,
     core.privacy,
     {
@@ -393,7 +404,7 @@ function GuildHeader({ guild }: { guild: Guild }) {
       type: 'submenu',
       label: t('lounge.channelSidebar.copyServerInfo'),
       items: [
-        core.copyId,
+        ...(core.copyId ? [core.copyId] : []),
         {
           label: t('lounge.channelSidebar.copyServerLink'),
           onSelect: () =>
@@ -430,6 +441,26 @@ function GuildHeader({ guild }: { guild: Guild }) {
   );
 }
 
+/** The Events row at the top of the channel list (LNG-CHN-011): how many are on or coming, opens the list. */
+function EventsRow({ guildId }: { guildId: string }) {
+  const t = useT();
+  const openDialog = useLoungeUi((s) => s.openDialog);
+  const { events } = useGuildEvents(guildId);
+  if (!events || events.length === 0) return null;
+  return (
+    <button
+      type="button"
+      className="lng-events-row"
+      aria-label={t('lounge.channelSidebar.eventsRow', { count: events.length })}
+      onClick={() => openDialog({ kind: 'events', guildId })}
+    >
+      <Icon name="calendar" size={20} />
+      <span>{t('lounge.channelSidebar.eventsLabel')}</span>
+      <span className="lng-events-row-count">{events.length}</span>
+    </button>
+  );
+}
+
 export function ChannelSidebar({ guildId }: { guildId: string }) {
   const t = useT();
   const guild = useGuild(guildId);
@@ -444,6 +475,7 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
   return (
     <div className="lng-sidebar" data-testid="channel-sidebar">
       <GuildHeader guild={guild} />
+      <EventsRow guildId={guild.id} />
       {error && (
         <Notice variant="danger" onDismiss={() => setError(null)}>
           {error}

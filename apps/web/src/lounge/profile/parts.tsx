@@ -2,6 +2,7 @@
 import { Avatar, Button, DropdownMenu, Icon, Tooltip, type MenuEntry } from '@sideroom/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { apiFetch } from '../../api/client';
+import { useDeveloperMode } from '../../settings/user/prefs';
 import { useT } from '../../i18n';
 import type { Activity } from '../data';
 import { acceptFriend } from '../shell/api';
@@ -188,6 +189,7 @@ export function ProfileMoreMenu({
   isSelf: boolean;
 }) {
   const t = useT();
+  const developerMode = useDeveloperMode();
   const entries = useUserMenuEntries(isSelf ? undefined : { id: userId, name });
   const copy = (text: string) => void navigator.clipboard?.writeText(text);
   const items: MenuEntry[] = [
@@ -196,8 +198,12 @@ export function ProfileMoreMenu({
     ...(entries.note ? [entries.note] : []),
     ...(entries.relationship.length ? [{ type: 'separator' } as MenuEntry] : []),
     ...entries.relationship,
-    { type: 'separator' },
-    { label: t('lounge.profileActions.copyUserId'), onSelect: () => copy(userId) },
+    ...(developerMode
+      ? [
+          { type: 'separator' } as MenuEntry,
+          { label: t('lounge.profileActions.copyUserId'), onSelect: () => copy(userId) },
+        ]
+      : []),
   ];
   return (
     <DropdownMenu

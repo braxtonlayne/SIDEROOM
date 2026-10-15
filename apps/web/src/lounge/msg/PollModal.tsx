@@ -2,6 +2,7 @@ import { Button, Modal } from '@sideroom/ui';
 import { useState } from 'react';
 import { t, useT } from '../../i18n';
 import type { NewPoll } from '../data';
+import { PollTemplates } from './PollTemplates';
 
 export const POLL_MAX_ANSWERS = 10;
 export const POLL_MIN_ANSWERS = 2;
@@ -30,10 +31,13 @@ export function PollModal({
   open,
   onClose,
   onCreate,
+  guildId,
 }: {
   open: boolean;
   onClose: () => void;
   onCreate: (poll: NewPoll) => void;
+  /** In a server, the poll templates it saved are offered (FTR-POLLT-001). */
+  guildId?: string | undefined;
 }) {
   const t = useT();
   const [question, setQuestion] = useState('');
@@ -102,6 +106,23 @@ export function PollModal({
           e.preventDefault();
         }}
       >
+        {guildId && (
+          <PollTemplates
+            guildId={guildId}
+            current={{
+              question,
+              answers: answers.map((a) => a.text),
+              hours,
+              multi,
+            }}
+            onPick={(f) => {
+              setQuestion(f.question);
+              setAnswers(f.answers.map((text) => ({ text, emoji: '' })));
+              setHours(f.hours);
+              setMulti(f.multi);
+            }}
+          />
+        )}
         <label className="lng-field">
           <span>{t('lounge.pollModal.question')}</span>
           <input
@@ -159,6 +180,9 @@ export function PollModal({
         <label className="lng-field">
           <span>{t('lounge.pollModal.duration')}</span>
           <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
+            {!DURATIONS.some((d) => d.hours === hours) && (
+              <option value={hours}>{t('lounge.pollModal.durationCustom', { n: hours })}</option>
+            )}
             {DURATIONS.map((d) => (
               <option key={d.hours} value={d.hours}>
                 {t(d.labelKey)}

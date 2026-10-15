@@ -30,6 +30,9 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
   { name: 'thread', description: 'Start a thread in this channel', arg: 'name', needs: 'channel' },
   { name: 'msg', description: 'Send someone a direct message', arg: '@user message' },
   { name: 'remind', description: 'Remind yourself later (for example 1h30m)', arg: 'time message' },
+  { name: 'rank', description: 'Show your level and the leaderboard', needs: 'guild' },
+  { name: 'suggest', description: 'Post a suggestion to this server', needs: 'guild' },
+  { name: 'ticket', description: 'Open a ticket with the staff', needs: 'guild' },
 ];
 
 const SHRUG = '¯\\_(ツ)_/¯';
@@ -54,7 +57,8 @@ export type SlashResult =
   | { kind: 'nick'; nick: string | null }
   | { kind: 'thread'; name: string }
   | { kind: 'msg'; userId: string; content: string }
-  | { kind: 'remind'; ms: number; text: string };
+  | { kind: 'remind'; ms: number; text: string }
+  | { kind: 'community'; tab: 'rank' | 'suggestions' | 'tickets' };
 
 const UNITS: Record<string, number> = {
   s: 1000,
@@ -167,6 +171,14 @@ export function runSlash(
         return { kind: 'error', message: 'Reminders can be 5 seconds to a year away.' };
       return { kind: 'remind', ms: d.ms, text: d.rest || 'Reminder' };
     }
+    case 'rank':
+    case 'suggest':
+    case 'ticket':
+      if (!ctx.guild) return { kind: 'error', message: `/${name} only works in a server.` };
+      return {
+        kind: 'community',
+        tab: name === 'rank' ? 'rank' : name === 'suggest' ? 'suggestions' : 'tickets',
+      };
     default:
       return { kind: 'none' };
   }

@@ -1,6 +1,7 @@
 import type { MenuEntry } from '@sideroom/ui';
 import { useStore } from '../../store';
 import { useLoungeActions, type Channel, type Guild } from '../data';
+import { useDeveloperMode } from '../../settings/user/prefs';
 import { useLoungeUi } from '../store';
 import { applyChannelMoves } from './channelActions';
 import { canStep, planStep } from './channelMoves';
@@ -18,6 +19,15 @@ const TYPE_NUM: Record<Channel['type'], number> = {
   rules: 0,
 };
 
+/** Channel kinds a slowmode preset can be applied to. */
+const SLOWMODE_KINDS = new Set<Channel['type']>([
+  'text',
+  'announcement',
+  'forum',
+  'media',
+  'voice',
+]);
+
 /** Context-menu entries for a channel or category (LNG-CHN-013, LNG-CHN-014). */
 export function useChannelMenu(
   channel: Channel,
@@ -25,6 +35,7 @@ export function useChannelMenu(
   channels: Channel[],
   onError: (message: string) => void,
 ): MenuEntry[] {
+  const developerMode = useDeveloperMode();
   const reportEntry = useReportEntry();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const toggleCategory = useLoungeUi((s) => s.toggleCategory);
@@ -129,11 +140,15 @@ export function useChannelMenu(
       moveUp,
       moveDown,
       remove,
-      { type: 'separator' },
-      {
-        label: 'Copy Category ID',
-        onSelect: () => void navigator.clipboard?.writeText(channel.id),
-      },
+      ...(developerMode
+        ? [
+            { type: 'separator' } as MenuEntry,
+            {
+              label: 'Copy Category ID',
+              onSelect: () => void navigator.clipboard?.writeText(channel.id),
+            },
+          ]
+        : []),
     ];
   }
 
@@ -184,11 +199,28 @@ export function useChannelMenu(
           ...(channel.parentId ? { parentId: channel.parentId } : {}),
         }),
     },
+    // Slowmode presets applied on demand (G-74): for channels that take messages, with Manage Channels.
+    ...(manage && SLOWMODE_KINDS.has(channel.type)
+      ? [
+          {
+            label: 'Apply Slowmode Preset',
+            onSelect: () =>
+              openDialog({ kind: 'slowmode', guildId: guild.id, channelId: channel.id }),
+          } as MenuEntry,
+        ]
+      : []),
     moveUp,
     moveDown,
     remove,
     ...entryList(reportEntry({ kind: 'channel', id: channel.id })),
-    { type: 'separator' },
-    { label: 'Copy Channel ID', onSelect: () => void navigator.clipboard?.writeText(channel.id) },
+    ...(developerMode
+      ? [
+          { type: 'separator' } as MenuEntry,
+          {
+            label: 'Copy Channel ID',
+            onSelect: () => void navigator.clipboard?.writeText(channel.id),
+          },
+        ]
+      : []),
   ];
 }

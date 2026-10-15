@@ -40,12 +40,17 @@ use utoipa::OpenApi;
 
 /// Leaderboard pages by `(board, window)`: the time they were built and the ranked items.
 pub(crate) type BoardCache = moka::future::Cache<(String, String), Arc<(i64, Vec<dto::BoardItem>)>>;
+/// Contributor boards by kind.
+pub(crate) type ContributorCache =
+    moka::future::Cache<String, Arc<(i64, Vec<dto::ContributorItem>)>>;
 
 /// Collaborators of the donation endpoints.
 pub struct DonationsDeps {
     pub service: Arc<PaymentService>,
     /// Leaderboard pages, cached hourly (DON-LB-001).
     pub(crate) boards: BoardCache,
+    /// Contributor board pages, cached hourly (DON-LB-001).
+    pub(crate) contributors: ContributorCache,
 }
 
 impl DonationsDeps {
@@ -56,6 +61,10 @@ impl DonationsDeps {
                 .max_capacity(16)
                 .time_to_live(Duration::from_secs(3600))
                 .build(),
+            contributors: moka::future::Cache::builder()
+                .max_capacity(8)
+                .time_to_live(Duration::from_secs(3600))
+                .build(),
         }
     }
 
@@ -63,6 +72,10 @@ impl DonationsDeps {
     pub fn with_board_ttl(mut self, ttl: Duration) -> Self {
         self.boards = moka::future::Cache::builder()
             .max_capacity(16)
+            .time_to_live(ttl)
+            .build();
+        self.contributors = moka::future::Cache::builder()
+            .max_capacity(8)
             .time_to_live(ttl)
             .build();
         self
@@ -309,6 +322,10 @@ pub fn router() -> Router<AppState> {
             get(member::guild_support).patch(member::patch_guild_support),
         )
         .route("/donations/leaderboards/{board}", get(member::leaderboard))
+        .route(
+            "/donations/leaderboards/contributors/{kind}",
+            get(member::contributor_leaderboard),
+        )
         // Staff.
         .route("/admin/donations/status", get(admin::status))
         .route("/admin/donations/wallet", put(admin::set_wallet))
@@ -358,6 +375,7 @@ pub fn router() -> Router<AppState> {
         member::guild_support,
         member::patch_guild_support,
         member::leaderboard,
+        member::contributor_leaderboard,
         admin::status,
         admin::set_wallet,
         admin::test_wallet,
@@ -394,6 +412,9 @@ pub fn router() -> Router<AppState> {
         dto::GuildSupportPatch,
         dto::BoardView,
         dto::BoardItem,
+        dto::ContributorBoardView,
+        dto::ContributorItem,
+        dto::ContributorRank,
         dto::MyRank,
         dto::StatusView,
         dto::WalletStatus,

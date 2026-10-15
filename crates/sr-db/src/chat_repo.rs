@@ -41,6 +41,18 @@ pub(crate) fn db(e: sqlx::Error) -> RepoError {
     RepoError(e.to_string())
 }
 
+/// The per-server profile extras of a `guild_members` row (G-52).
+pub(crate) fn extras_from(r: &PgRow) -> Result<Box<sr_chat::domain::MemberExtras>, sqlx::Error> {
+    let primary: Option<i32> = r.try_get("theme_primary")?;
+    let accent: Option<i32> = r.try_get("theme_accent")?;
+    Ok(Box::new(sr_chat::domain::MemberExtras {
+        pronouns: r.try_get("pronouns")?,
+        theme_colors: primary.zip(accent).map(|(p, a)| [p as u32, a as u32]),
+        profile_effect: r.try_get("profile_effect")?,
+        avatar_decoration: r.try_get("avatar_decoration")?,
+    }))
+}
+
 fn bad(what: &str) -> RepoError {
     RepoError(format!("unexpected value in column {what}"))
 }
@@ -73,7 +85,10 @@ fn vis_parse(s: &str) -> RepoResult<Visibility> {
 pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key, splash_key, \
     owner_id, is_staff_guild, system_channel_id, verification_level, default_message_notifications, \
     explicit_content_filter, preferred_locale, afk_channel_id, afk_timeout, \
-    vanity_code::text AS vanity_code";
+    vanity_code::text AS vanity_code, mfa_level, system_channel_flags, widget_enabled, \
+    widget_channel_id, rules_channel_id, public_updates_channel_id, \
+    (SELECT gc.safety_alerts_channel_id FROM guild_community gc WHERE gc.guild_id = guilds.id) \
+    AS safety_alerts_channel_id";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
     Ok(Guild {
@@ -101,6 +116,22 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
             .unwrap_or(0),
         preferred_locale: r.try_get("preferred_locale")?,
         vanity_code: r.try_get("vanity_code")?,
+        mfa_level: u8::try_from(r.try_get::<i16, _>("mfa_level")?).unwrap_or(0),
+        system_channel_flags: u32::try_from(r.try_get::<i32, _>("system_channel_flags")?)
+            .unwrap_or(0),
+        widget_enabled: r.try_get("widget_enabled")?,
+        widget_channel_id: r
+            .try_get::<Option<i64>, _>("widget_channel_id")?
+            .map(|v| ChannelId::new(u(v))),
+        rules_channel_id: r
+            .try_get::<Option<i64>, _>("rules_channel_id")?
+            .map(|v| ChannelId::new(u(v))),
+        public_updates_channel_id: r
+            .try_get::<Option<i64>, _>("public_updates_channel_id")?
+            .map(|v| ChannelId::new(u(v))),
+        safety_alerts_channel_id: r
+            .try_get::<Option<i64>, _>("safety_alerts_channel_id")?
+            .map(|v| ChannelId::new(u(v))),
     })
 }
 
@@ -467,11 +498,14 @@ impl GuildRepository for PgChatRepo {
     }
 
     async fn count_members(&self, guild: GuildId) -> RepoResult<u64> {
-        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM guild_members WHERE guild_id = $1")
-            .bind(i(guild.get()))
-            .fetch_one(&self.pool)
-            .await
-            .map_err(db)?;
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT count(*) FROM guild_members gm WHERE gm.guild_id = $1 AND {}",
+            crate::accounts::NOT_SYSTEM_MEMBER
+        )))
+        .bind(i(guild.get()))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)?;
         Ok(u64::try_from(n).unwrap_or(0))
     }
 
@@ -482,12 +516,15 @@ impl GuildRepository for PgChatRepo {
         limit: usize,
     ) -> RepoResult<Vec<Member>> {
         let rows = sqlx::query(
-            "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, \
+            "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
+    gm.profile_effect, gm.avatar_decoration, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
                        WHERE mr.guild_id = gm.guild_id AND mr.user_id = gm.user_id), '{}') AS role_ids \
              FROM guild_members gm WHERE gm.guild_id = $1 AND gm.user_id > $2 \
+             AND NOT EXISTS (SELECT 1 FROM accounts sys WHERE sys.id = gm.user_id \
+                             AND (sys.flags & 1) <> 0) \
              ORDER BY gm.user_id LIMIT $3",
         )
         .bind(i(guild.get()))
@@ -514,6 +551,7 @@ impl GuildRepository for PgChatRepo {
                     avatar_key: r.try_get("avatar_key").map_err(db)?,
                     banner_key: r.try_get("banner_key").map_err(db)?,
                     bio: r.try_get("bio").map_err(db)?,
+                    extras: crate::chat_repo::extras_from(r).map_err(db)?,
                 })
             })
             .collect()
@@ -521,7 +559,8 @@ impl GuildRepository for PgChatRepo {
 
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>> {
         let row = sqlx::query(
-            "SELECT gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, \
+            "SELECT gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
+    gm.profile_effect, gm.avatar_decoration, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -550,6 +589,7 @@ impl GuildRepository for PgChatRepo {
             avatar_key: r.try_get("avatar_key").map_err(db)?,
             banner_key: r.try_get("banner_key").map_err(db)?,
             bio: r.try_get("bio").map_err(db)?,
+            extras: crate::chat_repo::extras_from(&r).map_err(db)?,
         }))
     }
 

@@ -807,3 +807,60 @@ async fn the_openapi_document_lists_the_tv_paths() {
         assert!(paths.contains_key(p), "missing {p}");
     }
 }
+
+#[tokio::test]
+async fn reminders_are_set_and_cleared_by_a_session() {
+    let e = env().await;
+    let id = create(&e, channel_body(101)).await;
+    let (_, g) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            &format!("/tv/channels/{id}/now"),
+            None,
+        )
+        .await;
+    let next = g["next"]["id"].as_str().unwrap().to_owned();
+    let path = format!("/tv/reminders/{next}");
+    let (s, _) = e.call(None, Method::PUT, &path, None).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let (s, b) = e.call(Some(MEMBER), Method::PUT, &path, None).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{b}");
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            &format!("{path}?lead_minutes=15"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            &format!("{path}?lead_minutes=999"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e
+        .call(Some(MEMBER), Method::PUT, "/tv/reminders/999999", None)
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // The programme on now cannot be reminded about.
+    let now_id = g["current"]["id"].as_str().unwrap();
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            &format!("/tv/reminders/{now_id}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e.call(Some(MEMBER), Method::DELETE, &path, None).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (s, _) = e.call(Some(MEMBER), Method::DELETE, &path, None).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "clearing twice is fine");
+}

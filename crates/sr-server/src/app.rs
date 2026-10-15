@@ -199,8 +199,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| anyhow::anyhow!("server.secret_key_previous: {e}"))?;
     let master_key = secret_key(cfg.server.secret_key.expose())?;
-    let auth_repo =
-        PgAuthRepo::new(pool.clone(), id_src.clone(), master_key).with_previous_keys(previous_keys);
+    let auth_repo = PgAuthRepo::new(pool.clone(), id_src.clone(), master_key)
+        .with_previous_keys(previous_keys.clone());
 
     // The wrapper lets the search indexer notice when it lagged behind the bus.
     let lag_bus = Arc::new(crate::lag_bus::LagTapBus::new(
@@ -253,8 +253,30 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // The developer platform: applications, bot tokens, OAuth2, commands, interactions. Bot
     // and bearer credentials authenticate against its stores (open question 56).
+    let apps_repo = Arc::new(sr_db::apps_repo::PgAppsRepo::new(
+        pool.clone(),
+        sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys),
+    ));
+    // Job apps.seal_seeds (D-185): encrypt interactions signing seeds still stored in the
+    // plaintext column of migration 0710. Refuses to run without a configured secret: an
+    // ephemeral key would make the sealed seeds unreadable after the next restart.
+    let legacy_seeds = apps_repo
+        .legacy_seed_count()
+        .await
+        .map_err(|e| anyhow::anyhow!("apps.seal_seeds: {e}"))?;
+    if legacy_seeds > 0 {
+        anyhow::ensure!(
+            !cfg.server.secret_key.expose().is_empty(),
+            "apps.seal_seeds: {legacy_seeds} interactions signing seeds need sealing; set server.secret_key first"
+        );
+        let sealed = apps_repo
+            .seal_legacy_seeds()
+            .await
+            .map_err(|e| anyhow::anyhow!("apps.seal_seeds: {e}"))?;
+        tracing::info!(sealed, "apps.seal_seeds: interactions signing seeds sealed");
+    }
     let apps_service = Arc::new(sr_apps::AppsService::new(
-        Arc::new(sr_db::apps_repo::PgAppsRepo::new(pool.clone())),
+        apps_repo,
         clock.clone(),
         id_src.clone(),
     ));
@@ -484,6 +506,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )))
         .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone())),
     );
+    let events_deps = settings_deps.clone();
     let search_dir = search_dir(&cfg.search.dir, std::env::var("SR_SEARCH_DIR").ok());
     let message_index = Arc::new(
         MessageIndex::open_in_dir(std::path::Path::new(&search_dir))
@@ -604,7 +627,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         routes::tv::TvDeps::new(
             sr_tv::TvService::new(
                 Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
-                Arc::new(crate::tv_catalog::RepoTvCatalog::new(cinema_repo)),
+                Arc::new(
+                    crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(
+                        Arc::new(crate::tv_catalog::PgAssetDurations::new(pool.clone())),
+                    ),
+                ),
                 clock.clone(),
                 id_src.clone(),
             )
@@ -615,6 +642,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
+    let tv_deps_for_reminders = tv_deps.clone();
 
     // Cinema media (CIN-ING-004/010, CIN-DL-001): the Postgres job store behind the Worker API
     // (`/api/v1/transcode/worker`, bearer worker tokens), the staff upload and transcoding admin,
@@ -715,12 +743,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // gateway events on the bus. The timer worker settles buffering waits; the sweep job covers the rest.
     let watchparty_service =
         sr_watchparty::PartyService::new(pool.clone(), clock.clone(), id_src.clone())
-            .with_play_gate(Arc::new(crate::watchparty::CinemaPlayGate::new(
-                cinema_service.clone(),
+            .with_play_gate(Arc::new(crate::watchparty::CatalogAndLiveGate::new(
+                Arc::new(crate::watchparty::CinemaPlayGate::new(
+                    cinema_service.clone(),
+                )),
+                tv_deps.service.clone(),
             )))
             .with_channels(Arc::new(crate::watchparty::ChatChannelAccess::new(
                 PgChatRepo::new(pool.clone()),
                 clock.clone(),
+            )))
+            .with_limits(Arc::new(crate::watchparty::EntitlementLimits::new(
+                payments.entitlements.clone(),
             )))
             .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())))
             .with_chat(Arc::new(crate::userfeat::PartyAnnouncer {
@@ -757,7 +791,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 clock.clone(),
                 id_src.clone(),
             )
-            .with_events(Arc::new(routes::review::BusReviewEvents::new(bus.clone()))),
+            .with_events(Arc::new(routes::review::BusReviewEvents::new(bus.clone())))
+            .with_allowance(Arc::new(crate::review_jobs::PlatformAllowance::new(
+                pool.clone(),
+            ))),
         )
         .with_library(sr_library::submissions::LibraryDraftOps::new(
             library_service.clone(),
@@ -814,6 +851,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     gateway.start();
     gateway_presence.attach(gateway.clone());
     temporary_members.attach(gateway.clone());
+    temporary_members.schedule_startup_sweep(pool.clone());
 
     // Social endpoints (relationships, DMs, acks, notification settings, profiles):
     // their own service on its own snowflake worker (process id + 3).
@@ -917,6 +955,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 sr_net::Policy::default(),
             )),
             pool: pool.clone(),
+            activity: Some(Arc::new(gateway.clone())),
         }),
     );
     call_recorder.bind(messages.clone());
@@ -933,6 +972,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     if feature_poster.set(system_poster.clone()).is_err() {
         tracing::warn!("the feature poster was already set");
     }
+    let system_poster_for_tv = system_poster.clone();
     let feed_policy = unfurl_policy_for_feeds.clone();
     let ticker = Arc::new(sr_userfeat::tick::Ticker::new(
         user_features.clone(),
@@ -959,6 +999,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         messages.clone(),
         &cfg.server.public_url,
     ));
+    // Tester invitations and endpoint warnings reach developers as system DMs.
+    dev_deps.set_system_dm(staff_voice.clone());
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
         .with_extras(admin_repo)
         .with_notifier(staff_voice.clone())
@@ -976,13 +1018,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         bus: bus.clone(),
         settings: features.clone(),
         clock: clock.clone(),
-        actions: Arc::new(crate::feature_actions::PgFeatureActions::new(
-            pool.clone(),
-            messages.clone(),
-            threads_deps.clone(),
-            guilds.0.clone(),
-            &cfg.server.public_url,
-        )),
+        actions: Arc::new(
+            crate::feature_actions::PgFeatureActions::new(
+                pool.clone(),
+                messages.clone(),
+                threads_deps.clone(),
+                guilds.0.clone(),
+                &cfg.server.public_url,
+            )
+            .with_voice(Arc::new(crate::feature_actions::GatewayVoice(
+                gateway.clone(),
+            ))),
+        ),
         state: Arc::new(crate::features_store::PgFeatureState::new(pool.clone())),
     };
     let feature_runtime = sr_features::FeatureRuntime::new(feature_ctx.clone());
@@ -994,13 +1041,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         std::env::var("SR_ADMIN_REQUIRE_REAUTH").as_deref(),
         Ok("0" | "false" | "off")
     );
-    let admin = routes::admin::AdminDeps::new(admin_service)
+    let mut admin = routes::admin::AdminDeps::new(admin_service)
         .with_features(features.clone())
         .with_reauth(require_reauth)
         .with_gateway_sessions({
             let gw = gateway.clone();
             Arc::new(move || gw.session_count())
         });
+    if let Some(v) = &voice_setup {
+        let live = v.sfu.live_stats();
+        admin = admin.with_voice_stats(Arc::new(move || (live.rooms(), live.egress_bytes())));
+    }
 
     let settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,
@@ -1042,9 +1093,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             crate::inbox_pg::PgMentionSource::new(pool.clone()),
         ))))
         .extension(settings_deps.clone())
-        .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
-            sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
-        ))))
+        .extension(Arc::new(
+            routes::directory::DirectoryDeps::new(Arc::new(
+                sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
+            ))
+            .with_features(features.clone()),
+        ))
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
         .extension(library_deps)
@@ -1130,6 +1184,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }
     });
 
+    // Scheduled events start and end by the clock (P12 lounge events).
+    let events_task = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            tick.tick().await;
+            routes::settings::scheduled_events::advance(&events_deps).await;
+        }
+    });
+
     let (job_tx, job_rx) = watch::channel(false);
     let runner = crate::jobs::register(
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
@@ -1148,8 +1211,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
+    let runner = crate::apps_jobs::register(runner, &pool, (*apps_service).clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
-    let runner = crate::userfeat::register(runner, &pool, ticker);
+    let tv_reminders = Arc::new(crate::userfeat::TvReminders {
+        tv: tv_deps_for_reminders,
+        poster: system_poster_for_tv,
+        base_url: cfg.server.public_url.trim_end_matches('/').to_owned(),
+    });
+    let runner = crate::userfeat::register(runner, &pool, ticker, Some(tv_reminders));
     let runner = crate::media_jobs::register(
         runner,
         &pool,
@@ -1176,6 +1245,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
+    crate::apps_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
     crate::userfeat::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
@@ -1265,6 +1335,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     gauge_task.abort();
     seen_task.abort();
     apps_gc_task.abort();
+    events_task.abort();
     metrics_task.abort();
     search_consumer.abort();
     push_consumer.abort();
@@ -1293,6 +1364,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     registry
         .register(sr_features::ModerationReportsFeature)
         .context("registering the moderation.reports feature")?;
+    registry
+        .register(sr_features::DirectoryHiddenCategoriesFeature)
+        .context("registering the directory.hidden_categories feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
     // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,

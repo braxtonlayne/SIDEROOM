@@ -6,6 +6,18 @@ import { Async, SectionHeader, Stat, useAdminViewer, useResource } from '../ui';
 
 const n = (v: number) => formatNumber(v);
 
+const BYTE_UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const;
+/** 1536 -> "1.5 kB" in the viewer's locale. */
+export const bytes = (v: number) => {
+  let i = 0;
+  let x = Math.max(0, v);
+  while (x >= 1024 && i < BYTE_UNITS.length - 1) {
+    x /= 1024;
+    i += 1;
+  }
+  return formatNumber(x, { style: 'unit', unit: BYTE_UNITS[i]!, maximumFractionDigits: 1 });
+};
+
 export function DashboardSection() {
   const t = useT();
   const viewer = useAdminViewer();
@@ -57,6 +69,18 @@ export function DashboardSection() {
               <Stat label={t('admin.dashboard.deactivated')} value={n(s.accounts_deactivated)} />
               <Stat label={t('admin.dashboard.platformBanned')} value={n(s.accounts_banned)} />
               <Stat label={t('admin.dashboard.staff')} value={n(s.staff)} />
+              {s.storage_bytes != null && (
+                <Stat label={t('admin.dashboard.storageUsed')} value={bytes(s.storage_bytes)} />
+              )}
+              {s.invites_open != null && (
+                <Stat label={t('admin.dashboard.invitesOpen')} value={n(s.invites_open)} />
+              )}
+              {s.voice_rooms != null && (
+                <Stat label={t('admin.dashboard.voiceRooms')} value={n(s.voice_rooms)} />
+              )}
+              {s.egress_bytes != null && (
+                <Stat label={t('admin.dashboard.voiceEgress')} value={bytes(s.egress_bytes)} />
+              )}
               <Stat
                 label={t('admin.dashboard.jobsQueued')}
                 value={n(s.jobs_queued)}

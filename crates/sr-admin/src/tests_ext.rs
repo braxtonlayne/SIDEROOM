@@ -777,6 +777,7 @@ async fn announcements_show_between_their_times_and_can_be_ended() {
         title: title.into(),
         body: "Maintenance tonight at 22:00 UTC.".into(),
         severity: Some(AnnouncementSeverity::Warning),
+        critical: false,
         send_dm: true,
         starts_at_ms: None,
         ends_at_ms: Some(T0 + DAY),
@@ -806,6 +807,16 @@ async fn announcements_show_between_their_times_and_can_be_ended() {
     e.svc.announce(&o, quiet, None).await.unwrap();
     assert_eq!(e.notes.broadcasts.lock().unwrap().len(), 1);
     assert_eq!(e.svc.active_announcements().await.unwrap().len(), 2);
+    // D-192: a critical notice is always sent as a DM, even without `send_dm`.
+    let mut critical = input("Outage");
+    critical.send_dm = false;
+    critical.critical = true;
+    critical.severity = None;
+    let c = e.svc.announce(&o, critical, None).await.unwrap();
+    assert_eq!(c.severity, AnnouncementSeverity::Critical);
+    assert!(c.send_dm);
+    assert_eq!(e.notes.broadcasts.lock().unwrap().len(), 2);
+    e.svc.end_announcement(&o, c.id, None).await.unwrap();
     // Ending one early.
     e.svc
         .end_announcement(&o, a.id, Some("done"))
@@ -815,7 +826,7 @@ async fn announcements_show_between_their_times_and_can_be_ended() {
     // They lapse by themselves.
     e.clock.advance_ms(2 * DAY);
     assert!(e.svc.active_announcements().await.unwrap().is_empty());
-    assert_eq!(e.svc.list_announcements(&o).await.unwrap().len(), 2);
+    assert_eq!(e.svc.list_announcements(&o).await.unwrap().len(), 3);
 }
 
 // ---- ADM-ALR: alerts and card actions -------------------------------------------------
@@ -892,4 +903,98 @@ fn username_and_email_shapes() {
     assert!(!valid_email("a b@c.co"));
     assert!(!valid_email("a@@b.co"));
     let _ = ManualClock::new(0).now_unix_ms();
+}
+
+// ---- G-69: editing an active announcement ---------------------------------------------
+
+#[tokio::test]
+async fn an_active_announcement_can_be_edited_but_not_an_ended_one() {
+    use crate::ext::AnnouncementPatch;
+    let e = env();
+    let o = owner(&e).await;
+    let m = appointed(&e, MODR, R_MOD).await;
+    let a = e
+        .svc
+        .announce(
+            &o,
+            AnnouncementInput {
+                title: "Downtime".into(),
+                body: "Tonight.".into(),
+                severity: Some(AnnouncementSeverity::Warning),
+                critical: false,
+                send_dm: true,
+                starts_at_ms: None,
+                ends_at_ms: Some(T0 + DAY),
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    let patch = |title: Option<&str>, body: Option<&str>, ends: Option<i64>| AnnouncementPatch {
+        title: title.map(str::to_owned),
+        body: body.map(str::to_owned),
+        ends_at_ms: ends,
+    };
+    // Needs the permission, a change, and valid values.
+    assert!(matches!(
+        e.svc
+            .edit_announcement(&m, a.id, patch(Some("x"), None, None), None)
+            .await,
+        Err(AdminError::MissingPermission("MANAGE_FEATURES"))
+    ));
+    for bad in [
+        patch(None, None, None),
+        patch(Some(" "), None, None),
+        patch(None, None, Some(T0 - 1)),
+    ] {
+        assert!(matches!(
+            e.svc.edit_announcement(&o, a.id, bad, None).await,
+            Err(AdminError::Invalid(_))
+        ));
+    }
+    let edited = e
+        .svc
+        .edit_announcement(
+            &o,
+            a.id,
+            patch(
+                Some("Downtime moved"),
+                Some("Tomorrow, 22:00."),
+                Some(T0 + 2 * DAY),
+            ),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(edited.title, "Downtime moved");
+    assert_eq!(edited.body, "Tomorrow, 22:00.");
+    assert_eq!(edited.ends_at_ms, Some(T0 + 2 * DAY));
+    // Severity and the DM flag are unchanged, and no DM went out again.
+    assert_eq!(edited.severity, AnnouncementSeverity::Warning);
+    assert!(edited.send_dm);
+    assert_eq!(e.notes.broadcasts.lock().unwrap().len(), 1);
+    let log = e.repo.log_rows();
+    let row = log
+        .iter()
+        .rfind(|r| r.action == "announcement.edit")
+        .expect("the edit is audited");
+    assert!(
+        row.detail.contains("Downtime moved") && row.detail.contains("diff"),
+        "{}",
+        row.detail
+    );
+    // Once ended, an edit is a conflict.
+    e.svc.end_announcement(&o, a.id, None).await.unwrap();
+    assert!(matches!(
+        e.svc
+            .edit_announcement(&o, a.id, patch(Some("late"), None, None), None)
+            .await,
+        Err(AdminError::Conflict(_))
+    ));
+    assert!(matches!(
+        e.svc
+            .edit_announcement(&o, a.id + 999, patch(Some("x"), None, None), None)
+            .await,
+        Err(AdminError::NotFound("announcement"))
+    ));
 }

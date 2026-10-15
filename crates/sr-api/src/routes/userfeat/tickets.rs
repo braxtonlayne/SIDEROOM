@@ -30,7 +30,10 @@ pub struct ListQuery {
 }
 
 /// Whether the member answers tickets: they manage the server or hold the staff role.
-fn is_staff(access: &crate::routes::settings::deps::GuildAccess, staff_role: Option<i64>) -> bool {
+pub(super) fn is_staff(
+    access: &crate::routes::settings::deps::GuildAccess,
+    staff_role: Option<i64>,
+) -> bool {
     access.perms.has(Permissions::MANAGE_GUILD)
         || staff_role.is_some_and(|r| {
             access
@@ -242,8 +245,14 @@ pub async fn close(
             ..ThreadPatch::default()
         };
         let thread = ChannelId::new(thread);
-        if t.modify(user, thread, patch(true)).await.is_err() {
-            let _ = t.modify(user, thread, patch(false)).await;
+        if t.modify(user, thread, patch(true)).await.is_err()
+            && t.modify(user, thread, patch(false)).await.is_err()
+        {
+            // Staff without thread powers cannot archive it themselves; the opener owns the thread
+            // and can (G-73), so the closed ticket does not leave an open thread behind.
+            if let Ok(opener) = row.opener_id.parse::<u64>() {
+                let _ = t.modify(UserId::new(opener), thread, patch(false)).await;
+            }
         }
     }
     Ok(Json(

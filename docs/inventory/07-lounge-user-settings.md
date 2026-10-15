@@ -10,7 +10,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-003** [FE] Account card (banner, avatar, display name, username, email (reveal), Edit buttons per field) (banner, avatar, display name and username with an Edit each; email reveal)
 - [x] **LNG-USET-004** [FE] Change display name / username (rate-limited) / email (password + verification) modals (display name, username (password re-auth, rate limit shown) and email dialogs)
 - [x] **LNG-USET-005** [FE] Password & Authentication: Change Password modal, Enable Authenticator App wizard (QR, secret, verify code, backup codes download), View Backup Codes, Remove 2FA, Security Keys/Passkeys list (add, rename, remove) (Change Password on `POST /sr/auth/password` with optional sign-out of other devices; View Backup Codes is regenerate-only because codes are stored hashed)
-- [ ] **LNG-USET-006** [FE] Account Removal: Delete Account (explains permanence, D-029: messages remain, need a new invite to return), confirm with password + 2FA + typed username
+- [x] **LNG-USET-006** [FE] Account Removal: Delete Account (explains permanence, D-029: messages remain, need a new invite to return), confirm with password + 2FA + typed username *(Settings > Account > Account removal, `settings/user/sections/DeleteAccount.tsx` over `POST /sr/auth/account/delete`: retention text, typed username, password, code with two-factor, `staff`, `owner` and `guilds` refusals; tests `account.test.tsx`)*
    - Card shown with the D-029 wording and a "not available yet" notice: the server has no account deletion (LNG-USET-007).
 - [x] **LNG-USET-007** [BE] Account deletion process (state=deleted, profile scrub, remove relationships/memberships/sessions, revoke open invites, forfeit credits, release username after 30d) *(POST /sr/auth/account/delete; sr-db account_deletion.rs, migration 0660; tests account_deletion.rs and auth tests)*
 
@@ -53,15 +53,11 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
    - Discord is login/register only; `intent=link`, an unlink route and the other providers do not exist.
 
 ## SIDE ROOM: Invites
-- [ ] **LNG-USET-025** [FE] Credits balance card ("You can bring N more people"), eligibility explanations
-   - Open (backend): no route returns the account invite credit balance or eligibility (`GET /donations/me` has none). Credits can already be bought on the Support page.
-- [ ] **LNG-USET-026** [FE] Create invite (note field) → code + copy + share link `/join/<code>`
-   - Open (backend): no route creates, lists or revokes registration invites for the signed-in account (only `GET /sr/invites/{code}` and guild invites exist).
-- [ ] **LNG-USET-027** [FE] Open codes list (note, created, Revoke), redeemed list (who joined, when)
-   - Open (backend): same as LNG-USET-026 (open and redeemed codes lists).
+- [x] **LNG-USET-025** [FE] Credits balance card ("You can bring N more people"), eligibility explanations _(Settings > Invites: credits card from `GET /sr/invites`, with the reason a code cannot be made (`sections/Invites.tsx`, p12-admin-mod-be))_
+- [x] **LNG-USET-026** [FE] Create invite (note field) → code + copy + share link `/join/<code>` _(create form with a private note on `POST /sr/invites`, copy code and `/join/<code>` link; tests `p12invites.test.tsx`, `sr-db/tests/member_invites.rs`)_
+- [x] **LNG-USET-027** [FE] Open codes list (note, created, Revoke), redeemed list (who joined, when) _(open codes with Revoke (`DELETE /sr/invites/{code}`) and the redeemed list with who joined)_
 - [x] **LNG-USET-028** [FE] Buy an invite ($20 BTC) → invoice modal _(Settings > Support / Patron "Invite credits": buy 1 to 5 for the configured price, then the invoice dialog (`support/SupportPanel.tsx`, test in `support/__tests__/support.test.tsx`))_
-- [ ] **LNG-USET-029** [FE] Frozen/suspicion state notice (generic wording)
-   - Open (backend): no frozen/suspicion state is exposed to the account.
+- [x] **LNG-USET-029** [FE] Frozen/suspicion state notice (generic wording) _(the suspicion freeze is shown as the generic `frozen` reason only)_
 
 ## SIDE ROOM: Support & Perks
 - [x] **LNG-USET-030** [FE] Patron status (active until, grace), Become a Patron / Extend (1/3/6/12 months) _(Patron card: active until, grace, permanent, 1/3/6/12 month buttons (`support/SupportPanel.tsx`))_
@@ -122,7 +118,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-055** [FE] Toggle + options (hide personal info, hide invite links, disable sounds/notifications) _(Own Streamer Mode section: master switch, hide personal info (email stays masked), hide invite links (invite dialog), disable sounds (voice cues and desktop alerts). Saved prefs, no automatic OBS detection (p11-userset-fe))_
 
 ## Advanced
-- [x] **LNG-USET-056** [FE] Developer Mode (Copy ID items), app test mode for developers, reset UI state _(Developer mode flag (Copy ID items stay always shown, decision), App test mode (diagnostics card, pseudo-languages), Reset UI state (p11-userset-fe))_
+- [x] **LNG-USET-056** [FE] Developer Mode (Copy ID items), app test mode for developers, reset UI state _(Developer mode flag (Copy ID items render only while Developer Mode is on, D-195 / G-56), App test mode (diagnostics card, pseudo-languages), Reset UI state (p11-userset-fe))_
 
 ## Removed sections (must not exist)
 - [x] **LNG-USET-057** [TEST] Assert no Nitro, Server Boost (Discord), Subscriptions, Gift Inventory, Billing, Family Center, Clips, Quests sections are rendered

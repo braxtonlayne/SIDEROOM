@@ -7,6 +7,14 @@ export interface User {
   global_name?: string | null;
   avatar?: string | null;
   bot?: boolean;
+  /** The server tag this person displays (LNG-SSET-012); the API sends it only while the server allows it. */
+  primary_guild?: {
+    identity_guild_id?: string | null;
+    identity_enabled?: boolean;
+    tag?: string | null;
+    badge?: number | null;
+    color?: number | null;
+  } | null;
 }
 
 export interface Guild {
@@ -19,6 +27,10 @@ export interface Guild {
   unavailable?: boolean;
   /** The Staff Server (ADM-STF-010). Sent by the API when the viewer is a member. */
   is_staff_guild?: boolean;
+  /** Community channels (Discord shape, null when unset; G-76). */
+  rules_channel_id?: string | null;
+  public_updates_channel_id?: string | null;
+  safety_alerts_channel_id?: string | null;
 }
 
 export interface Channel {
@@ -103,7 +115,7 @@ export interface Message {
   reactions?: MessageReaction[];
   /** 0 default, 6 pin notice, 19 reply (Discord message types). */
   type?: number;
-  /** 4 suppress embeds, 8192 voice message. */
+  /** 4 suppress embeds, 8192 voice message, 1 << 30 written by the system user (SYSTEM_TAG). */
   flags?: number;
   attachments?: RawAttachment[];
   embeds?: RawEmbed[];

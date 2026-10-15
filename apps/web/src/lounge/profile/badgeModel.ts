@@ -47,6 +47,19 @@ const ICON: Record<BadgeKind, IconName> = {
   other: 'info',
 };
 
+/** Icon names the server may send for a badge id the client does not know (the one catalogue, G-53). */
+const SERVER_ICONS: readonly IconName[] = [
+  'shield',
+  'star',
+  'heart',
+  'sparkle',
+  'clock',
+  'settings',
+  'alert',
+  'info',
+  'users',
+];
+
 const TIERED = /^(patron|contributor)[-_:.]?(.*)$/;
 
 function kindOf(id: string): { kind: BadgeKind; tier: string } {
@@ -120,8 +133,10 @@ export function badgeViews(
       key: `w-${b.id}`,
       kind,
       label,
-      description: b.description || label,
-      icon: ICON[kind],
+      // Plain catalogue ids are translated; a tiered badge keeps the server's text (it names the tier and
+      // the date) and an id the client does not know falls back to the server's text and icon.
+      description: kind === 'other' || tier ? b.description || label : label,
+      icon: kind === 'other' ? (SERVER_ICONS.find((i) => i === b.icon) ?? ICON.other) : ICON[kind],
     });
   }
   if (derived.serverTag)

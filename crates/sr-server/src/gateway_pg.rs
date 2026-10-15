@@ -212,7 +212,10 @@ impl PgGuildDirectory {
         ))?;
         // One row past the threshold tells whether the member list fits.
         let member_ids: Vec<i64> = sqlx::query_scalar(
-            "SELECT user_id FROM guild_members WHERE guild_id = $1 ORDER BY user_id LIMIT $2",
+            "SELECT gm.user_id FROM guild_members gm WHERE gm.guild_id = $1 \
+             AND NOT EXISTS (SELECT 1 FROM accounts sys WHERE sys.id = gm.user_id \
+                             AND (sys.flags & 1) <> 0) \
+             ORDER BY gm.user_id LIMIT $2",
         )
         .bind(guild.get() as i64)
         .bind(LARGE_THRESHOLD_DEFAULT as i64 + 1)
@@ -588,6 +591,22 @@ impl GuildDirectory for PgGuildDirectory {
         }
     }
 
+    async fn channel_age_restricted(&self, channel: ChannelId) -> bool {
+        match sqlx::query_scalar::<_, bool>(
+            "SELECT c.nsfw OR COALESCE(p.nsfw, FALSE) FROM channels c \n             LEFT JOIN channels p ON p.id = c.parent_id AND c.type IN (10, 11, 12) \n             WHERE c.id = $1",
+        )
+        .bind(channel.get() as i64)
+        .fetch_optional(&self.pool)
+        .await
+        {
+            Ok(v) => v.unwrap_or(false),
+            Err(e) => {
+                tracing::warn!(error = %e, "age-restriction lookup failed; withholding the dispatch");
+                true
+            }
+        }
+    }
+
     async fn voice_limits(&self, user: UserId, guild: Option<GuildId>) -> VoiceLimits {
         let Some(ents) = &self.entitlements else {
             return VoiceLimits::free();
@@ -787,6 +806,49 @@ impl TemporaryMembers {
         let _ = self.gateway.set(gateway);
     }
 
+    /// Remove the temporary memberships of accounts that have no live session. Run once after
+    /// boot (D-200): a restart ends every session without a `user_offline` call, so members who
+    /// were offline for good would otherwise keep their seat. Returns how many accounts lost a
+    /// membership.
+    pub async fn sweep(&self, pool: &PgPool) -> usize {
+        let users: Vec<i64> =
+            match sqlx::query_scalar("SELECT DISTINCT user_id FROM guild_members WHERE temporary")
+                .fetch_all(pool)
+                .await
+            {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!(error = %e, "temporary-member sweep failed");
+                    return 0;
+                }
+            };
+        let mut swept = 0;
+        for id in users {
+            let user = UserId::new(id as u64);
+            let live = self
+                .gateway
+                .get()
+                .and_then(|gw| gw.presence(user))
+                .is_some_and(|p| p.status != "offline");
+            if !live && !self.joiner.drop_temporary(user).await.is_empty() {
+                swept += 1;
+            }
+        }
+        swept
+    }
+
+    /// Run [`Self::sweep`] once, after the offline grace has let reconnecting clients return.
+    pub fn schedule_startup_sweep(self: &Arc<Self>, pool: PgPool) {
+        let me = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(me.grace).await;
+            let n = me.sweep(&pool).await;
+            if n > 0 {
+                tracing::info!(accounts = n, "removed stale temporary memberships");
+            }
+        });
+    }
+
     /// `user` just went offline: after the grace period, drop their temporary memberships
     /// unless they came back.
     pub fn schedule(self: &Arc<Self>, user: UserId) {
@@ -919,7 +981,8 @@ mod tests {
             .expect("connect");
         sr_db::migrate(&pool).await.expect("migrate");
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-        let w = ((std::process::id() % 8) * 2) as u8 + 3;
+        // w and w + 16 must both stay within the 0..=31 worker range for every pid.
+        let w = ((std::process::id() % 4) * 4) as u8 + 3;
         let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
         let svc = ChatService::new(
             PgChatRepo::new(pool.clone()),
@@ -1017,5 +1080,106 @@ mod tests {
                 .await
                 .is_none()
         );
+    }
+
+    /// Age-restricted channels (and threads of them), GUILD_CREATE without the system user,
+    /// and the startup sweep of stale temporary memberships (D-188, D-199, D-200).
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn age_gate_system_member_and_temporary_sweep() {
+        use sr_chat::{ChatLimits, ChatService};
+        use sr_events::InProcessBus;
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        // w and w + 16 must both stay within the 0..=31 worker range for every pid.
+        let w = ((std::process::id() % 4) * 4) as u8 + 1;
+        let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+        let svc = ChatService::new(
+            PgChatRepo::new(pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), w + 16, w + 16).expect("ids"),
+            ChatLimits::default(),
+        );
+        let (owner, system, guest) = (
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+        );
+        sqlx::query("UPDATE accounts SET flags = flags | 1 WHERE id = $1")
+            .bind(system.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let bp = svc.create_guild(owner, "Gate Club").await.unwrap();
+        let (guild, general) = (bp.guild.id, bp.channels[2].id);
+        for (u, temporary) in [(system, false), (guest, true)] {
+            sqlx::query(
+                "INSERT INTO guild_members (guild_id, user_id, temporary) VALUES ($1, $2, $3)",
+            )
+            .bind(guild.get() as i64)
+            .bind(u.get() as i64)
+            .bind(temporary)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        let dir = PgGuildDirectory::new(pool.clone(), clock.clone());
+
+        // The age gate: a channel and a thread under it (types 10..12 inherit the parent).
+        assert!(!dir.channel_age_restricted(general).await);
+        sqlx::query("UPDATE channels SET nsfw = TRUE WHERE id = $1")
+            .bind(general.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(dir.channel_age_restricted(general).await);
+        let thread = ids.generate();
+        sqlx::query(
+            "INSERT INTO channels (id, guild_id, type, name, parent_id) VALUES ($1, $2, 11, 't', $3)",
+        )
+        .bind(thread.get() as i64)
+        .bind(guild.get() as i64)
+        .bind(general.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+        assert!(
+            dir.channel_age_restricted(ChannelId::new(thread.get()))
+                .await
+        );
+
+        // GUILD_CREATE members leave the system user out.
+        let body = dir.guild_payload(owner, guild).await;
+        let listed: Vec<&str> = body["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|m| m.pointer("/user/id")?.as_str())
+            .collect();
+        assert!(listed.contains(&owner.to_string().as_str()));
+        assert!(!listed.contains(&system.to_string().as_str()));
+
+        // The sweep removes the temporary member nobody is connected as.
+        let bus = Arc::new(InProcessBus::new());
+        let joiner = Arc::new(sr_api::routes::settings::InviteMemberJoiner::new(
+            Arc::new(sr_db::invite_join::PgInviteJoinRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone())),
+            bus,
+        ));
+        let tm = TemporaryMembers::new(joiner, std::time::Duration::from_secs(60));
+        assert_eq!(tm.sweep(&pool).await, 1);
+        let left: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM guild_members WHERE guild_id = $1 AND user_id = $2",
+        )
+        .bind(guild.get() as i64)
+        .bind(guest.get() as i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(left, 0);
     }
 }

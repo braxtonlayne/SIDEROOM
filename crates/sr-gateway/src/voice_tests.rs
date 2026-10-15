@@ -1106,3 +1106,72 @@ async fn voice_state_dispatches_need_the_guild_voice_states_intent() {
 
 #[path = "voice_ext_tests.rs"]
 mod ext;
+
+/// The `VoiceJoined` / `VoiceLeft` events on the guild topic, in order, as `(+|-, channel, user)`.
+async fn voice_events(
+    stream: &mut futures::stream::BoxStream<'static, DomainEvent>,
+) -> Vec<(char, u64, u64)> {
+    use futures::StreamExt;
+    let mut out = Vec::new();
+    while let Ok(Some(ev)) = tokio::time::timeout(Duration::from_millis(150), stream.next()).await {
+        match ev {
+            DomainEvent::VoiceJoined { channel, user, .. } => {
+                out.push(('+', channel.get(), user.get()));
+            }
+            DomainEvent::VoiceLeft { channel, user, .. } => {
+                out.push(('-', channel.get(), user.get()));
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+#[tokio::test]
+async fn voice_joins_moves_and_leaves_are_published_on_the_bus() {
+    use sr_events::Topic;
+    let e = env();
+    let mut stream = e.bus.subscribe(Topic::Guild(G));
+    let mut a = client(&e, MEMBER).await;
+    let mut m = client(&e, MOD).await;
+
+    // A fresh join; a state change in place (mute) says nothing.
+    a.voice(1, Some(LOBBY.get()), false, false).await;
+    a.event("VOICE_SERVER_UPDATE").await;
+    assert_eq!(voice_events(&mut stream).await, [('+', 20, 1)]);
+    a.voice(1, Some(LOBBY.get()), true, false).await;
+    assert!(voice_events(&mut stream).await.is_empty());
+
+    // Moving yourself is a leave then a join; a moderator's move reads the same.
+    a.voice(1, Some(ROOM_B.get()), false, false).await;
+    a.event("VOICE_SERVER_UPDATE").await;
+    assert_eq!(
+        voice_events(&mut stream).await,
+        [('-', 20, 1), ('+', 21, 1)]
+    );
+    m.drain().await;
+    e.gw.moderate_voice(
+        u(MOD),
+        G,
+        u(MEMBER),
+        ModPatch {
+            channel: Some(Some(LOBBY)),
+            ..ModPatch::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        voice_events(&mut stream).await,
+        [('-', 21, 1), ('+', 20, 1)]
+    );
+
+    // Disconnecting, and then a lost session, both end with a leave.
+    a.voice(1, None, false, false).await;
+    assert_eq!(voice_events(&mut stream).await, [('-', 20, 1)]);
+    assert!(e.gw.voice_leave(u(MEMBER)).await.is_none());
+    assert!(
+        voice_events(&mut stream).await.is_empty(),
+        "nothing to leave"
+    );
+}

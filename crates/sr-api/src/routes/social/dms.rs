@@ -9,6 +9,8 @@ use super::error::{ApiJson, MsgResult, invalid};
 use super::events::SocialEvent;
 use super::model::{CreateDmBody, DmChannelObject, EditDmBody, MessageRequestBody};
 use super::util::{actor, channel_id, user_id};
+use crate::routes::MaybeExt;
+use crate::routes::media::MediaDeps;
 use crate::routes::messages::DmAnnouncer;
 use crate::{Principal, openapi::ErrorBody, routes::Ext};
 use axum::{Json, extract::Path, http::StatusCode};
@@ -16,6 +18,7 @@ use serde_json::{Value, json};
 use sr_chat::social::dm::{DmChannel, DmKind, GroupEdit, RequestState};
 use sr_chat::social::repo::DmRepository;
 use sr_core::{ChannelId, ErrorCode, UserId};
+use sr_storage::media::MediaKind;
 
 /// Open conversations of the caller (hidden ones excluded), newest first.
 #[utoipa::path(
@@ -122,11 +125,38 @@ pub async fn create(
 pub async fn edit(
     p: Principal,
     Ext(deps): Ext<SocialDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path(channel): Path<String>,
     ApiJson(body): ApiJson<EditDmBody>,
 ) -> MsgResult<Json<DmChannelObject>> {
     let me = actor(&p)?;
     let cid = channel_id(&channel)?;
+    // The icon is an image data URI that goes through the media pipeline (G-50); anything
+    // else is refused. `null` removes it. Nothing is stored when the edit is not allowed.
+    let mut stored_icon: Option<String> = None;
+    let mut old_icon: Option<String> = None;
+    let mut icon_key: Option<Option<String>> = None;
+    if let Some(icon) = &body.icon {
+        let before = fetch(&deps, me, cid).await?;
+        if before.kind != DmKind::Group {
+            return Err(sr_chat::social::SocialError::NotGroupDm.into());
+        }
+        old_icon = before.icon_key.clone();
+        icon_key = Some(match icon {
+            None => None,
+            Some(uri) => {
+                let Some(m) = &media else {
+                    tracing::error!("group icon edit needs MediaDeps registered on AppState");
+                    return Err(ErrorCode::SrInternal.into());
+                };
+                let hash = m
+                    .store(MediaKind::ChannelIcon, cid.get(), "icon", uri.clone())
+                    .await?;
+                stored_icon = Some(hash.clone());
+                Some(hash)
+            }
+        });
+    }
     let mut dm = None;
     if let Some(owner) = &body.owner_id {
         dm = Some(
@@ -135,12 +165,26 @@ pub async fn edit(
                 .await?,
         );
     }
-    if body.name.is_some() || body.icon.is_some() {
+    if body.name.is_some() || icon_key.is_some() {
         let edit = GroupEdit {
             name: body.name.clone(),
-            icon_key: body.icon.clone(),
+            icon_key,
         };
-        dm = Some(deps.service.edit_group(me, cid, &edit).await?);
+        match deps.service.edit_group(me, cid, &edit).await {
+            Ok(d) => dm = Some(d),
+            Err(e) => {
+                if let (Some(m), Some(h)) = (&media, &stored_icon) {
+                    m.remove(MediaKind::ChannelIcon, cid.get(), h).await;
+                }
+                return Err(e.into());
+            }
+        }
+        // Committed: drop the icon this edit replaced or cleared.
+        if let (Some(m), Some(old)) = (&media, &old_icon)
+            && stored_icon.as_ref() != Some(old)
+        {
+            m.remove(MediaKind::ChannelIcon, cid.get(), old).await;
+        }
     }
     let dm = match dm {
         Some(dm) => dm,
@@ -374,7 +418,7 @@ impl DmAnnouncer for SocialDeps {
 
 /// One event per addressed user: the channel object differs by viewer (the viewer
 /// is not listed among the recipients).
-async fn announce(
+pub(crate) async fn announce(
     deps: &SocialDeps,
     name: &'static str,
     dm: &DmChannel,

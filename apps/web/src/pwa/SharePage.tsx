@@ -5,7 +5,9 @@ import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import { HOME } from '../lounge/channels';
 import { drafts } from '../lounge/drafts';
+import { queuedFiles } from '../lounge/queuedFiles';
 import * as rest from '../store/rest';
+import { clearSharedFiles, readSharedFiles } from './shareFiles';
 import { parseShare, shareToDraft } from './shareText';
 import './pwa.css';
 
@@ -58,7 +60,9 @@ async function loadGroups(t: (k: 'pwa.share.dms') => string): Promise<Group[]> {
 /**
  * Share Target landing page (XC-PWA-006): other apps share text or a link to SIDE ROOM; the user picks a
  * channel and the text lands in that channel's composer draft, ready to review and send. Nothing is posted
- * without the user pressing send. Files are not accepted yet (the manifest asks for text and links only).
+ * without the user pressing send. Shared files (G-18) arrive through the service worker's POST handler, which
+ * stores them in IndexedDB and redirects here with `files=1`; they become composer attachments of the chosen
+ * channel, again unsent.
  */
 export function SharePage() {
   const t = useT();
@@ -66,8 +70,19 @@ export function SharePage() {
   const searchStr = useLocation({ select: (l) => l.searchStr });
   const shared = useMemo(() => parseShare(searchStr), [searchStr]);
   const draft = shareToDraft(shared);
+  const [files, setFiles] = useState<File[]>([]);
+  const hasContent = !!draft || shared.hasFiles;
   const [groups, setGroups] = useState<Group[] | null>(null);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!shared.hasFiles) return;
+    let live = true;
+    void readSharedFiles().then((f) => live && setFiles(f));
+    return () => {
+      live = false;
+    };
+  }, [shared.hasFiles]);
 
   useEffect(() => {
     let live = true;
@@ -88,8 +103,14 @@ export function SharePage() {
   }, [navigate, t, searchStr]);
 
   const pick = (target: Target) => {
-    const existing = drafts.get(target.id);
-    drafts.set(target.id, existing ? `${existing}\n${draft}` : draft);
+    if (draft) {
+      const existing = drafts.get(target.id);
+      drafts.set(target.id, existing ? `${existing}\n${draft}` : draft);
+    }
+    if (files.length) {
+      queuedFiles.set(target.id, files);
+      void clearSharedFiles();
+    }
     void navigate({
       to: '/channels/$guildId/$channelId',
       params: { guildId: target.guildId, channelId: target.id },
@@ -99,16 +120,23 @@ export function SharePage() {
   return (
     <main className="sr-share" id="main">
       <h1>{t('pwa.share.title')}</h1>
-      {draft ? (
+      {hasContent ? (
         <blockquote className="sr-share-preview" aria-label={t('pwa.share.preview')}>
           {draft}
+          {files.length > 0 && (
+            <p className="sr-share-files">{t('pwa.share.files', { n: files.length })}</p>
+          )}
         </blockquote>
       ) : (
-        <Notice variant="info">{t('pwa.share.empty')}</Notice>
+        <>
+          <Notice variant="info">{t('pwa.share.empty')}</Notice>
+          {/* A share the service worker did not take reaches the server as a POST and is sent here with a GET (G-77). */}
+          <p className="sr-share-hint">{t('pwa.share.openOnce')}</p>
+        </>
       )}
       {failed && <Notice variant="danger">{t('pwa.share.error')}</Notice>}
-      {draft && !groups && !failed && <p role="status">{t('pwa.share.loading')}</p>}
-      {draft &&
+      {hasContent && !groups && !failed && <p role="status">{t('pwa.share.loading')}</p>}
+      {hasContent &&
         groups?.map((g) => (
           <section key={g.id} aria-labelledby={`share-${g.id}`}>
             <h2 id={`share-${g.id}`}>{g.name}</h2>
@@ -123,7 +151,7 @@ export function SharePage() {
             </ul>
           </section>
         ))}
-      {draft && groups && groups.length === 0 && (
+      {hasContent && groups && groups.length === 0 && (
         <Notice variant="info">{t('pwa.share.noTargets')}</Notice>
       )}
     </main>

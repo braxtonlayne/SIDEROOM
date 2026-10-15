@@ -3,8 +3,6 @@ export default {
   'settings.activity.shareTitle': 'Share what I watch and read',
   'settings.activity.shareDesc':
     'Friends and people in your shared servers can see it on your profile and next to your name.',
-  'settings.activity.shareMine': 'Share my activity',
-  'settings.activity.shareMineDesc': 'The master switch. Off hides everything below.',
   'settings.activity.shareWatching': "Share what I'm watching",
   'settings.activity.shareReading': "Share what I'm reading",
   'settings.activity.hideAge': 'Hide age-restricted titles',
@@ -42,7 +40,7 @@ export default {
   'settings.app.advancedTitle': 'Advanced',
   'settings.app.devMode': 'Developer mode',
   'settings.app.devModeDesc':
-    'Saved for developer tools as they arrive. Copy ID items are already in every menu.',
+    'Shows Copy ID in the right-click menus for servers, channels, messages and people.',
   'settings.appearance.themeSystem': 'Sync with computer',
   'settings.appearance.themeDark': 'Dark',
   'settings.appearance.themeLight': 'Light',

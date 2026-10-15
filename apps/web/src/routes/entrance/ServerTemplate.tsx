@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { ApiError, apiFetch, apiPost } from '../../api/client';
 import { getMe } from '../../api/entrance';
+import { useT } from '../../i18n/react';
 import '../../components/entrance.css';
 
 interface SnapChannel {
@@ -31,13 +32,14 @@ type State =
   | { kind: 'login' }
   | { kind: 'ready'; template: TemplatePreview };
 
-const KIND_PREFIX: Record<number, string> = { 0: '#', 2: 'Voice: ', 5: '#', 15: '#' };
+const KIND_PREFIX: Record<number, string> = { 0: '#', 5: '#', 15: '#' };
 
 /**
  * Public page for a server template (LNG-SSET-071), `/template/:code`. The preview needs a session (the API
  * answers 401 otherwise), so a signed-out visitor is sent to log in and comes back here.
  */
 export function ServerTemplate() {
+  const t = useT();
   const { code } = useParams({ strict: false }) as { code: string };
   const navigate = useNavigate();
   const [state, setState] = useState<State>({ kind: 'loading' });
@@ -84,10 +86,10 @@ export function ServerTemplate() {
     } catch (e) {
       setError(
         e instanceof ApiError && e.status === 429
-          ? 'You are doing that too quickly. Wait a moment and try again.'
+          ? t('entrance.template.tooFast')
           : e instanceof ApiError && e.status === 400
-            ? 'Server names are 2 to 100 characters.'
-            : 'Could not create the server. Try again.',
+            ? t('entrance.template.badName')
+            : t('entrance.template.failed'),
       );
       setCreating(false);
     }
@@ -98,15 +100,13 @@ export function ServerTemplate() {
   return (
     <ThemeProvider section="lounge" className="ent-invite-page">
       <main className="ent-invite-card" aria-busy={state.kind === 'loading'}>
-        {state.kind === 'loading' && <p role="status">Loading template…</p>}
-        {state.kind === 'invalid' && (
-          <p role="alert">This template does not exist or was deleted.</p>
-        )}
+        {state.kind === 'loading' && <p role="status">{t('entrance.template.loading')}</p>}
+        {state.kind === 'invalid' && <p role="alert">{t('entrance.template.invalid')}</p>}
         {state.kind === 'login' && (
           <>
-            <h1>Log in to use this template</h1>
+            <h1>{t('entrance.template.loginTitle')}</h1>
             <Link to="/login" search={{ next: `/template/${code}` }} className="ent-invite-cta">
-              Log in
+              {t('entrance.template.login')}
             </Link>
           </>
         )}
@@ -135,30 +135,37 @@ function Preview({
   error: string | null;
   create: () => Promise<void>;
 }) {
-  const t = state.template;
-  const channels = [...(t.serialized_source_guild.channels ?? [])].sort(
+  const t = useT();
+  const tpl = state.template;
+  const channels = [...(tpl.serialized_source_guild.channels ?? [])].sort(
     (a, b) => a.position - b.position,
   );
   const categories = channels.filter((c) => c.kind === 4);
-  const roles = t.serialized_source_guild.roles?.length ?? 0;
-  const by = t.creator?.global_name || t.creator?.username;
+  const roles = tpl.serialized_source_guild.roles?.length ?? 0;
+  const by = tpl.creator?.global_name || tpl.creator?.username;
   return (
     <>
-      <p>Start a server from the template</p>
-      <h1>{t.name}</h1>
-      {t.description && <p>{t.description}</p>}
+      <p>{t('entrance.template.start')}</p>
+      <h1>{tpl.name}</h1>
+      {tpl.description && <p>{tpl.description}</p>}
       <p>
-        {channels.length - categories.length} channels · {roles} roles · used {t.usage_count}{' '}
-        {t.usage_count === 1 ? 'time' : 'times'}
-        {by ? ` · by ${by}` : ''}
+        {t('entrance.template.stats', {
+          channels: channels.length - categories.length,
+          roles,
+          uses: tpl.usage_count,
+        })}
+        {by ? t('entrance.template.by', { name: by }) : ''}
       </p>
-      <ul aria-label="Channels in this template" style={{ textAlign: 'start', margin: 0 }}>
+      <ul
+        aria-label={t('entrance.template.channelsLabel')}
+        style={{ textAlign: 'start', margin: 0 }}
+      >
         {channels
           .filter((c) => c.kind !== 4)
           .slice(0, 12)
           .map((c) => (
             <li key={c.local_id}>
-              {KIND_PREFIX[c.kind] ?? ''}
+              {c.kind === 2 ? t('entrance.template.voicePrefix') : (KIND_PREFIX[c.kind] ?? '')}
               {c.name}
             </li>
           ))}
@@ -171,13 +178,13 @@ function Preview({
         style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'start' }}
       >
         <TextInput
-          label="Server name"
+          label={t('entrance.template.name')}
           value={name}
           maxLength={100}
           onChange={(e) => setName(e.target.value)}
         />
         <Button type="submit" loading={creating} disabled={!nameOk}>
-          Create server
+          {t('entrance.template.create')}
         </Button>
         {error && <p role="alert">{error}</p>}
       </form>

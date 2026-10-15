@@ -258,5 +258,10 @@ pub async fn age_gate(
     svc.store
         .set_age_confirmed(p.user_id, body.over_18, state.now_secs())
         .await?;
+    svc.notify_user_update(
+        p.user_id,
+        serde_json::json!({ "age_confirmed": body.over_18 }),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }

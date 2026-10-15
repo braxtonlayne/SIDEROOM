@@ -234,6 +234,7 @@ async fn parties_run_on_the_real_catalog_and_chat_data() {
         )));
     let create = |title: i64, channel: Option<i64>| CreateInput {
         title_id: title,
+        tv_channel_id: None,
         episode_id: None,
         variant_id: None,
         channel_id: channel,
@@ -290,4 +291,208 @@ async fn parties_run_on_the_real_catalog_and_chat_data() {
     );
     // As the guild owner they may end it, though.
     svc.end(v(owner).await, party.id).await.unwrap();
+}
+
+/// A guild with `n` members (besides the owner) and `n` extra voice channels, a published film and a party
+/// service wired like the server (catalog gate, chat permissions) plus the given limits.
+struct Rig {
+    db: TestDb,
+    pool: PgPool,
+    svc: PartyService,
+    guild: i64,
+    film: i64,
+    members: Vec<i64>,
+    voices: Vec<i64>,
+}
+
+async fn rig(n: usize, limits: Option<Arc<dyn sr_watchparty::GuildLimits>>) -> Rig {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let clock: Arc<dyn sr_core::Clock> = Arc::new(SystemClock);
+    let ids = SnowflakeGenerator::new(clock.clone(), 3, 3).unwrap();
+    let owner = account(&pool, true).await;
+    let chat = PgChatRepo::new(pool.clone());
+    let bp = sr_chat::guild_rules::plan_new_guild(
+        UserId::new(owner as u64),
+        "Cinema club",
+        clock.now_unix_ms(),
+        || ids.generate(),
+    )
+    .unwrap();
+    chat.insert_guild(&bp).await.unwrap();
+    let guild = bp.guild.id.get() as i64;
+    let mut members = vec![owner];
+    let mut voices = vec![bp.channels[3].id.get() as i64];
+    for _ in 0..n {
+        let m = account(&pool, true).await;
+        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+            .bind(guild)
+            .bind(m)
+            .execute(&pool)
+            .await
+            .unwrap();
+        members.push(m);
+        let v = uid();
+        sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES ($1, $2, 2, 'extra')")
+            .bind(v)
+            .bind(guild)
+            .execute(&pool)
+            .await
+            .unwrap();
+        voices.push(v);
+    }
+    let repo = Arc::new(sr_db::cinema_repo::PgCinemaRepo::new(pool.clone()));
+    let catalog = CinemaService::new(
+        repo,
+        CdnSigner::new(vec![7u8; 32]),
+        clock.clone(),
+        Arc::new(uid),
+    )
+    .with_index(Arc::new(TitleIndex::in_ram().unwrap()));
+    let publisher = Actor {
+        user_id: account(&pool, true).await,
+        permissions: P::PUBLISH_MEDIA,
+    };
+    let t = catalog
+        .create_title(publisher, input("Akira", false))
+        .await
+        .unwrap();
+    catalog
+        .link_title_asset(publisher, t.id, Some(8101))
+        .await
+        .unwrap();
+    catalog
+        .set_title_published(publisher, t.id, true)
+        .await
+        .unwrap();
+    let mut svc = PartyService::new(pool.clone(), clock.clone(), Arc::new(uid))
+        .with_play_gate(Arc::new(CinemaPlayGate::new(catalog)))
+        .with_channels(Arc::new(ChatChannelAccess::new(
+            PgChatRepo::new(pool.clone()),
+            clock.clone(),
+        )));
+    if let Some(l) = limits {
+        svc = svc.with_limits(l);
+    }
+    Rig {
+        db,
+        pool,
+        svc,
+        guild,
+        film: t.id,
+        members,
+        voices,
+    }
+}
+
+fn create(title: i64, channel: i64, persistent: bool) -> CreateInput {
+    CreateInput {
+        title_id: title,
+        tv_channel_id: None,
+        episode_id: None,
+        variant_id: None,
+        channel_id: Some(channel),
+        start_ms: None,
+        settings: Some(sr_watchparty::model::SettingsInput {
+            persistent: Some(persistent),
+            ..Default::default()
+        }),
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_watch_party_room_is_a_persistent_party_that_outlives_its_creator() {
+    // G-13: the preset creates the party and the creator steps out; the room stays and the next person in
+    // takes the host seat.
+    let r = rig(1, None).await;
+    let (creator, other) = (r.members[0], r.members[1]);
+    let vc = r.voices[0];
+    let v = |u: i64| r.svc.viewer(u);
+    let party = r
+        .svc
+        .create(v(creator).await, create(r.film, vc, true))
+        .await
+        .unwrap();
+    assert!(party.settings.persistent);
+    r.svc.leave(v(creator).await, party.id).await.unwrap();
+    assert_eq!(r.svc.sweep().await.unwrap(), 0);
+    let again = r.svc.in_channel(v(other).await, vc).await.unwrap();
+    assert_eq!(again.id, party.id);
+    assert!(!again.ended && again.participants.is_empty());
+    let joined = r
+        .svc
+        .join(v(other).await, party.id, JoinInput::default())
+        .await
+        .unwrap();
+    assert_eq!(
+        joined.host_id, other,
+        "the first person into an empty room hosts"
+    );
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn concurrent_parties_follow_the_server_level() {
+    // G-14: 2 parties for a free server, 8 once it is Level 2 (doc 08 section 2.2).
+    use sr_payments::{EntitlementService, repo::RepoSource};
+    let probe = rig(9, None).await;
+    let ents = Arc::new(EntitlementService::new(
+        Arc::new(RepoSource(Arc::new(
+            sr_db::payments_repo::PgPaymentRepo::new(probe.pool.clone(), Arc::new(uid)),
+        ))),
+        Arc::new(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_millis() as i64)
+        }),
+        std::time::Duration::from_secs(60),
+    ));
+    let limits = crate::watchparty::EntitlementLimits::new(ents.clone());
+    use sr_watchparty::GuildLimits;
+    assert_eq!(limits.max_parties(probe.guild).await, 2);
+    let svc = probe
+        .svc
+        .clone()
+        .with_limits(Arc::new(crate::watchparty::EntitlementLimits::new(
+            ents.clone(),
+        )));
+    let host = |i: usize| svc.viewer(probe.members[i]);
+    for i in 0..2 {
+        svc.create(host(i).await, create(probe.film, probe.voices[i], false))
+            .await
+            .unwrap();
+    }
+    let third = svc
+        .create(host(2).await, create(probe.film, probe.voices[2], false))
+        .await;
+    assert!(
+        matches!(third, Err(PartyError::Conflict(_))),
+        "Level 0 allows 2: {third:?}"
+    );
+
+    // The payment service stores the level it reached; it drops the cache when it emits SR_ENTITLEMENT_UPDATE.
+    sqlx::query(
+        "INSERT INTO guild_support_levels (guild_id, level) VALUES ($1, 2)          ON CONFLICT (guild_id) DO UPDATE SET level = 2",
+    )
+    .bind(probe.guild)
+    .execute(&probe.pool)
+    .await
+    .unwrap();
+    ents.invalidate_guild(probe.guild).await;
+    assert_eq!(limits.max_parties(probe.guild).await, 8);
+    for i in 2..8 {
+        svc.create(host(i).await, create(probe.film, probe.voices[i], false))
+            .await
+            .unwrap();
+    }
+    let ninth = svc
+        .create(host(8).await, create(probe.film, probe.voices[8], false))
+        .await;
+    assert!(
+        matches!(ninth, Err(PartyError::Conflict(_))),
+        "Level 2 allows 8: {ninth:?}"
+    );
+    probe.db.cleanup().await.unwrap();
 }

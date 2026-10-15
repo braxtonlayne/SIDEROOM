@@ -43,6 +43,13 @@ pub struct GuildPatch {
     pub icon_key: Option<Option<String>>,
     pub banner_key: Option<Option<String>>,
     pub splash_key: Option<Option<String>>,
+    /// 0 or 1; only the owner changes it (G-36).
+    pub mfa_level: Option<u8>,
+    /// Discord `system_channel_flags` bits.
+    pub system_channel_flags: Option<u32>,
+    pub widget_enabled: Option<bool>,
+    /// A channel of the guild; `Some(None)` clears it. The service checks membership.
+    pub widget_channel_id: Option<Option<ChannelId>>,
 }
 
 impl GuildPatch {
@@ -59,6 +66,10 @@ impl GuildPatch {
             && self.icon_key.is_none()
             && self.banner_key.is_none()
             && self.splash_key.is_none()
+            && self.mfa_level.is_none()
+            && self.system_channel_flags.is_none()
+            && self.widget_enabled.is_none()
+            && self.widget_channel_id.is_none()
     }
 }
 
@@ -182,6 +193,29 @@ pub fn plan_edit_guild(
     if let Some(v) = patch.explicit_content_filter {
         out.explicit_content_filter = range_u8("explicit_content_filter", v, 2)?;
     }
+    if let Some(v) = patch.mfa_level {
+        let v = range_u8("mfa_level", v, 1)?;
+        if v != guild.mfa_level && guild.owner_id != actor_user {
+            return Err(ChatError::MissingPermissions);
+        }
+        out.mfa_level = v;
+    }
+    if let Some(f) = patch.system_channel_flags {
+        if f & !crate::domain::system_flags::ALL != 0 {
+            return Err(ChatError::invalid(
+                "system_channel_flags",
+                "NUMBER_TYPE_MAX",
+                "Contains bits that are not defined.",
+            ));
+        }
+        out.system_channel_flags = f;
+    }
+    if let Some(v) = patch.widget_enabled {
+        out.widget_enabled = v;
+    }
+    if let Some(c) = patch.widget_channel_id {
+        out.widget_channel_id = c;
+    }
     if let Some(k) = patch.icon_key {
         out.icon_key = k;
     }
@@ -232,6 +266,107 @@ pub struct MemberPatch {
     pub avatar_key: Option<Option<String>>,
     pub banner_key: Option<Option<String>>,
     pub bio: Option<Option<String>>,
+    /// Per-server pronouns (40 at most), profile theme colours, profile effect and avatar
+    /// decoration (slugs); self only, `Some(None)` clears (G-52).
+    pub pronouns: Option<Option<String>>,
+    pub theme_colors: Option<Option<[u32; 2]>>,
+    pub profile_effect: Option<Option<String>>,
+    pub avatar_decoration: Option<Option<String>>,
+}
+
+/// Longest per-server pronouns.
+pub const MEMBER_PRONOUNS_MAX: usize = 40;
+
+/// Validate and apply the per-server pronouns, theme, effect and decoration (G-52). The slugs
+/// follow the same shape rules as the account profile (lowercase letters, digits and `-`).
+fn apply_extras(
+    out: &mut Member,
+    pronouns: Option<Option<String>>,
+    theme_colors: Option<Option<[u32; 2]>>,
+    profile_effect: Option<Option<String>>,
+    avatar_decoration: Option<Option<String>>,
+) -> ChatResult<()> {
+    if let Some(p) = &pronouns {
+        out.extras.pronouns = match p.as_deref().map(str::trim) {
+            Some(s) if s.chars().count() > MEMBER_PRONOUNS_MAX => {
+                return Err(ChatError::invalid(
+                    "pronouns",
+                    "BASE_TYPE_MAX_LENGTH",
+                    format!("Must be {MEMBER_PRONOUNS_MAX} or fewer in length."),
+                ));
+            }
+            Some(s) if s.chars().any(char::is_control) => {
+                return Err(ChatError::invalid(
+                    "pronouns",
+                    "BASE_TYPE_BAD_FORMAT",
+                    "must not contain control characters",
+                ));
+            }
+            Some(s) if !s.is_empty() => Some(s.to_owned()),
+            _ => None,
+        };
+    }
+    if let Some(colors) = theme_colors {
+        if colors.is_some_and(|c| c.iter().any(|v| *v > 0x00FF_FFFF)) {
+            return Err(ChatError::invalid(
+                "theme_colors",
+                "NUMBER_TYPE_MAX",
+                "must be 24-bit RGB values",
+            ));
+        }
+        out.extras.theme_colors = colors;
+    }
+    if let Some(slug) = &profile_effect {
+        out.extras.profile_effect = catalogue_slug(
+            "profile_effect",
+            slug.as_deref(),
+            crate::profile::catalog::is_effect,
+        )?;
+    }
+    if let Some(slug) = &avatar_decoration {
+        out.extras.avatar_decoration = catalogue_slug(
+            "avatar_decoration",
+            slug.as_deref(),
+            crate::profile::catalog::is_decoration,
+        )?;
+    }
+    Ok(())
+}
+
+/// A per-server effect or decoration slug: well formed and listed in the profile catalogue
+/// (G-48, `GET /sr/profile-catalog`), the same rule as `PATCH /users/@me`.
+fn catalogue_slug(
+    field: &str,
+    slug: Option<&str>,
+    listed: fn(&str) -> bool,
+) -> ChatResult<Option<String>> {
+    let cleaned = clean_slug(field, slug)?;
+    if let Some(s) = &cleaned
+        && !listed(s)
+    {
+        return Err(ChatError::invalid(
+            field,
+            "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+            "not in the profile catalogue (GET /sr/profile-catalog)",
+        ));
+    }
+    Ok(cleaned)
+}
+
+fn clean_slug(field: &str, slug: Option<&str>) -> ChatResult<Option<String>> {
+    let Some(s) = slug else { return Ok(None) };
+    let ok = !s.is_empty()
+        && s.len() <= 48
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    if !ok {
+        return Err(ChatError::invalid(
+            field,
+            "BASE_TYPE_BAD_FORMAT",
+            "must be a lowercase slug of letters, digits and dashes (48 at most)",
+        ));
+    }
+    Ok(Some(s.to_owned()))
 }
 
 /// The member being edited plus what the hierarchy checks need to know about them.
@@ -282,7 +417,14 @@ pub fn plan_edit_member(
         };
     }
 
-    if patch.avatar_key.is_some() || patch.banner_key.is_some() || patch.bio.is_some() {
+    if patch.avatar_key.is_some()
+        || patch.banner_key.is_some()
+        || patch.bio.is_some()
+        || patch.pronouns.is_some()
+        || patch.theme_colors.is_some()
+        || patch.profile_effect.is_some()
+        || patch.avatar_decoration.is_some()
+    {
         // The per-server profile is the member's own; nobody edits it for them.
         if !is_self {
             return Err(ChatError::MissingPermissions);
@@ -306,6 +448,13 @@ pub fn plan_edit_member(
                 _ => None,
             };
         }
+        apply_extras(
+            &mut out,
+            patch.pronouns,
+            patch.theme_colors,
+            patch.profile_effect,
+            patch.avatar_decoration,
+        )?;
     }
 
     if let Some(new_roles) = patch.roles {
@@ -638,6 +787,85 @@ mod tests {
     }
 
     #[test]
+    fn per_server_extras_are_validated_and_self_only() {
+        let g = guild();
+        let actor_m = member(5, &[]);
+        let me = actor_with(Permissions::CHANGE_NICKNAME, 0);
+        let target = MemberTarget {
+            member: &actor_m,
+            top_position: 0,
+            perms: Permissions::empty(),
+        };
+        let roles = [everyone()];
+        let plan =
+            |p: MemberPatch| plan_edit_member(&g, actor_m.user_id, &me, &target, &roles, p, 0);
+        let out = plan(MemberPatch {
+            pronouns: Some(Some("  she/her ".into())),
+            theme_colors: Some(Some([0x00AA_BBCC, 0x0011_2233])),
+            profile_effect: Some(Some("aurora".into())),
+            avatar_decoration: Some(None),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(out.extras.pronouns.as_deref(), Some("she/her"));
+        assert_eq!(out.extras.theme_colors, Some([0x00AA_BBCC, 0x0011_2233]));
+        assert_eq!(out.extras.profile_effect.as_deref(), Some("aurora"));
+        assert_eq!(out.extras.avatar_decoration, None);
+        for bad in [
+            MemberPatch {
+                pronouns: Some(Some("x".repeat(MEMBER_PRONOUNS_MAX + 1))),
+                ..Default::default()
+            },
+            MemberPatch {
+                theme_colors: Some(Some([0x0100_0000, 0])),
+                ..Default::default()
+            },
+            MemberPatch {
+                profile_effect: Some(Some("Not A Slug".into())),
+                ..Default::default()
+            },
+            // Well formed but not in the profile catalogue (G-48): decorations are empty for now.
+            MemberPatch {
+                profile_effect: Some(Some("neon-halo".into())),
+                ..Default::default()
+            },
+            MemberPatch {
+                avatar_decoration: Some(Some("halo-1".into())),
+                ..Default::default()
+            },
+        ] {
+            assert!(plan(bad).is_err());
+        }
+        // Clearing falls back to the account's own.
+        let cleared = plan_edit_member(
+            &g,
+            actor_m.user_id,
+            &me,
+            &MemberTarget {
+                member: &out,
+                top_position: 0,
+                perms: Permissions::empty(),
+            },
+            &roles,
+            MemberPatch {
+                pronouns: Some(None),
+                theme_colors: Some(None),
+                ..Default::default()
+            },
+            0,
+        )
+        .unwrap();
+        assert!(cleared.extras.pronouns.is_none() && cleared.extras.theme_colors.is_none());
+        // Nobody edits another member's extras.
+        let admin = actor_with(Permissions::ALL, 99);
+        let other = MemberPatch {
+            pronouns: Some(Some("hijack".into())),
+            ..Default::default()
+        };
+        assert!(plan_edit_member(&g, UserId::new(9), &admin, &target, &roles, other, 0).is_err());
+    }
+
+    #[test]
     fn guild_edit_rules() {
         let g = guild();
         let manager = actor_with(Permissions::MANAGE_GUILD, 1);
@@ -890,6 +1118,87 @@ mod tests {
             ..Default::default()
         };
         assert!(plan_edit_guild(UserId::new(5), &plain, &g, p, None, false, true).is_err());
+    }
+
+    #[test]
+    fn mfa_level_system_flags_and_widget_edits() {
+        let g = guild();
+        let manager = actor_with(Permissions::MANAGE_GUILD, 1);
+        let owner = GuildActor {
+            is_owner: true,
+            perms: Permissions::ALL,
+            top_position: 0,
+        };
+        let edit = |actor: &GuildActor, who: u64, patch: GuildPatch, base: &Guild| {
+            plan_edit_guild(UserId::new(who), actor, base, patch, None, false, false)
+        };
+        // Only the owner changes the 2FA requirement; a manager does not, even to the same value
+        // it already has being a no-op.
+        let on = GuildPatch {
+            mfa_level: Some(1),
+            ..Default::default()
+        };
+        assert!(edit(&manager, 5, on.clone(), &g).is_err());
+        let g2 = edit(&owner, OWNER, on, &g).unwrap();
+        assert_eq!(g2.mfa_level, 1);
+        let same = GuildPatch {
+            mfa_level: Some(1),
+            ..Default::default()
+        };
+        assert!(
+            edit(&manager, 5, same, &g2).is_ok(),
+            "unchanged value is not a change"
+        );
+        let off = GuildPatch {
+            mfa_level: Some(0),
+            ..Default::default()
+        };
+        assert!(edit(&manager, 5, off, &g2).is_err());
+        let bad = GuildPatch {
+            mfa_level: Some(2),
+            ..Default::default()
+        };
+        assert!(edit(&owner, OWNER, bad, &g).is_err());
+
+        // Flags: any defined combination, nothing else; managers may set them.
+        let flags = GuildPatch {
+            system_channel_flags: Some(
+                crate::domain::system_flags::SUPPRESS_JOIN_NOTIFICATIONS
+                    | crate::domain::system_flags::SUPPRESS_PREMIUM_SUBSCRIPTIONS,
+            ),
+            ..Default::default()
+        };
+        assert_eq!(
+            edit(&manager, 5, flags, &g).unwrap().system_channel_flags,
+            3
+        );
+        let undefined = GuildPatch {
+            system_channel_flags: Some(1 << 6),
+            ..Default::default()
+        };
+        assert!(edit(&manager, 5, undefined, &g).is_err());
+
+        // Widget: enable and point it at a channel; clearing the channel keeps it enabled.
+        let w = GuildPatch {
+            widget_enabled: Some(true),
+            widget_channel_id: Some(Some(ChannelId::new(42))),
+            ..Default::default()
+        };
+        let g3 = edit(&manager, 5, w, &g).unwrap();
+        assert!(g3.widget_enabled);
+        assert_eq!(g3.widget_channel_id, Some(ChannelId::new(42)));
+        let clear = GuildPatch {
+            widget_channel_id: Some(None),
+            ..Default::default()
+        };
+        let g4 = edit(&manager, 5, clear, &g3).unwrap();
+        assert!(g4.widget_enabled && g4.widget_channel_id.is_none());
+        let plain = actor_with(Permissions::empty(), 0);
+        let w2 = GuildPatch {
+            widget_enabled: Some(true),
+            ..Default::default()
+        };
+        assert!(edit(&plain, 6, w2, &g).is_err());
     }
 
     #[test]

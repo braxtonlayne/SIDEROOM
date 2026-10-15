@@ -5,7 +5,7 @@ use super::error::invalid;
 use super::error::{ApiJson, MsgResult};
 use super::events::SocialEvent;
 use super::model::{
-    ConnectionObject, CustomStatusObject, EditSelfBody, GuildMemberProfileObject,
+    BadgeObject, ConnectionObject, CustomStatusObject, EditSelfBody, GuildMemberProfileObject,
     MutualGuildObject, ProfileObject, SelfObject, UserObject, UserProfileFields,
 };
 use super::util::{actor, custom_status, user_id};
@@ -18,12 +18,13 @@ use axum::{
     Json,
     extract::{Path, Query},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sr_chat::social::profile::ProfileEdit;
 use sr_core::ErrorCode;
 use sr_core::UserId;
 use sr_storage::media::MediaKind;
+use utoipa::ToSchema;
 
 /// A user's profile: bio, pronouns, banner, accent colour and the connections they
 /// made visible.
@@ -148,7 +149,7 @@ async fn render_profile(
         )
     };
     Ok(Json(ProfileObject {
-        badges: profile.badges.clone(),
+        badges: profile.badges.iter().map(|b| BadgeObject::of(b)).collect(),
         member_since: iso(profile.created_ms),
         guild_member_profile,
         mutual_friends,
@@ -176,6 +177,10 @@ fn guild_profile_object(m: &sr_chat::social::repo::GuildMembership) -> GuildMemb
         avatar: m.avatar_key.clone(),
         banner: m.banner_key.clone(),
         bio: m.bio.clone(),
+        pronouns: m.extras.pronouns.clone(),
+        theme_colors: m.extras.theme_colors,
+        profile_effect: m.extras.profile_effect.clone(),
+        avatar_decoration: m.extras.avatar_decoration.clone(),
         joined_at: iso(m.joined_at_ms),
     }
 }
@@ -195,9 +200,21 @@ pub async fn edit_self(
     p: Principal,
     Ext(deps): Ext<SocialDeps>,
     MaybeExt(media): MaybeExt<MediaDeps>,
+    MaybeExt(auth): MaybeExt<crate::routes::auth::AuthService>,
     ApiJson(body): ApiJson<EditSelfBody>,
 ) -> MsgResult<Json<SelfObject>> {
     let me = actor(&p)?;
+    let locale = match body.locale.as_deref().map(super::util::normalize_locale) {
+        Some(Some(l)) => Some(l),
+        Some(None) => {
+            return Err(invalid(
+                "locale",
+                "BASE_TYPE_BAD_FORMAT",
+                "must be a BCP 47 language tag such as en, de or pt-BR",
+            ));
+        }
+        None => None,
+    };
     // Convert before writing so a bad custom status cannot leave a half-applied edit.
     let custom = match &body.custom_status {
         Some(Some(c)) => Some(custom_status(c)?),
@@ -289,6 +306,14 @@ pub async fn edit_self(
             return Err(e.into());
         }
     };
+    if let (Some(l), Some(auth)) = (&locale, &auth)
+        && let Err(e) = auth
+            .set_locale(i64::try_from(me.get()).unwrap_or_default(), l)
+            .await
+    {
+        tracing::error!(error = %e, "saving the account locale failed");
+        return Err(ErrorCode::SrInternal.into());
+    }
     // The edit is committed: delete the images it replaced or cleared.
     if let (Some(m), Some(before)) = (&media, &before) {
         for (kind, old, new) in [
@@ -374,4 +399,50 @@ pub async fn broadcast_self_update(deps: &SocialDeps, user_id: i64) {
     if result.is_err() {
         tracing::warn!("could not broadcast USER_UPDATE after an account change");
     }
+}
+
+/// One approved effect or decoration.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CatalogEntryObject {
+    pub slug: String,
+    /// Image file stem under `/cdn/avatar-decorations/` (decorations only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset: Option<String>,
+    /// Web i18n key of the display name.
+    pub label_key: String,
+}
+
+/// What a profile may use (G-48).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ProfileCatalogObject {
+    /// Animated profile effects (built-in CSS).
+    pub effects: Vec<CatalogEntryObject>,
+    /// Avatar decorations; empty until artwork is approved.
+    pub decorations: Vec<CatalogEntryObject>,
+}
+
+/// The approved profile effects and avatar decorations. `PATCH /users/@me` only accepts
+/// slugs listed here.
+#[utoipa::path(
+    get,
+    path = "/sr/profile-catalog",
+    responses((status = 200, body = ProfileCatalogObject), (status = 401, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_catalog(p: Principal) -> MsgResult<Json<ProfileCatalogObject>> {
+    actor(&p)?;
+    use sr_chat::profile::catalog::{Kind, of_kind};
+    let list = |k: Kind| {
+        of_kind(k)
+            .map(|e| CatalogEntryObject {
+                slug: e.slug.to_owned(),
+                asset: e.asset.map(str::to_owned),
+                label_key: e.label_key.to_owned(),
+            })
+            .collect()
+    };
+    Ok(Json(ProfileCatalogObject {
+        effects: list(Kind::Effect),
+        decorations: list(Kind::Decoration),
+    }))
 }

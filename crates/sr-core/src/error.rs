@@ -47,6 +47,7 @@ error_codes! {
     UnknownInteraction = 10062, 404, "Unknown interaction";
     UnknownApplicationCommand = 10063, 404, "Unknown application command";
     UnknownStageInstance = 10067, 404, "Unknown Stage Instance";
+    UnknownScheduledEvent = 10070, 404, "Unknown Guild Scheduled Event";
     UnknownSound = 10097, 404, "Unknown Soundboard Sound";
     BotsCannotUseThisEndpoint = 20001, 403, "Bots cannot use this endpoint";
     OnlyBotsCanUseThisEndpoint = 20002, 403, "Only bots can use this endpoint";
@@ -109,8 +110,10 @@ error_codes! {
     SrConflict = 900010, 409, "The current state does not allow this action";
     SrAgeConfirmationRequired = 900011, 403, "You need to confirm you are 18 or older to open this";
     SrSoundboardCooldown = 900012, 429, "Wait a moment before playing another sound";
+    SrSecondFactorRequired = 900014, 403, "Set up a second factor (authenticator app or passkey) first";
     SrAppNotReleased = 900120, 403, "App not released";
     SrAppSuspended = 900121, 403, "This application is suspended";
+    SrTesterRecentlyDeclined = 900122, 409, "This person declined recently; wait 24 hours before inviting them again";
     SrIgnoreListFull = 900101, 400, "Your ignore list is full";
     SrInternal = 900500, 500, "Internal server error";
 }

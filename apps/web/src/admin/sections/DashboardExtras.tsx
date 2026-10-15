@@ -7,7 +7,7 @@ import * as api from '../api';
 import * as donations from '../donations/api';
 import * as review from '../../review/api';
 import { formatNumber, useT } from '../../i18n';
-import { Stat, useAdminViewer, useResource } from '../ui';
+import { ActionStatus, Stat, fmtMs, useAction, useAdminViewer, useResource } from '../ui';
 
 const n = (v: number) => formatNumber(v);
 
@@ -105,6 +105,55 @@ interface Alert {
   text: string;
 }
 
+/** Alerts the server stored (ADM-ALR-001): newest first, unacknowledged ones can be acknowledged here. */
+function StoredAlerts({
+  rows,
+  reload,
+}: {
+  rows: api.StaffAlertRow[];
+  reload: () => Promise<void>;
+}) {
+  const t = useT();
+  const action = useAction();
+  return (
+    <ul className="ss-list" aria-label={t('admin.dashboardExtras.storedAlerts')}>
+      <ActionStatus error={action.error} />
+      {rows.slice(0, 10).map((a) => (
+        <li key={a.id} className="ss-row">
+          <Badge variant={a.acked_at_ms ? 'neutral' : 'danger'}>
+            {a.acked_at_ms
+              ? t('admin.dashboardExtras.alertAcked')
+              : t('admin.dashboardExtras.alertBadge')}
+          </Badge>
+          <span className="ss-grow">
+            {a.kind.replace(/_/g, ' ')}: {a.detail}
+            <span className="ss-meta"> · {fmtMs(a.created_at_ms)}</span>
+          </span>
+          {!a.acked_at_ms && (
+            <Button
+              size="sm"
+              variant="secondary"
+              aria-label={t('admin.dashboardExtras.ackAria', { kind: a.kind.replace(/_/g, ' ') })}
+              onClick={() =>
+                void action
+                  .run(async () => {
+                    await api.ackStaffAlert(a.id);
+                    return true;
+                  })
+                  .then(async (ok) => {
+                    if (ok) await reload();
+                  })
+              }
+            >
+              {t('admin.dashboardExtras.ack')}
+            </Button>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function AlertsPanel({ deadJobs }: { deadJobs: number }) {
   const t = useT();
   const v = useAdminViewer();
@@ -135,13 +184,17 @@ export function AlertsPanel({ deadJobs }: { deadJobs: number }) {
       });
     return out;
   });
+  const stored = useResource('dash:stored-alerts', async () => settle(api.listStaffAlerts()));
   if (!res.data) return null;
   return (
     <section className="ss-card adm-gauge" aria-labelledby="adm-alerts-h">
       <h2 id="adm-alerts-h">{t('admin.dashboardExtras.alertsTitle')}</h2>
-      {res.data.length === 0 ? (
+      {stored.data && stored.data.length > 0 && (
+        <StoredAlerts rows={stored.data} reload={stored.reload} />
+      )}
+      {res.data.length === 0 && !(stored.data && stored.data.length > 0) ? (
         <p className="ss-sub">{t('admin.dashboardExtras.noAlerts')}</p>
-      ) : (
+      ) : res.data.length === 0 ? null : (
         <ul className="ss-list" aria-label={t('admin.dashboardExtras.alertsTitle')}>
           {res.data.map((a) => (
             <li key={a.id} className="ss-row">

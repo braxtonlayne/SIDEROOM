@@ -7,6 +7,7 @@ import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { FormError } from '../../components/FormParts';
 import { PasskeyButton } from '../../components/PasskeyButton';
 import { clearMfaMethods, readMfaMethods } from '../../lib/mfaMethods';
+import { useT } from '../../i18n/react';
 import { minutesFromSeconds, safeNext } from '../../lib/validation';
 import { useUiStore } from '../../state/session';
 
@@ -20,6 +21,7 @@ export function OtpInput({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const focus = (i: number) => refs.current[Math.max(0, Math.min(5, i))]?.focus();
   const digits = Array.from({ length: 6 }, (_, i) => value[i] ?? '');
@@ -43,7 +45,7 @@ export function OtpInput({
   };
 
   return (
-    <div className="ent-otp" role="group" aria-label="Six-digit code">
+    <div className="ent-otp" role="group" aria-label={t('entrance.twoFactor.otpGroup')}>
       {digits.map((d, i) => (
         <input
           key={i}
@@ -55,7 +57,7 @@ export function OtpInput({
           autoComplete={i === 0 ? 'one-time-code' : 'off'}
           maxLength={1}
           disabled={disabled}
-          aria-label={`Digit ${i + 1}`}
+          aria-label={t('entrance.twoFactor.digit', { n: i + 1 })}
           onChange={(e) => {
             const c = e.target.value.replace(/\D/g, '').slice(-1);
             set(i, c);
@@ -71,6 +73,7 @@ export function OtpInput({
 }
 
 export function TwoFactor() {
+  const t = useT();
   const router = useRouter();
   const search = useSearch({ strict: false }) as { next?: string };
   const next = safeNext(search.next);
@@ -100,17 +103,14 @@ export function TwoFactor() {
       finish();
     } catch (e) {
       if (e instanceof ApiError && e.status === 429) {
-        const m = minutesFromSeconds(e.retryAfter);
-        setError(`Too many attempts. Try again in ${m} minute${m === 1 ? '' : 's'}.`);
+        setError(t('entrance.twoFactor.tooMany', { minutes: minutesFromSeconds(e.retryAfter) }));
       } else if (e instanceof ApiError && e.status === 401) {
         setError(
-          method === 'totp'
-            ? "That code didn't match. Check your authenticator and try again."
-            : "That recovery code isn't valid.",
+          method === 'totp' ? t('entrance.twoFactor.badCode') : t('entrance.twoFactor.badRecovery'),
         );
         if (method === 'totp') setCode('');
       } else {
-        setError("We couldn't reach the door. Check your connection and try again.");
+        setError(t('entrance.common.unreachable'));
       }
       setBusy(false);
     }
@@ -119,33 +119,37 @@ export function TwoFactor() {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (mode === 'totp') {
-      if (code.length !== 6) return setError('Enter all six digits.');
+      if (code.length !== 6) return setError(t('entrance.twoFactor.needDigits'));
       void submit('totp', code);
     } else {
-      if (!recovery.trim()) return setError('Enter a recovery code.');
+      if (!recovery.trim()) return setError(t('entrance.twoFactor.needRecovery'));
       void submit('recovery', recovery.trim());
     }
   };
 
   return (
     <AuthSplit
-      eyebrow="One more lock."
-      heading="Just to be"
-      accent="sure."
-      copy="Confirm it's really you, then you're in."
-      footLabel="Member entrance / 02"
+      eyebrow={t('entrance.twoFactor.eyebrow')}
+      heading={t('entrance.twoFactor.heading')}
+      accent={t('entrance.twoFactor.headingAccent')}
+      copy={t('entrance.twoFactor.copy')}
+      footLabel={t('entrance.twoFactor.footLabel')}
     >
       <FormHead
-        eyebrow="Two-step check"
+        eyebrow={t('entrance.twoFactor.formEyebrow')}
         title={
-          mode === 'totp' ? 'Your code.' : mode === 'passkey' ? 'Your passkey.' : 'Recovery code.'
+          mode === 'totp'
+            ? t('entrance.twoFactor.titleTotp')
+            : mode === 'passkey'
+              ? t('entrance.twoFactor.titlePasskey')
+              : t('entrance.twoFactor.titleRecovery')
         }
         sub={
           mode === 'totp'
-            ? 'Enter the six-digit code from your authenticator app.'
+            ? t('entrance.twoFactor.subTotp')
             : mode === 'passkey'
-              ? 'Use the passkey on this device or a security key.'
-              : 'Enter one of the recovery codes you saved. Each works once.'
+              ? t('entrance.twoFactor.subPasskey')
+              : t('entrance.twoFactor.subRecovery')
         }
       />
       <form className="ent-form" onSubmit={onSubmit} noValidate>
@@ -161,7 +165,7 @@ export function TwoFactor() {
           />
         ) : (
           <TextInput
-            label="Recovery code"
+            label={t('entrance.twoFactor.recoveryLabel')}
             value={recovery}
             onChange={(e) => setRecovery(e.target.value)}
             autoComplete="off"
@@ -169,19 +173,23 @@ export function TwoFactor() {
           />
         )}
         <Checkbox
-          label="Trust this device for 30 days"
+          label={t('entrance.twoFactor.trust')}
           checked={trust}
           onChange={(e) => setTrust(e.target.checked)}
         />
         {mode !== 'passkey' && (
           <GoldButton type="submit" arrow disabled={busy} aria-busy={busy}>
-            {busy ? 'Checking…' : 'Step inside'}
+            {busy ? t('entrance.twoFactor.checking') : t('entrance.twoFactor.submit')}
           </GoldButton>
         )}
         {hasPasskey && (
           <PasskeyButton
             secondFactor={{ trustDevice: trust }}
-            label={mode === 'passkey' ? 'Use your passkey' : 'Use a passkey instead'}
+            label={
+              mode === 'passkey'
+                ? t('entrance.twoFactor.usePasskey')
+                : t('entrance.twoFactor.usePasskeyInstead')
+            }
             onDone={finish}
             onError={setError}
           />
@@ -198,11 +206,11 @@ export function TwoFactor() {
                 setError(null);
               }}
             >
-              {m === 'totp' ? 'Use an authenticator code' : 'Use a recovery code'}
+              {m === 'totp' ? t('entrance.twoFactor.useTotp') : t('entrance.twoFactor.useRecovery')}
             </button>
           ))}
         <Link to="/login" className="ent-linkbtn">
-          Back to sign in
+          {t('entrance.common.backToSignIn')}
         </Link>
       </form>
     </AuthSplit>

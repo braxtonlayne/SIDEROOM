@@ -9,6 +9,7 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { useT } from '../i18n';
+import { useDeveloperMode } from '../settings/user/prefs';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { useStore } from '../store';
 import { dmTitle, HOME } from './channels';
@@ -27,9 +28,11 @@ import { isMuted, MUTE_DURATIONS, useNotifSettings } from './shell/notifSettings
 import { useSupportEnabled } from './shell/useSupportEnabled';
 import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
+import { ServerTagChip } from './components/ServerTagChip';
 
 function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
   const t = useT();
+  const developerMode = useDeveloperMode();
   const users = useUsers();
   const presence = usePresenceMap();
   const actions = useLoungeActions();
@@ -104,10 +107,14 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           { type: 'separator' },
           ...(userEntries.invite ? [userEntries.invite] : []),
           ...userEntries.relationship,
-          {
-            label: t('lounge.homeSidebar.copyUserId'),
-            onSelect: () => void navigator.clipboard?.writeText(first.id),
-          },
+          ...(developerMode
+            ? [
+                {
+                  label: t('lounge.homeSidebar.copyUserId'),
+                  onSelect: () => void navigator.clipboard?.writeText(first.id),
+                },
+              ]
+            : []),
         ] as MenuEntry[])
       : []),
   ];
@@ -141,7 +148,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           <span className="lng-dm-text">
             <span className="lng-dm-name">
               {title}
-              {!group && first?.tag && <span className="lng-tag">{first.tag}</span>}
+              {!group && first && <ServerTagChip user={first} />}
             </span>
             {sub && <span className="lng-dm-sub">{sub}</span>}
           </span>

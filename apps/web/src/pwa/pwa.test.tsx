@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { precacheFromHtml } from '../../vite/pwa';
 import { PwaHost } from './PwaHost';
-import { __resetPwaState, isIosSafari, setUpdateReady } from './state';
+import { __resetPwaState, isIosSafari, setNoticesBarMounted, setUpdateReady } from './state';
 
 const PUBLIC = resolve(__dirname, '../../public');
 
@@ -48,6 +48,22 @@ describe('service worker policy', () => {
       expect(sw.classify(req(p), ORIGIN), p).toBe('bypass');
       expect(sw.classify(req(p, { mode: 'navigate' }), ORIGIN), `nav ${p}`).toBe('bypass');
     }
+  });
+
+  it('intercepts only the Share Target POST to /share', () => {
+    expect(sw.classify(req('/share', { method: 'POST' }), ORIGIN)).toBe('share');
+    expect(
+      sw.classify(req('/share', { method: 'POST', origin: 'https://o.example' }), ORIGIN),
+    ).toBe('bypass');
+    expect(sw.classify(req('/share/x', { method: 'POST' }), ORIGIN)).toBe('bypass');
+    expect(sw.classify(req('/api/v10/share', { method: 'POST' }), ORIGIN)).toBe('bypass');
+  });
+
+  it('declares a POST multipart share target with files', () => {
+    const m = JSON.parse(readFileSync(resolve(PUBLIC, 'manifest.webmanifest'), 'utf8'));
+    expect(m.share_target.method).toBe('POST');
+    expect(m.share_target.enctype).toBe('multipart/form-data');
+    expect(m.share_target.params.files[0].name).toBe('files');
   });
 
   it('never intercepts mutations, cross-origin, authorised or ranged requests', () => {
@@ -132,6 +148,15 @@ describe('PwaHost', () => {
     expect(screen.getByText('A new version is ready')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Reload' }));
     expect(apply).toHaveBeenCalledOnce();
+  });
+
+  it('G-49 shows no toast while the Lounge notices bar is mounted', () => {
+    render(<PwaHost now={0} />);
+    act(() => setNoticesBarMounted(true));
+    act(() => setUpdateReady(vi.fn()));
+    expect(screen.queryByText('A new version is ready')).toBeNull();
+    act(() => setNoticesBarMounted(false));
+    expect(screen.getByText('A new version is ready')).toBeInTheDocument();
   });
 
   it('holds back the install nudge until the browser offers one', async () => {

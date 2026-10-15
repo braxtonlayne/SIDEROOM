@@ -46,6 +46,7 @@ pub(super) fn wire(
     backend: &MemoryBackend,
     clock: Arc<dyn Clock>,
     bus: Arc<InProcessBus>,
+    actions: Arc<FakeActions>,
 ) -> GuildFeatures {
     let mut registry = FeatureRegistry::new();
     sr_features::modules::register_all(&mut registry).unwrap();
@@ -62,7 +63,7 @@ pub(super) fn wire(
             bus,
             settings,
             clock,
-            actions: Arc::new(FakeActions::new()),
+            actions,
             state: Arc::new(sr_features::state::InMemoryState::new()),
         },
         roles: Arc::new(MemoryRoles {
@@ -309,4 +310,103 @@ async fn temporary_roles_need_the_module_and_manage_roles() {
     );
     assert_eq!(e.delete(&one, "owner").await.0, StatusCode::NOT_FOUND);
     assert!(e.get(&base, "owner").await.1.as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn slowmode_presets_are_listed_to_channel_managers_only_while_the_module_is_on() {
+    let e = env_features().await;
+    let path = e.g("/sr/slowmode/presets");
+    assert_eq!(e.get(&path, "bob").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(e.get(&path, "nobody").await.0, StatusCode::UNAUTHORIZED);
+    let (s, v) = e.get(&path, "mod").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["enabled"], false);
+    assert!(v["presets"].as_array().unwrap().is_empty());
+
+    e.patch(
+        &e.g("/sr/features/lounge.slowmode_plus"),
+        "owner",
+        json!({"enabled": true}),
+    )
+    .await;
+    let (_, v) = e.get(&path, "mod").await;
+    assert_eq!(v["enabled"], true);
+    let ids: Vec<_> = v["presets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(ids, ["light", "medium", "strict", "lockdown"]);
+}
+
+#[tokio::test]
+async fn applying_a_slowmode_preset_checks_the_module_the_permission_and_the_input() {
+    let e = env_features().await;
+    let path = e.g("/sr/slowmode/apply");
+    let body = json!({"preset_id": "medium", "channel_ids": [e.ch.to_string()]});
+
+    // Off by default.
+    let r = e.post(&path, "mod", body.clone()).await;
+    assert_eq!(code_of(&r), (StatusCode::FORBIDDEN, Some(900001)));
+    e.patch(
+        &e.g("/sr/features/lounge.slowmode_plus"),
+        "owner",
+        json!({"enabled": true}),
+    )
+    .await;
+
+    // A plain member may not.
+    assert_eq!(
+        e.post(&path, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    // Bad input.
+    for bad in [
+        json!({"preset_id": "medium", "channel_ids": []}),
+        json!({"preset_id": "medium", "channel_ids": [e.ch.to_string()], "minutes": 0}),
+        json!({"preset_id": "medium", "channel_ids": [e.ch.to_string()], "minutes": 99999}),
+        json!({"preset_id": "nope", "channel_ids": [e.ch.to_string()]}),
+        json!({"preset_id": "medium", "channel_ids": ["x"]}),
+    ] {
+        let r = e.post(&path, "mod", bad).await;
+        assert_eq!(r.0, StatusCode::BAD_REQUEST, "{}", r.1);
+    }
+    // A channel of some other server.
+    let r = e
+        .post(
+            &path,
+            "mod",
+            json!({"preset_id": "medium", "channel_ids": ["12345"]}),
+        )
+        .await;
+    assert_eq!(r.0, StatusCode::NOT_FOUND, "{}", r.1);
+    assert!(e.actions.calls().is_empty(), "nothing was changed so far");
+
+    // A channel manager applies it: the slowmode changes and the answer says what it was before.
+    let (s, v) = e.post(&path, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["applied"][0]["channel_id"], e.ch.to_string());
+    assert_eq!(v["applied"][0]["before"], 5);
+    assert_eq!(v["applied"][0]["seconds"], 30);
+    assert!(v["applied"][0]["revert_at"].is_null());
+    assert_eq!(
+        e.actions.calls(),
+        vec![sr_features::testing::Call::Slowmode(e.ch, 30)]
+    );
+
+    // With minutes the answer carries the revert time.
+    let (s, v) = e
+        .post(
+            &path,
+            "owner",
+            json!({"preset_id": "strict", "channel_ids": [e.ch.to_string()], "minutes": 15}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["applied"][0]["seconds"], 120);
+    assert_eq!(
+        v["applied"][0]["revert_at"].as_i64().unwrap(),
+        T0 + 15 * 60_000
+    );
 }

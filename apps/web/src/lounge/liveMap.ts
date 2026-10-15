@@ -53,6 +53,8 @@ export const PERM = {
   PIN_MESSAGES: 1n << 51n,
   SEND_TTS_MESSAGES: 1n << 12n,
   CREATE_PUBLIC_THREADS: 1n << 35n,
+  MANAGE_EVENTS: 1n << 33n,
+  CREATE_EVENTS: 1n << 44n,
 } as const;
 
 const ALL_BITS = (1n << 64n) - 1n;
@@ -92,6 +94,8 @@ export function toGuildPermissions(base: bigint): GuildPermissions {
     manageMessages: has(PERM.MANAGE_MESSAGES),
     mentionEveryone: has(PERM.MENTION_EVERYONE),
     pinMessages: has(PERM.PIN_MESSAGES),
+    createEvents: has(PERM.CREATE_EVENTS),
+    manageEvents: has(PERM.MANAGE_EVENTS),
     serverSettings: canOpenSettingsFromBits(base),
   };
 }
@@ -170,7 +174,21 @@ export function toLoungeUser(u: S.User): LoungeUser {
     // Avatar hashes need a CDN URL scheme that the API does not publish yet; initials are shown instead.
     avatarUrl: null,
     ...(u.bot ? { bot: true } : {}),
+    ...serverTagOf(u),
   };
+}
+
+/**
+ * The server tag to draw next to a name. The API sends `primary_guild` only while the member still belongs to the
+ * server and the server lets members display its tag; `identity_enabled: false` is honoured here as well.
+ */
+export function serverTagOf(
+  u: Pick<S.User, 'primary_guild'>,
+): Pick<LoungeUser, 'tag' | 'tagBadge' | 'tagColor'> {
+  const g = u.primary_guild;
+  const tag = g?.tag?.trim();
+  if (!g || g.identity_enabled === false || !tag) return {};
+  return { tag: tag.toUpperCase(), tagBadge: g.badge ?? 0, tagColor: g.color ?? 0 };
 }
 
 const CHANNEL_TYPE: Record<number, ChannelType> = {
@@ -223,7 +241,7 @@ export function toDmChannel(c: S.Channel, rs: S.ReadState | undefined): DmChanne
     recipientIds: (c.recipients ?? []).map((u) => u.id),
     name: c.name ?? null,
     ...(c.owner_id ? { ownerId: c.owner_id } : {}),
-    ...(c.icon ? { iconUrl: cdnUrl('icons', c.id, c.icon, { size: 128 }) } : {}),
+    ...(c.icon ? { iconUrl: cdnUrl('channel-icons', c.id, c.icon, { size: 128 }) } : {}),
     lastMessageAt: snowflakeTime(c.last_message_id),
     unread: isUnread(c, rs),
     mentionCount: rs?.mention_count ?? 0,
@@ -332,6 +350,7 @@ export function toLoungeMember(m: S.Member, user: LoungeUser): Member {
 const FLAG_SUPPRESS_EMBEDS = 1 << 2;
 const FLAG_VOICE = 1 << 13;
 const FLAG_EPHEMERAL = 1 << 6;
+const FLAG_SYSTEM_TAG = 1 << 30;
 
 function decodeWaveform(b64: string | null | undefined): number[] | null {
   if (!b64) return null;
@@ -391,7 +410,10 @@ export function toLoungeMessage(m: S.Message): Message {
   return {
     id: m.id,
     channelId: m.channel_id,
-    author: toLoungeUser(m.author),
+    author: {
+      ...toLoungeUser(m.author),
+      ...(flags & FLAG_SYSTEM_TAG ? { system: true } : {}),
+    },
     content: m.content,
     createdAt: m.timestamp,
     editedAt: m.edited_timestamp ?? null,

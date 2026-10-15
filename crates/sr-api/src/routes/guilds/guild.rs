@@ -156,12 +156,14 @@ pub async fn get_guild(
 pub async fn modify_guild(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     MaybeExt(media): MaybeExt<MediaDeps>,
     Path(guild_id): Path<String>,
     Json(body): Json<ModifyGuildBody>,
 ) -> ApiResult<Json<GuildObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let system_channel_id = match body.system_channel_id {
         None => None,
         Some(None) => Some(None),
@@ -227,11 +229,13 @@ pub async fn modify_guild(
         verification_level: body.verification_level,
         default_message_notifications: body.default_message_notifications,
         explicit_content_filter: body.explicit_content_filter,
+        system_channel_flags: body.system_channel_flags,
         preferred_locale: body.preferred_locale,
         owner_id,
         icon_key,
         banner_key,
         splash_key,
+        ..GuildPatch::default()
     };
     let g = match api.edit_guild(user, gid, patch).await {
         Ok(g) => g,
@@ -277,10 +281,12 @@ pub async fn modify_guild(
 pub async fn delete_guild(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path(guild_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     api.delete_guild(user, gid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
 }

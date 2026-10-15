@@ -27,6 +27,50 @@ use sr_events::{DomainEvent, EventBus};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// The audit `changes` of a guild edit (Discord keys), limited to the safety fields that
+/// the server settings page edits.
+fn guild_changes(before: &Guild, after: &Guild) -> Vec<AuditChange> {
+    let mut out = Vec::new();
+    let mut push = |key: &str, old: Value, new: Value| {
+        if old != new {
+            out.push(AuditChange::new(key, Some(old), Some(new)));
+        }
+    };
+    push("name", json!(before.name), json!(after.name));
+    push(
+        "verification_level",
+        json!(before.verification_level),
+        json!(after.verification_level),
+    );
+    push(
+        "explicit_content_filter",
+        json!(before.explicit_content_filter),
+        json!(after.explicit_content_filter),
+    );
+    push("mfa_level", json!(before.mfa_level), json!(after.mfa_level));
+    push(
+        "system_channel_flags",
+        json!(before.system_channel_flags),
+        json!(after.system_channel_flags),
+    );
+    push(
+        "system_channel_id",
+        json!(before.system_channel_id.map(|c| c.to_string())),
+        json!(after.system_channel_id.map(|c| c.to_string())),
+    );
+    push(
+        "widget_enabled",
+        json!(before.widget_enabled),
+        json!(after.widget_enabled),
+    );
+    push(
+        "widget_channel_id",
+        json!(before.widget_channel_id.map(|c| c.to_string())),
+        json!(after.widget_channel_id.map(|c| c.to_string())),
+    );
+    out
+}
+
 /// Everything the guild routes need, as one object-safe trait. The acting user
 /// is always the first argument; all permission checks happen behind it.
 #[async_trait]
@@ -240,10 +284,18 @@ impl<R: SettingsRepository + 'static> AuditSink for SettingsService<R> {
         reason: Option<&str>,
     ) {
         // The change is already committed; a failed audit write is logged, not surfaced.
-        if let Err(e) = self
-            .record_audit(guild, actor, action, target_id, changes, reason)
-            .await
-        {
+        // D-187: inside a built-in module's handler the entry names the system user and the module.
+        let written = match sr_features::current_module() {
+            Some((id, name)) => {
+                self.record_audit_as_module(guild, action, target_id, changes, reason, (&id, &name))
+                    .await
+            }
+            None => {
+                self.record_audit(guild, actor, action, target_id, changes, reason)
+                    .await
+            }
+        };
+        if let Err(e) = written {
             tracing::warn!(error = %e, ?action, "failed to record audit entry");
         }
     }
@@ -254,8 +306,17 @@ impl<R: SettingsRepository + 'static> AuditSink for SettingsService<R> {
         actor: UserId,
         action: AuditAction,
         target_id: Option<u64>,
-        options: serde_json::Value,
+        mut options: serde_json::Value,
     ) {
+        let mut actor = actor;
+        if let Some((id, name)) = sr_features::current_module() {
+            // D-187: module writes act as the system user and name the module.
+            actor = UserId::new(sr_chat::settings::audit::SYSTEM_USER_ID);
+            if let Some(o) = options.as_object_mut() {
+                o.insert("module".into(), name.into());
+                o.insert("module_id".into(), id.into());
+            }
+        }
         if let Err(e) = self
             .record_audit_with_options(guild, actor, action, target_id, options)
             .await
@@ -412,9 +473,23 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
     }
 
     async fn edit_guild(&self, actor: UserId, id: GuildId, patch: GuildPatch) -> ChatResult<Guild> {
+        let before = self.svc.get_guild(actor, id).await.ok().map(|(g, _)| g);
         let g = self.svc.edit_guild(actor, id, patch).await?;
-        self.audit(id, actor, AuditAction::GuildUpdate, id.get(), None)
+        let changes = before
+            .as_ref()
+            .map(|b| guild_changes(b, &g))
+            .unwrap_or_default();
+        if let Some(a) = &self.audit {
+            a.record(
+                id,
+                actor,
+                AuditAction::GuildUpdate,
+                Some(id.get()),
+                changes,
+                None,
+            )
             .await;
+        }
         let roles = self.svc.list_roles(actor, id).await.unwrap_or_default();
         self.emit(DomainEvent::GuildUpdated {
             guild: id,

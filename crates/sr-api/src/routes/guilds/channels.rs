@@ -7,6 +7,7 @@ use super::dto::{
 use super::util::{Api, actor, ce, id, permissions};
 use crate::routes::MaybeExt;
 use crate::routes::threads::ThreadsDeps;
+use crate::routes::watchparty::WatchPartyDeps;
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
@@ -20,6 +21,8 @@ use sr_chat::channel_rules::{ChannelPatch, NewChannel};
 use sr_chat::threads::{DefaultReaction, ForumPatch, TagInput, ThreadPatch};
 use sr_core::permissions::{Overwrite, OverwriteKind};
 use sr_core::{ApiError, ChannelId, GuildId, Snowflake};
+use sr_watchparty::PartyError;
+use sr_watchparty::model::{CreateInput, SettingsInput};
 use std::sync::Arc;
 
 pub fn routes() -> Router<AppState> {
@@ -199,13 +202,21 @@ pub async fn list_channels(
 pub async fn create_channel(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
+    MaybeExt(parties): MaybeExt<WatchPartyDeps>,
     Path(guild_id): Path<String>,
     Json(body): Json<CreateChannelBody>,
 ) -> ApiResult<(StatusCode, Json<ChannelObject>)> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let kind = ChannelType::from_code(body.kind.unwrap_or(0))
         .ok_or_else(|| invalid("type", "ENUM_TYPE_INVALID", "Unknown channel type."))?;
+    let room = if body.sr_watch_party_room == Some(true) {
+        Some(room_request(&p, &body, kind, parties)?)
+    } else {
+        None
+    };
     let mut input = NewChannel::new(kind, body.name);
     input.topic = body.topic;
     input.position = body.position;
@@ -235,7 +246,119 @@ pub async fn create_channel(
         .create_channel(user, gid, input, overwrites)
         .await
         .map_err(ce)?;
+    if let Some(room) = room {
+        // The preset is one request: when the party cannot start (unknown or unplayable title, age gate,
+        // the server's party limit), the new channel is taken back so nothing half-made is left behind.
+        if let Err(e) = start_room(&room, view.channel.id).await {
+            let _ = api.delete_channel(user, view.channel.id).await;
+            return Err(e);
+        }
+    }
     Ok((StatusCode::CREATED, Json(ChannelObject::from(&view))))
+}
+
+/// A validated "Watch party room" request.
+struct RoomRequest {
+    deps: Arc<WatchPartyDeps>,
+    user: i64,
+    title_id: i64,
+    episode_id: Option<i64>,
+}
+
+fn room_request(
+    p: &Principal,
+    body: &CreateChannelBody,
+    kind: ChannelType,
+    parties: Option<Arc<WatchPartyDeps>>,
+) -> Result<RoomRequest, HttpError> {
+    if kind != ChannelType::Voice {
+        return Err(invalid(
+            "sr_watch_party_room",
+            "ENUM_TYPE_INVALID",
+            "A watch party room is a voice channel (type 2).",
+        ));
+    }
+    let snowflake = |field: &str, raw: &str| {
+        raw.parse::<i64>()
+            .ok()
+            .filter(|v| *v > 0)
+            .ok_or_else(|| invalid(field, "NUMBER_TYPE_COERCE", "Not a valid snowflake."))
+    };
+    let title_id = match body.sr_watch_party_title_id.as_deref() {
+        Some(raw) => snowflake("sr_watch_party_title_id", raw)?,
+        None => {
+            return Err(invalid(
+                "sr_watch_party_title_id",
+                "BASE_TYPE_REQUIRED",
+                "A watch party room starts with a title.",
+            ));
+        }
+    };
+    let episode_id = body
+        .sr_watch_party_episode_id
+        .as_deref()
+        .map(|raw| snowflake("sr_watch_party_episode_id", raw))
+        .transpose()?;
+    // People only: a bot has no account to host a party for.
+    if matches!(p.kind, crate::AuthKind::Bot { .. }) {
+        return Err(sr_core::ErrorCode::BotsCannotUseThisEndpoint.into());
+    }
+    let Some(deps) = parties else {
+        return Err(invalid(
+            "sr_watch_party_room",
+            "BASE_TYPE_INVALID",
+            "Watch parties are not available.",
+        ));
+    };
+    Ok(RoomRequest {
+        deps,
+        user: p.user_id,
+        title_id,
+        episode_id,
+    })
+}
+
+fn party_error(e: PartyError) -> HttpError {
+    use sr_core::ErrorCode as C;
+    HttpError(match e {
+        PartyError::NotFound(w) => ApiError::with_message(C::SrNotFound, format!("Unknown {w}")),
+        PartyError::Forbidden => ApiError::new(C::MissingPermissions),
+        PartyError::AgeConfirmationRequired => ApiError::new(C::SrAgeConfirmationRequired),
+        PartyError::Invalid(m) => ApiError::with_message(C::InvalidFormBody, m),
+        PartyError::Conflict(m) => ApiError::with_message(C::SrConflict, m),
+        PartyError::RateLimited => ApiError::new(C::TooManyRequests),
+        other => {
+            tracing::error!(error = %other, "watch party room failed");
+            ApiError::new(C::SrInternal)
+        }
+    })
+}
+
+/// Start the persistent party of a new room. The creator is not a participant afterwards: the first member
+/// to join an empty persistent party becomes its host.
+async fn start_room(room: &RoomRequest, channel: ChannelId) -> Result<(), HttpError> {
+    let svc = &room.deps.service;
+    let viewer = svc.viewer(room.user).await;
+    let party = svc
+        .create(
+            viewer,
+            CreateInput {
+                title_id: room.title_id,
+                tv_channel_id: None,
+                episode_id: room.episode_id,
+                variant_id: None,
+                channel_id: i64::try_from(channel.get()).ok(),
+                start_ms: None,
+                settings: Some(SettingsInput {
+                    persistent: Some(true),
+                    ..SettingsInput::default()
+                }),
+            },
+        )
+        .await
+        .map_err(party_error)?;
+    svc.leave(viewer, party.id).await.map_err(party_error)?;
+    Ok(())
 }
 
 /// Bulk update `position` and `parent_id`. Needs `MANAGE_CHANNELS`.
@@ -250,11 +373,13 @@ pub async fn create_channel(
 pub async fn reorder_channels(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path(guild_id): Path<String>,
     Json(body): Json<Vec<ReorderChannelEntry>>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let mut moves = Vec::with_capacity(body.len());
     for (n, e) in body.into_iter().enumerate() {
         let cid: ChannelId = id(&format!("{n}.id"), &e.id)?;
@@ -302,6 +427,7 @@ pub async fn get_channel(
 pub async fn modify_channel(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     MaybeExt(threads): MaybeExt<ThreadsDeps>,
     Path(channel_id): Path<String>,
     Json(body): Json<ModifyChannelBody>,
@@ -314,6 +440,7 @@ pub async fn modify_channel(
         let obj = t.modify(user, cid, patch).await.map_err(ce)?;
         return Ok(Json(obj));
     }
+    gate.require_channel(&*api, user, cid).await?;
     let kind = match body.kind {
         None => None,
         Some(code) => Some(ChannelType::from_code(code).ok_or_else(|| {
@@ -354,6 +481,7 @@ pub async fn modify_channel(
 pub async fn delete_channel(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     MaybeExt(threads): MaybeExt<ThreadsDeps>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<ChannelObject>> {
@@ -363,6 +491,7 @@ pub async fn delete_channel(
         let obj = t.delete(user, cid).await.map_err(ce)?;
         return Ok(Json(obj));
     }
+    gate.require_channel(&*api, user, cid).await?;
     let view = api.delete_channel(user, cid).await.map_err(ce)?;
     Ok(Json(ChannelObject::from(&view)))
 }
@@ -382,11 +511,13 @@ pub async fn delete_channel(
 pub async fn put_overwrite(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path((channel_id, overwrite_id)): Path<(String, String)>,
     Json(body): Json<OverwriteBody>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
+    gate.require_channel(&*api, user, cid).await?;
     let target: Snowflake = id("overwrite_id", &overwrite_id)?;
     let ow = overwrite_from(target, &body)?;
     api.set_overwrite(user, cid, ow).await.map_err(ce)?;
@@ -407,10 +538,12 @@ pub async fn put_overwrite(
 pub async fn delete_overwrite(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path((channel_id, overwrite_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
+    gate.require_channel(&*api, user, cid).await?;
     let target: Snowflake = id("overwrite_id", &overwrite_id)?;
     api.delete_overwrite(user, cid, target).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)

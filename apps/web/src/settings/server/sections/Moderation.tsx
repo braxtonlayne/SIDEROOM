@@ -20,6 +20,7 @@ import { ACTION, TRIGGER } from '../api';
 import { useDraft, useGuildEvents, useResource, useSettingsForm } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
+import { ProtectionCards } from './Protection';
 
 /** `label` and `hint` are message keys, resolved at render time. */
 export const VERIFICATION_LEVELS: { value: number; label: MessageKey; hint: MessageKey }[] = [
@@ -116,6 +117,7 @@ export function ModerationSection({ guildId }: SectionProps) {
         description={t('settings.moderation.description')}
       />
       <SafetyForm guildId={guildId} />
+      <ProtectionCards guildId={guildId} />
       <h2 className="ss-title" style={{ fontSize: '1rem', margin: '32px 0 12px' }}>
         {t('settings.moderation.rules')}
       </h2>

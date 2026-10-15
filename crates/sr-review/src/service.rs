@@ -24,8 +24,16 @@ pub const LEASE_MS: i64 = 30 * 60 * 1000;
 pub const MAX_OPEN_PER_MEMBER: i64 = 5;
 /// Open requests a member may have at once.
 pub const MAX_OPEN_REQUESTS: i64 = 10;
-/// Bytes a member may reserve for upload per UTC day (spec section 3: 50 GB); staff exempt.
-pub const MAX_UPLOAD_BYTES_PER_DAY: i64 = 50_000_000_000;
+/// Default bytes a member may reserve for upload per UTC day (D-196: 50 GiB); staff exempt. The
+/// platform setting `submissions.daily_upload_bytes` overrides it (`0` = unlimited).
+pub const MAX_UPLOAD_BYTES_PER_DAY: i64 = 53_687_091_200;
+
+/// Where the daily upload allowance comes from (the platform setting
+/// `submissions.daily_upload_bytes`, D-196). `0` or less means unlimited.
+#[async_trait::async_trait]
+pub trait AllowanceSource: Send + Sync {
+    async fn daily_upload_bytes(&self) -> i64;
+}
 const DAY_MS: i64 = 86_400_000;
 /// Idle days before a draft owner is warned, then before the draft is abandoned.
 pub const STALE_WARN_DAYS: i64 = 23;
@@ -42,6 +50,10 @@ const MAX_REASON: usize = 4000;
 #[async_trait::async_trait]
 pub trait ReviewEvents: Send + Sync {
     async fn emit(&self, users: Vec<i64>, payload: Value);
+
+    /// A submission entered review (`outcome: None`) or reached `outcome`; the Staff Server's
+    /// `#review-queue` card follows (G-68). Does nothing unless the implementation cares.
+    async fn card(&self, _submission_id: i64, _outcome: Option<&str>) {}
 }
 
 /// The acting account and its platform permissions (empty for a plain member).
@@ -71,6 +83,7 @@ pub struct ReviewService {
     clock: Arc<dyn Clock>,
     ids: IdSource,
     events: Option<Arc<dyn ReviewEvents>>,
+    allowance: Option<Arc<dyn AllowanceSource>>,
 }
 
 fn reason_text(raw: Option<&str>, required: bool, what: &str) -> ReviewResult<Option<String>> {
@@ -98,7 +111,23 @@ impl ReviewService {
             clock,
             ids,
             events: None,
+            allowance: None,
         }
+    }
+
+    /// Read the daily upload allowance from a platform setting instead of the default.
+    pub fn with_allowance(mut self, a: Arc<dyn AllowanceSource>) -> Self {
+        self.allowance = Some(a);
+        self
+    }
+
+    /// The daily allowance in bytes; `None` when unlimited.
+    async fn daily_limit(&self) -> Option<i64> {
+        let n = match &self.allowance {
+            Some(a) => a.daily_upload_bytes().await,
+            None => MAX_UPLOAD_BYTES_PER_DAY,
+        };
+        (n > 0).then_some(n)
     }
 
     pub fn with_events(mut self, e: Arc<dyn ReviewEvents>) -> Self {
@@ -173,6 +202,12 @@ impl ReviewService {
             ))
         } else {
             Ok(())
+        }
+    }
+
+    async fn card(&self, s: &Submission, outcome: Option<&str>) {
+        if let Some(ev) = &self.events {
+            ev.card(s.id, outcome).await;
         }
     }
 
@@ -380,6 +415,7 @@ impl ReviewService {
             Some(s) => s,
             None => return Err(self.why_not(id, action).await),
         };
+        self.card(&s, None).await;
         self.detail(s, false).await
     }
 
@@ -445,6 +481,7 @@ impl ReviewService {
             Some(s) => s,
             None => return Err(self.why_not(id, Action::Withdraw).await),
         };
+        self.card(&s, Some("withdrawn")).await;
         self.detail(s, false).await
     }
 
@@ -683,6 +720,7 @@ impl ReviewService {
             Some(s) => {
                 self.notify(&s, event_kind, json!({ "reason": reason }))
                     .await;
+                self.card(&s, Some(event_kind)).await;
                 Ok(s)
             }
             None => Err(self.why_not(id, action).await),
@@ -800,6 +838,7 @@ impl ReviewService {
         match self.repo.transition(s.id, &t, &ev).await? {
             Some(done) => {
                 self.notify(&done, "published", json!({})).await;
+                self.card(&done, Some("published")).await;
                 Ok(())
             }
             None => Err(self.why_not(s.id, Action::Publish).await),
@@ -1173,21 +1212,19 @@ impl ReviewService {
         if c.is_staff() {
             return Ok(());
         }
+        let Some(limit) = self.daily_limit().await else {
+            return Ok(());
+        };
         let bytes = i64::try_from(bytes).unwrap_or(i64::MAX);
         match self
             .repo
-            .add_upload_bytes(
-                c.user_id,
-                self.day_number(),
-                bytes,
-                MAX_UPLOAD_BYTES_PER_DAY,
-            )
+            .add_upload_bytes(c.user_id, self.day_number(), bytes, limit)
             .await?
         {
             Some(_) => Ok(()),
             None => Err(ReviewError::Conflict(format!(
                 "the daily upload limit of {} GB is reached; try again tomorrow (UTC)",
-                MAX_UPLOAD_BYTES_PER_DAY / 1_000_000_000
+                limit / 1_073_741_824
             ))),
         }
     }
@@ -1202,10 +1239,11 @@ impl ReviewService {
             });
         }
         let used = self.repo.upload_bytes(c.user_id, self.day_number()).await?;
+        let limit = self.daily_limit().await;
         Ok(UploadAllowance {
-            limit_bytes: Some(MAX_UPLOAD_BYTES_PER_DAY),
+            limit_bytes: limit,
             used_bytes: used,
-            remaining_bytes: Some((MAX_UPLOAD_BYTES_PER_DAY - used).max(0)),
+            remaining_bytes: limit.map(|l| (l - used).max(0)),
         })
     }
 

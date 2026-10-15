@@ -14,6 +14,7 @@ import {
 } from '../api';
 import { WebPushCard } from '../../../pwa/WebPushCard';
 import { Card, Loaded, SectionTitle, Unavailable } from '../parts';
+import { PlatformDmCard } from './AccountSwitchCards';
 import { PUSH_INACTIVE_CHOICES } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
 
@@ -261,6 +262,7 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
         </div>
         <Unavailable>{t('settings.notifications.pushUnavailable')}</Unavailable>
       </Card>
+      <PlatformDmCard />
       <Card id="us-webpush" title={t('pwa.push.title')}>
         <WebPushCard />
       </Card>

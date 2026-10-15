@@ -1,6 +1,6 @@
 // REST helpers for the Admin pages: /api/v1/admin/*. Shapes mirror crates/sr-admin (utoipa schemas).
 // Ids are snowflake strings. Mutations never retry on 429 so the staff member sees the error.
-import { apiFetch } from '../api/client';
+import { ApiError, apiFetch } from '../api/client';
 import { withReauth } from './reauth';
 
 export { errorText } from '../settings/server/api';
@@ -43,6 +43,15 @@ export interface SystemCounts {
   jobs_running: number;
   sessions_active: number;
   staff: number;
+  /** Added by the phase-10 admin backend; older servers omit them. */
+  accounts_cap?: number;
+  alerts_unacked?: number;
+  invites_open?: number;
+  review_pending?: number;
+  storage_bytes?: number;
+  /** Not served yet (no voice stats route): shown only when a server sends them. */
+  voice_rooms?: number;
+  egress_bytes?: number;
 }
 export const getStats = () => get<SystemCounts>('/admin/stats');
 
@@ -145,8 +154,45 @@ export interface Reset2faReport {
 }
 export const reset2fa = (id: string, reason: string) =>
   send<Reset2faReport>(`/admin/accounts/${id}/reset-2fa`, 'POST', reasonBody(reason));
-export const banAccount = (id: string, category: BanCategory, reason: string) =>
-  send<BanOutcome>(`/admin/accounts/${id}/ban`, 'POST', { category, reason });
+export const renameAccount = (
+  id: string,
+  body: { username?: string | null; display_name?: string | null },
+  reason: string,
+) => send<AccountSummary>(`/admin/accounts/${id}/rename`, 'POST', { ...body, reason });
+export const changeAccountEmail = (id: string, email: string, reason: string) =>
+  send<AccountSummary>(`/admin/accounts/${id}/change-email`, 'POST', { email, reason });
+/** Badge names staff may grant (`sr_admin::BADGES`); bits 8 to 11 of `accounts.flags`. */
+export const STAFF_BADGES = [
+  { name: 'early_member', bit: 8 },
+  { name: 'contributor', bit: 9 },
+  { name: 'bug_hunter', bit: 10 },
+  { name: 'honorary', bit: 11 },
+] as const;
+export const setAccountBadges = (id: string, grant: string[], revoke: string[], reason: string) =>
+  send<AccountSummary>(`/admin/accounts/${id}/badges`, 'POST', { grant, revoke, reason });
+export const forcePasswordReset = (id: string, reason: string) =>
+  send<{ sessions_revoked: number }>(
+    `/admin/accounts/${id}/force-password-reset`,
+    'POST',
+    reasonBody(reason),
+  );
+/** Why an account is banned (D-211); each has a default category the dialog starts from. */
+export type BanReason =
+  'illegal_content' | 'child_safety' | 'fraud' | 'platform_abuse' | 'harassment' | 'ban_evasion';
+export const BAN_REASONS: { value: BanReason; serious: boolean }[] = [
+  { value: 'illegal_content', serious: true },
+  { value: 'child_safety', serious: true },
+  { value: 'fraud', serious: true },
+  { value: 'platform_abuse', serious: true },
+  { value: 'harassment', serious: false },
+  { value: 'ban_evasion', serious: false },
+];
+export const banAccount = (
+  id: string,
+  category: BanCategory,
+  reason: string,
+  reason_category?: BanReason,
+) => send<BanOutcome>(`/admin/accounts/${id}/ban`, 'POST', { category, reason, reason_category });
 
 // ---- persons and bans ----
 
@@ -289,11 +335,102 @@ export interface StaffMember {
   roles: StaffRole[];
 }
 export const listStaff = () => get<StaffMember[]>('/admin/staff');
+export interface FormerStaff {
+  account_id: string;
+  username: string;
+  revoked_reason: 'left' | 'kicked' | 'revoked';
+  revoked_at_ms: number;
+  note: string;
+}
+export const listFormerStaff = () => get<FormerStaff[]>('/admin/staff/former');
 export const listStaffRoles = () => get<StaffRole[]>('/admin/staff/roles');
 export const appoint = (account_id: string, role_ids: string[], reason: string) =>
   send<StaffMember>('/admin/staff', 'POST', { account_id, role_ids, reason });
 export const setStaffRoles = (accountId: string, role_ids: string[], reason: string) =>
   send<StaffMember>(`/admin/staff/${accountId}/roles`, 'PUT', { role_ids, reason });
+
+export type OfferState = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+export interface StaffOffer {
+  id: string;
+  account_id: string;
+  username: string;
+  offered_by: string;
+  offered_by_name: string;
+  role_ids: string[];
+  role_names: string[];
+  reason: string;
+  state: OfferState;
+  created_at_ms: number;
+  expires_at_ms: number;
+  responded_at_ms?: number | null;
+}
+export const listStaffOffers = () => get<StaffOffer[]>('/admin/staff/offers');
+export const sendStaffOffer = (account_id: string, role_ids: string[], reason: string) =>
+  send<StaffOffer>('/admin/staff/offers', 'POST', { account_id, role_ids, reason });
+export const withdrawStaffOffer = (id: string) =>
+  send<StaffOffer>(`/admin/staff/offers/${id}`, 'DELETE');
+
+export interface Delegation {
+  account_id: string;
+  username: string;
+  max_permissions: string;
+  granted_by: string;
+  granted_at_ms: number;
+  reason: string;
+}
+export const listDelegations = () => get<Delegation[]>('/admin/staff/delegations');
+export const setDelegation = (accountId: string, max_permissions: string, reason: string) =>
+  send<Delegation>(`/admin/staff/${accountId}/delegation`, 'PUT', { max_permissions, reason });
+export const removeDelegation = (accountId: string) =>
+  send<void>(`/admin/staff/${accountId}/delegation`, 'DELETE');
+
+// ---- platform announcements (ADM-PLT-009) ----
+
+export type AnnouncementSeverity = 'info' | 'warning' | 'critical';
+export interface PlatformAnnouncement {
+  id: string;
+  title: string;
+  body: string;
+  severity: AnnouncementSeverity;
+  send_dm: boolean;
+  created_by: string;
+  created_at_ms: number;
+  starts_at_ms: number;
+  ends_at_ms?: number | null;
+  ended_at_ms?: number | null;
+}
+export const listAnnouncements = () => get<PlatformAnnouncement[]>('/admin/announcements');
+export const createAnnouncement = (body: {
+  title: string;
+  body: string;
+  severity: AnnouncementSeverity;
+  /** Outage or security notice (D-192): cannot be dismissed and is always sent as a DM. */
+  critical?: boolean;
+  send_dm: boolean;
+  ends_at_ms?: number | null;
+  reason: string;
+}) => send<PlatformAnnouncement>('/admin/announcements', 'POST', body);
+export const endAnnouncement = (id: string) =>
+  send<PlatformAnnouncement>(`/admin/announcements/${id}`, 'DELETE');
+/** Edit one that is still showing (G-69): title, message and end time only; 409 once it has ended. */
+export const editAnnouncement = (
+  id: string,
+  body: { title?: string; body?: string; ends_at_ms?: number; reason?: string },
+) => send<PlatformAnnouncement>(`/admin/announcements/${id}`, 'PATCH', body);
+
+// ---- staff alerts (ADM-ALR-001) ----
+
+export interface StaffAlertRow {
+  id: string;
+  kind: string;
+  detail: string;
+  created_at_ms: number;
+  acked_at_ms?: number | null;
+  acked_by?: string | null;
+}
+export const listStaffAlerts = () => get<StaffAlertRow[]>('/admin/alerts');
+export const ackStaffAlert = (id: string) => send<StaffAlertRow>(`/admin/alerts/${id}/ack`, 'POST');
+
 export const revokeStaff = (accountId: string) => send<void>(`/admin/staff/${accountId}`, 'DELETE');
 
 // ---- settings and features ----
@@ -476,10 +613,34 @@ export interface ReauthStatus {
   window_secs: number;
   required: boolean;
 }
-/** Not wrapped in withReauth: this is the call the dialog itself makes. */
-export const getReauthStatus = () => apiFetch<ReauthStatus>('/admin/reauth', { retries: 0 });
+/**
+ * Not wrapped in withReauth: this is the call the dialog itself makes. Staff use the admin route; anyone else
+ * (a server moderator under a 2FA requirement, `POST /guilds/{id}/mfa`) falls back to `/sr/auth/reauth`, which
+ * opens the same per-session window.
+ */
+export const getReauthStatus = () =>
+  apiFetch<ReauthStatus>('/admin/reauth', { retries: 0 }).catch((e: unknown) => {
+    if (!(e instanceof ApiError) || e.status !== 403) throw e;
+    return apiFetch<Omit<ReauthStatus, 'required'>>('/sr/auth/reauth', { retries: 0 }).then(
+      (s) => ({
+        ...s,
+        required: true,
+      }),
+    );
+  });
 export const submitReauth = (method: 'totp' | 'recovery' | 'passkey', code: string) =>
-  apiFetch<ReauthStatus>('/admin/reauth', { method: 'POST', retries: 0, json: { method, code } });
+  apiFetch<ReauthStatus>('/admin/reauth', {
+    method: 'POST',
+    retries: 0,
+    json: { method, code },
+  }).catch((e: unknown) => {
+    if (!(e instanceof ApiError) || e.status !== 403) throw e;
+    return apiFetch<Omit<ReauthStatus, 'required'>>('/sr/auth/reauth', {
+      method: 'POST',
+      retries: 0,
+      json: { method, code },
+    }).then((s) => ({ ...s, required: true }));
+  });
 
 // ---- private content viewer (ADM-COM-003) ----
 

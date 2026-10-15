@@ -402,6 +402,39 @@ async fn suggestion_cards_get_votes_and_follow_the_status() {
     assert_eq!(reactions.len(), 2);
     assert!(reactions.iter().all(|(_, user)| *user == 1));
 
+    // G-72: votes count the members' reactions and not the system user's seed.
+    for (key, user) in [("👍", f.member), ("👍", f.owner), ("👎", f.outsider)] {
+        sqlx::query("INSERT INTO reactions (message_id, emoji_key, user_id) VALUES ($1, $2, $3)")
+            .bind(message)
+            .bind(key)
+            .bind(user)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+    }
+    let as_member =
+        f.uf.list_suggestions(f.guild, None, None, 10, Some(f.member))
+            .await
+            .unwrap();
+    assert_eq!((as_member[0].votes.up, as_member[0].votes.down), (2, 1));
+    assert_eq!(
+        as_member[0].my_vote,
+        Some(sr_userfeat::suggestions::Vote::Up)
+    );
+    let as_outsider =
+        f.uf.list_suggestions(f.guild, None, None, 10, Some(f.outsider))
+            .await
+            .unwrap();
+    assert_eq!(
+        as_outsider[0].my_vote,
+        Some(sr_userfeat::suggestions::Vote::Down)
+    );
+    let anon =
+        f.uf.list_suggestions(f.guild, None, None, 10, None)
+            .await
+            .unwrap();
+    assert_eq!(anon[0].my_vote, None);
+
     f.uf.respond_to_suggestion(
         &*f.poster,
         f.guild,
@@ -468,6 +501,11 @@ async fn leveling_awards_from_stored_messages_hands_out_roles_and_announces() {
         "100 XP is level 1"
     );
     assert!(wait_for(|| async { f.has_role(f.member, role).await }).await);
+    // G-70: the rank card lists the level roles, and drops one whose role was deleted.
+    let card = f.uf.rank_card(f.guild, f.member).await.unwrap();
+    assert_eq!(card.level_roles.len(), 1);
+    assert_eq!(card.level_roles[0].level, 1);
+    assert_eq!(card.level_roles[0].role_id, role.to_string());
     // The announcement is posted after the role grant, so wait for it as well.
     assert!(
         wait_for(|| async {
@@ -478,6 +516,18 @@ async fn leveling_awards_from_stored_messages_hands_out_roles_and_announces() {
         })
         .await,
         "the level-up is announced by the system user"
+    );
+    sqlx::query("DELETE FROM roles WHERE id = $1")
+        .bind(role)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    assert!(
+        f.uf.rank_card(f.guild, f.member)
+            .await
+            .unwrap()
+            .level_roles
+            .is_empty()
     );
 
     // The system user's own messages and servers without leveling earn nothing.
@@ -540,4 +590,331 @@ async fn roles_are_handed_out_and_taken_back_through_the_guild_backend() {
     // An unknown role is reported, not panicked on.
     assert!(!f.poster.add_role(f.guild, f.member, role + 999_999).await);
     f.db.cleanup().await.unwrap();
+}
+
+// ---- HTTP: modules capabilities (G-71) and the ticket flow end to end (G-73) ------------------------
+
+mod http {
+    use super::*;
+    use axum::{
+        Router,
+        body::Body,
+        http::{Method, Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use sr_api::{
+        ApiSettings, AppState,
+        auth::{csrf, memory::MemorySessions},
+        build_router,
+        routes::{
+            settings::deps::SettingsDeps,
+            threads::ThreadsDeps,
+            userfeat::{UserFeatDeps, router},
+        },
+    };
+    use sr_auth::{
+        repo::{SessionRecord, SessionRepository},
+        session::SessionToken,
+    };
+    use sr_db::settings_repo::PgSettingsRepo;
+    use tower::ServiceExt;
+
+    struct Http {
+        app: Router,
+        sessions: Arc<MemorySessions>,
+        next_session: std::sync::atomic::AtomicI64,
+    }
+
+    impl Http {
+        async fn login(&self, user: i64) -> String {
+            let t = SessionToken::generate().unwrap();
+            self.sessions
+                .create(SessionRecord {
+                    id: self
+                        .next_session
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+                    user_id: user,
+                    token_hash: t.hash(),
+                    created_at: 0,
+                    last_seen_at: i64::MAX / 4,
+                    expires_at: i64::MAX / 4,
+                    device_name: None,
+                })
+                .await
+                .unwrap();
+            t.expose().to_owned()
+        }
+
+        async fn call(
+            &self,
+            token: &str,
+            method: Method,
+            path: &str,
+            body: Option<Value>,
+        ) -> (StatusCode, Value) {
+            let mut req = Request::builder()
+                .method(method.clone())
+                .uri(format!("/api/v1{path}"))
+                .header("origin", "http://localhost:8080")
+                .header("cookie", format!("sr_session={token}"));
+            if method != Method::GET {
+                req = req.header("x-sr-csrf", csrf::token_for(token));
+            }
+            let body = match body {
+                Some(b) => {
+                    req = req.header("content-type", "application/json");
+                    Body::from(b.to_string())
+                }
+                None => Body::empty(),
+            };
+            let resp = self
+                .app
+                .clone()
+                .oneshot(req.body(body).unwrap())
+                .await
+                .unwrap();
+            let status = resp.status();
+            let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+            (
+                status,
+                serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+            )
+        }
+    }
+
+    fn http(f: &Fx) -> Http {
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let bus: Arc<dyn sr_events::EventBus> = Arc::new(InProcessBus::new());
+        let sessions = Arc::new(MemorySessions::new());
+        let threads = ThreadsDeps::new(
+            sr_chat::threads::ThreadService::new(
+                PgChatRepo::new(f.pool.clone()),
+                clock.clone(),
+                SnowflakeGenerator::new(clock.clone(), 30, 30).unwrap(),
+            ),
+            bus,
+        );
+        let settings_deps = SettingsDeps::new(
+            Arc::new(PgSettingsRepo::new(f.pool.clone())),
+            Arc::new(PgChatRepo::new(f.pool.clone())),
+            Arc::new(ObjectStoreStorage::in_memory()),
+            clock,
+            Arc::new(|| 1),
+            31,
+            31,
+        )
+        .unwrap();
+        let deps = UserFeatDeps {
+            uf: f.uf.clone(),
+            poster: f.poster.clone(),
+            net_policy: sr_net::Policy::default(),
+        };
+        let mut settings = ApiSettings::default();
+        settings.rate_limit.enabled = false;
+        let state = AppState::builder()
+            .settings(settings)
+            .sessions(sessions.clone())
+            .extension(Arc::new(deps))
+            .extension(Arc::new(settings_deps))
+            .extension(Arc::new(threads))
+            .extension(f.messages.clone())
+            .build();
+        Http {
+            app: build_router(state, router()),
+            sessions,
+            next_session: std::sync::atomic::AtomicI64::new(1000),
+        }
+    }
+
+    async fn join_as_staff(f: &Fx, name: &str, role: i64) -> i64 {
+        let id = f.uf.ids.as_ref()();
+        account(&f.pool, id, name).await;
+        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+            .bind(f.guild)
+            .bind(id)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)")
+            .bind(f.guild)
+            .bind(id)
+            .bind(role)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        id
+    }
+
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn modules_report_what_the_caller_may_do_for_suggestions_and_tickets() {
+        let f = fx().await;
+        let staff_role = f.role("Helpers").await;
+        let helper = join_as_staff(&f, "helper", staff_role).await;
+        f.enable(
+            SUGGESTIONS_ID,
+            json!({"channel": f.channel.to_string(), "staff_role": staff_role.to_string()}),
+        )
+        .await;
+        f.enable(
+            TICKETS_ID,
+            json!({"channel": f.channel.to_string(), "staff_role": staff_role.to_string()}),
+        )
+        .await;
+        let h = http(&f);
+        let path = format!("/guilds/{}/modules", f.guild);
+        for (who, expect) in [(f.member, false), (helper, true), (f.owner, true)] {
+            let token = h.login(who).await;
+            let (status, body) = h.call(&token, Method::GET, &path, None).await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            for module in [SUGGESTIONS_ID, TICKETS_ID] {
+                assert_eq!(
+                    body["member_capabilities"][module]["can_respond"], expect,
+                    "{module} for {who}: {body}"
+                );
+                assert_eq!(body["modules"][module], true);
+            }
+            // Modules that gate nothing carry no capabilities.
+            assert!(body["member_capabilities"].get(LEVELING_ID).is_none());
+        }
+        f.db.cleanup().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_ticket_opens_a_private_thread_with_staff_and_closes_to_an_archive() {
+        let f = fx().await;
+        let staff_role = f.role("Helpers").await;
+        let helper = join_as_staff(&f, "helper", staff_role).await;
+        f.enable(
+            TICKETS_ID,
+            json!({
+                "channel": f.channel.to_string(),
+                "staff_role": staff_role.to_string(),
+                "max_open_per_user": 1,
+            }),
+        )
+        .await;
+        // Members need to be allowed to create private threads in the ticket channel (bit 36).
+        sqlx::query("UPDATE roles SET permissions = permissions | (1::bigint << 36) WHERE id = $1")
+            .bind(f.guild)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        let h = http(&f);
+        let opener = h.login(f.member).await;
+        let staff = h.login(helper).await;
+        let stranger = h.login(f.outsider).await;
+        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+            .bind(f.guild)
+            .bind(f.outsider)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        let tickets = format!("/guilds/{}/tickets", f.guild);
+
+        // Open: a private thread with the opener and the members of the staff role in it.
+        let (status, ticket) = h
+            .call(
+                &opener,
+                Method::POST,
+                &tickets,
+                Some(json!({"subject": "Cannot upload"})),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{ticket}");
+        assert_eq!(ticket["status"], "open");
+        let thread: i64 = ticket["thread_id"].as_str().unwrap().parse().unwrap();
+        let kind: i16 = sqlx::query_scalar("SELECT type FROM channels WHERE id = $1")
+            .bind(thread)
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
+        assert_eq!(kind, 12, "a private thread");
+        let mut members: Vec<i64> =
+            sqlx::query_scalar("SELECT user_id FROM thread_members WHERE channel_id = $1")
+                .bind(thread)
+                .fetch_all(&f.pool)
+                .await
+                .unwrap();
+        // The system user joins to greet them.
+        members.retain(|u| *u != 1);
+        members.sort_unstable();
+        let mut expected = vec![f.member, helper];
+        expected.sort_unstable();
+        assert_eq!(members, expected, "the opener and the staff, nobody else");
+        // The system user greets them and pings the staff role.
+        let greeting = f.messages_in(thread).await;
+        assert!(greeting.iter().any(|m| {
+            m.get::<i64, _>("author_id") == 1
+                && m.get::<String, _>("content")
+                    .contains(&format!("<@&{staff_role}>"))
+        }));
+
+        // A second open is refused while one is open (max_open_per_user = 1).
+        let (status, again) = h
+            .call(
+                &opener,
+                Method::POST,
+                &tickets,
+                Some(json!({"subject": "Another"})),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CONFLICT, "{again}");
+
+        // A staff reply is visible in the thread.
+        f.messages
+            .send(
+                UserId::new(helper as u64),
+                ChannelId::new(thread as u64),
+                SendMessage {
+                    content: "Try a smaller file".into(),
+                    ..SendMessage::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert!(f.messages_in(thread).await.iter().any(|m| {
+            m.get::<i64, _>("author_id") == helper
+                && m.get::<String, _>("content") == "Try a smaller file"
+        }));
+
+        // Someone who is neither the opener nor staff cannot close it.
+        let id = ticket["id"].as_str().unwrap();
+        let close = format!("{tickets}/{id}/close");
+        let (status, _) = h.call(&stranger, Method::POST, &close, None).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+
+        // Staff close it: the ticket is closed and the thread archived.
+        let (status, closed) = h.call(&staff, Method::POST, &close, None).await;
+        assert_eq!(status, StatusCode::OK, "{closed}");
+        assert_eq!(closed["status"], "closed");
+        let (archived, locked): (bool, bool) =
+            sqlx::query_as("SELECT archived, locked FROM thread_metadata WHERE channel_id = $1")
+                .bind(thread)
+                .fetch_one(&f.pool)
+                .await
+                .unwrap();
+        // The thread is locked too where the closer may lock it (staff here hold no thread powers).
+        assert!(archived, "locked: {locked}");
+
+        // With nothing open any more the member may open a new one.
+        let (status, second) = h
+            .call(
+                &opener,
+                Method::POST,
+                &tickets,
+                Some(json!({"subject": "Next problem"})),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{second}");
+        // The opener sees only their own tickets, staff see all.
+        let (_, mine) = h.call(&opener, Method::GET, &tickets, None).await;
+        assert_eq!(mine.as_array().unwrap().len(), 2);
+        let (_, theirs) = h.call(&stranger, Method::GET, &tickets, None).await;
+        assert!(theirs.as_array().unwrap().is_empty());
+        let (_, all) = h.call(&staff, Method::GET, &tickets, None).await;
+        assert_eq!(all.as_array().unwrap().len(), 2);
+        f.db.cleanup().await.unwrap();
+    }
 }

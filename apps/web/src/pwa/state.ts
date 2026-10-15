@@ -17,9 +17,16 @@ export interface PwaState {
   canInstall: boolean;
   /** Running as an installed app already. */
   installed: boolean;
+  /** The Lounge notices bar is mounted and shows the update notice itself (G-49). */
+  noticesBar: boolean;
 }
 
-let state: PwaState = { updateReady: false, canInstall: false, installed: isStandalone() };
+let state: PwaState = {
+  updateReady: false,
+  canInstall: false,
+  installed: isStandalone(),
+  noticesBar: false,
+};
 let deferred: BeforeInstallPromptEvent | null = null;
 let applyUpdate: (() => void) | null = null;
 const listeners = new Set<() => void>();
@@ -62,6 +69,11 @@ export function setUpdateReady(apply: (() => void) | null) {
   set({ updateReady: apply !== null });
 }
 
+/** The Lounge notices bar calls this on mount (true) and unmount (false) so the toast does not repeat it. */
+export function setNoticesBarMounted(mounted: boolean) {
+  set({ noticesBar: mounted });
+}
+
 export function applyPendingUpdate() {
   applyUpdate?.();
 }
@@ -89,7 +101,7 @@ export function usePwaState(): PwaState {
 
 /** Test hook: reset module state. */
 export function __resetPwaState() {
-  state = { updateReady: false, canInstall: false, installed: false };
+  state = { updateReady: false, canInstall: false, installed: false, noticesBar: false };
   deferred = null;
   applyUpdate = null;
   for (const l of listeners) l();

@@ -51,7 +51,7 @@ export function PwaHost({ now = 20_000 }: { now?: number } = {}) {
 
   return (
     <div className="sr-pwa" data-testid="pwa-host">
-      {pwa.updateReady && !updateHidden && (
+      {pwa.updateReady && !updateHidden && !pwa.noticesBar && (
         <div className="sr-pwa-card" role="status" aria-live="polite">
           <div>
             <strong>{t('pwa.update.title')}</strong>

@@ -78,6 +78,13 @@ pub fn plan_new_guild(
         banner_key: None,
         splash_key: None,
         vanity_code: None,
+        mfa_level: 0,
+        system_channel_flags: 0,
+        widget_enabled: false,
+        widget_channel_id: None,
+        rules_channel_id: None,
+        public_updates_channel_id: None,
+        safety_alerts_channel_id: None,
         owner_id: owner,
         is_staff_guild: false,
         system_channel_id: Some(general),
@@ -112,6 +119,7 @@ pub fn plan_new_guild(
         avatar_key: None,
         banner_key: None,
         bio: None,
+        extras: Default::default(),
     };
     Ok(GuildBlueprint {
         guild,

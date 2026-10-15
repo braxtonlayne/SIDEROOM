@@ -35,7 +35,7 @@ export default {
   'developers.install.added': 'Added {date}',
   'developers.install.testOnlyTitle': 'Test servers only, for now',
   'developers.install.testOnlyBody':
-    'Until the app is released, only you can add it, to servers you manage that have 25 members or fewer. Anywhere else the install is refused with error 900120 (app not released). Submit a version in the Review tab to release it.',
+    'Until the app is released, only you and your accepted testers can add it, to servers you manage that have 25 members or fewer. Anywhere else the install is refused with error 900120 (app not released). Submit a version in the Review tab to release it.',
   'developers.install.privateTitle': 'Private bot',
   'developers.install.privateBody':
     'The bot is not public, so only you can add it. Turn on Public bot in General to let anyone with Manage Server add it.',
