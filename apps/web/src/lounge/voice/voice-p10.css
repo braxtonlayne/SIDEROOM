@@ -335,3 +335,12 @@
     grid-column: span 1;
   }
 }
+
+.vc-camera-preview {
+  inline-size: 100%;
+  max-block-size: 260px;
+  border-radius: 8px;
+  background: #000;
+  object-fit: cover;
+  transform: scaleX(-1);
+}

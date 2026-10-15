@@ -35,6 +35,7 @@ export type RoleColors = 'name' | 'dot' | 'off';
 export type Animation = 'always' | 'hover' | 'never';
 export type SpoilerMode = 'click' | 'always';
 export type TimeFormat = 'auto' | '12h' | '24h';
+export type MediaSize = 'small' | 'medium' | 'large';
 
 export interface UserPrefs {
   // Appearance
@@ -68,6 +69,8 @@ export interface UserPrefs {
   showReactions: boolean;
   convertEmoticons: boolean;
   spoilers: SpoilerMode;
+  /** Largest an attached image or video is drawn inline in a message (LNG-USET-051). */
+  inlineMediaSize: MediaSize;
   // Notifications (the default level itself is stored on the server: /users/@me/notification-defaults)
   desktopNotifications: boolean;
   soundMessage: boolean;
@@ -92,8 +95,15 @@ export interface UserPrefs {
   timeFormat: TimeFormat;
   // Keybinds: shortcut id -> combo ("Mod+Shift+K"); '' = unbound; absent = the default.
   keybinds: Record<string, string>;
+  // Streamer Mode (LNG-USET-055)
+  streamerMode: boolean;
+  streamerHidePersonal: boolean;
+  streamerHideInvites: boolean;
+  streamerSilence: boolean;
   // Advanced
   developerMode: boolean;
+  /** Shows the diagnostics card and the pseudo-languages for people building on SIDE ROOM. */
+  appTestMode: boolean;
 }
 
 export const DEFAULT_PREFS: UserPrefs = {
@@ -120,6 +130,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   showReactions: true,
   convertEmoticons: true,
   spoilers: 'click',
+  inlineMediaSize: 'medium',
   desktopNotifications: false,
   soundMessage: true,
   soundMention: true,
@@ -139,7 +150,12 @@ export const DEFAULT_PREFS: UserPrefs = {
   locale: 'auto',
   timeFormat: 'auto',
   keybinds: {},
+  streamerMode: false,
+  streamerHidePersonal: true,
+  streamerHideInvites: true,
+  streamerSilence: true,
   developerMode: false,
+  appTestMode: false,
 };
 
 export const FONT_SCALE_RANGE = [75, 150] as const;
@@ -202,6 +218,11 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     showReactions: bool(r.showReactions, d.showReactions),
     convertEmoticons: bool(r.convertEmoticons, d.convertEmoticons),
     spoilers: oneOf(r.spoilers, ['click', 'always'] as const, d.spoilers),
+    inlineMediaSize: oneOf(
+      r.inlineMediaSize,
+      ['small', 'medium', 'large'] as const,
+      d.inlineMediaSize,
+    ),
     desktopNotifications: bool(r.desktopNotifications, d.desktopNotifications),
     soundMessage: bool(r.soundMessage, d.soundMessage),
     soundMention: bool(r.soundMention, d.soundMention),
@@ -225,7 +246,12 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     locale: typeof r.locale === 'string' && LOCALE.test(r.locale) ? r.locale : d.locale,
     timeFormat: oneOf(r.timeFormat, ['auto', '12h', '24h'] as const, d.timeFormat),
     keybinds,
+    streamerMode: bool(r.streamerMode, d.streamerMode),
+    streamerHidePersonal: bool(r.streamerHidePersonal, d.streamerHidePersonal),
+    streamerHideInvites: bool(r.streamerHideInvites, d.streamerHideInvites),
+    streamerSilence: bool(r.streamerSilence, d.streamerSilence),
     developerMode: bool(r.developerMode, d.developerMode),
+    appTestMode: bool(r.appTestMode, d.appTestMode),
   };
 }
 
@@ -294,6 +320,16 @@ usePrefsStore.subscribe((s) => syncFormatting(s.prefs));
 
 export const useSavedPrefs = () => usePrefsStore((s) => s.prefs);
 
+/** Streamer Mode switches in effect right now (saved prefs; an unsaved toggle does not count). */
+export function streamerState(p: UserPrefs = usePrefsStore.getState().prefs) {
+  return {
+    personal: p.streamerMode && p.streamerHidePersonal,
+    invites: p.streamerMode && p.streamerHideInvites,
+    silence: p.streamerMode && p.streamerSilence,
+  };
+}
+export const useStreamer = () => streamerState(usePrefsStore((s) => s.prefs));
+
 export interface AppliedTheme {
   userGlobal: ThemeId;
   perSection: SectionThemes;
@@ -329,6 +365,8 @@ export function applyPrefs(p: UserPrefs, systemDark: boolean): AppliedTheme {
       'data-message-display': p.messageDisplay,
       'data-underline-links': p.underlineLinks ? 'true' : undefined,
       'data-dyslexia': p.dyslexiaFont ? 'true' : undefined,
+      'data-media-size': p.inlineMediaSize === 'medium' ? undefined : p.inlineMediaSize,
+      'data-streamer-personal': streamerState(p).personal ? 'true' : undefined,
     },
   };
 }

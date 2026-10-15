@@ -28,6 +28,8 @@ export class RemoteAudio {
   private master: GainNode | null = null;
   private masterVolume = 100;
   private deafened = false;
+  /** Percent the voices are lowered right now (the attenuation setting while you speak, else 0). */
+  private attenuation = 0;
   private sinkId = 'default';
   /** People speaking with the priority bit: everyone else is ducked while any of them talks. */
   private priority = new Set<string>();
@@ -121,6 +123,14 @@ export class RemoteAudio {
     for (const [id, v] of this.voices) this.apply(id, v);
   }
 
+  /** Lower everyone by `percent` (0..100); the controller passes 0 while you are silent. */
+  setAttenuation(percent: number): void {
+    const next = Math.min(100, Math.max(0, percent));
+    if (next === this.attenuation) return;
+    this.attenuation = next;
+    for (const [id, v] of this.voices) this.apply(id, v);
+  }
+
   /** Deafen silences every remote element at once. */
   setDeafened(deafened: boolean): void {
     this.deafened = deafened;
@@ -153,7 +163,7 @@ export class RemoteAudio {
   private apply(userId: string, v: Voice): void {
     const silent = this.deafened || v.muted;
     const ducked = this.priority.size > 0 && !this.priority.has(userId) ? DUCK : 1;
-    const level = (v.volume / 100) * ducked;
+    const level = (v.volume / 100) * ducked * (1 - this.attenuation / 100);
     if (v.gain) {
       v.gain.gain.value = silent ? 0 : level;
       // The element only keeps the stream flowing; it must never double the sound.

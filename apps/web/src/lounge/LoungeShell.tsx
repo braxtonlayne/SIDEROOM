@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
 import { useT } from '../i18n';
 import { useAppBadge } from '../pwa/useAppBadge';
+import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
 import { useVisualViewport } from './useVisualViewport';
 import { ChannelSidebar } from './ChannelSidebar';
 import { ChannelView } from './ChannelView';
@@ -215,6 +216,7 @@ function Shell() {
 
   useShellBoot();
   useAppBadge();
+  useDesktopAlerts();
   useVisualViewport();
   const openSettings = useOpenUserSettings();
   const theme = useAppliedTheme();

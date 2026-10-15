@@ -32,6 +32,7 @@ import {
   userVolumeOf,
   type VoiceSettings,
 } from './settings';
+import { streamerState } from '../settings/user/prefs';
 import { CuePlayer, cueEnabled, type Cue } from './sounds';
 import { VadGate } from './vad';
 import { VIDEO_PUBLISH } from './protocol';
@@ -298,7 +299,10 @@ export class VoiceController {
   }
 
   /** Turn the camera on, capped to the best profile the viewer may send. Failures land in `useLocalVideo.error`. */
-  async startCamera(profiles: readonly VideoProfile[], deviceId = 'default'): Promise<void> {
+  async startCamera(
+    profiles: readonly VideoProfile[],
+    deviceId = getVoiceSettings().cameraDeviceId,
+  ): Promise<void> {
     if (!this.target) return;
     this.stopCamera();
     useLocalVideo.setState({ error: null });
@@ -802,6 +806,7 @@ export class VoiceController {
       !session.selfMute && !session.selfDeaf && !session.serverMute && !session.serverDeaf;
     const open = allowed && (mode === 'ptt' ? session.pttActive : this.vadOpen);
     this.engine?.setTransmitting(open);
+    this.engine?.setAttenuation?.(open ? s.attenuation : 0);
     if (open !== session.transmitting) patchSession({ transmitting: open });
   }
 
@@ -841,6 +846,7 @@ export class VoiceController {
     const e = this.engine;
     if (e) {
       if (s.outputVolume !== prev.outputVolume) e.setMasterVolume(s.outputVolume);
+      if (s.attenuation !== prev.attenuation) this.recompute();
       if (s.inputVolume !== prev.inputVolume) e.setInputVolume(s.inputVolume);
       if (s.outputDeviceId !== prev.outputDeviceId)
         void e.setOutputDevice(s.outputDeviceId).catch(() => undefined);
@@ -869,7 +875,7 @@ export class VoiceController {
 
   private cue(cue: Cue): void {
     const s = getVoiceSettings();
-    if (!cueEnabled(cue, s)) return;
+    if (!cueEnabled(cue, s) || streamerState().silence) return;
     this.cues.play(cue, s.soundVolume / 100);
   }
 }

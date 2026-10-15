@@ -16,7 +16,7 @@ export type Cue =
   | 'error'
   | 'ring';
 
-export type CueGroup = 'joinLeave' | 'muteDeafen' | 'ptt' | 'always';
+export type CueGroup = 'joinLeave' | 'muteDeafen' | 'ptt' | 'ring' | 'always';
 
 interface Tone {
   hz: number;
@@ -75,7 +75,7 @@ export const CUES: Record<Cue, { group: CueGroup; tones: Tone[] }> = {
   error: { group: 'always', tones: [{ hz: 220, ms: 160 }] },
   /** One ring of the incoming-call tone; the overlay repeats it while the call rings. */
   ring: {
-    group: 'always',
+    group: 'ring',
     tones: [
       { hz: 440, ms: 220 },
       { hz: 480, ms: 220 },
@@ -89,6 +89,7 @@ export interface CueSettings {
   soundJoinLeave: boolean;
   soundMuteDeafen: boolean;
   soundPtt: boolean;
+  soundRing?: boolean;
   /** Percent 0..100. */
   soundVolume: number;
 }
@@ -101,6 +102,8 @@ export function cueEnabled(cue: Cue, s: CueSettings): boolean {
       return s.soundMuteDeafen;
     case 'ptt':
       return s.soundPtt;
+    case 'ring':
+      return s.soundRing !== false;
     default:
       return true;
   }

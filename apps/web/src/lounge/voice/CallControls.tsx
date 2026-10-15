@@ -9,6 +9,7 @@ import { useVoiceSession } from '../../voice/session';
 import { useVoiceSettings } from '../../voice/settings';
 import { useLocalVideo } from '../../voice/video';
 import { StartPartyButton } from '../../watchparty/StartPartyButton';
+import { CameraPreviewDialog } from './CameraPreview';
 import { ScreenSharePicker } from './ScreenSharePicker';
 import './voice-p10.css';
 
@@ -70,6 +71,9 @@ export function CallControls({
   const session = useVoiceSession();
   const inputDeviceId = useVoiceSettings((s) => s.settings.inputDeviceId);
   const update = useVoiceSettings((s) => s.update);
+  const savedCamera = useVoiceSettings((s) => s.settings.cameraDeviceId);
+  const alwaysPreview = useVoiceSettings((s) => s.settings.alwaysPreviewVideo);
+  const [previewing, setPreviewing] = useState(false);
   const openSettings = useOpenUserSettings();
   const { inputs } = useAudioDevices();
   const { cameras } = useCameras();
@@ -82,7 +86,7 @@ export function CallControls({
   const mutedNow = session.selfMute || session.serverMute;
   const deafNow = session.selfDeaf || session.serverDeaf;
 
-  const cameraDevice = camera?.deviceId ?? 'default';
+  const cameraDevice = camera?.deviceId ?? savedCamera;
   const startCamera = (deviceId: string) => void controller.startCamera(limits.profiles, deviceId);
   const named = (d: MediaDeviceInfo) => ({
     value: d.deviceId,
@@ -109,7 +113,10 @@ export function CallControls({
           type: 'radio-group',
           label: t('lounge.callControls.camera'),
           value: cameraDevice,
-          onValueChange: (v) => (camera ? startCamera(v) : undefined),
+          onValueChange: (v) => {
+            update({ cameraDeviceId: v });
+            if (camera) startCamera(v);
+          },
           options: [
             { value: 'default', label: t('lounge.callControls.defaultDevice') },
             ...cameras.filter((d) => d.deviceId && d.deviceId !== 'default').map(named),
@@ -221,7 +228,13 @@ export function CallControls({
               }
               aria-pressed={session.camera}
               data-active={session.camera || undefined}
-              onClick={() => (session.camera ? controller.stopCamera() : startCamera(cameraDevice))}
+              onClick={() =>
+                session.camera
+                  ? controller.stopCamera()
+                  : alwaysPreview
+                    ? setPreviewing(true)
+                    : startCamera(cameraDevice)
+              }
             >
               <Icon name={session.camera ? 'video' : 'video-off'} size={24} />
             </button>
@@ -283,6 +296,12 @@ export function CallControls({
           <Icon name="logout" size={24} />
         </button>
       </div>
+      <CameraPreviewDialog
+        open={previewing}
+        deviceId={cameraDevice}
+        onClose={() => setPreviewing(false)}
+        onStart={() => startCamera(cameraDevice)}
+      />
       {picker && (
         <ScreenSharePicker
           open

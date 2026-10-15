@@ -1,8 +1,10 @@
 import { Button, Notice, SegmentedControl, Select, Slider, Switch } from '@sideroom/ui';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useT } from '../../../i18n';
 import { RemoteAudio } from '../../../voice/playback';
-import { useAudioDevices, useMicPermission, useMicTest } from '../../../voice/hooks';
+import { useAudioDevices, useCameras, useMicPermission, useMicTest } from '../../../voice/hooks';
+import { CameraPreview } from '../../../lounge/voice/CameraPreview';
+import { SHARE_PRESETS, presetLabel } from '../../../voice/video';
 import { CuePlayer, type Cue } from '../../../voice/sounds';
 import { browserAudioDeps } from '../../../voice/deps';
 import {
@@ -68,6 +70,17 @@ export function VoiceVideoSection() {
   });
   const cues = useMemo(() => new CuePlayer(() => browserAudioDeps.createAudioContext()), []);
   const canPickOutput = RemoteAudio.canSelectOutput();
+  const { cameras, refresh: refreshCameras } = useCameras();
+  const [previewOn, setPreviewOn] = useState(false);
+  const cameraOptions = [
+    { value: 'default', label: t('settings.voice.default') },
+    ...cameras
+      .filter((d) => d.deviceId && d.deviceId !== 'default')
+      .map((d, i) => ({
+        value: d.deviceId,
+        label: d.label || t('settings.voice.cameraN', { n: i + 1 }),
+      })),
+  ];
 
   const inputOptions = [
     { value: 'default', label: t('settings.voice.default') },
@@ -284,6 +297,102 @@ export function VoiceVideoSection() {
         <p className="us-muted">{t('settings.voice.noNoise')}</p>
       </Card>
 
+      <Card
+        id="us-voice-attenuation"
+        title={t('settings.voice.attenuationTitle')}
+        description={t('settings.voice.attenuationDesc')}
+      >
+        <Slider
+          label={t('settings.voice.attenuation')}
+          min={0}
+          max={100}
+          step={5}
+          value={settings.attenuation}
+          showValue
+          formatValue={(v) => (v === 0 ? t('settings.voice.off') : pct(v))}
+          onValueChange={(v) => update({ attenuation: v })}
+        />
+      </Card>
+
+      <Card
+        id="us-voice-camera"
+        title={t('settings.voice.cameraTitle')}
+        description={t('settings.voice.cameraDesc')}
+      >
+        <div className="us-form-grid">
+          <div>
+            <label id="us-camera-dev" className="us-label">
+              {t('settings.voice.cameraDevice')}
+            </label>
+            <Select
+              aria-labelledby="us-camera-dev"
+              options={cameraOptions}
+              value={settings.cameraDeviceId}
+              onValueChange={(v) => update({ cameraDeviceId: v })}
+            />
+          </div>
+        </div>
+        <Switch
+          label={t('settings.voice.alwaysPreview')}
+          description={t('settings.voice.alwaysPreviewDesc')}
+          checked={settings.alwaysPreviewVideo}
+          onChange={(e) => update({ alwaysPreviewVideo: e.target.checked })}
+        />
+        <div className="us-mic-test">
+          <Button
+            variant="secondary"
+            aria-pressed={previewOn}
+            onClick={() => {
+              setPreviewOn((on) => !on);
+              void refreshCameras();
+            }}
+          >
+            {previewOn ? t('settings.voice.stopPreview') : t('settings.voice.startPreview')}
+          </Button>
+        </div>
+        {previewOn && <CameraPreview deviceId={settings.cameraDeviceId} />}
+      </Card>
+
+      <Card
+        id="us-voice-share"
+        title={t('settings.voice.shareTitle')}
+        description={t('settings.voice.shareDesc')}
+      >
+        <div className="us-form-grid">
+          <div>
+            <label id="us-share-preset" className="us-label">
+              {t('settings.voice.sharePreset')}
+            </label>
+            <Select
+              aria-labelledby="us-share-preset"
+              options={SHARE_PRESETS.map((p) => ({ value: p.id, label: presetLabel(p) }))}
+              value={settings.sharePresetId}
+              onValueChange={(v) => update({ sharePresetId: v })}
+            />
+          </div>
+          <div>
+            <label id="us-share-hint" className="us-label">
+              {t('settings.voice.shareHint')}
+            </label>
+            <SegmentedControl
+              label={t('settings.voice.shareHint')}
+              value={settings.shareHint}
+              onValueChange={(v) => update({ shareHint: v === 'detail' ? 'detail' : 'motion' })}
+              options={[
+                { value: 'motion', label: t('settings.voice.hintMotion') },
+                { value: 'detail', label: t('settings.voice.hintDetail') },
+              ]}
+            />
+          </div>
+        </div>
+        <Switch
+          label={t('settings.voice.shareAudio')}
+          checked={settings.shareAudio}
+          onChange={(e) => update({ shareAudio: e.target.checked })}
+        />
+        <p className="us-muted">{t('settings.voice.shareEntitlement')}</p>
+      </Card>
+
       <Card id="us-voice-sounds" title={t('settings.voice.sounds')}>
         <Switch
           label={t('settings.voice.soundJoinLeave')}
@@ -300,6 +409,11 @@ export function VoiceVideoSection() {
           checked={settings.soundPtt}
           onChange={(e) => update({ soundPtt: e.target.checked })}
         />
+        <Switch
+          label={t('settings.voice.soundRing')}
+          checked={settings.soundRing}
+          onChange={(e) => update({ soundRing: e.target.checked })}
+        />
         <Slider
           label={t('settings.voice.soundVolume')}
           min={0}
@@ -315,9 +429,12 @@ export function VoiceVideoSection() {
         </Button>
       </Card>
 
-      <Notice variant="info" className="us-gap">
-        {t('settings.voice.videoUpdate')}
-      </Notice>
+      <Card id="us-voice-advanced" title={t('settings.voice.advancedTitle')}>
+        <Notice variant="info" title={t('settings.voice.e2eeTitle')}>
+          {t('settings.voice.e2eeBody')}
+        </Notice>
+        <p className="us-muted">{t('settings.voice.privacyCodes')}</p>
+      </Card>
     </>
   );
 }
