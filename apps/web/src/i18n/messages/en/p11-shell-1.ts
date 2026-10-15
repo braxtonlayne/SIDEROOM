@@ -47,4 +47,5 @@ export default {
   'lounge.banners.dismissUpdate': 'Dismiss update notice',
   'lounge.guildRail.install': 'Install app',
   'lounge.guildRail.installDone': 'Got it',
+  'lounge.homeSidebar.support': 'Support SIDE ROOM',
 } satisfies Record<string, string>;

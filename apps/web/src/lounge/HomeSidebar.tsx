@@ -9,6 +9,7 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { useT } from '../i18n';
+import { useOpenUserSettings } from '../settings/user/nav';
 import { useStore } from '../store';
 import { dmTitle, HOME } from './channels';
 import {
@@ -22,6 +23,7 @@ import {
 import { useLoungeRoute } from './nav';
 import { closeDm } from './shell/api';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './shell/notifSettings';
+import { useSupportEnabled } from './shell/useSupportEnabled';
 import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
 
@@ -168,6 +170,8 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
   const counts = useRequestCounts();
   const { channelId, isHome } = useLoungeRoute();
   const navigate = useNavigate();
+  const supportEnabled = useSupportEnabled();
+  const openUserSettings = useOpenUserSettings();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const homeView = useLoungeUi((s) => s.homeView);
   const setHomeView = useLoungeUi((s) => s.setHomeView);
@@ -217,6 +221,16 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
             className="lng-mention-badge lng-mention-inline"
           />
         </button>
+        {supportEnabled && (
+          <button
+            type="button"
+            className="lng-nav-item"
+            onClick={() => openUserSettings('support')}
+          >
+            <Icon name="heart" size={20} />
+            <span>{t('lounge.homeSidebar.support')}</span>
+          </button>
+        )}
       </nav>
       <div className="lng-dm-head">
         <h2>{t('lounge.homeSidebar.directMessages')}</h2>

@@ -37,7 +37,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-HOME-001** [FE] "Find or start a conversation" button → Quick Switcher
 - [x] **LNG-HOME-002** [FE] Friends nav item (pending-count badge)
 - [x] **LNG-HOME-003** [FE] Message Requests nav item (count)
-- [ ] **LNG-HOME-004** [FE] Optional "Support SIDE ROOM" nav item (operator toggle). **No Nitro / Shop / Quests**
+- [x] **LNG-HOME-004** [FE] Optional "Support SIDE ROOM" nav item (operator toggle). **No Nitro / Shop / Quests** *(`HomeSidebar.tsx` shows it when `GET /donations/config` says `enabled`; opens User Settings > Support; test `p11ShellHome.test.tsx`)*
 - [x] **LNG-HOME-005** [FE] "Direct Messages" header + "+" Create DM picker (friend search, multi-select ≤ 9 others, "Create DM/Group DM", copy group invite link) *(group invite link not built; needs a backend route)*
 - [x] **LNG-HOME-006** [FE] DM row: avatar + status, name, server-tag chip, activity subline (custom status, game, watching/reading, "Glooping…"), close "×" on hover
 - [x] **LNG-HOME-007** [FE] Group DM row (icon or avatar collage, member count subline)
