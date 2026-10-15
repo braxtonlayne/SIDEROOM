@@ -59,3 +59,54 @@ describe('client flag feed (D-216)', () => {
     expect(useReports.getState().enabled).toBe(false);
   });
 });
+
+describe('SR_FEATURE_UPDATE (G-81)', () => {
+  it('replaces the whole flag map from the gateway event', async () => {
+    const { flagsOfUpdate, setClientFlags, useClientFlags, useReports, ReportsFlagSync } =
+      await import('../reports');
+    const { emitDispatch } = await import('../../store/events');
+    const { http, HttpResponse, server } = await import('../../test/server');
+    server.use(
+      http.get('*/api/v1/sr/features/flags', () =>
+        HttpResponse.json({ flags: { 'moderation.reports': false, 'other.flag': true } }),
+      ),
+    );
+    const { unmount } = render(<ReportsFlagSync />);
+    await vi.waitFor(() => expect(useClientFlags.getState().flags['other.flag']).toBe(true));
+    expect(useReports.getState().enabled).toBe(false);
+
+    // The server flips reporting on: the whole map arrives, and a flag it no longer lists is gone.
+    act(() => {
+      emitDispatch('SR_FEATURE_UPDATE', {
+        scope: 'platform',
+        flags: { 'moderation.reports': true },
+      });
+    });
+    expect(useReports.getState().enabled).toBe(true);
+    expect(useClientFlags.getState().flags).toEqual({ 'moderation.reports': true });
+
+    // Other events and other scopes are ignored.
+    act(() => {
+      emitDispatch('SR_FEATURE_UPDATE', { scope: 'guild', flags: { 'moderation.reports': false } });
+      emitDispatch('MESSAGE_CREATE', { flags: {} });
+    });
+    expect(useReports.getState().enabled).toBe(true);
+    expect(
+      flagsOfUpdate('SR_FEATURE_UPDATE', { scope: 'platform', flags: { a: 1, b: true } }),
+    ).toEqual({
+      a: false,
+      b: true,
+    });
+    expect(flagsOfUpdate('SR_FEATURE_UPDATE', null)).toBeNull();
+    unmount();
+    // After unmount the event no longer reaches it.
+    setClientFlags({});
+    act(() => {
+      emitDispatch('SR_FEATURE_UPDATE', {
+        scope: 'platform',
+        flags: { 'moderation.reports': true },
+      });
+    });
+    expect(useReports.getState().enabled).toBe(false);
+  });
+});

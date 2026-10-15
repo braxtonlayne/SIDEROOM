@@ -147,6 +147,23 @@ describe('XC-PWA-006 share target', () => {
   });
 });
 
+describe('G-77 share target without a service worker', () => {
+  it('says to open SIDE ROOM once and share again when nothing arrived', async () => {
+    resetPrefs();
+    signedIn();
+    server.use(
+      http.get('*/api/v1/users/@me/guilds', () => HttpResponse.json([])),
+      http.get('*/api/v1/users/@me/channels', () => HttpResponse.json([])),
+    );
+    const router = createAppRouter(createMemoryHistory({ initialEntries: ['/share'] }));
+    render(<RouterProvider router={router} />);
+    expect(await screen.findByText(/Nothing was shared/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Sharing from another app? Open SIDE ROOM once, then share again.'),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('XC-PWA-007 keyboard height', () => {
   it('only reacts when the keyboard takes real space', () => {
     expect(keyboardHeight(800, 800)).toBeNull();

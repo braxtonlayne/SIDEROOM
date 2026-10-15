@@ -72,7 +72,7 @@ export default {
   'admin.announcements.endAria': 'End {title}',
   'admin.announcements.end': 'End now',
   'admin.announcements.noEditNote':
-    'A published announcement cannot be edited. To change one, reuse it as a new announcement and end the old one.',
+    'A showing announcement can be edited: its title, message and end time. Its severity and any message already sent stay as they are. To change those, end it and publish a new one; an ended announcement can be reused as a template.',
   'admin.announcements.composeTitle': 'New announcement',
   'admin.announcements.publish': 'Publish',
   'admin.announcements.publishAndMessage': 'Publish and message everyone',

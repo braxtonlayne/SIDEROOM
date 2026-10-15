@@ -33,6 +33,7 @@ use sr_chat::ChatResult;
 use sr_chat::perms::GuildActor;
 use sr_core::permissions::Permissions;
 use sr_core::{ApiError, ErrorCode, GuildId, RoleId, UserId};
+use sr_features::modules::slowmode_plus::{MAX_APPLY_MINUTES, SLOWMODE_ID, SlowmodePlus};
 use sr_features::modules::temp_roles::{GrantError, TEMP_ROLES_ID, TempRoles};
 use sr_features::{Feature, FeatureCtx, FeatureError, Scope, ScopeRef};
 use std::sync::Arc;
@@ -91,6 +92,14 @@ pub fn routes() -> Router<AppState> {
             "/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}",
             delete(revoke_temp_role),
         )
+        .route(
+            "/guilds/{guild_id}/sr/slowmode/presets",
+            get(slowmode_presets),
+        )
+        .route(
+            "/guilds/{guild_id}/sr/slowmode/apply",
+            axum::routing::post(apply_slowmode),
+        )
 }
 
 /// Platform flags a client may read (D-216).
@@ -112,19 +121,7 @@ pub async fn client_flags(
     _p: crate::auth::UserOnly,
     Ext(gf): Ext<GuildFeatures>,
 ) -> ApiResult<Json<ClientFlagsObject>> {
-    let mut flags = std::collections::BTreeMap::new();
-    for f in gf.ctx.settings.registry().iter() {
-        if !f.client_visible() || !f.scopes().contains(&Scope::Platform) {
-            continue;
-        }
-        let on = gf
-            .ctx
-            .settings
-            .is_enabled(f.id(), &ScopeRef::Platform)
-            .await
-            .map_err(feature_err)?;
-        flags.insert(f.id().to_owned(), on);
-    }
+    let flags = gf.ctx.settings.client_flags().await.map_err(feature_err)?;
     Ok(Json(ClientFlagsObject { flags }))
 }
 
@@ -494,4 +491,182 @@ pub async fn revoke_temp_role(
         .await
         .map_err(feature_err)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ---- slowmode presets (G-74) ----------------------------------------------
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SlowmodePresetObject {
+    pub id: String,
+    pub name: String,
+    pub seconds: u32,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SlowmodePresetsObject {
+    /// Whether the Slowmode schedules module is on in this server.
+    pub enabled: bool,
+    pub presets: Vec<SlowmodePresetObject>,
+}
+
+async fn require_channel_manager(
+    deps: &SettingsDeps,
+    user: UserId,
+    gid: GuildId,
+) -> ApiResult<super::deps::GuildAccess> {
+    let acc = deps.guild_access(user, gid).await?;
+    if !acc.perms.has(Permissions::MANAGE_CHANNELS) && !acc.perms.has(Permissions::MANAGE_GUILD) {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
+    Ok(acc)
+}
+
+/// The slowmode presets of this server and whether the module is on (`MANAGE_CHANNELS`).
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/sr/slowmode/presets",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 200, body = SlowmodePresetsObject), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn slowmode_presets(
+    p: Principal,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(gf): Ext<GuildFeatures>,
+    Path(guild_id): Path<String>,
+) -> ApiResult<Json<SlowmodePresetsObject>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    require_channel_manager(&deps, user, gid).await?;
+    let enabled = gf
+        .ctx
+        .settings
+        .is_enabled(SLOWMODE_ID, &ScopeRef::Guild { guild: gid })
+        .await
+        .map_err(feature_err)?;
+    let presets = if enabled {
+        SlowmodePlus::presets(&gf.ctx, gid)
+            .await
+            .map_err(feature_err)?
+            .into_iter()
+            .map(|p| SlowmodePresetObject {
+                id: p.id,
+                name: p.name,
+                seconds: p.seconds,
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    Ok(Json(SlowmodePresetsObject { enabled, presets }))
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ApplySlowmodeBody {
+    pub preset_id: String,
+    /// Channels to set; the caller needs `MANAGE_CHANNELS` in every one.
+    pub channel_ids: Vec<String>,
+    /// Put the old slowmode back after this many minutes (1 to 10080). Omit to keep it.
+    #[serde(default)]
+    pub minutes: Option<u32>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AppliedSlowmodeObject {
+    pub channel_id: String,
+    /// Slowmode the channel had before, in seconds.
+    pub before: u32,
+    /// Slowmode now, in seconds.
+    pub seconds: u32,
+    /// Unix milliseconds at which it goes back, when a duration was given.
+    pub revert_at: Option<i64>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ApplySlowmodeResult {
+    pub applied: Vec<AppliedSlowmodeObject>,
+}
+
+/// Apply a slowmode preset to channels now, optionally for a limited time (`MANAGE_CHANNELS` in
+/// every listed channel). The change appears in the audit log as a Slowmode schedules action.
+#[utoipa::path(
+    post,
+    path = "/guilds/{guild_id}/sr/slowmode/apply",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    request_body = ApplySlowmodeBody,
+    responses((status = 200, body = ApplySlowmodeResult), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn apply_slowmode(
+    p: Principal,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(gf): Ext<GuildFeatures>,
+    Path(guild_id): Path<String>,
+    ApiJson(body): ApiJson<ApplySlowmodeBody>,
+) -> ApiResult<Json<ApplySlowmodeResult>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    deps.guild_access(user, gid).await?;
+    let scope = ScopeRef::Guild { guild: gid };
+    if !gf
+        .ctx
+        .settings
+        .is_enabled(SLOWMODE_ID, &scope)
+        .await
+        .map_err(feature_err)?
+    {
+        return Err(ApiError::with_message(
+            ErrorCode::SrFeatureDisabled,
+            "Slowmode schedules are not turned on for this server.",
+        )
+        .into());
+    }
+    if body.channel_ids.is_empty() || body.channel_ids.len() > 25 {
+        return Err(invalid(
+            "channel_ids",
+            "BASE_TYPE_BAD_LENGTH",
+            "Choose 1 to 25 channels.",
+        ));
+    }
+    if let Some(m) = body.minutes
+        && !(1..=MAX_APPLY_MINUTES).contains(&m)
+    {
+        return Err(invalid(
+            "minutes",
+            "NUMBER_TYPE_MAX",
+            "Minutes must be between 1 and 10080.",
+        ));
+    }
+    let mut channels = Vec::new();
+    for raw in &body.channel_ids {
+        let ch: sr_core::ChannelId = id("channel_ids", raw)?;
+        let access = deps.channel_access(user, ch).await?;
+        if access.channel.guild_id != Some(gid) {
+            return Err(ErrorCode::UnknownChannel.into());
+        }
+        if !access.perms.has(Permissions::MANAGE_CHANNELS) {
+            return Err(ErrorCode::MissingPermissions.into());
+        }
+        if !channels.contains(&ch) {
+            channels.push(ch);
+        }
+    }
+    let applied = sr_features::scope_module(
+        SLOWMODE_ID,
+        "Slowmode schedules",
+        SlowmodePlus::apply_preset(&gf.ctx, gid, &body.preset_id, &channels, body.minutes),
+    )
+    .await
+    .map_err(feature_err)?;
+    Ok(Json(ApplySlowmodeResult {
+        applied: applied
+            .into_iter()
+            .map(|a| AppliedSlowmodeObject {
+                channel_id: a.channel.to_string(),
+                before: a.before,
+                seconds: a.seconds,
+                revert_at: a.revert_at_ms,
+            })
+            .collect(),
+    }))
 }

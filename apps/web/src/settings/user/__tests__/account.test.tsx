@@ -580,3 +580,118 @@ describe('Change email (D-167)', () => {
     expect(await within(dialog).findByText('That is already your email.')).toBeInTheDocument();
   });
 });
+
+describe('Delete account (LNG-USET-006, D-124, G-82)', () => {
+  async function openDialog() {
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete my account' }));
+    return screen.findByRole('dialog', { name: 'Delete your account' });
+  }
+
+  it('states what is retained, wants the typed username and password, and signs out afterwards', async () => {
+    const session = signedIn();
+    accountEndpoints();
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/sr/auth/account/delete', async ({ request }) => {
+        body = await request.json();
+        // The server ends the session with the account.
+        session.endSession();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const router = openSettings('account');
+    const dialog = await openDialog();
+    expect(within(dialog).getByText(/your Person record/)).toBeInTheDocument();
+    expect(await axeViolations(dialog)).toEqual([]);
+    // The button stays off until the username matches.
+    const confirm = within(dialog).getByRole('button', { name: 'Delete my account for good' });
+    expect(confirm).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText(/Type your username, alice/), 'ALICE');
+    await userEvent.type(within(dialog).getByLabelText('Current password'), 'hunter22');
+    expect(confirm).toBeEnabled();
+    await userEvent.click(confirm);
+    await waitFor(() => expect(body).toEqual({ password: 'hunter22', username: 'ALICE' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+  });
+
+  it('asks for a code with two-factor on and tells authenticator codes from recovery codes', async () => {
+    signedIn({ mfa_enabled: true });
+    accountEndpoints();
+    const bodies: unknown[] = [];
+    server.use(
+      http.post('*/api/v1/sr/auth/account/delete', async ({ request }) => {
+        bodies.push(await request.json());
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    openSettings('account');
+    const dialog = await openDialog();
+    await userEvent.type(within(dialog).getByLabelText(/Type your username/), 'alice');
+    await userEvent.type(within(dialog).getByLabelText('Current password'), 'hunter22');
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete my account for good' }),
+    );
+    expect(
+      await within(dialog).findByText(/Enter a code from your authenticator/),
+    ).toBeInTheDocument();
+    expect(bodies).toEqual([]);
+    await userEvent.type(
+      within(dialog).getByLabelText('Authenticator or recovery code'),
+      '123 456',
+    );
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete my account for good' }),
+    );
+    await waitFor(() =>
+      expect(bodies).toEqual([
+        {
+          password: 'hunter22',
+          username: 'alice',
+          mfa: { method: 'totp', code: '123456' },
+        },
+      ]),
+    );
+  });
+
+  it.each([
+    ['staff', 'You are on the staff', 'Leave the Staff Server first'],
+    ['owner', 'You are the Owner', 'Transfer ownership first'],
+    ['guilds', 'You still own 1 server(s)', 'Transfer ownership or delete them first'],
+  ])('explains the %s refusal and keeps the account', async (field, serverText, shown) => {
+    signedIn();
+    accountEndpoints();
+    server.use(
+      http.post('*/api/v1/sr/auth/account/delete', () =>
+        HttpResponse.json(fieldError(field, `${serverText}. ${shown}.`), { status: 400 }),
+      ),
+    );
+    const router = openSettings('account');
+    const dialog = await openDialog();
+    await userEvent.type(within(dialog).getByLabelText(/Type your username/), 'alice');
+    await userEvent.type(within(dialog).getByLabelText('Current password'), 'hunter22');
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete my account for good' }),
+    );
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent(new RegExp(shown));
+    expect(router.state.location.pathname).toBe('/settings/user/account');
+  });
+
+  it('shows a wrong password on the password field', async () => {
+    signedIn();
+    accountEndpoints();
+    server.use(
+      http.post('*/api/v1/sr/auth/account/delete', () =>
+        HttpResponse.json(fieldError('password', 'That password is not right.'), { status: 400 }),
+      ),
+    );
+    openSettings('account');
+    const dialog = await openDialog();
+    await userEvent.type(within(dialog).getByLabelText(/Type your username/), 'alice');
+    await userEvent.type(within(dialog).getByLabelText('Current password'), 'nope');
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete my account for good' }),
+    );
+    expect(await within(dialog).findByText('That password is not right.')).toBeInTheDocument();
+  });
+});

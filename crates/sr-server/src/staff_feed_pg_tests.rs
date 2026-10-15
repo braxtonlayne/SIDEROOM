@@ -84,7 +84,13 @@ async fn fx() -> Fx {
         .await
         .unwrap();
     let mut channels = std::collections::HashMap::new();
-    for name in ["alerts", "new-members", "donations", "staff-announcements"] {
+    for name in [
+        "alerts",
+        "new-members",
+        "donations",
+        "staff-announcements",
+        "review-queue",
+    ] {
         let id = ids.generate().get() as i64;
         sqlx::query(
             "INSERT INTO channels (id, guild_id, type, name, position) VALUES ($1, $2, 0, $3, 9)",
@@ -626,5 +632,208 @@ async fn the_health_check_alerts_about_a_missing_backup_once_a_day() {
             .is_err()
     );
     std::fs::remove_dir_all(&dir).unwrap();
+    f.db.cleanup().await.unwrap();
+}
+
+// ---- G-68: #review-queue cards ----------------------------------------------------------
+
+/// The smallest kind the pipeline needs: one item, publishing does nothing.
+struct OneItemKind;
+
+#[async_trait::async_trait]
+impl sr_review::SubmissionKind for OneItemKind {
+    fn id(&self) -> &'static str {
+        "library.series"
+    }
+    fn label(&self) -> &'static str {
+        "Library series"
+    }
+    fn review_permission(&self) -> sr_core::PlatformPermissions {
+        sr_core::PlatformPermissions::REVIEW_READING
+    }
+    fn publish_permission(&self) -> sr_core::PlatformPermissions {
+        sr_core::PlatformPermissions::PUBLISH_READING
+    }
+    async fn create(
+        &self,
+        _: i64,
+        payload: &Value,
+    ) -> sr_review::ReviewResult<sr_review::kind::KindDraft> {
+        Ok(sr_review::kind::KindDraft {
+            title: payload["title"].as_str().unwrap_or("Untitled").to_owned(),
+            ref_id: None,
+            payload: payload.clone(),
+        })
+    }
+    async fn items(
+        &self,
+        _: &sr_review::model::Submission,
+        _: &[sr_review::model::SubmissionItem],
+    ) -> sr_review::ReviewResult<Vec<sr_review::repo::NewItem>> {
+        Ok(vec![sr_review::repo::NewItem {
+            ref_id: 7,
+            label: "Chapter 1".into(),
+            position: 0,
+        }])
+    }
+    async fn validate(
+        &self,
+        _: &sr_review::model::Submission,
+        _: &[sr_review::repo::NewItem],
+    ) -> sr_review::ReviewResult<Vec<String>> {
+        Ok(Vec::new())
+    }
+    async fn preview(&self, s: &sr_review::model::Submission) -> sr_review::ReviewResult<Value> {
+        Ok(serde_json::json!({ "title": s.title }))
+    }
+    async fn publish(
+        &self,
+        _: &sr_review::model::Submission,
+        _: &[sr_review::model::SubmissionItem],
+    ) -> sr_review::ReviewResult<()> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_submission_gets_a_review_queue_card_that_approves_once() {
+    use sr_api::routes::admin::press_review_button;
+    use sr_core::PlatformPermissions as P;
+    use sr_review::{Caller, KindRegistry, ReviewService, model::CreateSubmission};
+
+    let f = fx().await;
+    let (submitter, reviewer, other) = (f.owner + 11, f.owner + 12, f.owner + 13);
+    for (id, name) in [
+        (submitter, "sender"),
+        (reviewer, "reviewer"),
+        (other, "other"),
+    ] {
+        account(&f.pool, id, name).await;
+    }
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let ids = Arc::new(SnowflakeGenerator::new(clock.clone(), 9, 9).unwrap());
+    let review = ReviewService::new(
+        Arc::new(sr_db::review_repo::PgReviewRepo::new(f.pool.clone())),
+        KindRegistry::new().with(Arc::new(OneItemKind)),
+        clock,
+        Arc::new(move || ids.generate().get() as i64),
+    )
+    .with_events(Arc::new(sr_api::routes::review::BusReviewEvents::new(
+        f.bus.clone(),
+    )));
+    let feed = Arc::new(StaffFeed {
+        voice: f.voice.clone(),
+        admin: f.admin.clone(),
+        mailer: Arc::new(MemoryMailer::new()) as Arc<dyn Mailer>,
+        bus: f.bus.clone(),
+        throttle: MailThrottle::default(),
+    });
+    let _task = spawn(feed);
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    let sub = review
+        .create(
+            Caller::member(submitter),
+            CreateSubmission {
+                kind: "library.series".into(),
+                payload: serde_json::json!({ "title": "Blue Hour" }),
+                title: None,
+                summary: String::new(),
+            },
+        )
+        .await
+        .unwrap()
+        .submission
+        .id;
+    review.submit(submitter, sub).await.unwrap();
+
+    // Entering review posts the card with both buttons and a link to the review page.
+    let queue = f.channels["review-queue"];
+    assert!(wait_for(|| async { messages_in(&f.pool, queue).await.len() == 1 }).await);
+    let card = &messages_in(&f.pool, queue).await[0];
+    let embeds: Value = card.get("embeds");
+    assert_eq!(embeds[0]["title"], "Review: Blue Hour");
+    assert!(
+        embeds[0]["description"]
+            .as_str()
+            .unwrap()
+            .contains("@sender")
+    );
+    let comps: Value = card.get("components");
+    let row = comps[0]["components"].as_array().unwrap();
+    assert_eq!(row[0]["custom_id"], format!("sr:review-approve:{sub}"));
+    assert_eq!(row[1]["custom_id"], format!("sr:review-reject:{sub}"));
+    assert_eq!(
+        row[2]["url"],
+        format!("https://sr.test/admin/review?submission={sub}")
+    );
+
+    // Pressing needs the kind's review permission.
+    let nobody = Caller {
+        user_id: other,
+        permissions: P::STAFF_BASIC,
+    };
+    assert!(
+        press_review_button(&review, nobody, true, sub, 0)
+            .await
+            .is_err()
+    );
+    let staff = Caller {
+        user_id: reviewer,
+        permissions: P::STAFF_BASIC | P::REVIEW_READING | P::PUBLISH_READING,
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+
+    // Reject only answers with a link; the submission is untouched.
+    let (reject, audit) = press_review_button(&review, staff, false, sub, now)
+        .await
+        .unwrap();
+    assert!(reject.ok && audit.is_none());
+    assert_eq!(
+        reject.link.as_deref(),
+        Some(format!("/admin/review?submission={sub}&reject=1").as_str())
+    );
+
+    // Approve claims and approves once; the card turns into its outcome without buttons.
+    let (done, audit) = press_review_button(&review, staff, true, sub, now)
+        .await
+        .unwrap();
+    assert!(done.ok, "{}", done.message);
+    assert!(audit.is_some());
+    let state: String = sqlx::query_scalar("SELECT state FROM submissions WHERE id = $1")
+        .bind(sub)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "published");
+    assert!(
+        wait_for(|| async {
+            let rows = messages_in(&f.pool, queue).await;
+            let comps: Value = rows[0].get("components");
+            comps.as_array().is_some_and(Vec::is_empty)
+        })
+        .await,
+        "the card lost its buttons"
+    );
+    let rows = messages_in(&f.pool, queue).await;
+    assert_eq!(rows.len(), 1, "the card was edited, not repeated");
+    let embeds: Value = rows[0].get("embeds");
+    assert!(
+        embeds[0]["description"]
+            .as_str()
+            .unwrap()
+            .starts_with("Approved by @reviewer")
+    );
+
+    // A second press answers "already decided" and changes nothing.
+    let (again, audit) = press_review_button(&review, staff, true, sub, now)
+        .await
+        .unwrap();
+    assert!(!again.ok && audit.is_none());
+    assert_eq!(again.message, "Already decided.");
     f.db.cleanup().await.unwrap();
 }

@@ -78,6 +78,4 @@ export default {
   'settings.account.removalTitle': 'Account removal',
   'settings.account.removalDesc':
     'Deleting your account is permanent: your messages stay in the servers they were posted in, and you need a new invite to return.',
-  'settings.account.removalUnavailable':
-    'The server cannot delete accounts yet (it needs the deletion process and a data scrub). Ask a server owner or the staff to remove your account in the meantime.',
 } satisfies Record<string, string>;

@@ -162,6 +162,21 @@ impl AdminService {
         }
     }
 
+    /// Send a dispatch to every connected session (`SR_ANNOUNCEMENT_UPDATE`).
+    pub(crate) async fn broadcast(&self, name: &str, payload: Value) {
+        if let Some(bus) = &self.bus {
+            let _ = bus
+                .publish(
+                    Topic::Platform,
+                    DomainEvent::PlatformBroadcast {
+                        name: name.to_owned(),
+                        payload,
+                    },
+                )
+                .await;
+        }
+    }
+
     pub(crate) fn entry(
         &self,
         c: &Caller,

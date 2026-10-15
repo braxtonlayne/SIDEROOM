@@ -1182,3 +1182,59 @@ async fn request_claims_are_exclusive_and_cleared_by_the_holder() {
         .unwrap();
     assert_eq!(again.claim_note, None);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_member_sets_the_cover_of_a_draft_series() {
+    let w = world().await;
+    let s = w.new_series_submission().await;
+    let series = s.ref_id.unwrap();
+
+    // A PNG is sniffed, re-encoded within 600 x 900 and stored under the series.
+    let out = w
+        .ops
+        .set_cover(&s, w.member, &png(1200, 1800, 3))
+        .await
+        .unwrap();
+    let cover = out.cover_url.expect("the series has a cover now");
+    assert!(
+        cover.starts_with(&format!("/cdn/library/{series}/cover-")),
+        "{cover}"
+    );
+    let keys: Vec<_> = w
+        .storage
+        .list(&format!("library/{series}/"))
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|o| o.key.contains("/cover-"))
+        .collect();
+    assert_eq!(keys.len(), 1);
+    let stored = w.storage.get(&keys[0].key).await.unwrap();
+    let decoded = image::load_from_memory(&stored).unwrap();
+    assert!(decoded.width() <= 600 && decoded.height() <= 900);
+
+    // Anything that is not a JPEG or PNG, or is too big, is refused.
+    for bad in [
+        b"not an image".to_vec(),
+        Vec::new(),
+        vec![0u8; 3 * 1024 * 1024],
+    ] {
+        assert!(matches!(
+            w.ops.set_cover(&s, w.member, &bad).await,
+            Err(ReviewError::Invalid(_))
+        ));
+    }
+    // A second cover replaces the first.
+    w.ops
+        .set_cover(&s, w.member, &png(300, 400, 9))
+        .await
+        .unwrap();
+    // A series of chapters for an existing series has no cover to set.
+    let mut items = s.clone();
+    items.kind = KIND_ITEMS.into();
+    assert!(matches!(
+        w.ops.set_cover(&items, w.member, &png(300, 400, 1)).await,
+        Err(ReviewError::Conflict(_))
+    ));
+}

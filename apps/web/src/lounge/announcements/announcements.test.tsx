@@ -1,5 +1,6 @@
 // Platform announcements (ADM-PLT-009 client side). The Lounge notices bar renders them (p11ShellNotices).
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { emitDispatch } from '../../store/events';
 import { http, HttpResponse, server } from '../../test/server';
 import { canDismiss, useActiveAnnouncements } from './index';
 
@@ -50,6 +51,24 @@ describe('useActiveAnnouncements', () => {
     const again = renderHook(() => useActiveAnnouncements());
     await waitFor(() => expect(again.result.current.announcements).toHaveLength(1));
     expect(again.result.current.announcements[0]!.title).toBe('Outage');
+  });
+
+  it('re-reads the list when the gateway sends SR_ANNOUNCEMENT_UPDATE (G-69)', async () => {
+    let title = 'Maintenance tonight';
+    server.use(
+      http.get('*/api/v1/announcements/active', () => HttpResponse.json([note({ title })])),
+    );
+    const view = renderHook(() => useActiveAnnouncements());
+    await waitFor(() => expect(view.result.current.announcements[0]?.title).toBe(title));
+    title = 'Maintenance moved to Friday';
+    act(() => {
+      emitDispatch('MESSAGE_CREATE', {});
+      emitDispatch('SR_ANNOUNCEMENT_UPDATE', { change: 'edit' });
+    });
+    await waitFor(() =>
+      expect(view.result.current.announcements[0]?.title).toBe('Maintenance moved to Friday'),
+    );
+    view.unmount();
   });
 
   it('keeps quiet when the request fails', async () => {

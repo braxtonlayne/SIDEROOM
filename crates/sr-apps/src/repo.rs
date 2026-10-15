@@ -182,6 +182,19 @@ pub trait AppsRepository: Send + Sync {
     async fn accept_tester(&self, id: i64, audit: AuditRow) -> AppsResult<Tester>;
     /// Delete a tester row (removal by the owner, or a decline). `false` when none.
     async fn remove_tester(&self, app: i64, account: i64, audit: AuditRow) -> AppsResult<bool>;
+    /// A decline: delete the row like [`Self::remove_tester`] and remember the time for the
+    /// re-invite cooldown (G-84).
+    async fn decline_tester(
+        &self,
+        app: i64,
+        account: i64,
+        now_ms: i64,
+        audit: AuditRow,
+    ) -> AppsResult<bool>;
+    /// Did `account` decline an invitation to `app` at or after `since_ms`?
+    async fn declined_since(&self, app: i64, account: i64, since_ms: i64) -> AppsResult<bool>;
+    /// Forget declines older than `before_ms`; returns how many.
+    async fn purge_tester_declines(&self, before_ms: i64) -> AppsResult<u64>;
     /// Replace the client secret.
     async fn rotate_secret(
         &self,

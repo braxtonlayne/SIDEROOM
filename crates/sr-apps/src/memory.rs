@@ -68,6 +68,7 @@ struct State {
     imsgs: Vec<InteractionMessage>,
     interactions_cfg: HashMap<i64, InteractionsConfig>,
     testers: Vec<Tester>,
+    declines: std::collections::HashMap<(i64, i64), i64>,
 }
 
 /// RAM-backed repository.
@@ -514,6 +515,35 @@ impl AppsRepository for MemoryAppsRepo {
         let out = t.clone();
         s.audit.push(audit);
         Ok(out)
+    }
+
+    async fn decline_tester(
+        &self,
+        app: i64,
+        account: i64,
+        now_ms: i64,
+        audit: AuditRow,
+    ) -> AppsResult<bool> {
+        let removed = self.remove_tester(app, account, audit).await?;
+        if removed {
+            self.st().declines.insert((app, account), now_ms);
+        }
+        Ok(removed)
+    }
+
+    async fn declined_since(&self, app: i64, account: i64, since_ms: i64) -> AppsResult<bool> {
+        Ok(self
+            .st()
+            .declines
+            .get(&(app, account))
+            .is_some_and(|at| *at >= since_ms))
+    }
+
+    async fn purge_tester_declines(&self, before_ms: i64) -> AppsResult<u64> {
+        let mut s = self.st();
+        let n = s.declines.len();
+        s.declines.retain(|_, at| *at >= before_ms);
+        Ok((n - s.declines.len()) as u64)
     }
 
     async fn remove_tester(&self, app: i64, account: i64, audit: AuditRow) -> AppsResult<bool> {

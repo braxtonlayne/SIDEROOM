@@ -1602,6 +1602,46 @@ async fn declining_deletes_the_invitation_and_the_cap_is_25() {
     ));
 }
 
+#[tokio::test]
+async fn a_decline_blocks_a_new_invitation_for_a_day() {
+    let e = env();
+    let c = app(&e).await;
+    let id = c.application.id;
+    let (t, _) = e
+        .svc
+        .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+        .await
+        .unwrap();
+    e.svc.respond_tester(OTHER, t.id, false).await.unwrap();
+    // Within the window the owner cannot ask again.
+    assert!(matches!(
+        e.svc
+            .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+            .await,
+        Err(AppsError::TesterRecentlyDeclined)
+    ));
+    e.clock.advance_ms(23 * 3_600_000);
+    assert!(matches!(
+        e.svc
+            .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+            .await,
+        Err(AppsError::TesterRecentlyDeclined)
+    ));
+    // After 24 hours it is allowed again, and the housekeeping forgets the old row.
+    e.clock.advance_ms(2 * 3_600_000);
+    assert_eq!(e.svc.purge_tester_declines().await.unwrap(), 1);
+    e.svc
+        .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+        .await
+        .unwrap();
+    // Removing a tester is not a decline.
+    e.svc.remove_tester(OWNER, id, OTHER).await.unwrap();
+    e.svc
+        .invite_tester(OWNER, id, TesterTarget::Id(OTHER))
+        .await
+        .unwrap();
+}
+
 // ------------------------------------------------- endpoint auto-disable (G-05, D-186)
 
 #[test]

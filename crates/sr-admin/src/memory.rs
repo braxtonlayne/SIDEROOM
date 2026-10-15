@@ -1448,6 +1448,46 @@ impl StaffExtrasRepository for MemoryAdminRepo {
         Ok(out)
     }
 
+    async fn get_announcement(&self, id: i64) -> AdminResult<Announcement> {
+        self.s()
+            .announcements
+            .iter()
+            .find(|a| a.id == id)
+            .cloned()
+            .ok_or(AdminError::NotFound("announcement"))
+    }
+
+    async fn edit_announcement(
+        &self,
+        id: i64,
+        patch: &crate::ext::AnnouncementPatch,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<Announcement> {
+        let now = self.now();
+        let mut s = self.s();
+        let a = s
+            .announcements
+            .iter_mut()
+            .find(|a| a.id == id)
+            .ok_or(AdminError::NotFound("announcement"))?;
+        if a.ended_at_ms.is_some() || a.ends_at_ms.is_some_and(|e| e <= now_ms) {
+            return Err(AdminError::Conflict("this announcement has ended".into()));
+        }
+        if let Some(t) = &patch.title {
+            a.title.clone_from(t);
+        }
+        if let Some(b) = &patch.body {
+            a.body.clone_from(b);
+        }
+        if let Some(e) = patch.ends_at_ms {
+            a.ends_at_ms = Some(e);
+        }
+        let out = a.clone();
+        audit_in(&mut s, now, audit);
+        Ok(out)
+    }
+
     async fn list_announcements(&self, limit: i64) -> AdminResult<Vec<Announcement>> {
         let mut v = self.s().announcements.clone();
         v.sort_by_key(|a| std::cmp::Reverse(a.id));

@@ -113,6 +113,7 @@ error_codes! {
     SrSecondFactorRequired = 900014, 403, "Set up a second factor (authenticator app or passkey) first";
     SrAppNotReleased = 900120, 403, "App not released";
     SrAppSuspended = 900121, 403, "This application is suspended";
+    SrTesterRecentlyDeclined = 900122, 409, "This person declined recently; wait 24 hours before inviting them again";
     SrIgnoreListFull = 900101, 400, "Your ignore list is full";
     SrInternal = 900500, 500, "Internal server error";
 }

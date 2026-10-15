@@ -54,6 +54,17 @@ async fn manager(
 pub struct ModuleFlags {
     /// Feature id -> on in this server.
     pub modules: std::collections::BTreeMap<String, bool>,
+    /// Feature id -> what the caller may do with it, for modules that gate actions beyond
+    /// membership (G-71). Computed by the same rule the module's routes enforce.
+    pub member_capabilities: std::collections::BTreeMap<String, ModuleCapabilities>,
+}
+
+/// What the caller can do in one module.
+#[derive(Debug, Default, serde::Serialize, ToSchema)]
+pub struct ModuleCapabilities {
+    /// Answers suggestions / sees every ticket and may close them: `MANAGE_GUILD` or the module's `staff_role`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub can_respond: Option<bool>,
 }
 
 /// Which feature modules are switched on in a server.
@@ -71,7 +82,7 @@ pub async fn modules(
     Path(guild): Path<String>,
 ) -> MsgResult<Json<ModuleFlags>> {
     use sr_userfeat::features as f;
-    let (_, gid, _) = member(&s, &p, &guild).await?;
+    let (_, gid, access) = member(&s, &p, &guild).await?;
     let mut modules = std::collections::BTreeMap::new();
     for id in [
         f::SCHEDULED_ID,
@@ -89,7 +100,24 @@ pub async fn modules(
         let on = d.uf.enabled(id, Some(gid)).await.map_err(uerr)?;
         modules.insert(id.to_owned(), on);
     }
-    Ok(Json(ModuleFlags { modules }))
+    let mut member_capabilities = std::collections::BTreeMap::new();
+    for id in [f::SUGGESTIONS_ID, f::TICKETS_ID] {
+        let staff_role =
+            d.uf.settings(id, Some(gid))
+                .await
+                .map_err(uerr)?
+                .id("staff_role");
+        member_capabilities.insert(
+            id.to_owned(),
+            ModuleCapabilities {
+                can_respond: Some(super::tickets::is_staff(&access, staff_role)),
+            },
+        );
+    }
+    Ok(Json(ModuleFlags {
+        modules,
+        member_capabilities,
+    }))
 }
 
 // ------------------------------------------------------------------ birthdays
@@ -574,16 +602,22 @@ pub async fn list_suggestions(
     Path(guild): Path<String>,
     ApiQuery(q): ApiQuery<SuggestionQuery>,
 ) -> MsgResult<Json<Vec<Suggestion>>> {
-    let (_, gid, _) = member(&s, &p, &guild).await?;
+    let (user, gid, _) = member(&s, &p, &guild).await?;
     let before = q
         .before
         .as_deref()
         .map(|b| body_id("before", b))
         .transpose()?;
     Ok(Json(
-        d.uf.list_suggestions(gid, q.status.as_deref(), before, q.limit.unwrap_or(50))
-            .await
-            .map_err(uerr)?,
+        d.uf.list_suggestions(
+            gid,
+            q.status.as_deref(),
+            before,
+            q.limit.unwrap_or(50),
+            Some(raw(user)),
+        )
+        .await
+        .map_err(uerr)?,
     ))
 }
 

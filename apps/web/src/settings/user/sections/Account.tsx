@@ -27,9 +27,10 @@ import {
   type Resource,
   type TotpEnrollment,
 } from '../api';
-import { Card, Field, Loaded, SectionTitle, Unavailable } from '../parts';
+import { Card, Field, Loaded, SectionTitle } from '../parts';
 import { ChangeUsernameDialog, DisplayNameDialog } from './AccountEdit';
 import { ChangeEmailDialog } from './ChangeEmail';
+import { DeleteAccountDialog } from './DeleteAccount';
 import { PasskeysCard } from './Passkeys';
 
 /** Asks for the account password (re-authentication) and runs `onSubmit`; the server error shows inline. */
@@ -578,7 +579,34 @@ function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
   );
 }
 
-export function AccountSection({ me }: { me: Resource<Me>; onSignedOut: () => void }) {
+/** Settings, Account removal (LNG-USET-006, G-82): the retention text and the delete dialog. */
+function RemovalCard({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  return (
+    <Card
+      id="us-removal"
+      title={t('settings.account.removalTitle')}
+      description={t('settings.account.removalDesc')}
+    >
+      <p>{t('settings.account.removalRetained')}</p>
+      <div>
+        <Button variant="danger" onClick={() => setOpen(true)}>
+          {t('settings.account.deleteButton')}
+        </Button>
+      </div>
+      <DeleteAccountDialog
+        open={open}
+        mfaEnabled={!!me.mfa_enabled}
+        username={me.username ?? ''}
+        onClose={() => setOpen(false)}
+        onDeleted={onSignedOut}
+      />
+    </Card>
+  );
+}
+
+export function AccountSection({ me, onSignedOut }: { me: Resource<Me>; onSignedOut: () => void }) {
   const t = useT();
   return (
     <>
@@ -590,14 +618,7 @@ export function AccountSection({ me }: { me: Resource<Me>; onSignedOut: () => vo
             <PasswordCard me={m} />
             <TwoFactorCard me={m} reload={me.reload} />
             <PasskeysCard />
-            <Card
-              id="us-removal"
-              title={t('settings.account.removalTitle')}
-              description={t('settings.account.removalDesc')}
-            >
-              <p>{t('settings.account.removalRetained')}</p>
-              <Unavailable>{t('settings.account.removalUnavailable')}</Unavailable>
-            </Card>
+            <RemovalCard me={m} onSignedOut={onSignedOut} />
           </>
         )}
       </Loaded>

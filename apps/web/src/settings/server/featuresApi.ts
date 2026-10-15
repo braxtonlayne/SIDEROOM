@@ -61,3 +61,33 @@ export const revokeTempRole = (guildId: string, userId: string, roleId: string) 
     method: 'DELETE',
     retries: 0,
   });
+
+// ---- slowmode presets applied on demand (FTR-SLOW-001, G-74)
+
+export interface SlowmodePresets {
+  /** Whether the Slowmode schedules module is on in this server. */
+  enabled: boolean;
+  presets: { id: string; name: string; seconds: number }[];
+}
+
+export interface AppliedSlowmode {
+  channel_id: string;
+  /** Slowmode before and after, in seconds. */
+  before: number;
+  seconds: number;
+  /** Unix milliseconds at which the old value comes back, when a duration was given. */
+  revert_at: number | null;
+}
+
+export const getSlowmodePresets = (guildId: string) =>
+  apiFetch<SlowmodePresets>(`/guilds/${guildId}/sr/slowmode/presets`, { retries: 0 });
+
+export const applySlowmode = (
+  guildId: string,
+  body: { preset_id: string; channel_ids: string[]; minutes?: number },
+) =>
+  apiFetch<{ applied: AppliedSlowmode[] }>(`/guilds/${guildId}/sr/slowmode/apply`, {
+    method: 'POST',
+    retries: 0,
+    json: body,
+  });

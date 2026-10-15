@@ -1242,14 +1242,14 @@ async fn suggestions_are_posted_with_votes_and_updated_by_staff() {
         assert_eq!(edits[0].2.color, 0x2ECC71);
     }
     assert_eq!(
-        e.uf.list_suggestions(g, Some("approved"), None, 10)
+        e.uf.list_suggestions(g, Some("approved"), None, 10, None)
             .await
             .unwrap()
             .len(),
         1
     );
     assert!(
-        e.uf.list_suggestions(g, Some("open"), None, 10)
+        e.uf.list_suggestions(g, Some("open"), None, 10, None)
             .await
             .unwrap()
             .is_empty()
@@ -1263,7 +1263,7 @@ async fn suggestions_are_posted_with_votes_and_updated_by_staff() {
         Err(UfError::Conflict(_))
     ));
     assert_eq!(
-        e.uf.list_suggestions(g, None, None, 10)
+        e.uf.list_suggestions(g, None, None, 10, None)
             .await
             .unwrap()
             .len(),
@@ -1271,7 +1271,7 @@ async fn suggestions_are_posted_with_votes_and_updated_by_staff() {
     );
     e.uf.delete_suggestion(g, id).await.unwrap();
     assert!(
-        e.uf.list_suggestions(g, None, None, 10)
+        e.uf.list_suggestions(g, None, None, 10, None)
             .await
             .unwrap()
             .is_empty()

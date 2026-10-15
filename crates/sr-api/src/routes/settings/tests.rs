@@ -56,6 +56,8 @@ struct Env {
     guild: GuildId,
     ch: ChannelId,
     voice: ChannelId,
+    /// What the feature modules act on (with `Opts::features`).
+    actions: Arc<sr_features::testing::FakeActions>,
 }
 
 #[derive(Default)]
@@ -124,6 +126,7 @@ async fn env_with(opts: Opts) -> Env {
         }
     }
 
+    let actions = Arc::new(sr_features::testing::FakeActions::new());
     let sessions = Arc::new(MemorySessions::new());
     let bots = Arc::new(MemoryBots::new());
     for (tok, uid) in [
@@ -224,7 +227,17 @@ async fn env_with(opts: Opts) -> Env {
         builder = builder.extension(Arc::new(crate::routes::voice::VoiceApi(v)));
     }
     if opts.features {
-        let gf = features_tests::wire(&backend, dyn_clock.clone(), bus.clone());
+        actions.put_channel(sr_features::actions::ChannelInfo {
+            id: ch,
+            guild: Some(guild),
+            kind: 0,
+            name: "general".into(),
+            nsfw: false,
+            parent: None,
+            rate_limit_per_user: 5,
+            everyone_can_view: true,
+        });
+        let gf = features_tests::wire(&backend, dyn_clock.clone(), bus.clone(), actions.clone());
         builder = builder.extension(Arc::new(gf));
     }
     let state = builder.build();
@@ -242,6 +255,7 @@ async fn env_with(opts: Opts) -> Env {
         guild,
         ch,
         voice,
+        actions,
     }
 }
 

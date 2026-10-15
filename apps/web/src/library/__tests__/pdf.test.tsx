@@ -79,6 +79,53 @@ describe('G-59 pdf.js integration', () => {
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeEnabled();
   });
 
+  it('saves the page index as reading progress and reopens there (G-78)', async () => {
+    __setPdfjsForTests(() => Promise.resolve(fakePdfjs(5)));
+    const saves: unknown[] = [];
+    useLibraryApi();
+    server.use(
+      http.get('*/api/v1/library/chapters/:id/pages', () => HttpResponse.json(pdfManifest())),
+    );
+    const saved = vi.spyOn(localProgress, 'save').mockImplementation((p) => {
+      saves.push(p);
+      return Promise.resolve();
+    });
+    renderAt('/library/r/c1');
+    expect(await screen.findByText('Page 1 of 5')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(await screen.findByText('Page 3 of 5')).toBeInTheDocument();
+    await waitFor(() => expect(saves.length).toBeGreaterThan(0), { timeout: 4000 });
+    expect(saves.at(-1)).toMatchObject({
+      chapterId: 'c1',
+      pageIndex: 2,
+      pageCount: 5,
+      percent: 60,
+      completed: false,
+    });
+    saved.mockRestore();
+  });
+
+  it('opens a PDF at the saved page when the address names none', async () => {
+    __setPdfjsForTests(() => Promise.resolve(fakePdfjs(5)));
+    await localProgress.save({
+      chapterId: 'c1',
+      seriesId: '1',
+      seriesTitle: 'S',
+      chapterNumber: 1,
+      pageCount: 5,
+      pageIndex: 3,
+      percent: 75,
+      completed: false,
+    });
+    useLibraryApi();
+    server.use(
+      http.get('*/api/v1/library/chapters/:id/pages', () => HttpResponse.json(pdfManifest())),
+    );
+    renderAt('/library/r/c1');
+    expect(await screen.findByText('Page 4 of 5')).toBeInTheDocument();
+  });
+
   it('renders page 1 as a JPEG cover in the browser', async () => {
     __setPdfjsForTests(() => Promise.resolve(fakePdfjs(2)));
     const blob = await renderPdfCover(new Blob(['%PDF-1.7']), 600);

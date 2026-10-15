@@ -1,12 +1,10 @@
 // Rank card and leaderboard (FTR-LVL-001): `/rank` and the Community dialog open this. Opting out deletes the
-// person's XP, so it asks first.
+// person's XP, so it asks first. The level roles come with the rank card, so every member sees them (G-70).
 import { Avatar, Button, ProgressBar } from '@sideroom/ui';
 import { useState } from 'react';
 import { formatNumber, useT } from '../../i18n';
-import { listFeatures } from '../../settings/server/featuresApi';
 import { useGuild } from '../../store';
 import { useCurrentUser } from '../data';
-import { MODULE } from '../features/useModules';
 import {
   getLeaderboard,
   getRank,
@@ -17,33 +15,10 @@ import { useLoad } from './useLoad';
 
 const PAGE = 25;
 
-interface LevelRole {
-  level: number;
-  role: string;
-}
-
-/**
- * The level rewards the server set up. The settings endpoint needs Manage Server, so for everyone else this is
- * empty and the list stays hidden (no backend route exposes it to members).
- */
-async function levelRoles(guildId: string): Promise<LevelRole[]> {
-  try {
-    const f = (await listFeatures(guildId)).find((x) => x.id === MODULE.leveling);
-    const list = f?.settings.level_roles;
-    if (!Array.isArray(list)) return [];
-    return (list as Partial<LevelRole>[])
-      .filter((r): r is LevelRole => typeof r.level === 'number' && typeof r.role === 'string')
-      .sort((a, b) => a.level - b.level);
-  } catch {
-    return [];
-  }
-}
-
 export function Leveling({ guildId }: { guildId: string }) {
   const t = useT();
   const me = useCurrentUser();
   const { roles } = useGuild(guildId);
-  const rewards = useLoad(() => levelRoles(guildId), `rewards-${guildId}`);
   const rank = useLoad(() => getRank(guildId), `rank-${guildId}`);
   const [rows, setRows] = useState<LeaderboardEntry[]>([]);
   const [more, setMore] = useState(true);
@@ -92,6 +67,8 @@ export function Leveling({ guildId }: { guildId: string }) {
       </p>
     );
   const card = rank.data;
+  // G-70: every member sees the level roles, from the rank card; lowest level first.
+  const rewards = [...(card?.level_roles ?? [])].sort((x, y) => x.level - y.level);
   return (
     <div className="lng-comm-stack">
       {card && (
@@ -146,15 +123,15 @@ export function Leveling({ guildId }: { guildId: string }) {
           </Button>
         )
       ) : null}
-      {rewards.data && rewards.data.length > 0 && (
+      {rewards.length > 0 && (
         <section aria-label={t('lounge.community.leveling.rewards')}>
           <h3 className="lng-comm-h">{t('lounge.community.leveling.rewards')}</h3>
           <ul className="lng-rewards">
-            {rewards.data.map((r) => (
-              <li key={`${r.level}-${r.role}`}>
+            {rewards.map((r) => (
+              <li key={`${r.level}-${r.role_id}`}>
                 {t('lounge.community.leveling.reward', {
                   level: r.level,
-                  role: roles.find((x) => x.id === r.role)?.name ?? r.role,
+                  role: roles.find((x) => x.id === r.role_id)?.name ?? r.role_id,
                 })}
                 {card && card.level >= r.level ? ` ${t('lounge.community.leveling.earned')}` : ''}
               </li>

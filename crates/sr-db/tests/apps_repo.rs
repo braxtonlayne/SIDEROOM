@@ -1247,3 +1247,35 @@ async fn testers_are_capped_and_an_accepted_tester_installs_a_development_app() 
         .unwrap();
     assert_eq!(f.svc.list_testers(f.owner, id).await.unwrap().len(), 25);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_declined_invitation_blocks_a_new_one_for_a_day() {
+    use sr_apps::service::TesterTarget;
+    let f = fx().await;
+    let c = f.app().await;
+    let id = c.application.id;
+    let (t, _) = f
+        .svc
+        .invite_tester(f.owner, id, TesterTarget::Id(f.other))
+        .await
+        .unwrap();
+    f.svc.respond_tester(f.other, t.id, false).await.unwrap();
+    assert!(matches!(
+        f.svc
+            .invite_tester(f.owner, id, TesterTarget::Id(f.other))
+            .await,
+        Err(AppsError::TesterRecentlyDeclined)
+    ));
+    // Nothing to forget yet; once the row is older than a day it is purged and the owner may ask again.
+    assert_eq!(f.svc.purge_tester_declines().await.unwrap(), 0);
+    sqlx::query("UPDATE app_tester_declines SET declined_at = now() - interval '25 hours'")
+        .execute(f.db.pool())
+        .await
+        .unwrap();
+    assert_eq!(f.svc.purge_tester_declines().await.unwrap(), 1);
+    f.svc
+        .invite_tester(f.owner, id, TesterTarget::Id(f.other))
+        .await
+        .unwrap();
+}

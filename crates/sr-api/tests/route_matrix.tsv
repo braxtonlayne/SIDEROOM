@@ -294,6 +294,7 @@ GET	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/features	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/insights	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/slowmode/presets	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stage-instances	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
@@ -399,6 +400,7 @@ GET	/watch-parties/{party_id}/audit	authenticated	other	allow	-
 GET	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
 GET	/webhooks/{webhook_id}	authenticated	other	allow	-
 GET	/webhooks/{webhook_id}/{token}	public	none	allow	-
+PATCH	/admin/announcements/{announcement_id}	authenticated	staff	deny	-
 PATCH	/admin/directory/{guild_id}	authenticated	staff	deny	-
 PATCH	/admin/donations/config	authenticated	staff	deny	-
 PATCH	/admin/features/{feature_id}	authenticated	staff	deny	-
@@ -590,6 +592,7 @@ POST	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/sr/applications	authenticated	other	allow	-
 POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/sr/slowmode/apply	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/suggestions	authenticated	membership	allow	-
@@ -601,6 +604,7 @@ POST	/interactions/{interaction_id}/{token}/callback	public	none	allow	-
 POST	/invites/{code}	authenticated	membership	deny	-
 POST	/library/chapters/{chapter_id}/read	authenticated	other	allow	-
 POST	/library/lists	authenticated	other	allow	-
+POST	/library/submissions/{submission_id}/cover	authenticated	other	allow	-
 POST	/oauth2/authorize	authenticated	other	deny	-
 POST	/oauth2/introspect	public	none	allow	-
 POST	/oauth2/token	public	none	allow	-
@@ -740,6 +744,7 @@ PUT	/watch-parties/{party_id}/media	authenticated	other	allow	-
 #undocumented	/internal/metrics
 #undocumented	/openapi.json
 #undocumented	/readyz
+#undocumented	/share
 #undocumented	/sr/age-gate
 #undocumented	/sr/auth/2fa
 #undocumented	/sr/auth/discord/callback

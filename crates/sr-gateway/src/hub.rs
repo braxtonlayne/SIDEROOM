@@ -506,6 +506,8 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         | DomainEvent::VoiceLeft { .. }
         | DomainEvent::StaffAlert { .. }
         | DomainEvent::StaffFeed { .. }
+        | DomainEvent::PlatformBroadcast { .. }
+        | DomainEvent::ReviewCard { .. }
         // Merged with the live sessions by `Gateway::on_user_event`.
         | DomainEvent::PresenceChanged { .. }
         | DomainEvent::UserScoped { .. } => return None,
@@ -1009,6 +1011,16 @@ impl Gateway {
         }
     }
 
+    /// Deliver to every session (`SR_FEATURE_UPDATE` and the like).
+    pub(crate) fn dispatch_all(&self, name: &str, data: &Value) {
+        let sessions: Vec<Arc<Session>> = self.st().sessions.values().cloned().collect();
+        for s in sessions {
+            if s.wants(name) {
+                deliver_to(&s, name, data);
+            }
+        }
+    }
+
     /// Guild lifecycle events from the platform topic.
     async fn handle_platform(&self, ev: DomainEvent) {
         match ev {
@@ -1021,6 +1033,9 @@ impl Gateway {
             DomainEvent::GuildDeleted { guild } => {
                 self.drop_guild(guild);
                 self.voice_guild_deleted(guild).await;
+            }
+            DomainEvent::PlatformBroadcast { name, payload } => {
+                self.dispatch_all(&name, &payload);
             }
             DomainEvent::StaffAlert { kind, detail } => {
                 let body = json!({ "kind": kind.as_str(), "detail": detail });

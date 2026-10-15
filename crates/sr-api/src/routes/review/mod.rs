@@ -321,6 +321,16 @@ impl BusReviewEvents {
 
 #[async_trait::async_trait]
 impl sr_review::ReviewEvents for BusReviewEvents {
+    async fn card(&self, submission_id: i64, outcome: Option<&str>) {
+        let ev = sr_events::DomainEvent::ReviewCard {
+            submission_id,
+            outcome: outcome.map(str::to_owned),
+        };
+        if let Err(e) = self.bus.publish(sr_events::Topic::Platform, ev).await {
+            tracing::warn!(error = %e, "publishing a review card event failed");
+        }
+    }
+
     async fn emit(&self, users: Vec<i64>, payload: serde_json::Value) {
         let users: Vec<UserId> = users
             .into_iter()
@@ -394,6 +404,12 @@ pub fn router() -> Router<AppState> {
         .route(
             "/submissions/{submission_id}/library/uploads/{upload_id}/complete",
             post(library::complete_upload),
+        )
+        .route(
+            "/library/submissions/{submission_id}/cover",
+            post(library::set_cover).layer(axum::extract::DefaultBodyLimit::max(
+                library::COVER_BODY_LIMIT,
+            )),
         )
         // Requests.
         .route("/requests", get(requests::list).post(requests::create))
@@ -487,6 +503,7 @@ pub fn router() -> Router<AppState> {
         member::naming_parse,
         member::credits,
         library::update_series,
+        library::set_cover,
         library::chapters,
         library::create_chapter,
         library::update_chapter,
@@ -557,6 +574,7 @@ pub fn router() -> Router<AppState> {
         sr_review::model::RequestPage,
         sr_review::model::ClaimRequestInput,
         sr_library::model::SeriesInput,
+        library::CoverBody,
         sr_library::model::Series,
         sr_library::model::ChapterInput,
         sr_library::model::Chapter,

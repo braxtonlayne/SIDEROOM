@@ -318,13 +318,21 @@ describe('announcement composer (ADM-PLT-009)', () => {
     expect(within(dialog).getByRole('button', { name: 'Publish' })).toBeDisabled();
   });
 
-  it('ends an active announcement and offers reuse for editing', async () => {
+  it('edits an active announcement, ends it, and offers reuse only for the ended one', async () => {
     asStaff({ perms: ['MANAGE_FEATURES'] });
     let ended = false;
+    let title = 'Maintenance tonight';
+    const patches: unknown[] = [];
     server.use(
       http.get('*/api/v1/admin/announcements', () =>
-        HttpResponse.json([ann(ended ? { ended_at_ms: 1_700_000_500_000 } : {})]),
+        HttpResponse.json([ann({ title, ...(ended ? { ended_at_ms: 1_700_000_500_000 } : {}) })]),
       ),
+      http.patch('*/api/v1/admin/announcements/5', async ({ request }) => {
+        const b = (await request.json()) as { title: string };
+        patches.push(b);
+        title = b.title;
+        return HttpResponse.json(ann({ title }));
+      }),
       http.delete('*/api/v1/admin/announcements/5', () => {
         ended = true;
         return HttpResponse.json(ann({ ended_at_ms: 1_700_000_500_000 }));
@@ -332,22 +340,39 @@ describe('announcement composer (ADM-PLT-009)', () => {
     );
     openAdmin('announcements');
     const user = userEvent.setup();
-    await user.click(
-      await screen.findByRole('button', {
-        name: 'Reuse Maintenance tonight as a new announcement',
-      }),
-    );
-    const reuse = await screen.findByRole('dialog', { name: 'New announcement' });
-    expect(within(reuse).getByLabelText('Title')).toHaveValue('Maintenance tonight');
-    await user.click(within(reuse).getByRole('button', { name: 'Cancel' }));
+    // While it is showing there is no Reuse, only Edit and End (G-69).
+    expect(screen.queryByRole('button', { name: /Reuse Maintenance tonight/ })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Edit Maintenance tonight' }));
+    const edit = await screen.findByRole('dialog', { name: 'Edit announcement' });
+    expect(within(edit).getByLabelText('Title')).toHaveValue('Maintenance tonight');
+    expect(within(edit).getByText(/nobody is messaged again/)).toBeInTheDocument();
+    await user.clear(within(edit).getByLabelText('Title'));
+    await user.type(within(edit).getByLabelText('Title'), 'Maintenance moved');
+    await user.click(within(edit).getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Announcement updated.')).toBeInTheDocument();
+    expect(patches).toEqual([
+      expect.objectContaining({ title: 'Maintenance moved', body: 'Short downtime at 22:00.' }),
+    ]);
+    expect(await screen.findByText('Maintenance moved')).toBeInTheDocument();
 
-    await user.click(await screen.findByRole('button', { name: 'End Maintenance tonight' }));
-    const dialog = await screen.findByRole('dialog', { name: /End "Maintenance tonight"/ });
+    await user.click(await screen.findByRole('button', { name: 'End Maintenance moved' }));
+    const dialog = await screen.findByRole('dialog', { name: /End "Maintenance moved"/ });
     await user.click(within(dialog).getByRole('button', { name: 'End announcement' }));
     expect(await screen.findByText('Announcement ended.')).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'End Maintenance tonight' })).toBeNull(),
+      expect(screen.queryByRole('button', { name: 'End Maintenance moved' })).toBeNull(),
     );
+    expect(screen.queryByRole('button', { name: 'Edit Maintenance moved' })).toBeNull();
+
+    // An ended one can be reused as a template.
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Reuse Maintenance moved as a new announcement',
+      }),
+    );
+    const reuse = await screen.findByRole('dialog', { name: 'New announcement' });
+    expect(within(reuse).getByLabelText('Title')).toHaveValue('Maintenance moved');
+    await user.click(within(reuse).getByRole('button', { name: 'Cancel' }));
   });
 
   it('passes axe', async () => {

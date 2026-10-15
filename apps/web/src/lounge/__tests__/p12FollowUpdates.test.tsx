@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
-import { resetUpdatesChannelCache } from '../header/useUpdatesChannel';
 import { at, baseHandlers, calls, record, seedLounge } from './gapsHelpers';
 
 vi.mock('../../store/connect', () => ({
@@ -18,13 +18,17 @@ const channels = {
 
 describe('G-30 announcement channels: Follow button and Updates badge', () => {
   beforeEach(() => {
-    resetUpdatesChannelCache();
     seedLounge({ messages: [], channels });
+    // G-76: the guild object carries the channel; no separate request is made for it.
+    useStore.setState((s) => ({
+      guilds: { ...s.guilds, g1: { ...s.guilds.g1!, public_updates_channel_id: 'c5' } },
+    }));
     baseHandlers();
     server.use(
-      http.get('*/api/v1/guilds/g1/sr/community', () =>
-        HttpResponse.json({ community_enabled: true, public_updates_channel_id: 'c5' }),
-      ),
+      http.get('*/api/v1/guilds/g1/sr/community', () => {
+        calls.push({ key: 'GET /guilds/g1/sr/community', body: null });
+        return HttpResponse.json({ community_enabled: true, public_updates_channel_id: 'c5' });
+      }),
       http.get('*/api/v1/users/@me/guilds', () => HttpResponse.json([{ id: 'g1', name: 'Club' }])),
       http.get('*/api/v1/guilds/g1/channels', () => HttpResponse.json(Object.values(channels))),
       http.post('*/api/v1/channels/c5/followers', async (ctx) => {
@@ -38,6 +42,12 @@ describe('G-30 announcement channels: Follow button and Updates badge', () => {
     at('/channels/g1/c5');
     expect(await screen.findByText('Updates')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Follow' })).toBeInTheDocument();
+  });
+
+  it('reads the channel from the guild object and never fetches the community settings', async () => {
+    at('/channels/g1/c5');
+    await screen.findByText('Updates');
+    expect(calls.some((c) => c.key === 'GET /guilds/g1/sr/community')).toBe(false);
   });
 
   it('keeps the plain Announcements badge on other announcement channels', async () => {

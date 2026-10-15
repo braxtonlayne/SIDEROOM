@@ -122,6 +122,21 @@ describe('review queue', () => {
     expect(seen.at(-1)).toContain('offset=25');
   });
 
+  it('opens the submission a #review-queue card links to, and its reject dialog (G-68)', async () => {
+    useReviewApi({
+      detail: () => detail({ id: '7', title: 'Linked series', state: 'submitted' }),
+      onPost: (path) =>
+        path === 'claim'
+          ? detail({ id: '7', title: 'Linked series', state: 'in_review', ...lease() })
+          : undefined,
+    });
+    openAdmin('review?submission=7&reject=1');
+    expect(await screen.findByRole('heading', { name: 'Linked series' })).toBeInTheDocument();
+    // The reviewer holds the claim by now and the reject dialog is open, asking for a reason.
+    const dialog = await screen.findByRole('dialog', { name: 'Reject this submission' });
+    expect(within(dialog).getByRole('button', { name: 'Reject' })).toBeDisabled();
+  });
+
   it('says so when nothing waits', async () => {
     server.use(http.get('*/api/v1/admin/review/queue', () => queue([], 0)));
     openAdmin('review');

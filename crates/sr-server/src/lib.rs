@@ -4,6 +4,7 @@
 
 pub mod admin_jobs;
 pub mod app;
+pub mod apps_jobs;
 pub mod backends;
 pub mod cinema_catalog;
 pub mod cinema_jobs;

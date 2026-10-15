@@ -4,8 +4,9 @@ import { Button, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { formatDateTime, useT } from '../../i18n';
-import { useCurrentUser, useGuild, useUsers } from '../data';
+import { useCurrentUser, useUsers } from '../data';
 import { closeTicket, listTickets, openTicket, type Ticket } from '../features/api';
+import { MODULE, useCanRespond } from '../features/useModules';
 import { useLoungeGoto } from '../nav';
 import { useLoad } from './useLoad';
 
@@ -16,7 +17,8 @@ export function Tickets({ guildId, onNavigate }: { guildId: string; onNavigate: 
   const me = useCurrentUser();
   const users = useUsers();
   const goto = useLoungeGoto();
-  const staff = !!useGuild(guildId)?.permissions.manageGuild;
+  // The server says whether the viewer sees every ticket and may close them (Manage Server or the staff role).
+  const staff = useCanRespond(guildId, MODULE.tickets);
   const list = useLoad(() => listTickets(guildId), `tickets-${guildId}`);
   const [subject, setSubject] = useState('');
   const [busy, setBusy] = useState(false);

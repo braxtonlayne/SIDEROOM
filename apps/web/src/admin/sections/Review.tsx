@@ -14,7 +14,8 @@ import {
   TextArea,
   TextInput,
 } from '@sideroom/ui';
-import { useCallback, useEffect, useState } from 'react';
+import { useLocation } from '@tanstack/react-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatTime, type MessageKey, useT } from '../../i18n';
 import * as rv from '../../review/api';
 import {
@@ -116,9 +117,24 @@ const who = (t: TFn, me: string, id: string | null) =>
 
 /** The Library submissions workspace (a tab of the Review Queues hub). */
 export function LibraryReviewPanel() {
-  const [open, setOpen] = useState<string | null>(null);
+  // `/admin/review?submission=<id>[&reject=1]` is where the `#review-queue` card sends reviewers (G-68).
+  const search = useLocation({ select: (l) => l.searchStr });
+  const link = useMemo(() => {
+    const q = new URLSearchParams(search);
+    const submission = q.get('submission');
+    return submission && /^\d+$/.test(submission)
+      ? { id: submission, reject: q.get('reject') === '1' }
+      : null;
+    // Read once, when the panel opens; later changes of the queue do not touch the address.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [open, setOpen] = useState<string | null>(link?.id ?? null);
   return open ? (
-    <ReviewDetail id={open} onBack={() => setOpen(null)} />
+    <ReviewDetail
+      id={open}
+      rejectOnOpen={!!link?.reject && open === link.id}
+      onBack={() => setOpen(null)}
+    />
   ) : (
     <ReviewQueue onOpen={setOpen} />
   );
@@ -312,7 +328,15 @@ function claimText(t: TFn, s: Submission, me: string): string {
 
 // ---- review page ----
 
-function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
+function ReviewDetail({
+  id,
+  onBack,
+  rejectOnOpen = false,
+}: {
+  id: string;
+  onBack: () => void;
+  rejectOnOpen?: boolean;
+}) {
   const t = useT();
   const viewer = useAdminViewer();
   const res = useResource(`review:${id}`, () => rv.reviewGet(id));
@@ -336,6 +360,31 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
     const timer = setInterval(() => tick((n) => n + 1), 30_000);
     return () => clearInterval(timer);
   }, []);
+
+  // Coming from a review card's Reject button: take the claim if it is free, then open the reject dialog.
+  const autoReject = useRef(rejectOnOpen);
+  useEffect(() => {
+    const d = res.data;
+    if (!autoReject.current || !d) return;
+    const s = d.submission;
+    const live = !!s.claimed_by && (s.claim_expires_at_ms ?? 0) > Date.now();
+    if (live && s.claimed_by === viewer.userId && s.state === 'in_review') {
+      autoReject.current = false;
+      setDialog('reject');
+    } else if (s.state === 'submitted' || (s.state === 'in_review' && !live)) {
+      autoReject.current = false;
+      void action
+        .run(() => rv.claim(id), t('admin.review.claimedNotice'))
+        .then((claimed) => {
+          if (claimed) {
+            res.set(claimed);
+            autoReject.current = true;
+          }
+        });
+    } else {
+      autoReject.current = false;
+    }
+  }, [res, res.data, viewer.userId, id, action, t]);
 
   const apply = async (fn: () => Promise<SubmissionDetail>, done: string) => {
     const d = await action.run(fn, done);

@@ -187,8 +187,38 @@ impl FeatureService {
                 // Cache is already invalidated locally; bus failure only delays other nodes.
                 let _ = bus.publish(topic, ev.clone()).await;
             }
+            // G-81: a client-visible platform flag changed, so every session gets the full map.
+            if matches!(scope, ScopeRef::Platform)
+                && self.feature(id).is_ok_and(|f| f.client_visible())
+                && let Ok(flags) = self.client_flags().await
+            {
+                let ev = DomainEvent::PlatformBroadcast {
+                    name: "SR_FEATURE_UPDATE".into(),
+                    payload: serde_json::json!({ "scope": "platform", "flags": flags }),
+                };
+                let _ = bus.publish(sr_events::Topic::Platform, ev).await;
+            }
         }
         Ok(())
+    }
+
+    /// Platform flags clients may read: feature id to on/off for platform-scope modules that
+    /// declare themselves client-visible (D-216). The same map `GET /sr/features/flags` returns
+    /// and `SR_FEATURE_UPDATE` carries.
+    pub async fn client_flags(
+        &self,
+    ) -> Result<std::collections::BTreeMap<String, bool>, FeatureError> {
+        let mut flags = std::collections::BTreeMap::new();
+        for f in self.inner.registry.iter() {
+            if !f.client_visible() || !f.scopes().contains(&Scope::Platform) {
+                continue;
+            }
+            flags.insert(
+                f.id().to_owned(),
+                self.is_enabled(f.id(), &ScopeRef::Platform).await?,
+            );
+        }
+        Ok(flags)
     }
 
     /// Spawn a task that invalidates the cache when a `FeatureSettingsChanged`
@@ -479,5 +509,46 @@ mod kill_tests {
             .unwrap();
         assert!(svc.platform_killed(REPORTS_FEATURE_ID).await.unwrap());
         assert!(svc.platform_killed("nope").await.is_err());
+    }
+}
+
+#[cfg(test)]
+mod broadcast_tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use futures::StreamExt;
+    use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
+
+    use crate::moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
+    use crate::{FeatureRegistry, FeatureService, InMemorySettingsStore, ScopeRef};
+
+    #[tokio::test]
+    async fn flipping_a_visible_platform_flag_broadcasts_the_whole_map() {
+        let mut reg = FeatureRegistry::new();
+        reg.register(ModerationReportsFeature).unwrap();
+        let bus = Arc::new(InProcessBus::new());
+        let svc = FeatureService::new(
+            Arc::new(reg),
+            Arc::new(InMemorySettingsStore::new()),
+            Some(bus.clone() as Arc<dyn EventBus>),
+        );
+        let mut events = bus.subscribe(Topic::Platform);
+        svc.set_enabled(REPORTS_FEATURE_ID, &ScopeRef::Platform, Some(false))
+            .await
+            .unwrap();
+        let mut seen = None;
+        while let Ok(Some(ev)) =
+            tokio::time::timeout(Duration::from_millis(200), events.next()).await
+        {
+            if let DomainEvent::PlatformBroadcast { name, payload } = ev {
+                seen = Some((name, payload));
+                break;
+            }
+        }
+        let (name, payload) = seen.expect("SR_FEATURE_UPDATE was broadcast");
+        assert_eq!(name, "SR_FEATURE_UPDATE");
+        assert_eq!(payload["scope"], "platform");
+        assert_eq!(payload["flags"][REPORTS_FEATURE_ID], false);
     }
 }

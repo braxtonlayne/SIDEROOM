@@ -412,6 +412,11 @@ export const createAnnouncement = (body: {
 }) => send<PlatformAnnouncement>('/admin/announcements', 'POST', body);
 export const endAnnouncement = (id: string) =>
   send<PlatformAnnouncement>(`/admin/announcements/${id}`, 'DELETE');
+/** Edit one that is still showing (G-69): title, message and end time only; 409 once it has ended. */
+export const editAnnouncement = (
+  id: string,
+  body: { title?: string; body?: string; ends_at_ms?: number; reason?: string },
+) => send<PlatformAnnouncement>(`/admin/announcements/${id}`, 'PATCH', body);
 
 // ---- staff alerts (ADM-ALR-001) ----
 
