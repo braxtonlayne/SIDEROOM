@@ -28,6 +28,7 @@ import {
 import { ImageCropDialog } from '../ImageCropDialog';
 import { imageProblem, readAsDataUri } from '../imageCrop';
 import { Card, Loaded, SectionTitle, Unavailable } from '../parts';
+import { StaffBadgeCard } from './AccountSwitchCards';
 import { BirthdayCard } from './BirthdayCard';
 import { ServerTagCard } from './ServerTagCard';
 
@@ -528,6 +529,7 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
                   </div>
                 </Card>
                 <MediaCard form={form} />
+                <StaffBadgeCard badges={form.profile?.badges} />
                 <Card
                   id="us-profile-extras"
                   title={t('settings.profile.extrasTitle')}

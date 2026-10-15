@@ -197,9 +197,7 @@ export function AnnouncementsSection() {
           });
           setComposing(false);
           setNotice(
-            dm
-              ? t('admin.announcements.publishedWithDm')
-              : t('admin.announcements.published'),
+            dm ? t('admin.announcements.publishedWithDm') : t('admin.announcements.published'),
           );
           await list.reload();
         }}

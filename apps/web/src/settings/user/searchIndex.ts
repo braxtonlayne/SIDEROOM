@@ -33,6 +33,18 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
   },
   {
     section: 'profile',
+    card: 'us-staff-badge',
+    label: 'Show the SIDE ROOM Staff badge',
+    keywords: 'staff badge profile hide',
+  },
+  {
+    section: 'notifications',
+    card: 'us-platform-dm',
+    label: 'Platform announcements by direct message',
+    keywords: 'announcement dm system message sideroom',
+  },
+  {
+    section: 'profile',
     card: 'us-media',
     label: 'Avatar and banner',
     keywords: 'picture photo crop upload',

@@ -128,6 +128,8 @@ export interface OwnProfile {
     accent_color: number | null;
   };
   connected_accounts: Connection[];
+  /** Platform badges (`staff` and `owner` only while `staff.show_badge` is on). */
+  badges?: { id: string }[];
 }
 export const getOwnProfile = () => apiFetch<OwnProfile>('/users/@me/profile', { retries: 0 });
 export const getPresence = () =>
