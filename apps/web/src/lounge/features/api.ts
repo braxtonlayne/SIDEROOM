@@ -148,6 +148,15 @@ export const setBirthday = (b: Birthday) =>
 export const clearBirthday = () =>
   apiFetch<void>(`/users/@me/birthday`, { method: 'DELETE', ...NO_RETRY });
 
+export interface UpcomingBirthday {
+  user_id: string;
+  month: number;
+  day: number;
+}
+
+export const getUpcomingBirthdays = (guildId: string, limit = 25) =>
+  apiFetch<UpcomingBirthday[]>(`/guilds/${enc(guildId)}/birthdays?limit=${limit}`, NO_RETRY);
+
 // ---- modules switched on in a server
 
 export interface ModuleFlags {

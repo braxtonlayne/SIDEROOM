@@ -28,6 +28,7 @@ import {
 import { ImageCropDialog } from '../ImageCropDialog';
 import { imageProblem, readAsDataUri } from '../imageCrop';
 import { Card, Loaded, SectionTitle, Unavailable } from '../parts';
+import { BirthdayCard } from './BirthdayCard';
 import { ServerTagCard } from './ServerTagCard';
 
 export const BIO_MAX = 190;
@@ -466,6 +467,7 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
             <>
               <ServerProfiles userId={form.profile?.user.id} />
               <ServerTagCard />
+              <BirthdayCard />
             </>
           ) : (
             <div className="us-split">

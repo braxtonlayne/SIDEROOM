@@ -33,6 +33,7 @@ import {
 import { useLoungeRoute } from './nav';
 import { NestedThreads } from './threads/NestedThreads';
 import { useGuildMenuCore } from './shell/useGuildMenu';
+import { hasMemberModule, useGuildModules } from './features/useModules';
 import { useChannelDnd, type ChannelDropMark } from './shell/useChannelDnd';
 import { useChannelMenu } from './shell/useChannelMenu';
 import { useLoungeUi } from './store';
@@ -349,6 +350,8 @@ function CategoryHead({
 function GuildHeader({ guild }: { guild: Guild }) {
   const t = useT();
   const core = useGuildMenuCore(guild);
+  const modules = useGuildModules(guild.id);
+  const openDialog = useLoungeUi((s) => s.openDialog);
   const [coming, setComing] = useState<string | null>(null);
   const soon = (title: string) => () => setComing(title);
   const p = guild.permissions;
@@ -381,6 +384,14 @@ function GuildHeader({ guild }: { guild: Guild }) {
       label: t('lounge.channelSidebar.appDirectory'),
       onSelect: soon(t('lounge.channelSidebar.appDirectory')),
     },
+    ...(hasMemberModule(modules)
+      ? [
+          {
+            label: t('lounge.guildMenu.community'),
+            onSelect: () => openDialog({ kind: 'community', guildId: guild.id }),
+          } as MenuEntry,
+        ]
+      : []),
     core.notifications,
     core.privacy,
     {

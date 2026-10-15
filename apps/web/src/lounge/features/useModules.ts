@@ -18,6 +18,10 @@ export const MODULE = {
   tickets: 'community.tickets',
 } as const;
 
+/** Whether the server runs a module that has a member-facing tab in the Community dialog. */
+export const hasMemberModule = (m: Record<string, boolean> | undefined): boolean =>
+  !!m && [MODULE.leveling, MODULE.suggestions, MODULE.tickets, MODULE.birthdays].some((k) => m[k]);
+
 interface ModulesState {
   byGuild: Record<string, Record<string, boolean>>;
   requested: Record<string, true>;

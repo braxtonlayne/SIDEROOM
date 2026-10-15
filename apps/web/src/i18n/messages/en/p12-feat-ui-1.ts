@@ -1,0 +1,153 @@
+export default {
+  // Server tag chip next to names (LNG-SSET-012)
+  'lounge.serverTag.title': 'Server tag {tag}',
+
+  // Community dialog (FTR-LVL/SUGG/TICK/BDAY)
+  'lounge.guildMenu.community': 'Community',
+  'lounge.community.title': 'Community',
+  'lounge.community.tabs': 'Community sections',
+  'lounge.community.tabRank': 'Rank',
+  'lounge.community.tabSuggestions': 'Suggestions',
+  'lounge.community.tabTickets': 'Tickets',
+  'lounge.community.tabBirthdays': 'Birthdays',
+  'lounge.community.loading': 'Loading',
+  'lounge.community.cancel': 'Cancel',
+  'lounge.community.nothingOn': 'This server has not turned on any community features yet.',
+
+  // Leveling
+  'lounge.community.leveling.cardLabel': 'Your rank',
+  'lounge.community.leveling.summary': 'Level {level}, rank #{rank}, {xp} XP',
+  'lounge.community.leveling.unranked': 'Level {level}, not ranked yet',
+  'lounge.community.leveling.progress': 'Progress to level {level}',
+  'lounge.community.leveling.toNext':
+    '{xp} XP to the next level. {messages, plural, one {# message} other {# messages}} counted.',
+  'lounge.community.leveling.leaderboard': 'Leaderboard',
+  'lounge.community.leveling.empty': 'Nobody has earned XP yet.',
+  'lounge.community.leveling.row': 'Level {level}, {xp} XP',
+  'lounge.community.leveling.more': 'Show more',
+  'lounge.community.leveling.error': 'Could not load the leaderboard.',
+  'lounge.community.leveling.rewards': 'Level roles',
+  'lounge.community.leveling.reward': 'Level {level}: {role}',
+  'lounge.community.leveling.earned': '(earned)',
+  'lounge.community.leveling.optedOut':
+    'You opted out of leveling in this server, so you earn no XP and are not on the leaderboard.',
+  'lounge.community.leveling.optIn': 'Take part again',
+  'lounge.community.leveling.optOut': 'Opt out of leveling',
+  'lounge.community.leveling.optOutConfirmLabel': 'Confirm opting out',
+  'lounge.community.leveling.optOutWarning':
+    'Opting out deletes your XP in this server and takes you off the leaderboard.',
+  'lounge.community.leveling.optOutYes': 'Opt out and delete my XP',
+  'lounge.community.leveling.optOutNo': 'Keep my XP',
+
+  // Suggestions
+  'lounge.community.suggestions.compose': 'Your suggestion',
+  'lounge.community.suggestions.composeHint':
+    'It is posted to the suggestions channel, where everyone can vote.',
+  'lounge.community.suggestions.send': 'Post suggestion',
+  'lounge.community.suggestions.failed': 'Could not save that. Try again.',
+  'lounge.community.suggestions.filter': 'Show suggestions with status',
+  'lounge.community.suggestions.all': 'All statuses',
+  'lounge.community.suggestions.statusOpen': 'Open',
+  'lounge.community.suggestions.statusConsidering': 'Considering',
+  'lounge.community.suggestions.statusApproved': 'Approved',
+  'lounge.community.suggestions.statusDenied': 'Denied',
+  'lounge.community.suggestions.statusImplemented': 'Implemented',
+  'lounge.community.suggestions.listLabel': 'Suggestions',
+  'lounge.community.suggestions.empty': 'No suggestions yet.',
+  'lounge.community.suggestions.loadFailed': 'Could not load suggestions.',
+  'lounge.community.suggestions.someone': 'A member',
+  'lounge.community.suggestions.votes': '{up} up, {down} down',
+  'lounge.community.suggestions.staffResponse': 'Staff response:',
+  'lounge.community.suggestions.respond': 'Set status or respond',
+  'lounge.community.suggestions.setStatus': 'Status',
+  'lounge.community.suggestions.responseLabel': 'Response',
+  'lounge.community.suggestions.saveResponse': 'Save',
+
+  // Tickets
+  'lounge.community.tickets.subject': 'What do you need help with?',
+  'lounge.community.tickets.subjectHint':
+    'This opens a private thread that only you and the staff can see.',
+  'lounge.community.tickets.open': 'Open a ticket',
+  'lounge.community.tickets.openFailed': 'Could not open a ticket. Try again.',
+  'lounge.community.tickets.closeFailed': 'Could not close that ticket.',
+  'lounge.community.tickets.allTickets': 'All tickets',
+  'lounge.community.tickets.yourTickets': 'Your tickets',
+  'lounge.community.tickets.listLabel': 'Tickets',
+  'lounge.community.tickets.empty': 'No tickets.',
+  'lounge.community.tickets.loadFailed': 'Could not load tickets.',
+  'lounge.community.tickets.statusOpen': 'Open',
+  'lounge.community.tickets.statusClosed': 'Closed',
+  'lounge.community.tickets.openedBy': 'opened by {name}',
+  'lounge.community.tickets.openThread': 'Open thread',
+  'lounge.community.tickets.close': 'Close ticket',
+
+  // Birthdays
+  'lounge.community.birthdays.listLabel': 'Upcoming birthdays',
+  'lounge.community.birthdays.empty': 'Nobody has shared a birthday here yet.',
+  'lounge.community.birthdays.error': 'Could not load birthdays.',
+
+  // Poll templates in the poll modal
+  'lounge.pollTemplates.pick': 'Start from a template',
+  'lounge.pollTemplates.name': 'Save this poll as a template named',
+  'lounge.pollTemplates.save': 'Save template',
+  'lounge.pollTemplates.saved': 'Template saved.',
+  'lounge.pollTemplates.failed': 'Could not save the template.',
+  'lounge.pollModal.durationCustom': '{n, plural, one {# hour} other {# hours}}',
+
+  // User Settings > Profiles > Servers > Birthday
+  'settings.birthday.title': 'Birthday',
+  'settings.birthday.description':
+    'Servers that turn on birthdays can announce yours. Only the month and day are shared; the year is optional and shows up only as an age.',
+  'settings.birthday.loading': 'Loading your birthday',
+  'settings.birthday.loadError': 'Could not load your birthday.',
+  'settings.birthday.month': 'Month',
+  'settings.birthday.day': 'Day',
+  'settings.birthday.year': 'Birth year (optional)',
+  'settings.birthday.yearHint': 'Leave it empty to keep your age private.',
+  'settings.birthday.yearInvalid': 'Enter a year from 1900 to 2100.',
+  'settings.birthday.share': 'Let servers show my birthday',
+  'settings.birthday.shareHint':
+    'Turn this off to keep your birthday private. Nothing is announced.',
+  'settings.birthday.save': 'Save birthday',
+  'settings.birthday.remove': 'Remove birthday',
+  'settings.birthday.saved': 'Birthday saved.',
+  'settings.birthday.cleared': 'Birthday removed.',
+  'settings.birthday.saveError': 'Could not save your birthday.',
+
+  // Server Settings > Features > RSS feeds
+  'settings.rss.title': 'Feeds',
+  'settings.rss.loading': 'Loading feeds',
+  'settings.rss.empty': 'This server follows no feeds yet.',
+  'settings.rss.line': '{url} posts in #{channel}',
+  'settings.rss.checked': 'Last checked {time}: {status}',
+  'settings.rss.notChecked': 'Not checked yet.',
+  'settings.rss.failures':
+    '{count, plural, one {# failed check in a row.} other {# failed checks in a row.}}',
+  'settings.rss.enable': 'Post new items from {name}',
+  'settings.rss.remove': 'Stop following {name}',
+  'settings.rss.removeShort': 'Remove',
+  'settings.rss.removed': 'Feed removed.',
+  'settings.rss.url': 'Feed address',
+  'settings.rss.channel': 'Post in channel',
+  'settings.rss.include': 'Only items containing',
+  'settings.rss.exclude': 'Skip items containing',
+  'settings.rss.keywordHint': 'Separate words with commas. Leave empty for no filter.',
+  'settings.rss.interval': 'Check every',
+  'settings.rss.every5m': '5 minutes',
+  'settings.rss.every15m': '15 minutes',
+  'settings.rss.every30m': '30 minutes',
+  'settings.rss.every1h': '1 hour',
+  'settings.rss.every6h': '6 hours',
+  'settings.rss.every24h': '24 hours',
+  'settings.rss.add': 'Follow feed',
+  'settings.rss.added': 'Feed added. Only new items after now are posted.',
+
+  // Reaction roles message picker
+  'settings.messagePicker.channel': 'Channel',
+  'settings.messagePicker.message': 'Message',
+  'settings.messagePicker.loading': 'Loading messages',
+  'settings.messagePicker.noText': '(no text)',
+  'settings.messagePicker.current': 'Message {id} (chosen)',
+  'settings.messagePicker.none': 'No messages in that channel.',
+  'settings.messagePicker.failed': 'Could not load that channel.',
+} satisfies Record<string, string>;

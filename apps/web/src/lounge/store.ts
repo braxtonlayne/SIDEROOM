@@ -52,7 +52,12 @@ export type LoungeDialog =
   | { kind: 'deleteChannel'; guildId: string; channelId: string }
   | { kind: 'notifications'; guildId: string; channelId?: string | undefined }
   | { kind: 'createThread'; guildId: string; channelId: string; messageId?: string | undefined }
-  | { kind: 'transferOwnership'; guildId: string; userId: string };
+  | { kind: 'transferOwnership'; guildId: string; userId: string }
+  | {
+      kind: 'community';
+      guildId: string;
+      tab?: 'rank' | 'suggestions' | 'tickets' | 'birthdays' | undefined;
+    };
 
 export interface LoungeUiState {
   /** Where to land on `/channels` after a reload (LNG-SHL-005). */
