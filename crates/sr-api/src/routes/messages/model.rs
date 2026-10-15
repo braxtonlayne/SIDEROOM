@@ -218,7 +218,11 @@ impl MessageObject {
             nonce,
             pinned: m.pinned,
             kind: m.kind.code(),
-            flags: m.flags,
+            flags: if m.author_id.get() == sr_chat::SYSTEM_USER_ID {
+                m.flags | message_flags::SYSTEM_TAG
+            } else {
+                m.flags
+            },
             message_reference: m.reference.as_ref().map(|r| MessageReferenceObject {
                 kind: u8::from(r.forward.is_some()),
                 message_id: r.message_id.to_string(),

@@ -148,18 +148,33 @@ describe('Text and Images', () => {
 });
 
 describe('Activity Privacy', () => {
-  it('stores the choices, the master switch greys out the rest, and the gap is stated', async () => {
+  it('writes the sharing choices to the account settings at once (G-58)', async () => {
+    const patches: unknown[] = [];
+    server.use(
+      http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
+        const body = (await request.json()) as { settings: Record<string, unknown> };
+        patches.push(body.settings);
+        return HttpResponse.json({ version: patches.length, settings: body.settings });
+      }),
+    );
     const user = userEvent.setup();
     openSettings('activity');
     const watching = await screen.findByRole('switch', { name: /Share what I'm watching/ });
     expect(watching).toBeEnabled();
-    expect(screen.getByText(/Nothing publishes your activity yet/)).toBeInTheDocument();
+    expect(watching).toBeChecked();
     expect(await axeViolations(document.body)).toEqual([]);
-    await user.click(screen.getByRole('switch', { name: /Share my activity/ }));
-    expect(watching).toBeDisabled();
+    await user.click(watching);
+    await user.click(screen.getByRole('switch', { name: /Share the live TV I'm watching/ }));
+    await user.click(screen.getByRole('switch', { name: /Hide age-restricted titles/ }));
     await user.click(screen.getByRole('switch', { name: /Pause my watch and reading history/ }));
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    expect(saved()).toMatchObject({ shareActivity: false, pauseHistory: true });
+    await waitFor(() => expect(patches).toHaveLength(4));
+    expect(patches).toEqual([
+      { activity: { share_cinema: false } },
+      { activity: { share_tv: false } },
+      { activity: { hide_age_restricted: false } },
+      { activity: { paused: true } },
+    ]);
+    expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument();
   });
 });
 

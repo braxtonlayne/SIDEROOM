@@ -182,6 +182,7 @@ async fn guild(f: &Fx) -> (String, Value) {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
     }
     (id, g)

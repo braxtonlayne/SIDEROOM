@@ -200,6 +200,14 @@ pub fn required_guild_permission(name: &str) -> Option<Permissions> {
     }
 }
 
+/// Dispatches of an age-restricted channel that sessions without the 18+ answer do not
+/// receive (D-199).
+fn age_gated(name: &str) -> bool {
+    name.starts_with("MESSAGE_")
+        || name.starts_with("THREAD_")
+        || matches!(name, "TYPING_START" | "CHANNEL_PINS_UPDATE")
+}
+
 /// Per-session view of a dispatch. Without `MESSAGE_CONTENT` a bot sees message
 /// content, embeds, attachments, components and polls only for DMs, messages that
 /// mention it, and its own messages (Discord rule, docs/05 section 6.2).
@@ -689,8 +697,17 @@ impl Gateway {
     async fn guild_create_body(&self, user: UserId, guild: GuildId) -> Value {
         let mut body = self.inner.dir.guild_payload(user, guild).await;
         let voice_states = self.voice_states_for(user, guild).await;
+        let stages: Vec<Value> = self
+            .stage_instances_for(user, guild)
+            .await
+            .iter()
+            .map(crate::voice_stage::StageInstance::to_json)
+            .collect();
+        let sounds = self.inner.dir.soundboard_sounds(guild).await;
         if let Some(obj) = body.as_object_mut() {
             obj.insert("voice_states".into(), Value::Array(voice_states));
+            obj.insert("stage_instances".into(), Value::Array(stages));
+            obj.insert("soundboard_sounds".into(), Value::Array(sounds));
         }
         let threshold = self.inner.cfg.large_threshold.min(LARGE_THRESHOLD_MAX);
         let members: Vec<UserId> = match body.get("members").and_then(Value::as_array) {
@@ -820,6 +837,11 @@ impl Gateway {
             return;
         }
         if let DomainEvent::UserScoped { name, payload, .. } = &ev {
+            if name == "SR_USER_UPDATE" {
+                for s in self.user_sessions(user) {
+                    s.clear_age_cache();
+                }
+            }
             self.dispatch_user(user, name, payload.clone()).await;
             return;
         }
@@ -947,11 +969,29 @@ impl Gateway {
             .await
             .into_iter()
             .collect();
+        let gate = match channel {
+            Some(ch) if age_gated(name) => self.inner.dir.channel_age_restricted(ch).await,
+            _ => false,
+        };
         for s in targets {
-            if allowed.get(&s.user).copied().unwrap_or(false) {
-                deliver_to(&s, name, &data);
+            if !allowed.get(&s.user).copied().unwrap_or(false) {
+                continue;
             }
+            if gate && !self.session_age_confirmed(&s).await {
+                continue;
+            }
+            deliver_to(&s, name, &data);
         }
+    }
+
+    /// The session age-gate answer, looked up once and cached until `SR_USER_UPDATE`.
+    async fn session_age_confirmed(&self, s: &Session) -> bool {
+        if let Some(v) = s.age_cached() {
+            return v;
+        }
+        let v = self.inner.dir.age_confirmed(s.user).await;
+        s.set_age_cached(v);
+        v
     }
 
     /// Deliver to every session of `user` (DM and self events; no guild check).
@@ -1045,6 +1085,22 @@ impl Gateway {
 
     /// What other users see for `user`: `None` without any live or resumable session,
     /// `offline` without an attached socket, otherwise the chosen status.
+    /// Whether `user` has an attached session that is not idle (D-191). Web Push is held
+    /// back while this is true. A session that never reported counts as active; one idle
+    /// session does not make the user idle while another is active.
+    pub fn has_active_session(&self, user: UserId) -> bool {
+        let st = self.st();
+        st.sessions
+            .values()
+            .filter(|s| s.user == user && s.is_attached())
+            .any(|s| {
+                st.session_presence
+                    .get(&s.id)
+                    .and_then(|sp| sp.update.as_ref())
+                    .is_none_or(|u| !(u.afk || u.status == "idle"))
+            })
+    }
+
     pub fn presence(&self, user: UserId) -> Option<PresenceUpdate> {
         Self::effective(&self.st(), user)
     }

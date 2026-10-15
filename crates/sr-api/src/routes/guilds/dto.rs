@@ -463,6 +463,18 @@ pub struct MemberObject {
     /// Per-server bio (LNG-GLD-012).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bio: Option<String>,
+    /// Per-server pronouns (G-52).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pronouns: Option<String>,
+    /// Per-server profile theme, `[primary, accent]` as 0xRRGGBB.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme_colors: Option<[u32; 2]>,
+    /// Per-server profile effect slug.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_effect: Option<String>,
+    /// Per-server avatar decoration slug.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_decoration: Option<String>,
     pub roles: Vec<String>,
     pub joined_at: String,
     pub premium_since: Option<String>,
@@ -484,6 +496,10 @@ impl MemberObject {
             avatar: m.avatar_key.clone(),
             banner: m.banner_key.clone(),
             bio: m.bio.clone(),
+            pronouns: m.extras.pronouns.clone(),
+            theme_colors: m.extras.theme_colors,
+            profile_effect: m.extras.profile_effect.clone(),
+            avatar_decoration: m.extras.avatar_decoration.clone(),
             roles: m.role_ids.iter().map(ToString::to_string).collect(),
             joined_at: iso8601(m.joined_at_ms),
             premium_since: None,

@@ -9,6 +9,8 @@
 
 use serde_json::{Map, Value, json};
 
+use crate::routes::social::model::STAT_KEYS;
+
 /// How the user proves the account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Flow {
@@ -189,11 +191,13 @@ fn num(v: &Value) -> Option<i64> {
     .filter(|n| *n >= 0)
 }
 
-/// Keep only the numbers that are present.
+/// Keep only the numbers that are present and whose key is in [`STAT_KEYS`].
 fn stats(pairs: &[(&str, Option<i64>)]) -> Value {
     let mut m = Map::new();
     for (k, v) in pairs {
-        if let Some(v) = v {
+        if let Some(v) = v
+            && STAT_KEYS.contains(k)
+        {
             m.insert((*k).to_owned(), json!(v));
         }
     }
@@ -219,9 +223,8 @@ pub fn parse_identity(provider: &str, body: &Value) -> Option<Identity> {
                 url: handle(&login).map(|h| format!("https://github.com/{h}")),
                 name: login,
                 stats: stats(&[
-                    ("public_repos", num(&body["public_repos"])),
+                    ("repos", num(&body["public_repos"])),
                     ("followers", num(&body["followers"])),
-                    ("following", num(&body["following"])),
                 ]),
             })
         }
@@ -264,17 +267,14 @@ pub fn parse_identity(provider: &str, body: &Value) -> Option<Identity> {
             Some(Identity {
                 url: handle(&id).map(|h| format!("https://www.youtube.com/channel/{h}")),
                 name: text(&c["snippet"]["title"], 100).unwrap_or_else(|| id.clone()),
-                stats: stats(&[
-                    (
-                        "subscribers",
-                        if hidden {
-                            None
-                        } else {
-                            num(&c["statistics"]["subscriberCount"])
-                        },
-                    ),
-                    ("videos", num(&c["statistics"]["videoCount"])),
-                ]),
+                stats: stats(&[(
+                    "subscribers",
+                    if hidden {
+                        None
+                    } else {
+                        num(&c["statistics"]["subscriberCount"])
+                    },
+                )]),
                 external_id: id,
             })
         }
@@ -408,10 +408,8 @@ mod tests {
         assert_eq!(i.external_id, "583231");
         assert_eq!(i.name, "octocat");
         assert_eq!(i.url.as_deref(), Some("https://github.com/octocat"));
-        assert_eq!(
-            i.stats,
-            json!({"public_repos": 8, "followers": 3938, "following": 9})
-        );
+        // Only the five keys the card translates survive, and `public_repos` is `repos`.
+        assert_eq!(i.stats, json!({"repos": 8, "followers": 3938}));
     }
 
     #[test]
@@ -455,12 +453,12 @@ mod tests {
 
         let y = parse_identity("youtube", &json!({"items": [{"id": "UC123", "snippet": {"title": "My Channel"},
             "statistics": {"subscriberCount": "1500", "videoCount": "42", "hiddenSubscriberCount": false}}]})).unwrap();
-        assert_eq!(y.stats, json!({"subscribers": 1500, "videos": 42}));
+        assert_eq!(y.stats, json!({"subscribers": 1500}));
         let hidden = parse_identity("youtube", &json!({"items": [{"id": "UC1", "snippet": {"title": "T"},
             "statistics": {"subscriberCount": "5", "videoCount": "1", "hiddenSubscriberCount": true}}]})).unwrap();
         assert_eq!(
             hidden.stats,
-            json!({"videos": 1}),
+            json!({}),
             "hidden subscriber counts stay hidden"
         );
 

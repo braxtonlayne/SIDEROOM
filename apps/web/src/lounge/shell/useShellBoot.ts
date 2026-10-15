@@ -1,6 +1,7 @@
 import { useContext, useEffect } from 'react';
 import { LoungeDataContext } from '../data';
 import { useIgnores } from './ignores';
+import { startIdleReporter } from './idleReporter';
 import { useNotifSettings } from './notifSettings';
 import { startSocialLive, useSocial } from './social';
 import { useUserSettingsSync } from './userSettingsSync';
@@ -27,6 +28,7 @@ export function useShellBoot() {
   }, [mock]);
   useEffect(() => (mock ? undefined : startSocialLive()), [mock]);
   useEffect(() => (mock ? undefined : startThreadsLive()), [mock]);
+  useEffect(() => (mock ? undefined : startIdleReporter()), [mock]);
   useEffect(() => {
     if (mock) return;
     void loadRelationships();

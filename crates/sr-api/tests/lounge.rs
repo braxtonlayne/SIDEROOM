@@ -294,6 +294,7 @@ impl World {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
     }
 
@@ -536,6 +537,51 @@ async fn members_edit_their_own_per_server_profile() {
     // Outsiders have no profile here.
     let (s, _) = w.patch(CAROL, &uri, json!({ "bio": "hi" })).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn members_set_per_server_pronouns_theme_effect_and_decoration() {
+    let w = world().await;
+    let (gid, _) = w.guild("Club House").await;
+    let uri = format!("/guilds/{gid}/members/@me");
+    let (s, m) = w
+        .patch(
+            BOB,
+            &uri,
+            json!({
+                "pronouns": " they/them ", "theme_colors": [0x00AA_BBCC, 0x0011_2233],
+                "profile_effect": "aurora", "avatar_decoration": "halo-1",
+            }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["pronouns"], "they/them");
+    assert_eq!(m["theme_colors"], json!([0x00AA_BBCC, 0x0011_2233]));
+    assert_eq!(
+        (&m["profile_effect"], &m["avatar_decoration"]),
+        (&json!("aurora"), &json!("halo-1"))
+    );
+    // Everyone sees them on the member object.
+    let (_, seen) = w.get(OWNER, &format!("/guilds/{gid}/members/{BOB}")).await;
+    assert_eq!(seen["pronouns"], "they/them");
+    // Bad values fail the edit; null clears.
+    for bad in [
+        json!({ "pronouns": "x".repeat(41) }),
+        json!({ "theme_colors": [0x0100_0000, 1] }),
+        json!({ "profile_effect": "Not A Slug" }),
+    ] {
+        let (s, e) = w.patch(BOB, &uri, bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    }
+    let (s, m) = w
+        .patch(BOB, &uri, json!({ "pronouns": null, "theme_colors": null }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert!(
+        m.get("pronouns").is_none() && m.get("theme_colors").is_none(),
+        "{m}"
+    );
+    assert_eq!(m["profile_effect"], "aurora", "untouched fields stay");
 }
 
 // ------------------------------------------------------------------ LNG-INV-004

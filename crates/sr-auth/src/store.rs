@@ -285,6 +285,8 @@ pub trait AuthStore: Send + Sync {
     async fn mark_email_verified(&self, id: i64) -> StoreResult<()>;
     /// Record the age-gate answer (doc 06 section 7).
     async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()>;
+    /// Set the account's BCP 47 locale (already normalised); mails, push text and system DMs follow it.
+    async fn set_locale(&self, id: i64, locale: &str) -> StoreResult<()>;
 
     // ---- account identity edits (display name, username, email) --------
     /// Set (or clear) the display name.

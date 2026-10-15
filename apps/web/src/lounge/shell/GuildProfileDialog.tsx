@@ -1,14 +1,33 @@
-import { Avatar, Button, Modal, TextArea, TextInput } from '@sideroom/ui';
+import {
+  Avatar,
+  Button,
+  ColorPicker,
+  Modal,
+  Select,
+  Switch,
+  TextArea,
+  TextInput,
+} from '@sideroom/ui';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
 import { readAsDataUri } from '../../settings/user/imageCrop';
+import { colorOfHex, hexOfColor } from '../../lib/serverTag';
 import { useStore } from '../../store';
 import { cdnUrl } from '../../store/cdn';
 import { useCurrentUser, useGuild } from '../data';
 
 const BIO_MAX = 190;
 const NICK_MAX = 32;
+const PRONOUNS_MAX = 40;
+/** Profile effects the server accepts today (the profile catalogue; decorations are not offered yet). */
+const EFFECTS = [
+  ['sparkle', 'lounge.guildProfile.effectSparkle'],
+  ['aurora', 'lounge.guildProfile.effectAurora'],
+  ['snow', 'lounge.guildProfile.effectSnow'],
+  ['embers', 'lounge.guildProfile.effectEmbers'],
+] as const;
+const DEFAULT_THEME: [number, number] = [0x5865f2, 0x99aab5];
 
 /** The caller's own member object (`GET /users/@me/guilds/{id}/member`), the fields a per-server profile has. */
 interface OwnMember {
@@ -17,6 +36,10 @@ interface OwnMember {
   banner?: string | null;
   bio?: string | null;
   roles?: string[];
+  /** Per-server extras (G-52); absent or null means the account's own. */
+  pronouns?: string | null;
+  theme_colors?: [number, number] | null;
+  profile_effect?: string | null;
 }
 
 /** `undefined` = leave as is, `null` = clear, string = a new image as a data URI. */
@@ -90,6 +113,15 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
   const [loaded, setLoaded] = useState(false);
   const [nick, setNick] = useState('');
   const [bio, setBio] = useState('');
+  const [pronouns, setPronouns] = useState('');
+  const [theme, setTheme] = useState<[number, number] | null>(null);
+  const [effect, setEffect] = useState('');
+  /** What the server held when the dialog opened: only changed extras are sent. */
+  const [initial, setInitial] = useState<{
+    pronouns: string;
+    theme: [number, number] | null;
+    effect: string;
+  }>({ pronouns: '', theme: null, effect: '' });
   const [avatar, setAvatar] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const [avatarEdit, setAvatarEdit] = useState<ImageEdit>(undefined);
@@ -105,6 +137,14 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
         if (!live) return;
         setNick(m.nick ?? '');
         setBio(m.bio ?? '');
+        setPronouns(m.pronouns ?? '');
+        setTheme(m.theme_colors ?? null);
+        setEffect(m.profile_effect ?? '');
+        setInitial({
+          pronouns: m.pronouns ?? '',
+          theme: m.theme_colors ?? null,
+          effect: m.profile_effect ?? '',
+        });
         setAvatar(cdnUrl('avatars', me.id, m.avatar, { size: 128 }));
         setBanner(cdnUrl('avatars', me.id, m.banner, { size: 600 }));
         setRoles(m.roles ?? []);
@@ -122,10 +162,13 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const body: Record<string, string | null> = {
+    const body: Record<string, string | number[] | null> = {
       nick: nick.trim() || null,
       bio: bio.trim() || null,
     };
+    if (pronouns.trim() !== initial.pronouns) body.pronouns = pronouns.trim() || null;
+    if (JSON.stringify(theme) !== JSON.stringify(initial.theme)) body.theme_colors = theme;
+    if (effect !== initial.effect) body.profile_effect = effect || null;
     if (avatarEdit !== undefined) body.avatar = avatarEdit;
     if (bannerEdit !== undefined) body.banner = bannerEdit;
     try {
@@ -142,6 +185,9 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
         avatar: m.avatar ?? null,
         banner: m.banner ?? null,
         bio: m.bio ?? (body.bio as string | null),
+        pronouns: m.pronouns ?? null,
+        theme_colors: m.theme_colors ?? null,
+        profile_effect: m.profile_effect ?? null,
       });
       onClose();
     } catch (err) {
@@ -177,6 +223,47 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
           hint={t('lounge.guildProfile.bioCount', { used: bio.length, max: BIO_MAX })}
           onChange={(e) => setBio(e.target.value)}
         />
+        <TextInput
+          label={t('lounge.guildProfile.pronouns')}
+          value={pronouns}
+          maxLength={PRONOUNS_MAX}
+          disabled={!loaded}
+          onChange={(e) => setPronouns(e.target.value)}
+        />
+        <label className="lng-field-label" htmlFor="gp-effect">
+          {t('lounge.guildProfile.effect')}
+        </label>
+        <Select
+          id="gp-effect"
+          value={effect}
+          disabled={!loaded}
+          onValueChange={setEffect}
+          options={[
+            { value: '', label: t('lounge.guildProfile.effectNone') },
+            ...EFFECTS.map(([value, key]) => ({ value, label: t(key) })),
+          ]}
+        />
+        <Switch
+          label={t('lounge.guildProfile.theme')}
+          description={t('lounge.guildProfile.themeHint')}
+          checked={theme !== null}
+          disabled={!loaded}
+          onChange={(e) => setTheme(e.target.checked ? DEFAULT_THEME : null)}
+        />
+        {theme && (
+          <div className="lng-gp-theme">
+            <ColorPicker
+              label={t('lounge.guildProfile.themePrimary')}
+              value={hexOfColor(theme[0])}
+              onValueChange={(hex) => setTheme([colorOfHex(hex), theme[1]])}
+            />
+            <ColorPicker
+              label={t('lounge.guildProfile.themeAccent')}
+              value={hexOfColor(theme[1])}
+              onValueChange={(hex) => setTheme([theme[0], colorOfHex(hex)])}
+            />
+          </div>
+        )}
         <ImagePick
           label={t('lounge.guildProfile.avatar')}
           current={avatar}

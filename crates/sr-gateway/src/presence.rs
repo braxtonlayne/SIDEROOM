@@ -95,6 +95,22 @@ fn sanitize_one(a: &Value) -> Option<Value> {
             out.insert("assets".into(), Value::Object(t));
         }
     }
+    // SIDE ROOM extensions: the client platform of a Playing activity, the
+    // watch party a viewer can join, and when a live activity lapses unless refreshed.
+    if let Some(p) = o.get("platform").and_then(|v| text(v, 32)) {
+        out.insert("platform".into(), json!(p));
+    }
+    if let Some(id) = o
+        .get("party")
+        .and_then(Value::as_object)
+        .and_then(|p| p.get("id"))
+        .and_then(|v| text(v, 128))
+    {
+        out.insert("party".into(), json!({ "id": id }));
+    }
+    if let Some(ms) = o.get("expires_at_ms").and_then(millis) {
+        out.insert("expires_at_ms".into(), json!(ms));
+    }
     if let Some(e) = o.get("emoji").and_then(Value::as_object) {
         let name = e.get("name").and_then(|v| text(v, 64));
         if let Some(name) = name {
@@ -295,6 +311,21 @@ mod tests {
         assert_eq!(clean[3]["emoji"], json!({"name": "coffee", "id": "55"}));
     }
 
+    #[test]
+    fn side_room_activity_extensions_survive() {
+        let clean = sanitize_activities(&[json!({
+            "type": 3, "name": "SIDE ROOM Cinema", "platform": "desktop",
+            "party": {"id": "wp_1", "size": [1, 4], "junk": 1}, "expires_at_ms": 1700000045000_i64,
+        })]);
+        assert_eq!(clean[0]["platform"], "desktop");
+        assert_eq!(clean[0]["party"], json!({"id": "wp_1"}));
+        assert_eq!(clean[0]["expires_at_ms"], 1700000045000_i64);
+        let bad = sanitize_activities(&[json!({
+            "type": 0, "name": "x", "platform": 5, "party": "p", "expires_at_ms": -1,
+        })]);
+        assert!(bad[0].get("platform").is_none() && bad[0].get("party").is_none());
+        assert!(bad[0].get("expires_at_ms").is_none());
+    }
     #[test]
     fn bad_activities_are_dropped_and_the_list_is_capped() {
         let long = "x".repeat(129);

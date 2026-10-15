@@ -37,6 +37,8 @@ export interface LoungeUser {
   /** Badge id (0 to 15) and 24-bit colour of the server tag; the chip draws them when present. */
   tagBadge?: number;
   tagColor?: number;
+  /** The system user "SIDE ROOM" (message flag SYSTEM_TAG, D-188): shown with a SYSTEM badge. */
+  system?: boolean;
 }
 
 export interface Activity {

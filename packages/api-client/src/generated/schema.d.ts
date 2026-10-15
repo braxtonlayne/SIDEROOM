@@ -10132,6 +10132,15 @@ export interface components {
             id: string;
             name: string;
         };
+        /**
+         * @description A public profile badge: the catalogue id with English fallback text and an icon name
+         *     (G-53). Clients translate the ids they know and fall back to `description`.
+         */
+        BadgeObject: {
+            description: string;
+            icon: string;
+            id: string;
+        };
         BadgesBody: {
             /** @description Badge names to add: `early_member`, `contributor`, `bug_hunter`, `honorary`. */
             grant?: string[];
@@ -11663,6 +11672,12 @@ export interface components {
              *     the username shows. The username itself changes through `PUT /sr/auth/username`.
              */
             global_name?: string | null;
+            /**
+             * @description The account's interface language as a BCP 47 tag (`de`, `pt-BR`, `zh-Hant-TW`); mails,
+             *     push text and system DMs follow it. Malformed tags and the pseudo-locales (`en-XA`,
+             *     `ar-XB`) are refused; tags without a translation fall back to English when used.
+             */
+            locale?: string | null;
             /** @description Slug of an approved profile effect; `null` removes it. */
             profile_effect?: string | null;
             pronouns?: string | null;
@@ -12090,11 +12105,16 @@ export interface components {
         /** @description The member's per-server profile (`GET /users/{id}/profile?guild_id=`). */
         GuildMemberProfileObject: {
             avatar?: string | null;
+            avatar_decoration?: string | null;
             banner?: string | null;
             bio?: string | null;
             guild_id: string;
             joined_at: string;
             nick?: string | null;
+            profile_effect?: string | null;
+            /** @description Per-server pronouns, theme, effect and decoration (G-52); `null` means the account's own. */
+            pronouns?: string | null;
+            theme_colors?: number[] | null;
         };
         GuildObject: {
             /** @description Voice channel idle members are moved to. */
@@ -12795,6 +12815,8 @@ export interface components {
         };
         MemberObject: {
             avatar?: string | null;
+            /** @description Per-server avatar decoration slug. */
+            avatar_decoration?: string | null;
             /** @description Per-server banner hash (LNG-GLD-012). */
             banner?: string | null;
             /** @description Per-server bio (LNG-GLD-012). */
@@ -12810,7 +12832,13 @@ export interface components {
             nick?: string | null;
             pending: boolean;
             premium_since?: string | null;
+            /** @description Per-server profile effect slug. */
+            profile_effect?: string | null;
+            /** @description Per-server pronouns (G-52). */
+            pronouns?: string | null;
             roles: string[];
+            /** @description Per-server profile theme, `[primary, accent]` as 0xRRGGBB. */
+            theme_colors?: number[] | null;
             user: components["schemas"]["UserRef"];
         };
         /** @description What a new member sees before they may talk (`GET /guilds/{id}/member-verification`). */
@@ -12997,12 +13025,20 @@ export interface components {
              *     cropped to a square).
              */
             avatar?: string | null;
+            /** @description Per-server avatar decoration slug. */
+            avatar_decoration?: string | null;
             /** @description Per-server banner as an image data URI. */
             banner?: string | null;
             /** @description Per-server bio, up to 190 characters. */
             bio?: string | null;
             /** @description Nickname, 1 to 32 characters (needs `CHANGE_NICKNAME`). */
             nick?: string | null;
+            /** @description Per-server profile effect slug. */
+            profile_effect?: string | null;
+            /** @description Per-server pronouns, 40 characters at most (G-52). */
+            pronouns?: string | null;
+            /** @description Per-server profile theme as two 0xRRGGBB colours `[primary, accent]`. */
+            theme_colors?: number[] | null;
         };
         ModifyRoleBody: {
             /** Format: int32 */
@@ -13689,7 +13725,7 @@ export interface components {
              * @description Public badges: `owner`, `staff`, `patron`, `contributor`, `early_member`,
              *     `bug_hunter`, `honorary`, `app_developer`, `bot`.
              */
-            badges: string[];
+            badges: components["schemas"]["BadgeObject"][];
             connected_accounts: components["schemas"]["ConnectionObject"][];
             /** @description When the viewer and the owner became friends. */
             friends_since?: string | null;

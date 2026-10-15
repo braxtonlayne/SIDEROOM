@@ -1,6 +1,7 @@
 //! One gateway session: sequence counter, replay buffer, live connection slot.
 
 use std::collections::{HashSet, VecDeque};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -45,6 +46,8 @@ pub(crate) struct Session {
     pub shard: Option<(u32, u32)>,
     window: Duration,
     capacity: usize,
+    /// Cached age-gate answer: 0 unknown, 1 confirmed, 2 not confirmed (D-199).
+    age: AtomicU8,
     inner: Mutex<Inner>,
 }
 
@@ -65,6 +68,7 @@ impl Session {
             shard: None,
             window,
             capacity,
+            age: AtomicU8::new(0),
             inner: Mutex::new(Inner {
                 seq: 0,
                 buf: VecDeque::new(),
@@ -73,6 +77,25 @@ impl Session {
                 guilds: HashSet::new(),
             }),
         }
+    }
+
+    /// The cached age-gate answer, `None` until looked up.
+    pub fn age_cached(&self) -> Option<bool> {
+        match self.age.load(Ordering::Relaxed) {
+            1 => Some(true),
+            2 => Some(false),
+            _ => None,
+        }
+    }
+
+    pub fn set_age_cached(&self, confirmed: bool) {
+        self.age
+            .store(if confirmed { 1 } else { 2 }, Ordering::Relaxed);
+    }
+
+    /// Forget the cached age-gate answer (the account answer changed).
+    pub fn clear_age_cache(&self) {
+        self.age.store(0, Ordering::Relaxed);
     }
 
     fn lock(&self) -> MutexGuard<'_, Inner> {

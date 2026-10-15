@@ -102,18 +102,23 @@ export function IncomingCallOverlay() {
         {busy && <span className="vc-note">{t('lounge.incomingCall.switchNote')}</span>}
       </div>
       <div className="vc-incoming-actions">
+        {/* A video call preselects "Accept with video" (G-40): it is the primary button and comes first. */}
         <Button
           size="sm"
+          variant={call.video ? 'secondary' : undefined}
           leadingIcon={<Icon name="phone" size={16} />}
           onClick={() => acceptCall(call, title, false)}
+          style={call.video ? { order: 2 } : undefined}
         >
           {t('lounge.incomingCall.accept')}
         </Button>
         <Button
           size="sm"
-          variant="secondary"
+          variant={call.video ? undefined : 'secondary'}
           leadingIcon={<Icon name="video" size={16} />}
           onClick={() => acceptCall(call, title, true)}
+          style={call.video ? { order: 1 } : undefined}
+          autoFocus={call.video}
         >
           {t('lounge.incomingCall.acceptVideo')}
         </Button>

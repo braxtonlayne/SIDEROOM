@@ -28,14 +28,92 @@ const MAX_BODY_CHARS: usize = 2_000;
 const MAX_DISPLAY_NAME_CHARS: usize = 64;
 const MAX_PRIVATE_PAGE: i64 = 100;
 
-/// Public badges staff may grant (`accounts.flags` bits 8 and up; bit 0 is the system
-/// user and bit 1 the app developer, which approval sets).
-pub const BADGES: &[(&str, i64)] = &[
-    ("early_member", 1 << 8),
-    ("contributor", 1 << 9),
-    ("bug_hunter", 1 << 10),
-    ("honorary", 1 << 11),
+/// One public profile badge: the id profiles send, its English text for clients that do not
+/// know the id, and the icon name the web UI kit draws it with (G-53).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Badge {
+    pub id: &'static str,
+    /// The `accounts.flags` bit that carries it; `None` for derived badges (owner, staff,
+    /// patron, bot).
+    pub flag: Option<i64>,
+    /// Staff may grant and revoke it (`POST /admin/accounts/{id}/badges`).
+    pub grantable: bool,
+    pub description: &'static str,
+    pub icon: &'static str,
+}
+
+/// The one badge catalogue. `accounts.flags` bit 0 is the system user and bit 1 the app
+/// developer, which approval sets; bits 8 and up are the staff-granted badges.
+pub const BADGES: &[Badge] = &[
+    Badge {
+        id: "owner",
+        flag: None,
+        grantable: false,
+        description: "SIDE ROOM Owner",
+        icon: "shield",
+    },
+    Badge {
+        id: "staff",
+        flag: None,
+        grantable: false,
+        description: "SIDE ROOM Staff",
+        icon: "shield",
+    },
+    Badge {
+        id: "patron",
+        flag: None,
+        grantable: false,
+        description: "Patron",
+        icon: "heart",
+    },
+    Badge {
+        id: "contributor",
+        flag: Some(1 << 9),
+        grantable: true,
+        description: "Contributor",
+        icon: "sparkle",
+    },
+    Badge {
+        id: "early_member",
+        flag: Some(1 << 8),
+        grantable: true,
+        description: "Early Member",
+        icon: "clock",
+    },
+    Badge {
+        id: "bug_hunter",
+        flag: Some(1 << 10),
+        grantable: true,
+        description: "Bug Hunter",
+        icon: "alert",
+    },
+    Badge {
+        id: "honorary",
+        flag: Some(1 << 11),
+        grantable: true,
+        description: "Honorary Member",
+        icon: "heart",
+    },
+    Badge {
+        id: "app_developer",
+        flag: Some(1 << 1),
+        grantable: false,
+        description: "App Developer",
+        icon: "settings",
+    },
+    Badge {
+        id: "bot",
+        flag: None,
+        grantable: false,
+        description: "App",
+        icon: "settings",
+    },
 ];
+
+/// The catalogue entry of a badge id.
+pub fn badge(id: &str) -> Option<&'static Badge> {
+    BADGES.iter().find(|b| b.id == id)
+}
 
 /// Thresholds and paths of the staff alerts (ADM-ALR-001, ADM-ALR-003).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -537,8 +615,8 @@ impl AdminService {
         let bit = |name: &String| -> AdminResult<i64> {
             BADGES
                 .iter()
-                .find(|(n, _)| n == name)
-                .map(|(_, b)| *b)
+                .find(|b| b.grantable && b.id == name)
+                .and_then(|b| b.flag)
                 .ok_or_else(|| AdminError::Invalid(format!("unknown badge {name}")))
         };
         let mut set = 0_i64;

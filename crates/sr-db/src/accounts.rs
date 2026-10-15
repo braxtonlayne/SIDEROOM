@@ -13,6 +13,12 @@ pub const SYSTEM_USER_ID: i64 = 1;
 /// `accounts.flags` bit for the system user (Discord `system: true`; open question 44).
 pub const FLAG_SYSTEM: i64 = 1 << 0;
 
+/// SQL condition for a `guild_members gm` row: the member is not the system user (D-188). The
+/// system user keeps a membership row where it posts but is no visible member: member lists,
+/// counts, prune and mention autocomplete leave it out.
+pub const NOT_SYSTEM_MEMBER: &str =
+    "NOT EXISTS (SELECT 1 FROM accounts sys WHERE sys.id = gm.user_id AND (sys.flags & 1) <> 0)";
+
 /// Record that these accounts were seen now (gateway IDENTIFY/RESUME and its 10-minute
 /// refresh; D-166). One statement for the whole batch.
 pub async fn touch_last_seen(pool: &PgPool, ids: &[i64]) -> DbResult<u64> {

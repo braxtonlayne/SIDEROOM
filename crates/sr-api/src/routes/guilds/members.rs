@@ -269,6 +269,22 @@ pub struct ModifyOwnMemberBody {
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
     pub bio: Option<Option<String>>,
+    /// Per-server pronouns, 40 characters at most (G-52).
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub pronouns: Option<Option<String>>,
+    /// Per-server profile theme as two 0xRRGGBB colours `[primary, accent]`.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<Vec<u32>>)]
+    pub theme_colors: Option<Option<[u32; 2]>>,
+    /// Per-server profile effect slug.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub profile_effect: Option<Option<String>>,
+    /// Per-server avatar decoration slug.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub avatar_decoration: Option<Option<String>>,
 }
 
 /// The caller's own member object in a server (`GET /users/@me/guilds/{id}/member`).
@@ -353,6 +369,10 @@ pub async fn modify_own_member(
         avatar_key,
         banner_key,
         bio: body.bio,
+        pronouns: body.pronouns,
+        theme_colors: body.theme_colors,
+        profile_effect: body.profile_effect,
+        avatar_decoration: body.avatar_decoration,
         ..MemberPatch::default()
     };
     let m = match api.edit_member(me, gid, me, patch).await {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { cdnUrl } from '../../store/cdn';
+import { t } from '../../i18n';
 
 /** One badge on the profile: `id` is the stable key, `description` the tooltip (Discord's shape). */
 export interface WireBadge {
@@ -129,12 +130,25 @@ export const avatarUrlOf = (p: Profile['user']): string | null =>
 export const bannerUrlOf = (p: Profile): string | null =>
   cdnUrl('avatars', p.user.id, p.user_profile.banner ?? p.user.banner, { size: 600 });
 
+const STAT_LABELS: Record<string, string> = {
+  followers: 'lounge.fullProfile.statFollowers',
+  subscribers: 'lounge.fullProfile.statSubscribers',
+  karma: 'lounge.fullProfile.statKarma',
+  stars: 'lounge.fullProfile.statStars',
+  repos: 'lounge.fullProfile.statRepos',
+};
+
 /** One line for a connection's public stats: "12 followers · 3 repos"; null when there is nothing to show. */
 export function statsText(stats: Profile['connected_accounts'][number]['stats']): string | null {
   if (!stats) return null;
   if (typeof stats === 'string') return stats.trim() || null;
+  // The server sends only these five keys (G-53); each has a translated, pluralised label.
   const parts = Object.entries(stats)
     .filter(([, v]) => v !== null && v !== '')
-    .map(([k, v]) => `${typeof v === 'number' ? v.toLocaleString() : v} ${k.replace(/_/g, ' ')}`);
+    .map(([k, v]) => {
+      const key = STAT_LABELS[k === 'public_repos' ? 'repos' : k];
+      if (key && typeof v === 'number') return t(key, { count: v });
+      return `${typeof v === 'number' ? v.toLocaleString() : v} ${k.replace(/_/g, ' ')}`;
+    });
   return parts.length ? parts.join(' · ') : null;
 }

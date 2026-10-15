@@ -65,18 +65,24 @@ impl LibrarySocial {
         Ok(n > 0)
     }
 
-    /// The caller's score, the aggregates per scope and the global distribution.
+    /// The caller's score, the aggregates per scope and the global distribution. The friends and
+    /// known scopes count only raters who share their reading activity (`activity.share_library`,
+    /// not paused, adult series only for members who do not hide them; D-190).
     pub async fn ratings(&self, v: Viewer, series: i64) -> SocialResult<SeriesRatings> {
         self.visible_series(series).await?;
         let row = sqlx::query(
             "SELECT count(*) AS gc, avg(r.score)::float8 AS ga, \
-               count(*) FILTER (WHERE f.target_id IS NOT NULL) AS fc, \
-               (avg(r.score) FILTER (WHERE f.target_id IS NOT NULL))::float8 AS fa, \
-               count(*) FILTER (WHERE f.target_id IS NOT NULL OR k.one IS NOT NULL) AS kc, \
-               (avg(r.score) FILTER (WHERE f.target_id IS NOT NULL OR k.one IS NOT NULL))::float8 AS ka, \
+               count(*) FILTER (WHERE o.ok AND f.target_id IS NOT NULL) AS fc, \
+               (avg(r.score) FILTER (WHERE o.ok AND f.target_id IS NOT NULL))::float8 AS fa, \
+               count(*) FILTER (WHERE o.ok AND (f.target_id IS NOT NULL OR k.one IS NOT NULL)) AS kc, \
+               (avg(r.score) FILTER (WHERE o.ok AND (f.target_id IS NOT NULL OR k.one IS NOT NULL)))::float8 AS ka, \
                max(r.score) FILTER (WHERE r.user_id = $1) AS mine, \
                array_agg(r.score) AS scores \
              FROM reading_ratings r \
+             CROSS JOIN LATERAL ( \
+               SELECT (activity_shares(r.user_id, 'library') \
+                       AND NOT (sr.age_restricted AND activity_hides_restricted(r.user_id))) AS ok \
+                 FROM reading_series sr WHERE sr.id = r.series_id) o \
              LEFT JOIN relationships f ON f.user_id = $1 AND f.target_id = r.user_id AND f.type = 1 \
              LEFT JOIN LATERAL ( \
                SELECT 1 AS one FROM guild_members g1 JOIN guild_members g2 ON g2.guild_id = g1.guild_id \

@@ -18,6 +18,15 @@ use crate::service::ChatService;
 use sr_core::permissions::{Overwrite, OverwriteKind, Permissions};
 use sr_core::{ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
 
+/// The system user is not a visible member and cannot be kicked, banned or given roles; the
+/// answer is Discord's `50013` (D-188).
+fn refuse_system_target(user: UserId) -> ChatResult<()> {
+    if user.get() == crate::domain::SYSTEM_USER_ID {
+        return Err(ChatError::MissingPermissions);
+    }
+    Ok(())
+}
+
 /// Page size bounds for member and ban listings (Discord: 1..=1000).
 pub const MAX_PAGE: usize = 1000;
 
@@ -420,6 +429,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         role: RoleId,
         add: bool,
     ) -> ChatResult<Member> {
+        refuse_system_target(user)?;
         let c = self.ctx(actor, id).await?;
         let r = c
             .roles
@@ -640,6 +650,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
     }
 
     pub async fn kick_member(&self, actor: UserId, id: GuildId, user: UserId) -> ChatResult<()> {
+        refuse_system_target(user)?;
         let c = self.ctx(actor, id).await?;
         let target = self.target_member(id, user).await?;
         check_moderation(
@@ -710,6 +721,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         reason: Option<String>,
         delete_message_seconds: u32,
     ) -> ChatResult<BanOutcome> {
+        refuse_system_target(user)?;
         let c = self.ctx(actor, id).await?;
         let reason = admin_rules::validate_ban_reason(reason)?;
         let was_member = match self.repo.get_member(id, user).await? {

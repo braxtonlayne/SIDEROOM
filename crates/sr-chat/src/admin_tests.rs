@@ -48,6 +48,7 @@ async fn fx() -> Fx {
                 avatar_key: None,
                 banner_key: None,
                 bio: None,
+                extras: Default::default(),
             });
     }
     Fx {
@@ -410,6 +411,7 @@ fn push_member(f: &Fx, user: UserId, nick: Option<&str>, joined: i64, roles: Vec
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
 }
 
@@ -629,4 +631,24 @@ fn say(s: &str) -> SendMessage {
         content: s.into(),
         ..Default::default()
     }
+}
+
+#[tokio::test]
+async fn the_system_user_cannot_be_kicked_banned_or_given_roles() {
+    // In this fixture the owner has the system user's id, so even they are refused (D-188).
+    let f = fx().await;
+    let role = role_with(&f, Permissions::empty()).await;
+    let system = UserId::new(crate::domain::SYSTEM_USER_ID);
+    assert!(matches!(
+        f.svc.kick_member(BOB, f.guild, system).await,
+        Err(ChatError::MissingPermissions)
+    ));
+    assert!(matches!(
+        f.svc.ban_member(OWNER, f.guild, system, None).await,
+        Err(ChatError::MissingPermissions)
+    ));
+    assert!(matches!(
+        f.svc.assign_role(OWNER, f.guild, system, role, true).await,
+        Err(ChatError::MissingPermissions)
+    ));
 }

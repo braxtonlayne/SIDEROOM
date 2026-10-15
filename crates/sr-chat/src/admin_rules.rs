@@ -232,6 +232,79 @@ pub struct MemberPatch {
     pub avatar_key: Option<Option<String>>,
     pub banner_key: Option<Option<String>>,
     pub bio: Option<Option<String>>,
+    /// Per-server pronouns (40 at most), profile theme colours, profile effect and avatar
+    /// decoration (slugs); self only, `Some(None)` clears (G-52).
+    pub pronouns: Option<Option<String>>,
+    pub theme_colors: Option<Option<[u32; 2]>>,
+    pub profile_effect: Option<Option<String>>,
+    pub avatar_decoration: Option<Option<String>>,
+}
+
+/// Longest per-server pronouns.
+pub const MEMBER_PRONOUNS_MAX: usize = 40;
+
+/// Validate and apply the per-server pronouns, theme, effect and decoration (G-52). The slugs
+/// follow the same shape rules as the account profile (lowercase letters, digits and `-`).
+fn apply_extras(
+    out: &mut Member,
+    pronouns: Option<Option<String>>,
+    theme_colors: Option<Option<[u32; 2]>>,
+    profile_effect: Option<Option<String>>,
+    avatar_decoration: Option<Option<String>>,
+) -> ChatResult<()> {
+    if let Some(p) = &pronouns {
+        out.extras.pronouns = match p.as_deref().map(str::trim) {
+            Some(s) if s.chars().count() > MEMBER_PRONOUNS_MAX => {
+                return Err(ChatError::invalid(
+                    "pronouns",
+                    "BASE_TYPE_MAX_LENGTH",
+                    format!("Must be {MEMBER_PRONOUNS_MAX} or fewer in length."),
+                ));
+            }
+            Some(s) if s.chars().any(char::is_control) => {
+                return Err(ChatError::invalid(
+                    "pronouns",
+                    "BASE_TYPE_BAD_FORMAT",
+                    "must not contain control characters",
+                ));
+            }
+            Some(s) if !s.is_empty() => Some(s.to_owned()),
+            _ => None,
+        };
+    }
+    if let Some(colors) = theme_colors {
+        if colors.is_some_and(|c| c.iter().any(|v| *v > 0x00FF_FFFF)) {
+            return Err(ChatError::invalid(
+                "theme_colors",
+                "NUMBER_TYPE_MAX",
+                "must be 24-bit RGB values",
+            ));
+        }
+        out.extras.theme_colors = colors;
+    }
+    if let Some(slug) = &profile_effect {
+        out.extras.profile_effect = clean_slug("profile_effect", slug.as_deref())?;
+    }
+    if let Some(slug) = &avatar_decoration {
+        out.extras.avatar_decoration = clean_slug("avatar_decoration", slug.as_deref())?;
+    }
+    Ok(())
+}
+
+fn clean_slug(field: &str, slug: Option<&str>) -> ChatResult<Option<String>> {
+    let Some(s) = slug else { return Ok(None) };
+    let ok = !s.is_empty()
+        && s.len() <= 48
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    if !ok {
+        return Err(ChatError::invalid(
+            field,
+            "BASE_TYPE_BAD_FORMAT",
+            "must be a lowercase slug of letters, digits and dashes (48 at most)",
+        ));
+    }
+    Ok(Some(s.to_owned()))
 }
 
 /// The member being edited plus what the hierarchy checks need to know about them.
@@ -282,7 +355,14 @@ pub fn plan_edit_member(
         };
     }
 
-    if patch.avatar_key.is_some() || patch.banner_key.is_some() || patch.bio.is_some() {
+    if patch.avatar_key.is_some()
+        || patch.banner_key.is_some()
+        || patch.bio.is_some()
+        || patch.pronouns.is_some()
+        || patch.theme_colors.is_some()
+        || patch.profile_effect.is_some()
+        || patch.avatar_decoration.is_some()
+    {
         // The per-server profile is the member's own; nobody edits it for them.
         if !is_self {
             return Err(ChatError::MissingPermissions);
@@ -306,6 +386,13 @@ pub fn plan_edit_member(
                 _ => None,
             };
         }
+        apply_extras(
+            &mut out,
+            patch.pronouns,
+            patch.theme_colors,
+            patch.profile_effect,
+            patch.avatar_decoration,
+        )?;
     }
 
     if let Some(new_roles) = patch.roles {
@@ -632,6 +719,76 @@ mod tests {
         let admin = actor_with(Permissions::ALL, 99);
         let other = MemberPatch {
             bio: Some(Some("hijack".into())),
+            ..Default::default()
+        };
+        assert!(plan_edit_member(&g, UserId::new(9), &admin, &target, &roles, other, 0).is_err());
+    }
+
+    #[test]
+    fn per_server_extras_are_validated_and_self_only() {
+        let g = guild();
+        let actor_m = member(5, &[]);
+        let me = actor_with(Permissions::CHANGE_NICKNAME, 0);
+        let target = MemberTarget {
+            member: &actor_m,
+            top_position: 0,
+            perms: Permissions::empty(),
+        };
+        let roles = [everyone()];
+        let plan =
+            |p: MemberPatch| plan_edit_member(&g, actor_m.user_id, &me, &target, &roles, p, 0);
+        let out = plan(MemberPatch {
+            pronouns: Some(Some("  she/her ".into())),
+            theme_colors: Some(Some([0x00AA_BBCC, 0x0011_2233])),
+            profile_effect: Some(Some("aurora".into())),
+            avatar_decoration: Some(Some("halo-1".into())),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(out.extras.pronouns.as_deref(), Some("she/her"));
+        assert_eq!(out.extras.theme_colors, Some([0x00AA_BBCC, 0x0011_2233]));
+        assert_eq!(out.extras.profile_effect.as_deref(), Some("aurora"));
+        assert_eq!(out.extras.avatar_decoration.as_deref(), Some("halo-1"));
+        for bad in [
+            MemberPatch {
+                pronouns: Some(Some("x".repeat(MEMBER_PRONOUNS_MAX + 1))),
+                ..Default::default()
+            },
+            MemberPatch {
+                theme_colors: Some(Some([0x0100_0000, 0])),
+                ..Default::default()
+            },
+            MemberPatch {
+                profile_effect: Some(Some("Not A Slug".into())),
+                ..Default::default()
+            },
+        ] {
+            assert!(plan(bad).is_err());
+        }
+        // Clearing falls back to the account's own.
+        let cleared = plan_edit_member(
+            &g,
+            actor_m.user_id,
+            &me,
+            &MemberTarget {
+                member: &out,
+                top_position: 0,
+                perms: Permissions::empty(),
+            },
+            &roles,
+            MemberPatch {
+                pronouns: Some(None),
+                theme_colors: Some(None),
+                ..Default::default()
+            },
+            0,
+        )
+        .unwrap();
+        assert!(cleared.extras.pronouns.is_none() && cleared.extras.theme_colors.is_none());
+        // Nobody edits another member's extras.
+        let admin = actor_with(Permissions::ALL, 99);
+        let other = MemberPatch {
+            pronouns: Some(Some("hijack".into())),
             ..Default::default()
         };
         assert!(plan_edit_member(&g, UserId::new(9), &admin, &target, &roles, other, 0).is_err());

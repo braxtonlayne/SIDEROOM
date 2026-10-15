@@ -180,6 +180,19 @@ pub struct Member {
     pub banner_key: Option<String>,
     /// Per-server bio.
     pub bio: Option<String>,
+    /// Per-server pronouns, theme, effect and decoration (G-52).
+    pub extras: Box<MemberExtras>,
+}
+
+/// Per-server profile extras (D-044: free for everyone). `None` falls back to the account's
+/// own value.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MemberExtras {
+    pub pronouns: Option<String>,
+    /// The two profile theme colours (0xRRGGBB), primary first; both or neither.
+    pub theme_colors: Option<[u32; 2]>,
+    pub profile_effect: Option<String>,
+    pub avatar_decoration: Option<String>,
 }
 
 impl Member {
@@ -322,6 +335,10 @@ impl MessageType {
     }
 }
 
+/// Id of the system user "SIDE ROOM" (`accounts.flags` bit 0; doc 06 section 8). It posts
+/// as the feature modules and the platform but is never a visible member (D-188).
+pub const SYSTEM_USER_ID: u64 = 1;
+
 /// Discord message flag bits (subset).
 pub mod message_flags {
     pub const CROSSPOSTED: u32 = 1 << 0;
@@ -332,6 +349,9 @@ pub mod message_flags {
     pub const IS_VOICE_MESSAGE: u32 = 1 << 13;
     /// Text-to-speech request (LNG-MSG-002); stored as a flag (open question 152).
     pub const TTS: u32 = 1 << 14;
+    /// SIDE ROOM extension (D-188): the message was written by the system user, which the
+    /// client labels with a `SYSTEM` badge. Set when a message object is built, never stored.
+    pub const SYSTEM_TAG: u32 = 1 << 30;
 }
 
 /// D-121: user_deleted / staff_removed are hidden from user views.

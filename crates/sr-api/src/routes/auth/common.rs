@@ -145,6 +145,15 @@ pub struct AuthService {
 }
 
 impl AuthService {
+    /// Set the account's locale (`PATCH /users/@me {locale}`).
+    pub async fn set_locale(
+        &self,
+        id: i64,
+        locale: &str,
+    ) -> Result<(), sr_auth::store::StoreError> {
+        self.store.set_locale(id, locale).await
+    }
+
     /// The account row of `id` and whether TOTP is confirmed on it (for `GET /users/@me`).
     pub async fn account_overview(
         &self,
@@ -205,6 +214,28 @@ impl AuthService {
                 .await
         {
             tracing::warn!(error = %e, "failed to publish staff alert");
+        }
+    }
+
+    /// `SR_USER_UPDATE` to the user own sessions (account facts the gateway caches, such as
+    /// the age-gate answer). Best effort.
+    pub(super) async fn notify_user_update(&self, user_id: i64, payload: serde_json::Value) {
+        let (Some(bus), Ok(uid)) = (&self.bus, u64::try_from(user_id)) else {
+            return;
+        };
+        let user = sr_core::UserId::new(uid);
+        if let Err(e) = bus
+            .publish(
+                sr_events::Topic::User(user),
+                sr_events::DomainEvent::UserScoped {
+                    users: vec![user],
+                    name: "SR_USER_UPDATE".to_owned(),
+                    payload,
+                },
+            )
+            .await
+        {
+            tracing::warn!(error = %e, "failed to publish SR_USER_UPDATE");
         }
     }
 

@@ -258,7 +258,7 @@ impl RelationshipRepository for PgSocialRepo {
 
     async fn list_guild_memberships(&self, user: UserId) -> RepoResult<Vec<GuildMembership>> {
         let sql = format!(
-            "SELECT guild_id, nick, avatar_key, banner_key, bio, {} AS joined_ms \
+            "SELECT guild_id, nick, avatar_key, banner_key, bio, pronouns, theme_primary, theme_accent, profile_effect, avatar_decoration, {} AS joined_ms \
              FROM guild_members WHERE user_id = $1 ORDER BY guild_id",
             ms("joined_at")
         );
@@ -276,6 +276,7 @@ impl RelationshipRepository for PgSocialRepo {
                     avatar_key: r.try_get("avatar_key").map_err(db)?,
                     banner_key: r.try_get("banner_key").map_err(db)?,
                     bio: r.try_get("bio").map_err(db)?,
+                    extras: crate::chat_repo::extras_from(r).map_err(db)?,
                 })
             })
             .collect()
@@ -959,20 +960,20 @@ impl ProfileRepository for PgSocialRepo {
         .map_err(db)?;
         let Some(r) = row else { return Ok(None) };
         let flags: i64 = r.try_get("flags").map_err(db)?;
+        // One catalogue (`sr_admin::BADGES`): flag-backed badges read `accounts.flags`, the
+        // rest are derived from the queries above.
         let mut badges = Vec::new();
-        for (on, name) in [
-            (r.try_get::<bool, _>("is_owner").map_err(db)?, "owner"),
-            (r.try_get::<bool, _>("is_staff").map_err(db)?, "staff"),
-            (r.try_get::<bool, _>("is_patron").map_err(db)?, "patron"),
-            (flags & (1 << 9) != 0, "contributor"),
-            (flags & (1 << 8) != 0, "early_member"),
-            (flags & (1 << 10) != 0, "bug_hunter"),
-            (flags & (1 << 11) != 0, "honorary"),
-            (flags & (1 << 1) != 0, "app_developer"),
-            (r.try_get::<bool, _>("is_bot").map_err(db)?, "bot"),
-        ] {
+        for b in sr_admin::BADGES {
+            let on = match (b.flag, b.id) {
+                (Some(bit), _) => flags & bit != 0,
+                (None, "owner") => r.try_get::<bool, _>("is_owner").map_err(db)?,
+                (None, "staff") => r.try_get::<bool, _>("is_staff").map_err(db)?,
+                (None, "patron") => r.try_get::<bool, _>("is_patron").map_err(db)?,
+                (None, "bot") => r.try_get::<bool, _>("is_bot").map_err(db)?,
+                (None, _) => false,
+            };
             if on {
-                badges.push(name.to_owned());
+                badges.push(b.id.to_owned());
             }
         }
         let sql = format!(

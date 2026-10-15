@@ -532,6 +532,7 @@ mod tests {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
         let svc = sr_chat::ChatService::new(
             backend.clone(),

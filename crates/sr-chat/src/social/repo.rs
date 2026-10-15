@@ -28,6 +28,8 @@ pub struct GuildMembership {
     pub avatar_key: Option<String>,
     pub banner_key: Option<String>,
     pub bio: Option<String>,
+    /// Per-server pronouns, theme, effect and decoration (G-52).
+    pub extras: Box<crate::domain::MemberExtras>,
 }
 
 /// Per-user privacy preferences relevant to relationships and DMs.

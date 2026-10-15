@@ -599,6 +599,9 @@ function MessageItemImpl(props: MessageItemProps) {
                 {m.author.bot && (
                   <span className="lng-bot">{t('lounge.messageItem.appBadge')}</span>
                 )}
+                {m.author.system && (
+                  <span className="lng-bot">{t('lounge.messageItem.systemBadge')}</span>
+                )}
                 {!compact && (
                   <time
                     className="lng-msg-time"

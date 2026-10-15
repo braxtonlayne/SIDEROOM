@@ -5,7 +5,7 @@ use super::error::invalid;
 use super::error::{ApiJson, MsgResult};
 use super::events::SocialEvent;
 use super::model::{
-    ConnectionObject, CustomStatusObject, EditSelfBody, GuildMemberProfileObject,
+    BadgeObject, ConnectionObject, CustomStatusObject, EditSelfBody, GuildMemberProfileObject,
     MutualGuildObject, ProfileObject, SelfObject, UserObject, UserProfileFields,
 };
 use super::util::{actor, custom_status, user_id};
@@ -148,7 +148,7 @@ async fn render_profile(
         )
     };
     Ok(Json(ProfileObject {
-        badges: profile.badges.clone(),
+        badges: profile.badges.iter().map(|b| BadgeObject::of(b)).collect(),
         member_since: iso(profile.created_ms),
         guild_member_profile,
         mutual_friends,
@@ -176,6 +176,10 @@ fn guild_profile_object(m: &sr_chat::social::repo::GuildMembership) -> GuildMemb
         avatar: m.avatar_key.clone(),
         banner: m.banner_key.clone(),
         bio: m.bio.clone(),
+        pronouns: m.extras.pronouns.clone(),
+        theme_colors: m.extras.theme_colors,
+        profile_effect: m.extras.profile_effect.clone(),
+        avatar_decoration: m.extras.avatar_decoration.clone(),
         joined_at: iso(m.joined_at_ms),
     }
 }
@@ -195,9 +199,21 @@ pub async fn edit_self(
     p: Principal,
     Ext(deps): Ext<SocialDeps>,
     MaybeExt(media): MaybeExt<MediaDeps>,
+    MaybeExt(auth): MaybeExt<crate::routes::auth::AuthService>,
     ApiJson(body): ApiJson<EditSelfBody>,
 ) -> MsgResult<Json<SelfObject>> {
     let me = actor(&p)?;
+    let locale = match body.locale.as_deref().map(super::util::normalize_locale) {
+        Some(Some(l)) => Some(l),
+        Some(None) => {
+            return Err(invalid(
+                "locale",
+                "BASE_TYPE_BAD_FORMAT",
+                "must be a BCP 47 language tag such as en, de or pt-BR",
+            ));
+        }
+        None => None,
+    };
     // Convert before writing so a bad custom status cannot leave a half-applied edit.
     let custom = match &body.custom_status {
         Some(Some(c)) => Some(custom_status(c)?),
@@ -289,6 +305,14 @@ pub async fn edit_self(
             return Err(e.into());
         }
     };
+    if let (Some(l), Some(auth)) = (&locale, &auth)
+        && let Err(e) = auth
+            .set_locale(i64::try_from(me.get()).unwrap_or_default(), l)
+            .await
+    {
+        tracing::error!(error = %e, "saving the account locale failed");
+        return Err(ErrorCode::SrInternal.into());
+    }
     // The edit is committed: delete the images it replaced or cleared.
     if let (Some(m), Some(before)) = (&media, &before) {
         for (kind, old, new) in [
