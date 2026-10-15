@@ -219,7 +219,7 @@ where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = bool>,
 {
-    for _ in 0..200 {
+    for _ in 0..400 {
         if f().await {
             return true;
         }
@@ -468,10 +468,15 @@ async fn leveling_awards_from_stored_messages_hands_out_roles_and_announces() {
         "100 XP is level 1"
     );
     assert!(wait_for(|| async { f.has_role(f.member, role).await }).await);
-    let announced = f.messages_in(f.channel).await;
+    // The announcement is posted after the role grant, so wait for it as well.
     assert!(
-        announced.iter().any(|r| r.get::<i64, _>("author_id") == 1
-            && r.get::<String, _>("content").contains("reached level 1")),
+        wait_for(|| async {
+            f.messages_in(f.channel).await.iter().any(|r| {
+                r.get::<i64, _>("author_id") == 1
+                    && r.get::<String, _>("content").contains("reached level 1")
+            })
+        })
+        .await,
         "the level-up is announced by the system user"
     );
 
