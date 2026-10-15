@@ -34,7 +34,7 @@ export function ServerWelcome({ guildId }: { guildId: string }) {
   const key = (id: string) => `${guildId}:${id}`;
   const first = firstTextChannel(channels);
   const p = guild.permissions;
-  const cards: Card[] = [
+  const allCards: Card[] = [
     {
       id: 'invite',
       title: t('lounge.serverWelcome.inviteTitle'),
@@ -73,6 +73,8 @@ export function ServerWelcome({ guildId }: { guildId: string }) {
       },
     },
   ];
+  // The Staff Server takes no invites (ADM-STF-003).
+  const cards = allCards.filter((c) => !(guild.isStaff && c.id === 'invite'));
 
   return (
     <section

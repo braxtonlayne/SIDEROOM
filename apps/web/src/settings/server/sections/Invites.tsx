@@ -1,6 +1,7 @@
 import { Button, EmptyState, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
+import { useGuild as useLoungeGuild } from '../../../lounge/data';
 import { InviteDialog } from '../../../lounge/InviteDialog';
 import { expiryLabel, inviteUrl } from '../../../lounge/inviteFlow';
 import * as api from '../api';
@@ -16,6 +17,8 @@ export function InvitesSection({ guildId }: SectionProps) {
   const action = useAction();
   const pause = useAction();
   const [creating, setCreating] = useState(false);
+  // The Staff Server takes no invites (ADM-STF-003).
+  const isStaffGuild = !!useLoungeGuild(guildId)?.isStaff;
   const [copied, setCopied] = useState<string | null>(null);
 
   const revoke = async (code: string) => {
@@ -44,7 +47,11 @@ export function InvitesSection({ guildId }: SectionProps) {
       <SectionHeader
         title={t('settings.invites.title')}
         description={t('settings.invites.description')}
-        actions={<Button onClick={() => setCreating(true)}>{t('settings.invites.create')}</Button>}
+        actions={
+          isStaffGuild ? undefined : (
+            <Button onClick={() => setCreating(true)}>{t('settings.invites.create')}</Button>
+          )
+        }
       />
       <div className="ss-card" style={{ marginBottom: 16 }}>
         {community.data ? (
