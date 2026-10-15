@@ -1683,6 +1683,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/library/lists/{list_id}/feature": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Feature or unfeature a public reading list on the Library home (`PUBLISH_READING`). */
+        post: operations["admin_library_feature_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/library/series": {
         parameters: {
             query?: never;
@@ -6735,6 +6752,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/chapters/{chapter_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's rating of a chapter and its average. */
+        get: operations["library_chapter_rating"];
+        /** Rate a chapter 1 to 10. */
+        put: operations["library_rate_chapter"];
+        post?: never;
+        /** Remove the caller's rating of a chapter. */
+        delete: operations["library_unrate_chapter"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/chapters/{chapter_id}/read": {
         parameters: {
             query?: never;
@@ -6746,6 +6782,94 @@ export interface paths {
         put?: never;
         /** Mark a chapter read or unread, and with `up_to` every earlier chapter of its edition. */
         post: operations["library_mark_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a reading list. */
+        post: operations["library_create_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/lists/featured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists staff featured. */
+        get: operations["library_featured_lists"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/lists/{list_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A list with its series in order. */
+        get: operations["library_get_list"];
+        put?: never;
+        post?: never;
+        /** Delete a list. */
+        delete: operations["library_delete_list"];
+        options?: never;
+        head?: never;
+        /** Rename a list, change its description or visibility. */
+        patch: operations["library_update_list"];
+        trace?: never;
+    };
+    "/library/lists/{list_id}/items/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add a series at the end of a list (or change its note). */
+        put: operations["library_list_add_item"];
+        post?: never;
+        /** Remove a series from a list. */
+        delete: operations["library_list_remove_item"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/lists/{list_id}/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder a list: `series_ids` names every series of the list exactly once. */
+        put: operations["library_list_reorder"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6786,6 +6910,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/me/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's reading lists. */
+        get: operations["library_my_lists"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/me/progress": {
         parameters: {
             query?: never;
@@ -6798,6 +6939,58 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/me/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unread published chapters of every series the caller follows (My library). */
+        get: operations["library_unread_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/rankings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Most read series for a period (global; an anonymous aggregate). */
+        get: operations["library_rankings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/reviews/{review_id}/helpful": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark a review helpful (idempotent; not on one's own review). */
+        put: operations["library_review_helpful"];
+        post?: never;
+        /** Take back a helpful mark. */
+        delete: operations["library_review_unhelpful"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6889,6 +7082,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/series/{series_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rate a series 1 to 10 (a restricted series needs the 18+ answer). */
+        put: operations["library_rate_series"];
+        post?: never;
+        /** Remove the caller's rating of a series. */
+        delete: operations["library_unrate_series"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's rating of a series and the average per scope (everyone, friends, people you know),
+         *     with the distribution of scores.
+         */
+        get: operations["library_series_ratings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Write or replace the caller's review of a series (one per account). A `rating` also sets the score. */
+        put: operations["library_put_review"];
+        post?: never;
+        /** Delete the caller's review of a series. */
+        delete: operations["library_delete_review"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reviews of a series. */
+        get: operations["library_reviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/updates": {
         parameters: {
             query?: never;
@@ -6898,6 +7164,23 @@ export interface paths {
         };
         /** Latest published chapters, newest first. */
         get: operations["library_updates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/users/{user_id}/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists of another member that the caller may see. */
+        get: operations["library_user_lists"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10070,6 +10353,14 @@ export interface components {
              */
             updated_at_ms: number;
         };
+        ChapterRating: {
+            /** Format: double */
+            average?: number | null;
+            /** Format: int64 */
+            count: number;
+            /** Format: int32 */
+            mine?: number | null;
+        };
         /** @description Everything the player needs to start an asset. */
         CinemaAssetPlayback: {
             audio_tracks: components["schemas"]["CinemaAudioTrack"][];
@@ -11346,6 +11637,9 @@ export interface components {
             /** Format: int32 */
             year_min?: number | null;
         };
+        FeatureBody: {
+            featured: boolean;
+        };
         FeatureView: {
             default_enabled: boolean;
             description: string;
@@ -12088,6 +12382,79 @@ export interface components {
             /** @description `false` opts the caller out of XP in this server and deletes their XP. */
             enabled: boolean;
         };
+        /** @description A count after a vote. */
+        LibraryCountBody: {
+            /** Format: int32 */
+            count: number;
+        };
+        LibraryListDetail: {
+            items: components["schemas"]["ListItemView"][];
+            list: components["schemas"]["ListCard"];
+        };
+        LibraryListInput: {
+            description?: string | null;
+            name: string;
+            visibility?: null | components["schemas"]["LibraryVisibility"];
+        };
+        LibraryListItemInput: {
+            note?: string | null;
+        };
+        LibraryListOrderInput: {
+            series_ids: string[];
+        };
+        LibraryListPatch: {
+            description?: string | null;
+            name?: string | null;
+            visibility?: null | components["schemas"]["LibraryVisibility"];
+        };
+        LibraryRatingAggregate: {
+            /**
+             * Format: double
+             * @description One decimal; absent without ratings.
+             */
+            average?: number | null;
+            /** Format: int64 */
+            count: number;
+        };
+        LibraryReview: {
+            author_id: string;
+            author_name: string;
+            body: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int32 */
+            helpful_count: number;
+            id: string;
+            mine: boolean;
+            /**
+             * Format: int32
+             * @description The author's 1 to 10 score for the series, when they rated it.
+             */
+            rating?: number | null;
+            series_id: string;
+            spoiler: boolean;
+            /** Format: int64 */
+            updated_at_ms: number;
+            /** @description The caller marked it helpful. */
+            voted: boolean;
+        };
+        LibraryReviewInput: {
+            body: string;
+            /**
+             * Format: int32
+             * @description Also sets the caller's rating of the series.
+             */
+            rating?: number | null;
+            spoiler?: boolean | null;
+        };
+        LibraryReviewPage: {
+            items: components["schemas"]["LibraryReview"][];
+            next_before?: string | null;
+        };
+        /** @enum {string} */
+        LibraryReviewSort: "helpful" | "recent";
+        /** @enum {string} */
+        LibraryVisibility: "private" | "friends" | "public";
         LinkBody: {
             /** @description The episode the asset is the video of. With an episode, the episode is linked. */
             episode_id?: string | null;
@@ -12098,6 +12465,27 @@ export interface components {
             set_playable?: boolean | null;
             /** @description The title the asset belongs to (a film, or the series for bookkeeping). */
             title_id?: string | null;
+        };
+        /** @description A reading list with signed cover URLs for its first series (the fanned stack). */
+        ListCard: components["schemas"]["ReadingList"] & {
+            /** @description Cover URLs of the `preview` series, same order; series without a cover are skipped. */
+            covers: string[];
+        };
+        ListEntry: {
+            /** Format: int64 */
+            added_at_ms: number;
+            note: string;
+            /** Format: int64 */
+            position: number;
+            series_id: string;
+        };
+        ListItemView: {
+            /** Format: int64 */
+            added_at_ms: number;
+            note: string;
+            /** Format: int64 */
+            position: number;
+            series: components["schemas"]["Series"];
         };
         /** @description Body of `PUT /guilds/{id}/directory`. */
         ListingBody: {
@@ -12118,6 +12506,9 @@ export interface components {
             requested_at: string;
             /** @description `pending`, `approved`, `rejected` or `removed`. */
             status: string;
+        };
+        ListsBody: {
+            items: components["schemas"]["ListCard"][];
         };
         /** @description Body for `POST /sr/auth/passkeys/login/begin`. */
         LoginBeginBody: {
@@ -12630,8 +13021,20 @@ export interface components {
             id: string;
             username?: string | null;
         };
+        /** @description Pixels of the full-size page to cut off on each side. */
+        PageCrop: {
+            /** Format: int32 */
+            bottom: number;
+            /** Format: int32 */
+            left: number;
+            /** Format: int32 */
+            right: number;
+            /** Format: int32 */
+            top: number;
+        };
         PageEntry: {
             blurhash?: string | null;
+            crop?: null | components["schemas"]["PageCrop"];
             /** Format: int32 */
             height: number;
             /** Format: int32 */
@@ -12647,6 +13050,7 @@ export interface components {
         /** @description Replacement page list entry (admin). */
         PageInput: {
             blurhash?: string | null;
+            crop?: null | components["schemas"]["PageCrop"];
             /** Format: int32 */
             height: number;
             is_double_spread?: boolean;
@@ -13285,6 +13689,25 @@ export interface components {
             /** Format: int64 */
             xp: number;
         };
+        RankingEntry: {
+            /** Format: int32 */
+            rank: number;
+            /** Format: double */
+            rating_average?: number | null;
+            /** Format: int64 */
+            rating_count: number;
+            /** Format: int64 */
+            readers: number;
+            /** Format: double */
+            score: number;
+            series: components["schemas"]["Series"];
+        };
+        /** @enum {string} */
+        RankingPeriod: "week" | "month" | "all";
+        RankingsBody: {
+            items: components["schemas"]["RankingEntry"][];
+            period: components["schemas"]["RankingPeriod"];
+        };
         RateSourceView: {
             /** Format: int64 */
             last_cents?: number | null;
@@ -13347,6 +13770,27 @@ export interface components {
          * @enum {string}
          */
         ReadingDirection: "rtl" | "ltr" | "vertical";
+        ReadingList: {
+            /** @description With `?series=` on the member's own lists: whether that series is on this list. */
+            contains?: boolean | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            description: string;
+            featured: boolean;
+            id: string;
+            /** Format: int64 */
+            item_count: number;
+            /** @description The caller owns the list. */
+            mine: boolean;
+            name: string;
+            owner_id: string;
+            owner_name: string;
+            /** @description The first series of the list, for the fanned cover stack (at most four). */
+            preview: string[];
+            /** Format: int64 */
+            updated_at_ms: number;
+            visibility: components["schemas"]["LibraryVisibility"];
+        };
         /** @description Body of actions that only need a reason. */
         ReasonBody: {
             /**
@@ -13713,6 +14157,13 @@ export interface components {
             description: string;
             name: string;
         };
+        ScoreInput: {
+            /**
+             * Format: int32
+             * @description 1 to 10.
+             */
+            score: number;
+        };
         /**
          * @description Discord search response: each result is a one-message group (no context
          *     lines), flagged with `hit: true`.
@@ -13844,6 +14295,19 @@ export interface components {
             offset: number;
             /** Format: int64 */
             total: number;
+        };
+        /**
+         * @description A series' ratings per scope (D-089): everyone, friends, and "people you know" (friends plus
+         *     people sharing a server), the caller's own score, and the global distribution.
+         */
+        SeriesRatings: {
+            /** @description Counts of scores 1 to 10 across everyone (index 0 is score 1). */
+            distribution: number[];
+            friends: components["schemas"]["LibraryRatingAggregate"];
+            global: components["schemas"]["LibraryRatingAggregate"];
+            known: components["schemas"]["LibraryRatingAggregate"];
+            /** Format: int32 */
+            mine?: number | null;
         };
         /**
          * @description `reading_series.status`.
@@ -14819,6 +15283,25 @@ export interface components {
             accounts_left_deactivated: number;
             /** Format: int64 */
             accounts_reactivated: number;
+        };
+        /** @description Unread published chapters of one followed series. */
+        UnreadCount: {
+            /**
+             * Format: int64
+             * @description Number of the highest chapter published, for "sort by progress".
+             */
+            chapter_count: number;
+            /**
+             * Format: int64
+             * @description Last time the member read something in this series.
+             */
+            last_read_at_ms?: number | null;
+            series_id: string;
+            /** Format: int64 */
+            unread: number;
+        };
+        UnreadCounts: {
+            items: components["schemas"]["UnreadCount"][];
         };
         /** @description A member's birthday as other members of a server see it (never the year). */
         UpcomingBirthday: {
@@ -21262,6 +21745,62 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_feature_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: {
                 headers: {
@@ -38566,6 +39105,144 @@ export interface operations {
             };
         };
     };
+    library_chapter_rating: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterRating"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_rate_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScoreInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_unrate_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_mark_read: {
         parameters: {
             query?: never;
@@ -38599,6 +39276,357 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_create_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryListInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_featured_lists: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListsBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_get_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryListDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_delete_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_update_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryListPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_list_add_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryListItemInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_list_remove_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_list_reorder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryListOrderInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -38688,6 +39716,36 @@ export interface operations {
             };
         };
     };
+    library_my_lists: {
+        parameters: {
+            query?: {
+                /** @description When given, each list says whether it holds this series (`contains`). */
+                series?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListsBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_my_progress: {
         parameters: {
             query?: {
@@ -38721,6 +39779,151 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_unread_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCounts"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_rankings: {
+        parameters: {
+            query?: {
+                /** @description `week` (default), `month` or `all`. */
+                period?: components["schemas"]["RankingPeriod"];
+                /** @description Limit to one kind (`manga`, `manhwa`, ...). */
+                kind?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingsBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_review_helpful: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review snowflake */
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCountBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_review_unhelpful: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review snowflake */
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCountBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -38990,6 +40193,285 @@ export interface operations {
             };
         };
     };
+    library_rate_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScoreInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_unrate_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_series_ratings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesRatings"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_put_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryReviewInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryReview"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_delete_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_reviews: {
+        parameters: {
+            query?: {
+                /** @description `helpful` (default) or `recent`. */
+                sort?: components["schemas"]["LibraryReviewSort"];
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryReviewPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_updates: {
         parameters: {
             query?: {
@@ -39020,6 +40502,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_user_lists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListsBody"];
                 };
             };
             401: {

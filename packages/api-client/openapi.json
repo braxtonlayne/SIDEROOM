@@ -8857,6 +8857,86 @@
         ]
       }
     },
+    "/admin/library/lists/{list_id}/feature": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Feature or unfeature a public reading list on the Library home (`PUBLISH_READING`).",
+        "operationId": "admin_library_feature_list",
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "description": "List snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeatureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/library/series": {
       "get": {
         "tags": [
@@ -36356,6 +36436,199 @@
         ]
       }
     },
+    "/library/chapters/{chapter_id}/rating": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "The caller's rating of a chapter and its average.",
+        "operationId": "library_chapter_rating",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChapterRating"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Rate a chapter 1 to 10.",
+        "operationId": "library_rate_chapter",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Remove the caller's rating of a chapter.",
+        "operationId": "library_unrate_chapter",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/library/chapters/{chapter_id}/read": {
       "post": {
         "tags": [
@@ -36406,6 +36679,538 @@
             }
           },
           "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/lists": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Create a reading list.",
+        "operationId": "library_create_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryListInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/lists/featured": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Lists staff featured.",
+        "operationId": "library_featured_lists",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListsBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/lists/{list_id}": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "A list with its series in order.",
+        "operationId": "library_get_list",
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "description": "List snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryListDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Delete a list.",
+        "operationId": "library_delete_list",
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "description": "List snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Rename a list, change its description or visibility.",
+        "operationId": "library_update_list",
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "description": "List snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryListPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/lists/{list_id}/items/{series_id}": {
+      "put": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Add a series at the end of a list (or change its note).",
+        "operationId": "library_list_add_item",
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "description": "List snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryListItemInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Remove a series from a list.",
+        "operationId": "library_list_remove_item",
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "description": "List snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCard"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/lists/{list_id}/order": {
+      "put": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Reorder a list: `series_ids` names every series of the list exactly once.",
+        "operationId": "library_list_reorder",
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "description": "List snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryListOrderInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -36568,6 +37373,53 @@
         ]
       }
     },
+    "/library/me/lists": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "The caller's reading lists.",
+        "operationId": "library_my_lists",
+        "parameters": [
+          {
+            "name": "series",
+            "in": "query",
+            "description": "When given, each list says whether it holds this series (`contains`).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListsBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/library/me/progress": {
       "get": {
         "tags": [
@@ -36628,6 +37480,231 @@
             }
           },
           "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/me/unread": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Unread published chapters of every series the caller follows (My library).",
+        "operationId": "library_unread_counts",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCounts"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/rankings": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Most read series for a period (global; an anonymous aggregate).",
+        "operationId": "library_rankings",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "description": "`week` (default), `month` or `all`.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RankingPeriod"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "Limit to one kind (`manga`, `manhwa`, ...).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankingsBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/reviews/{review_id}/helpful": {
+      "put": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Mark a review helpful (idempotent; not on one's own review).",
+        "operationId": "library_review_helpful",
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "description": "Review snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCountBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Take back a helpful mark.",
+        "operationId": "library_review_unhelpful",
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "description": "Review snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCountBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -37145,6 +38222,422 @@
         ]
       }
     },
+    "/library/series/{series_id}/rating": {
+      "put": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Rate a series 1 to 10 (a restricted series needs the 18+ answer).",
+        "operationId": "library_rate_series",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (900011).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Remove the caller's rating of a series.",
+        "operationId": "library_unrate_series",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/series/{series_id}/ratings": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "The caller's rating of a series and the average per scope (everyone, friends, people you know),\nwith the distribution of scores.",
+        "operationId": "library_series_ratings",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesRatings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/series/{series_id}/review": {
+      "put": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Write or replace the caller's review of a series (one per account). A `rating` also sets the score.",
+        "operationId": "library_put_review",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryReviewInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryReview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (900011).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Delete the caller's review of a series.",
+        "operationId": "library_delete_review",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/series/{series_id}/reviews": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Reviews of a series.",
+        "operationId": "library_reviews",
+        "parameters": [
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "`helpful` (default) or `recent`.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LibraryReviewSort"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Cursor from the previous page's `next_before`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryReviewPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/library/updates": {
       "get": {
         "tags": [
@@ -37200,6 +38693,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/users/{user_id}/lists": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Lists of another member that the caller may see.",
+        "operationId": "library_user_lists",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListsBody"
                 }
               }
             }
@@ -49815,6 +51355,32 @@
           }
         }
       },
+      "ChapterRating": {
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "average": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "mine": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "CinemaAssetPlayback": {
         "type": "object",
         "description": "Everything the player needs to start an asset.",
@@ -54014,6 +55580,17 @@
           }
         }
       },
+      "FeatureBody": {
+        "type": "object",
+        "required": [
+          "featured"
+        ],
+        "properties": {
+          "featured": {
+            "type": "boolean"
+          }
+        }
+      },
       "FeatureView": {
         "type": "object",
         "required": [
@@ -56475,6 +58052,259 @@
           }
         }
       },
+      "LibraryCountBody": {
+        "type": "object",
+        "description": "A count after a vote.",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "LibraryListDetail": {
+        "type": "object",
+        "required": [
+          "list",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListItemView"
+            }
+          },
+          "list": {
+            "$ref": "#/components/schemas/ListCard"
+          }
+        }
+      },
+      "LibraryListInput": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "visibility": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LibraryVisibility"
+              }
+            ]
+          }
+        }
+      },
+      "LibraryListItemInput": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "LibraryListOrderInput": {
+        "type": "object",
+        "required": [
+          "series_ids"
+        ],
+        "properties": {
+          "series_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "LibraryListPatch": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LibraryVisibility"
+              }
+            ]
+          }
+        }
+      },
+      "LibraryRatingAggregate": {
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "average": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "One decimal; absent without ratings."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "LibraryReview": {
+        "type": "object",
+        "required": [
+          "id",
+          "series_id",
+          "author_id",
+          "author_name",
+          "body",
+          "spoiler",
+          "helpful_count",
+          "voted",
+          "mine",
+          "created_at_ms",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "author_id": {
+            "type": "string"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "helpful_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "rating": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The author's 1 to 10 score for the series, when they rated it."
+          },
+          "series_id": {
+            "type": "string"
+          },
+          "spoiler": {
+            "type": "boolean"
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "voted": {
+            "type": "boolean",
+            "description": "The caller marked it helpful."
+          }
+        }
+      },
+      "LibraryReviewInput": {
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "rating": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Also sets the caller's rating of the series."
+          },
+          "spoiler": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "LibraryReviewPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryReview"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "LibraryReviewSort": {
+        "type": "string",
+        "enum": [
+          "helpful",
+          "recent"
+        ]
+      },
+      "LibraryVisibility": {
+        "type": "string",
+        "enum": [
+          "private",
+          "friends",
+          "public"
+        ]
+      },
       "LinkBody": {
         "type": "object",
         "properties": {
@@ -56498,6 +58328,79 @@
               "null"
             ],
             "description": "The title the asset belongs to (a film, or the series for bookkeeping)."
+          }
+        }
+      },
+      "ListCard": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ReadingList"
+          },
+          {
+            "type": "object",
+            "required": [
+              "covers"
+            ],
+            "properties": {
+              "covers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Cover URLs of the `preview` series, same order; series without a cover are skipped."
+              }
+            }
+          }
+        ],
+        "description": "A reading list with signed cover URLs for its first series (the fanned stack)."
+      },
+      "ListEntry": {
+        "type": "object",
+        "required": [
+          "series_id",
+          "position",
+          "note",
+          "added_at_ms"
+        ],
+        "properties": {
+          "added_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "note": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "series_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ListItemView": {
+        "type": "object",
+        "required": [
+          "series",
+          "position",
+          "note",
+          "added_at_ms"
+        ],
+        "properties": {
+          "added_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "note": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "series": {
+            "$ref": "#/components/schemas/Series"
           }
         }
       },
@@ -56564,6 +58467,20 @@
           "status": {
             "type": "string",
             "description": "`pending`, `approved`, `rejected` or `removed`."
+          }
+        }
+      },
+      "ListsBody": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListCard"
+            }
           }
         }
       },
@@ -58291,6 +60208,38 @@
           }
         }
       },
+      "PageCrop": {
+        "type": "object",
+        "description": "Pixels of the full-size page to cut off on each side.",
+        "required": [
+          "left",
+          "top",
+          "right",
+          "bottom"
+        ],
+        "properties": {
+          "bottom": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "left": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "right": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "top": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "PageEntry": {
         "type": "object",
         "required": [
@@ -58306,6 +60255,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "crop": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PageCrop",
+                "description": "Uniform borders the reader can crop (pixels of the full-size image), when detected."
+              }
             ]
           },
           "height": {
@@ -58349,6 +60309,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "crop": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PageCrop",
+                "description": "Borders the reader may cut off (pixels of the full-size page); see `ingest::crop`."
+              }
             ]
           },
           "height": {
@@ -60380,6 +62351,71 @@
           }
         }
       },
+      "RankingEntry": {
+        "type": "object",
+        "required": [
+          "rank",
+          "score",
+          "readers",
+          "rating_count",
+          "series"
+        ],
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "rating_average": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "rating_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "readers": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "score": {
+            "type": "number",
+            "format": "double"
+          },
+          "series": {
+            "$ref": "#/components/schemas/Series"
+          }
+        }
+      },
+      "RankingPeriod": {
+        "type": "string",
+        "enum": [
+          "week",
+          "month",
+          "all"
+        ]
+      },
+      "RankingsBody": {
+        "type": "object",
+        "required": [
+          "period",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RankingEntry"
+            }
+          },
+          "period": {
+            "$ref": "#/components/schemas/RankingPeriod"
+          }
+        }
+      },
       "RateSourceView": {
         "type": "object",
         "required": [
@@ -60584,6 +62620,76 @@
           "ltr",
           "vertical"
         ]
+      },
+      "ReadingList": {
+        "type": "object",
+        "required": [
+          "id",
+          "owner_id",
+          "owner_name",
+          "mine",
+          "name",
+          "description",
+          "visibility",
+          "featured",
+          "item_count",
+          "preview",
+          "created_at_ms",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "contains": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "With `?series=` on the member's own lists: whether that series is on this list."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "description": {
+            "type": "string"
+          },
+          "featured": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "item_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "The caller owns the list."
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "owner_name": {
+            "type": "string"
+          },
+          "preview": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The first series of the list, for the fanned cover stack (at most four)."
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/LibraryVisibility"
+          }
+        }
       },
       "ReasonBody": {
         "type": "object",
@@ -61775,6 +63881,19 @@
           }
         }
       },
+      "ScoreInput": {
+        "type": "object",
+        "required": [
+          "score"
+        ],
+        "properties": {
+          "score": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 to 10."
+          }
+        }
+      },
       "SearchResponse": {
         "type": "object",
         "description": "Discord search response: each result is a one-message group (no context\nlines), flagged with `hit: true`.",
@@ -62276,6 +64395,42 @@
           "total": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "SeriesRatings": {
+        "type": "object",
+        "description": "A series' ratings per scope (D-089): everyone, friends, and \"people you know\" (friends plus\npeople sharing a server), the caller's own score, and the global distribution.",
+        "required": [
+          "global",
+          "friends",
+          "known",
+          "distribution"
+        ],
+        "properties": {
+          "distribution": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Counts of scores 1 to 10 across everyone (index 0 is score 1)."
+          },
+          "friends": {
+            "$ref": "#/components/schemas/LibraryRatingAggregate"
+          },
+          "global": {
+            "$ref": "#/components/schemas/LibraryRatingAggregate"
+          },
+          "known": {
+            "$ref": "#/components/schemas/LibraryRatingAggregate"
+          },
+          "mine": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -65505,6 +67660,51 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "UnreadCount": {
+        "type": "object",
+        "description": "Unread published chapters of one followed series.",
+        "required": [
+          "series_id",
+          "unread",
+          "chapter_count"
+        ],
+        "properties": {
+          "chapter_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of the highest chapter published, for \"sort by progress\"."
+          },
+          "last_read_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Last time the member read something in this series."
+          },
+          "series_id": {
+            "type": "string"
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "UnreadCounts": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnreadCount"
+            }
           }
         }
       },

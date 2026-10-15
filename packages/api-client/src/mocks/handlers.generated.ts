@@ -664,7 +664,6 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"get_privacy","method":"get","path":"/users/@me/privacy","status":200,"body":{"allow_server_member_dms":false,"friend_requests_everyone":false,"friend_requests_friends_of_friends":false,"friend_requests_server_members":false,"message_requests":false}},
   {"id":"patch_privacy","method":"patch","path":"/users/@me/privacy","status":200,"body":{"allow_server_member_dms":false,"friend_requests_everyone":false,"friend_requests_friends_of_friends":false,"friend_requests_server_members":false,"message_requests":false}},
   {"id":"get_own_profile","method":"get","path":"/users/@me/profile","status":200,"body":{"badges":["string"],"connected_accounts":[{}],"member_since":"string","user":{"id":"1"},"user_profile":{}}},
-  {"id":"get_own_profile","method":"get","path":"/users/@me/profile","status":200,"body":{"connected_accounts":[{}],"user":{"id":"1"},"user_profile":{}}},
   {"id":"subscribe","method":"post","path":"/users/@me/push-subscriptions","status":204,"body":null},
   {"id":"unsubscribe","method":"delete","path":"/users/@me/push-subscriptions","status":204,"body":null},
   {"id":"list","method":"get","path":"/users/@me/read-states","status":200,"body":{"entries":[{}]}},

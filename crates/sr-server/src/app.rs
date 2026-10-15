@@ -289,19 +289,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // Feature crates register into the registry before it is shared (none
     // exist yet). Their routes are mounted below from `Feature::routes()`.
-    let mut registry = FeatureRegistry::new();
-    registry
-        .register(crate::rich_jobs::UnfurlFeature)
-        .context("registering the unfurl feature")?;
-    registry
-        .register(sr_features::ModerationReportsFeature)
-        .context("registering the moderation.reports feature")?;
-    sr_features::modules::register_all(&mut registry)
-        .context("registering the built-in feature modules")?;
-    // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,
-    // library feed, watch party announcer, poll templates, suggestions, tickets (docs/inventory/09).
-    sr_userfeat::register_all(&mut registry).context("registering the user feature modules")?;
-    let registry = Arc::new(registry);
+    let registry = Arc::new(feature_registry()?);
     let features = FeatureService::new(
         registry.clone(),
         Arc::new(PgSettingsStore::new(pool.clone(), ids.clone())),
@@ -1294,9 +1282,46 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     result
 }
 
+/// Every built-in feature module: the framework modules of `sr-features` (p11 featmod) and the
+/// user/community modules of `sr-userfeat` (p11 featmod-b). Both sets are listed by
+/// `GET /guilds/{id}/sr/features`.
+pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
+    let mut registry = FeatureRegistry::new();
+    registry
+        .register(crate::rich_jobs::UnfurlFeature)
+        .context("registering the unfurl feature")?;
+    registry
+        .register(sr_features::ModerationReportsFeature)
+        .context("registering the moderation.reports feature")?;
+    sr_features::modules::register_all(&mut registry)
+        .context("registering the built-in feature modules")?;
+    // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,
+    // library feed, watch party announcer, poll templates, suggestions, tickets (docs/inventory/09).
+    sr_userfeat::register_all(&mut registry).context("registering the user feature modules")?;
+    Ok(registry)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn both_feature_module_sets_register_for_guilds() {
+        let registry = feature_registry().unwrap();
+        let guild_ids: Vec<&str> = registry
+            .iter()
+            .filter(|f| f.scopes().contains(&sr_features::Scope::Guild))
+            .map(|f| f.id())
+            .collect();
+        for id in [
+            sr_features::modules::starboard::STARBOARD_ID,
+            sr_features::modules::welcome::WELCOME_ID,
+            sr_userfeat::features::REMINDERS_ID,
+            sr_userfeat::features::TICKETS_ID,
+        ] {
+            assert!(guild_ids.contains(&id), "{id} missing from {guild_ids:?}");
+        }
+    }
     use axum::routing::get;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
