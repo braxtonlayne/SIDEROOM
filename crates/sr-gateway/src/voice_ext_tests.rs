@@ -1268,3 +1268,19 @@ async fn the_sixth_camera_is_refused_at_level_zero_and_a_patrons_is_accepted() {
     sixth.drain().await;
     assert!(e.gw.voice_state(u(15)).unwrap().self_video);
 }
+
+// ---- GUILD_CREATE extras (G-38) --------------------------------------------------------------
+
+#[tokio::test]
+async fn guild_create_carries_stage_instances_and_soundboard_sounds() {
+    let e = env();
+    e.gw.stage_create(u(MOD), STAGE, "Launch", None)
+        .await
+        .unwrap();
+    let mut c = Client::connect(&e.gw);
+    c.identify(MEMBER).await;
+    let gc = c.event("GUILD_CREATE").await;
+    assert_eq!(gc["stage_instances"][0]["topic"], "Launch");
+    assert_eq!(gc["stage_instances"][0]["channel_id"], STAGE.to_string());
+    assert_eq!(gc["soundboard_sounds"][0]["name"], "ding");
+}

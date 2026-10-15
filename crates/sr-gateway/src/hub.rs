@@ -697,8 +697,17 @@ impl Gateway {
     async fn guild_create_body(&self, user: UserId, guild: GuildId) -> Value {
         let mut body = self.inner.dir.guild_payload(user, guild).await;
         let voice_states = self.voice_states_for(user, guild).await;
+        let stages: Vec<Value> = self
+            .stage_instances_for(user, guild)
+            .await
+            .iter()
+            .map(crate::voice_stage::StageInstance::to_json)
+            .collect();
+        let sounds = self.inner.dir.soundboard_sounds(guild).await;
         if let Some(obj) = body.as_object_mut() {
             obj.insert("voice_states".into(), Value::Array(voice_states));
+            obj.insert("stage_instances".into(), Value::Array(stages));
+            obj.insert("soundboard_sounds".into(), Value::Array(sounds));
         }
         let threshold = self.inner.cfg.large_threshold.min(LARGE_THRESHOLD_MAX);
         let members: Vec<UserId> = match body.get("members").and_then(Value::as_array) {
