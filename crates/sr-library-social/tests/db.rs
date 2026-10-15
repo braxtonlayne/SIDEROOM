@@ -751,3 +751,54 @@ async fn rankings_and_unread_counts() {
     assert!(e.svc.unread_counts(b).await.unwrap().items.is_empty());
     e.teardown().await;
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn friends_scope_ratings_respect_the_activity_settings() {
+    let e = Env::new().await;
+    let (me, sharer, private, paused, mate) = (
+        e.user().await,
+        e.user().await,
+        e.user().await,
+        e.user().await,
+        e.user().await,
+    );
+    for f in [sharer, private, paused] {
+        e.befriend(me.user_id, f.user_id).await;
+    }
+    e.share_server(&[me.user_id, mate.user_id]).await;
+    let s = e.series("Vinland Saga", false).await;
+    for (v, score) in [(sharer, 10), (private, 2), (paused, 2), (mate, 4)] {
+        e.svc.rate(v, s, score).await.unwrap();
+    }
+    let set = |user: i64, activity: serde_json::Value| {
+        let pool = e.pool().clone();
+        async move {
+            sqlx::query(
+                "INSERT INTO user_settings (user_id, settings) \
+                 VALUES ($1, jsonb_build_object('activity', $2::jsonb)) \
+                 ON CONFLICT (user_id) DO UPDATE SET settings = \
+                   user_settings.settings || jsonb_build_object('activity', $2::jsonb)",
+            )
+            .bind(user)
+            .bind(activity)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+    };
+    set(
+        private.user_id,
+        serde_json::json!({ "share_library": false }),
+    )
+    .await;
+    set(paused.user_id, serde_json::json!({ "paused": true })).await;
+    set(mate.user_id, serde_json::json!({ "share_library": false })).await;
+
+    let r = e.svc.ratings(me, s).await.unwrap();
+    // The global aggregate stays anonymous and complete; the scoped ones skip who keeps it private.
+    assert_eq!(r.global.count, 4);
+    assert_eq!((r.friends.count, r.friends.average), (1, Some(10.0)));
+    assert_eq!((r.known.count, r.known.average), (1, Some(10.0)));
+    e.teardown().await;
+}

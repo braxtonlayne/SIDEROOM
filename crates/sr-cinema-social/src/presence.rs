@@ -45,10 +45,21 @@ impl CinemaService {
         Ok(Share::from_level(level))
     }
 
+    pub(crate) async fn hides_restricted(&self, user: i64) -> SocialResult<bool> {
+        Ok(sqlx::query_scalar("SELECT activity_hides_restricted($1)")
+            .bind(user)
+            .fetch_one(&self.pool)
+            .await?)
+    }
+
     /// A heartbeat of someone playing `item`: refresh the record and announce a change.
     pub(crate) async fn refresh_watching(&self, v: Viewer, item: &Item) -> SocialResult<()> {
         let share = self.share_of(v.user_id).await?;
         if share == Share::Off {
+            return self.stop_watching(v.user_id).await;
+        }
+        // `activity.hide_age_restricted` (default on, D-190): adult titles never show as activity.
+        if item.title.age_restricted && self.hides_restricted(v.user_id).await? {
             return self.stop_watching(v.user_id).await;
         }
         let title_id = item.title.id;
@@ -149,6 +160,7 @@ impl CinemaService {
              FROM cinema_watching w \
              JOIN relationships r ON r.user_id = $1 AND r.target_id = w.user_id AND r.type = 1 \
              WHERE w.expires_at > now() AND cinema_share_level(w.user_id) >= 1 \
+               AND NOT (w.restricted AND activity_hides_restricted(w.user_id)) \
              ORDER BY w.started_at DESC LIMIT 60",
         )
         .bind(v.user_id)

@@ -234,6 +234,22 @@ impl Env {
         }
     }
 
+    /// Merge `activity` keys (D-190) into the user's settings blob.
+    async fn set_activity(&self, user: i64, activity: serde_json::Value) {
+        sqlx::query(
+            "INSERT INTO user_settings (user_id, settings) \
+             VALUES ($1, jsonb_build_object('activity', $2::jsonb)) \
+             ON CONFLICT (user_id) DO UPDATE SET settings = \
+               user_settings.settings || jsonb_build_object('activity', \
+               COALESCE(user_settings.settings -> 'activity', '{}'::jsonb) || $2::jsonb)",
+        )
+        .bind(user)
+        .bind(activity)
+        .execute(self.pool())
+        .await
+        .unwrap();
+    }
+
     async fn set_share(&self, user: i64, level: &str) {
         let settings = serde_json::json!({ "cinema": { "share_watching": level } });
         sqlx::query(
@@ -740,6 +756,12 @@ async fn restricted_titles_reach_friends_only_and_masked() {
     e.befriend(a.user_id, minor_friend.user_id).await;
     e.share_server(&[a.user_id, mate.user_id]).await;
     e.set_share(a.user_id, "everyone").await;
+    // Adult titles are hidden from activity unless the member turned that off (D-190).
+    e.set_activity(
+        a.user_id,
+        serde_json::json!({ "hide_age_restricted": false }),
+    )
+    .await;
 
     e.svc.save_progress(a, 3, 0, beat(10, 7200)).await.unwrap();
     // The server-side mate (not a friend) is never told, even with "everyone".
@@ -1565,6 +1587,11 @@ async fn trending_respects_scope_and_privacy() {
     watch(stranger, 5, 0, 100, 7200).await;
     let adult_friend = e.adult().await;
     e.befriend(me.user_id, adult_friend.user_id).await;
+    e.set_activity(
+        adult_friend.user_id,
+        serde_json::json!({ "hide_age_restricted": false }),
+    )
+    .await;
     watch(adult_friend, 3, 0, 100, 7200).await; // restricted
 
     let ids = |t: &Trending| t.items.iter().map(|i| i.title.id).collect::<Vec<_>>();
@@ -1909,4 +1936,51 @@ async fn staff_see_the_report_queue_and_hide_content() {
             .iter()
             .any(|r| r.target_kind == "comment" && r.content.is_none())
     );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn activity_settings_decide_who_is_counted_and_announced() {
+    let e = Env::new().await;
+    let me = e.adult().await;
+    let sharer = e.user().await;
+    let off = e.user().await;
+    let paused = e.user().await;
+    for f in [sharer, off, paused] {
+        e.befriend(me.user_id, f.user_id).await;
+    }
+    e.set_activity(off.user_id, serde_json::json!({ "share_cinema": false }))
+        .await;
+    e.set_activity(paused.user_id, serde_json::json!({ "paused": true }))
+        .await;
+
+    // Presence: only the sharer is announced and listed.
+    for v in [sharer, off, paused] {
+        e.svc.save_progress(v, 1, 0, beat(10, 7200)).await.unwrap();
+    }
+    assert_eq!(e.events.payloads(me.user_id, "SR_ACTIVITY_UPDATE").len(), 1);
+    let row = e.svc.friends_watching(me).await.unwrap();
+    assert_eq!(
+        row.items.iter().map(|i| i.user_id).collect::<Vec<_>>(),
+        vec![sharer.user_id]
+    );
+
+    // Trending among friends counts the sharer alone.
+    let t = e
+        .svc
+        .trending(me, TrendScope::Friends, None, None)
+        .await
+        .unwrap();
+    assert_eq!(t.items.len(), 1);
+    assert_eq!(t.items[0].viewers, 1);
+
+    // Turning sharing back on brings the member back.
+    e.set_activity(off.user_id, serde_json::json!({ "share_cinema": true }))
+        .await;
+    let t = e
+        .svc
+        .trending(me, TrendScope::Friends, None, None)
+        .await
+        .unwrap();
+    assert_eq!(t.items[0].viewers, 2);
 }

@@ -50,20 +50,27 @@ impl CinemaService {
                  JOIN guild_members gm2 ON gm2.guild_id = gm1.guild_id AND gm2.user_id <> $1 \
                 WHERE $2::text = 'known' AND gm1.user_id = $1 AND cinema_share_level(gm2.user_id) = 2 \
              ), act AS ( \
-               SELECT p.user_id, p.title_id, p.completed FROM cinema_progress p \
+               SELECT p.user_id, p.title_id, p.completed, \
+                      activity_hides_restricted(p.user_id) AS h FROM cinema_progress p \
                 WHERE p.updated_at > now() - interval '7 days' \
                   AND (($2::text = 'global' AND cinema_share_level(p.user_id) >= 1) \
                        OR p.user_id IN (SELECT uid FROM scope_users)) \
              ), rated AS ( \
-               SELECT r.title_id, count(*) AS n FROM cinema_ratings r \
+               SELECT r.title_id, count(*) AS n, \
+                      count(*) FILTER (WHERE NOT activity_hides_restricted(r.user_id)) AS n_open \
+                 FROM cinema_ratings r \
                 WHERE r.episode_id = 0 AND r.score >= 7 AND r.updated_at > now() - interval '7 days' \
                   AND (($2::text = 'global' AND cinema_share_level(r.user_id) >= 1) \
                        OR r.user_id IN (SELECT uid FROM scope_users)) \
                 GROUP BY r.title_id \
              ) \
              SELECT a.title_id, count(DISTINCT a.user_id) AS viewers, \
+                    count(DISTINCT a.user_id) FILTER (WHERE NOT a.h) AS viewers_open, \
                     (count(DISTINCT a.user_id) + 2 * count(*) FILTER (WHERE a.completed) \
-                       + COALESCE(max(rd.n), 0))::float8 AS score \
+                       + COALESCE(max(rd.n), 0))::float8 AS score, \
+                    (count(DISTINCT a.user_id) FILTER (WHERE NOT a.h) \
+                       + 2 * count(*) FILTER (WHERE a.completed AND NOT a.h) \
+                       + COALESCE(max(rd.n_open), 0))::float8 AS score_open \
                FROM act a LEFT JOIN rated rd ON rd.title_id = a.title_id \
               GROUP BY a.title_id HAVING count(DISTINCT a.user_id) >= $3 \
               ORDER BY score DESC, a.title_id DESC LIMIT $4",
@@ -90,10 +97,20 @@ impl CinemaService {
             if kind.is_some_and(|k| k != t.kind) {
                 continue;
             }
+            // Members who hide age-restricted titles from their activity (D-190) do not count
+            // towards an adult title.
+            let (score, viewers): (f64, i64) = if t.age_restricted {
+                (r.try_get("score_open")?, r.try_get("viewers_open")?)
+            } else {
+                (r.try_get("score")?, r.try_get("viewers")?)
+            };
+            if viewers < min_viewers {
+                continue;
+            }
             items.push(TrendingItem {
                 title: TitleRef::from(t),
-                score: r.try_get("score")?,
-                viewers: r.try_get("viewers")?,
+                score,
+                viewers,
             });
             if items.len() >= limit {
                 break;
