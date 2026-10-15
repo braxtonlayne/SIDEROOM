@@ -31251,6 +31251,158 @@
         ]
       }
     },
+    "/guilds/{guild_id}/sr/features": {
+      "get": {
+        "tags": [
+          "features"
+        ],
+        "summary": "The server's feature modules (`MANAGE_GUILD`).",
+        "operationId": "list_features",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GuildFeatureObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/sr/features/{feature_id}": {
+      "patch": {
+        "tags": [
+          "features"
+        ],
+        "summary": "Enable, disable or configure one module in this server (`MANAGE_GUILD`).",
+        "operationId": "patch_feature",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feature_id",
+            "in": "path",
+            "description": "Feature id, e.g. lounge.starboard",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchGuildFeatureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildFeatureObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/sr/guide": {
       "get": {
         "tags": [
@@ -31443,6 +31595,218 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/sr/temp-roles": {
+      "get": {
+        "tags": [
+          "features"
+        ],
+        "summary": "Active temporary role grants (`MANAGE_ROLES`).",
+        "operationId": "list_temp_roles",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TempRoleObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "features"
+        ],
+        "summary": "Give a member a role for a limited time (`MANAGE_ROLES`, role hierarchy applies). A\nsecond grant of the same role replaces the expiry.",
+        "operationId": "grant_temp_role",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantTempRoleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TempRoleObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}": {
+      "delete": {
+        "tags": [
+          "features"
+        ],
+        "summary": "End a temporary grant now and take the role away (`MANAGE_ROLES`).",
+        "operationId": "revoke_temp_role",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role_id",
+            "in": "path",
+            "description": "Role snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
           },
           "403": {
             "description": "",
@@ -50001,6 +50365,28 @@
           }
         }
       },
+      "GrantTempRoleBody": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "role_id",
+          "duration_seconds"
+        ],
+        "properties": {
+          "duration_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How long the member keeps the role, in seconds.",
+            "minimum": 0
+          },
+          "role_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
       "GrantView": {
         "type": "object",
         "required": [
@@ -50208,6 +50594,60 @@
               "null"
             ],
             "description": "Why not: `missing_permission`, `app_not_released`, `bot_not_public`, `suspended`."
+          }
+        }
+      },
+      "GuildFeatureObject": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "section",
+          "phase",
+          "enabled",
+          "default_enabled",
+          "platform_disabled",
+          "settings",
+          "schema"
+        ],
+        "properties": {
+          "default_enabled": {
+            "type": "boolean",
+            "description": "Whether it starts on in a server that never chose."
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the module is on in this server."
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "platform_disabled": {
+            "type": "boolean",
+            "description": "The platform operator switched it off everywhere; the server's choice is kept\nbut has no effect."
+          },
+          "schema": {
+            "type": "object",
+            "description": "Settings schema for the auto-rendered form."
+          },
+          "section": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Effective settings in this server (schema defaults plus the server's overrides)."
           }
         }
       },
@@ -53840,6 +54280,25 @@
               "null"
             ],
             "description": "Replace the platform-scope setting overrides (validated against the feature schema)."
+          }
+        }
+      },
+      "PatchGuildFeatureBody": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Turn the module on or off in this server."
+          },
+          "settings": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Replace this server's setting overrides (validated against the schema)."
           }
         }
       },
@@ -57772,6 +58231,27 @@
             "type": "boolean"
           },
           "name": {
+            "type": "string"
+          }
+        }
+      },
+      "TempRoleObject": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "role_id",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds at which the role is taken away."
+          },
+          "role_id": {
+            "type": "string"
+          },
+          "user_id": {
             "type": "string"
           }
         }

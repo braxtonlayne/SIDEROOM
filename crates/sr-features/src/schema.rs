@@ -146,6 +146,14 @@ impl SettingsSchema {
         validate_object(&self.fields, values, "")
     }
 
+    /// Every channel and role id the values name through pickers, walking groups and
+    /// lists. Used to check that a server only points at its own channels and roles.
+    pub fn picked_ids(&self, values: &Map<String, Value>) -> PickedIds {
+        let mut out = PickedIds::default();
+        collect_picked(&self.fields, values, &mut out);
+        out
+    }
+
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(self)
     }
@@ -155,6 +163,46 @@ impl SettingsSchema {
     }
 }
 
+/// Channel and role ids named by picker fields (see [`SettingsSchema::picked_ids`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PickedIds {
+    pub channels: Vec<u64>,
+    pub roles: Vec<u64>,
+}
+
+fn push_ids(v: &Value, into: &mut Vec<u64>) {
+    match v {
+        Value::String(s) => into.extend(s.parse::<u64>()),
+        Value::Array(a) => a.iter().for_each(|x| push_ids(x, into)),
+        _ => {}
+    }
+}
+
+fn collect_kind(kind: &FieldKind, v: &Value, out: &mut PickedIds) {
+    match kind {
+        FieldKind::ChannelPicker { .. } => push_ids(v, &mut out.channels),
+        FieldKind::RolePicker { .. } => push_ids(v, &mut out.roles),
+        FieldKind::List { item, .. } => {
+            if let Value::Array(a) = v {
+                a.iter().for_each(|x| collect_kind(item, x, out));
+            }
+        }
+        FieldKind::Group { fields } => {
+            if let Value::Object(o) = v {
+                collect_picked(fields, o, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_picked(fields: &[Field], values: &Map<String, Value>, out: &mut PickedIds) {
+    for f in fields {
+        if let Some(v) = values.get(&f.key) {
+            collect_kind(&f.kind, v, out);
+        }
+    }
+}
 fn defaults_of(fields: &[Field], scope: Scope) -> Map<String, Value> {
     let mut out = Map::new();
     for f in fields {
@@ -411,5 +459,42 @@ mod tests {
         }
         let e = schema().validate(&obj(json!({"g": {"x": 1}}))).unwrap_err();
         assert_eq!(e.path, "g.x");
+    }
+}
+
+#[cfg(test)]
+mod picked_tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn collects_channel_and_role_ids_through_groups_and_lists() {
+        let s = SettingsSchema::new(vec![
+            Field::new("ch", "Ch", FieldKind::ChannelPicker { multi: false }),
+            Field::new("many", "Many", FieldKind::RolePicker { multi: true }),
+            Field::new("emoji", "E", FieldKind::EmojiPicker { multi: false }),
+            Field::new(
+                "rows",
+                "Rows",
+                FieldKind::List {
+                    max_items: None,
+                    item: Box::new(FieldKind::Group {
+                        fields: vec![
+                            Field::new("c", "C", FieldKind::ChannelPicker { multi: false }),
+                            Field::new("r", "R", FieldKind::RolePicker { multi: false }),
+                            Field::new("n", "N", FieldKind::String { max_len: None }),
+                        ],
+                    }),
+                },
+            ),
+        ]);
+        let v = json!({
+            "ch": "1", "many": ["2", "3"], "emoji": "99",
+            "rows": [{"c": "4", "r": "5", "n": "6"}, {"c": "7"}]
+        });
+        let got = s.picked_ids(v.as_object().unwrap());
+        assert_eq!(got.channels, vec![1, 4, 7]);
+        assert_eq!(got.roles, vec![2, 3, 5]);
     }
 }

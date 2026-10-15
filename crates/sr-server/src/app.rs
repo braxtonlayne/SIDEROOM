@@ -291,6 +291,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     registry
         .register(sr_features::ModerationReportsFeature)
         .context("registering the moderation.reports feature")?;
+    sr_features::modules::register_all(&mut registry)
+        .context("registering the built-in feature modules")?;
     let registry = Arc::new(registry);
     let features = FeatureService::new(
         registry.clone(),
@@ -841,6 +843,23 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         bus: bus.clone(),
         throttle: crate::staff_feed::MailThrottle::default(),
     }));
+    // Built-in feature modules (docs/inventory/09-feature-modules.md): they read the event
+    // firehose and act through the system user and the guild backend.
+    let feature_ctx = sr_features::FeatureCtx {
+        bus: bus.clone(),
+        settings: features.clone(),
+        clock: clock.clone(),
+        actions: Arc::new(crate::feature_actions::PgFeatureActions::new(
+            pool.clone(),
+            messages.clone(),
+            threads_deps.clone(),
+            guilds.0.clone(),
+            &cfg.server.public_url,
+        )),
+        state: Arc::new(crate::features_store::PgFeatureState::new(pool.clone())),
+    };
+    let feature_runtime = sr_features::FeatureRuntime::new(feature_ctx.clone());
+    let feature_tasks = feature_runtime.spawn(bus.clone(), sr_features::runtime::TICK_INTERVAL);
     // Sensitive admin actions (private content, account email and password, staff changes,
     // announcements) need a second factor checked in the last 15 minutes (ADM-STF-009).
     // `SR_ADMIN_REQUIRE_REAUTH=0` switches that off, for development and end-to-end tests.
@@ -881,6 +900,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             ),
         ))))
         .extension(Arc::new(guilds.clone()))
+        .extension(Arc::new(routes::settings::features::GuildFeatures {
+            ctx: feature_ctx,
+            roles: Arc::new(routes::settings::features::BackendRoles(guilds.0.clone())),
+        }))
         .extension(messages.clone())
         .extension(threads_deps.clone())
         .extension(social_api)
@@ -1096,6 +1119,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     metrics_task.abort();
     search_consumer.abort();
     if let Some(h) = features_listener {
+        h.abort();
+    }
+    for h in feature_tasks {
         h.abort();
     }
     if tokio::time::timeout(grace, jobs_task).await.is_err() {

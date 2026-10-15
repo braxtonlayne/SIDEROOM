@@ -90,6 +90,18 @@ impl FeatureService {
         Ok(value)
     }
 
+    /// Whether the platform has switched `id` off for every server (the kill switch).
+    pub async fn platform_killed(&self, id: &str) -> Result<bool, FeatureError> {
+        self.feature(id)?;
+        Ok(self
+            .inner
+            .store
+            .get(id, &ScopeRef::Platform)
+            .await?
+            .and_then(|r| r.enabled)
+            == Some(false))
+    }
+
     /// Guilds in which `id` is enabled, for ticking modules. Only guilds with a
     /// stored record are considered, then each is checked with [`Self::is_enabled`]
     /// (so the platform kill switch and defaults apply).
@@ -442,5 +454,30 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
         panic!("cache was not invalidated by bus event");
+    }
+}
+
+#[cfg(test)]
+mod kill_tests {
+    use std::sync::Arc;
+
+    use crate::moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
+    use crate::{FeatureRegistry, FeatureService, InMemorySettingsStore, ScopeRef};
+
+    #[tokio::test]
+    async fn platform_killed_reflects_only_an_explicit_platform_off() {
+        let mut reg = FeatureRegistry::new();
+        reg.register(ModerationReportsFeature).unwrap();
+        let svc = FeatureService::new(Arc::new(reg), Arc::new(InMemorySettingsStore::new()), None);
+        assert!(!svc.platform_killed(REPORTS_FEATURE_ID).await.unwrap());
+        svc.set_enabled(REPORTS_FEATURE_ID, &ScopeRef::Platform, Some(true))
+            .await
+            .unwrap();
+        assert!(!svc.platform_killed(REPORTS_FEATURE_ID).await.unwrap());
+        svc.set_enabled(REPORTS_FEATURE_ID, &ScopeRef::Platform, Some(false))
+            .await
+            .unwrap();
+        assert!(svc.platform_killed(REPORTS_FEATURE_ID).await.unwrap());
+        assert!(svc.platform_killed("nope").await.is_err());
     }
 }

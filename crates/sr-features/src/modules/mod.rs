@@ -20,6 +20,7 @@ pub mod stat_channels;
 pub mod sticky;
 pub mod temp_roles;
 pub mod welcome;
+// new-feature:mod
 
 /// Register every built-in module.
 pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> {
@@ -36,6 +37,7 @@ pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> 
         mod_log::ModLog,
         stat_channels::StatChannels,
         message_quotes::MessageQuotes,
+        // new-feature:register
     )
 }
 
@@ -140,6 +142,42 @@ mod tests {
         assert_eq!(utc_date(0), "1970-01-01");
         assert_eq!(utc_date(1_782_000_000_000), "2026-06-21");
         assert_eq!(utc_date(-86_400_000), "1969-12-31");
+    }
+
+    /// `just new-feature` fills these placeholders and edits these markers; if either
+    /// side drifts the generator breaks silently, so pin them.
+    #[test]
+    fn generator_template_and_markers_are_in_sync() {
+        let tmpl = include_str!("../../templates/feature.rs.tmpl");
+        for p in ["__ID__", "__TYPE__", "__CONST__", "__NAME__"] {
+            assert!(tmpl.contains(p), "template lost {p}");
+        }
+        let src = include_str!("mod.rs");
+        assert!(src.contains("// new-feature:mod"));
+        assert!(src.contains("// new-feature:register"));
+    }
+
+    #[test]
+    fn registered_modules_have_valid_ids_default_off_and_valid_default_settings() {
+        let mut reg = FeatureRegistry::new();
+        register_all(&mut reg).unwrap();
+        assert!(reg.len() >= 11);
+        for f in reg.iter() {
+            assert!(
+                f.id()
+                    .split_once('.')
+                    .is_some_and(|(a, b)| !a.is_empty() && !b.is_empty()),
+                "{} is not section.name",
+                f.id()
+            );
+            assert!(!f.meta().default_enabled, "{} must start off", f.id());
+            let schema = f.settings_schema();
+            for scope in f.scopes() {
+                schema
+                    .validate(&schema.defaults(*scope))
+                    .unwrap_or_else(|e| panic!("{}: {e}", f.id()));
+            }
+        }
     }
 
     #[test]

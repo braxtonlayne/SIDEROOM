@@ -66,16 +66,13 @@ fn grant_key(user: u64, role: u64) -> String {
 }
 
 impl TempRoles {
-    /// Give `user` the role now and schedule its removal `duration_secs` from now.
-    /// Returns the expiry in unix ms. The caller has already checked that the acting
-    /// member may manage the role.
-    pub async fn grant(
+    /// Whether the guild's limits allow a temporary grant of `role` for `duration_secs`.
+    pub async fn check(
         ctx: &FeatureCtx,
         guild: GuildId,
-        user: UserId,
         role: u64,
         duration_secs: u64,
-    ) -> Result<Result<i64, GrantError>, FeatureError> {
+    ) -> Result<Result<(), GrantError>, FeatureError> {
         let cfg: Config = ctx.guild_config(TEMP_ROLES_ID, guild).await?;
         let allowed = snowflakes(&cfg.allowed_roles);
         if !allowed.is_empty() && !allowed.contains(&role) {
@@ -86,8 +83,21 @@ impl TempRoles {
                 max_secs: cfg.max_duration,
             }));
         }
+        Ok(Ok(()))
+    }
+
+    /// Record that `user` holds `role` until `duration_secs` from now, replacing an
+    /// earlier expiry. Does not touch the role itself: the caller has just granted it
+    /// (the API does so as the acting member, so role hierarchy applies). Returns the
+    /// expiry in unix ms.
+    pub async fn schedule(
+        ctx: &FeatureCtx,
+        guild: GuildId,
+        user: UserId,
+        role: u64,
+        duration_secs: u64,
+    ) -> Result<i64, FeatureError> {
         let expires = ctx.now_ms() + (duration_secs as i64) * 1000;
-        ctx.actions.add_role(guild, user, role).await?;
         ctx.state
             .put(
                 StateEntry::new(
@@ -99,7 +109,38 @@ impl TempRoles {
                 .due(expires),
             )
             .await?;
-        Ok(Ok(expires))
+        Ok(expires)
+    }
+
+    /// Forget a scheduled expiry without touching the role. True if there was one.
+    pub async fn forget(
+        ctx: &FeatureCtx,
+        guild: GuildId,
+        user: UserId,
+        role: u64,
+    ) -> Result<bool, FeatureError> {
+        let key = grant_key(user.get(), role);
+        let had = ctx.state.get(TEMP_ROLES_ID, guild, &key).await?.is_some();
+        ctx.state.delete(TEMP_ROLES_ID, guild, &key).await?;
+        Ok(had)
+    }
+
+    /// Give `user` the role now (as the platform) and schedule its removal
+    /// `duration_secs` from now. Returns the expiry in unix ms.
+    pub async fn grant(
+        ctx: &FeatureCtx,
+        guild: GuildId,
+        user: UserId,
+        role: u64,
+        duration_secs: u64,
+    ) -> Result<Result<i64, GrantError>, FeatureError> {
+        if let Err(e) = Self::check(ctx, guild, role, duration_secs).await? {
+            return Ok(Err(e));
+        }
+        ctx.actions.add_role(guild, user, role).await?;
+        Ok(Ok(
+            Self::schedule(ctx, guild, user, role, duration_secs).await?
+        ))
     }
 
     /// Active grants of a guild as `(user, role, expires_ms)`.
