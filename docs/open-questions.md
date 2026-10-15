@@ -1,6 +1,6 @@
 # Open questions
 
-Only questions that still need a human are listed here. Every other question was decided, and each answer is in [open-question-answers.md](open-question-answers.md) (the Phase 2 round is the section "Phase 2 answers (2026-10-13)"; its entries are numbered `OQ-n` with the numbers this file used before the sweep). Adopted answers are D-157 to D-183 in [01-decisions-log.md](01-decisions-log.md), and the implementation work they imply is listed in [dev/answers-followups.md](dev/answers-followups.md). Paths are relative to the repo root.
+Only questions that still need a human are listed here. Every other question was decided, and each answer is in [open-question-answers.md](open-question-answers.md) (the Phase 2 round is the section "Phase 2 answers (2026-10-13)"; its entries are numbered `OQ-n` with the numbers this file used before the sweep). Adopted answers are D-157 to D-183 (Phase 2 round) and D-185 to D-216 (Phase 8 to 11 round) in [01-decisions-log.md](01-decisions-log.md), and the implementation work they imply is listed in [dev/answers-followups.md](dev/answers-followups.md) and [dev/answers-followups-p12.md](dev/answers-followups-p12.md). Paths are relative to the repo root.
 
 Remove an entry when it is decided, and record the decision in [01-decisions-log.md](01-decisions-log.md).
 
@@ -9,7 +9,21 @@ Remove an entry when it is decided, and record the decision in [01-decisions-log
 For each of these, the recommended answer was adopted as the default and is being implemented. The owner confirms it or overrides it.
 
 1. **UnRAR licence for RAR/CBR reading.** (D-170) The `unrar` crate vendors RARLAB's UnRAR source (crate `unrar_sys`), whose manifest says `MIT OR Apache-2.0` but whose actual licence (`vendor/unrar/license.txt` in the crate) is the RARLAB freeware licence: free to use "in any software to handle RAR archives without limitations", not usable to build a RAR-compatible archiver, and modified UnRAR source distributed with other software must carry its licence paragraph. SIDEROOM only decompresses, so it fits a self-hosted deployment and RAR reading is implemented and on by default. The default adopted: keep it on behind `library.ingest.rar_enabled`, and include the UnRAR licence text in release notices. `cargo deny` cannot see this (it trusts the manifest). The owner confirms, or switches RAR off for good by deleting the `unrar` dependency (7z and ZIP are unaffected). — [crates/sr-library/Cargo.toml](../crates/sr-library/Cargo.toml)
-2. **PDF page rasterization (LIB-ING-004).** ADR-0005 names `pdfium-render`, which needs a native pdfium library shipped beside the binary (no pure-Rust rasterizer is practical). Not implemented: PDFs are validated and kept as originals only. Default: ship the original for download and defer image-mode PDFs until the owner approves bundling a pdfium build (a download, so not done by agents).
+2. **PDF page rasterization (LIB-ING-004).** ADR-0005 names `pdfium-render`, which needs a native pdfium library shipped beside the binary (no pure-Rust rasterizer is practical). Not implemented: PDFs are validated and kept as originals only. Default: ship the original for download and defer image-mode PDFs until the owner approves bundling a pdfium build (a download, so not done by agents). Answered as P11-LIB-2 in the Phase 8 to 11 round: PDFs are read with `pdf.js` in the browser and the cover is rendered client-side, so no server rasterizer is needed unless the owner approves the bundle.
+
+### From the Phase 8 to 11 round (2026-10-15)
+
+Full text in [open-question-answers.md](open-question-answers.md), section "Phase 8 to 11 handoff questions"; adopted answers are D-185 to D-216, follow-ups in [dev/answers-followups-p12.md](dev/answers-followups-p12.md). Each item below applies its default until the owner answers.
+
+3. **P8-DON-4 Esplora endpoint and price sources** (external services). Default: self-hosted `electrs` on the box; two public price APIs, median.
+4. **P11-MSG-1 Default sticker packs** (artwork). Default: none ship; the `sticker_packs` plumbing is built for reviewed packs later.
+5. **P11-SHL-3 Avatar decoration artwork** (artwork). Default: the four CSS effects only; no decorations.
+6. **P11-CLI-1 Server-tag badge glyphs** (artwork). Default: the 16 Unicode glyphs.
+7. **P11-USB-2 Discord OAuth app for account linking** (external account). Default: reuse the `[discord]` app; the owner registers the second redirect URI `<public_url>/api/v1/connections/discord/callback`.
+8. **P11-LIB-2 pdfium bundle** (download). Default: client-side `pdf.js`, no server rasterizer (item 2 above).
+9. **MOD-4 Copyright process** (legal). Default: staff-entered notices, staff-recorded counter-notices, strike review at 3 upheld takedowns in 12 months.
+10. **MOD-5 Minimum age and underage handling** (legal). Default: minimum registration age 13 by self-declaration; under 18 = reset age confirmation and restrict; under 13 = suspend.
+11. **MOD-6 Data-subject jurisdiction and deadline** (legal). Default: 30-day due date (`compliance.data_request_deadline_days`); deletion copy states what D-124 retains.
 
 Earlier confirmations (age gate, font, door image, token calibration) are recorded in [open-question-answers.md](open-question-answers.md).
 
