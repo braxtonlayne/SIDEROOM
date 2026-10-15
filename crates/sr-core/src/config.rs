@@ -193,6 +193,10 @@ pub struct VoiceConfig {
     /// it makes the SFU pad every sending connection to 50 kbit/s, audio-only ones too. With
     /// it off, layer selection falls back to loss reports.
     pub video_bwe: bool,
+    /// Media actors the SFU shards its rooms over (one per channel id hash, each with its own
+    /// UDP sockets). `0` picks half the available cores, at most 8; it never exceeds the number
+    /// of bound media sockets. `1` is the old single-actor SFU.
+    pub shards: usize,
     pub turn: TurnSection,
 }
 
@@ -234,6 +238,7 @@ impl Default for VoiceConfig {
             session_grace_secs: 20,
             egress_budget_mbps: 0,
             video_bwe: false,
+            shards: 0,
             turn: TurnSection::default(),
         }
     }

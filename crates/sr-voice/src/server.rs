@@ -1,14 +1,17 @@
 //! The tokio shell around [`SfuCore`]: media sockets (UDP range, ICE-TCP), one actor task
 //! that owns the core, and the handle the WebSocket layer and the gateway talk to.
 //!
-//! One actor means one thread of media work per node. That is deliberate for v1 (audio
-//! only, a few hundred participants). TODO(scale): shard rooms across several actors by
-//! channel id, each with its own socket subset; the core has no global state to prevent it.
+//! Media work is sharded (VOX-SFU-011): `SfuConfig::shards` actors, each owning an [`SfuCore`],
+//! a disjoint subset of the UDP sockets and the rooms whose channel id hashes to it. A
+//! participant id encodes its shard (`(id - 1) % shards`), so the handle routes every command
+//! without a lookup. The few cross-shard facts (a user joining a second channel on another
+//! shard, ICE-TCP connections whose shard is only known from their first STUN packet, node
+//! wide participant cap and metrics) live in [`Shared`].
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -24,7 +27,9 @@ use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::config::{MAX_UDP_SOCKETS, SfuConfig};
-use crate::core::{CloseReason, CoreEvent, CoreOutput, Flags, JoinParams, ParticipantId, SfuCore};
+use crate::core::{
+    CloseReason, CoreEvent, CoreOutput, Flags, JoinParams, ParticipantId, SfuCore, Snapshot,
+};
 use crate::metrics;
 
 /// What the actor sends down a voice WebSocket.
@@ -97,6 +102,10 @@ pub(crate) enum Cmd {
     TcpClosed {
         peer: SocketAddr,
     },
+    /// Drop the user's participant here: they joined a channel that lives on another shard.
+    Evict {
+        user: UserId,
+    },
     Drain,
     Shutdown(oneshot::Sender<()>),
 }
@@ -142,7 +151,8 @@ pub struct SfuEvent {
 /// Cheap clone: the way into a running SFU.
 #[derive(Clone)]
 pub struct SfuHandle {
-    pub(crate) tx: mpsc::Sender<Cmd>,
+    shards: Arc<Vec<mpsc::Sender<Cmd>>>,
+    shared: Arc<Shared>,
     live: Arc<LiveStats>,
     signer: TokenSigner,
     cfg: Arc<SfuConfig>,
@@ -152,7 +162,7 @@ pub struct SfuHandle {
     events: tokio::sync::broadcast::Sender<SfuEvent>,
 }
 
-/// Counts the admin dashboard reads without asking the SFU thread: refreshed once a second.
+/// Counts the admin dashboard reads without asking the SFU threads: refreshed once a second.
 #[derive(Debug, Default)]
 pub struct LiveStats {
     rooms: AtomicU64,
@@ -169,6 +179,50 @@ impl LiveStats {
     pub fn egress_bytes(&self) -> u64 {
         self.egress_bytes.load(Ordering::Relaxed)
     }
+}
+
+/// State the shards share. Everything here is touched on joins, ICE-TCP connects and the
+/// once-a-second tick, never per media packet.
+struct Shared {
+    /// The shard each user last joined, so a join on another shard can evict the old one.
+    user_shard: Mutex<HashMap<UserId, usize>>,
+    /// ICE-TCP peers already matched to a shard (the first STUN packet is offered to all).
+    tcp_shard: Mutex<HashMap<SocketAddr, usize>>,
+    /// Participants on the node, for `max_participants`.
+    total: AtomicUsize,
+    /// Each shard's latest snapshot; the metrics publish their sum.
+    snaps: Mutex<Vec<Snapshot>>,
+}
+
+fn locked<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Which shard owns a channel. A multiplicative hash keeps the spread even whatever the id
+/// scheme (snowflakes differ mostly in their high bits within one guild).
+fn shard_for_channel(channel: ChannelId, shards: usize) -> usize {
+    let h = channel.get().wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    usize::try_from(h >> 32).unwrap_or(0) % shards.max(1)
+}
+
+/// The shard that issued a participant id (see [`SfuCore::with_id_space`]).
+fn shard_for_pid(pid: ParticipantId, shards: usize) -> usize {
+    usize::try_from(pid.0.saturating_sub(1)).unwrap_or(0) % shards.max(1)
+}
+
+/// How many actors `SfuConfig::shards` asks for, given the sockets that could be bound.
+fn effective_shards(want: usize, sockets: usize) -> usize {
+    let want = if want == 0 {
+        std::thread::available_parallelism().map_or(1, |n| (n.get() / 2).clamp(1, 8))
+    } else {
+        want
+    };
+    want.min(sockets).max(1)
+}
+
+enum Target {
+    One(usize),
+    All,
 }
 
 impl SfuHandle {
@@ -200,33 +254,116 @@ impl SfuHandle {
         self.tcp_port
     }
 
+    /// Media actors running (the configured `shards` after the socket limit).
+    pub fn shard_count(&self) -> usize {
+        self.shards.len()
+    }
+
+    /// The shard (media actor) that hosts a channel's room.
+    pub fn shard_of_channel(&self, channel: ChannelId) -> usize {
+        shard_for_channel(channel, self.shards.len())
+    }
+
     pub(crate) fn next_conn_id(&self) -> u64 {
         self.conn_ids.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn target(&self, cmd: &Cmd) -> Target {
+        let n = self.shards.len();
+        match cmd {
+            Cmd::Join { claims, .. } => Target::One(shard_for_channel(claims.channel_id, n)),
+            // The shard is the first byte of the session id; anything else is refused by
+            // shard 0 as an unknown session.
+            Cmd::Resume { session_id, .. } => Target::One(
+                session_id
+                    .get(..2)
+                    .and_then(|h| usize::from_str_radix(h, 16).ok())
+                    .filter(|s| *s < n)
+                    .unwrap_or(0),
+            ),
+            Cmd::Offer { pid, .. }
+            | Cmd::Answer { pid, .. }
+            | Cmd::Candidate { pid, .. }
+            | Cmd::Speaking { pid, .. }
+            | Cmd::Video { pid, .. }
+            | Cmd::WsLost { pid, .. } => Target::One(shard_for_pid(*pid, n)),
+            Cmd::Control(c) => Target::One(shard_for_channel(control_channel(c), n)),
+            // Sent straight to the old shard by the join below, never routed.
+            Cmd::Evict { .. } => Target::One(0),
+            Cmd::TcpOpen { .. } | Cmd::TcpClosed { .. } | Cmd::Drain | Cmd::Shutdown(_) => {
+                Target::All
+            }
+        }
+    }
+
+    /// Route a command to the shard that owns what it is about.
+    pub(crate) async fn send(&self, cmd: Cmd) -> Result<(), ()> {
+        match self.target(&cmd) {
+            Target::One(i) => {
+                if let Cmd::Join { claims, .. } = &cmd {
+                    let prev = locked(&self.shared.user_shard).insert(claims.user_id, i);
+                    if let Some(old) = prev.filter(|o| *o != i) {
+                        let _ = self.shards[old]
+                            .send(Cmd::Evict {
+                                user: claims.user_id,
+                            })
+                            .await;
+                    }
+                }
+                self.shards[i].send(cmd).await.map_err(|_| ())
+            }
+            Target::All => {
+                for tx in self.shards.iter() {
+                    let copy = match &cmd {
+                        Cmd::Evict { user } => Cmd::Evict { user: *user },
+                        Cmd::TcpOpen { peer, tx } => Cmd::TcpOpen {
+                            peer: *peer,
+                            tx: tx.clone(),
+                        },
+                        Cmd::TcpClosed { peer } => Cmd::TcpClosed { peer: *peer },
+                        _ => Cmd::Drain,
+                    };
+                    tx.send(copy).await.map_err(|_| ())?;
+                }
+                Ok(())
+            }
+        }
     }
 
     /// Tell every client to reconnect elsewhere (close 4015) and refuse new joins
     /// (VOX-SFU-010). Used before a restart.
     pub async fn drain(&self) {
-        let _ = self.tx.send(Cmd::Drain).await;
+        let _ = self.send(Cmd::Drain).await;
     }
 
-    /// Close every room and stop the actor.
+    /// Close every room and stop the actors.
     pub async fn shutdown(&self) {
-        let (tx, rx) = oneshot::channel();
-        if self.tx.send(Cmd::Shutdown(tx)).await.is_ok() {
-            let _ = rx.await;
+        for tx in self.shards.iter() {
+            let (done, rx) = oneshot::channel();
+            if tx.send(Cmd::Shutdown(done)).await.is_ok() {
+                let _ = rx.await;
+            }
         }
+    }
+}
+
+fn control_channel(c: &VoiceCommand) -> ChannelId {
+    match c {
+        VoiceCommand::SetFlags { channel, .. }
+        | VoiceCommand::Disconnect { channel, .. }
+        | VoiceCommand::StreamViewers { channel, .. }
+        | VoiceCommand::CloseRoom { channel } => *channel,
     }
 }
 
 #[async_trait]
 impl VoiceRelay for SfuHandle {
     async fn apply(&self, command: VoiceCommand) {
-        let _ = self.tx.send(Cmd::Control(command)).await;
+        let _ = self.send(Cmd::Control(command)).await;
     }
 }
 
-/// Bind the sockets and start the actor.
+/// Bind the sockets and start the actors.
 pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
     if cfg.token_secret.is_empty() {
         return Err(StartError::NoSecret);
@@ -235,9 +372,6 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         return Err(StartError::NoAnnounce);
     };
     metrics::describe();
-
-    let (pkt_tx, pkt_rx) = mpsc::channel::<Packet>(8192);
-    let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>(1024);
 
     let mut socks = Vec::new();
     let mut ports = Vec::new();
@@ -257,13 +391,40 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
     if socks.is_empty() {
         return Err(StartError::NoUdpPort(cfg.udp_port_min, cfg.udp_port_max));
     }
-    for (s, port) in socks.iter().zip(&ports) {
+    let n = effective_shards(cfg.shards, socks.len());
+
+    let mut pkt_txs = Vec::with_capacity(n);
+    let mut cmd_txs = Vec::with_capacity(n);
+    let mut inboxes = Vec::with_capacity(n);
+    for _ in 0..n {
+        let (pkt_tx, pkt_rx) = mpsc::channel::<Packet>(8192);
+        let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>(1024);
+        pkt_txs.push(pkt_tx);
+        cmd_txs.push(cmd_tx);
+        inboxes.push((cmd_rx, pkt_rx));
+    }
+
+    // Socket i belongs to shard i % n, so every shard gets a disjoint, even slice and the
+    // candidates it hands out always lead back to it.
+    let mut shard_socks: Vec<Vec<Arc<UdpSocket>>> = vec![Vec::new(); n];
+    let mut shard_ports: Vec<Vec<u16>> = vec![Vec::new(); n];
+    for (i, (s, port)) in socks.iter().zip(&ports).enumerate() {
+        let k = i % n;
+        shard_socks[k].push(s.clone());
+        shard_ports[k].push(*port);
         tokio::spawn(udp_reader(
             s.clone(),
             SocketAddr::new(announce0, *port),
-            pkt_tx.clone(),
+            pkt_txs[k].clone(),
         ));
     }
+
+    let shared = Arc::new(Shared {
+        user_shard: Mutex::new(HashMap::new()),
+        tcp_shard: Mutex::new(HashMap::new()),
+        total: AtomicUsize::new(0),
+        snaps: Mutex::new(vec![Snapshot::default(); n]),
+    });
 
     let mut tcp_port = None;
     if let Some(p) = cfg.tcp_port {
@@ -275,8 +436,11 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         tokio::spawn(tcp_acceptor(
             l,
             SocketAddr::new(announce0, actual),
-            pkt_tx.clone(),
-            cmd_tx.clone(),
+            TcpRoute {
+                pkts: pkt_txs.clone(),
+                cmds: cmd_txs.clone(),
+                shared: shared.clone(),
+            },
         ));
     }
 
@@ -284,7 +448,8 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
     let (events, _) = tokio::sync::broadcast::channel(256);
     let live = Arc::new(LiveStats::default());
     let handle = SfuHandle {
-        tx: cmd_tx,
+        shards: Arc::new(cmd_txs),
+        shared: shared.clone(),
         live: live.clone(),
         signer: TokenSigner::new(cfg.token_secret.clone()),
         cfg: cfg.clone(),
@@ -293,28 +458,38 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         tcp_port,
         events: events.clone(),
     };
-    let actor = Actor {
-        core: SfuCore::new(cfg.max_participants, cfg.max_room_size)
-            .with_bwe(cfg.video_bwe)
-            .with_governor(crate::governor::GovernorConfig::with_budget_mbps(
-                cfg.egress_budget_mbps,
-            )),
-        cfg,
-        socks,
-        port_idx: ports.iter().enumerate().map(|(i, p)| (*p, i)).collect(),
-        ports,
-        tcp_port,
-        sessions: HashMap::new(),
-        by_session: HashMap::new(),
-        tcp: HashMap::new(),
-        next_sock: 0,
-        draining: false,
-        last_counts: (0, 0, 0),
-        pending_flags: HashMap::new(),
-        events,
-        live,
-    };
-    tokio::spawn(actor.run(cmd_rx, pkt_rx));
+    for (k, ((cmd_rx, pkt_rx), (socks, ports))) in inboxes
+        .into_iter()
+        .zip(shard_socks.into_iter().zip(shard_ports))
+        .enumerate()
+    {
+        // The egress budget is the node's; each shard polices its even share of it.
+        let budget = cfg.egress_budget_mbps / n as f64;
+        let actor = Actor {
+            core: SfuCore::new(cfg.max_participants, cfg.max_room_size)
+                .with_id_space(k as u64, n as u64)
+                .with_bwe(cfg.video_bwe)
+                .with_governor(crate::governor::GovernorConfig::with_budget_mbps(budget)),
+            cfg: cfg.clone(),
+            shard: k,
+            shards: n,
+            shared: shared.clone(),
+            socks,
+            port_idx: ports.iter().enumerate().map(|(i, p)| (*p, i)).collect(),
+            ports,
+            tcp_port,
+            sessions: HashMap::new(),
+            by_session: HashMap::new(),
+            tcp: HashMap::new(),
+            next_sock: 0,
+            draining: false,
+            last_counts: (0, 0, 0),
+            pending_flags: HashMap::new(),
+            events: events.clone(),
+            live: live.clone(),
+        };
+        tokio::spawn(actor.run(cmd_rx, pkt_rx));
+    }
     Ok(handle)
 }
 
@@ -349,12 +524,43 @@ const TCP_MAX_FRAME: usize = 2048;
 /// An ICE-TCP connection that stays silent this long is dropped.
 const TCP_IDLE: std::time::Duration = std::time::Duration::from_secs(30);
 
-async fn tcp_acceptor(
-    l: TcpListener,
-    dst: SocketAddr,
-    pkts: mpsc::Sender<Packet>,
-    cmds: mpsc::Sender<Cmd>,
-) {
+/// Where ICE-TCP traffic goes: every shard hears about connections (any may write to them),
+/// and each datagram goes to the shard that accepted this peer's first packet, or to all of
+/// them until one does.
+#[derive(Clone)]
+struct TcpRoute {
+    pkts: Vec<mpsc::Sender<Packet>>,
+    cmds: Vec<mpsc::Sender<Cmd>>,
+    shared: Arc<Shared>,
+}
+
+impl TcpRoute {
+    fn deliver(&self, peer: SocketAddr, dst: SocketAddr, data: Vec<u8>) {
+        let known = if self.pkts.len() == 1 {
+            Some(0)
+        } else {
+            locked(&self.shared.tcp_shard).get(&peer).copied()
+        };
+        let packet = |data| Packet {
+            proto: Protocol::Tcp,
+            src: peer,
+            dst,
+            data,
+        };
+        match known {
+            Some(i) => {
+                let _ = self.pkts[i].try_send(packet(data));
+            }
+            None => {
+                for tx in &self.pkts {
+                    let _ = tx.try_send(packet(data.clone()));
+                }
+            }
+        }
+    }
+}
+
+async fn tcp_acceptor(l: TcpListener, dst: SocketAddr, route: TcpRoute) {
     loop {
         let Ok((stream, peer)) = l.accept().await else {
             continue;
@@ -362,9 +568,18 @@ async fn tcp_acceptor(
         let _ = stream.set_nodelay(true);
         let (mut rd, mut wr) = stream.into_split();
         let (wtx, mut wrx) = mpsc::channel::<Vec<u8>>(256);
-        if cmds.send(Cmd::TcpOpen { peer, tx: wtx }).await.is_err() {
-            return;
+        for c in &route.cmds {
+            if c.send(Cmd::TcpOpen {
+                peer,
+                tx: wtx.clone(),
+            })
+            .await
+            .is_err()
+            {
+                return;
+            }
         }
+        drop(wtx);
         tokio::spawn(async move {
             while let Some(frame) = wrx.recv().await {
                 let Ok(len) = u16::try_from(frame.len()) else {
@@ -377,7 +592,7 @@ async fn tcp_acceptor(
                 }
             }
         });
-        let (pkts, cmds) = (pkts.clone(), cmds.clone());
+        let route = route.clone();
         tokio::spawn(async move {
             loop {
                 let mut len = [0u8; 2];
@@ -392,18 +607,14 @@ async fn tcp_acceptor(
                     Ok::<_, std::io::Error>(data)
                 };
                 match tokio::time::timeout(TCP_IDLE, read).await {
-                    Ok(Ok(data)) => {
-                        let _ = pkts.try_send(Packet {
-                            proto: Protocol::Tcp,
-                            src: peer,
-                            dst,
-                            data,
-                        });
-                    }
+                    Ok(Ok(data)) => route.deliver(peer, dst, data),
                     _ => break,
                 }
             }
-            let _ = cmds.send(Cmd::TcpClosed { peer }).await;
+            locked(&route.shared.tcp_shard).remove(&peer);
+            for c in &route.cmds {
+                let _ = c.send(Cmd::TcpClosed { peer }).await;
+            }
         });
     }
 }
@@ -418,6 +629,9 @@ struct Session {
 struct Actor {
     core: SfuCore,
     cfg: Arc<SfuConfig>,
+    shard: usize,
+    shards: usize,
+    shared: Arc<Shared>,
     socks: Vec<Arc<UdpSocket>>,
     ports: Vec<u16>,
     port_idx: HashMap<u16, usize>,
@@ -434,6 +648,30 @@ struct Actor {
     pending_flags: HashMap<(ChannelId, UserId), (Flags, Instant)>,
     events: tokio::sync::broadcast::Sender<SfuEvent>,
     live: Arc<LiveStats>,
+}
+
+/// The node-wide picture from every shard's last snapshot (what the gauges show).
+fn merge_snapshots(all: &[Snapshot]) -> Snapshot {
+    let participants: usize = all.iter().map(|s| s.participants).sum();
+    let loss: f64 = all
+        .iter()
+        .map(|s| s.loss_ratio * s.participants as f64)
+        .sum();
+    Snapshot {
+        rooms: all.iter().map(|s| s.rooms).sum(),
+        participants,
+        egress_bps: all.iter().map(|s| s.egress_bps).sum(),
+        ingress_bps: all.iter().map(|s| s.ingress_bps).sum(),
+        loss_ratio: if participants == 0 {
+            0.0
+        } else {
+            loss / participants as f64
+        },
+        forwarded_packets: all.iter().map(|s| s.forwarded_packets).sum(),
+        forwarded_frames: all.iter().map(|s| s.forwarded_frames).sum(),
+        governor_severity: all.iter().map(|s| s.governor_severity).max().unwrap_or(0),
+        keyframe_requests: all.iter().map(|s| s.keyframe_requests).sum(),
+    }
 }
 
 fn random_hex() -> String {
@@ -490,11 +728,11 @@ impl Actor {
                     None => return,
                 },
                 Some(p) = pkts.recv() => {
-                    self.core.handle_input(Instant::now(), p.proto, p.src, p.dst, &p.data);
+                    self.input(&p);
                     // Batch whatever else is already queued before draining output.
                     for _ in 0..64 {
                         let Ok(p) = pkts.try_recv() else { break };
-                        self.core.handle_input(Instant::now(), p.proto, p.src, p.dst, &p.data);
+                        self.input(&p);
                     }
                 }
                 () = tokio::time::sleep(wait) => self.core.handle_timeout(Instant::now()),
@@ -504,9 +742,31 @@ impl Actor {
         }
     }
 
+    fn input(&mut self, p: &Packet) {
+        let taken = self
+            .core
+            .handle_input(Instant::now(), p.proto, p.src, p.dst, &p.data);
+        // An ICE-TCP peer is offered to every shard until one's participant accepts it.
+        if taken && p.proto == Protocol::Tcp && self.shards > 1 {
+            locked(&self.shared.tcp_shard).insert(p.src, self.shard);
+        }
+    }
+
     fn on_tick(&mut self) {
         let now = Instant::now();
-        let snap = self.core.snapshot();
+        let own = self.core.snapshot();
+        let snap = {
+            let mut all = locked(&self.shared.snaps);
+            all[self.shard] = own;
+            merge_snapshots(&all)
+        };
+        // Counter deltas stay this shard's own; the gauges carry the node total.
+        let snap = Snapshot {
+            forwarded_packets: own.forwarded_packets,
+            forwarded_frames: own.forwarded_frames,
+            keyframe_requests: own.keyframe_requests,
+            ..snap
+        };
         let counts = (
             snap.forwarded_packets,
             snap.forwarded_frames,
@@ -523,7 +783,7 @@ impl Actor {
         // One tick a second: the egress rate in bits per second is bytes per tick divided by 8.
         self.live
             .egress_bytes
-            .fetch_add((snap.egress_bps.max(0.0) / 8.0) as u64, Ordering::Relaxed);
+            .fetch_add((own.egress_bps.max(0.0) / 8.0) as u64, Ordering::Relaxed);
         self.pending_flags
             .retain(|_, (_, at)| now.saturating_duration_since(*at) <= PENDING_FLAGS_TTL);
         // Participants whose WebSocket stayed away past the resume window are dropped.
@@ -652,6 +912,11 @@ impl Actor {
             Cmd::TcpClosed { peer } => {
                 self.tcp.remove(&peer);
             }
+            Cmd::Evict { user } => {
+                if let Some(pid) = self.core.participant_of(user) {
+                    self.core.leave(pid, CloseReason::Replaced);
+                }
+            }
             Cmd::Drain => {
                 self.draining = true;
                 let pids: Vec<_> = self.sessions.keys().copied().collect();
@@ -676,6 +941,13 @@ impl Actor {
     fn join(&mut self, now: Instant, c: JoinClaims, conn: ConnTx) -> Result<Joined, u16> {
         if self.draining {
             return Err(close::SERVER_RESTARTING);
+        }
+        // The cap is the node's, not the shard's. A rejoin replaces the old participant, so
+        // only a user who is not on this shard yet adds one.
+        if self.core.participant_of(c.user_id).is_none()
+            && self.shared.total.load(Ordering::Relaxed) >= self.cfg.max_participants
+        {
+            return Err(close::SERVER_FULL);
         }
         let candidates = self.candidates();
         let mut flags = Flags {
@@ -705,7 +977,9 @@ impl Actor {
                 },
             )
             .map_err(|_| close::SERVER_FULL)?;
-        let session_id = random_hex();
+        self.shared.total.fetch_add(1, Ordering::Relaxed);
+        // The first byte names the shard so a RESUME finds its way back here.
+        let session_id = format!("{:02x}{}", self.shard, random_hex());
         let resume_token = random_hex();
         self.by_session.insert(session_id.clone(), pid);
         self.sessions.insert(
@@ -870,6 +1144,19 @@ impl Actor {
                     user,
                     channel,
                 }) => {
+                    let _ =
+                        self.shared
+                            .total
+                            .try_update(Ordering::Relaxed, Ordering::Relaxed, |t| {
+                                Some(t.saturating_sub(1))
+                            });
+                    // A user evicted by a join elsewhere has a newer entry; leave it be.
+                    if !matches!(reason, CloseReason::Replaced) {
+                        let mut map = locked(&self.shared.user_shard);
+                        if map.get(&user) == Some(&self.shard) {
+                            map.remove(&user);
+                        }
+                    }
                     // Not asked for by the gateway: tell it, so it clears the voice state.
                     if matches!(reason, CloseReason::Left | CloseReason::Connection) {
                         let _ = self.events.send(SfuEvent {
