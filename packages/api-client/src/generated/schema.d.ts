@@ -373,7 +373,12 @@ export interface paths {
         delete: operations["end"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Edit an announcement that is still showing: its title, message or end time (`MANAGE_FEATURES`,
+         *     fresh second factor). Severity, `critical` and `send_dm` cannot change and no DM is sent again.
+         *     409 once the announcement has ended. Every session hears `SR_ANNOUNCEMENT_UPDATE`.
+         */
+        patch: operations["edit"];
         trace?: never;
     };
     "/admin/bans": {
@@ -6470,6 +6475,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/sr/slowmode/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a slowmode preset to channels now, optionally for a limited time (`MANAGE_CHANNELS` in
+         *     every listed channel). The change appears in the audit log as a Slowmode schedules action.
+         */
+        post: operations["apply_slowmode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/sr/slowmode/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The slowmode presets of this server and whether the module is on (`MANAGE_CHANNELS`). */
+        get: operations["slowmode_presets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/sr/temp-roles": {
         parameters: {
             query?: never;
@@ -7387,6 +7429,28 @@ export interface paths {
         get: operations["library_reviews"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/submissions/{submission_id}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the cover of my draft series (G-78): one JPEG or PNG up to 2 MiB, sniffed from its content
+         *     and re-encoded (metadata stripped, at most 600 x 900). Only the submitter, and only while the
+         *     submission is a draft or has changes requested. The web app sends the first page of an uploaded
+         *     PDF here, rendered in the browser. New series (`library.series`) only.
+         */
+        post: operations["submissions_library_set_cover"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10089,6 +10153,19 @@ export interface components {
             starts_at_ms?: number | null;
             title: string;
         };
+        /**
+         * @description Input of `PATCH /admin/announcements/{id}` (G-69): the text and the end of an announcement that
+         *     is still showing. Severity, `critical` and `send_dm` cannot change.
+         */
+        AnnouncementPatch: {
+            body?: string | null;
+            /**
+             * Format: int64
+             * @description Stop showing at this time (must be in the future).
+             */
+            ends_at_ms?: number | null;
+            title?: string | null;
+        };
         /** @enum {string} */
         AnnouncementSeverity: "info" | "warning" | "critical";
         AnswerBody: {
@@ -10132,10 +10209,41 @@ export interface components {
             status: string;
             user: components["schemas"]["UserObject"];
         };
+        AppliedSlowmodeObject: {
+            /**
+             * Format: int32
+             * @description Slowmode the channel had before, in seconds.
+             */
+            before: number;
+            channel_id: string;
+            /**
+             * Format: int64
+             * @description Unix milliseconds at which it goes back, when a duration was given.
+             */
+            revert_at?: number | null;
+            /**
+             * Format: int32
+             * @description Slowmode now, in seconds.
+             */
+            seconds: number;
+        };
         ApplyBody: {
             accepted_terms: boolean;
             pitch: string;
             prior_work?: string | null;
+        };
+        ApplySlowmodeBody: {
+            /** @description Channels to set; the caller needs `MANAGE_CHANNELS` in every one. */
+            channel_ids: string[];
+            /**
+             * Format: int32
+             * @description Put the old slowmode back after this many minutes (1 to 10080). Omit to keep it.
+             */
+            minutes?: number | null;
+            preset_id: string;
+        };
+        ApplySlowmodeResult: {
+            applied: components["schemas"]["AppliedSlowmodeObject"][];
         };
         AppointBody: {
             /** @description Account to appoint. */
@@ -10605,6 +10713,8 @@ export interface components {
         };
         /** @description Outcome of pressing a button on a staff card. */
         CardActionResult: {
+            /** @description An app path to open next (the review page for a rejection that needs a reason). */
+            link?: string | null;
             message: string;
             ok: boolean;
         };
@@ -11422,6 +11532,11 @@ export interface components {
             /** Format: int32 */
             count: number;
         };
+        /** @description Body of `POST /library/submissions/{id}/cover`. */
+        CoverBody: {
+            /** @description `data:image/jpeg;base64,...` or `data:image/png;base64,...`: one image of at most 2 MiB. */
+            image: string;
+        };
         CreateApplicationBody: {
             description?: string | null;
             name: string;
@@ -11943,6 +12058,9 @@ export interface components {
         DownloadState: "queued" | "preparing" | "ready" | "failed";
         DrainBody: {
             drain: boolean;
+        };
+        EditAnnouncementBody: components["schemas"]["AnnouncementPatch"] & {
+            reason?: string | null;
         };
         EditDmBody: {
             /** @description Icon key; `null` removes the icon. */
@@ -12474,7 +12592,11 @@ export interface components {
             name: string;
             owner_id: string;
             preferred_locale: string;
+            public_updates_channel_id?: string | null;
             roles?: components["schemas"]["RoleObject"][] | null;
+            /** @description Community channels (Discord shape, null when unset; G-76). */
+            rules_channel_id?: string | null;
+            safety_alerts_channel_id?: string | null;
             /** @description Invite splash hash, same URL shape as the icon. */
             splash?: string | null;
             /**
@@ -12925,6 +13047,12 @@ export interface components {
             perks: Record<string, never>;
             /** Format: int32 */
             threshold_cents: number;
+        };
+        /** @description One level to role mapping of the leveling module. */
+        LevelRoleEntry: {
+            /** Format: int64 */
+            level: number;
+            role_id: string;
         };
         LevelingOptBody: {
             /** @description `false` opts the caller out of XP in this server and deletes their XP. */
@@ -13508,8 +13636,20 @@ export interface components {
             channel_id?: string | null;
             enabled?: boolean | null;
         };
+        /** @description What the caller can do in one module. */
+        ModuleCapabilities: {
+            /** @description Answers suggestions / sees every ticket and may close them: `MANAGE_GUILD` or the module's `staff_role`. */
+            can_respond?: boolean | null;
+        };
         /** @description The modules of this crate and whether each is on in the server, so menus show only what works. Members only. */
         ModuleFlags: {
+            /**
+             * @description Feature id -> what the caller may do with it, for modules that gate actions beyond
+             *     membership (G-71). Computed by the same rule the module's routes enforce.
+             */
+            member_capabilities: {
+                [key: string]: components["schemas"]["ModuleCapabilities"];
+            };
             /** @description Feature id -> on in this server. */
             modules: {
                 [key: string]: boolean;
@@ -14343,6 +14483,11 @@ export interface components {
             /** Format: int64 */
             level: number;
             /**
+             * @description The roles this server hands out for reaching a level (G-70), lowest level first. Roles
+             *     that no longer exist are left out; role objects are readable by every member.
+             */
+            level_roles: components["schemas"]["LevelRoleEntry"][];
+            /**
              * Format: int64
              * @description XP the current level spans (progress is `level_xp / level_span`).
              */
@@ -15085,6 +15230,17 @@ export interface components {
             /** @description Relative to the public origin: `/cdn/...?size=..&ex=..&sig=..`. */
             url: string;
         };
+        SlowmodePresetObject: {
+            id: string;
+            name: string;
+            /** Format: int32 */
+            seconds: number;
+        };
+        SlowmodePresetsObject: {
+            /** @description Whether the Slowmode schedules module is on in this server. */
+            enabled: boolean;
+            presets: components["schemas"]["SlowmodePresetObject"][];
+        };
         /**
          * @description Browse ordering.
          * @enum {string}
@@ -15360,11 +15516,14 @@ export interface components {
             id: string;
             /** @description The card message in the suggestions channel. */
             message_id: string;
+            my_vote?: null | components["schemas"]["Vote"];
             responder_id?: string | null;
             response: string;
             /** @description `open`, `considering`, `approved`, `denied` or `implemented`. */
             status: string;
             updated_at: string;
+            /** @description Up and down votes on the card, without the system user's seed reactions (G-72). */
+            votes: components["schemas"]["Votes"];
         };
         SuggestionInput: {
             content: string;
@@ -16333,6 +16492,18 @@ export interface components {
             /** Format: double */
             number: number;
             title?: string | null;
+        };
+        /**
+         * @description Which way the caller voted.
+         * @enum {string}
+         */
+        Vote: "up" | "down";
+        /** @description Vote counts of a suggestion card. */
+        Votes: {
+            /** Format: int64 */
+            down: number;
+            /** Format: int64 */
+            up: number;
         };
         WalletResult: {
             /** @description The first addresses, to compare with the operator's own wallet. */
@@ -17959,6 +18130,72 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Announcement snowflake */
+                announcement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditAnnouncementBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Announcement"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -38547,6 +38784,94 @@ export interface operations {
             };
         };
     };
+    apply_slowmode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplySlowmodeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplySlowmodeResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    slowmode_presets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlowmodePresetsObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_temp_roles: {
         parameters: {
             query?: never;
@@ -42019,6 +42344,64 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_library_set_cover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoverBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

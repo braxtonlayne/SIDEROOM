@@ -1914,6 +1914,101 @@
             "session": []
           }
         ]
+      },
+      "patch": {
+        "tags": [
+          "announce"
+        ],
+        "summary": "Edit an announcement that is still showing: its title, message or end time (`MANAGE_FEATURES`,\nfresh second factor). Severity, `critical` and `send_dm` cannot change and no DM is sent again.\n409 once the announcement has ended. Every session hears `SR_ANNOUNCEMENT_UPDATE`.",
+        "operationId": "edit",
+        "parameters": [
+          {
+            "name": "announcement_id",
+            "in": "path",
+            "description": "Announcement snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditAnnouncementBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Announcement"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
       }
     },
     "/admin/bans": {
@@ -34329,6 +34424,146 @@
         ]
       }
     },
+    "/guilds/{guild_id}/sr/slowmode/apply": {
+      "post": {
+        "tags": [
+          "features"
+        ],
+        "summary": "Apply a slowmode preset to channels now, optionally for a limited time (`MANAGE_CHANNELS` in\nevery listed channel). The change appears in the audit log as a Slowmode schedules action.",
+        "operationId": "apply_slowmode",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplySlowmodeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplySlowmodeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/sr/slowmode/presets": {
+      "get": {
+        "tags": [
+          "features"
+        ],
+        "summary": "The slowmode presets of this server and whether the module is on (`MANAGE_CHANNELS`).",
+        "operationId": "slowmode_presets",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlowmodePresetsObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/sr/temp-roles": {
       "get": {
         "tags": [
@@ -39895,6 +40130,93 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/submissions/{submission_id}/cover": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Set the cover of my draft series (G-78): one JPEG or PNG up to 2 MiB, sniffed from its content\nand re-encoded (metadata stripped, at most 600 x 900). Only the submitter, and only while the\nsubmission is a draft or has changes requested. The web app sends the first page of an uploaded\nPDF here, rendered in the browser. New series (`library.series`) only.",
+        "operationId": "submissions_library_set_cover",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Series"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -50957,6 +51279,32 @@
           }
         }
       },
+      "AnnouncementPatch": {
+        "type": "object",
+        "description": "Input of `PATCH /admin/announcements/{id}` (G-69): the text and the end of an announcement that\nis still showing. Severity, `critical` and `send_dm` cannot change.",
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ends_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Stop showing at this time (must be in the future)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AnnouncementSeverity": {
         "type": "string",
         "enum": [
@@ -51137,6 +51485,39 @@
           }
         }
       },
+      "AppliedSlowmodeObject": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "before",
+          "seconds"
+        ],
+        "properties": {
+          "before": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Slowmode the channel had before, in seconds.",
+            "minimum": 0
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "revert_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix milliseconds at which it goes back, when a duration was given."
+          },
+          "seconds": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Slowmode now, in seconds.",
+            "minimum": 0
+          }
+        }
+      },
       "ApplyBody": {
         "type": "object",
         "required": [
@@ -51155,6 +51536,48 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "ApplySlowmodeBody": {
+        "type": "object",
+        "required": [
+          "preset_id",
+          "channel_ids"
+        ],
+        "properties": {
+          "channel_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Channels to set; the caller needs `MANAGE_CHANNELS` in every one."
+          },
+          "minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Put the old slowmode back after this many minutes (1 to 10080). Omit to keep it.",
+            "minimum": 0
+          },
+          "preset_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ApplySlowmodeResult": {
+        "type": "object",
+        "required": [
+          "applied"
+        ],
+        "properties": {
+          "applied": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppliedSlowmodeObject"
+            }
           }
         }
       },
@@ -52675,6 +53098,13 @@
           "message"
         ],
         "properties": {
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An app path to open next (the review page for a rejection that needs a reason)."
+          },
           "message": {
             "type": "string"
           },
@@ -55375,6 +55805,19 @@
           }
         }
       },
+      "CoverBody": {
+        "type": "object",
+        "description": "Body of `POST /library/submissions/{id}/cover`.",
+        "required": [
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "`data:image/jpeg;base64,...` or `data:image/png;base64,...`: one image of at most 2 MiB."
+          }
+        }
+      },
       "CreateApplicationBody": {
         "type": "object",
         "required": [
@@ -57051,6 +57494,24 @@
             "type": "boolean"
           }
         }
+      },
+      "EditAnnouncementBody": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AnnouncementPatch"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
       },
       "EditDmBody": {
         "type": "object",
@@ -58803,6 +59264,12 @@
           "preferred_locale": {
             "type": "string"
           },
+          "public_updates_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "roles": {
             "type": [
               "array",
@@ -58811,6 +59278,19 @@
             "items": {
               "$ref": "#/components/schemas/RoleObject"
             }
+          },
+          "rules_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Community channels (Discord shape, null when unset; G-76)."
+          },
+          "safety_alerts_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "splash": {
             "type": [
@@ -60303,6 +60783,23 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "LevelRoleEntry": {
+        "type": "object",
+        "description": "One level to role mapping of the leveling module.",
+        "required": [
+          "level",
+          "role_id"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "role_id": {
+            "type": "string"
           }
         }
       },
@@ -62273,13 +62770,37 @@
           }
         }
       },
+      "ModuleCapabilities": {
+        "type": "object",
+        "description": "What the caller can do in one module.",
+        "properties": {
+          "can_respond": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Answers suggestions / sees every ticket and may close them: `MANAGE_GUILD` or the module's `staff_role`."
+          }
+        }
+      },
       "ModuleFlags": {
         "type": "object",
         "description": "The modules of this crate and whether each is on in the server, so menus show only what works. Members only.",
         "required": [
-          "modules"
+          "modules",
+          "member_capabilities"
         ],
         "properties": {
+          "member_capabilities": {
+            "type": "object",
+            "description": "Feature id -> what the caller may do with it, for modules that gate actions beyond\nmembership (G-71). Computed by the same rule the module's routes enforce.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModuleCapabilities"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "modules": {
             "type": "object",
             "description": "Feature id -> on in this server.",
@@ -64991,7 +65512,8 @@
           "level_xp",
           "level_span",
           "messages",
-          "opted_out"
+          "opted_out",
+          "level_roles"
         ],
         "properties": {
           "display_name": {
@@ -65003,6 +65525,13 @@
           "level": {
             "type": "integer",
             "format": "int64"
+          },
+          "level_roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LevelRoleEntry"
+            },
+            "description": "The roles this server hands out for reaching a level (G-70), lowest level first. Roles\nthat no longer exist are left out; role objects are readable by every member."
           },
           "level_span": {
             "type": "integer",
@@ -67411,6 +67940,46 @@
           }
         }
       },
+      "SlowmodePresetObject": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "seconds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seconds": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "SlowmodePresetsObject": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "presets"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the Slowmode schedules module is on in this server."
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlowmodePresetObject"
+            }
+          }
+        }
+      },
       "SortKey": {
         "type": "string",
         "description": "Browse ordering.",
@@ -68281,7 +68850,8 @@
           "status",
           "response",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "votes"
         ],
         "properties": {
           "author_id": {
@@ -68303,6 +68873,17 @@
             "type": "string",
             "description": "The card message in the suggestions channel."
           },
+          "my_vote": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Vote",
+                "description": "The caller's own vote, if any."
+              }
+            ]
+          },
           "responder_id": {
             "type": [
               "string",
@@ -68318,6 +68899,10 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "votes": {
+            "$ref": "#/components/schemas/Votes",
+            "description": "Up and down votes on the card, without the system user's seed reactions (G-72)."
           }
         }
       },
@@ -71542,6 +72127,32 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "Vote": {
+        "type": "string",
+        "description": "Which way the caller voted.",
+        "enum": [
+          "up",
+          "down"
+        ]
+      },
+      "Votes": {
+        "type": "object",
+        "description": "Vote counts of a suggestion card.",
+        "required": [
+          "up",
+          "down"
+        ],
+        "properties": {
+          "down": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "up": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
