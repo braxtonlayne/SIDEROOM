@@ -5452,6 +5452,11 @@ dependencies = [
 [[package]]
 name = "sr-reader"
 version = "0.0.0"
+dependencies = [
+ "regex",
+ "serde",
+ "utoipa",
+]
 
 [[package]]
 name = "sr-review"

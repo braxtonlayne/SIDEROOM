@@ -6,3 +6,8 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "perf"] }
+serde.workspace = true
+utoipa = "5"
