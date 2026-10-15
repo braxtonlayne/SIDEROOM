@@ -802,3 +802,87 @@ async fn friends_scope_ratings_respect_the_activity_settings() {
     assert_eq!((r.known.count, r.known.average), (1, Some(10.0)));
     e.teardown().await;
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn scoped_rankings_respect_the_activity_settings() {
+    let e = Env::new().await;
+    let (me, sharer, private, paused, mate, hider, stranger) = (
+        e.user().await,
+        e.user().await,
+        e.user().await,
+        e.user().await,
+        e.user().await,
+        e.user().await,
+        e.user().await,
+    );
+    for f in [sharer, private, paused, hider] {
+        e.befriend(me.user_id, f.user_id).await;
+    }
+    e.share_server(&[me.user_id, mate.user_id]).await;
+    let open = e.series("Open", false).await;
+    let spicy = e.series("Spicy", true).await;
+    let (o1, s1) = (e.chapter(open, 1.0).await, e.chapter(spicy, 1.0).await);
+    for u in [sharer, private, paused, mate, stranger] {
+        e.progress(u.user_id, open, o1, true).await;
+    }
+    e.progress(hider.user_id, spicy, s1, true).await;
+    e.progress(sharer.user_id, spicy, s1, false).await;
+    let set = |user: i64, activity: serde_json::Value| {
+        let pool = e.pool().clone();
+        async move {
+            sqlx::query(
+                "INSERT INTO user_settings (user_id, settings) \
+                 VALUES ($1, jsonb_build_object('activity', $2::jsonb)) \
+                 ON CONFLICT (user_id) DO UPDATE SET settings = \
+                   user_settings.settings || jsonb_build_object('activity', $2::jsonb)",
+            )
+            .bind(user)
+            .bind(activity)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+    };
+    set(
+        private.user_id,
+        serde_json::json!({ "share_library": false }),
+    )
+    .await;
+    set(paused.user_id, serde_json::json!({ "paused": true })).await;
+    // `sharer` shows adult titles; `hider` keeps the default (hidden).
+    set(
+        sharer.user_id,
+        serde_json::json!({ "hide_age_restricted": false }),
+    )
+    .await;
+    let mut adult = me;
+    adult.hide_restricted = false;
+
+    let rank = |scope| {
+        let svc = e.svc.clone();
+        async move {
+            svc.rankings_scoped(adult, scope, RankingPeriod::Week, None, None)
+                .await
+                .unwrap()
+        }
+    };
+    let friends = rank(RankingScope::Friends).await;
+    assert_eq!(friends.scope, RankingScope::Friends);
+    let by = |r: &Rankings, s: i64| r.items.iter().find(|i| i.series_id == s).map(|i| i.readers);
+    // Only the sharing friend counts: not the private, the paused or the non-friend member.
+    assert_eq!(by(&friends, open), Some(1));
+    // The hider's adult reading is left out, the sharer's counts.
+    assert_eq!(by(&friends, spicy), Some(1));
+    let known = rank(RankingScope::Known).await;
+    assert_eq!(by(&known, open), Some(2));
+    // The global aggregate is unchanged and counts everyone.
+    let global = e
+        .svc
+        .rankings(adult, RankingPeriod::Week, None, None)
+        .await
+        .unwrap();
+    assert_eq!(by(&global, open), Some(5));
+    assert_eq!(global.scope, RankingScope::Global);
+    e.teardown().await;
+}

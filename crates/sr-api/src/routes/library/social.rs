@@ -636,6 +636,9 @@ pub async fn feature_list(
 pub struct RankingParams {
     /// `week` (default), `month` or `all`.
     pub period: Option<RankingPeriod>,
+    /// `global` (default), `friends` or `known`; the scoped ones count only members who share
+    /// their reading (D-190).
+    pub scope: Option<RankingScope>,
     /// Limit to one kind (`manga`, `manhwa`, ...).
     pub kind: Option<String>,
     /// 1 to 100, default 24.
@@ -655,6 +658,7 @@ pub struct RankingEntry {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RankingsBody {
     pub period: RankingPeriod,
+    pub scope: RankingScope,
     pub items: Vec<RankingEntry>,
 }
 
@@ -670,8 +674,9 @@ pub async fn rankings(
 ) -> ApiResult<Json<RankingsBody>> {
     let r = ctx
         .social()?
-        .rankings(
+        .rankings_scoped(
             ctx.sviewer(),
+            p.scope.unwrap_or_default(),
             p.period.unwrap_or_default(),
             p.kind.filter(|k| !k.is_empty()),
             p.limit,
@@ -696,6 +701,7 @@ pub async fn rankings(
         .collect();
     Ok(Json(RankingsBody {
         period: r.period,
+        scope: r.scope,
         items,
     }))
 }

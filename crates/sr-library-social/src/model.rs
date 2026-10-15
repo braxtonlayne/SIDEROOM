@@ -215,9 +215,21 @@ pub struct RankingItem {
     pub rating_count: i64,
 }
 
+/// Whose reading is counted: everyone (an anonymous aggregate), friends, or friends plus members
+/// of shared servers ("people you know"). Scoped counts honour the activity settings (D-190).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RankingScope {
+    #[default]
+    Global,
+    Friends,
+    Known,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 pub struct Rankings {
     pub period: RankingPeriod,
+    pub scope: RankingScope,
     pub items: Vec<RankingItem>,
 }
 
