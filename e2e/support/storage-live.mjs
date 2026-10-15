@@ -403,8 +403,15 @@ const textBytes = Buffer.from('hello from the live storage test\n'.repeat(2000))
   const key = sql(`SELECT media_key FROM emojis WHERE id = ${e.body?.id}`);
   const obj = await s3Get(key);
   check(
-    'emoji image object exists in S3 and equals the PNG',
-    obj.exists && obj.body.equals(Buffer.from(PNG_1X1, 'base64')),
+    // Uploads are re-encoded (metadata stripped, fitted to 128 px), so compare the decoded
+    // header rather than the bytes: a PNG whose IHDR still says 1x1.
+    'emoji image object exists in S3 as a 1x1 PNG',
+    obj.exists &&
+      obj.body
+        .subarray(0, 8)
+        .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) &&
+      obj.body.readUInt32BE(16) === 1 &&
+      obj.body.readUInt32BE(20) === 1,
     key,
   );
   const bad = await A.call('POST', `/guilds/${guild}/emojis`, {
