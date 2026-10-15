@@ -664,6 +664,187 @@ impl SubmissionRepository for PgReviewRepo {
             .await
             .map_err(db)
     }
+
+    async fn grant_credits(
+        &self,
+        section: &str,
+        user: i64,
+        submission: i64,
+        credits: &[NewCredit],
+    ) -> ReviewResult<u64> {
+        let mut n = 0;
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        for c in credits {
+            n += sqlx::query(
+                "INSERT INTO contribution_credits (id, section, ref_id, user_id, submission_id, label) \
+                 VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (section, ref_id) DO NOTHING",
+            )
+            .bind(c.id)
+            .bind(section)
+            .bind(c.ref_id)
+            .bind(user)
+            .bind(submission)
+            .bind(&c.label)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?
+            .rows_affected();
+        }
+        tx.commit().await.map_err(db)?;
+        Ok(n)
+    }
+
+    async fn revoke_credits(
+        &self,
+        submission: i64,
+        refs: Option<&[i64]>,
+        reason: &str,
+        now_ms: i64,
+    ) -> ReviewResult<u64> {
+        let r = sqlx::query(
+            "UPDATE contribution_credits SET revoked_at = to_timestamp($3), revoke_reason = $4 \
+             WHERE submission_id = $1 AND revoked_at IS NULL \
+               AND ($2::bigint[] IS NULL OR ref_id = ANY($2))",
+        )
+        .bind(submission)
+        .bind(refs)
+        .bind(ts(now_ms))
+        .bind(reason)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(r.rows_affected())
+    }
+
+    async fn credits_for(&self, submission: i64) -> ReviewResult<Vec<Credit>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT id, section, ref_id, user_id, submission_id, label, {}, {}, revoke_reason \
+             FROM contribution_credits WHERE submission_id = $1 ORDER BY id",
+            ms("granted_at", "granted_ms"),
+            ms("revoked_at", "revoked_ms"),
+        )))
+        .bind(submission)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(Credit {
+                    id: r.try_get("id").map_err(db)?,
+                    section: r.try_get("section").map_err(db)?,
+                    ref_id: r.try_get("ref_id").map_err(db)?,
+                    user_id: r.try_get("user_id").map_err(db)?,
+                    submission_id: r.try_get("submission_id").map_err(db)?,
+                    label: r.try_get("label").map_err(db)?,
+                    granted_at_ms: r.try_get("granted_ms").map_err(db)?,
+                    revoked_at_ms: r.try_get("revoked_ms").map_err(db)?,
+                    revoke_reason: r.try_get("revoke_reason").map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn credit_total(&self, user: i64) -> ReviewResult<i64> {
+        sqlx::query_scalar(
+            "SELECT count(*) FROM contribution_credits WHERE user_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(user)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn add_upload_bytes(
+        &self,
+        user: i64,
+        day: i64,
+        bytes: i64,
+        limit: i64,
+    ) -> ReviewResult<Option<i64>> {
+        if bytes > limit {
+            return Ok(None);
+        }
+        // The first reservation of the day inserts; later ones only apply while the total
+        // stays within the limit (one statement, so two requests cannot both squeeze in).
+        sqlx::query_scalar(
+            "INSERT INTO submission_upload_bytes (user_id, day, bytes) \
+             VALUES ($1, DATE '1970-01-01' + $2::int, $3) \
+             ON CONFLICT (user_id, day) DO UPDATE SET bytes = submission_upload_bytes.bytes + $3 \
+               WHERE submission_upload_bytes.bytes + $3 <= $4 \
+             RETURNING bytes",
+        )
+        .bind(user)
+        .bind(i32::try_from(day).unwrap_or(i32::MAX))
+        .bind(bytes)
+        .bind(limit)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn upload_bytes(&self, user: i64, day: i64) -> ReviewResult<i64> {
+        let v: Option<i64> = sqlx::query_scalar(
+            "SELECT bytes FROM submission_upload_bytes \
+             WHERE user_id = $1 AND day = DATE '1970-01-01' + $2::int",
+        )
+        .bind(user)
+        .bind(i32::try_from(day).unwrap_or(i32::MAX))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(v.unwrap_or(0))
+    }
+
+    async fn idle_drafts(&self, idle_before_ms: i64, limit: u32) -> ReviewResult<Vec<Submission>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} FROM submissions s WHERE s.state = 'draft' \
+               AND greatest(s.updated_at, COALESCE((SELECT max(e.created_at) \
+                     FROM submission_events e \
+                     WHERE e.submission_id = s.id AND e.kind <> 'stale_warning'), s.created_at)) \
+                   < to_timestamp($1) \
+             ORDER BY s.updated_at, s.id LIMIT $2",
+            sub_cols()
+        )))
+        .bind(ts(idle_before_ms))
+        .bind(i64::from(limit))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(sub_from).collect()
+    }
+
+    async fn rejected_unpurged(
+        &self,
+        decided_before_ms: i64,
+        limit: u32,
+    ) -> ReviewResult<Vec<Submission>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} FROM submissions s WHERE s.state = 'rejected' \
+               AND s.decided_at < to_timestamp($1) \
+               AND NOT EXISTS (SELECT 1 FROM submission_events e \
+                               WHERE e.submission_id = s.id AND e.kind = 'purged') \
+             ORDER BY s.decided_at, s.id LIMIT $2",
+            sub_cols()
+        )))
+        .bind(ts(decided_before_ms))
+        .bind(i64::from(limit))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(sub_from).collect()
+    }
+
+    async fn last_event_ms(&self, submission: i64, kind: &str) -> ReviewResult<Option<i64>> {
+        sqlx::query_scalar(
+            "SELECT (extract(epoch FROM max(created_at)) * 1000)::bigint \
+             FROM submission_events WHERE submission_id = $1 AND kind = $2",
+        )
+        .bind(submission)
+        .bind(kind)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)
+    }
 }
 
 /// The same filters as [`SubmissionRepository::list`], for the count of an out-of-range page.

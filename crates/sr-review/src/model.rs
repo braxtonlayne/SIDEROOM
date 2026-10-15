@@ -369,3 +369,52 @@ pub struct RequestQuery {
     pub limit: u32,
     pub offset: u32,
 }
+
+/// A contribution credit (D-074): one per new published item, credited to the submitter.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct Credit {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    /// `library` or `cinema`.
+    pub section: String,
+    /// The published item (chapter, episode, movie).
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub ref_id: i64,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub user_id: Option<i64>,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub submission_id: Option<i64>,
+    pub label: String,
+    pub granted_at_ms: i64,
+    pub revoked_at_ms: Option<i64>,
+    pub revoke_reason: Option<String>,
+}
+
+/// A credit to insert.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewCredit {
+    pub id: i64,
+    pub ref_id: i64,
+    pub label: String,
+}
+
+/// What a member has left of today's upload allowance (`None` limits for staff).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct UploadAllowance {
+    pub limit_bytes: Option<i64>,
+    pub used_bytes: i64,
+    pub remaining_bytes: Option<i64>,
+}
+
+/// What one housekeeping pass did.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct SweepReport {
+    pub warned: u32,
+    pub abandoned: u32,
+    pub purged: u32,
+    pub failed: u32,
+}

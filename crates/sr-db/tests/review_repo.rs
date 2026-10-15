@@ -945,3 +945,181 @@ async fn requests_are_voted_and_fulfilled_by_a_published_submission() {
     );
     let _ = &w.pool;
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn credits_quota_and_sweep_queries() {
+    use sr_review::repo::{NewEvent, NewSubmission, SubmissionRepository};
+    let w = world().await;
+    let repo = PgReviewRepo::new(w.pool.clone());
+    let ev = |kind: &str| NewEvent {
+        id: uid(),
+        kind: kind.into(),
+        actor_id: None,
+        body: None,
+        internal: false,
+        data: json!({}),
+    };
+    let mk = |title: &str| NewSubmission {
+        id: uid(),
+        kind: "library.series".into(),
+        submitter_id: w.member,
+        title: title.into(),
+        summary: String::new(),
+        ref_id: None,
+        payload: json!({}),
+    };
+    let s = repo.create(&mk("Credits"), &ev("created")).await.unwrap();
+
+    // Credits: unique per (section, item), kept after a revoke.
+    let item = uid();
+    let credit = |ref_id| rm::NewCredit {
+        id: uid(),
+        ref_id,
+        label: "Chapter".into(),
+    };
+    let other_item = uid();
+    assert_eq!(
+        repo.grant_credits(
+            "library",
+            w.member,
+            s.id,
+            &[credit(item), credit(other_item)]
+        )
+        .await
+        .unwrap(),
+        2
+    );
+    assert_eq!(
+        repo.grant_credits("library", w.other, s.id, &[credit(item)])
+            .await
+            .unwrap(),
+        0,
+        "the same item cannot be credited twice"
+    );
+    assert_eq!(repo.credit_total(w.member).await.unwrap(), 2);
+    assert_eq!(
+        repo.revoke_credits(s.id, Some(&[item]), "spam", 1_000)
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(repo.credit_total(w.member).await.unwrap(), 1);
+    assert_eq!(
+        repo.grant_credits("library", w.member, s.id, &[credit(item)])
+            .await
+            .unwrap(),
+        0,
+        "a revoked credit is not earned again"
+    );
+    let credits = repo.credits_for(s.id).await.unwrap();
+    assert_eq!(credits.len(), 2);
+    assert!(
+        credits
+            .iter()
+            .any(|c| c.ref_id == item && c.revoke_reason.as_deref() == Some("spam"))
+    );
+    assert_eq!(
+        repo.revoke_credits(s.id, None, "all", 2_000).await.unwrap(),
+        1
+    );
+
+    // Upload allowance: atomic, per day.
+    let day = 20_000;
+    assert_eq!(
+        repo.add_upload_bytes(w.member, day, 40, 100).await.unwrap(),
+        Some(40)
+    );
+    assert_eq!(
+        repo.add_upload_bytes(w.member, day, 61, 100).await.unwrap(),
+        None
+    );
+    assert_eq!(
+        repo.add_upload_bytes(w.member, day, 60, 100).await.unwrap(),
+        Some(100)
+    );
+    assert_eq!(repo.upload_bytes(w.member, day).await.unwrap(), 100);
+    assert_eq!(
+        repo.add_upload_bytes(w.member, day + 1, 101, 100)
+            .await
+            .unwrap(),
+        None
+    );
+    assert_eq!(repo.upload_bytes(w.member, day + 1).await.unwrap(), 0);
+
+    // Sweeps: an old draft with only a stale warning is idle; an event revives it.
+    let old = repo.create(&mk("Old draft"), &ev("created")).await.unwrap();
+    sqlx::query("UPDATE submissions SET created_at = now() - interval '40 days', updated_at = now() - interval '40 days' WHERE id = $1")
+        .bind(old.id)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE submission_events SET created_at = now() - interval '40 days' WHERE submission_id = $1")
+        .bind(old.id)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    let cutoff = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+        - 30 * 86_400_000;
+    let idle = repo.idle_drafts(cutoff, 500).await.unwrap();
+    assert!(idle.iter().any(|x| x.id == old.id));
+    assert!(!idle.iter().any(|x| x.id == s.id));
+    repo.add_event(old.id, &ev("stale_warning")).await.unwrap();
+    assert!(
+        repo.idle_drafts(cutoff, 500)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.id == old.id),
+        "a warning is not activity"
+    );
+    assert!(
+        repo.last_event_ms(old.id, "stale_warning")
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        repo.last_event_ms(old.id, "purged")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    repo.add_event(old.id, &ev("comment")).await.unwrap();
+    assert!(
+        !repo
+            .idle_drafts(cutoff, 500)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.id == old.id),
+        "an event is activity"
+    );
+
+    let rej = repo.create(&mk("Rejected"), &ev("created")).await.unwrap();
+    sqlx::query("UPDATE submissions SET state = 'rejected', decided_at = now() - interval '20 days' WHERE id = $1")
+        .bind(rej.id)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    let before = cutoff + 16 * 86_400_000;
+    assert!(
+        repo.rejected_unpurged(before, 500)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.id == rej.id)
+    );
+    repo.add_event(rej.id, &ev("purged")).await.unwrap();
+    assert!(
+        !repo
+            .rejected_unpurged(before, 500)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.id == rej.id)
+    );
+}

@@ -348,12 +348,14 @@ pub fn router() -> Router<AppState> {
     Router::new()
         // Members.
         .route("/submissions/kinds", get(member::kinds))
+        .route("/submissions/quota", get(member::quota))
         .route("/submissions", get(member::list).post(member::create))
         .route(
             "/submissions/{submission_id}",
             get(member::get).patch(member::update),
         )
         .route("/submissions/{submission_id}/preview", get(member::preview))
+        .route("/submissions/{submission_id}/credits", get(member::credits))
         .route("/submissions/{submission_id}/submit", post(member::submit))
         .route(
             "/submissions/{submission_id}/withdraw",
@@ -450,6 +452,14 @@ pub fn router() -> Router<AppState> {
             post(reviewer::publish_now),
         )
         .route(
+            "/admin/review/submissions/{submission_id}/credits",
+            get(reviewer::credits),
+        )
+        .route(
+            "/admin/review/submissions/{submission_id}/revoke-credits",
+            post(reviewer::revoke_credits),
+        )
+        .route(
             "/admin/review/requests/{request_id}/decline",
             post(requests::decline),
         )
@@ -468,6 +478,8 @@ pub fn router() -> Router<AppState> {
         member::submit,
         member::withdraw,
         member::comment,
+        member::quota,
+        member::credits,
         library::update_series,
         library::chapters,
         library::create_chapter,
@@ -497,6 +509,8 @@ pub fn router() -> Router<AppState> {
         reviewer::approve,
         reviewer::publish,
         reviewer::publish_now,
+        reviewer::credits,
+        reviewer::revoke_credits,
     ),
     components(schemas(
         ErrorBody,
@@ -504,6 +518,10 @@ pub fn router() -> Router<AppState> {
         requests::CreateRequestBody,
         requests::FulfilBody,
         reviewer::ClaimBody,
+        reviewer::RevokeCreditsBody,
+        reviewer::RevokedCredits,
+        sr_review::model::Credit,
+        sr_review::model::UploadAllowance,
         sr_review::model::SubmissionState,
         sr_review::model::ItemState,
         sr_review::model::Submission,

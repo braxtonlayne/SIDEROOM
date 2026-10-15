@@ -273,6 +273,8 @@ impl Env {
 fn member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
     vec![
         (Method::GET, "/submissions/kinds", None),
+        (Method::GET, "/submissions/quota", None),
+        (Method::GET, "/submissions/7/credits", None),
         (Method::GET, "/submissions", None),
         (
             Method::POST,
@@ -315,6 +317,12 @@ fn reviewer_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         (Method::GET, "/admin/review/queue", None),
         (Method::GET, "/admin/review/submissions/7", None),
         (Method::GET, "/admin/review/submissions/7/preview", None),
+        (Method::GET, "/admin/review/submissions/7/credits", None),
+        (
+            Method::POST,
+            "/admin/review/submissions/7/revoke-credits",
+            Some(json!({ "reason": "x" })),
+        ),
         (Method::POST, "/admin/review/submissions/7/claim", None),
         (Method::POST, "/admin/review/submissions/7/release", None),
         (
@@ -588,6 +596,42 @@ async fn the_whole_review_runs_over_http() {
     assert_eq!(b["submission"]["state"], "published");
     assert_eq!(b["items"][0]["state"], "published");
 
+    // The new item earned the submitter a credit; the allowance endpoint answers.
+    let (st, c) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            &format!("/submissions/{id}/credits"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{c}");
+    assert_eq!(c.as_array().unwrap().len(), 1, "{c}");
+    let (st, q) = e
+        .call(Some(MEMBER), Method::GET, "/submissions/quota", None)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{q}");
+    assert_eq!(q["limit_bytes"], 50_000_000_000_i64);
+    // Another member sees nothing of it; a plain reviewer cannot revoke.
+    let (st, _) = e
+        .call(
+            Some(OTHER),
+            Method::GET,
+            &format!("/submissions/{id}/credits"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    let (st, _) = e
+        .call(
+            Some(REVIEWER),
+            Method::POST,
+            &format!("{base}/revoke-credits"),
+            Some(json!({ "reason": "spam" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+
     // The access log has the decision trail.
     let actions = e.actions();
     for want in [
@@ -786,6 +830,10 @@ fn openapi_lists_the_review_paths() {
         "/submissions/{submission_id}/library/chapters/{chapter_id}/uploads",
         "/requests/{request_id}/vote",
         "/admin/review/queue",
+        "/submissions/quota",
+        "/submissions/{submission_id}/credits",
+        "/admin/review/submissions/{submission_id}/credits",
+        "/admin/review/submissions/{submission_id}/revoke-credits",
         "/admin/review/submissions/{submission_id}/approve",
         "/admin/review/submissions/{submission_id}/items/{item_id}",
     ] {

@@ -188,3 +188,40 @@ pub async fn comment(
         .map(Json)
         .map_err(map_err)
 }
+
+/// What I have left of today's upload allowance (50 GB per UTC day for members; staff have no
+/// limit and get `null` limits).
+#[utoipa::path(
+    get, path = "/submissions/quota", operation_id = "submissions_quota",
+    responses((status = 200, body = UploadAllowance), (status = 401, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn quota(ctx: MemberCtx) -> ApiResult<Json<UploadAllowance>> {
+    ctx.svc()
+        .upload_allowance(ctx.caller)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// The contribution credits one of my submissions earned (one per new published item;
+/// replacements earn none). Revoked credits stay listed with their reason.
+#[utoipa::path(
+    get, path = "/submissions/{submission_id}/credits", operation_id = "submissions_credits",
+    params(("submission_id" = String, Path, description = "Submission snowflake")),
+    responses((status = 200, body = Vec<Credit>), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn credits(
+    ctx: MemberCtx,
+    Path(submission_id): Path<String>,
+) -> ApiResult<Json<Vec<Credit>>> {
+    let sid = id(&submission_id, "submission")?;
+    // Only the submitter reads these here; reviewers use the admin route.
+    ctx.svc().own(ctx.user(), sid).await.map_err(map_err)?;
+    ctx.svc()
+        .credits(ctx.caller, sid)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}

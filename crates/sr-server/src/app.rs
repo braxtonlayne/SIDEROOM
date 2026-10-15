@@ -899,7 +899,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(routes::donations::DonationsDeps::new(
             payments.service.clone(),
         )))
-        .extension(review_deps)
+        .extension(review_deps.clone())
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
             routes::cdn::CdnDeps::new(storage.clone(), cdn_signer).with_playlists(playback_deps),
@@ -987,6 +987,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
+    let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
     let runner = crate::media_jobs::register(
         runner,
@@ -1006,6 +1007,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::external_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
+    crate::review_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
     crate::payments_jobs::schedule(&pool).await?;

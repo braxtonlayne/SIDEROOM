@@ -29,6 +29,8 @@ struct FakeKind {
     items: Mutex<Vec<NewItem>>,
     fail_publish: AtomicBool,
     published: Mutex<Vec<i64>>,
+    replacements: Mutex<Vec<i64>>,
+    purged: Mutex<Vec<i64>>,
 }
 
 #[async_trait]
@@ -79,6 +81,22 @@ impl SubmissionKind for FakeKind {
             .extend(approved.iter().map(|i| i.ref_id));
         Ok(())
     }
+    async fn credit_refs(
+        &self,
+        _: &Submission,
+        published: &[SubmissionItem],
+    ) -> ReviewResult<Vec<i64>> {
+        let rep = self.replacements.lock().unwrap();
+        Ok(published
+            .iter()
+            .map(|i| i.ref_id)
+            .filter(|r| !rep.contains(r))
+            .collect())
+    }
+    async fn purge(&self, s: &Submission, _: &[SubmissionItem]) -> ReviewResult<()> {
+        self.purged.lock().unwrap().push(s.id);
+        Ok(())
+    }
 }
 
 #[derive(Default)]
@@ -93,6 +111,7 @@ impl ReviewEvents for Sink {
 
 struct World {
     svc: ReviewService,
+    repo: Arc<MemoryReviewRepo>,
     kind: Arc<FakeKind>,
     clock: Arc<TestClock>,
     sink: Arc<Sink>,
@@ -135,8 +154,10 @@ fn world() -> World {
     let clock = Arc::new(TestClock(AtomicI64::new(1_000)));
     let sink = Arc::new(Sink::default());
     let next = Arc::new(AtomicI64::new(100));
+    let repo = Arc::new(MemoryReviewRepo::new());
+    repo.set_now(1_000);
     let svc = ReviewService::new(
-        Arc::new(MemoryReviewRepo::new()),
+        repo.clone(),
         KindRegistry::new().with(kind.clone()),
         clock.clone(),
         Arc::new(move || next.fetch_add(1, Ordering::SeqCst)),
@@ -144,6 +165,7 @@ fn world() -> World {
     .with_events(sink.clone());
     World {
         svc,
+        repo,
         kind,
         clock,
         sink,
@@ -1216,4 +1238,215 @@ async fn items_can_be_registered_only_by_the_submitter_while_editable() {
         w.svc.unregister_item(MEMBER, id, 1).await,
         Err(ReviewError::Conflict(_))
     ));
+}
+
+const DAY: i64 = 86_400_000;
+
+impl World {
+    fn advance(&self, ms: i64) {
+        let t = self.clock.0.fetch_add(ms, Ordering::SeqCst) + ms;
+        self.repo.set_now(t);
+    }
+}
+
+#[tokio::test]
+async fn publishing_credits_new_items_once_and_replacements_not_at_all() {
+    let w = world();
+    w.kind.replacements.lock().unwrap().push(2);
+    let id = in_review(&w, reviewer(REVIEWER)).await;
+    w.svc
+        .approve(reviewer(REVIEWER), id, DecisionInput::default())
+        .await
+        .unwrap();
+    let credits = w.svc.credits(Caller::member(MEMBER), id).await.unwrap();
+    assert_eq!(credits.len(), 1, "chapter 2 replaces existing content");
+    assert_eq!(credits[0].ref_id, 1);
+    assert_eq!(credits[0].user_id, Some(MEMBER));
+    assert_eq!(w.svc.credit_total(MEMBER).await.unwrap(), 1);
+    // A second submission publishing the same item earns nothing more.
+    let id2 = in_review(&w, reviewer(REVIEWER)).await;
+    w.svc
+        .approve(reviewer(REVIEWER), id2, DecisionInput::default())
+        .await
+        .unwrap();
+    assert_eq!(w.svc.credit_total(MEMBER).await.unwrap(), 1);
+}
+
+#[tokio::test]
+async fn direct_publish_credits_the_publisher() {
+    let w = world();
+    let c = curator();
+    let id = w
+        .svc
+        .create(c, new_sub("Mine"))
+        .await
+        .unwrap()
+        .submission
+        .id;
+    w.svc.publish_now(c, id).await.unwrap();
+    assert_eq!(w.svc.credit_total(CURATOR).await.unwrap(), 2);
+}
+
+#[tokio::test]
+async fn revoking_credits_needs_the_publish_permission_and_a_reason() {
+    let w = world();
+    let id = in_review(&w, reviewer(REVIEWER)).await;
+    w.svc
+        .approve(reviewer(REVIEWER), id, DecisionInput::default())
+        .await
+        .unwrap();
+    assert!(matches!(
+        w.svc
+            .revoke_credits(reviewer(REVIEWER), id, None, "spam")
+            .await,
+        Err(ReviewError::MissingPermission(_))
+    ));
+    assert!(matches!(
+        w.svc.revoke_credits(curator(), id, None, "  ").await,
+        Err(ReviewError::Invalid(_))
+    ));
+    assert_eq!(
+        w.svc
+            .revoke_credits(curator(), id, Some(vec![1]), "stolen scans")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(w.svc.credit_total(MEMBER).await.unwrap(), 1);
+    assert_eq!(
+        w.svc
+            .revoke_credits(curator(), id, None, "spam")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(w.svc.credit_total(MEMBER).await.unwrap(), 0);
+    // Revoking again finds nothing; the revoked rows are kept.
+    assert_eq!(
+        w.svc
+            .revoke_credits(curator(), id, None, "spam")
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(w.svc.credits(curator(), id).await.unwrap().len(), 2);
+    assert!(matches!(
+        w.svc.credits(Caller::member(OTHER), id).await,
+        Err(ReviewError::MissingPermission(_))
+    ));
+}
+
+#[tokio::test]
+async fn upload_allowance_is_per_day_and_staff_are_exempt() {
+    let w = world();
+    let m = Caller::member(MEMBER);
+    w.svc.charge_upload(m, 30_000_000_000).await.unwrap();
+    assert!(matches!(
+        w.svc.charge_upload(m, 30_000_000_000).await,
+        Err(ReviewError::Conflict(_))
+    ));
+    let a = w.svc.upload_allowance(m).await.unwrap();
+    assert_eq!(a.used_bytes, 30_000_000_000);
+    assert_eq!(a.remaining_bytes, Some(20_000_000_000));
+    // A refused reservation counts for nothing.
+    w.svc.charge_upload(m, 20_000_000_000).await.unwrap();
+    // The next UTC day starts afresh; one file larger than the whole allowance never fits.
+    w.advance(DAY);
+    assert!(w.svc.charge_upload(m, 60_000_000_000).await.is_err());
+    w.svc.charge_upload(m, 1).await.unwrap();
+    // Staff are not limited.
+    w.svc
+        .charge_upload(reviewer(REVIEWER), u64::MAX)
+        .await
+        .unwrap();
+    assert_eq!(
+        w.svc
+            .upload_allowance(reviewer(REVIEWER))
+            .await
+            .unwrap()
+            .limit_bytes,
+        None
+    );
+}
+
+#[tokio::test]
+async fn idle_drafts_are_warned_then_abandoned_and_purged() {
+    let w = world();
+    let id = draft(&w).await;
+    let busy = draft(&w).await;
+    w.advance(22 * DAY);
+    assert_eq!(w.svc.housekeeping().await.unwrap(), SweepReport::default());
+    w.advance(DAY + 3_600_000); // just past day 23
+    // The second draft is edited on day 23, so it is not idle.
+    w.svc
+        .update(
+            MEMBER,
+            busy,
+            UpdateSubmission {
+                title: Some("Edited".into()),
+                summary: None,
+            },
+        )
+        .await
+        .unwrap();
+    let r = w.svc.housekeeping().await.unwrap();
+    assert_eq!((r.warned, r.abandoned), (1, 0));
+    let d = w.svc.get_mine(MEMBER, id).await.unwrap();
+    assert!(d.events.iter().any(|e| e.kind == "stale_warning"));
+    let heard: Vec<String> = w
+        .sink
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(_, p)| p["type"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(heard, ["stale_warning"]);
+    // Warned once only.
+    assert_eq!(w.svc.housekeeping().await.unwrap(), SweepReport::default());
+    // Day 30: warned 7 days ago and idle for 30 days, so it goes.
+    w.advance(7 * DAY);
+    let r = w.svc.housekeeping().await.unwrap();
+    assert_eq!(r.abandoned, 1);
+    let d = w.svc.get_mine(MEMBER, id).await.unwrap();
+    assert_eq!(d.submission.state, SubmissionState::Withdrawn);
+    assert_eq!(*w.kind.purged.lock().unwrap(), vec![id]);
+    assert_eq!(
+        w.svc.get_mine(MEMBER, busy).await.unwrap().submission.state,
+        SubmissionState::Draft
+    );
+    assert_eq!(w.svc.housekeeping().await.unwrap().abandoned, 0);
+}
+
+#[tokio::test]
+async fn a_draft_first_seen_after_30_days_is_warned_before_it_is_abandoned() {
+    let w = world();
+    let id = draft(&w).await;
+    w.advance(40 * DAY);
+    let r = w.svc.housekeeping().await.unwrap();
+    assert_eq!((r.warned, r.abandoned), (1, 0));
+    w.advance(2 * DAY);
+    assert_eq!(w.svc.housekeeping().await.unwrap().abandoned, 0);
+    w.advance(DAY);
+    assert_eq!(w.svc.housekeeping().await.unwrap().abandoned, 1);
+    assert_eq!(
+        w.svc.get_mine(MEMBER, id).await.unwrap().submission.state,
+        SubmissionState::Withdrawn
+    );
+}
+
+#[tokio::test]
+async fn rejected_submissions_are_purged_after_14_days_once() {
+    let w = world();
+    let id = in_review(&w, reviewer(REVIEWER)).await;
+    w.svc
+        .reject(reviewer(REVIEWER), id, reason("not allowed"))
+        .await
+        .unwrap();
+    w.advance(13 * DAY);
+    assert_eq!(w.svc.housekeeping().await.unwrap().purged, 0);
+    w.advance(2 * DAY);
+    assert_eq!(w.svc.housekeeping().await.unwrap().purged, 1);
+    assert_eq!(*w.kind.purged.lock().unwrap(), vec![id]);
+    assert_eq!(w.svc.housekeeping().await.unwrap().purged, 0);
 }

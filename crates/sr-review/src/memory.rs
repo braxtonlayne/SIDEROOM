@@ -18,6 +18,8 @@ struct Inner {
     events: Vec<(SubmissionEvent, i64)>,
     requests: BTreeMap<i64, ContentRequest>,
     votes: BTreeSet<(i64, i64)>,
+    credits: Vec<Credit>,
+    bytes: BTreeMap<(i64, i64), i64>,
     now_ms: i64,
 }
 
@@ -516,5 +518,159 @@ impl SubmissionRepository for MemoryReviewRepo {
             .filter(|(r, _)| *r == id)
             .map(|(_, u)| *u)
             .collect())
+    }
+
+    async fn grant_credits(
+        &self,
+        section: &str,
+        user: i64,
+        submission: i64,
+        credits: &[NewCredit],
+    ) -> ReviewResult<u64> {
+        let mut g = self.lock();
+        let now = g.now_ms;
+        let mut n = 0;
+        for c in credits {
+            if g.credits
+                .iter()
+                .any(|x| x.section == section && x.ref_id == c.ref_id)
+            {
+                continue;
+            }
+            g.credits.push(Credit {
+                id: c.id,
+                section: section.to_owned(),
+                ref_id: c.ref_id,
+                user_id: Some(user),
+                submission_id: Some(submission),
+                label: c.label.clone(),
+                granted_at_ms: now,
+                revoked_at_ms: None,
+                revoke_reason: None,
+            });
+            n += 1;
+        }
+        Ok(n)
+    }
+
+    async fn revoke_credits(
+        &self,
+        submission: i64,
+        refs: Option<&[i64]>,
+        reason: &str,
+        now_ms: i64,
+    ) -> ReviewResult<u64> {
+        let mut g = self.lock();
+        let mut n = 0;
+        for c in g.credits.iter_mut().filter(|c| {
+            c.submission_id == Some(submission)
+                && c.revoked_at_ms.is_none()
+                && refs.is_none_or(|r| r.contains(&c.ref_id))
+        }) {
+            c.revoked_at_ms = Some(now_ms);
+            c.revoke_reason = Some(reason.to_owned());
+            n += 1;
+        }
+        Ok(n)
+    }
+
+    async fn credits_for(&self, submission: i64) -> ReviewResult<Vec<Credit>> {
+        Ok(self
+            .lock()
+            .credits
+            .iter()
+            .filter(|c| c.submission_id == Some(submission))
+            .cloned()
+            .collect())
+    }
+
+    async fn credit_total(&self, user: i64) -> ReviewResult<i64> {
+        let n = self
+            .lock()
+            .credits
+            .iter()
+            .filter(|c| c.user_id == Some(user) && c.revoked_at_ms.is_none())
+            .count();
+        Ok(i64::try_from(n).unwrap_or(i64::MAX))
+    }
+
+    async fn add_upload_bytes(
+        &self,
+        user: i64,
+        day: i64,
+        bytes: i64,
+        limit: i64,
+    ) -> ReviewResult<Option<i64>> {
+        let mut g = self.lock();
+        let cur = g.bytes.entry((user, day)).or_insert(0);
+        if cur.saturating_add(bytes) > limit {
+            return Ok(None);
+        }
+        *cur += bytes;
+        Ok(Some(*cur))
+    }
+
+    async fn upload_bytes(&self, user: i64, day: i64) -> ReviewResult<i64> {
+        Ok(self.lock().bytes.get(&(user, day)).copied().unwrap_or(0))
+    }
+
+    async fn idle_drafts(&self, idle_before_ms: i64, limit: u32) -> ReviewResult<Vec<Submission>> {
+        let g = self.lock();
+        let mut out: Vec<(i64, Submission)> = g
+            .subs
+            .values()
+            .filter(|s| s.state == SubmissionState::Draft)
+            .filter_map(|s| {
+                let last = g
+                    .events
+                    .iter()
+                    .filter(|(e, sub)| *sub == s.id && e.kind != "stale_warning")
+                    .map(|(e, _)| e.created_at_ms)
+                    .max()
+                    .unwrap_or(0)
+                    .max(s.updated_at_ms);
+                (last < idle_before_ms).then(|| (last, s.clone()))
+            })
+            .collect();
+        out.sort_by_key(|(l, s)| (*l, s.id));
+        Ok(out
+            .into_iter()
+            .take(limit as usize)
+            .map(|(_, s)| s)
+            .collect())
+    }
+
+    async fn rejected_unpurged(
+        &self,
+        decided_before_ms: i64,
+        limit: u32,
+    ) -> ReviewResult<Vec<Submission>> {
+        let g = self.lock();
+        let mut out: Vec<Submission> = g
+            .subs
+            .values()
+            .filter(|s| {
+                s.state == SubmissionState::Rejected
+                    && s.decided_at_ms.is_some_and(|d| d < decided_before_ms)
+                    && !g
+                        .events
+                        .iter()
+                        .any(|(e, sub)| *sub == s.id && e.kind == "purged")
+            })
+            .cloned()
+            .collect();
+        out.sort_by_key(|s| (s.decided_at_ms, s.id));
+        out.truncate(limit as usize);
+        Ok(out)
+    }
+
+    async fn last_event_ms(&self, submission: i64, kind: &str) -> ReviewResult<Option<i64>> {
+        Ok(self
+            .lock()
+            .events
+            .iter()
+            .filter(|(e, sub)| *sub == submission && e.kind == kind)
+            .map(|(e, _)| e.created_at_ms)
+            .max())
     }
 }

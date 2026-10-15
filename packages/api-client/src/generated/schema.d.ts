@@ -2133,6 +2133,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/review/submissions/{submission_id}/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The credits of a submission, revoked ones included (reviewers of the kind). */
+        get: operations["admin_review_credits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/review/submissions/{submission_id}/items/{item_id}": {
         parameters: {
             query?: never;
@@ -2266,6 +2283,27 @@ export interface paths {
         put?: never;
         /** Send the submission back to the submitter; `reason` is required and visible to them. */
         post: operations["admin_review_request_changes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/review/submissions/{submission_id}/revoke-credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unpublishing for cause: withdraw the contribution credits of a submission (D-074). Needs
+         *     the kind's publish permission and a reason; the rows stay so the same item cannot earn a
+         *     second credit. Written to the staff access log.
+         */
+        post: operations["admin_review_revoke_credits"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7047,6 +7085,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/submissions/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What I have left of today's upload allowance (50 GB per UTC day for members; staff have no
+         *     limit and get `null` limits).
+         */
+        get: operations["submissions_quota"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/submissions/{submission_id}": {
         parameters: {
             query?: never;
@@ -7076,6 +7134,26 @@ export interface paths {
         put?: never;
         /** Add a note the reviewers can read. */
         post: operations["submissions_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The contribution credits one of my submissions earned (one per new published item;
+         *     replacements earn none). Revoked credits stay listed with their reason.
+         */
+        get: operations["submissions_credits"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -9910,6 +9988,22 @@ export interface components {
             secret: string;
             token: components["schemas"]["WorkerToken"];
         };
+        /** @description A contribution credit (D-074): one per new published item, credited to the submitter. */
+        Credit: {
+            /** Format: int64 */
+            granted_at_ms: number;
+            id: string;
+            label: string;
+            /** @description The published item (chapter, episode, movie). */
+            ref_id: string;
+            revoke_reason?: string | null;
+            /** Format: int64 */
+            revoked_at_ms?: number | null;
+            /** @description `library` or `cinema`. */
+            section: string;
+            submission_id?: string | null;
+            user_id?: string | null;
+        };
         CreditLedger: {
             /** Format: int64 */
             balance: number;
@@ -12206,6 +12300,18 @@ export interface components {
             asset_id: string;
             reason: string;
         };
+        /** @description Body of `POST /admin/review/submissions/{id}/revoke-credits`. */
+        RevokeCreditsBody: {
+            /** @description Only these published items (item snowflakes); omitted: every credit of the submission. */
+            items?: string[] | null;
+            /** @description Why the content is unpublished or the credit withdrawn (required). */
+            reason: string;
+        };
+        /** @description Result of a credit revocation. */
+        RevokedCredits: {
+            /** Format: int64 */
+            revoked: number;
+        };
         RoleObject: {
             /** Format: int32 */
             color: number;
@@ -13407,6 +13513,15 @@ export interface components {
             updated_at_ms: number;
             /** @description Ignored files and unreadable metadata. */
             warnings: string[];
+        };
+        /** @description What a member has left of today's upload allowance (`None` limits for staff). */
+        UploadAllowance: {
+            /** Format: int64 */
+            limit_bytes?: number | null;
+            /** Format: int64 */
+            remaining_bytes?: number | null;
+            /** Format: int64 */
+            used_bytes: number;
         };
         /**
          * @description What an uploaded file is expected to be (from the chapter's format).
@@ -21366,6 +21481,52 @@ export interface operations {
             };
         };
     };
+    admin_review_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Credit"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_review_decide_item: {
         parameters: {
             query?: never;
@@ -21821,6 +21982,64 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_review_revoke_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeCreditsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedCredits"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -37690,6 +37909,33 @@ export interface operations {
             };
         };
     };
+    submissions_quota: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadAllowance"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     submissions_get: {
         parameters: {
             query?: never;
@@ -37835,6 +38081,44 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Credit"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

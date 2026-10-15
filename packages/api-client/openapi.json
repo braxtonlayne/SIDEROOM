@@ -11285,6 +11285,76 @@
         ]
       }
     },
+    "/admin/review/submissions/{submission_id}/credits": {
+      "get": {
+        "tags": [
+          "reviewer"
+        ],
+        "summary": "The credits of a submission, revoked ones included (reviewers of the kind).",
+        "operationId": "admin_review_credits",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Credit"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/review/submissions/{submission_id}/items/{item_id}": {
       "put": {
         "tags": [
@@ -11952,6 +12022,93 @@
             }
           },
           "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/review/submissions/{submission_id}/revoke-credits": {
+      "post": {
+        "tags": [
+          "reviewer"
+        ],
+        "summary": "Unpublishing for cause: withdraw the contribution credits of a submission (D-074). Needs\nthe kind's publish permission and a reason; the rows stay so the same item cannot earn a\nsecond credit. Written to the staff access log.",
+        "operationId": "admin_review_revoke_credits",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeCreditsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedCredits"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -37169,6 +37326,42 @@
         ]
       }
     },
+    "/submissions/quota": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "What I have left of today's upload allowance (50 GB per UTC day for members; staff have no\nlimit and get `null` limits).",
+        "operationId": "submissions_quota",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadAllowance"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/submissions/{submission_id}": {
       "get": {
         "tags": [
@@ -37381,6 +37574,66 @@
             }
           },
           "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/credits": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The contribution credits one of my submissions earned (one per new published item;\nreplacements earn none). Revoked credits stay listed with their reason.",
+        "operationId": "submissions_credits",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Credit"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -48222,6 +48475,62 @@
           }
         }
       },
+      "Credit": {
+        "type": "object",
+        "description": "A contribution credit (D-074): one per new published item, credited to the submitter.",
+        "required": [
+          "id",
+          "section",
+          "ref_id",
+          "label",
+          "granted_at_ms"
+        ],
+        "properties": {
+          "granted_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "ref_id": {
+            "type": "string",
+            "description": "The published item (chapter, episode, movie)."
+          },
+          "revoke_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revoked_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "section": {
+            "type": "string",
+            "description": "`library` or `cinema`."
+          },
+          "submission_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CreditLedger": {
         "type": "object",
         "required": [
@@ -55754,6 +56063,43 @@
           }
         }
       },
+      "RevokeCreditsBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/review/submissions/{id}/revoke-credits`.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "items": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Only these published items (item snowflakes); omitted: every credit of the submission."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the content is unpublished or the credit withdrawn (required)."
+          }
+        }
+      },
+      "RevokedCredits": {
+        "type": "object",
+        "description": "Result of a credit revocation.",
+        "required": [
+          "revoked"
+        ],
+        "properties": {
+          "revoked": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "RoleObject": {
         "type": "object",
         "required": [
@@ -59817,6 +60163,33 @@
               "type": "string"
             },
             "description": "Ignored files and unreadable metadata."
+          }
+        }
+      },
+      "UploadAllowance": {
+        "type": "object",
+        "description": "What a member has left of today's upload allowance (`None` limits for staff).",
+        "required": [
+          "used_bytes"
+        ],
+        "properties": {
+          "limit_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "remaining_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "used_bytes": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },

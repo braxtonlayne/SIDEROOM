@@ -173,4 +173,49 @@ pub trait SubmissionRepository: Send + Sync {
         viewer: i64,
     ) -> ReviewResult<Option<ContentRequest>>;
     async fn request_voters(&self, id: i64) -> ReviewResult<Vec<i64>>;
+
+    // ---- credits, quota, sweeps ---------------------------------------
+    /// Insert one credit per item unless the item already has one (revoked or not); returns
+    /// the number inserted.
+    async fn grant_credits(
+        &self,
+        section: &str,
+        user: i64,
+        submission: i64,
+        credits: &[NewCredit],
+    ) -> ReviewResult<u64>;
+    /// Revoke the live credits of a submission (all, or only for `refs`); returns the number
+    /// revoked.
+    async fn revoke_credits(
+        &self,
+        submission: i64,
+        refs: Option<&[i64]>,
+        reason: &str,
+        now_ms: i64,
+    ) -> ReviewResult<u64>;
+    async fn credits_for(&self, submission: i64) -> ReviewResult<Vec<Credit>>;
+    /// Live credits of a member.
+    async fn credit_total(&self, user: i64) -> ReviewResult<i64>;
+    /// Reserve `bytes` of the member's upload allowance for UTC day number `day` (days since
+    /// the epoch) unless that would pass `limit`; returns the day's new total, `None` when over.
+    async fn add_upload_bytes(
+        &self,
+        user: i64,
+        day: i64,
+        bytes: i64,
+        limit: i64,
+    ) -> ReviewResult<Option<i64>>;
+    /// Bytes reserved so far on `day`.
+    async fn upload_bytes(&self, user: i64, day: i64) -> ReviewResult<i64>;
+    /// Drafts whose last activity (record change or timeline event other than a stale
+    /// warning) is before `idle_before_ms`, oldest first.
+    async fn idle_drafts(&self, idle_before_ms: i64, limit: u32) -> ReviewResult<Vec<Submission>>;
+    /// Rejected submissions decided before `decided_before_ms` that were not purged yet.
+    async fn rejected_unpurged(
+        &self,
+        decided_before_ms: i64,
+        limit: u32,
+    ) -> ReviewResult<Vec<Submission>>;
+    /// When the latest event of `kind` was recorded.
+    async fn last_event_ms(&self, submission: i64, kind: &str) -> ReviewResult<Option<i64>>;
 }

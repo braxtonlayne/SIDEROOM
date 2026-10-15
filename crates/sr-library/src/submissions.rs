@@ -13,7 +13,7 @@
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use sr_core::PlatformPermissions as P;
-use sr_review::model::{Submission, SubmissionItem};
+use sr_review::model::{ItemState, Submission, SubmissionItem};
 use sr_review::repo::NewItem;
 use sr_review::{KindDraft, ReviewError, ReviewResult, SubmissionKind};
 
@@ -547,6 +547,31 @@ impl SubmissionKind for LibraryKind {
         }
         for it in approved {
             self.svc.set_chapter_published(by, it.ref_id, true).await?;
+        }
+        Ok(())
+    }
+
+    /// Delete what a rejected or abandoned submission left: the draft series of a new
+    /// series, or the unpublished chapters of an existing one. Published content stays. The
+    /// storage collector (`library.gc`) then removes the unreferenced files.
+    async fn purge(&self, s: &Submission, items: &[SubmissionItem]) -> ReviewResult<()> {
+        let by = sponsor(s.submitter_id.unwrap_or(0));
+        if self.new_series {
+            let series = series_of(s)?;
+            match self.svc.admin_series(by, series).await {
+                Ok(d) if !d.series.published => {
+                    self.svc.delete_series(by, series).await?;
+                }
+                Ok(_) | Err(LibraryError::NotFound(_)) => {}
+                Err(e) => return Err(e.into()),
+            }
+            return Ok(());
+        }
+        for it in items.iter().filter(|i| i.state != ItemState::Published) {
+            match self.svc.delete_chapter(by, it.ref_id).await {
+                Ok(()) | Err(LibraryError::NotFound(_)) => {}
+                Err(e) => return Err(e.into()),
+            }
         }
         Ok(())
     }
