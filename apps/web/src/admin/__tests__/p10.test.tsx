@@ -566,6 +566,62 @@ describe('library catalog', () => {
   });
 });
 
+describe('G-26 library merge needs both bits', () => {
+  const row = {
+    id: '900',
+    kind: 'manga',
+    title: 'Blue Lantern',
+    alt_titles: [],
+    authors: [],
+    artists: [],
+    status: 'ongoing',
+    year: 2020,
+    synopsis: '',
+    genres: [],
+    tags: [],
+    reading_direction: 'rtl',
+    age_restricted: false,
+    cover_url: null,
+    published: false,
+    published_at_ms: null,
+    merged_into: null,
+    chapter_count: 0,
+    last_chapter_at_ms: null,
+    follower_count: 0,
+    created_at_ms: 1_700_000_000_000,
+    updated_at_ms: 1_700_000_000_000,
+  };
+  const serve = () =>
+    server.use(
+      http.get('*/api/v1/admin/library/series', () =>
+        HttpResponse.json({ items: [row], total: 1, limit: 50, offset: 0 }),
+      ),
+      http.get('*/api/v1/admin/library/series/900', () => HttpResponse.json(row)),
+      http.get('*/api/v1/admin/library/series/900/chapters', () =>
+        HttpResponse.json({ editions: [], volumes: [], chapters: [] }),
+      ),
+    );
+
+  it('hides Merge when the viewer lacks DELETE_CONTENT', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'PUBLISH_READING'] });
+    serve();
+    openAdmin('library-catalog');
+    await screen.findByRole('table', { name: 'Library series' });
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Blue Lantern' }));
+    await screen.findByRole('button', { name: 'Publish' });
+    expect(screen.queryByRole('button', { name: 'Merge into another series' })).toBeNull();
+  });
+
+  it('shows Merge with PUBLISH_READING and DELETE_CONTENT', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'PUBLISH_READING', 'DELETE_CONTENT'] });
+    serve();
+    openAdmin('library-catalog');
+    await screen.findByRole('table', { name: 'Library series' });
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Blue Lantern' }));
+    expect(await screen.findByRole('button', { name: 'Merge into another series' })).toBeInTheDocument();
+  });
+});
+
 describe('dashboard tiles and setup checklist', () => {
   const STATS = {
     accounts_active: 7,

@@ -14,7 +14,16 @@ import {
 import { useState, type FormEvent } from 'react';
 import { useT } from '../../i18n';
 import { DataTable, type Column } from '../DataTable';
-import { ApiProblem, Async, FormDialog, SectionHeader, fmtMs, usePaged, useResource } from '../ui';
+import {
+  ApiProblem,
+  Async,
+  FormDialog,
+  SectionHeader,
+  fmtMs,
+  useAdminViewer,
+  usePaged,
+  useResource,
+} from '../ui';
 import * as api from './api';
 
 const PAGE = 50;
@@ -255,6 +264,9 @@ function SeriesEditor({
   onGone: () => void;
 }) {
   const t = useT();
+  const viewer = useAdminViewer();
+  // Merging deletes the source series, so it needs both bits (D-172, G-26).
+  const canMerge = viewer.can('PUBLISH_READING') && viewer.can('DELETE_CONTENT');
   const [f, setF] = useState(toInput(series));
   const [lists, setLists] = useState({
     alt: f.alt_titles.join(', '),
@@ -411,9 +423,11 @@ function SeriesEditor({
             >
               {series.published ? t('admin.library.unpublish') : t('admin.library.publish')}
             </Button>
-            <Button variant="secondary" onClick={() => setPending('merge')}>
-              {t('admin.library.merge')}
-            </Button>
+            {canMerge && (
+              <Button variant="secondary" onClick={() => setPending('merge')}>
+                {t('admin.library.merge')}
+              </Button>
+            )}
             <Button variant="danger" onClick={() => setPending('delete')}>
               {t('admin.library.deleteSeries')}
             </Button>
