@@ -17,6 +17,8 @@ import { ApiError } from '../api/client';
 import { t as translate, useT } from '../i18n';
 import * as api from './api';
 import { hasAny, parsePerms } from './permissions';
+import { ReauthHost } from './ReauthHost';
+import { useStaffRevoked } from './useStaffRevoked';
 import { AccessLogSection } from './sections/AccessLog';
 import { AuditLogSection } from './sections/AuditLog';
 import { CatalogSection } from './cinema/CatalogSection';
@@ -38,6 +40,7 @@ import { InvitesSection } from './sections/Invites';
 import { LimitsSection } from './sections/Limits';
 import { StaffSection } from './sections/Staff';
 import { ReviewHubSection } from './sections/ReviewHub';
+import { PrivateContentSection } from './sections/PrivateContent';
 import { JobsSection, SystemSection } from './sections/System';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
 
@@ -207,6 +210,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     component: AuditLogSection,
   },
   {
+    id: 'private-content',
+    label: 'admin.adminApp.section.privateContent',
+    group: 'admin.adminApp.group.audit',
+    visible: (v) => v.can('READ_PRIVATE_CONTENT'),
+    component: PrivateContentSection,
+  },
+  {
     id: 'access-log',
     label: 'admin.adminApp.section.accessLog',
     group: 'admin.adminApp.group.audit',
@@ -261,6 +271,8 @@ export function AdminShell({ section }: { section: string | undefined }) {
     [viewer],
   );
   const close = () => void navigate({ to: '/channels/$guildId', params: { guildId: '@me' } });
+  // A revoked appointment ends the visit at once (ADM-STF-005).
+  useStaffRevoked(close);
 
   const navSections: SettingsSection[] = visible.map((s) => ({
     id: s.id,
@@ -312,16 +324,19 @@ export function AdminShell({ section }: { section: string | undefined }) {
   }
 
   return (
-    <SettingsLayout
-      title={t('admin.adminApp.title')}
-      sections={navSections}
-      activeId={active?.id ?? ''}
-      onSelect={(id) => void navigate({ to: '/admin/$section', params: { section: id } })}
-      onClose={close}
-      wide
-    >
-      {body}
-    </SettingsLayout>
+    <>
+      <SettingsLayout
+        title={t('admin.adminApp.title')}
+        sections={navSections}
+        activeId={active?.id ?? ''}
+        onSelect={(id) => void navigate({ to: '/admin/$section', params: { section: id } })}
+        onClose={close}
+        wide
+      >
+        {body}
+      </SettingsLayout>
+      <ReauthHost />
+    </>
   );
 }
 

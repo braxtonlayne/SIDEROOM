@@ -58,3 +58,7 @@ export const passkeyLoginFinish = async (req: {
   await refreshCsrf();
   return res;
 };
+
+/** Begin a passkey check for the signed-in session (admin re-auth); finish through the proof body. */
+export const passkeyVerifyBegin = () =>
+  apiPost<Begin<RequestOptionsJSON>>('/sr/auth/passkeys/verify/begin', {});
