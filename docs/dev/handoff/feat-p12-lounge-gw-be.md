@@ -31,7 +31,7 @@ Inventory: `LNG-PRF-013` ticked. Doc 05 updated (GUILD_CREATE extras, age gate, 
 
 ## Decisions and notes for review
 
-- Migration numbers: `0792` as named; `0796` for G-58 (no number was named; pick another if it collides).
+- Migration numbers: `0792` as named; `0797` for G-58 (first picked as 0796, renumbered because feat/p12-lounge-ch-be uses 0796; P12-LGB-4).
 - `activity.hide_age_restricted` defaults to true on the server (matches the web default and D-190). Cinema tests that expect adult activity set it to false.
 - `Member.extras` and `GuildMembership.extras` are `Box<...>` (keeps `InviteJoin` small for clippy).
 - The system user id is the constant `sr_chat::SYSTEM_USER_ID = 1` for the kick, ban and role guards (the SQL filters use the `FLAG_SYSTEM` account flag).
