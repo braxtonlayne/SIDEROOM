@@ -1,7 +1,9 @@
 // LNG-SSET-063: the "Enable Community" wizard. Safety checks, then the rules and updates channels, then the
 // finishing touches (default notifications, strip moderation powers from @everyone, agree to the guidelines).
-// Nothing is sent until Finish; then the guild, the @everyone role and the community settings are written in turn.
-import { Button, Checkbox, Modal, Notice } from '@sideroom/ui';
+// The two safety requirements (verification level, content filter) are switches the admin turns on themselves and
+// Next stays disabled until both are on (G-35, P10-SFE-1); Finish never sets them silently. Everything else is
+// sent at Finish: the guild, the @everyone role and the community settings are written in turn.
+import { Button, Checkbox, Modal, Notice, Switch } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { useT } from '../../../i18n';
 import { useChannels, useGuild } from '../../../store';
@@ -59,6 +61,24 @@ export function CommunityWizard({
 
   const verificationOk = (current?.verification_level ?? 0) >= MIN_VERIFICATION;
   const filterOk = (current?.explicit_content_filter ?? 0) >= FILTER_ALL;
+  // What each safety setting was when the wizard opened: a switch turned on here can be turned back off to that.
+  const [original, setOriginal] = useState<{ verification: number; filter: number } | null>(null);
+  useEffect(() => {
+    if (current && !original)
+      setOriginal({
+        verification: current.verification_level ?? 0,
+        filter: current.explicit_content_filter ?? 0,
+      });
+  }, [current, original]);
+  // A switch that was already on when the wizard opened stays on; only ones turned on here can be undone.
+  const verificationLocked = !!original && original.verification >= MIN_VERIFICATION;
+  const filterLocked = !!original && original.filter >= FILTER_ALL;
+
+  const setSafety = async (body: api.ModifyGuildBody) => {
+    if (!current) return;
+    const out = await action.run(() => api.modifyGuild(guildId, body));
+    if (out !== undefined && out !== null) setCurrent({ ...current, ...body } as api.GuildObject);
+  };
 
   const strip = (bits: bigint) =>
     EVERYONE_MODERATION.reduce((acc, name) => {
@@ -68,15 +88,15 @@ export function CommunityWizard({
   const everyoneBits = toBig(everyone?.permissions);
   const needsStrip = strip(everyoneBits) !== everyoneBits;
 
-  const canNext = step === 1 ? !!rules && !!updates : step === 0 ? !!current : true;
+  const canNext =
+    step === 1 ? !!rules && !!updates : step === 0 ? verificationOk && filterOk : true;
   const lastStep = step === 2;
 
   const finish = async () => {
     if (!current) return;
     const out = await action.run(async () => {
+      // Verification level and content filter are never set here; the admin turned them on in step 1.
       const guildBody: api.ModifyGuildBody = {};
-      if (!verificationOk) guildBody.verification_level = MIN_VERIFICATION;
-      if (!filterOk) guildBody.explicit_content_filter = FILTER_ALL;
       if (mentionsOnly && current.default_message_notifications !== 1)
         guildBody.default_message_notifications = 1;
       if (Object.keys(guildBody).length > 0) await api.modifyGuild(guildId, guildBody);
@@ -90,18 +110,6 @@ export function CommunityWizard({
     });
     if (out) onDone(out);
   };
-
-  const check = (ok: boolean, label: string, fix: string) => (
-    <li className="ss-row">
-      <span className="ss-grow">
-        <strong>{label}</strong>
-        {!ok && <span className="ss-sub"> {fix}</span>}
-      </span>
-      <span>
-        {ok ? t('settings.communityWizard.passed') : t('settings.communityWizard.willFix')}
-      </span>
-    </li>
-  );
 
   return (
     <Modal
@@ -139,18 +147,45 @@ export function CommunityWizard({
             <h3>{t('settings.communityWizard.safetyTitle')}</h3>
             <p className="ss-sub">{t('settings.communityWizard.safetyIntro')}</p>
             {current && (
-              <ul className="ss-list" aria-label={t('settings.communityWizard.safetyTitle')}>
-                {check(
-                  verificationOk,
-                  t('settings.communityWizard.checkVerification'),
-                  t('settings.communityWizard.fixVerification'),
+              <>
+                <Switch
+                  label={t('settings.communityWizard.checkVerification')}
+                  description={
+                    verificationLocked
+                      ? t('settings.communityWizard.alreadyOn')
+                      : t('settings.communityWizard.fixVerification')
+                  }
+                  checked={verificationOk}
+                  disabled={verificationLocked || action.busy}
+                  onChange={(e) =>
+                    void setSafety({
+                      verification_level: e.target.checked
+                        ? MIN_VERIFICATION
+                        : (original?.verification ?? 0),
+                    })
+                  }
+                />
+                <Switch
+                  label={t('settings.communityWizard.checkFilter')}
+                  description={
+                    filterLocked
+                      ? t('settings.communityWizard.alreadyOn')
+                      : t('settings.communityWizard.fixFilter')
+                  }
+                  checked={filterOk}
+                  disabled={filterLocked || action.busy}
+                  onChange={(e) =>
+                    void setSafety({
+                      explicit_content_filter: e.target.checked
+                        ? FILTER_ALL
+                        : (original?.filter ?? 0),
+                    })
+                  }
+                />
+                {!(verificationOk && filterOk) && (
+                  <Notice variant="info">{t('settings.communityWizard.safetyNeeded')}</Notice>
                 )}
-                {check(
-                  filterOk,
-                  t('settings.communityWizard.checkFilter'),
-                  t('settings.communityWizard.fixFilter'),
-                )}
-              </ul>
+              </>
             )}
           </>
         )}

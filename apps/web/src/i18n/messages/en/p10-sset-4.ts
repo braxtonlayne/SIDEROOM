@@ -6,14 +6,13 @@ export default {
   'settings.communityWizard.finish': 'Enable Community',
   'settings.communityWizard.safetyTitle': 'Safety checks',
   'settings.communityWizard.safetyIntro':
-    'A community server is open to more people, so it needs a few safety settings. Anything that is not met yet is set when you finish.',
+    'A community server is open to more people, so it needs a few safety settings. Turn both switches on to continue; nothing is changed for you.',
   'settings.communityWizard.checkVerification': 'Verified email required to join in',
-  'settings.communityWizard.fixVerification': 'The verification level will be raised to Low.',
+  'settings.communityWizard.fixVerification':
+    'Turning this on raises the verification level to Low.',
   'settings.communityWizard.checkFilter': 'Media from all members is scanned',
   'settings.communityWizard.fixFilter':
-    'The explicit media content filter will be set to all members.',
-  'settings.communityWizard.passed': 'Passed',
-  'settings.communityWizard.willFix': 'Will be set',
+    'Turning this on sets the explicit media content filter to all members.',
   'settings.communityWizard.basicsTitle': 'Set up the basics',
   'settings.communityWizard.chooseChannel': 'Choose a channel',
   'settings.communityWizard.finishingTitle': 'Finishing touches',
