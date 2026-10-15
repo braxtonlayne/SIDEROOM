@@ -198,6 +198,9 @@ export interface ContentRequest {
   voted: boolean;
   submission_id: string | null;
   created_at_ms: number;
+  claimed_by: string | null;
+  claim_note: string | null;
+  claimed_by_me: boolean;
 }
 
 export interface RequestPage {

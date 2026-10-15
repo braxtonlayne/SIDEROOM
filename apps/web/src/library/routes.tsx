@@ -9,6 +9,7 @@ const HistoryPage = lazyNamed(() => import('./Pages'), 'HistoryPage');
 const SoonPage = lazyNamed(() => import('./Pages'), 'SoonPage');
 const Reader = lazyNamed(() => import('./reader/Reader'), 'Reader');
 const SeriesPage = lazyNamed(() => import('./SeriesPage'), 'SeriesPage');
+const RequestsBoard = lazyNamed(() => import('../review/RequestsBoard'), 'RequestsBoard');
 const SubmissionsPage = lazyNamed(() => import('./Submissions'), 'SubmissionsPage');
 const SubmissionPage = lazyNamed(() => import('./Submissions'), 'SubmissionPage');
 
@@ -89,7 +90,7 @@ export function createLibraryRoutes(root: AnyRoute) {
     child('me', MyLibraryPage),
     child('history', HistoryPage),
     child('lists', () => <SoonPage page="lists" />),
-    child('requests', () => <SoonPage page="requests" />),
+    child('requests', () => <RequestsBoard />),
     submissions,
     submission,
     child('upload', () => <SoonPage page="upload" />),

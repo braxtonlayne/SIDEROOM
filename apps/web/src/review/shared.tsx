@@ -110,6 +110,11 @@ const EVENT_LABEL: Record<string, MessageKey> = {
   publish_failed: 'review.shared.eventPublishFailed',
   withdrawn: 'review.shared.stateWithdrawn',
   item_decision: 'review.shared.eventItemDecision',
+  stale_warning: 'review.shared.eventStaleWarning',
+  abandoned: 'review.shared.eventAbandoned',
+  purged: 'review.shared.eventPurged',
+  credits_revoked: 'review.shared.eventCreditsRevoked',
+  credit_failed: 'review.shared.eventCreditFailed',
 };
 
 export function eventLabel(e: SubmissionEvent): string {

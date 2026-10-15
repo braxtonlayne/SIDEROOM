@@ -101,6 +101,11 @@ export const voteRequest = (id: string, vote: boolean) =>
     ? put<ContentRequest>(`/requests/${enc(id)}/vote`, {})
     : apiFetch<ContentRequest>(`/requests/${enc(id)}/vote`, { method: 'DELETE', retries: 0 });
 
+export const claimRequest = (id: string, note: string) =>
+  put<ContentRequest>(`/requests/${enc(id)}/claim`, { note });
+export const releaseRequest = (id: string) =>
+  apiFetch<ContentRequest>(`/requests/${enc(id)}/claim`, { method: 'DELETE', retries: 0 });
+
 // ---- reviewer ----
 
 const R = '/admin/review';
