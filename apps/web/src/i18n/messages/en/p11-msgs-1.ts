@@ -9,4 +9,5 @@ export default {
   'lounge.gifPicker.favorite': 'Add {title} to favorites',
   'lounge.gifPicker.unfavorite': 'Remove {title} from favorites',
   'lounge.gifPicker.more': 'Load more',
+  'lounge.desktopNotify.mention': '{name} mentioned you',
 } satisfies Record<string, string>;
