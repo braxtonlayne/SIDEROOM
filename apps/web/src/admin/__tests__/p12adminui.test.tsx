@@ -259,6 +259,51 @@ describe('announcement composer (ADM-PLT-009)', () => {
     ).toBeInTheDocument();
   });
 
+  it('sends critical with the DM forced on and locked (G-83, D-192)', async () => {
+    asStaff({ perms: ['MANAGE_FEATURES'] });
+    let sent: Record<string, unknown> | undefined;
+    server.use(
+      http.get('*/api/v1/admin/announcements', () => HttpResponse.json([])),
+      http.post('*/api/v1/admin/announcements', async ({ request }) => {
+        sent = (await readJson(request)) as Record<string, unknown>;
+        return HttpResponse.json(ann({ severity: 'critical', send_dm: true }));
+      }),
+    );
+    openAdmin('announcements');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'New announcement' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New announcement' });
+    await user.type(within(dialog).getByLabelText('Title'), 'Outage');
+    await user.type(within(dialog).getByLabelText('Message'), 'We are on it.');
+    await user.click(within(dialog).getByRole('combobox', { name: 'Severity' }));
+    await user.click(await screen.findByRole('option', { name: 'Critical' }));
+    const box = within(dialog).getByRole('checkbox', { name: /direct message/ });
+    expect(box).toBeChecked();
+    expect(box).toBeDisabled();
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      'sends this text as a direct message to every active account on the platform',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Publish and message everyone' }));
+    await waitFor(() =>
+      expect(sent).toMatchObject({ severity: 'critical', critical: true, send_dm: true }),
+    );
+  });
+
+  it('tells staff that an ordinary DM skips people who turned it off', async () => {
+    asStaff({ perms: ['MANAGE_FEATURES'] });
+    server.use(http.get('*/api/v1/admin/announcements', () => HttpResponse.json([])));
+    openAdmin('announcements');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'New announcement' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New announcement' });
+    const box = within(dialog).getByRole('checkbox', { name: /direct message/ });
+    expect(box).not.toBeDisabled();
+    await user.click(box);
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      'has not turned off platform announcements by direct message',
+    );
+  });
+
   it('rejects an end time in the past', async () => {
     asStaff({ perms: ['MANAGE_FEATURES'] });
     server.use(http.get('*/api/v1/admin/announcements', () => HttpResponse.json([])));

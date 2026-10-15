@@ -73,6 +73,10 @@ export function AnnouncementsSection() {
     draft.body.length <= BODY_MAX &&
     endsValid;
 
+  // A critical notice is always sent as a DM (D-192): the toggle is forced on and locked.
+  const critical = draft.severity === 'critical';
+  const dm = critical || draft.sendDm;
+
   const open = (d: Draft) => {
     setDraft(d);
     setComposing(true);
@@ -175,11 +179,9 @@ export function AnnouncementsSection() {
         open={composing}
         title={t('admin.announcements.composeTitle')}
         confirmLabel={
-          draft.sendDm
-            ? t('admin.announcements.publishAndMessage')
-            : t('admin.announcements.publish')
+          dm ? t('admin.announcements.publishAndMessage') : t('admin.announcements.publish')
         }
-        danger={draft.sendDm}
+        danger={dm}
         reasonOptional
         valid={valid}
         onCancel={() => setComposing(false)}
@@ -188,13 +190,14 @@ export function AnnouncementsSection() {
             title: draft.title.trim(),
             body: draft.body.trim(),
             severity: draft.severity,
-            send_dm: draft.sendDm,
+            critical,
+            send_dm: dm,
             ends_at_ms: endsMs,
             reason,
           });
           setComposing(false);
           setNotice(
-            draft.sendDm
+            dm
               ? t('admin.announcements.publishedWithDm')
               : t('admin.announcements.published'),
           );
@@ -237,12 +240,15 @@ export function AnnouncementsSection() {
         <Checkbox
           label={t('admin.announcements.sendDm')}
           description={t('admin.announcements.sendDmHint')}
-          checked={draft.sendDm}
+          checked={dm}
+          disabled={critical}
           onChange={(e) => setDraft({ ...draft, sendDm: e.target.checked })}
         />
-        {draft.sendDm && (
+        {dm && (
           <Notice variant="warning" role="alert" title={t('admin.announcements.dmWarningTitle')}>
-            {t('admin.announcements.dmWarning')}
+            {critical
+              ? t('admin.announcements.dmWarning')
+              : t('admin.announcements.dmWarningOptOut')}
           </Notice>
         )}
       </ReasonDialog>

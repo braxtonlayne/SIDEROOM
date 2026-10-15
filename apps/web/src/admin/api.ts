@@ -404,6 +404,8 @@ export const createAnnouncement = (body: {
   title: string;
   body: string;
   severity: AnnouncementSeverity;
+  /** Outage or security notice (D-192): cannot be dismissed and is always sent as a DM. */
+  critical?: boolean;
   send_dm: boolean;
   ends_at_ms?: number | null;
   reason: string;
