@@ -355,7 +355,6 @@ function GuildHeader({ guild }: { guild: Guild }) {
   const openDialog = useLoungeUi((s) => s.openDialog);
   const [coming, setComing] = useState<string | null>(null);
   const soon = (title: string) => () => setComing(title);
-  const openDialog = useLoungeUi((s) => s.openDialog);
   const p = guild.permissions;
   const items: MenuEntry[] = [
     {

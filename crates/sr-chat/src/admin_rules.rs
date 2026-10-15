@@ -803,14 +803,14 @@ mod tests {
             pronouns: Some(Some("  she/her ".into())),
             theme_colors: Some(Some([0x00AA_BBCC, 0x0011_2233])),
             profile_effect: Some(Some("aurora".into())),
-            avatar_decoration: Some(Some("halo-1".into())),
+            avatar_decoration: Some(None),
             ..Default::default()
         })
         .unwrap();
         assert_eq!(out.extras.pronouns.as_deref(), Some("she/her"));
         assert_eq!(out.extras.theme_colors, Some([0x00AA_BBCC, 0x0011_2233]));
         assert_eq!(out.extras.profile_effect.as_deref(), Some("aurora"));
-        assert_eq!(out.extras.avatar_decoration.as_deref(), Some("halo-1"));
+        assert_eq!(out.extras.avatar_decoration, None);
         for bad in [
             MemberPatch {
                 pronouns: Some(Some("x".repeat(MEMBER_PRONOUNS_MAX + 1))),
@@ -822,6 +822,15 @@ mod tests {
             },
             MemberPatch {
                 profile_effect: Some(Some("Not A Slug".into())),
+                ..Default::default()
+            },
+            // Well formed but not in the profile catalogue (G-48): decorations are empty for now.
+            MemberPatch {
+                profile_effect: Some(Some("neon-halo".into())),
+                ..Default::default()
+            },
+            MemberPatch {
+                avatar_decoration: Some(Some("halo-1".into())),
                 ..Default::default()
             },
         ] {

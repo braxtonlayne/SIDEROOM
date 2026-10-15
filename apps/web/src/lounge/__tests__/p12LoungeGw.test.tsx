@@ -28,7 +28,11 @@ describe('server tag on members and authors (G-34)', () => {
   });
 
   it('draws the tag with its badge glyph in the tag colour', () => {
-    render(<ServerTagChip user={toLoungeUser({ ...author, primary_guild: { tag: 'sr1', badge: 1, color: 0x00aa33 } })} />);
+    render(
+      <ServerTagChip
+        user={toLoungeUser({ ...author, primary_guild: { tag: 'sr1', badge: 1, color: 0x00aa33 } })}
+      />,
+    );
     const glyph = screen.getByText('♥');
     expect(glyph).toHaveStyle({ color: '#00aa33' });
     expect(glyph.parentElement?.textContent).toContain('SR1');

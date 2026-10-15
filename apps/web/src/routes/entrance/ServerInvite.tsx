@@ -108,7 +108,9 @@ export function ServerInvite() {
             <div className="ent-invite-icon" aria-hidden="true">
               {iconUrl ? <img src={iconUrl} alt="" width={72} height={72} /> : initial(shownName)}
             </div>
-            <p>{isGroup ? t('entrance.invite.groupInvited') : t('entrance.serverInvite.invited')}</p>
+            <p>
+              {isGroup ? t('entrance.invite.groupInvited') : t('entrance.serverInvite.invited')}
+            </p>
             <h1>{shownName}</h1>
             {counts(state.invite)}
             {state.signedIn ? (
