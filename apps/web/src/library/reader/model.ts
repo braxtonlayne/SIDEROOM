@@ -85,3 +85,36 @@ export function parsePageParam(raw: string | undefined, count: number): number |
   if (!Number.isFinite(n) || n < 1) return null;
   return clamp(n - 1, 0, Math.max(0, count - 1));
 }
+
+/** Borders the reader may cut off a page (pixels of the full-size image), from the ingest crop data. */
+export interface CropBox {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * How to show a page without its borders: the cropped aspect ratio, the image size relative to the box
+ * (percent) and the shift that puts the kept region in view (percent of the image). `null` when there is
+ * nothing to cut or the box is unusable.
+ */
+export function cropView(
+  page: Pick<PageEntry, 'width' | 'height'>,
+  crop: CropBox | null | undefined,
+): { ratio: string; widthPct: number; shiftX: number; shiftY: number } | null {
+  if (!crop) return null;
+  const { width: w, height: h } = page;
+  const { left, top, right, bottom } = crop;
+  const kw = w - left - right;
+  const kh = h - top - bottom;
+  const sane = [left, top, right, bottom].every((n) => Number.isFinite(n) && n >= 0);
+  if (!sane || kw < w * 0.4 || kh < h * 0.4 || (left === 0 && top === 0 && right === 0 && bottom === 0))
+    return null;
+  return {
+    ratio: `${kw} / ${kh}`,
+    widthPct: (w / kw) * 100,
+    shiftX: (left / w) * 100,
+    shiftY: (top / h) * 100,
+  };
+}

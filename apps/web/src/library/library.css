@@ -1509,3 +1509,8 @@
 .lib-page[data-virtual] {
   inline-size: 100%;
 }
+.lib-page[data-cropped] {
+  position: relative;
+  overflow: hidden;
+  direction: ltr;
+}

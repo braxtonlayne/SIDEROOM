@@ -112,9 +112,14 @@ export function SettingsPanel({ open, onClose, seriesId, prefs }: SettingsPanelP
         <Switch
           label={t('library.panels.settings.crop')}
           description={t('library.panels.settings.cropHint')}
-          checked={false}
-          disabled
-          onChange={() => undefined}
+          checked={prefs.cropBorders}
+          onChange={(e) => change({ cropBorders: e.target.checked })}
+        />
+        <Switch
+          label={t('library.panels.settings.offline')}
+          description={t('library.panels.settings.offlineHint')}
+          checked={prefs.offline}
+          onChange={(e) => change({ offline: e.target.checked })}
         />
         <Switch
           label={t('library.panels.settings.everywhere')}

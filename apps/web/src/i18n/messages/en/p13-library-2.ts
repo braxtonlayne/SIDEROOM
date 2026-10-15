@@ -78,6 +78,9 @@ export default {
   'library.browse.removeTag': 'Remove tag {tag}',
   'library.browse.ratingMin': 'Rating',
   'library.browse.ratingAtLeast': '{n} or higher',
+  // Reader: offline cache
+  'library.panels.settings.offline': 'Keep chapters for offline reading',
+  'library.panels.settings.offlineHint': 'Saves the chapter you are reading and the next one in this browser. Uses storage and data; turn it off on a metered connection.',
   // Home: recommendations
   'library.home.because.title': 'Because you read {title}',
 };

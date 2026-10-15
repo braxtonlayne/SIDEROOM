@@ -32,6 +32,7 @@ import {
   tapStep,
 } from './model';
 import { ChapterRate } from '../SeriesSocial';
+import { cacheChapter, readCachedManifest } from './offlineCache';
 import { PageImage } from './PageImage';
 import { PdfReader } from '../pdf/PdfReader';
 import { BookmarksPanel, SettingsPanel } from './Panels';
@@ -66,7 +67,18 @@ function ReaderLoader({ chapterId, page }: ReaderProps) {
   const manifest = useQuery({
     queryKey: ['library', 'pages', chapterId],
     // 403 900011 -> ask "Are you 18 or older?" -> on yes the manifest is fetched once more (D-184).
-    queryFn: () => withAgeGate(() => getPages(chapterId), ensureAdult),
+    // Offline (a network failure, not an API answer), a copy kept by the offline cache stands in (LIB-RDR-015).
+    queryFn: () =>
+      withAgeGate(
+        () =>
+          getPages(chapterId).catch(async (e: unknown) => {
+            if (e instanceof ApiError) throw e;
+            const cached = await readCachedManifest(chapterId);
+            if (cached) return cached;
+            throw e;
+          }),
+        ensureAdult,
+      ),
     retry: false,
     retryOnMount: false,
     // Signed URLs expire: refetch a few minutes before they stop working.
@@ -303,6 +315,33 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
       flush(); // leaving the reader saves at once
     };
   }, [flush]);
+
+  /* ---------------------------------------------------- offline cache */
+  // Keep this chapter and the next in Cache Storage (LIB-RDR-015), a little after opening so it never
+  // competes with the pages being read. Off when the member turned it off in the reader settings.
+  const offline = prefs.offline;
+  const nextForCache = manifest.next_chapter_id;
+  useEffect(() => {
+    if (!offline) return;
+    const abort = new AbortController();
+    const timer = window.setTimeout(() => {
+      void cacheChapter(manifest, abort.signal)
+        .then(async () => {
+          if (!nextForCache || abort.signal.aborted) return;
+          const next = await qc.fetchQuery({
+            queryKey: ['library', 'pages', nextForCache],
+            queryFn: () => getPages(nextForCache),
+            staleTime: 5 * 60_000,
+          });
+          await cacheChapter(next, abort.signal);
+        })
+        .catch(() => undefined); // a restricted next chapter or a full cache: nothing to do
+    }, 2500);
+    return () => {
+      window.clearTimeout(timer);
+      abort.abort();
+    };
+  }, [offline, manifest, nextForCache, qc]);
 
   /* ------------------------------------------------- presence + comments */
   // "Reading" presence (LIB-RDR-017): a heartbeat while the reader is open and visible; the server decides who
@@ -585,6 +624,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
                   <PageImage
                     page={p}
                     cssWidth={Math.min(stageWidth, p.width)}
+                    crop={prefs.cropBorders}
                     active={Math.abs(i - index) <= 4}
                     alt={t('library.reader.pageAlt', { n: i + 1 })}
                   />
@@ -630,6 +670,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
                 key={pages[i]!.index}
                 page={pages[i]!}
                 cssWidth={stageWidth / current.length}
+                crop={prefs.cropBorders}
                 alt={t('library.reader.pageAlt', { n: i + 1 })}
               />
             ))}

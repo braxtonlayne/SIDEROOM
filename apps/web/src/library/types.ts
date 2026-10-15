@@ -108,6 +108,8 @@ export interface PageEntry {
   url: string;
   variants: PageVariant[];
   blurhash?: string | null;
+  /** Borders the reader may cut off (pixels of the full-size page; LIB-ING-007). */
+  crop?: { left: number; top: number; right: number; bottom: number } | null;
 }
 
 export interface PageManifest {
