@@ -7,6 +7,7 @@
 //!   [`lists`] and [`discover`].
 //! * [`rules`]: validation and pure logic (unit tested without a database).
 
+pub mod comments;
 pub mod discover;
 pub mod error;
 pub mod ids;

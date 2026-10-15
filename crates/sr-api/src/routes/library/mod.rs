@@ -24,6 +24,7 @@
 //! Publishers additionally need [`AdminDeps`](crate::routes::admin::AdminDeps).
 
 mod admin;
+mod comments;
 mod member;
 mod reading;
 mod social;
@@ -47,7 +48,7 @@ use axum::{
     Router,
     extract::FromRequestParts,
     http::request::Parts,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use sr_core::{ApiError, ErrorCode, UserId};
 use sr_library::{Actor, LibraryError, LibraryService, Viewer};
@@ -320,6 +321,30 @@ pub fn router() -> Router<AppState> {
             "/library/reviews/{review_id}/helpful",
             put(social::helpful).delete(social::unhelpful),
         )
+        .route(
+            "/library/series/{series_id}/comments",
+            get(comments::series_comments).post(comments::post_series_comment),
+        )
+        .route(
+            "/library/chapters/{chapter_id}/comments",
+            get(comments::chapter_comments).post(comments::post_chapter_comment),
+        )
+        .route(
+            "/library/comments/{comment_id}",
+            patch(comments::edit).delete(comments::delete),
+        )
+        .route(
+            "/library/comments/{comment_id}/replies",
+            get(comments::replies),
+        )
+        .route(
+            "/library/comments/{comment_id}/like",
+            put(comments::like).delete(comments::unlike),
+        )
+        .route(
+            "/library/comments/{comment_id}/report",
+            post(comments::report),
+        )
         .route("/library/me/lists", get(social::my_lists))
         .route("/library/lists", post(social::create_list))
         .route("/library/lists/featured", get(social::featured_lists))
@@ -410,6 +435,11 @@ pub fn router() -> Router<AppState> {
             "/admin/library/chapters/{chapter_id}/uploads",
             get(uploads::list).post(uploads::begin),
         )
+        .route("/admin/library/comment-reports", get(comments::reports))
+        .route(
+            "/admin/library/comment-reports/{report_id}/resolve",
+            post(comments::resolve),
+        )
         .route("/admin/library/uploads/{upload_id}", get(uploads::status))
         .route(
             "/admin/library/uploads/{upload_id}/complete",
@@ -488,6 +518,18 @@ pub fn router() -> Router<AppState> {
         uploads::complete,
         uploads::status,
         uploads::list,
+        comments::series_comments,
+        comments::post_series_comment,
+        comments::chapter_comments,
+        comments::post_chapter_comment,
+        comments::replies,
+        comments::edit,
+        comments::delete,
+        comments::like,
+        comments::unlike,
+        comments::report,
+        comments::reports,
+        comments::resolve,
     ),
     components(schemas(
         ErrorBody,
@@ -541,6 +583,14 @@ pub fn router() -> Router<AppState> {
         sr_library::reading::BookmarkEntry,
         sr_library::reading::BookmarkPage,
         social::CountBody,
+        comments::ReportBody,
+        comments::ReportList,
+        comments::ResolveBody,
+        sr_library_social::model::Comment,
+        sr_library_social::model::CommentPage,
+        sr_library_social::model::CommentInput,
+        sr_library_social::model::CommentPatch,
+        sr_library_social::model::CommentReport,
         social::ListCard,
         social::ListsBody,
         social::ListItemView,
@@ -564,6 +614,7 @@ pub fn router() -> Router<AppState> {
         sr_library_social::model::ListItemInput,
         sr_library_social::model::ListOrderInput,
         sr_library_social::model::RankingPeriod,
+        sr_library_social::model::RankingScope,
         sr_library_social::model::UnreadCount,
         sr_library_social::model::UnreadCounts,
     ))

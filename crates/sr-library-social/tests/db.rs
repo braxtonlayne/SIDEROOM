@@ -886,3 +886,144 @@ async fn scoped_rankings_respect_the_activity_settings() {
     assert_eq!(global.scope, RankingScope::Global);
     e.teardown().await;
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn comments_replies_likes_reports_and_blocks() {
+    let e = Env::new().await;
+    let (a, b, c) = (e.user().await, e.user().await, e.user().await);
+    let s = e.series("Talk", false).await;
+    let ch = e.chapter(s, 1.0).await;
+    let input = |body: &str, parent: Option<i64>| CommentInput {
+        body: body.into(),
+        spoiler: Some(false),
+        parent_id: parent,
+    };
+    // A series comment and a chapter comment are separate threads.
+    let top = e
+        .svc
+        .post_comment(a, s, 0, input("First!", None))
+        .await
+        .unwrap();
+    let on_ch = e
+        .svc
+        .post_comment(b, 0, ch, input("Great chapter", None))
+        .await
+        .unwrap();
+    assert_eq!((top.chapter_id, on_ch.chapter_id), (0, ch));
+    assert_eq!(on_ch.series_id, s);
+    assert_eq!(
+        e.svc
+            .comments(a, s, 0, None, None)
+            .await
+            .unwrap()
+            .items
+            .len(),
+        1
+    );
+    let ch_page = e.svc.comments(a, 0, ch, None, None).await.unwrap();
+    assert_eq!((ch_page.items.len(), ch_page.total), (1, 1));
+    // Replies are one level deep and stay on the same target.
+    let reply = e
+        .svc
+        .post_comment(b, s, 0, input("Agreed", Some(top.id)))
+        .await
+        .unwrap();
+    assert!(
+        e.svc
+            .post_comment(a, s, 0, input("deeper", Some(reply.id)))
+            .await
+            .is_err()
+    );
+    assert!(
+        e.svc
+            .post_comment(a, 0, ch, input("wrong thread", Some(top.id)))
+            .await
+            .is_err()
+    );
+    assert!(
+        e.svc
+            .post_comment(a, s, 0, input("  ", None))
+            .await
+            .is_err()
+    );
+    let replies = e.svc.comment_replies(a, top.id, None, None).await.unwrap();
+    assert_eq!(replies.items.len(), 1);
+    assert_eq!(
+        e.svc.comments(a, s, 0, None, None).await.unwrap().items[0].reply_count,
+        1
+    );
+    // Likes count once per member and can be taken back.
+    assert_eq!(e.svc.set_comment_like(b, top.id, true).await.unwrap(), 1);
+    assert_eq!(e.svc.set_comment_like(b, top.id, true).await.unwrap(), 1);
+    assert_eq!(e.svc.set_comment_like(c, top.id, true).await.unwrap(), 2);
+    assert!(e.svc.comments(b, s, 0, None, None).await.unwrap().items[0].liked);
+    assert_eq!(e.svc.set_comment_like(c, top.id, false).await.unwrap(), 1);
+    // Only the author edits or deletes.
+    assert!(
+        e.svc
+            .edit_comment(
+                b,
+                top.id,
+                CommentPatch {
+                    body: Some("x".into()),
+                    spoiler: None
+                }
+            )
+            .await
+            .is_err()
+    );
+    let edited = e
+        .svc
+        .edit_comment(
+            a,
+            top.id,
+            CommentPatch {
+                body: Some("Edited".into()),
+                spoiler: Some(true),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(edited.spoiler && edited.edited_at_ms.is_some() && edited.body == "Edited");
+    assert!(e.svc.delete_comment(b, top.id).await.is_err());
+    // A blocked author drops out of the viewer's list.
+    e.block(c.user_id, b.user_id).await;
+    assert!(
+        e.svc
+            .comments(c, 0, ch, None, None)
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    // Reports: not one's own, one per reporter; hiding removes the comment from listings.
+    assert!(e.svc.report_comment(a, top.id, "rude").await.is_err());
+    e.svc.report_comment(b, top.id, "spam").await.unwrap();
+    e.svc.report_comment(b, top.id, "spam").await.unwrap();
+    let open = e.svc.comment_reports(None).await.unwrap();
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0].comment.as_ref().unwrap().id, top.id);
+    e.svc
+        .resolve_comment_report(a.user_id, open[0].id, true)
+        .await
+        .unwrap();
+    assert!(e.svc.comment_reports(None).await.unwrap().is_empty());
+    assert!(
+        e.svc
+            .comments(b, s, 0, None, None)
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    // Deleting a comment removes it; an unpublished chapter has no thread.
+    e.svc.delete_comment(b, on_ch.id).await.unwrap();
+    sqlx::query("UPDATE reading_chapters SET published = FALSE WHERE id = $1")
+        .bind(ch)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    assert!(e.svc.comments(a, 0, ch, None, None).await.is_err());
+    e.teardown().await;
+}

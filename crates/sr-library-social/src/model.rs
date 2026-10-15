@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::ids::id;
+use crate::ids::{id, opt_id};
 
 /// The caller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -249,4 +249,82 @@ pub struct UnreadCount {
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 pub struct UnreadCounts {
     pub items: Vec<UnreadCount>,
+}
+
+// ---- comments (LIB-SOC-003, LIB-RDR-014) -------------------------------------
+
+/// A comment on a series or one of its chapters. Replies are one level deep.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryComment)]
+pub struct Comment {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub series_id: i64,
+    /// `"0"` for a comment on the series itself.
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub chapter_id: i64,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub parent_id: Option<i64>,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub author_id: i64,
+    pub author_name: String,
+    pub body: String,
+    pub spoiler: bool,
+    pub like_count: i32,
+    pub reply_count: i64,
+    /// The caller liked it.
+    pub liked: bool,
+    pub mine: bool,
+    pub created_at_ms: i64,
+    pub edited_at_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryCommentPage)]
+pub struct CommentPage {
+    pub items: Vec<Comment>,
+    pub next_before: Option<String>,
+    /// Visible top-level comments and replies on this target (series or chapter).
+    pub total: i64,
+}
+
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = LibraryCommentInput)]
+pub struct CommentInput {
+    pub body: String,
+    pub spoiler: Option<bool>,
+    /// A top-level comment of the same target to reply to.
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub parent_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = LibraryCommentPatch)]
+pub struct CommentPatch {
+    pub body: Option<String>,
+    pub spoiler: Option<bool>,
+}
+
+/// A report waiting for a curator.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryCommentReport)]
+pub struct CommentReport {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub reporter_id: i64,
+    pub reason: String,
+    pub status: String,
+    pub created_at_ms: i64,
+    /// The reported comment, when it still exists.
+    pub comment: Option<Comment>,
 }

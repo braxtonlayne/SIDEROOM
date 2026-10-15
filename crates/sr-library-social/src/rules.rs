@@ -7,6 +7,7 @@ pub const DEFAULT_LIMIT: u32 = 24;
 pub const MAX_LISTS: i64 = 100;
 pub const MAX_LIST_ITEMS: i64 = 1000;
 pub const MAX_REVIEW: usize = 8000;
+pub const MAX_COMMENT: usize = 2000;
 pub const MAX_NAME: usize = 100;
 pub const MAX_DESCRIPTION: usize = 500;
 pub const MAX_NOTE: usize = 500;

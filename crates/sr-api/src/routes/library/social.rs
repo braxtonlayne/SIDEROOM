@@ -21,7 +21,7 @@ use sr_library_social::{LibrarySocial, SocialError};
 use std::collections::HashMap;
 use utoipa::{IntoParams, ToSchema};
 
-fn social_err(e: SocialError) -> HttpError {
+pub(super) fn social_err(e: SocialError) -> HttpError {
     match e {
         SocialError::NotFound(w) => {
             ApiError::with_message(ErrorCode::SrNotFound, format!("Unknown {w}")).into()
@@ -37,14 +37,14 @@ fn social_err(e: SocialError) -> HttpError {
 }
 
 impl MemberCtx {
-    fn social(&self) -> ApiResult<&LibrarySocial> {
+    pub(super) fn social(&self) -> ApiResult<&LibrarySocial> {
         self.deps.social.as_ref().ok_or_else(|| {
             tracing::error!("library social service is not configured");
             ErrorCode::SrInternal.into()
         })
     }
 
-    fn sviewer(&self) -> Viewer {
+    pub(super) fn sviewer(&self) -> Viewer {
         Viewer {
             user_id: self.viewer.user_id,
             adult: self.viewer.adult,
