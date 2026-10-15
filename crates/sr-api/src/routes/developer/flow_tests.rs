@@ -738,15 +738,15 @@ struct Fx {
 }
 
 async fn fx() -> Fx {
+    fx_with(Permissions::SEND_MESSAGES.bits() | Permissions::VIEW_CHANNEL.bits()).await
+}
+
+/// A fixture whose bot was installed with exactly `bot_perms`.
+async fn fx_with(bot_perms: u64) -> Fx {
     let e = env().await;
     let (app, bot, token, _) = e.new_app().await;
     e.configure(&app).await;
-    e.install(
-        &app,
-        &bot,
-        Permissions::SEND_MESSAGES.bits() | Permissions::VIEW_CHANNEL.bits(),
-    )
-    .await;
+    e.install(&app, &bot, bot_perms).await;
     let (s, v) = e
         .post(
             Who::Bot(&token),
@@ -1612,4 +1612,94 @@ async fn gateway_bot_recommends_one_shard_per_thousand_servers() {
     assert_eq!(s, StatusCode::OK, "{v}");
     assert_eq!(v["shards"], 1);
     assert_eq!(v["session_start_limit"]["max_concurrency"], 1);
+}
+
+// ---------------------------------------------------------- SEND_MESSAGES (G-03, D-206)
+
+#[tokio::test]
+async fn channel_visible_responses_need_send_messages_but_ephemeral_ones_do_not() {
+    // a bot that can see the channel but is denied Send Messages in it
+    let f = fx().await;
+    f.e.backend
+        .data()
+        .overwrites
+        .entry(f.e.ch)
+        .or_default()
+        .push(sr_core::permissions::Overwrite {
+            id: f.bot.parse::<u64>().unwrap().into(),
+            kind: sr_core::permissions::OverwriteKind::Member,
+            allow: Permissions::empty(),
+            deny: Permissions::SEND_MESSAGES,
+        });
+    let mut bob = f.e.user_events(BOB);
+
+    // a channel-visible response is refused with 50013 naming the channel
+    let (id, token) = start(&f, BOB).await;
+    let (s, v) = f
+        .callback(&id, &token, json!({"type": 4, "data": {"content": "hi"}}))
+        .await;
+    assert_eq!((s, code_of(&v)), (StatusCode::FORBIDDEN, 50013), "{v}");
+    let msg = v["message"].as_str().unwrap();
+    assert!(msg.contains("Send Messages") && msg.contains('#'), "{msg}");
+    next_named(&mut bob, "INTERACTION_FAILURE").await;
+    let (_, msgs) =
+        f.e.get(
+            Who::Bot(&f.token),
+            &format!("/channels/{}/messages", f.e.ch),
+        )
+        .await;
+    assert_eq!(msgs.as_array().unwrap().len(), 0);
+
+    // an ephemeral response skips the check
+    let (id, token) = start(&f, BOB).await;
+    let (s, v) = f
+        .callback(
+            &id,
+            &token,
+            json!({"type": 4, "data": {"content": "psst", "flags": 64}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{v}");
+    let m = next_named(&mut bob, "MESSAGE_CREATE").await;
+    assert_eq!(m["content"], "psst");
+
+    // a deferred response is fine; the check applies when the visible follow-up resolves it
+    let (id, token) = start(&f, BOB).await;
+    assert_eq!(
+        f.callback(&id, &token, json!({"type": 5})).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (s, v) =
+        f.e.post(
+            Who::Anon,
+            &format!("/webhooks/{}/{token}", f.app),
+            json!({"content": "done"}),
+        )
+        .await;
+    assert_eq!((s, code_of(&v)), (StatusCode::FORBIDDEN, 50013), "{v}");
+    let (s, _) =
+        f.e.post(
+            Who::Anon,
+            &format!("/webhooks/{}/{token}", f.app),
+            json!({"content": "done", "flags": 64}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn channel_visible_responses_work_when_the_bot_may_send() {
+    let f = fx().await;
+    let (id, token) = start(&f, BOB).await;
+    let (s, v) = f
+        .callback(&id, &token, json!({"type": 4, "data": {"content": "hi"}}))
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{v}");
+    let (_, msgs) =
+        f.e.get(
+            Who::Bot(&f.token),
+            &format!("/channels/{}/messages", f.e.ch),
+        )
+        .await;
+    assert_eq!(msgs.as_array().unwrap().len(), 1);
 }

@@ -19,6 +19,7 @@ use sr_core::{Clock, Permissions, SnowflakeGenerator, SystemClock, UserId};
 use sr_db::PgPool;
 use sr_db::apps_repo::PgAppsRepo;
 use sr_db::chat_repo::PgChatRepo;
+use sr_db::sealed::SecretBox;
 use sr_db::testing::TestDb;
 
 type Ids = SnowflakeGenerator<Arc<dyn Clock>>;
@@ -52,6 +53,7 @@ async fn account(pool: &PgPool, ids: &Ids, name: &str) -> i64 {
 struct Fx {
     db: TestDb,
     svc: AppsService,
+    repo: Arc<PgAppsRepo>,
     ids: Arc<Ids>,
     owner: i64,
     other: i64,
@@ -64,8 +66,9 @@ async fn fx() -> Fx {
     let ids = Arc::new(ids(3));
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
     let gen_ids = ids.clone();
+    let repo = Arc::new(PgAppsRepo::new(pool.clone(), SecretBox::new([7; 32])));
     let svc = AppsService::new(
-        Arc::new(PgAppsRepo::new(pool.clone())),
+        repo.clone(),
         clock.clone(),
         Arc::new(move || gen_ids.generate().get() as i64),
     );
@@ -81,6 +84,7 @@ async fn fx() -> Fx {
         guild: bp.guild.id.get() as i64,
         db,
         svc,
+        repo,
         ids,
         owner,
         other,
@@ -1048,4 +1052,198 @@ async fn the_command_index_covers_installed_live_applications_only() {
         .await
         .ok();
     assert_eq!(f.svc.command_index(f.guild).await.unwrap().len(), 1);
+}
+
+// ---------------------------------------------------------------- G-04: sealed signing seed
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_signing_seed_is_sealed_at_rest_and_legacy_rows_are_converted_once() {
+    let f = fx().await;
+    let c = f.app().await;
+    let id = c.application.id;
+    let key = f
+        .svc
+        .ensure_signing_key(f.owner, id)
+        .await
+        .unwrap()
+        .verify_key
+        .unwrap();
+    let seed = f.svc.signing_seed(id).await.unwrap();
+
+    // the sealed column holds neither the seed nor anything shaped like it; the legacy
+    // plaintext column stays empty for new keys
+    let (sealed, legacy): (Option<Vec<u8>>, Option<Vec<u8>>) = sqlx::query_as(
+        "SELECT interactions_signing_seed_sealed, interactions_signing_seed \
+         FROM applications WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(f.db.pool())
+    .await
+    .unwrap();
+    let sealed = sealed.expect("sealed");
+    assert!(legacy.is_none());
+    assert!(sealed.len() > 32 + 12);
+    assert!(!sealed.windows(32).any(|w| w == seed.as_bytes().as_slice()));
+
+    // a legacy plaintext row (written before 0771) is sealed by the backfill and cleared
+    let c2 = f
+        .svc
+        .create_application(f.owner, "Legacy Bot", "")
+        .await
+        .unwrap();
+    let old = sr_apps::signing::SigningSeed::generate().unwrap();
+    sqlx::query("UPDATE applications SET interactions_signing_seed = $2 WHERE id = $1")
+        .bind(c2.application.id)
+        .bind(old.as_bytes().to_vec())
+        .execute(f.db.pool())
+        .await
+        .unwrap();
+    assert_eq!(f.repo.legacy_seed_count().await.unwrap(), 1);
+    assert_eq!(f.repo.seal_legacy_seeds().await.unwrap(), 1);
+    assert_eq!(f.repo.legacy_seed_count().await.unwrap(), 0);
+    assert_eq!(f.repo.seal_legacy_seeds().await.unwrap(), 0);
+    let again = f.svc.signing_seed(c2.application.id).await.unwrap();
+    assert_eq!(again.verify_key_hex(), old.verify_key_hex());
+
+    // rotation: a repository with a new key and the old one as previous still opens the
+    // seeds, and after re-encryption the old key is no longer needed
+    let rotated = Arc::new(PgAppsRepo::new(
+        f.db.pool().clone(),
+        SecretBox::new([9; 32]).with_previous_keys(vec![[7; 32]]),
+    ));
+    let gen_ids = f.ids.clone();
+    let svc = AppsService::new(
+        rotated.clone(),
+        Arc::new(SystemClock) as Arc<dyn Clock>,
+        Arc::new(move || gen_ids.generate().get() as i64),
+    );
+    assert_eq!(
+        svc.endpoint_info(id).await.unwrap().verify_key,
+        Some(key.clone())
+    );
+    assert_eq!(rotated.rotate_sealed_seeds().await.unwrap(), 2);
+    let new_only = PgAppsRepo::new(f.db.pool().clone(), SecretBox::new([9; 32]));
+    let svc = AppsService::new(
+        Arc::new(new_only),
+        Arc::new(SystemClock) as Arc<dyn Clock>,
+        Arc::new(move || 1),
+    );
+    assert_eq!(svc.endpoint_info(id).await.unwrap().verify_key, Some(key));
+
+    // a seed that no longer opens (unknown secret) reads as "no key" and can be replaced
+    let stranger = PgAppsRepo::new(f.db.pool().clone(), SecretBox::new([1; 32]));
+    let svc = AppsService::new(
+        Arc::new(stranger),
+        Arc::new(SystemClock) as Arc<dyn Clock>,
+        Arc::new(move || 2),
+    );
+    assert_eq!(svc.endpoint_info(id).await.unwrap().verify_key, None);
+}
+
+// ---------------------------------------------------------------- G-05: endpoint health
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn endpoint_failures_are_counted_in_the_database_and_disable_after_25() {
+    let f = fx().await;
+    let c = f.app().await;
+    let id = c.application.id;
+    f.svc
+        .set_endpoint(f.owner, id, Some("https://bot.example.com/i".into()))
+        .await
+        .unwrap();
+    for _ in 0..24 {
+        assert!(!f.svc.record_delivery(id, false).await.unwrap());
+    }
+    let (n, state): (i32, String) =
+        sqlx::query_as("SELECT endpoint_failures, endpoint_state FROM applications WHERE id = $1")
+            .bind(id)
+            .fetch_one(f.db.pool())
+            .await
+            .unwrap();
+    assert_eq!((n, state.as_str()), (24, "enabled"));
+    // a success resets the counter
+    assert!(!f.svc.record_delivery(id, true).await.unwrap());
+    let n: i32 = sqlx::query_scalar("SELECT endpoint_failures FROM applications WHERE id = $1")
+        .bind(id)
+        .fetch_one(f.db.pool())
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+    for _ in 0..24 {
+        f.svc.record_delivery(id, false).await.unwrap();
+    }
+    assert!(f.svc.record_delivery(id, false).await.unwrap());
+    assert!(f.svc.endpoint_target(id).await.unwrap().is_none());
+    assert!(!f.svc.record_delivery(id, false).await.unwrap());
+    // saving a verified URL, or re-enabling, brings it back
+    f.svc.reenable_endpoint(f.owner, id).await.unwrap();
+    assert!(f.svc.endpoint_target(id).await.unwrap().is_some());
+}
+
+// ---------------------------------------------------------------- G-01: testers
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn testers_are_capped_and_an_accepted_tester_installs_a_development_app() {
+    use sr_apps::service::TesterTarget;
+    let f = fx().await;
+    let c = f.app().await;
+    let id = c.application.id;
+    // by username (citext), then a duplicate
+    let (t, _) = f
+        .svc
+        .invite_tester(f.owner, id, TesterTarget::Username("DevOther".into()))
+        .await
+        .unwrap();
+    assert!(matches!(
+        f.svc
+            .invite_tester(f.owner, id, TesterTarget::Id(f.other))
+            .await,
+        Err(AppsError::Conflict(_))
+    ));
+    // the other account owns a guild they can install into
+    let chat = PgChatRepo::new(f.db.pool().clone());
+    let chat_svc = ChatService::new(
+        chat,
+        Arc::new(SystemClock),
+        self::ids(5),
+        ChatLimits::default(),
+    );
+    let g = chat_svc
+        .create_guild(UserId::new(f.other as u64), "Tester Server")
+        .await
+        .unwrap();
+    let guild = g.guild.id.get() as i64;
+    let req = f.install(&c, f.other, guild, Permissions::MANAGE_GUILD, 0);
+    assert_eq!(
+        f.svc.install(req.clone()).await.err(),
+        Some(AppsError::NotReleased)
+    );
+    f.svc.respond_tester(f.other, t.id, true).await.unwrap();
+    assert!(f.svc.install(req).await.is_ok());
+
+    // the cap counts invited and accepted rows
+    for n in 0..24 {
+        let a = account(f.db.pool(), &f.ids, &format!("tester{n}")).await;
+        f.svc
+            .invite_tester(f.owner, id, TesterTarget::Id(a))
+            .await
+            .unwrap();
+    }
+    let extra = account(f.db.pool(), &f.ids, "extra").await;
+    assert!(matches!(
+        f.svc
+            .invite_tester(f.owner, id, TesterTarget::Id(extra))
+            .await,
+        Err(AppsError::Conflict(_))
+    ));
+    // removal frees a slot; declining deletes the row; deleting the application cascades
+    f.svc.remove_tester(f.owner, id, f.other).await.unwrap();
+    f.svc
+        .invite_tester(f.owner, id, TesterTarget::Id(extra))
+        .await
+        .unwrap();
+    assert_eq!(f.svc.list_testers(f.owner, id).await.unwrap().len(), 25);
 }

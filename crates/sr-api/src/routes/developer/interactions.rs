@@ -673,6 +673,21 @@ async fn ephemeral_object(
     }))
 }
 
+/// 50013 naming the channel the bot cannot post in and the way out.
+async fn missing_send_permission(deps: &DevDeps, channel: ChannelId) -> MsgError {
+    let name = match deps.chat().get_channel(channel).await {
+        Ok(Some(c)) => c.name.map(|n| format!("#{n}")),
+        _ => None,
+    }
+    .unwrap_or_else(|| format!("channel {}", channel.get()));
+    MsgError::Api(ApiError::with_message(
+        ErrorCode::MissingPermissions,
+        format!(
+            "The bot needs the Send Messages permission in {name} to post this response. Grant it, or respond with the ephemeral flag."
+        ),
+    ))
+}
+
 /// Post `d` as a real message from the bot; returns its id.
 async fn post_real(
     deps: &DevDeps,
@@ -682,7 +697,7 @@ async fn post_real(
     d: &MessageData,
 ) -> MsgResult<(sr_chat::Message, bool)> {
     let channel = ChannelId::new(row.channel_id as u64);
-    let msg = messages
+    let sent = messages
         .send(
             uid(bot),
             channel,
@@ -699,7 +714,16 @@ async fn post_real(
                 ..SendMessage::default()
             },
         )
-        .await?;
+        .await;
+    let msg = match sent {
+        Ok(m) => m,
+        // D-206: a channel-visible response is a normal message sent as the bot, so the bot needs
+        // SEND_MESSAGES there (ephemeral responses never reach this function).
+        Err(sr_chat::ChatError::MissingPermissions) => {
+            return Err(missing_send_permission(deps, channel).await);
+        }
+        Err(e) => return Err(e.into()),
+    };
     let payload = event_payload(messages, &msg).await?;
     messages
         .publish(DomainEvent::MessageSent {

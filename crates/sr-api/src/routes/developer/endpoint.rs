@@ -7,7 +7,7 @@
 //! a request with a bad signature with 401; the answer to a real interaction is the same
 //! JSON body the callback route takes (`{type, data}`).
 
-use super::{CallbackBody, DevDeps, interactions::apply_callback};
+use super::{CallbackBody, DevDeps, SystemCard, interactions::apply_callback};
 use crate::routes::messages::MessagesDeps;
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -115,6 +115,36 @@ impl DevDeps {
         Ok(())
     }
 
+    /// Count one delivery outcome; the 25th consecutive failure inside ten minutes disables
+    /// the endpoint (dispatch then uses the gateway) and the owner gets a system DM (D-186).
+    async fn report_delivery(&self, app: i64, ok: bool) {
+        match self.apps.record_delivery(app, ok).await {
+            Ok(true) => {
+                let Ok(a) = self.apps.application(app).await else {
+                    return;
+                };
+                self.dm_user(
+                    a.owner_id,
+                    SystemCard {
+                        content: format!(
+                            "The interactions endpoint of {} was switched off.",
+                            a.name
+                        ),
+                        title: "Interactions endpoint disabled".to_owned(),
+                        description: format!(
+                            "{} failed to answer 25 interactions in a row within ten minutes, so SIDE ROOM switched the endpoint off and sends interactions through the gateway again. Fix your server, then open the developer portal and choose Verify and re-enable.",
+                            a.name
+                        ),
+                        buttons: Vec::new(),
+                    },
+                )
+                .await;
+            }
+            Ok(false) => {}
+            Err(e) => tracing::warn!(app, error = ?e, "could not record an endpoint delivery"),
+        }
+    }
+
     /// Hand an interaction to the application's endpoint and apply its reply as the
     /// callback. Failures are logged without the URL or payload; the 3 second window then
     /// reports the failure to the invoker.
@@ -145,6 +175,7 @@ impl DevDeps {
                 Ok(r) => r,
                 Err(e) => {
                     tracing::warn!(app = row.application_id, reason = %e, "interactions endpoint delivery failed");
+                    deps.report_delivery(row.application_id, false).await;
                     return;
                 }
             };
@@ -154,6 +185,7 @@ impl DevDeps {
                     status = reply.status,
                     "interactions endpoint refused an interaction"
                 );
+                deps.report_delivery(row.application_id, false).await;
                 return;
             }
             let Ok(cb) = serde_json::from_slice::<CallbackBody>(&reply.body) else {
@@ -161,8 +193,10 @@ impl DevDeps {
                     app = row.application_id,
                     "interactions endpoint sent an unreadable reply"
                 );
+                deps.report_delivery(row.application_id, false).await;
                 return;
             };
+            deps.report_delivery(row.application_id, true).await;
             if let Err(e) = apply_callback(&deps, &messages, row.clone(), cb).await {
                 tracing::warn!(app = row.application_id, error = ?e, "interactions endpoint reply was not applied");
             }

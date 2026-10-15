@@ -31,6 +31,7 @@ pub mod registration;
 pub mod review_repo;
 pub mod rich_repo;
 pub mod runner;
+pub mod sealed;
 pub mod settings_repo;
 pub mod social_repo;
 pub mod testing;

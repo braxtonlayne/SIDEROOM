@@ -3,10 +3,10 @@
 use super::{
     AppVersionAdmin, AppVersionObject, ApplicationObject, ApplyBody, AuditEntryObject,
     CreateApplicationBody, CreatedApplication, DecideRequestBody, DecideVersionBody, DevDeps,
-    DeveloperRequestAdmin, DeveloperRequestObject, DeveloperStatus, InstallObject,
-    InteractionsKeyObject, PasswordBody, PatchApplicationBody, PatchBotBody, ResetSecretResult,
-    ResetTokenResult, SubmitVersionBody, SuspendBody, app_err, dto::VersionApplication, invalid,
-    parse_id,
+    DeveloperRequestAdmin, DeveloperRequestObject, DeveloperStatus, EndpointStatusObject,
+    InstallObject, InteractionsKeyObject, PasswordBody, PatchApplicationBody, PatchBotBody,
+    ResetSecretResult, ResetTokenResult, SubmitVersionBody, SuspendBody, app_err,
+    dto::VersionApplication, invalid, parse_id,
 };
 use crate::{
     auth::SessionOnly,
@@ -213,6 +213,10 @@ async fn render(
             let info = deps.apps.endpoint_info(a.id).await.map_err(app_err)?;
             o.interactions_endpoint_url = info.url;
             o.verify_key = info.verify_key;
+            o.interactions_endpoint_state = o
+                .interactions_endpoint_url
+                .is_some()
+                .then(|| info.state.as_str().to_owned());
         }
         out.push(o);
     }
@@ -240,6 +244,57 @@ pub async fn ensure_interactions_key(
         .map_err(app_err)?;
     Ok(Json(InteractionsKeyObject {
         verify_key: info.verify_key.unwrap_or_default(),
+    }))
+}
+
+/// Run the PING check against the saved endpoint URL and, when it passes, switch a disabled
+/// endpoint back on (D-186). The failure counter restarts.
+#[utoipa::path(
+    post, path = "/applications/{application_id}/endpoint/verify", tag = "developer",
+    params(("application_id" = String, Path, description = "Application snowflake")),
+    responses((status = 200, body = EndpointStatusObject), (status = 400, body = ErrorBody),
+              (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn verify_endpoint(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<DevDeps>,
+    Path(id): Path<String>,
+) -> MsgResult<Json<EndpointStatusObject>> {
+    let id = parse_id(&id, APP)?;
+    deps.apps.owned(p.user_id, id).await.map_err(app_err)?;
+    let info = deps.apps.endpoint_info(id).await.map_err(app_err)?;
+    let Some(url) = info.url else {
+        return Err(invalid(
+            "interactions_endpoint_url",
+            "BASE_TYPE_REQUIRED",
+            "Save an interactions endpoint URL first.",
+        ));
+    };
+    if !deps.endpoints_available() {
+        return Err(invalid(
+            "interactions_endpoint_url",
+            "NOT_AVAILABLE",
+            "HTTP interactions endpoints are not available on this server.",
+        ));
+    }
+    let seed = deps.apps.signing_seed(id).await.map_err(app_err)?;
+    deps.verify_endpoint(id, &url, &seed).await.map_err(|m| {
+        invalid(
+            "interactions_endpoint_url",
+            "INTERACTIONS_ENDPOINT_VERIFY",
+            &m,
+        )
+    })?;
+    let info = deps
+        .apps
+        .reenable_endpoint(p.user_id, id)
+        .await
+        .map_err(app_err)?;
+    Ok(Json(EndpointStatusObject {
+        interactions_endpoint_url: info.url,
+        interactions_endpoint_state: info.state.as_str().to_owned(),
+        verify_key: info.verify_key,
     }))
 }
 

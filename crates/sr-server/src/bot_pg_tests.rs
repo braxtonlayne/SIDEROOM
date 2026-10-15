@@ -247,7 +247,10 @@ async fn a_bot_connects_listens_with_the_right_intents_and_answers_commands() {
     // Services and routers, wired as in `app.rs`.
     let bus = Arc::new(InProcessBus::new());
     let apps = Arc::new(AppsService::new(
-        Arc::new(PgAppsRepo::new(pool.clone())),
+        Arc::new(PgAppsRepo::new(
+            pool.clone(),
+            sr_db::sealed::SecretBox::new([7; 32]),
+        )),
         clock.clone(),
         id_src.clone(),
     ));
