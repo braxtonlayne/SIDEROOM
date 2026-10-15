@@ -65,6 +65,19 @@ export default {
   'library.pages.history.pauseError': 'Could not change the setting.',
   'library.pages.history.today': 'Today',
   'library.pages.history.yesterday': 'Yesterday',
+  // Browse filters
+  'library.browse.sort.rating': 'Rating',
+  'library.browse.genres': 'Genres',
+  'library.browse.genresCycleHint': 'Press a genre once to include it, twice to leave it out.',
+  'library.browse.genreStateOff': '{genre}: not filtered. Press to include.',
+  'library.browse.genreStateInclude': '{genre}: included. Press to leave out.',
+  'library.browse.genreStateExclude': '{genre}: left out. Press to clear.',
+  'library.browse.addGenre': 'Add a genre',
+  'library.browse.addTag': 'Add a tag',
+  'library.browse.add': 'Add',
+  'library.browse.removeTag': 'Remove tag {tag}',
+  'library.browse.ratingMin': 'Rating',
+  'library.browse.ratingAtLeast': '{n} or higher',
   // Home: recommendations
   'library.home.because.title': 'Because you read {title}',
 };

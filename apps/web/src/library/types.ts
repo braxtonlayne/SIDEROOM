@@ -5,7 +5,7 @@ export type SeriesKind = 'manga' | 'manhwa' | 'manhua' | 'webtoon' | 'comic' | '
 export type SeriesStatus = 'ongoing' | 'completed' | 'hiatus' | 'cancelled';
 export type ReadingDirection = 'rtl' | 'ltr' | 'vertical';
 export type AgeFilter = 'hide' | 'include' | 'only';
-export type SortKey = 'newest' | 'updated' | 'title' | 'followers';
+export type SortKey = 'newest' | 'updated' | 'title' | 'followers' | 'rating';
 export type Shelf = 'reading' | 'plan_to_read' | 'completed' | 'on_hold' | 'dropped';
 export type ChapterFormat = 'images' | 'pdf' | 'epub';
 
@@ -168,6 +168,8 @@ export interface BrowseParams {
   language?: string;
   year_from?: number;
   year_to?: number;
+  /** Minimum average rating, 1 to 10. */
+  rating_min?: number;
   age?: AgeFilter;
   sort?: SortKey;
   order?: 'asc' | 'desc';
