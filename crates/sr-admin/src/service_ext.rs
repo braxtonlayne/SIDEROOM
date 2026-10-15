@@ -67,18 +67,18 @@ pub const BADGES: &[Badge] = &[
         icon: "heart",
     },
     Badge {
-        id: "early_member",
-        flag: Some(1 << 8),
-        grantable: true,
-        description: "Early Member",
-        icon: "clock",
-    },
-    Badge {
         id: "contributor",
         flag: Some(1 << 9),
         grantable: true,
         description: "Contributor",
         icon: "sparkle",
+    },
+    Badge {
+        id: "early_member",
+        flag: Some(1 << 8),
+        grantable: true,
+        description: "Early Member",
+        icon: "clock",
     },
     Badge {
         id: "bug_hunter",

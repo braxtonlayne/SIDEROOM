@@ -34,6 +34,11 @@ export interface LoungeUser {
   bot?: boolean;
   /** Server-tag chip (short text), shown next to the name. */
   tag?: string;
+  /** Tag badge glyph id (0 to 15) and colour (0xRRGGBB), when the server sent them. */
+  tagBadge?: number;
+  tagColor?: number;
+  /** The system user "SIDE ROOM" (message flag SYSTEM_TAG, D-188): shown with a SYSTEM badge. */
+  system?: boolean;
 }
 
 export interface Activity {

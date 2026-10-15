@@ -96,6 +96,42 @@ describe('LNG-RAIL-012 guild context menu', () => {
     );
   });
 
+  it('sends only the changed per-server extras: pronouns, theme and effect (G-52)', async () => {
+    server.use(
+      http.get('*/api/v1/users/@me/guilds/g1/member', () =>
+        HttpResponse.json({ nick: 'Nick', bio: '', roles: [], pronouns: 'she/her' }),
+      ),
+      http.patch('*/api/v1/guilds/g1/members/@me', async (ctx) => {
+        await record('PATCH')(ctx);
+        return HttpResponse.json({
+          nick: 'Nick',
+          roles: [],
+          pronouns: 'they/them',
+          profile_effect: 'aurora',
+        });
+      }),
+    );
+    at('/channels/g1/c1');
+    const menu = await openRailMenu();
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Edit Per-server Profile' }));
+    const dlg = await screen.findByRole('dialog', { name: 'Edit Per-server Profile' });
+    const pronouns = within(dlg).getByLabelText('Pronouns');
+    await waitFor(() => expect(pronouns).toHaveValue('she/her'));
+    await userEvent.clear(pronouns);
+    await userEvent.type(pronouns, 'they/them');
+    await userEvent.click(within(dlg).getByRole('combobox', { name: 'Profile effect' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Aurora' }));
+    await userEvent.click(within(dlg).getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.key === 'PATCH /guilds/g1/members/@me')?.body).toEqual({
+        nick: 'Nick',
+        bio: null,
+        pronouns: 'they/them',
+        profile_effect: 'aurora',
+      }),
+    );
+  });
+
   it('shows the server error when saving fails', async () => {
     server.use(
       http.get('*/api/v1/users/@me/guilds/g1/member', () => HttpResponse.json({ roles: [] })),

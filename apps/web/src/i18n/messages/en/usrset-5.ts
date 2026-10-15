@@ -3,8 +3,6 @@ export default {
   'settings.activity.shareTitle': 'Share what I watch and read',
   'settings.activity.shareDesc':
     'Friends and people in your shared servers can see it on your profile and next to your name.',
-  'settings.activity.shareMine': 'Share my activity',
-  'settings.activity.shareMineDesc': 'The master switch. Off hides everything below.',
   'settings.activity.shareWatching': "Share what I'm watching",
   'settings.activity.shareReading': "Share what I'm reading",
   'settings.activity.hideAge': 'Hide age-restricted titles',

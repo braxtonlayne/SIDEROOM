@@ -42,15 +42,15 @@ pub(crate) fn db(e: sqlx::Error) -> RepoError {
 }
 
 /// The per-server profile extras of a `guild_members` row (G-52).
-pub(crate) fn extras_from(r: &PgRow) -> Result<sr_chat::domain::MemberExtras, sqlx::Error> {
+pub(crate) fn extras_from(r: &PgRow) -> Result<Box<sr_chat::domain::MemberExtras>, sqlx::Error> {
     let primary: Option<i32> = r.try_get("theme_primary")?;
     let accent: Option<i32> = r.try_get("theme_accent")?;
-    Ok(sr_chat::domain::MemberExtras {
+    Ok(Box::new(sr_chat::domain::MemberExtras {
         pronouns: r.try_get("pronouns")?,
         theme_colors: primary.zip(accent).map(|(p, a)| [p as u32, a as u32]),
         profile_effect: r.try_get("profile_effect")?,
         avatar_decoration: r.try_get("avatar_decoration")?,
-    })
+    }))
 }
 
 fn bad(what: &str) -> RepoError {

@@ -11,6 +11,7 @@ import { useOpenDm } from './shell/dm';
 import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
 import { useVoiceMenuEntries } from './voice/useVoiceMenu';
+import { ServerTag } from './ServerTag';
 
 const OFFLINE_HIDE_THRESHOLD = 1000;
 
@@ -164,7 +165,7 @@ function MemberRowView({
               <Icon name="star" size={16} label={t('lounge.memberList.serverOwner')} />
             )}
             {u.bot && <span className="lng-bot">{t('lounge.memberList.app')}</span>}
-            {u.tag && <span className="lng-tag">{u.tag}</span>}
+            <ServerTag user={u} />
           </span>
           {presence.activity && <span className="lng-member-sub">{presence.activity.text}</span>}
         </span>

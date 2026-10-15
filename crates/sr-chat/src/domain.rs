@@ -181,7 +181,7 @@ pub struct Member {
     /// Per-server bio.
     pub bio: Option<String>,
     /// Per-server pronouns, theme, effect and decoration (G-52).
-    pub extras: MemberExtras,
+    pub extras: Box<MemberExtras>,
 }
 
 /// Per-server profile extras (D-044: free for everyone). `None` falls back to the account's

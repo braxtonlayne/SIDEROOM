@@ -7,6 +7,14 @@ export interface User {
   global_name?: string | null;
   avatar?: string | null;
   bot?: boolean;
+  /** The server tag the person shows next to their name (LNG-GLD-011). */
+  primary_guild?: {
+    identity_guild_id?: string | null;
+    identity_enabled?: boolean;
+    tag?: string | null;
+    badge?: number;
+    color?: number;
+  } | null;
 }
 
 export interface Guild {
@@ -103,7 +111,7 @@ export interface Message {
   reactions?: MessageReaction[];
   /** 0 default, 6 pin notice, 19 reply (Discord message types). */
   type?: number;
-  /** 4 suppress embeds, 8192 voice message. */
+  /** 4 suppress embeds, 8192 voice message, 1 << 30 written by the system user (SYSTEM_TAG). */
   flags?: number;
   attachments?: RawAttachment[];
   embeds?: RawEmbed[];

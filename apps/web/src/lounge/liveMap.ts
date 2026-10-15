@@ -170,6 +170,13 @@ export function toLoungeUser(u: S.User): LoungeUser {
     // Avatar hashes need a CDN URL scheme that the API does not publish yet; initials are shown instead.
     avatarUrl: null,
     ...(u.bot ? { bot: true } : {}),
+    ...(u.primary_guild?.tag && u.primary_guild.identity_enabled !== false
+      ? {
+          tag: u.primary_guild.tag,
+          ...(typeof u.primary_guild.badge === 'number' ? { tagBadge: u.primary_guild.badge } : {}),
+          ...(typeof u.primary_guild.color === 'number' ? { tagColor: u.primary_guild.color } : {}),
+        }
+      : {}),
   };
 }
 
@@ -332,6 +339,7 @@ export function toLoungeMember(m: S.Member, user: LoungeUser): Member {
 const FLAG_SUPPRESS_EMBEDS = 1 << 2;
 const FLAG_VOICE = 1 << 13;
 const FLAG_EPHEMERAL = 1 << 6;
+const FLAG_SYSTEM_TAG = 1 << 30;
 
 function decodeWaveform(b64: string | null | undefined): number[] | null {
   if (!b64) return null;
@@ -391,7 +399,10 @@ export function toLoungeMessage(m: S.Message): Message {
   return {
     id: m.id,
     channelId: m.channel_id,
-    author: toLoungeUser(m.author),
+    author: {
+      ...toLoungeUser(m.author),
+      ...(flags & FLAG_SYSTEM_TAG ? { system: true } : {}),
+    },
     content: m.content,
     createdAt: m.timestamp,
     editedAt: m.edited_timestamp ?? null,

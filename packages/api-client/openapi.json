@@ -50115,6 +50115,26 @@
           }
         }
       },
+      "BadgeObject": {
+        "type": "object",
+        "description": "A public profile badge: the catalogue id with English fallback text and an icon name\n(G-53). Clients translate the ids they know and fall back to `description`.",
+        "required": [
+          "id",
+          "description",
+          "icon"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "BadgesBody": {
         "type": "object",
         "properties": {
@@ -55094,6 +55114,13 @@
             ],
             "description": "Display name (Discord `global_name`, 32 characters at most); `null` clears it so\nthe username shows. The username itself changes through `PUT /sr/auth/username`."
           },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The account's interface language as a BCP 47 tag (`de`, `pt-BR`, `zh-Hant-TW`); mails,\npush text and system DMs follow it. Malformed tags and the pseudo-locales (`en-XA`,\n`ar-XB`) are refused; tags without a translation fall back to English when used."
+          },
           "profile_effect": {
             "type": [
               "string",
@@ -56473,6 +56500,12 @@
               "null"
             ]
           },
+          "avatar_decoration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "banner": {
             "type": [
               "string",
@@ -56496,6 +56529,30 @@
               "string",
               "null"
             ]
+          },
+          "profile_effect": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pronouns": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server pronouns, theme, effect and decoration (G-52); `null` means the account's own."
+          },
+          "theme_colors": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
           }
         }
       },
@@ -58696,6 +58753,13 @@
               "null"
             ]
           },
+          "avatar_decoration": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server avatar decoration slug."
+          },
           "banner": {
             "type": [
               "string",
@@ -58752,11 +58816,37 @@
               "null"
             ]
           },
+          "profile_effect": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server profile effect slug."
+          },
+          "pronouns": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server pronouns (G-52)."
+          },
           "roles": {
             "type": "array",
             "items": {
               "type": "string"
             }
+          },
+          "theme_colors": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "Per-server profile theme, `[primary, accent]` as 0xRRGGBB."
           },
           "user": {
             "$ref": "#/components/schemas/UserRef"
@@ -59417,6 +59507,13 @@
             ],
             "description": "Per-server avatar as an image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most,\ncropped to a square)."
           },
+          "avatar_decoration": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server avatar decoration slug."
+          },
           "banner": {
             "type": [
               "string",
@@ -59437,6 +59534,32 @@
               "null"
             ],
             "description": "Nickname, 1 to 32 characters (needs `CHANGE_NICKNAME`)."
+          },
+          "profile_effect": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server profile effect slug."
+          },
+          "pronouns": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server pronouns, 40 characters at most (G-52)."
+          },
+          "theme_colors": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "Per-server profile theme as two 0xRRGGBB colours `[primary, accent]`."
           }
         }
       },
@@ -61774,7 +61897,7 @@
           "badges": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/BadgeObject"
             },
             "description": "Public badges: `owner`, `staff`, `patron`, `contributor`, `early_member`,\n`bug_hunter`, `honorary`, `app_developer`, `bot`."
           },
