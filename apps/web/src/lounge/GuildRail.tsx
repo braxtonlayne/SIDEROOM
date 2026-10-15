@@ -18,6 +18,7 @@ import {
 import { useLoungeRoute } from './nav';
 import { useVoiceSession } from '../voice/session';
 import { useLoungeUi } from './store';
+import { InstallButton } from './shell/InstallButton';
 import { useGuildMenuCore, useLoadNotifSettings } from './shell/useGuildMenu';
 import { useRailDnd, type DropMark, type DropTarget } from './shell/useRailDnd';
 import { addToFolder, moveBy, removeFromFolder, deleteFolder } from './shell/railLayout';
@@ -454,6 +455,7 @@ export function GuildRail() {
             </Tooltip>
           </div>
         </li>
+        <InstallButton />
       </ul>
     </RovingNav>
   );

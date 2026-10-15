@@ -31,7 +31,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-RAIL-012** [FE] Guild context menu: Mark As Read, Invite People, Mute Server ▸ (durations), Notification Settings ▸, Hide Muted Channels, Server Settings ▸ (shortcuts), Privacy Settings, Edit Per-server Profile, Create Channel/Category/Event, Leave Server, Copy Server ID *(`useGuildMenu.ts`, `GuildProfileDialog.tsx`; Create Event stays disabled: no scheduled-events API; Privacy Settings opens the user Privacy section; test `p11ShellRail.test.tsx`)*
 - [x] **LNG-RAIL-013** [FE] Voice-connected indicator on guild icon (speaker glyph) and live indicator
 - [x] **LNG-RAIL-014** [FE] "NEW" badge on recently joined servers
-- [ ] **LNG-RAIL-015** [FE] PWA install prompt replacing "Download apps" button
+- [x] **LNG-RAIL-015** [FE] PWA install prompt replacing "Download apps" button *(`shell/InstallButton.tsx` in the rail: browser install prompt, iOS Add to Home Screen steps; test `p11ShellInstall.test.tsx`)*
 
 ## LNG-HOME — Home sidebar & user panel
 - [x] **LNG-HOME-001** [FE] "Find or start a conversation" button → Quick Switcher

@@ -45,4 +45,6 @@ export default {
   'lounge.banners.updateReady': 'A new version of SIDE ROOM is ready.',
   'lounge.banners.updateReload': 'Reload to update',
   'lounge.banners.dismissUpdate': 'Dismiss update notice',
+  'lounge.guildRail.install': 'Install app',
+  'lounge.guildRail.installDone': 'Got it',
 } satisfies Record<string, string>;
