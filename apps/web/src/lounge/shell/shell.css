@@ -364,3 +364,68 @@
     display: none !important;
   }
 }
+
+/* Server Directory (LNG-RAIL-011) */
+.lng-dir {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lng-dir-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lng-dir-cat {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.lng-dir-cat[aria-pressed='true'] {
+  background: var(--accent, #5865f2);
+  border-color: transparent;
+  color: var(--on-accent, #fff);
+}
+.lng-dir-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lng-dir-card {
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-base-low);
+}
+.lng-dir-banner {
+  block-size: 64px;
+  background: var(--bg-base-high, #333) center / cover;
+}
+.lng-dir-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px;
+}
+.lng-dir-name {
+  margin: 0;
+  font-size: 15px;
+}
+.lng-dir-desc {
+  margin: 0;
+  font-size: 13px;
+}
+.lng-dir-meta {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  font-size: 12px;
+}

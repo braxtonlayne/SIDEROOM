@@ -5,6 +5,7 @@
 import { AddServerDialog } from './AddServerDialog';
 import { CreateChannelDialog } from './CreateChannelDialog';
 import { InviteDialog } from './InviteDialog';
+import { DirectoryDialog } from './shell/DirectoryDialog';
 import { CreateDmDialog } from './shell/CreateDmDialog';
 import { CustomStatusDialog } from './shell/CustomStatusDialog';
 import { DeleteChannelDialog } from './shell/DeleteChannelDialog';
@@ -26,6 +27,8 @@ export function LoungeDialogs() {
   switch (dialog.kind) {
     case 'addServer':
       return <AddServerDialog onClose={close} />;
+    case 'directory':
+      return <DirectoryDialog onClose={close} />;
     case 'createChannel':
       return (
         <CreateChannelDialog

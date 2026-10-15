@@ -36,6 +36,7 @@ export const RIGHT_PANEL_MAX = 340;
 /** Modal dialogs opened from menus anywhere in the shell; rendered once by LoungeDialogs. */
 export type LoungeDialog =
   | { kind: 'addServer' }
+  | { kind: 'directory' }
   | { kind: 'createChannel'; guildId: string; parentId?: string | undefined; category?: boolean }
   | { kind: 'invite'; guildId: string; channelId?: string | undefined }
   | { kind: 'leaveServer'; guildId: string }

@@ -27,7 +27,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-RAIL-008** [FE] Folders: create by drag-onto, expand/collapse, name, color, folder unread aggregation, folder settings modal *(folders sync as `guild_folders` in the user settings blob, D-179)*
 - [x] **LNG-RAIL-009** [FE] Staff Server special frame/badge
 - [x] **LNG-RAIL-010** [FE] "+" Add a Server button → Create Server modal
-- [ ] **LNG-RAIL-011** [FE] Discover (compass) button → Server Directory
+- [x] **LNG-RAIL-011** [FE] Discover (compass) button → Server Directory *(`lounge/shell/DirectoryDialog.tsx` over `GET /directory`, `POST /directory/{id}/join`; a modal, not a routed page; test `p11ShellDirectory.test.tsx`)*
 - [ ] **LNG-RAIL-012** [FE] Guild context menu: Mark As Read, Invite People, Mute Server ▸ (durations), Notification Settings ▸, Hide Muted Channels, Server Settings ▸ (shortcuts), Privacy Settings, Edit Per-server Profile, Create Channel/Category/Event, Leave Server, Copy Server ID
 - [x] **LNG-RAIL-013** [FE] Voice-connected indicator on guild icon (speaker glyph) and live indicator
 - [x] **LNG-RAIL-014** [FE] "NEW" badge on recently joined servers
