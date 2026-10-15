@@ -1124,6 +1124,66 @@ impl AppsRepository for PgAppsRepo {
         Ok(n > 0)
     }
 
+    async fn directory(
+        &self,
+        query: Option<&str>,
+        tag: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> AppsResult<Vec<DirectoryEntry>> {
+        // `lower(tag)` is compared as text; the search term is escaped for LIKE.
+        let like = query.map(|q| {
+            let esc = q
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            format!("%{}%", esc.to_lowercase())
+        });
+        let sql = format!(
+            "SELECT {}, (SELECT count(*) FROM application_installs i WHERE i.application_id = a.id) AS install_count \
+             FROM applications a \
+             WHERE a.release_state = 'released' AND a.bot_public \
+               AND ($1::text IS NULL OR lower(a.name) LIKE $1 \
+                    OR lower(a.description) LIKE $1 \
+                    OR EXISTS (SELECT 1 FROM unnest(a.tags) t WHERE lower(t) LIKE $1)) \
+               AND ($2::text IS NULL OR EXISTS (SELECT 1 FROM unnest(a.tags) t WHERE lower(t) = lower($2))) \
+             ORDER BY install_count DESC, a.id \
+             LIMIT $3 OFFSET $4",
+            app_cols("a")
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(like)
+            .bind(tag)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?
+            .iter()
+            .map(|r| {
+                Ok(DirectoryEntry {
+                    application: app_from(r)?,
+                    installs: r.try_get("install_count").map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn directory_tags(&self) -> AppsResult<Vec<(String, i64)>> {
+        let rows = sqlx::query(
+            "SELECT lower(t) AS tag, count(*) AS n \
+             FROM applications a, unnest(a.tags) t \
+             WHERE a.release_state = 'released' AND a.bot_public \
+             GROUP BY lower(t) ORDER BY n DESC, tag LIMIT 30",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| Ok((r.try_get("tag").map_err(db)?, r.try_get("n").map_err(db)?)))
+            .collect()
+    }
+
     async fn app_emojis(&self, app: i64) -> AppsResult<Vec<AppEmoji>> {
         q(format!(
             "SELECT {APP_EMOJI_COLS} FROM application_emojis WHERE application_id = $1 ORDER BY id"

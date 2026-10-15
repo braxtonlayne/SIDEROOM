@@ -2,6 +2,7 @@
 //! review, installs. OAuth2, commands and interactions are in the sibling modules.
 
 mod commands;
+mod directory;
 mod endpoint;
 mod interactions;
 mod media;
@@ -9,6 +10,7 @@ mod oauth;
 mod testers;
 
 pub use commands::*;
+pub use directory::*;
 pub use endpoint::*;
 pub use interactions::*;
 pub use media::*;

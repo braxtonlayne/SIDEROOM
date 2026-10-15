@@ -21,6 +21,7 @@
 
 mod app_media;
 mod bot_api;
+mod directory;
 mod dto;
 mod endpoint;
 mod interactions;
@@ -65,6 +66,8 @@ pub(crate) use interactions::try_followup;
 
 #[cfg(test)]
 mod app_media_tests;
+#[cfg(test)]
+mod directory_tests;
 #[cfg(test)]
 mod endpoint_health_tests;
 #[cfg(test)]
@@ -469,6 +472,9 @@ pub fn router() -> Router<AppState> {
             "/developers/tester-invites/{invite_id}/respond",
             post(testers::respond),
         )
+        .route("/app-directory", get(directory::search))
+        .route("/app-directory/tags", get(directory::tags))
+        .route("/app-directory/{application_id}", get(directory::app_page))
         .route(
             "/applications/{application_id}/emojis",
             get(app_media::list_emojis).post(app_media::create_emoji),
@@ -583,6 +589,7 @@ pub fn router() -> Router<AppState> {
         portal::admin_unsuspend, portal::list_apps, portal::create_app, portal::get_app,
         portal::patch_app, portal::ensure_interactions_key, portal::verify_endpoint,
         testers::list, testers::invite, testers::remove, testers::respond,
+        directory::search, directory::tags, directory::app_page,
         app_media::list_emojis, app_media::create_emoji, app_media::rename_emoji,
         app_media::delete_emoji, app_media::list_assets, app_media::create_asset,
         app_media::delete_asset, portal::delete_app, portal::patch_bot, portal::reset_secret,
@@ -611,6 +618,8 @@ pub fn router() -> Router<AppState> {
         OAuthErrorBody, IntrospectionBody, GatewayInfo, GatewayBotInfo, SessionStartLimit,
         CreateInteractionBody, CallbackBody, CommandIndex, CommandIndexApp,
         app_media::AppEmojiObject, app_media::AppEmojiList, app_media::CreateAppEmojiBody,
+        directory::DirectoryApp, directory::DirectoryPage, directory::DirectoryTag,
+        directory::DirectoryCommand, directory::DirectoryAppPage,
         app_media::RenameAppEmojiBody, app_media::AppAssetObject, app_media::CreateAppAssetBody,
     )),
     tags(

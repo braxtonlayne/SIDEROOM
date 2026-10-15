@@ -1372,3 +1372,59 @@ async fn application_emoji_and_assets_keep_names_unique_and_cascade() {
     .unwrap();
     assert_eq!(left, 0);
 }
+
+// ---------------------------------------------------------- DEV-BOT-012: App Directory
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_directory_lists_released_public_apps_and_escapes_search_text() {
+    let f = fx().await;
+    let a = f.app().await.application.id;
+    let b = f.app().await.application.id;
+    let draft = f.app().await.application.id;
+    sqlx::query(
+        "UPDATE applications SET release_state = 'released', bot_public = true, \
+         description = 'Plays 100% of songs', tags = ARRAY['Music','Fun'] WHERE id = $1",
+    )
+    .bind(a)
+    .execute(f.db.pool())
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE applications SET release_state = 'released', bot_public = false, \
+         tags = ARRAY['music'] WHERE id = $1",
+    )
+    .bind(b)
+    .execute(f.db.pool())
+    .await
+    .unwrap();
+    let ids = |rows: Vec<sr_apps::model::DirectoryEntry>| -> Vec<i64> {
+        rows.iter().map(|r| r.application.id).collect()
+    };
+    let all = ids(f.svc.directory(None, None, 0, 50).await.unwrap());
+    assert!(all.contains(&a) && !all.contains(&b) && !all.contains(&draft));
+    // text over description (the % is literal), tag exact and case-insensitive
+    assert_eq!(
+        ids(f.svc.directory(Some("100%"), None, 0, 50).await.unwrap()),
+        vec![a]
+    );
+    assert!(
+        f.svc
+            .directory(Some("100_"), None, 0, 50)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        ids(f.svc.directory(None, Some("MUSIC"), 0, 50).await.unwrap()),
+        vec![a]
+    );
+    assert_eq!(
+        ids(f.svc.directory(Some("fun"), None, 0, 50).await.unwrap()),
+        vec![a]
+    );
+    let tags = f.svc.directory_tags().await.unwrap();
+    assert!(tags.contains(&("music".to_owned(), 1)) && tags.contains(&("fun".to_owned(), 1)));
+    // the page carries one extra row when more follow
+    assert!(f.svc.directory(None, None, 0, 1).await.unwrap().len() <= 2);
+}

@@ -560,6 +560,66 @@ impl AppsRepository for MemoryAppsRepo {
         Ok(removed)
     }
 
+    async fn directory(
+        &self,
+        query: Option<&str>,
+        tag: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> AppsResult<Vec<DirectoryEntry>> {
+        let s = self.st();
+        let q = query.map(str::to_lowercase);
+        let mut rows: Vec<DirectoryEntry> = s
+            .apps
+            .values()
+            .filter(|a| a.release_state == ReleaseState::Released && a.bot_public)
+            .filter(|a| {
+                q.as_ref().is_none_or(|q| {
+                    a.name.to_lowercase().contains(q)
+                        || a.description.to_lowercase().contains(q)
+                        || a.tags.iter().any(|t| t.to_lowercase().contains(q))
+                })
+            })
+            .filter(|a| tag.is_none_or(|t| a.tags.iter().any(|x| x.eq_ignore_ascii_case(t))))
+            .map(|a| DirectoryEntry {
+                installs: s
+                    .installs
+                    .iter()
+                    .filter(|i| i.application_id == a.id)
+                    .count() as i64,
+                application: a.clone(),
+            })
+            .collect();
+        rows.sort_by(|a, b| {
+            b.installs
+                .cmp(&a.installs)
+                .then(a.application.id.cmp(&b.application.id))
+        });
+        Ok(rows
+            .into_iter()
+            .skip(usize::try_from(offset).unwrap_or(0))
+            .take(usize::try_from(limit).unwrap_or(0))
+            .collect())
+    }
+
+    async fn directory_tags(&self) -> AppsResult<Vec<(String, i64)>> {
+        let s = self.st();
+        let mut counts: std::collections::BTreeMap<String, i64> = Default::default();
+        for a in s
+            .apps
+            .values()
+            .filter(|a| a.release_state == ReleaseState::Released && a.bot_public)
+        {
+            for t in &a.tags {
+                *counts.entry(t.to_lowercase()).or_default() += 1;
+            }
+        }
+        let mut v: Vec<(String, i64)> = counts.into_iter().collect();
+        v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        v.truncate(30);
+        Ok(v)
+    }
+
     async fn app_emojis(&self, app: i64) -> AppsResult<Vec<AppEmoji>> {
         Ok(self
             .st()

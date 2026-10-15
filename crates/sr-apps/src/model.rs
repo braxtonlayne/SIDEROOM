@@ -666,3 +666,15 @@ pub struct AppAsset {
     /// Created.
     pub created_at_ms: i64,
 }
+
+/// A released, public application as the App Directory lists it (DEV-BOT-012).
+#[derive(Debug, Clone)]
+pub struct DirectoryEntry {
+    /// The application.
+    pub application: Application,
+    /// Servers it is installed in.
+    pub installs: i64,
+}
+
+/// Largest page the directory returns.
+pub const DIRECTORY_PAGE_MAX: i64 = 50;

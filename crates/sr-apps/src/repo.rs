@@ -196,6 +196,21 @@ pub trait AppsRepository: Send + Sync {
     /// Forget declines older than `before_ms`; returns how many.
     async fn purge_tester_declines(&self, before_ms: i64) -> AppsResult<u64>;
 
+    // ----- App Directory (DEV-BOT-012)
+    /// Released, non-suspended applications whose bot is public, most installed first, then by
+    /// id. `query` matches name, description and tags (case-insensitive substring), `tag`
+    /// matches one tag exactly (case-insensitive). `after` is the offset to continue from.
+    async fn directory(
+        &self,
+        query: Option<&str>,
+        tag: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> AppsResult<Vec<DirectoryEntry>>;
+    /// Tags of directory applications with the number of applications that use them, most
+    /// used first (at most 30).
+    async fn directory_tags(&self) -> AppsResult<Vec<(String, i64)>>;
+
     // ----- application emoji and Rich Presence assets (DEV-PORT-003)
     /// Emoji of an application, oldest first.
     async fn app_emojis(&self, app: i64) -> AppsResult<Vec<AppEmoji>>;
