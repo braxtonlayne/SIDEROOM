@@ -48,4 +48,15 @@ export default {
   'settings.profile.themePrimary': 'Profile theme: main colour',
   'settings.profile.themeAccent': 'Profile theme: accent colour',
   'settings.profile.clearTheme': 'Remove profile theme',
+  // LNG-USET-035 history management
+  'settings.activityHistory.removeItem': 'Remove',
+  'settings.activityHistory.removeNamed': 'Remove {name} from history',
+  'settings.activityHistory.readingTitle': 'Reading history',
+  'settings.activityHistory.readingDesc':
+    'The chapters you have read. Removing one forgets where you stopped.',
+  'settings.activityHistory.readingWhat': 'your reading history',
+  'settings.activityHistory.readingEmpty': 'Nothing in your reading history.',
+  'settings.activityHistory.readingChapter': 'Chapter {number} · {percent}% read',
+  'settings.activityHistory.libraryPreloadMissing':
+    'A page preload count is not offered yet: the reader has no preload setting.',
 } satisfies Record<string, string>;

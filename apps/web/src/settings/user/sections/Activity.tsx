@@ -3,7 +3,12 @@ import { useState } from 'react';
 import { useT } from '../../../i18n';
 import { saveActivity, useActivitySettings, type ActivitySettings } from '../activitySettings';
 import { Card, SectionTitle, Unavailable } from '../parts';
-import { CinemaDefaultsCard, CinemaHistoryCard, LibraryDefaultsCard } from './ActivityHistory';
+import {
+  CinemaDefaultsCard,
+  CinemaHistoryCard,
+  LibraryDefaultsCard,
+  ReadingHistoryCard,
+} from './ActivityHistory';
 import type { PrefsFormProps } from './Appearance';
 
 /**
@@ -79,6 +84,7 @@ export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
       </Card>
       <CinemaHistoryCard />
       <CinemaDefaultsCard />
+      <ReadingHistoryCard />
       <LibraryDefaultsCard />
     </>
   );

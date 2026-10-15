@@ -39,6 +39,14 @@ export const getHistorySettings = () =>
   apiFetch<{ paused: boolean }>('/cinema/me/history/settings');
 export const setHistoryPaused = (paused: boolean) =>
   apiFetch<void>('/cinema/me/history/settings', { method: 'PUT', json: { paused }, retries: 0 });
+/** Forget the progress of one movie or episode (it drops out of the history). */
+export const removeProgress = (titleId: string, episodeId?: string | null) =>
+  apiFetch<void>(
+    episodeId
+      ? `/cinema/titles/${enc(titleId)}/episodes/${enc(episodeId)}/progress`
+      : `/cinema/titles/${enc(titleId)}/progress`,
+    { method: 'DELETE', retries: 0 },
+  );
 export const clearHistory = () =>
   apiFetch<void>('/cinema/me/history', { method: 'DELETE', retries: 0 });
 
