@@ -42,7 +42,7 @@ export default {
   'settings.app.advancedTitle': 'Advanced',
   'settings.app.devMode': 'Developer mode',
   'settings.app.devModeDesc':
-    'Saved for developer tools as they arrive. Copy ID items are already in every menu.',
+    'Shows Copy ID in the right-click menus for servers, channels, messages and people.',
   'settings.appearance.themeSystem': 'Sync with computer',
   'settings.appearance.themeDark': 'Dark',
   'settings.appearance.themeLight': 'Light',

@@ -393,7 +393,7 @@ function GuildHeader({ guild }: { guild: Guild }) {
       type: 'submenu',
       label: t('lounge.channelSidebar.copyServerInfo'),
       items: [
-        core.copyId,
+        ...(core.copyId ? [core.copyId] : []),
         {
           label: t('lounge.channelSidebar.copyServerLink'),
           onSelect: () =>

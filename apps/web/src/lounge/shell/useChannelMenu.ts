@@ -1,6 +1,7 @@
 import type { MenuEntry } from '@sideroom/ui';
 import { useStore } from '../../store';
 import { useLoungeActions, type Channel, type Guild } from '../data';
+import { useDeveloperMode } from '../../settings/user/prefs';
 import { useLoungeUi } from '../store';
 import { applyChannelMoves } from './channelActions';
 import { canStep, planStep } from './channelMoves';
@@ -25,6 +26,7 @@ export function useChannelMenu(
   channels: Channel[],
   onError: (message: string) => void,
 ): MenuEntry[] {
+  const developerMode = useDeveloperMode();
   const reportEntry = useReportEntry();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const toggleCategory = useLoungeUi((s) => s.toggleCategory);
@@ -129,11 +131,15 @@ export function useChannelMenu(
       moveUp,
       moveDown,
       remove,
-      { type: 'separator' },
-      {
-        label: 'Copy Category ID',
-        onSelect: () => void navigator.clipboard?.writeText(channel.id),
-      },
+      ...(developerMode
+        ? [
+            { type: 'separator' } as MenuEntry,
+            {
+              label: 'Copy Category ID',
+              onSelect: () => void navigator.clipboard?.writeText(channel.id),
+            },
+          ]
+        : []),
     ];
   }
 
@@ -188,7 +194,14 @@ export function useChannelMenu(
     moveDown,
     remove,
     ...entryList(reportEntry({ kind: 'channel', id: channel.id })),
-    { type: 'separator' },
-    { label: 'Copy Channel ID', onSelect: () => void navigator.clipboard?.writeText(channel.id) },
+    ...(developerMode
+      ? [
+          { type: 'separator' } as MenuEntry,
+          {
+            label: 'Copy Channel ID',
+            onSelect: () => void navigator.clipboard?.writeText(channel.id),
+          },
+        ]
+      : []),
   ];
 }

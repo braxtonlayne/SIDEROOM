@@ -152,7 +152,7 @@ function GuildIcon({
       : []),
     { type: 'separator' },
     core.leave,
-    core.copyId,
+    ...(core.copyId ? [core.copyId] : []),
   ];
   return (
     <ContextMenu items={menu} label={t('lounge.guildRail.guildMenu', { name: guild.name })}>

@@ -9,6 +9,7 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { useT } from '../i18n';
+import { useDeveloperMode } from '../settings/user/prefs';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { useStore } from '../store';
 import { dmTitle, HOME } from './channels';
@@ -30,6 +31,7 @@ import { useLoungeUi } from './store';
 
 function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
   const t = useT();
+  const developerMode = useDeveloperMode();
   const users = useUsers();
   const presence = usePresenceMap();
   const actions = useLoungeActions();
@@ -104,10 +106,14 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           { type: 'separator' },
           ...(userEntries.invite ? [userEntries.invite] : []),
           ...userEntries.relationship,
-          {
-            label: t('lounge.homeSidebar.copyUserId'),
-            onSelect: () => void navigator.clipboard?.writeText(first.id),
-          },
+          ...(developerMode
+            ? [
+                {
+                  label: t('lounge.homeSidebar.copyUserId'),
+                  onSelect: () => void navigator.clipboard?.writeText(first.id),
+                },
+              ]
+            : []),
         ] as MenuEntry[])
       : []),
   ];

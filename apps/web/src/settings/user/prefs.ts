@@ -320,6 +320,9 @@ usePrefsStore.subscribe((s) => syncFormatting(s.prefs));
 
 export const useSavedPrefs = () => usePrefsStore((s) => s.prefs);
 
+/** Developer Mode (G-56, D-195): the "Copy ID" menu entries render only while this is on. */
+export const useDeveloperMode = () => usePrefsStore((s) => s.prefs.developerMode);
+
 /** Streamer Mode switches in effect right now (saved prefs; an unsaved toggle does not count). */
 export function streamerState(p: UserPrefs = usePrefsStore.getState().prefs) {
   return {

@@ -782,7 +782,9 @@ describe('member actions', () => {
     seed('2');
     at('/channels/g1/c1');
     await rightClickBob();
-    expect(await screen.findByRole('menuitem', { name: 'Copy User ID' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Profile' })).toBeInTheDocument();
+    // G-56: Copy IDs are a Developer Mode feature.
+    expect(screen.queryByRole('menuitem', { name: 'Copy User ID' })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /^Kick/ })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /^Ban/ })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: 'Timeout' })).toBeNull();
