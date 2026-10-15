@@ -29,7 +29,11 @@ async fn announce_message(m: &MessagesDeps, msg: &Message) -> MsgResult<()> {
 }
 
 /// `THREAD_CREATE`, the creator's own membership, then the system messages.
-async fn announce_started(t: &ThreadsDeps, m: &MessagesDeps, s: &StartedThread) -> MsgResult<()> {
+pub(crate) async fn announce_started(
+    t: &ThreadsDeps,
+    m: &MessagesDeps,
+    s: &StartedThread,
+) -> MsgResult<()> {
     t.publish_created(&s.view.channel).await;
     if let Some(member) = &s.view.member {
         t.publish_self_member(&s.view.channel, member).await;

@@ -24,6 +24,10 @@
 //!   `/applications/{id}/commands*`, `/webhooks/{app}/{token}/messages/*` and `/admin/developers/*`.
 //!   The follow-up `POST /webhooks/{app}/{interaction token}` stays with `settings`, which asks
 //!   `developer` first.
+//! * `userfeat`: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS feeds, poll templates,
+//!   suggestions and tickets (`/users/@me/{scheduled-messages,reminders,bookmarks,birthday}*`,
+//!   `POST /channels/{id}/scheduled-messages`, `PUT /channels/{id}/messages/{id}/bookmark` and
+//!   `/guilds/{id}/{birthdays,leveling,rss-feeds,poll-templates,suggestions,tickets}*`).
 //! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
 //!   acks and read states, notification settings, profiles (`PATCH /users/@me`, `/users/{id}/profile`)
 //!   and `/users/@me/presence`. Only `GET /users/@me` stays with the base router.
@@ -52,6 +56,7 @@ pub mod settings;
 pub mod social;
 pub mod threads;
 pub mod tv;
+pub mod userfeat;
 pub mod voice;
 pub mod voice_live;
 pub mod watchparty;
@@ -119,6 +124,7 @@ pub fn all() -> Router<AppState> {
         .merge(developer::router())
         .merge(directory::router())
         .merge(donations::router())
+        .merge(userfeat::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -154,6 +160,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(watchparty::openapi());
     doc.merge(developer::openapi());
     doc.merge(donations::openapi());
+    doc.merge(userfeat::openapi());
     doc
 }
 
