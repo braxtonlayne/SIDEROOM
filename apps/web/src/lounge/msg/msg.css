@@ -1331,3 +1331,10 @@
   color: var(--text-muted);
   font-size: 0.85em;
 }
+
+.lng-inbox-head {
+  margin: 8px 0 4px;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
