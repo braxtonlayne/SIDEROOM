@@ -576,6 +576,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"list_ignores","method":"get","path":"/users/@me/ignores","status":200,"body":[{"id":"1"}]},
   {"id":"ignore","method":"put","path":"/users/@me/ignores/:user_id","status":204,"body":null},
   {"id":"unignore","method":"delete","path":"/users/@me/ignores/:user_id","status":204,"body":null},
+  {"id":"recent_mentions","method":"get","path":"/users/@me/mentions","status":200,"body":[{"attachments":[{}],"author":{},"channel_id":"1","content":"string","embeds":[{}],"flags":0,"id":"1","mention_everyone":false,"mention_roles":["string"],"mentions":[{}],"pinned":false,"timestamp":"2026-01-01T00:00:00.000Z","tts":false,"type":0}]},
   {"id":"get_note","method":"get","path":"/users/@me/notes/:user_id","status":200,"body":{"note":"string","note_user_id":"1","user_id":"1"}},
   {"id":"put_note","method":"put","path":"/users/@me/notes/:user_id","status":204,"body":null},
   {"id":"get_notification_defaults","method":"get","path":"/users/@me/notification-defaults","status":200,"body":{}},

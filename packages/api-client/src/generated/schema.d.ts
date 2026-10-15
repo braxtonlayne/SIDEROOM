@@ -7705,6 +7705,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/mentions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Messages from the last seven days that mention the caller, newest first. */
+        get: operations["recent_mentions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/notes/{user_id}": {
         parameters: {
             query?: never;
@@ -39707,6 +39724,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    recent_mentions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 1 to 50, default 25. */
+                limit: number | null;
+                /** @description Message snowflake: return mentions older than this. */
+                before: string | null;
+                /** @description Include messages that mention one of your roles (default true). */
+                roles: boolean | null;
+                /** @description Include `@everyone` and `@here` (default true). */
+                everyone: boolean | null;
+                /** @description Restrict to one server. */
+                guild_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"][];
+                };
             };
             400: {
                 headers: {

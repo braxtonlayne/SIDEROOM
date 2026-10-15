@@ -316,6 +316,7 @@ GET	/users/@me/guilds	authenticated	self	allow	guilds
 GET	/users/@me/guilds/{guild_id}/member	authenticated	membership	allow	-
 GET	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-
 GET	/users/@me/ignores	authenticated	self	deny	-
+GET	/users/@me/mentions	authenticated	self	deny	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
 GET	/users/@me/notification-defaults	authenticated	self	deny	-
 GET	/users/@me/presence	authenticated	self	allow	-

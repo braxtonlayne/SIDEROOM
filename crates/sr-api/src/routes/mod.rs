@@ -44,6 +44,7 @@ pub mod directory;
 pub mod donations;
 pub mod gifs;
 pub mod guilds;
+pub mod inbox;
 pub mod library;
 pub mod media;
 pub mod messages;
@@ -123,6 +124,7 @@ pub fn all() -> Router<AppState> {
         .merge(donations::router())
         .merge(push::router())
         .merge(gifs::router())
+        .merge(inbox::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -160,6 +162,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(donations::openapi());
     doc.merge(push::openapi());
     doc.merge(gifs::openapi());
+    doc.merge(inbox::openapi());
     doc
 }
 

@@ -946,6 +946,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(social_api)
         .extension(push_deps)
         .extension(gif_deps)
+        .extension(Arc::new(routes::inbox::InboxDeps::new(Arc::new(
+            crate::inbox_pg::PgMentionSource::new(pool.clone()),
+        ))))
         .extension(settings_deps.clone())
         .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
             sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),

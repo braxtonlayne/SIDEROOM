@@ -40003,6 +40003,110 @@
         ]
       }
     },
+    "/users/@me/mentions": {
+      "get": {
+        "tags": [],
+        "summary": "Messages from the last seven days that mention the caller, newest first.",
+        "operationId": "recent_mentions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "path",
+            "description": "1 to 50, default 25.",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "before",
+            "in": "path",
+            "description": "Message snowflake: return mentions older than this.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "roles",
+            "in": "path",
+            "description": "Include messages that mention one of your roles (default true).",
+            "required": true,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "everyone",
+            "in": "path",
+            "description": "Include `@everyone` and `@here` (default true).",
+            "required": true,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Restrict to one server.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessageObject"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/notes/{user_id}": {
       "get": {
         "tags": [

@@ -10,6 +10,7 @@ pub mod cinema_jobs;
 pub mod external_jobs;
 pub mod features_store;
 pub mod gateway_pg;
+pub mod inbox_pg;
 pub mod jobs;
 pub mod lag_bus;
 pub mod library_jobs;
