@@ -38,7 +38,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 ## ADM-GRAPH — Invite graph
 - [x] **ADM-GRAPH-001** [BE] Graph API (subtree, ancestors path, stats per node, search)
 - [x] **ADM-GRAPH-002** [WASM] Force-directed layout for large graphs (Rust, Barnes–Hut) → positions _crates/sr-graph-wasm (layout.rs, Barnes-Hut quadtree), loadGraph() in @sideroom/wasm, packages/wasm/test/graph.test.ts._
-- [ ] **ADM-GRAPH-003** [FE] WebGL graph renderer (pan/zoom, collapse subtrees, node colors by state, suspicion halo, banned marker)
+- [ ] **ADM-GRAPH-003** [FE] Canvas 2D graph renderer over `sr-graph-wasm`, used when the graph exceeds about 500 nodes (pan/zoom, collapse subtrees, node colors by state, suspicion halo, banned marker); no WebGL *(re-scoped 2026-10-15, P10-ADM-8; below 500 nodes the tree and list views of ADM-GRAPH-005 are used)*
 - [ ] **ADM-GRAPH-004** [FE] Node side panel (account summary, open codes, credits ledger, grant/revoke credit, freeze invites, clear suspicion) *(partly built: summary, open codes, credits ledger, grant/revoke credit, clear suspicion; freeze invites needs a route)*
 - [x] **ADM-GRAPH-005** [FE] Tree/list fallback view + path-to-root breadcrumb *(`admin/sections/InviteGraph.tsx`: collapsible tree, flat list and path-to-root breadcrumb)*
 
