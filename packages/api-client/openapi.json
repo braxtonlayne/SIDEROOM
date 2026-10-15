@@ -16405,6 +16405,53 @@
         ]
       }
     },
+    "/applications/{application_id}/interactions-key": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Create the application's interactions signing key when it has none (older applications)\nand return the public key. Idempotent; the key is never rotated here.",
+        "operationId": "ensure_interactions_key",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InteractionsKeyObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/applications/{application_id}/reset-secret": {
       "post": {
         "tags": [
@@ -16813,6 +16860,53 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/application-commands": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Everything the command picker needs in one channel: the applications installed in its\nserver and the commands the caller may use there. Needs a session; not part of Discord's\npublic bot API (the web client's own index).",
+        "operationId": "command_index",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandIndex"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -26502,7 +26596,7 @@
         "tags": [
           "bot"
         ],
-        "summary": "Gateway URL and session limits for a bot. There is no sharding: `shards` is always 1.",
+        "summary": "Gateway URL and session limits for a bot. `shards` is the recommended shard count: one\nper [`GUILDS_PER_SHARD`] servers the application is installed in, at least 1.",
         "operationId": "gateway_bot",
         "responses": {
           "200": {
@@ -51315,6 +51409,55 @@
           }
         }
       },
+      "CommandIndex": {
+        "type": "object",
+        "description": "`GET /channels/{id}/application-commands`.",
+        "required": [
+          "applications",
+          "application_commands"
+        ],
+        "properties": {
+          "application_commands": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Discord command objects the caller may use here."
+          },
+          "applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommandIndexApp"
+            }
+          }
+        }
+      },
+      "CommandIndexApp": {
+        "type": "object",
+        "description": "An application in the command picker.",
+        "required": [
+          "id",
+          "name",
+          "bot_id"
+        ],
+        "properties": {
+          "bot_id": {
+            "type": "string"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "CommentInput": {
         "type": "object",
         "description": "A note on the timeline.",
@@ -51832,13 +51975,13 @@
         "type": "object",
         "required": [
           "type",
-          "application_id",
           "channel_id",
           "data"
         ],
         "properties": {
           "application_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional for components: the message author's application is used when omitted."
           },
           "channel_id": {
             "type": "string"
@@ -55385,6 +55528,19 @@
           }
         }
       },
+      "InteractionsKeyObject": {
+        "type": "object",
+        "description": "Public key that verifies the platform's signed interaction requests.",
+        "required": [
+          "verify_key"
+        ],
+        "properties": {
+          "verify_key": {
+            "type": "string",
+            "description": "Ed25519 public key, lower-case hex."
+          }
+        }
+      },
       "IntrospectionBody": {
         "type": "object",
         "required": [
@@ -58613,6 +58769,13 @@
               "object",
               "null"
             ]
+          },
+          "interactions_endpoint_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`https` URL that receives signed interactions instead of the gateway (`null` removes\nit). The URL is verified with a signed PING before it is saved."
           },
           "name": {
             "type": [

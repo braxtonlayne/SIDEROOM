@@ -532,3 +532,12 @@ pub struct GuildBrief {
     /// Members including bots.
     pub member_count: i64,
 }
+
+/// HTTP interactions endpoint settings of one application (DEV-BOT-005).
+#[derive(Debug, Clone, Default)]
+pub struct InteractionsConfig {
+    /// `https` URL the platform POSTs signed interactions to; `None` = gateway delivery.
+    pub endpoint_url: Option<String>,
+    /// Private signing seed, created on demand.
+    pub seed: Option<crate::signing::SigningSeed>,
+}

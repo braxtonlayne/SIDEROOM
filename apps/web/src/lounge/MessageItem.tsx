@@ -16,6 +16,8 @@ import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
 import { isJumbo, parseMarkdown, useMarkdownReady } from './markdown';
 import { AttachmentList } from './msg/Attachments';
+import { EphemeralNote } from './apps/EphemeralNote';
+import { useAppsMenu } from './apps/useAppsMenu';
 import { ComponentRows } from './msg/Components';
 import { findInviteCode, InviteCard } from './msg/InviteCard';
 import { findMessageLinks, MessageLinkCard } from './msg/MessageLinkCard';
@@ -150,8 +152,13 @@ function MessageBody({
       {showCards && inviteCode && <InviteCard code={inviteCode} />}
       {showCards && messageLinks.map((l) => <MessageLinkCard key={l.messageId} link={l} />)}
       {m.components && m.components.length > 0 && (
-        <ComponentRows rows={m.components} guildId={guildId} />
+        <ComponentRows
+          rows={m.components}
+          guildId={guildId}
+          context={m.ephemeral ? undefined : { channelId: m.channelId, messageId: m.id }}
+        />
       )}
+      {m.ephemeral && <EphemeralNote channelId={m.channelId} messageId={m.id} />}
       {m.stickers?.map((s) => (
         <Sticker key={s.id} sticker={s} guildId={guildId} />
       ))}
@@ -224,6 +231,11 @@ function MessageItemImpl(props: MessageItemProps) {
   // Compact mode puts the name and time on every line (no avatar), so nothing is grouped.
   const grouped = groupedProp && !compact;
 
+  const appsMenu = useAppsMenu(
+    3,
+    { guildId, channelId: m.ephemeral ? undefined : m.channelId },
+    m.id,
+  );
   const canDelete = !!onDelete && (isOwn || !!canManage) && !m.pending;
   const canPinHere = !!onPin && !!canPin && !m.pending;
   const copy = (text: string) => void navigator.clipboard?.writeText(text);
@@ -309,6 +321,7 @@ function MessageItemImpl(props: MessageItemProps) {
         onSelect: () => onDelete!(m, false),
       });
     }
+    if (appsMenu.length > 0) entries.push({ type: 'separator' }, ...appsMenu);
     const report = reportEntry({ kind: 'message', id: m.id });
     if (report) entries.push({ type: 'separator' }, report);
     entries.push({ type: 'separator' });
@@ -319,6 +332,7 @@ function MessageItemImpl(props: MessageItemProps) {
     m,
     isOwn,
     guildId,
+    appsMenu,
     canPinHere,
     canDelete,
     onReact,

@@ -94,6 +94,8 @@ export interface StoreActions {
   editMessage: (channelId: string, messageId: string, content: string) => Promise<Message>;
   /** DELETE the message; it leaves the window at once (rolled back on failure). */
   deleteMessage: (channelId: string, messageId: string) => Promise<void>;
+  /** Drops a message from this client only (ephemeral app replies: "Dismiss message"). */
+  dismissLocalMessage: (channelId: string, messageId: string) => void;
   pinMessage: (channelId: string, messageId: string, pinned: boolean) => Promise<void>;
   /** Cast or withdraw the viewer's poll vote (optimistic). */
   votePoll: (channelId: string, messageId: string, answerId: number, add: boolean) => Promise<void>;
@@ -389,6 +391,10 @@ export const useStore = create<StoreState>()((set, get) => {
       const msg = await rest.editMessage(channelId, messageId, content);
       set((s) => putServerMessage(s, msg));
       return msg;
+    },
+
+    dismissLocalMessage: (channelId, messageId) => {
+      set((s) => removeFromWindowState(s, channelId, messageId));
     },
 
     deleteMessage: async (channelId, messageId) => {

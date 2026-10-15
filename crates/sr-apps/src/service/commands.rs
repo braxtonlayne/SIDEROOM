@@ -304,3 +304,41 @@ impl AppsService {
         })
     }
 }
+
+/// One installed application with the commands it offers in a guild.
+#[derive(Debug, Clone)]
+pub struct IndexEntry {
+    /// The application (live ones only).
+    pub application: Application,
+    /// Global commands (when the install has `applications.commands`) then the guild's own.
+    pub commands: Vec<Command>,
+}
+
+impl AppsService {
+    /// What a member can pick in the command picker: for every live application installed in
+    /// `guild`, its global commands (if the install carries `applications.commands`) and its
+    /// guild commands. The caller filters by what the member may use.
+    pub async fn command_index(&self, guild: i64) -> AppsResult<Vec<IndexEntry>> {
+        let mut out = Vec::new();
+        for install in self.repo.guild_installs(guild).await? {
+            let Some(application) = self.repo.application(install.application_id).await? else {
+                continue;
+            };
+            if !application.is_live() {
+                continue;
+            }
+            let mut commands = Vec::new();
+            if install.scopes.iter().any(|s| s == "applications.commands") {
+                commands.extend(self.repo.commands(application.id, None).await?);
+            }
+            commands.extend(self.repo.commands(application.id, Some(guild)).await?);
+            if !commands.is_empty() {
+                out.push(IndexEntry {
+                    application,
+                    commands,
+                });
+            }
+        }
+        Ok(out)
+    }
+}

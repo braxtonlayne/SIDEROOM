@@ -294,6 +294,7 @@ export function toLoungeMember(m: S.Member, user: LoungeUser): Member {
 
 const FLAG_SUPPRESS_EMBEDS = 1 << 2;
 const FLAG_VOICE = 1 << 13;
+const FLAG_EPHEMERAL = 1 << 6;
 
 function decodeWaveform(b64: string | null | undefined): number[] | null {
   if (!b64) return null;
@@ -415,6 +416,7 @@ export function toLoungeMessage(m: S.Message): Message {
         }
       : {}),
     ...(flags & FLAG_VOICE ? { voice: true } : {}),
+    ...(flags & FLAG_EPHEMERAL ? { ephemeral: true } : {}),
     ...(flags & FLAG_SUPPRESS_EMBEDS ? { suppressEmbeds: true } : {}),
   };
 }

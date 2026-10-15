@@ -11,6 +11,11 @@ export const server = setupServer(
   // Home screen loads: nobody to befriend, no templates, online with no custom status.
   http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
   http.get('*/api/v1/guilds/templates/builtin', () => HttpResponse.json([])),
+  // Apps: no commands anywhere, and an interaction is accepted (the app never answers).
+  http.get('*/api/v1/channels/*/application-commands', () =>
+    HttpResponse.json({ applications: [], application_commands: [] }),
+  ),
+  http.post('*/api/v1/interactions', () => new HttpResponse(null, { status: 204 })),
   http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
   http.get('*/api/v1/users/@me/presence', () =>
     HttpResponse.json({ status: 'online', custom_status: null }),

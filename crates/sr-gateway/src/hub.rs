@@ -610,9 +610,14 @@ impl Gateway {
         intents: u64,
         conn_id: u64,
         tx: mpsc::Sender<Out>,
+        shard: Option<(u32, u32)>,
     ) -> Arc<Session> {
         let cfg = &self.inner.cfg;
-        let guilds = self.inner.dir.guilds_for_user(user.user_id).await;
+        let mut guilds = self.inner.dir.guilds_for_user(user.user_id).await;
+        // A shard is only told about the servers it owns (DEV-BOT-002).
+        if let Some((id, n)) = shard {
+            guilds.retain(|g| (g.get() >> 22) % u64::from(n.max(1)) == u64::from(id));
+        }
         let mut syncs = Vec::new();
         let mut payloads = Vec::with_capacity(guilds.len());
         for g in &guilds {
@@ -620,7 +625,7 @@ impl Gateway {
             syncs.push(self.inner.dir.thread_list_sync(user.user_id, *g).await);
         }
         let extras = self.inner.dir.ready_extras(user.user_id).await;
-        let session = Arc::new(Session::new(
+        let mut fresh = Session::new(
             Self::new_session_id(),
             user.user_id,
             intents,
@@ -628,7 +633,9 @@ impl Gateway {
             cfg.resume_buffer,
             conn_id,
             tx,
-        ));
+        );
+        fresh.shard = shard;
+        let session = Arc::new(fresh);
         let mut sessions: Vec<Value> = self
             .user_sessions(user.user_id)
             .iter()
@@ -640,6 +647,7 @@ impl Gateway {
             "user": user.user,
             "guilds": guilds.iter().map(|g| json!({"id": g, "unavailable": true})).collect::<Vec<_>>(),
             "session_id": session.id,
+            "shard": shard.map(|(i, n)| json!([i, n])),
             "sessions": sessions,
             "resume_gateway_url": cfg.resume_gateway_url,
         });
@@ -949,7 +957,7 @@ impl Gateway {
     /// Deliver to every session of `user` (DM and self events; no guild check).
     pub(crate) async fn dispatch_user(&self, user: UserId, name: &str, data: Value) {
         for s in self.user_sessions(user) {
-            if s.wants(name) {
+            if s.wants(name) && s.owns_user_event(&data) {
                 deliver_to(&s, name, &data);
             }
         }
@@ -988,7 +996,7 @@ impl Gateway {
         let sync = self.inner.dir.thread_list_sync(user, guild).await;
         let mut st = self.st();
         for s in sessions {
-            if s.add_guild(guild) {
+            if s.owns_guild(guild) && s.add_guild(guild) {
                 s.deliver("GUILD_CREATE", payload.clone());
                 if let Some(sy) = &sync
                     && s.wants("THREAD_LIST_SYNC")

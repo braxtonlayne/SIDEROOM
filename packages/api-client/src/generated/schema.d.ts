@@ -3146,6 +3146,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/applications/{application_id}/interactions-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create the application's interactions signing key when it has none (older applications)
+         *     and return the public key. Idempotent; the key is never rotated here.
+         */
+        post: operations["ensure_interactions_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications/{application_id}/reset-secret": {
         parameters: {
             query?: never;
@@ -3215,6 +3235,27 @@ export interface paths {
         head?: never;
         /** Modify a guild channel. Needs `MANAGE_CHANNELS`. */
         patch: operations["modify_channel"];
+        trace?: never;
+    };
+    "/channels/{channel_id}/application-commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everything the command picker needs in one channel: the applications installed in its
+         *     server and the commands the caller may use there. Needs a session; not part of Discord's
+         *     public bot API (the web client's own index).
+         */
+        get: operations["command_index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/channels/{channel_id}/attachments": {
@@ -5131,7 +5172,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Gateway URL and session limits for a bot. There is no sharding: `shards` is always 1. */
+        /**
+         * Gateway URL and session limits for a bot. `shards` is the recommended shard count: one
+         *     per [`GUILDS_PER_SHARD`] servers the application is installed in, at least 1.
+         */
         get: operations["gateway_bot"];
         put?: never;
         post?: never;
@@ -10512,6 +10556,19 @@ export interface components {
         CollectionList: {
             items: components["schemas"]["Collection"][];
         };
+        /** @description `GET /channels/{id}/application-commands`. */
+        CommandIndex: {
+            /** @description Discord command objects the caller may use here. */
+            application_commands: Record<string, never>[];
+            applications: components["schemas"]["CommandIndexApp"][];
+        };
+        /** @description An application in the command picker. */
+        CommandIndexApp: {
+            bot_id: string;
+            icon?: string | null;
+            id: string;
+            name: string;
+        };
         /** @description A note on the timeline. */
         CommentInput: {
             body: string;
@@ -10663,7 +10720,8 @@ export interface components {
             template?: string | null;
         };
         CreateInteractionBody: {
-            application_id: string;
+            /** @description Optional for components: the message author's application is used when omitted. */
+            application_id?: string;
             channel_id: string;
             data: Record<string, never>;
             guild_id?: string | null;
@@ -11748,6 +11806,11 @@ export interface components {
             approved: string[];
             requested: string[];
         };
+        /** @description Public key that verifies the platform's signed interaction requests. */
+        InteractionsKeyObject: {
+            /** @description Ed25519 public key, lower-case hex. */
+            verify_key: string;
+        };
         IntrospectionBody: {
             active: boolean;
             client_id?: string | null;
@@ -12702,6 +12765,11 @@ export interface components {
             /** @description Image data URI, or `null` to remove. */
             icon?: string | null;
             install_params?: Record<string, never> | null;
+            /**
+             * @description `https` URL that receives signed interactions instead of the gateway (`null` removes
+             *     it). The URL is verified with a signed PING before it is saved.
+             */
+            interactions_endpoint_url?: string | null;
             name?: string | null;
             privacy_policy_url?: string | null;
             privileged_intents?: string[] | null;
@@ -26162,6 +26230,36 @@ export interface operations {
             };
         };
     };
+    ensure_interactions_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionsKeyObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     reset_secret: {
         parameters: {
             query?: never;
@@ -26406,6 +26504,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    command_index: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandIndex"];
                 };
             };
             404: {

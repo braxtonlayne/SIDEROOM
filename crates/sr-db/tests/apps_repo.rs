@@ -916,3 +916,136 @@ async fn credentials_stop_working_when_their_account_is_not_active() {
     assert!(f.svc.gateway_bot(&c.bot_token).await.unwrap().is_none());
     f.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_interactions_endpoint_and_key_are_stored_once_and_audited() {
+    let f = fx().await;
+    let c = f.app().await;
+    let id = c.application.id;
+    // nothing configured yet; nothing is invented by reading
+    let info = f.svc.endpoint_info(id).await.unwrap();
+    assert_eq!((info.url, info.verify_key), (None, None));
+    assert!(f.svc.endpoint_target(id).await.unwrap().is_none());
+    // the key is created once, only for the owner, and never changes afterwards
+    assert!(matches!(
+        f.svc.ensure_signing_key(f.other, id).await,
+        Err(AppsError::NotFound(_))
+    ));
+    let key = f
+        .svc
+        .ensure_signing_key(f.owner, id)
+        .await
+        .unwrap()
+        .verify_key
+        .unwrap();
+    assert_eq!(key.len(), 64);
+    assert_eq!(
+        f.svc
+            .ensure_signing_key(f.owner, id)
+            .await
+            .unwrap()
+            .verify_key
+            .as_deref(),
+        Some(key.as_str())
+    );
+    // a URL needs the shape the rules ask for, then it is stored and the key is unchanged
+    assert!(matches!(
+        f.svc
+            .set_endpoint(f.owner, id, Some("http://x.example/".into()))
+            .await,
+        Err(AppsError::Invalid(_))
+    ));
+    let info = f
+        .svc
+        .set_endpoint(f.owner, id, Some("https://bot.example.com/i".into()))
+        .await
+        .unwrap();
+    assert_eq!(info.url.as_deref(), Some("https://bot.example.com/i"));
+    assert_eq!(info.verify_key.as_deref(), Some(key.as_str()));
+    let target = f.svc.endpoint_target(id).await.unwrap().unwrap();
+    assert_eq!(target.url, "https://bot.example.com/i");
+    // the stored seed signs what the public key verifies
+    let sig = target.seed.sign_hex("1", b"body");
+    assert!(sr_apps::signing::verify_hex(&key, &sig, "1", b"body"));
+    // setting a URL on an application that never had a key creates one
+    let c2 = f
+        .svc
+        .create_application(f.owner, "Second Bot", "")
+        .await
+        .unwrap();
+    let info = f
+        .svc
+        .set_endpoint(
+            f.owner,
+            c2.application.id,
+            Some("https://b.example.com/".into()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(info.verify_key.map(|k| k.len()), Some(64));
+    // clearing keeps the key
+    let info = f.svc.set_endpoint(f.owner, id, None).await.unwrap();
+    assert_eq!(
+        (info.url, info.verify_key.as_deref()),
+        (None, Some(key.as_str()))
+    );
+    assert!(f.svc.endpoint_target(id).await.unwrap().is_none());
+    // the seed never appears in the audit trail
+    let rows: Vec<(String, serde_json::Value)> = sqlx::query_as(
+        "SELECT action, details FROM application_audit WHERE application_id = $1 ORDER BY id",
+    )
+    .bind(id)
+    .fetch_all(f.db.pool())
+    .await
+    .unwrap();
+    let actions: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
+    assert!(actions.contains(&"app.signing_key_created"));
+    assert!(actions.contains(&"app.interactions_endpoint_set"));
+    assert!(actions.contains(&"app.interactions_endpoint_cleared"));
+    assert!(!format!("{rows:?}").contains("seed"));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_command_index_covers_installed_live_applications_only() {
+    let f = fx().await;
+    let c = f.app().await;
+    let id = c.application.id;
+    f.svc
+        .install(f.install(&c, f.owner, f.guild, Permissions::all(), 0))
+        .await
+        .unwrap();
+    f.svc
+        .create_command(id, None, &json!({"name": "ping", "description": "Ping"}))
+        .await
+        .unwrap();
+    f.svc
+        .create_command(
+            id,
+            Some(f.guild),
+            &json!({"name": "local", "description": "Guild only"}),
+        )
+        .await
+        .unwrap();
+    let index = f.svc.command_index(f.guild).await.unwrap();
+    assert_eq!(index.len(), 1);
+    let names: Vec<&str> = index[0].commands.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["ping", "local"]);
+    assert_eq!(f.svc.install_count(id).await.unwrap(), 1);
+    // another application that is not installed here is not listed
+    let c2 = f
+        .svc
+        .create_application(f.owner, "Other Bot", "")
+        .await
+        .unwrap();
+    f.svc
+        .create_command(
+            c2.application.id,
+            None,
+            &json!({"name": "hidden", "description": "x"}),
+        )
+        .await
+        .ok();
+    assert_eq!(f.svc.command_index(f.guild).await.unwrap().len(), 1);
+}

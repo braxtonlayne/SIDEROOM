@@ -41,6 +41,8 @@ pub(crate) struct Session {
     pub id: String,
     pub user: UserId,
     pub intents: u64,
+    /// `(shard_id, shard_count)` of a sharded bot session (DEV-BOT-002).
+    pub shard: Option<(u32, u32)>,
     window: Duration,
     capacity: usize,
     inner: Mutex<Inner>,
@@ -60,6 +62,7 @@ impl Session {
             id,
             user,
             intents,
+            shard: None,
             window,
             capacity,
             inner: Mutex::new(Inner {
@@ -180,6 +183,32 @@ impl Session {
 
     pub fn remove_guild(&self, g: GuildId) -> bool {
         self.lock().guilds.remove(&g)
+    }
+
+    /// Whether this session's shard owns `guild` (`(guild_id >> 22) % shard_count ==
+    /// shard_id`, Discord's rule). Unsharded sessions own everything.
+    pub fn owns_guild(&self, g: GuildId) -> bool {
+        self.shard
+            .is_none_or(|(id, n)| (g.get() >> 22) % u64::from(n.max(1)) == u64::from(id))
+    }
+
+    /// Whether a user-addressed dispatch belongs to this shard: events naming a guild go to
+    /// the guild's shard, everything else (direct messages, account events) to shard 0.
+    pub fn owns_user_event(&self, data: &Value) -> bool {
+        let Some((id, n)) = self.shard else {
+            return true;
+        };
+        if n <= 1 {
+            return true;
+        }
+        match data
+            .get("guild_id")
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse::<u64>().ok())
+        {
+            Some(g) => (g >> 22) % u64::from(n) == u64::from(id),
+            None => id == 0,
+        }
     }
 
     /// Whether this session should receive `event` given its intents.

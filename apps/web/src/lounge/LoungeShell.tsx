@@ -37,6 +37,7 @@ import { ConnectionBanner, NoticesBar } from './shell/Banners';
 import { useAgeCleared, useAgeGate } from './AgeGate';
 import { PopoutHost } from './profile/ProfilePopout';
 import { ReminderTicker } from './shell/ReminderTicker';
+import { InteractionModalHost } from './apps/InteractionModal';
 import { ThreadPane } from './threads/ThreadPane';
 import { useShellBoot } from './shell/useShellBoot';
 import { ShortcutSheet } from './ShortcutSheet';
@@ -317,7 +318,7 @@ function Shell() {
                 {isHome ? (
                   channelId && <DmProfilePanel dmId={channelId} />
                 ) : (
-                  <MemberList guildId={guildId!} />
+                  <MemberList guildId={guildId!} channelId={channelId} />
                 )}
               </aside>
             </>
@@ -368,6 +369,7 @@ function Shell() {
           <p>{t('lounge.loungeShell.inboxNote')}</p>
         </ComingSoon>
         <LoungeDialogs />
+        <InteractionModalHost />
         <PopoutHost />
         <ReminderTicker />
         <QuickSwitcher open={switcher} onClose={() => setSwitcher(false)} />

@@ -6,6 +6,7 @@ import {
   useId,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -55,6 +56,19 @@ import {
 } from './msg/autocomplete';
 import { AutocompletePopup } from './msg/AutocompletePopup';
 import { ScheduleDialog } from './features/ScheduleDialog';
+import { CommandForm } from './apps/CommandForm';
+import {
+  indexedCommands,
+  matchTyped,
+  parseTypedArgs,
+  runsImmediately,
+  searchCommands,
+  type IndexedCommand,
+  type TypedArgs,
+} from './apps/commands';
+import { newNonce, sendInteraction } from './apps/interactions';
+import { useAppCommands } from './apps/useAppCommands';
+import { useReportOutcome } from './apps/useReportOutcome';
 import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
 import { UploadTray } from './msg/UploadTray';
@@ -217,6 +231,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [sending, setSending] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
+  // Slash commands of installed apps (DEV-BOT-008).
+  const appIndex = useAppCommands(channelId, !!guildId);
+  const appCommands = useMemo(() => indexedCommands(appIndex, 1), [appIndex]);
+  const reportOutcome = useReportOutcome();
+  const [appForm, setAppForm] = useState<{ entry: IndexedCommand; prefill: TypedArgs } | null>(
+    null,
+  );
   const [ping, setPing] = useState(true);
   const [hasSel, setHasSel] = useState(false);
   const [caret, setCaret] = useState(0);
@@ -412,9 +433,36 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       } else if (r.kind !== 'none') {
         runAction(r);
         return;
+      } else if (guildId) {
+        const typed = matchTyped(content, appCommands);
+        if (typed) {
+          runAppCommand(typed.entry, parseTypedArgs(typed.entry.command, typed.rest));
+          return;
+        }
       }
     }
     expandForSend(content, (c) => submit(c, undefined, { tts }));
+  };
+
+  /** An app command typed in the box: commands without options run at once, the rest open the option form. */
+  const runAppCommand = (entry: IndexedCommand, prefill: TypedArgs) => {
+    drafts.delete(channelId);
+    setText('');
+    setCaret(0);
+    tokens.current.clear();
+    if (!guildId) return;
+    if (!runsImmediately(entry.command)) {
+      setAppForm({ entry, prefill });
+      return;
+    }
+    void sendInteraction({
+      type: 2,
+      application_id: entry.command.application_id,
+      channel_id: channelId,
+      guild_id: guildId,
+      nonce: newNonce(),
+      data: { id: entry.command.id, options: [] },
+    }).then(reportOutcome);
   };
 
   /** Commands that do something other than post their text. The box is cleared once they are accepted. */
@@ -595,7 +643,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     );
     acTitle = t('lounge.composer.acEmoji');
   } else if (trigger?.kind === '/') {
-    suggestions = commandSuggestions(trigger.query, slashCtx);
+    suggestions = [
+      ...commandSuggestions(trigger.query, slashCtx),
+      ...searchCommands(appCommands, trigger.query).map(({ command, app }) => ({
+        key: `app:${command.id}`,
+        label: `/${command.name}`,
+        hint: command.description
+          ? t('lounge.apps.picker.hint', { app: app.name, description: command.description })
+          : t('lounge.apps.picker.hintNoDescription', { app: app.name }),
+        insert: `/${command.name} `,
+      })),
+    ];
     acTitle = t('lounge.composer.acCommands');
   }
   const acOpen = suggestions.length > 0;
@@ -1025,6 +1083,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           finishSend();
         }}
       />
+      {appForm && guildId && (
+        <CommandForm
+          entry={appForm.entry}
+          prefill={appForm.prefill}
+          channelId={channelId}
+          guildId={guildId}
+          onClose={() => setAppForm(null)}
+        />
+      )}
       <PollModal
         open={pollOpen}
         onClose={() => setPollOpen(false)}

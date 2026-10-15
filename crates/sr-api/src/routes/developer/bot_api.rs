@@ -31,23 +31,38 @@ pub async fn gateway(Ext(deps): Ext<DevDeps>) -> Json<GatewayInfo> {
     })
 }
 
-/// Gateway URL and session limits for a bot. There is no sharding: `shards` is always 1.
+/// Servers per shard the platform recommends (Discord: 1000).
+const GUILDS_PER_SHARD: usize = 1000;
+
+/// Gateway URL and session limits for a bot. `shards` is the recommended shard count: one
+/// per [`GUILDS_PER_SHARD`] servers the application is installed in, at least 1.
 #[utoipa::path(
     get, path = "/gateway/bot", tag = "bot",
     responses((status = 200, body = GatewayBotInfo), (status = 401, body = ErrorBody)),
     security(("authorization" = []))
 )]
-pub async fn gateway_bot(BotOnly(_): BotOnly, Ext(deps): Ext<DevDeps>) -> Json<GatewayBotInfo> {
-    Json(GatewayBotInfo {
+pub async fn gateway_bot(
+    BotOnly(p): BotOnly,
+    Ext(deps): Ext<DevDeps>,
+) -> MsgResult<Json<GatewayBotInfo>> {
+    let AuthKind::Bot { application_id } = p.kind else {
+        return Err(ErrorCode::OnlyBotsCanUseThisEndpoint.into());
+    };
+    let installs = deps
+        .apps
+        .install_count(application_id)
+        .await
+        .map_err(app_err)?;
+    Ok(Json(GatewayBotInfo {
         url: deps.gateway_url(),
-        shards: 1,
+        shards: installs.div_ceil(GUILDS_PER_SHARD).max(1) as u32,
         session_start_limit: SessionStartLimit {
             total: 1000,
             remaining: 1000,
             reset_after: 86_400_000,
             max_concurrency: 1,
         },
-    })
+    }))
 }
 
 /// The bot's own application (public fields).

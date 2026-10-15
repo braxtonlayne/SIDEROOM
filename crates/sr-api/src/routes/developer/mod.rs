@@ -21,12 +21,16 @@
 
 mod bot_api;
 mod dto;
+mod endpoint;
 mod interactions;
 mod oauth;
 mod portal;
 
+pub use endpoint::{EndpointClient, EndpointReply, MAX_ENDPOINT_REPLY};
 pub(crate) use interactions::try_followup;
 
+#[cfg(test)]
+mod endpoint_tests;
 #[cfg(test)]
 mod flow_tests;
 #[cfg(test)]
@@ -105,6 +109,7 @@ pub struct DevDeps {
     clock: Arc<dyn Clock>,
     public_url: String,
     ack_window: std::time::Duration,
+    endpoint: Option<Arc<dyn EndpointClient>>,
 }
 
 impl DevDeps {
@@ -126,6 +131,7 @@ impl DevDeps {
             clock,
             public_url: public_url.trim_end_matches('/').to_owned(),
             ack_window: std::time::Duration::from_millis(3_100),
+            endpoint: None,
         }
     }
 
@@ -133,6 +139,14 @@ impl DevDeps {
     /// (tests shorten it).
     pub fn with_ack_window(mut self, d: std::time::Duration) -> Self {
         self.ack_window = d;
+        self
+    }
+
+    /// Wire the client used to reach applications' HTTP interactions endpoints
+    /// (DEV-BOT-005). Without one, endpoint URLs cannot be saved and delivery stays on the
+    /// gateway.
+    pub fn with_endpoint_client(mut self, c: Arc<dyn EndpointClient>) -> Self {
+        self.endpoint = Some(c);
         self
     }
 
@@ -376,6 +390,10 @@ pub fn router() -> Router<AppState> {
             patch(portal::patch_bot),
         )
         .route(
+            "/applications/{application_id}/interactions-key",
+            post(portal::ensure_interactions_key),
+        )
+        .route(
             "/applications/{application_id}/reset-secret",
             post(portal::reset_secret),
         )
@@ -449,6 +467,10 @@ pub fn router() -> Router<AppState> {
         // interactions
         .route("/interactions", post(interactions::create))
         .route(
+            "/channels/{channel_id}/application-commands",
+            get(interactions::command_index),
+        )
+        .route(
             "/interactions/{interaction_id}/{token}/callback",
             post(interactions::callback),
         )
@@ -467,7 +489,7 @@ pub fn router() -> Router<AppState> {
         portal::apply, portal::status, portal::admin_requests, portal::admin_decide_request,
         portal::admin_versions, portal::admin_decide_version, portal::admin_suspend,
         portal::admin_unsuspend, portal::list_apps, portal::create_app, portal::get_app,
-        portal::patch_app, portal::delete_app, portal::patch_bot, portal::reset_secret,
+        portal::patch_app, portal::ensure_interactions_key, portal::delete_app, portal::patch_bot, portal::reset_secret,
         portal::reset_token, portal::audit_log, portal::installs, portal::list_versions,
         portal::submit_version, portal::withdraw_version,
         oauth::authorize_info, oauth::authorize, oauth::token, oauth::revoke, oauth::introspect,
@@ -478,19 +500,19 @@ pub fn router() -> Router<AppState> {
         bot_api::list_guild, bot_api::create_guild, bot_api::overwrite_guild,
         bot_api::get_guild, bot_api::patch_guild, bot_api::delete_guild,
         bot_api::guild_permissions, bot_api::command_permissions, bot_api::set_command_permissions,
-        interactions::create, interactions::callback, interactions::get_message,
+        interactions::create, interactions::command_index, interactions::callback, interactions::get_message,
         interactions::edit_message, interactions::delete_message,
     ),
     components(schemas(
         ErrorBody, ApplyBody, DeveloperRequestObject, DeveloperRequestAdmin, DeveloperStatus,
         DecideRequestBody, ApplicationObject, BotUserObject, OwnerObject, IntentsObject,
         InstallParamsObject, CreatedApplication, CreateApplicationBody, PatchApplicationBody,
-        PatchBotBody, PasswordBody, ResetSecretResult, ResetTokenResult, AuditEntryObject,
+        PatchBotBody, InteractionsKeyObject, PasswordBody, ResetSecretResult, ResetTokenResult, AuditEntryObject,
         InstallObject, SubmitVersionBody, AppVersionObject, AppVersionAdmin,
         DecideVersionBody, SuspendBody, AuthorizeInfo, AuthorizeBody, AuthorizeResult,
         ScopeObject, GuildChoice, AuthorizedApp, OAuthMe, TokenResponseBody, TokenRequestBody,
         OAuthErrorBody, IntrospectionBody, GatewayInfo, GatewayBotInfo, SessionStartLimit,
-        CreateInteractionBody, CallbackBody,
+        CreateInteractionBody, CallbackBody, CommandIndex, CommandIndexApp,
     )),
     tags(
         (name = "developer", description = "Developer portal: applications, bot credentials, release review"),

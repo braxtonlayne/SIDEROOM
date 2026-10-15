@@ -298,10 +298,16 @@ impl Conn {
             .authenticate(&id.token)
             .await
             .map_err(|_| Stop::Close(close::AUTHENTICATION_FAILED, "authentication failed"))?;
-        // There is no sharding: a bot may name shard [0, 1] (what libraries send by default).
-        if user.bot && id.shard.as_deref().is_some_and(|s| s != [0, 1].as_slice()) {
-            return Err(Stop::Close(close::INVALID_SHARD, "invalid shard"));
-        }
+        // A bot may name `[shard_id, shard_count]`; user clients never shard.
+        let shard = match (user.bot, id.shard.as_deref()) {
+            (true, Some(&[i, n])) if (1..=crate::protocol::MAX_SHARDS).contains(&n) && i < n => {
+                Some((i, n))
+            }
+            (true, Some(_)) => {
+                return Err(Stop::Close(close::INVALID_SHARD, "invalid shard"));
+            }
+            (_, _) => None,
+        };
         // User clients send no intents and receive everything.
         let wanted = if user.bot {
             if id.intents & !intents::ALL_KNOWN != 0 {
@@ -318,7 +324,10 @@ impl Conn {
             .session_tx
             .take()
             .ok_or(Stop::Close(close::UNKNOWN_ERROR, "no session channel"))?;
-        let session = self.gw.create_session(&user, wanted, self.id, tx).await;
+        let session = self
+            .gw
+            .create_session(&user, wanted, self.id, tx, shard)
+            .await;
         self.gw
             .set_session_platform(&session, crate::presence::platform_of(&id.properties));
         self.session = Some(session.clone());
