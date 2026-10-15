@@ -29,6 +29,7 @@ pub mod community;
 pub mod deps;
 pub mod events;
 pub mod expressions;
+pub mod features;
 pub mod follow;
 pub mod guide;
 pub mod insights;
@@ -76,6 +77,7 @@ pub fn router() -> Router<AppState> {
         .merge(tags::routes())
         .merge(insights::routes())
         .merge(guide::routes())
+        .merge(features::routes())
         .merge(applications::routes())
 }
 
@@ -153,6 +155,11 @@ pub fn router() -> Router<AppState> {
         insights::get_insights,
         guide::get_guide,
         guide::put_guide,
+        features::list_features,
+        features::patch_feature,
+        features::list_temp_roles,
+        features::grant_temp_role,
+        features::revoke_temp_role,
         applications::get_form,
         applications::put_form,
         applications::submit_application,
@@ -218,6 +225,10 @@ pub fn router() -> Router<AppState> {
         guide::GuideTodoDto,
         guide::GuideResourceDto,
         guide::PutGuideBody,
+        features::GuildFeatureObject,
+        features::PatchGuildFeatureBody,
+        features::TempRoleObject,
+        features::GrantTempRoleBody,
         applications::QuestionDto,
         applications::PutFormBody,
         applications::FormObject,

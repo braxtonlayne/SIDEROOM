@@ -65,6 +65,8 @@ struct Opts {
     timeouter: Option<Arc<dyn super::MemberTimeouter>>,
     presence: Option<Arc<dyn super::PresenceCounter>>,
     voice: Option<Arc<dyn crate::routes::voice::VoiceBackend>>,
+    /// Register the per-server feature routes over fake feature actions.
+    features: bool,
 }
 
 async fn env() -> Env {
@@ -205,7 +207,7 @@ async fn env_with(opts: Opts) -> Env {
     let mut builder = AppState::builder()
         .bots(bots)
         .sessions(sessions.clone())
-        .clock(dyn_clock)
+        .clock(dyn_clock.clone())
         .settings(settings)
         .extension(deps.clone())
         .extension(Arc::new(AutoModGateHandle(deps.clone())))
@@ -219,6 +221,10 @@ async fn env_with(opts: Opts) -> Env {
         )));
     if let Some(v) = opts.voice {
         builder = builder.extension(Arc::new(crate::routes::voice::VoiceApi(v)));
+    }
+    if opts.features {
+        let gf = features_tests::wire(&backend, dyn_clock.clone(), bus.clone());
+        builder = builder.extension(Arc::new(gf));
     }
     let state = builder.build();
     let app = build_router(state, router().merge(messages::router()));
@@ -2930,3 +2936,6 @@ async fn nobody_creates_or_redeems_invites_to_the_staff_server() {
         .is_staff_guild = false;
     assert_eq!(e.accept(CAROL, &old).await.0, StatusCode::OK);
 }
+
+#[path = "features_tests.rs"]
+mod features_tests;

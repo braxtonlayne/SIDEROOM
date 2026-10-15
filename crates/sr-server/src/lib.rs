@@ -8,6 +8,7 @@ pub mod backends;
 pub mod cinema_catalog;
 pub mod cinema_jobs;
 pub mod external_jobs;
+pub mod feature_actions;
 pub mod features_store;
 pub mod gateway_pg;
 pub mod inbox_pg;
@@ -62,3 +63,6 @@ mod tv_wiring_pg_tests;
 mod userset_pg_tests;
 #[cfg(test)]
 mod watchparty_pg_tests;
+
+#[cfg(test)]
+mod feature_actions_pg_tests;

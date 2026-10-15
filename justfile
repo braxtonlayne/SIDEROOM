@@ -88,3 +88,7 @@ icons:
 # XC-PERF-004: EXPLAIN the hot read paths on a seeded scratch DB (needs SR_TEST_DATABASE_URL)
 explain-hot-paths:
     cargo test -p sr-db --test explain_hot_paths -- --ignored --nocapture
+
+# Scaffold a feature module (FTR-CORE-001): `just new-feature lounge.birthday_roles`
+new-feature id:
+    bash scripts/new-feature.sh {{id}}

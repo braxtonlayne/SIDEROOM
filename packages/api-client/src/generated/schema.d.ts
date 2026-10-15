@@ -5902,6 +5902,40 @@ export interface paths {
         patch: operations["modify_community"];
         trace?: never;
     };
+    "/guilds/{guild_id}/sr/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's feature modules (`MANAGE_GUILD`). */
+        get: operations["list_features"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/sr/features/{feature_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Enable, disable or configure one module in this server (`MANAGE_GUILD`). */
+        patch: operations["patch_feature"];
+        trace?: never;
+    };
     "/guilds/{guild_id}/sr/guide": {
         parameters: {
             query?: never;
@@ -5935,6 +5969,44 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/sr/temp-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Active temporary role grants (`MANAGE_ROLES`). */
+        get: operations["list_temp_roles"];
+        put?: never;
+        /**
+         * Give a member a role for a limited time (`MANAGE_ROLES`, role hierarchy applies). A
+         *     second grant of the same role replaces the expiry.
+         */
+        post: operations["grant_temp_role"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** End a temporary grant now and take the role away (`MANAGE_ROLES`). */
+        delete: operations["revoke_temp_role"];
         options?: never;
         head?: never;
         patch?: never;
@@ -10815,6 +10887,15 @@ export interface components {
             items: components["schemas"]["GrantView"][];
             next_before?: string | null;
         };
+        GrantTempRoleBody: {
+            /**
+             * Format: int64
+             * @description How long the member keeps the role, in seconds.
+             */
+            duration_seconds: number;
+            role_id: string;
+            user_id: string;
+        };
         GrantView: {
             /** Format: int64 */
             days?: number | null;
@@ -10867,6 +10948,27 @@ export interface components {
             permissions: string;
             /** @description Why not: `missing_permission`, `app_not_released`, `bot_not_public`, `suspended`. */
             reason?: string | null;
+        };
+        GuildFeatureObject: {
+            /** @description Whether it starts on in a server that never chose. */
+            default_enabled: boolean;
+            description: string;
+            /** @description Whether the module is on in this server. */
+            enabled: boolean;
+            id: string;
+            name: string;
+            /** Format: int32 */
+            phase: number;
+            /**
+             * @description The platform operator switched it off everywhere; the server's choice is kept
+             *     but has no effect.
+             */
+            platform_disabled: boolean;
+            /** @description Settings schema for the auto-rendered form. */
+            schema: Record<string, never>;
+            section: string;
+            /** @description Effective settings in this server (schema defaults plus the server's overrides). */
+            settings: Record<string, never>;
         };
         /** @description Body of `POST /guilds/templates/{code}`. */
         GuildFromTemplateBody: {
@@ -11964,6 +12066,12 @@ export interface components {
             /** @description Drop the explicit platform flag so the feature default applies again. */
             reset_enabled?: boolean;
             /** @description Replace the platform-scope setting overrides (validated against the feature schema). */
+            settings?: Record<string, never> | null;
+        };
+        PatchGuildFeatureBody: {
+            /** @description Turn the module on or off in this server. */
+            enabled?: boolean | null;
+            /** @description Replace this server's setting overrides (validated against the schema). */
             settings?: Record<string, never> | null;
         };
         /** @description Body of `PATCH /users/@me/notification-defaults`. */
@@ -13252,6 +13360,15 @@ export interface components {
             id?: string | null;
             moderated?: boolean;
             name: string;
+        };
+        TempRoleObject: {
+            /**
+             * Format: int64
+             * @description Unix milliseconds at which the role is taken away.
+             */
+            expires_at: number;
+            role_id: string;
+            user_id: string;
         };
         TemplateObject: {
             code: string;
@@ -34488,6 +34605,96 @@ export interface operations {
             };
         };
     };
+    list_features: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildFeatureObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Feature id, e.g. lounge.starboard */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchGuildFeatureBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildFeatureObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_guide: {
         parameters: {
             query?: never;
@@ -34600,6 +34807,135 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["InsightsObject"];
                 };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_temp_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TempRoleObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    grant_temp_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantTempRoleBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TempRoleObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_temp_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+                /** @description Role snowflake */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             403: {
                 headers: {

@@ -56,6 +56,7 @@ DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/tag	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
@@ -257,8 +258,10 @@ GET	/guilds/{guild_id}/sr/applications	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/applications/@me	authenticated	other	allow	-
 GET	/guilds/{guild_id}/sr/applications/form	authenticated	other	allow	-
 GET	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/features	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/insights	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stage-instances	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
@@ -362,6 +365,7 @@ PATCH	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/sr/features/{feature_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/support	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
@@ -510,6 +514,7 @@ POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/sr/applications	authenticated	other	allow	-
 POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/templates	authenticated	membership	allow	-
 POST	/interactions	authenticated	other	deny	-
