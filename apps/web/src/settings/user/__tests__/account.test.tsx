@@ -628,11 +628,20 @@ describe('Delete account (LNG-USET-006, D-124, G-82)', () => {
     const dialog = await openDialog();
     await userEvent.type(within(dialog).getByLabelText(/Type your username/), 'alice');
     await userEvent.type(within(dialog).getByLabelText('Current password'), 'hunter22');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete my account for good' }));
-    expect(await within(dialog).findByText(/Enter a code from your authenticator/)).toBeInTheDocument();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete my account for good' }),
+    );
+    expect(
+      await within(dialog).findByText(/Enter a code from your authenticator/),
+    ).toBeInTheDocument();
     expect(bodies).toEqual([]);
-    await userEvent.type(within(dialog).getByLabelText('Authenticator or recovery code'), '123 456');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete my account for good' }));
+    await userEvent.type(
+      within(dialog).getByLabelText('Authenticator or recovery code'),
+      '123 456',
+    );
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete my account for good' }),
+    );
     await waitFor(() =>
       expect(bodies).toEqual([
         {
@@ -660,7 +669,9 @@ describe('Delete account (LNG-USET-006, D-124, G-82)', () => {
     const dialog = await openDialog();
     await userEvent.type(within(dialog).getByLabelText(/Type your username/), 'alice');
     await userEvent.type(within(dialog).getByLabelText('Current password'), 'hunter22');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete my account for good' }));
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete my account for good' }),
+    );
     const alert = await within(dialog).findByRole('alert');
     expect(alert).toHaveTextContent(new RegExp(shown));
     expect(router.state.location.pathname).toBe('/settings/user/account');
@@ -678,7 +689,9 @@ describe('Delete account (LNG-USET-006, D-124, G-82)', () => {
     const dialog = await openDialog();
     await userEvent.type(within(dialog).getByLabelText(/Type your username/), 'alice');
     await userEvent.type(within(dialog).getByLabelText('Current password'), 'nope');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete my account for good' }));
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete my account for good' }),
+    );
     expect(await within(dialog).findByText('That password is not right.')).toBeInTheDocument();
   });
 });

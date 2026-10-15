@@ -20,7 +20,8 @@ export default {
   'settings.account.deleteTypeUsername': 'Type your username, {username}, to confirm',
   'settings.account.deleteUsernameMismatch': 'Type your username exactly to confirm.',
   'settings.account.deleteCodeLabel': 'Authenticator or recovery code',
-  'settings.account.deleteEnterCode': 'Enter a code from your authenticator app or a recovery code.',
+  'settings.account.deleteEnterCode':
+    'Enter a code from your authenticator app or a recovery code.',
   'settings.account.deleteConfirm': 'Delete my account for good',
   'settings.account.deleteStaff':
     'You are on the staff. Leave the Staff Server first, then delete your account.',

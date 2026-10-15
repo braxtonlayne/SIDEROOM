@@ -59,7 +59,8 @@ export function SlowmodeForm({
 
   const targets = channelIds ?? picked;
   const name = (id: string) => channels.find((c) => c.id === id)?.name ?? id;
-  const seconds = (n: number) => (n === 0 ? t('lounge.slowmode.off') : t('lounge.slowmode.secs', { n }));
+  const seconds = (n: number) =>
+    n === 0 ? t('lounge.slowmode.off') : t('lounge.slowmode.secs', { n });
 
   const apply = async () => {
     setBusy(true);
@@ -96,8 +97,7 @@ export function SlowmodeForm({
         {t('lounge.slowmode.loading')}
       </p>
     );
-  if (!presets.enabled)
-    return <Notice variant="info">{t('lounge.slowmode.moduleOff')}</Notice>;
+  if (!presets.enabled) return <Notice variant="info">{t('lounge.slowmode.moduleOff')}</Notice>;
 
   return (
     <form

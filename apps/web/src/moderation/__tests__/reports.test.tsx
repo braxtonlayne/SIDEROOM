@@ -91,7 +91,9 @@ describe('SR_FEATURE_UPDATE (G-81)', () => {
       emitDispatch('MESSAGE_CREATE', { flags: {} });
     });
     expect(useReports.getState().enabled).toBe(true);
-    expect(flagsOfUpdate('SR_FEATURE_UPDATE', { scope: 'platform', flags: { a: 1, b: true } })).toEqual({
+    expect(
+      flagsOfUpdate('SR_FEATURE_UPDATE', { scope: 'platform', flags: { a: 1, b: true } }),
+    ).toEqual({
       a: false,
       b: true,
     });
@@ -100,7 +102,10 @@ describe('SR_FEATURE_UPDATE (G-81)', () => {
     // After unmount the event no longer reaches it.
     setClientFlags({});
     act(() => {
-      emitDispatch('SR_FEATURE_UPDATE', { scope: 'platform', flags: { 'moderation.reports': true } });
+      emitDispatch('SR_FEATURE_UPDATE', {
+        scope: 'platform',
+        flags: { 'moderation.reports': true },
+      });
     });
     expect(useReports.getState().enabled).toBe(false);
   });

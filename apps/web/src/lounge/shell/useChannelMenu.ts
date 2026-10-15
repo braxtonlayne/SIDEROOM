@@ -20,7 +20,13 @@ const TYPE_NUM: Record<Channel['type'], number> = {
 };
 
 /** Channel kinds a slowmode preset can be applied to. */
-const SLOWMODE_KINDS = new Set<Channel['type']>(['text', 'announcement', 'forum', 'media', 'voice']);
+const SLOWMODE_KINDS = new Set<Channel['type']>([
+  'text',
+  'announcement',
+  'forum',
+  'media',
+  'voice',
+]);
 
 /** Context-menu entries for a channel or category (LNG-CHN-013, LNG-CHN-014). */
 export function useChannelMenu(

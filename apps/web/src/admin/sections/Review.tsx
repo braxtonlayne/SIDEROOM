@@ -373,12 +373,14 @@ function ReviewDetail({
       setDialog('reject');
     } else if (s.state === 'submitted' || (s.state === 'in_review' && !live)) {
       autoReject.current = false;
-      void action.run(() => rv.claim(id), t('admin.review.claimedNotice')).then((claimed) => {
-        if (claimed) {
-          res.set(claimed);
-          autoReject.current = true;
-        }
-      });
+      void action
+        .run(() => rv.claim(id), t('admin.review.claimedNotice'))
+        .then((claimed) => {
+          if (claimed) {
+            res.set(claimed);
+            autoReject.current = true;
+          }
+        });
     } else {
       autoReject.current = false;
     }

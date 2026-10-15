@@ -341,9 +341,7 @@ describe('announcement composer (ADM-PLT-009)', () => {
     openAdmin('announcements');
     const user = userEvent.setup();
     // While it is showing there is no Reuse, only Edit and End (G-69).
-    expect(
-      screen.queryByRole('button', { name: /Reuse Maintenance tonight/ }),
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: /Reuse Maintenance tonight/ })).toBeNull();
     await user.click(await screen.findByRole('button', { name: 'Edit Maintenance tonight' }));
     const edit = await screen.findByRole('dialog', { name: 'Edit announcement' });
     expect(within(edit).getByLabelText('Title')).toHaveValue('Maintenance tonight');

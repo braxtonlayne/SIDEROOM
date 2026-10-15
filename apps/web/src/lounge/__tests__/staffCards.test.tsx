@@ -156,7 +156,9 @@ describe('staff card buttons', () => {
       );
       view(reviewRows);
       await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
-      await waitFor(() => expect(assign).toHaveBeenCalledWith('/admin/review?submission=42&reject=1'));
+      await waitFor(() =>
+        expect(assign).toHaveBeenCalledWith('/admin/review?submission=42&reject=1'),
+      );
     } finally {
       vi.unstubAllGlobals();
     }

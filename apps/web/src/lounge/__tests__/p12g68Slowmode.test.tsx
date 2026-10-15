@@ -34,7 +34,14 @@ function seed(ownerId: string) {
     },
     channelIdsByGuild: { g1: ['cat', 'c1', 'c2'] },
     roles: {
-      g1: { id: 'g1', guild_id: 'g1', name: '@everyone', color: 0, position: 0, permissions: EVERYONE },
+      g1: {
+        id: 'g1',
+        guild_id: 'g1',
+        name: '@everyone',
+        color: 0,
+        position: 0,
+        permissions: EVERYONE,
+      },
     },
     roleIdsByGuild: { g1: ['g1'] },
     memberIdsByGuild: { g1: ['1', '2'] },
@@ -103,7 +110,9 @@ describe('Apply Slowmode Preset (G-74)', () => {
     await waitFor(() =>
       expect(bodies).toEqual([{ preset_id: 'strict', channel_ids: ['c2'], minutes: 60 }]),
     );
-    expect(await within(dialog).findByText(/#random now has slowmode 120 seconds/)).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText(/#random now has slowmode 120 seconds/),
+    ).toBeInTheDocument();
     expect(within(dialog).getByText(/goes back to off at/)).toBeInTheDocument();
   });
 
@@ -125,7 +134,9 @@ describe('Apply Slowmode Preset (G-74)', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Slowmode preset for #random' });
     await userEvent.click(await within(dialog).findByRole('button', { name: 'Apply preset' }));
     await waitFor(() => expect(bodies).toEqual([{ preset_id: 'light', channel_ids: ['c2'] }]));
-    expect(await within(dialog).findByText('#random now has slowmode 5 seconds.')).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText('#random now has slowmode 5 seconds.'),
+    ).toBeInTheDocument();
   });
 
   it('says so when the module is off, and offers nothing to members', async () => {
@@ -191,6 +202,8 @@ describe('Slowmode schedules module card (G-74)', () => {
     await waitFor(() =>
       expect(bodies).toEqual([{ preset_id: 'light', channel_ids: ['c1', 'c2'] }]),
     );
-    expect(await within(panel).findByText('#general now has slowmode 5 seconds.')).toBeInTheDocument();
+    expect(
+      await within(panel).findByText('#general now has slowmode 5 seconds.'),
+    ).toBeInTheDocument();
   });
 });
