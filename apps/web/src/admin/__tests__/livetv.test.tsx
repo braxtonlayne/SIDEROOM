@@ -313,6 +313,24 @@ describe('Live TV admin: channels', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('labels a daypart whose end equals its start as all day (G-11)', async () => {
+    asStaff({ perms: [...CURATOR] });
+    useTvAdmin({ channels: [] });
+    const user = userEvent.setup();
+    openAdmin('cinema-live-tv');
+    await screen.findByText('No channels');
+    await user.click(screen.getByRole('button', { name: 'New channel' }));
+    await screen.findByRole('form', { name: 'Channel details' });
+    fireInput(screen.getByLabelText('Daypart 1 start'), '06:00');
+    fireInput(screen.getByLabelText('Daypart 1 end'), '22:00');
+    expect(
+      screen.getByText(/An end at or before the start wraps past midnight/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^All day:/)).toBeNull();
+    fireInput(screen.getByLabelText('Daypart 1 end'), '06:00');
+    expect(screen.getByText(/^All day: the start and end are the same/)).toBeInTheDocument();
+  });
+
   it('creates a rule-based channel with dayparts and a pool', async () => {
     asStaff({ perms: [...CURATOR] });
     const calls = useTvAdmin({ channels: [] });
