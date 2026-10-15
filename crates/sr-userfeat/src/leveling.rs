@@ -79,6 +79,31 @@ pub struct RankCard {
     pub messages: i64,
     /// Whether the member opted out of leveling in this server.
     pub opted_out: bool,
+    /// The roles this server hands out for reaching a level (G-70), lowest level first. Roles
+    /// that no longer exist are left out; role objects are readable by every member.
+    pub level_roles: Vec<LevelRoleEntry>,
+}
+
+/// One level to role mapping of the leveling module.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct LevelRoleEntry {
+    pub level: i64,
+    pub role_id: String,
+}
+
+/// The configured `level_roles` as sorted pairs; malformed rows are skipped.
+pub fn level_role_pairs(cfg: &Settings) -> Vec<(i64, i64)> {
+    let mut out: Vec<(i64, i64)> = cfg
+        .list("level_roles")
+        .into_iter()
+        .filter_map(|v| {
+            let level = v.get("level")?.as_i64()?;
+            let role = v.get("role")?.as_str()?.parse::<i64>().ok()?;
+            (level > 0 && role > 0).then_some((level, role))
+        })
+        .collect();
+    out.sort_unstable();
+    out
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -181,6 +206,24 @@ impl UserFeatures {
             None => (0, 0, None),
         };
         let level = level_for_xp(xp);
+        let pairs = level_role_pairs(&self.settings(LEVELING_ID, Some(guild)).await?);
+        let existing: Vec<i64> = if pairs.is_empty() {
+            Vec::new()
+        } else {
+            sqlx::query_scalar("SELECT id FROM roles WHERE guild_id = $1 AND id = ANY($2)")
+                .bind(guild)
+                .bind(pairs.iter().map(|p| p.1).collect::<Vec<_>>())
+                .fetch_all(&self.pool)
+                .await?
+        };
+        let level_roles = pairs
+            .into_iter()
+            .filter(|(_, role)| existing.contains(role))
+            .map(|(level, role)| LevelRoleEntry {
+                level,
+                role_id: role.to_string(),
+            })
+            .collect();
         Ok(RankCard {
             user_id: user.to_string(),
             username,
@@ -192,6 +235,7 @@ impl UserFeatures {
             rank,
             messages,
             opted_out,
+            level_roles,
         })
     }
 

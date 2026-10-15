@@ -29,6 +29,61 @@ pub struct SlowmodePlus;
 #[serde(default)]
 struct Config {
     rules: Vec<Rule>,
+    presets: Vec<Preset>,
+}
+
+/// A named slowmode value that staff apply on demand (G-74).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct Preset {
+    pub id: String,
+    pub name: String,
+    pub seconds: u32,
+}
+
+impl Default for Preset {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            seconds: 10,
+        }
+    }
+}
+
+/// Presets offered while a server has configured none.
+pub fn default_presets() -> Vec<Preset> {
+    [
+        ("light", "Light (5 seconds)", 5),
+        ("medium", "Medium (30 seconds)", 30),
+        ("strict", "Strict (2 minutes)", 120),
+        ("lockdown", "Lockdown (10 minutes)", 600),
+    ]
+    .into_iter()
+    .map(|(id, name, seconds)| Preset {
+        id: id.into(),
+        name: name.into(),
+        seconds,
+    })
+    .collect()
+}
+
+/// What one on-demand application did to a channel.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Applied {
+    pub channel: ChannelId,
+    /// The slowmode the channel had before (what a revert restores).
+    pub before: u32,
+    pub seconds: u32,
+    /// When the slowmode goes back, if a duration was given.
+    pub revert_at_ms: Option<i64>,
+}
+
+/// Longest on-demand duration: one week.
+pub const MAX_APPLY_MINUTES: u32 = 7 * 24 * 60;
+
+fn revert_key(channel: u64) -> String {
+    format!("revert:{channel}")
 }
 
 #[derive(Debug, Deserialize)]
@@ -98,6 +153,128 @@ fn applied_key(channel: u64) -> String {
 }
 
 impl SlowmodePlus {
+    /// The presets of a server: its own list, or the built-in ones when it set none.
+    pub async fn presets(ctx: &FeatureCtx, guild: GuildId) -> Result<Vec<Preset>, FeatureError> {
+        let cfg: Config = ctx.guild_config(SLOWMODE_ID, guild).await?;
+        let own: Vec<Preset> = cfg
+            .presets
+            .into_iter()
+            .filter(|p| !p.id.trim().is_empty())
+            .collect();
+        Ok(if own.is_empty() {
+            default_presets()
+        } else {
+            own
+        })
+    }
+
+    /// Apply preset `preset_id` to `channels` now (G-74). With `minutes` the previous value is
+    /// put back by the module's tick once the time is up, unless someone changed the channel
+    /// meanwhile. The caller has checked the permission to manage every channel. Writes go through
+    /// the guild backend as this module (D-187), so the audit log reads like a manual change.
+    pub async fn apply_preset(
+        ctx: &FeatureCtx,
+        guild: GuildId,
+        preset_id: &str,
+        channels: &[ChannelId],
+        minutes: Option<u32>,
+    ) -> Result<Vec<Applied>, FeatureError> {
+        let presets = Self::presets(ctx, guild).await?;
+        let preset = presets.iter().find(|p| p.id == preset_id).ok_or_else(|| {
+            FeatureError::Validation(crate::schema::ValidationError {
+                path: "preset_id".into(),
+                reason: "unknown preset".into(),
+            })
+        })?;
+        let seconds = preset.seconds.min(MAX_SECONDS);
+        let now = ctx.now_ms();
+        let revert_at = minutes.map(|m| now + i64::from(m.min(MAX_APPLY_MINUTES)) * 60_000);
+        let mut out = Vec::new();
+        for channel in channels {
+            let Some(info) = ctx.actions.get_channel(*channel).await? else {
+                continue;
+            };
+            let key = revert_key(channel.get());
+            // A channel that is already on a timed preset keeps the value from before the first one.
+            let before = match ctx.state.get(SLOWMODE_ID, guild, &key).await? {
+                Some(e) => e
+                    .value
+                    .get("before")
+                    .and_then(serde_json::Value::as_u64)
+                    .and_then(|v| u32::try_from(v).ok())
+                    .unwrap_or(info.rate_limit_per_user),
+                None => info.rate_limit_per_user,
+            };
+            if info.rate_limit_per_user != seconds {
+                ctx.actions.set_slowmode(*channel, seconds).await?;
+            }
+            match revert_at {
+                Some(at) => {
+                    ctx.state
+                        .put(
+                            StateEntry::new(
+                                SLOWMODE_ID,
+                                guild,
+                                key,
+                                json!({"before": before, "seconds": seconds}),
+                            )
+                            .due(at),
+                        )
+                        .await?;
+                }
+                None => ctx.state.delete(SLOWMODE_ID, guild, &key).await?,
+            }
+            out.push(Applied {
+                channel: *channel,
+                before,
+                seconds,
+                revert_at_ms: revert_at,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Put back the channels whose timed preset ran out.
+    async fn run_reverts(&self, ctx: &FeatureCtx) -> Result<(), FeatureError> {
+        for entry in ctx.state.due(SLOWMODE_ID, ctx.now_ms(), 100).await? {
+            let Some(ch) = entry
+                .key
+                .strip_prefix("revert:")
+                .and_then(|s| s.parse::<u64>().ok())
+            else {
+                continue;
+            };
+            let channel = ChannelId::new(ch);
+            let read = |name: &str| {
+                entry
+                    .value
+                    .get(name)
+                    .and_then(serde_json::Value::as_u64)
+                    .and_then(|v| u32::try_from(v).ok())
+            };
+            let before = read("before").unwrap_or(0);
+            let applied = read("seconds");
+            if let Some(info) = ctx.actions.get_channel(channel).await?
+                && Some(info.rate_limit_per_user) == applied
+                && info.rate_limit_per_user != before
+            {
+                // A schedule that holds the channel right now wins; its own restore runs later.
+                let held = ctx
+                    .state
+                    .get(SLOWMODE_ID, entry.guild, &applied_key(ch))
+                    .await?
+                    .is_some();
+                if !held {
+                    ctx.actions.set_slowmode(channel, before).await?;
+                }
+            }
+            ctx.state
+                .delete(SLOWMODE_ID, entry.guild, &entry.key)
+                .await?;
+        }
+        Ok(())
+    }
+
     async fn sweep(&self, ctx: &FeatureCtx, guild: GuildId) -> Result<(), FeatureError> {
         let cfg: Config = ctx.guild_config(SLOWMODE_ID, guild).await?;
         let now = ctx.now_ms();
@@ -208,19 +385,15 @@ impl Feature for SlowmodePlus {
             )
             .default_value(json!(0))
         };
-        SettingsSchema::new(vec![Field::new(
-            "rules",
-            "Schedules",
+        let presets = Field::new(
+            "presets",
+            "Presets",
             FieldKind::List {
-                max_items: Some(25),
+                max_items: Some(12),
                 item: Box::new(FieldKind::Group {
                     fields: vec![
+                        Field::new("id", "Id", FieldKind::String { max_len: Some(32) }),
                         Field::new("name", "Name", FieldKind::String { max_len: Some(60) }),
-                        Field::new(
-                            "channels",
-                            "Channels",
-                            FieldKind::ChannelPicker { multi: true },
-                        ),
                         Field::new(
                             "seconds",
                             "Slowmode (seconds)",
@@ -230,42 +403,74 @@ impl Feature for SlowmodePlus {
                             },
                         )
                         .default_value(json!(10)),
-                        Field::new(
-                            "days",
-                            "Days",
-                            FieldKind::List {
-                                max_items: Some(7),
-                                item: Box::new(FieldKind::Enum {
-                                    options: vec![
-                                        day("mon", "Monday"),
-                                        day("tue", "Tuesday"),
-                                        day("wed", "Wednesday"),
-                                        day("thu", "Thursday"),
-                                        day("fri", "Friday"),
-                                        day("sat", "Saturday"),
-                                        day("sun", "Sunday"),
-                                    ],
-                                }),
-                            },
-                        )
-                        .help("Leave empty for every day."),
-                        hour("start_hour", "Start hour", 20),
-                        minute("start_minute", "Start minute"),
-                        hour("end_hour", "End hour", 22),
-                        minute("end_minute", "End minute"),
-                        Field::new(
-                            "utc_offset_minutes",
-                            "Time zone (minutes from UTC)",
-                            FieldKind::Int {
-                                min: Some(-720),
-                                max: Some(840),
-                            },
-                        )
-                        .default_value(json!(0)),
                     ],
                 }),
             },
-        )])
+        )
+        .help(
+            "Named values staff apply on demand from the channel menu. Leave empty for the built-in four.",
+        );
+        SettingsSchema::new(vec![
+            presets,
+            Field::new(
+                "rules",
+                "Schedules",
+                FieldKind::List {
+                    max_items: Some(25),
+                    item: Box::new(FieldKind::Group {
+                        fields: vec![
+                            Field::new("name", "Name", FieldKind::String { max_len: Some(60) }),
+                            Field::new(
+                                "channels",
+                                "Channels",
+                                FieldKind::ChannelPicker { multi: true },
+                            ),
+                            Field::new(
+                                "seconds",
+                                "Slowmode (seconds)",
+                                FieldKind::Int {
+                                    min: Some(0),
+                                    max: Some(i64::from(MAX_SECONDS)),
+                                },
+                            )
+                            .default_value(json!(10)),
+                            Field::new(
+                                "days",
+                                "Days",
+                                FieldKind::List {
+                                    max_items: Some(7),
+                                    item: Box::new(FieldKind::Enum {
+                                        options: vec![
+                                            day("mon", "Monday"),
+                                            day("tue", "Tuesday"),
+                                            day("wed", "Wednesday"),
+                                            day("thu", "Thursday"),
+                                            day("fri", "Friday"),
+                                            day("sat", "Saturday"),
+                                            day("sun", "Sunday"),
+                                        ],
+                                    }),
+                                },
+                            )
+                            .help("Leave empty for every day."),
+                            hour("start_hour", "Start hour", 20),
+                            minute("start_minute", "Start minute"),
+                            hour("end_hour", "End hour", 22),
+                            minute("end_minute", "End minute"),
+                            Field::new(
+                                "utc_offset_minutes",
+                                "Time zone (minutes from UTC)",
+                                FieldKind::Int {
+                                    min: Some(-720),
+                                    max: Some(840),
+                                },
+                            )
+                            .default_value(json!(0)),
+                        ],
+                    }),
+                },
+            ),
+        ])
     }
 
     fn scopes(&self) -> &[Scope] {
@@ -274,6 +479,9 @@ impl Feature for SlowmodePlus {
 
     fn on_tick<'a>(&'a self, ctx: &'a FeatureCtx) -> BoxFuture<'a, Result<(), FeatureError>> {
         Box::pin(async move {
+            if let Err(e) = self.run_reverts(ctx).await {
+                tracing::warn!(error = %e, "slowmode revert failed");
+            }
             for guild in ctx.settings.enabled_guilds(SLOWMODE_ID).await? {
                 if let Err(e) = self.sweep(ctx, guild).await {
                     tracing::warn!(guild = guild.get(), error = %e, "slowmode sweep failed");
@@ -386,6 +594,85 @@ mod tests {
         h.actions.clear_calls();
         SlowmodePlus.on_tick(&h.ctx).await.unwrap();
         assert!(h.actions.calls().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_preset_applies_now_and_reverts_after_its_time() {
+        let mut reg = FeatureRegistry::new();
+        reg.register(SlowmodePlus).unwrap();
+        let h = Harness::new(reg).await;
+        h.actions.put_channel(chan(10, 5));
+        h.actions.put_channel(chan(11, 0));
+        let guild = GuildId::new(1);
+        h.clock.set(MONDAY);
+
+        // Built-in presets while the server set none; unknown ids are refused.
+        assert!(
+            SlowmodePlus::apply_preset(&h.ctx, guild, "nope", &[ChannelId::new(10)], None)
+                .await
+                .is_err()
+        );
+        let done = SlowmodePlus::apply_preset(
+            &h.ctx,
+            guild,
+            "medium",
+            &[ChannelId::new(10), ChannelId::new(11)],
+            Some(10),
+        )
+        .await
+        .unwrap();
+        assert_eq!(done.len(), 2);
+        assert_eq!((done[0].before, done[0].seconds), (5, 30));
+        assert_eq!(done[0].revert_at_ms, Some(MONDAY + 10 * MIN));
+        assert_eq!(h.actions.calls().len(), 2);
+
+        // Not yet due.
+        h.clock.set(MONDAY + 9 * MIN);
+        SlowmodePlus.on_tick(&h.ctx).await.unwrap();
+        assert_eq!(h.actions.calls().len(), 2);
+
+        // Due: both go back, and a channel someone changed in between is left alone.
+        h.actions.put_channel(chan(11, 60));
+        h.clock.set(MONDAY + 11 * MIN);
+        SlowmodePlus.on_tick(&h.ctx).await.unwrap();
+        assert!(
+            h.actions
+                .calls()
+                .contains(&Call::Slowmode(ChannelId::new(10), 5))
+        );
+        assert!(
+            !h.actions
+                .calls()
+                .contains(&Call::Slowmode(ChannelId::new(11), 0))
+        );
+        let before = h.actions.calls().len();
+        SlowmodePlus.on_tick(&h.ctx).await.unwrap();
+        assert_eq!(h.actions.calls().len(), before, "the revert ran once");
+    }
+
+    #[tokio::test]
+    async fn a_server_can_define_its_own_presets() {
+        let mut reg = FeatureRegistry::new();
+        reg.register(SlowmodePlus).unwrap();
+        let h = Harness::new(reg).await;
+        h.actions.put_channel(chan(10, 0));
+        h.configure(
+            SLOWMODE_ID,
+            json!({"presets": [{"id": "raid", "name": "Raid", "seconds": 90}]}),
+        )
+        .await;
+        let guild = GuildId::new(1);
+        assert!(
+            SlowmodePlus::apply_preset(&h.ctx, guild, "medium", &[ChannelId::new(10)], None)
+                .await
+                .is_err(),
+            "own presets replace the built-in ones"
+        );
+        let done = SlowmodePlus::apply_preset(&h.ctx, guild, "raid", &[ChannelId::new(10)], None)
+            .await
+            .unwrap();
+        assert_eq!(done[0].seconds, 90);
+        assert_eq!(done[0].revert_at_ms, None);
     }
 
     #[test]

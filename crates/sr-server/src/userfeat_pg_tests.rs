@@ -402,6 +402,39 @@ async fn suggestion_cards_get_votes_and_follow_the_status() {
     assert_eq!(reactions.len(), 2);
     assert!(reactions.iter().all(|(_, user)| *user == 1));
 
+    // G-72: votes count the members' reactions and not the system user's seed.
+    for (key, user) in [("👍", f.member), ("👍", f.owner), ("👎", f.outsider)] {
+        sqlx::query("INSERT INTO reactions (message_id, emoji_key, user_id) VALUES ($1, $2, $3)")
+            .bind(message)
+            .bind(key)
+            .bind(user)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+    }
+    let as_member =
+        f.uf.list_suggestions(f.guild, None, None, 10, Some(f.member))
+            .await
+            .unwrap();
+    assert_eq!((as_member[0].votes.up, as_member[0].votes.down), (2, 1));
+    assert_eq!(
+        as_member[0].my_vote,
+        Some(sr_userfeat::suggestions::Vote::Up)
+    );
+    let as_outsider =
+        f.uf.list_suggestions(f.guild, None, None, 10, Some(f.outsider))
+            .await
+            .unwrap();
+    assert_eq!(
+        as_outsider[0].my_vote,
+        Some(sr_userfeat::suggestions::Vote::Down)
+    );
+    let anon =
+        f.uf.list_suggestions(f.guild, None, None, 10, None)
+            .await
+            .unwrap();
+    assert_eq!(anon[0].my_vote, None);
+
     f.uf.respond_to_suggestion(
         &*f.poster,
         f.guild,
@@ -468,6 +501,11 @@ async fn leveling_awards_from_stored_messages_hands_out_roles_and_announces() {
         "100 XP is level 1"
     );
     assert!(wait_for(|| async { f.has_role(f.member, role).await }).await);
+    // G-70: the rank card lists the level roles, and drops one whose role was deleted.
+    let card = f.uf.rank_card(f.guild, f.member).await.unwrap();
+    assert_eq!(card.level_roles.len(), 1);
+    assert_eq!(card.level_roles[0].level, 1);
+    assert_eq!(card.level_roles[0].role_id, role.to_string());
     // The announcement is posted after the role grant, so wait for it as well.
     assert!(
         wait_for(|| async {
@@ -478,6 +516,18 @@ async fn leveling_awards_from_stored_messages_hands_out_roles_and_announces() {
         })
         .await,
         "the level-up is announced by the system user"
+    );
+    sqlx::query("DELETE FROM roles WHERE id = $1")
+        .bind(role)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    assert!(
+        f.uf.rank_card(f.guild, f.member)
+            .await
+            .unwrap()
+            .level_roles
+            .is_empty()
     );
 
     // The system user's own messages and servers without leveling earn nothing.

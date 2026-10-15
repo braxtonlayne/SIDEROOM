@@ -29,6 +29,41 @@ pub struct Suggestion {
     pub responder_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// Up and down votes on the card, without the system user's seed reactions (G-72).
+    #[sqlx(skip)]
+    pub votes: Votes,
+    /// The caller's own vote, if any.
+    #[sqlx(skip)]
+    pub my_vote: Option<Vote>,
+}
+
+/// Vote counts of a suggestion card.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, ToSchema)]
+pub struct Votes {
+    pub up: i64,
+    pub down: i64,
+}
+
+/// Which way the caller voted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Vote {
+    Up,
+    Down,
+}
+
+/// The system user, whose reactions only seed the buttons.
+const SYSTEM_USER_ID: i64 = 1;
+
+/// The `reactions.emoji_key` of an emoji setting: `name` for unicode, `name:id` for custom.
+fn emoji_key(raw: &str) -> String {
+    let raw = raw.trim();
+    match raw.rsplit_once(':') {
+        Some((name, id)) if id.parse::<u64>().is_ok() => {
+            format!("{}:{id}", name.strip_prefix("a:").unwrap_or(name))
+        }
+        _ => raw.to_owned(),
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -117,6 +152,56 @@ pub fn clean_content(content: &str) -> UfResult<String> {
 }
 
 impl UserFeatures {
+    /// Fill `votes` and `my_vote` from the cards' reactions (the system user's seed excluded).
+    async fn fill_votes(
+        &self,
+        guild: i64,
+        viewer: Option<i64>,
+        rows: &mut [Suggestion],
+    ) -> UfResult<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let cfg = self.settings(SUGGESTIONS_ID, Some(guild)).await?;
+        let up = emoji_key(cfg.text("up_emoji").unwrap_or("\u{1F44D}"));
+        let down = emoji_key(cfg.text("down_emoji").unwrap_or("\u{1F44E}"));
+        let ids: Vec<i64> = rows
+            .iter()
+            .filter_map(|r| r.message_id.parse().ok())
+            .collect();
+        let found: Vec<(i64, String, i64, bool)> = sqlx::query_as(
+            "SELECT message_id, emoji_key, count(*) FILTER (WHERE user_id <> $4), \
+                    COALESCE(bool_or(user_id = $3), false) \
+             FROM reactions WHERE message_id = ANY($1) AND emoji_key = ANY($2) \
+             GROUP BY message_id, emoji_key",
+        )
+        .bind(&ids)
+        .bind(vec![up.clone(), down.clone()])
+        .bind(viewer.unwrap_or(0))
+        .bind(SYSTEM_USER_ID)
+        .fetch_all(&self.pool)
+        .await?;
+        for row in rows {
+            let Ok(message) = row.message_id.parse::<i64>() else {
+                continue;
+            };
+            row.votes = Votes::default();
+            row.my_vote = None;
+            for (_, key, n, mine) in found.iter().filter(|f| f.0 == message) {
+                let (slot, side) = if *key == up {
+                    (&mut row.votes.up, Vote::Up)
+                } else {
+                    (&mut row.votes.down, Vote::Down)
+                };
+                *slot = *n;
+                if *mine && row.my_vote.is_none() {
+                    row.my_vote = Some(side);
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Post a suggestion. The member must be able to see the suggestions channel (checked by the caller).
     pub async fn submit_suggestion(
         &self,
@@ -178,9 +263,10 @@ impl UserFeatures {
         status: Option<&str>,
         before: Option<i64>,
         limit: i64,
+        viewer: Option<i64>,
     ) -> UfResult<Vec<Suggestion>> {
         self.require(SUGGESTIONS_ID, Some(guild)).await?;
-        Ok(sqlx::query_as::<_, Suggestion>(concat!(
+        let mut rows = sqlx::query_as::<_, Suggestion>(concat!(
             "SELECT ",
             cols!(),
             " FROM suggestions WHERE guild_id = $1 AND ($2::text IS NULL OR status = $2) \
@@ -191,7 +277,9 @@ impl UserFeatures {
         .bind(before)
         .bind(limit.clamp(1, 100))
         .fetch_all(&self.pool)
-        .await?)
+        .await?;
+        self.fill_votes(guild, viewer, &mut rows).await?;
+        Ok(rows)
     }
 
     pub async fn get_suggestion(&self, guild: i64, id: i64) -> UfResult<Suggestion> {
@@ -246,6 +334,9 @@ impl UserFeatures {
         {
             poster.edit(channel, message, card(&row)).await;
         }
+        let mut one = [row];
+        self.fill_votes(guild, Some(responder), &mut one).await?;
+        let [row] = one;
         Ok(row)
     }
 
@@ -280,6 +371,8 @@ mod tests {
             responder_id: None,
             created_at: String::new(),
             updated_at: String::new(),
+            votes: Votes::default(),
+            my_vote: None,
         }
     }
 

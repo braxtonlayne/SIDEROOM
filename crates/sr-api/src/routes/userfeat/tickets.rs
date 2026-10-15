@@ -30,7 +30,10 @@ pub struct ListQuery {
 }
 
 /// Whether the member answers tickets: they manage the server or hold the staff role.
-fn is_staff(access: &crate::routes::settings::deps::GuildAccess, staff_role: Option<i64>) -> bool {
+pub(super) fn is_staff(
+    access: &crate::routes::settings::deps::GuildAccess,
+    staff_role: Option<i64>,
+) -> bool {
     access.perms.has(Permissions::MANAGE_GUILD)
         || staff_role.is_some_and(|r| {
             access
