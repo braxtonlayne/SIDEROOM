@@ -19,7 +19,7 @@ const offerRows = [
 const view = (rows: typeof offerRows) =>
   render(
     <ToastProvider>
-      <ComponentRows rows={rows} context={{ channelId: "500", messageId: "900" }} />
+      <ComponentRows rows={rows} context={{ channelId: '500', messageId: '900' }} />
     </ToastProvider>,
   );
 

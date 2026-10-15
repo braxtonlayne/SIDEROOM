@@ -16,6 +16,8 @@ const PLAINTEXT_OK: &[(&str, &str)] = &[
     ("0030_guild_invites.sql", "code"),
     ("0035_guild_templates.sql", "code"),
     ("0480_watch_parties.sql", "invite_code"),
+    // The VAPID private key, sealed with the server secret by the caller (sr-push `load_or_create_vapid`).
+    ("0670_web_push.sql", "secret"),
 ];
 
 const SAFE_SUFFIXES: &[&str] = &["_hash", "_sha256", "_phc", "_enc", "_hint"];
