@@ -53,4 +53,5 @@ Partly done, left unticked with notes in the inventory: 035 (Cinema watch histor
 
 - `tsc --noEmit`, eslint on changed files, `prettier --check src`: clean.
 - New: `settings/user/__tests__/p11userset.test.tsx` (13: streamer, media size, language, test mode, voice additions, attenuation gain, watch history/pause/clear, Cinema and Library defaults), `pwa/desktopAlerts.test.tsx` (4), two new tests in `support/__tests__/support.test.tsx`.
-- Full web vitest run with `--maxWorkers=3`: see the result line in the final report.
+- Full web vitest run with `--maxWorkers=3`: 1492 passed, 5 failed. Re-run alone: the catalog failures were from running before the last fragment keys existed (pass now); the server-menu and download-modal timeouts passed alone (load); `cinema/player/__tests__/signing` "fails (so the session retries) when a playlist cannot be read" fails deterministically with `Cannot read properties of undefined (reading 'indexOf')` and is unrelated to this branch (no change under cinema/player/signing).
+- `vite build` and `node scripts/check-bundle-budget.mjs`: all budgets ok (settings 251 KB of 600).
