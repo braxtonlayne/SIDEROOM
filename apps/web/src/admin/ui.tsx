@@ -235,20 +235,28 @@ export function usePaged<T, C = string>(
   const tRef = useRef(t);
   tRef.current = t;
   const [nonce, setNonce] = useState(0);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   const run = useCallback(async (cursor: C | null, append: boolean) => {
     const forKey = keyRef.current;
     setLoading(true);
+    const current = () => alive.current && keyRef.current === forKey;
     try {
       const page = await fetchRef.current(cursor);
-      if (keyRef.current !== forKey) return;
+      if (!current()) return;
       setItems((cur) => (append ? [...cur, ...page.items] : page.items));
       setNext(page.next ?? null);
       setError(null);
     } catch (e) {
-      if (keyRef.current === forKey) setError(errorText(e, tRef.current('admin.ui.loadError')));
+      if (current()) setError(errorText(e, tRef.current('admin.ui.loadError')));
     } finally {
-      if (keyRef.current === forKey) setLoading(false);
+      if (current()) setLoading(false);
     }
   }, []);
 
