@@ -33,6 +33,8 @@ import { toSaved, useSaved } from './shell/savedMessages';
 import { useLoungeUi } from './store';
 import { useLoungeGoto, useLoungeGotoMessage, useLoungeGotoThread, useLoungeRoute } from './nav';
 import { formatDividerDate } from './time';
+import { customEmojiResolver } from './msg/CustomEmoji';
+import { richCardResolvers } from './msg/RichCards';
 import './msg/msg.css';
 
 /** Reports `fallback` while the scroll element has no layout (jsdom, first paint) so rows still render. */
@@ -176,8 +178,10 @@ export function MessageList({
         const c = channels.find((x) => x.id === id);
         return c ? { name: c.name } : undefined;
       },
+      customEmoji: customEmojiResolver(guildId),
+      ...richCardResolvers,
     }),
-    [users, roles, channels, roleColor],
+    [users, roles, channels, roleColor, guildId],
   );
 
   const scroller = useRef<HTMLDivElement | null>(null);
