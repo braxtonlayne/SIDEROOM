@@ -149,13 +149,14 @@ pub trait GuildLimits: Send + Sync {
     async fn max_parties(&self, guild: i64) -> usize;
 }
 
-/// Level 0 limits until the server levels land: 2 concurrent parties.
-pub struct FreeTier;
+/// The same limit for every server. The default when no entitlements are wired in (tests, tools); the
+/// server uses `sr_server::watchparty::EntitlementLimits`, which follows the server level.
+pub struct FixedLimit(pub usize);
 
 #[async_trait]
-impl GuildLimits for FreeTier {
+impl GuildLimits for FixedLimit {
     async fn max_parties(&self, _guild: i64) -> usize {
-        2
+        self.0
     }
 }
 

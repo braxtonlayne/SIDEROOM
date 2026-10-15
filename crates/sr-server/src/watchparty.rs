@@ -3,6 +3,7 @@
 //!
 //! * [`CinemaPlayGate`]: `CinemaService::resolve_play`, so a party only starts titles a viewer could play
 //!   (published, playable asset, age gate).
+//! * [`EntitlementLimits`]: concurrent parties per server level.
 //! * [`ChatChannelAccess`]: `VIEW_CHANNEL`, `START_WATCH_PARTY`, `CONTROL_WATCH_PARTY`, `MANAGE_CHANNELS` in a
 //!   guild channel (with overwrites) or DM membership.
 //! * `watchparty.sweep` (every 10 s): drops silent participants, ends empty parties after 5 minutes, settles
@@ -23,8 +24,9 @@ use sr_core::{ChannelId, Clock, UserId};
 use sr_db::DbResult;
 use sr_db::jobs::{self, Job};
 use sr_db::runner::{HandlerError, JobRunner};
+use sr_payments::Entitlements;
 use sr_watchparty::{
-    ChannelAccess, ChannelKind, ChannelPerms, GateError, PartyService, PlayGate, Resolved,
+    ChannelAccess, ChannelKind, ChannelPerms, GateError, GuildLimits, PartyService, PlayGate, Resolved,
 };
 
 /// The catalog play check for parties.
@@ -96,6 +98,36 @@ impl PlayGate for CinemaPlayGate {
             age_restricted: t.age_restricted,
             live: false,
         })
+    }
+}
+
+/// Concurrent parties per server from the server level (docs/08 section 2.2: 2, 4, 8 and 16 for Level 0 to
+/// 3, or whatever Admin > Pricing and perks sets). The entitlement cache is dropped whenever the payment
+/// service emits `SR_ENTITLEMENT_UPDATE`, so a new level applies at once.
+pub struct EntitlementLimits {
+    ents: Arc<dyn Entitlements>,
+}
+
+impl EntitlementLimits {
+    pub fn new(ents: Arc<dyn Entitlements>) -> Self {
+        Self { ents }
+    }
+}
+
+/// What a server may run when its level cannot be read.
+const FALLBACK_PARTIES: usize = 2;
+
+#[async_trait]
+impl GuildLimits for EntitlementLimits {
+    async fn max_parties(&self, guild: i64) -> usize {
+        // No user: the limit belongs to the server, not to whoever starts the party.
+        match self.ents.limits(0, Some(guild)).await {
+            Ok(l) => usize::from(l.watch_parties),
+            Err(e) => {
+                tracing::warn!(error = %e, guild, "party limit lookup failed; using the free limit");
+                FALLBACK_PARTIES
+            }
+        }
     }
 }
 

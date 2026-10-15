@@ -20,7 +20,7 @@ use crate::model::{
 };
 use crate::ports::{
     AgeLookup, Announcement, AnnouncementKind, ChannelAccess, ChannelKind, ChannelPerms, ChatHook,
-    EVENT_PARTY_MESSAGE, EVENT_PARTY_PLAYBACK, EVENT_PARTY_REACTION, EVENT_PARTY_UPDATE, FreeTier,
+    EVENT_PARTY_MESSAGE, EVENT_PARTY_PLAYBACK, EVENT_PARTY_REACTION, EVENT_PARTY_UPDATE, FixedLimit,
     GateError, GuildLimits, NoChannels, NoChat, NoEvents, NoGate, PartyEvents, PgAgeLookup,
     PlayGate, Resolved,
 };
@@ -91,7 +91,7 @@ impl PartyService {
                 pool,
                 play: Arc::new(NoGate),
                 channels: Arc::new(NoChannels),
-                limits: Arc::new(FreeTier),
+                limits: Arc::new(FixedLimit(2)),
                 events: Arc::new(NoEvents),
                 chat: Arc::new(NoChat),
                 clock,

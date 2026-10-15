@@ -727,6 +727,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 PgChatRepo::new(pool.clone()),
                 clock.clone(),
             )))
+            .with_limits(Arc::new(crate::watchparty::EntitlementLimits::new(
+                payments.entitlements.clone(),
+            )))
             .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())))
             .with_chat(Arc::new(crate::userfeat::PartyAnnouncer {
                 uf: user_features.clone(),
