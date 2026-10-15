@@ -293,6 +293,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .context("registering the moderation.reports feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
+    // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,
+    // library feed, watch party announcer, poll templates, suggestions, tickets (docs/inventory/09).
+    sr_userfeat::register_all(&mut registry).context("registering the user feature modules")?;
     let registry = Arc::new(registry);
     let features = FeatureService::new(
         registry.clone(),
@@ -377,10 +380,19 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .with_audit(audit_sink.clone()),
     );
+    // The feature modules: leveling hears every stored message; the poster they speak through is filled in
+    // once the message stack below exists.
+    let user_features =
+        sr_userfeat::UserFeatures::new(pool.clone(), features.clone(), id_src.clone());
+    let feature_poster: crate::userfeat::PosterCell = Arc::default();
     let message_hooks: Arc<dyn sr_chat::message_hooks::MessageHooks> =
         Arc::new(sr_chat::threads::hooks::HookChain(vec![
             social,
             threads_deps.activity_hook(),
+            Arc::new(crate::userfeat::LevelingHook {
+                uf: user_features.clone(),
+                poster: feature_poster.clone(),
+            }),
         ]));
     let cdn_signer =
         sr_storage::cdn::CdnSigner::new(secret_key(cfg.server.secret_key.expose())?.to_vec());
@@ -415,6 +427,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
         ..sr_unfurl::Policy::default()
     };
+    let unfurl_policy_for_feeds = unfurl_policy.clone();
     let unfurler = Arc::new(sr_unfurl::production(
         unfurl_policy.clone(),
         cfg.unfurl.per_host_per_minute.max(1),
@@ -711,7 +724,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 PgChatRepo::new(pool.clone()),
                 clock.clone(),
             )))
-            .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())));
+            .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())))
+            .with_chat(Arc::new(crate::userfeat::PartyAnnouncer {
+                uf: user_features.clone(),
+                poster: feature_poster.clone(),
+            }));
     watchparty_service.spawn_timers();
     let watchparty_deps = Arc::new(routes::watchparty::WatchPartyDeps::new(
         watchparty_service.clone(),
@@ -906,6 +923,30 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     call_recorder.bind(messages.clone());
 
+    // The feature modules speak as the system user (and send scheduled messages as their authors) through the
+    // message stack; the scheduler job dispatches what is due.
+    let system_poster: Arc<dyn sr_userfeat::Poster> = Arc::new(crate::userfeat::SystemPoster::new(
+        pool.clone(),
+        messages.clone(),
+        guilds.0.clone(),
+        Some(settings_deps.clone()),
+        &cfg.server.public_url,
+    ));
+    if feature_poster.set(system_poster.clone()).is_err() {
+        tracing::warn!("the feature poster was already set");
+    }
+    let feed_policy = unfurl_policy_for_feeds.clone();
+    let ticker = Arc::new(sr_userfeat::tick::Ticker::new(
+        user_features.clone(),
+        system_poster.clone(),
+        Some(crate::userfeat::feed_client(feed_policy.clone())),
+    ));
+    let user_feature_deps = Arc::new(routes::userfeat::UserFeatDeps {
+        uf: user_features.clone(),
+        poster: system_poster,
+        net_policy: feed_policy,
+    });
+
     // Platform admin API: permissions are resolved per request from the Staff Server; every
     // action is written to the hash-chained access log. Feature toggles go through the shared
     // feature service and the System page reports the live gateway session count.
@@ -1014,6 +1055,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(media_deps)
         .extension(cinema_social_deps)
         .extension(watchparty_deps)
+        .extension(user_feature_deps)
         .extension(Arc::new(routes::donations::DonationsDeps::new(
             payments.service.clone(),
         )))
@@ -1108,6 +1150,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
+    let runner = crate::userfeat::register(runner, &pool, ticker);
     let runner = crate::media_jobs::register(
         runner,
         &pool,
@@ -1134,6 +1177,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
+    crate::userfeat::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
     crate::userset_jobs::schedule(&pool).await?;
     crate::payments_jobs::schedule(&pool).await?;

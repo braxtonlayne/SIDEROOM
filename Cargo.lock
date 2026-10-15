@@ -5117,6 +5117,7 @@ dependencies = [
  "sr-storage",
  "sr-tv",
  "sr-unfurl",
+ "sr-userfeat",
  "sr-watchparty",
  "subtle",
  "thiserror 2.0.21",
@@ -5542,6 +5543,7 @@ dependencies = [
  "sr-storage",
  "sr-tv",
  "sr-unfurl",
+ "sr-userfeat",
  "sr-voice",
  "sr-voice-proto",
  "sr-watchparty",
@@ -5641,6 +5643,27 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "sr-userfeat"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "quick-xml 0.42.0",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
+ "sr-core",
+ "sr-db",
+ "sr-features",
+ "sr-net",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "url",
+ "utoipa",
 ]
 
 [[package]]

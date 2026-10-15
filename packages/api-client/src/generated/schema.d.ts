@@ -3428,6 +3428,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/messages/{message_id}/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Bookmark a message, or change the note of an existing bookmark. */
+        put: operations["save"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/messages/{message_id}/crosspost": {
         parameters: {
             query?: never;
@@ -3677,6 +3694,26 @@ export interface paths {
         post?: never;
         /** Remove a member from a group DM (owner), or leave it (yourself). */
         delete: operations["remove_recipient"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/scheduled-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Schedule a message for a channel. Needs permission to send there now; it is checked again when the message
+         *     goes out.
+         */
+        post: operations["create"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5327,6 +5364,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/birthdays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The next birthdays of members who share theirs (months and days, never the year). Members only. */
+        get: operations["birthdays"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/bulk-ban": {
         parameters: {
             query?: never;
@@ -5471,6 +5525,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/leveling/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's leaderboard, highest XP first. */
+        get: operations["leaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/leveling/rank/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A member's rank card: XP, level, progress and position. `user_id` may be `@me`. */
+        get: operations["rank"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/member-verification": {
         parameters: {
             query?: never;
@@ -5606,6 +5694,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Which feature modules are switched on in a server. */
+        get: operations["modules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/onboarding": {
         parameters: {
             query?: never;
@@ -5647,6 +5752,42 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/poll-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's poll templates. Members only. */
+        get: operations["list_poll_templates"];
+        put?: never;
+        /** Save a poll setup (`MANAGE_GUILD`). */
+        post: operations["create_poll_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/poll-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a template (`MANAGE_GUILD`). */
+        delete: operations["delete_poll_template"];
+        options?: never;
+        head?: never;
+        /** Replace a template (`MANAGE_GUILD`). */
+        patch: operations["update_poll_template"];
         trace?: never;
     };
     "/guilds/{guild_id}/prune": {
@@ -5745,6 +5886,45 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/rss-feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's RSS and Atom feeds (`MANAGE_GUILD`). */
+        get: operations["list_feeds"];
+        put?: never;
+        /**
+         * Follow a feed into a channel (`MANAGE_GUILD`). The address is checked against the SSRF policy; the first
+         *     fetch only records what is already in the feed.
+         */
+        post: operations["add_feed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/rss-feeds/{feed_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stop following a feed (`MANAGE_GUILD`). */
+        delete: operations["delete_feed"];
+        options?: never;
+        head?: never;
+        /** Change a feed's channel, filters, interval or on/off state (`MANAGE_GUILD`). */
+        patch: operations["patch_feed"];
         trace?: never;
     };
     "/guilds/{guild_id}/soundboard-sounds": {
@@ -6083,6 +6263,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's suggestions, newest first. Members only. */
+        get: operations["list_suggestions"];
+        put?: never;
+        /** Post a suggestion to the server's suggestions channel. */
+        post: operations["submit_suggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/suggestions/{suggestion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a suggestion (its author, or someone who may answer them). The card stays in the channel; moderators
+         *     delete it there.
+         */
+        delete: operations["delete_suggestion"];
+        options?: never;
+        head?: never;
+        /** Set a suggestion's status and staff response (`MANAGE_GUILD` or the staff role). The card is edited to match. */
+        patch: operations["respond_suggestion"];
+        trace?: never;
+    };
     "/guilds/{guild_id}/support": {
         parameters: {
             query?: never;
@@ -6168,6 +6387,41 @@ export interface paths {
         get: operations["list_active"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's tickets, or every ticket of the server for staff. */
+        get: operations["list"];
+        put?: never;
+        /** Open a ticket: starts a private thread with the staff role in it. */
+        post: operations["open"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/tickets/{ticket_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close a ticket (its opener or staff): archives and locks the thread. */
+        post: operations["close"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7636,6 +7890,60 @@ export interface paths {
         patch: operations["edit_self"];
         trace?: never;
     };
+    "/users/@me/birthday": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's birthday. */
+        get: operations["get_birthday"];
+        /** Set the caller's birthday. `visibility: hidden` keeps it private (nothing is announced). */
+        put: operations["set_birthday"];
+        post?: never;
+        /** Forget the caller's birthday. */
+        delete: operations["clear_birthday"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/bookmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's bookmarks, newest message first, with the messages. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/bookmarks/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a bookmark (removing one that is not there is fine). */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        /** Change a bookmark's note. */
+        patch: operations["edit"];
+        trace?: never;
+    };
     "/users/@me/channels": {
         parameters: {
             query?: never;
@@ -7851,6 +8159,23 @@ export interface paths {
         post?: never;
         /** Leave a guild. The owner must transfer ownership first. */
         delete: operations["leave_guild"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/guilds/{guild_id}/leveling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Opt in or out of leveling in a server. */
+        put: operations["set_leveling"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -8155,6 +8480,76 @@ export interface paths {
         head?: never;
         /** Set or clear a friend's private nickname (max 32 characters). */
         patch: operations["set_nickname"];
+        trace?: never;
+    };
+    "/users/@me/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's reminders, soonest first. */
+        get: operations["list"];
+        put?: never;
+        /** Create a reminder. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/reminders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel a reminder. */
+        delete: operations["cancel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/scheduled-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's scheduled messages, soonest first. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/scheduled-messages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel a scheduled message. */
+        delete: operations["cancel"];
+        options?: never;
+        head?: never;
+        /** Change the text or time of a message that has not been sent. */
+        patch: operations["edit"];
         trace?: never;
     };
     "/users/@me/settings": {
@@ -9182,6 +9577,34 @@ export interface components {
              */
             options: unknown;
         };
+        Birthday: {
+            /** Format: int32 */
+            day: number;
+            /** Format: int32 */
+            month: number;
+            visibility: string;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        BirthdayInput: {
+            /**
+             * Format: int32
+             * @description 1 to 31, valid for the month.
+             */
+            day: number;
+            /**
+             * Format: int32
+             * @description 1 to 12.
+             */
+            month: number;
+            /** @description `servers` (default) lets servers that run the module show it; `hidden` keeps it private. */
+            visibility?: string | null;
+            /**
+             * Format: int32
+             * @description Optional birth year (1900 to 2100); shared only as an age in announcements.
+             */
+            year?: number | null;
+        };
         BoardItem: {
             anonymous: boolean;
             avatar?: string | null;
@@ -9214,6 +9637,10 @@ export interface components {
             /** Format: int32 */
             page_index: number;
             series_id: string;
+        };
+        BookmarkBody: {
+            /** @description A private note (up to 500 characters). */
+            note?: string | null;
         };
         /** @description A bookmark with the titles the "my bookmarks" list shows. */
         BookmarkEntry: {
@@ -10549,6 +10976,10 @@ export interface components {
             /** Format: int32 */
             flags?: number | null;
         };
+        EditScheduledBody: {
+            content?: string | null;
+            send_at?: string | null;
+        };
         EditSelfBody: {
             /** Format: int32 */
             accent_color?: number | null;
@@ -11413,6 +11844,18 @@ export interface components {
             id: string;
             label: string;
         };
+        LeaderboardEntry: {
+            avatar_key?: string | null;
+            display_name?: string | null;
+            /** Format: int64 */
+            level: number;
+            /** Format: int64 */
+            rank: number;
+            user_id: string;
+            username: string;
+            /** Format: int64 */
+            xp: number;
+        };
         LedgerEntry: {
             /** Format: int64 */
             created_at_ms: number;
@@ -11428,6 +11871,10 @@ export interface components {
             perks: Record<string, never>;
             /** Format: int32 */
             threshold_cents: number;
+        };
+        LevelingOptBody: {
+            /** @description `false` opts the caller out of XP in this server and deletes their XP. */
+            enabled: boolean;
         };
         LinkBody: {
             /** @description The episode the asset is the video of. With an episode, the episode is linked. */
@@ -11806,6 +12253,13 @@ export interface components {
             enabled?: boolean | null;
             welcome_channels?: components["schemas"]["WelcomeChannelDto"][] | null;
         };
+        /** @description The modules of this crate and whether each is on in the server, so menus show only what works. Members only. */
+        ModuleFlags: {
+            /** @description Feature id -> on in this server. */
+            modules: {
+                [key: string]: boolean;
+            };
+        };
         /** @description Mute window of a change that sets `muted: true`. */
         MuteConfigIn: {
             /**
@@ -12168,6 +12622,29 @@ export interface components {
             title_id: string;
             variant_id?: string | null;
         };
+        PollTemplate: {
+            allow_multiselect: boolean;
+            answers: string[];
+            created_at: string;
+            created_by?: string | null;
+            /** Format: int32 */
+            duration_hours: number;
+            id: string;
+            name: string;
+            question: string;
+        };
+        PollTemplateInput: {
+            allow_multiselect?: boolean;
+            answers: string[];
+            /**
+             * Format: int32
+             * @description How long the poll runs, 1 to 768 hours. Defaults to 24.
+             */
+            duration_hours?: number | null;
+            /** @description What the template is called in the picker (unique in the server). */
+            name: string;
+            question: string;
+        };
         /** @description Users who picked one answer. */
         PollVoters: {
             users: components["schemas"]["UserRef"][];
@@ -12499,6 +12976,34 @@ export interface components {
             /** Format: int32 */
             succeeded_last_day: number;
         };
+        RankCard: {
+            display_name?: string | null;
+            /** Format: int64 */
+            level: number;
+            /**
+             * Format: int64
+             * @description XP the current level spans (progress is `level_xp / level_span`).
+             */
+            level_span: number;
+            /**
+             * Format: int64
+             * @description XP earned inside the current level.
+             */
+            level_xp: number;
+            /** Format: int64 */
+            messages: number;
+            /** @description Whether the member opted out of leveling in this server. */
+            opted_out: boolean;
+            /**
+             * Format: int64
+             * @description 1 for the member with the most XP; absent for a member with no XP yet.
+             */
+            rank?: number | null;
+            user_id: string;
+            username: string;
+            /** Format: int64 */
+            xp: number;
+        };
         RateSourceView: {
             /** Format: int64 */
             last_cents?: number | null;
@@ -12637,6 +13142,32 @@ export interface components {
              */
             type: number;
             user: components["schemas"]["UserObject"];
+        };
+        Reminder: {
+            channel_id?: string | null;
+            created_at: string;
+            guild_id?: string | null;
+            id: string;
+            message_id?: string | null;
+            note: string;
+            /** @description ISO 8601 time the reminder is due. */
+            remind_at: string;
+            /** @description `pending`, `sent`, `failed` or `cancelled`. */
+            status: string;
+        };
+        ReminderBody: {
+            /** @description With `message_id`: the message to be reminded about. */
+            channel_id?: string | null;
+            /**
+             * Format: int64
+             * @description Seconds from now.
+             */
+            in_seconds?: number | null;
+            message_id?: string | null;
+            /** @description What to be reminded of (up to 1000 characters). */
+            note?: string | null;
+            /** @description ISO 8601 time, 5 seconds to a year from now. Give this or `in_seconds`. */
+            remind_at?: string | null;
         };
         RenameBody: {
             /** @description New display name; `null` or empty clears it. Leave out to keep it. */
@@ -12786,6 +13317,43 @@ export interface components {
          * @enum {string}
          */
         RowKind: "curated" | "generated" | "provided";
+        RssFeed: {
+            channel_id: string;
+            created_at: string;
+            enabled: boolean;
+            exclude_keywords: string[];
+            /** Format: int32 */
+            failures: number;
+            id: string;
+            include_keywords: string[];
+            last_checked_at?: string | null;
+            /** @description `pending`, `ok` or the last error. */
+            last_status: string;
+            /** Format: int32 */
+            poll_interval_secs: number;
+            title: string;
+            url: string;
+        };
+        RssFeedInput: {
+            /** @description Channel snowflake the entries are posted to. */
+            channel_id: string;
+            exclude_keywords?: string[];
+            include_keywords?: string[];
+            /**
+             * Format: int32
+             * @description Seconds between checks (300 to 86400). Defaults to 1800.
+             */
+            poll_interval_secs?: number | null;
+            url: string;
+        };
+        RssFeedPatch: {
+            channel_id?: string | null;
+            enabled?: boolean | null;
+            exclude_keywords?: string[] | null;
+            include_keywords?: string[] | null;
+            /** Format: int32 */
+            poll_interval_secs?: number | null;
+        };
         /**
          * @description Body of create (all of `name`, `event_type`, `trigger_type`, `actions` required)
          *     and modify (every field optional; `trigger_type` cannot change).
@@ -12819,6 +13387,27 @@ export interface components {
             trigger_metadata: components["schemas"]["TriggerMetadata"];
             /** Format: int32 */
             trigger_type: number;
+        };
+        ScheduleBody: {
+            /** @description The message text (up to 2000 characters). */
+            content: string;
+            /** @description ISO 8601 time to send, between a minute and a year from now. */
+            send_at: string;
+        };
+        ScheduledMessage: {
+            channel_id: string;
+            content: string;
+            created_at: string;
+            /** @description Why it failed, for a failed row. */
+            failure?: string | null;
+            guild_id?: string | null;
+            id: string;
+            /** @description The sent message, for a sent row. */
+            message_id?: string | null;
+            /** @description ISO 8601 time the message goes out. */
+            send_at: string;
+            /** @description `pending`, `sent`, `failed` or `cancelled`. */
+            status: string;
         };
         ScopeObject: {
             description: string;
@@ -13255,6 +13844,27 @@ export interface components {
         SubmitVersionBody: {
             note?: string | null;
         };
+        Suggestion: {
+            author_id: string;
+            channel_id: string;
+            content: string;
+            created_at: string;
+            id: string;
+            /** @description The card message in the suggestions channel. */
+            message_id: string;
+            responder_id?: string | null;
+            response: string;
+            /** @description `open`, `considering`, `approved`, `denied` or `implemented`. */
+            status: string;
+            updated_at: string;
+        };
+        SuggestionInput: {
+            content: string;
+        };
+        SuggestionResponse: {
+            response?: string | null;
+            status: string;
+        };
         /**
          * @description A page a collection can be placed on.
          * @enum {string}
@@ -13422,6 +14032,21 @@ export interface components {
         /** @description A thread channel object; for forum posts also the starter `message`. */
         ThreadResponse: components["schemas"]["ChannelObject"] & {
             message?: null | components["schemas"]["MessageObject"];
+        };
+        Ticket: {
+            closed_at?: string | null;
+            closed_by?: string | null;
+            created_at: string;
+            id: string;
+            opener_id: string;
+            /** @description `open` or `closed`. */
+            status: string;
+            subject: string;
+            /** @description The private thread, a channel snowflake. */
+            thread_id: string;
+        };
+        TicketInput: {
+            subject: string;
         };
         /** @description A title as the API shows it. */
         Title: {
@@ -13894,6 +14519,14 @@ export interface components {
             accounts_left_deactivated: number;
             /** Format: int64 */
             accounts_reactivated: number;
+        };
+        /** @description A member's birthday as other members of a server see it (never the year). */
+        UpcomingBirthday: {
+            /** Format: int32 */
+            day: number;
+            /** Format: int32 */
+            month: number;
+            user_id: string;
         };
         /** @description One entry of the latest-updates feed. */
         UpdateItem: {
@@ -26241,6 +26874,67 @@ export interface operations {
             };
         };
     };
+    save: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bookmark"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Bookmark limit reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     crosspost: {
         parameters: {
             query?: never;
@@ -27124,6 +27818,65 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledMessage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many pending messages */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -32320,6 +33073,39 @@ export interface operations {
             };
         };
     };
+    birthdays: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 25 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpcomingBirthday"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     bulk_ban: {
         parameters: {
             query?: never;
@@ -32945,6 +33731,81 @@ export interface operations {
             };
         };
     };
+    leaderboard: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 25 */
+                limit?: number;
+                /** @description Rows to skip */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaderboardEntry"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rank: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake or `@me` */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankCard"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_member_verification: {
         parameters: {
             query?: never;
@@ -33415,6 +34276,36 @@ export interface operations {
             };
         };
     };
+    modules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleFlags"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_onboarding: {
         parameters: {
             query?: never;
@@ -33544,6 +34435,185 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_poll_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollTemplate"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_poll_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PollTemplateInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollTemplate"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_poll_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Template snowflake */
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_poll_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Template snowflake */
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PollTemplateInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollTemplate"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -33967,6 +35037,177 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_feeds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RssFeed"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RssFeedInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RssFeed"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Feed snowflake */
+                feed_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Feed snowflake */
+                feed_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RssFeedPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RssFeed"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             403: {
@@ -35257,6 +36498,184 @@ export interface operations {
             };
         };
     };
+    list_suggestions: {
+        parameters: {
+            query?: {
+                /** @description open, considering, approved, denied or implemented */
+                status?: string;
+                /** @description Suggestion id to page from */
+                before?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submit_suggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_suggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Suggestion snowflake */
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    respond_suggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Suggestion snowflake */
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionResponse"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     donations_guild_support: {
         parameters: {
             query?: never;
@@ -35713,6 +37132,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ThreadList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description open or closed */
+                status?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ticket"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    open: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ticket"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many open tickets or no ticket channel */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Ticket snowflake */
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ticket"];
                 };
             };
             403: {
@@ -39880,6 +41425,179 @@ export interface operations {
             };
         };
     };
+    get_birthday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Birthday"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_birthday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BirthdayInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Birthday"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_birthday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Message id to page from */
+                before?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+                /** @description false to leave the messages out */
+                messages?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkEntry"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    edit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bookmark"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: never;
@@ -40435,6 +42153,39 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_leveling: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LevelingOptBody"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -41292,6 +43043,224 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Include recently delivered reminders */
+                all?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Reminder"][];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReminderBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Reminder"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many pending reminders */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Reminder snowflake */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Include recently settled messages */
+                all?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledMessage"][];
+                };
+            };
+        };
+    };
+    cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Scheduled message snowflake */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Already sent */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Scheduled message snowflake */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditScheduledBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledMessage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Already sent or cancelled */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

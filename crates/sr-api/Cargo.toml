@@ -41,6 +41,7 @@ sr-net = { path = "../sr-net" }
 sr-search = { path = "../sr-search" }
 sr-unfurl = { path = "../sr-unfurl" }
 sr-net = { path = "../sr-net" }
+sr-userfeat = { path = "../sr-userfeat" }
 sr-storage = { path = "../sr-storage" }
 subtle = "2"
 thiserror.workspace = true

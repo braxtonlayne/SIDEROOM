@@ -102,14 +102,38 @@ describe('reactions, menu actions, system rows, selects and links', () => {
     expect(useStore.getState().readStates['c1']?.last_message_id).toBe('100');
   });
 
-  it('bookmarks and sets a reminder, saving both to the settings blob', async () => {
+  it('bookmarks and sets a reminder through the server', async () => {
     seedLounge({ messages: [msg('100', { content: 'remember this' })] });
-    const patches: unknown[] = [];
+    const calls: string[] = [];
+    let reminder: Record<string, unknown> = {};
     server.use(
-      http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
-        const body = (await request.json()) as { settings: unknown };
-        patches.push(body.settings);
-        return HttpResponse.json({ version: 2, settings: {} });
+      http.put('*/api/v1/channels/c1/messages/100/bookmark', () => {
+        calls.push('PUT bookmark');
+        return HttpResponse.json({
+          message_id: '100',
+          channel_id: 'c1',
+          guild_id: 'g1',
+          note: '',
+          created_at: '',
+        });
+      }),
+      http.delete('*/api/v1/users/@me/bookmarks/100', () => {
+        calls.push('DELETE bookmark');
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.post('*/api/v1/users/@me/reminders', async ({ request }) => {
+        reminder = (await request.json()) as Record<string, unknown>;
+        calls.push('POST reminder');
+        return HttpResponse.json({
+          id: '1',
+          note: reminder.note,
+          remind_at: reminder.remind_at,
+          status: 'pending',
+          channel_id: 'c1',
+          guild_id: 'g1',
+          message_id: '100',
+          created_at: '',
+        });
       }),
     );
     at('/channels/g1/c1');
@@ -123,44 +147,10 @@ describe('reactions, menu actions, system rows, selects and links', () => {
     fireEvent.contextMenu(within(log).getByText('remember this'));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Remind Me' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'in 1 hour' }));
-    await waitFor(() => expect(Object.keys(useSaved.getState().reminders)).toEqual(['100']));
-    const due = Date.parse(useSaved.getState().reminders['100']!.due_at) - Date.now();
-    expect(due).toBeGreaterThan(55 * 60_000);
-    await waitFor(() => expect(patches.length).toBe(3));
-    const first = patches[0] as { bookmarks: Record<string, { preview: string }> };
-    expect(first.bookmarks['100']!.preview).toBe('remember this');
-    expect(patches[1]).toEqual({ bookmarks: { '100': null } });
-    expect(Object.keys((patches[2] as { reminders: object }).reminders)).toEqual(['100']);
-  });
-
-  it('shows due reminders as a toast and removes them', async () => {
-    seedLounge({ messages: [msg('100', { content: 'later' })] });
-    server.use(
-      http.get('*/api/v1/users/@me/settings', () =>
-        HttpResponse.json({
-          version: 3,
-          settings: {
-            reminders: {
-              '100': {
-                message_id: '100',
-                channel_id: 'c1',
-                guild_id: 'g1',
-                preview: 'call the plumber',
-                author: 'Bob',
-                saved_at: '2020-01-01T00:00:00Z',
-                due_at: '2020-01-01T01:00:00Z',
-              },
-            },
-          },
-        }),
-      ),
-      http.patch('*/api/v1/users/@me/settings', () =>
-        HttpResponse.json({ version: 4, settings: {} }),
-      ),
-    );
-    at('/channels/g1/c1');
-    expect(await screen.findByText(/call the plumber/)).toBeInTheDocument();
-    await waitFor(() => expect(useSaved.getState().reminders).toEqual({}));
+    await waitFor(() => expect(useSaved.getState().reminders).toHaveLength(1));
+    expect(Date.parse(reminder.remind_at as string) - Date.now()).toBeGreaterThan(55 * 60_000);
+    expect(reminder).toMatchObject({ note: 'remember this' });
+    expect(calls).toEqual(['PUT bookmark', 'DELETE bookmark', 'POST reminder']);
   });
 
   it('renders thread, call, follow, support and join rows', async () => {
