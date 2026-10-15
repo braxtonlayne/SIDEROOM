@@ -485,7 +485,7 @@ async fn command_data(
             }}});
         }
     }
-    resolve(deps, acc, referenced, &mut data).await?;
+    resolve(deps, messages, acc, channel_id, referenced, &mut data).await?;
     Ok(data)
 }
 
@@ -506,7 +506,9 @@ fn target_id(d: &Value) -> MsgResult<i64> {
 /// Fill `data.resolved` for the ids options referenced; everything must exist in this server.
 async fn resolve(
     deps: &DevDeps,
+    messages: &MessagesDeps,
     acc: &super::GuildAccess,
+    channel_id: i64,
     r: &sr_apps::interactions::Referenced,
     data: &mut Value,
 ) -> MsgResult<()> {
@@ -604,6 +606,16 @@ async fn resolve(
             );
         }
         resolved["channels"] = Value::Object(chans);
+    }
+    if !r.attachments.is_empty() {
+        let mut atts = serde_json::Map::new();
+        for id in &r.attachments {
+            atts.insert(
+                id.to_string(),
+                resolve_attachment(messages, acc.member.user_id, channel_id, *id).await?,
+            );
+        }
+        resolved["attachments"] = Value::Object(atts);
     }
     if resolved.as_object().is_some_and(|o| !o.is_empty()) {
         data["resolved"] = resolved;
@@ -1279,4 +1291,34 @@ pub async fn command_index(
         applications,
         application_commands: commands,
     }))
+}
+
+/// An `ATTACHMENT` option: an upload slot the invoker staged in this channel (the client
+/// uploads through `POST /channels/{id}/attachments`, then names the slot id). It is completed
+/// here when the client did not, and may not already belong to a message. The bot gets a
+/// signed download URL (DEV-BOT-008).
+async fn resolve_attachment(
+    messages: &MessagesDeps,
+    invoker: sr_core::UserId,
+    channel_id: i64,
+    id: i64,
+) -> MsgResult<Value> {
+    use crate::routes::messages::attachments::{finalize, load_upload};
+    use sr_chat::repo::UploadState;
+    let bad = |msg: &str| invalid("data.options", "UPLOAD_INVALID", msg);
+    let mut att = load_upload(
+        messages,
+        invoker,
+        ChannelId::new(channel_id as u64),
+        sr_core::AttachmentId::new(id as u64),
+    )
+    .await
+    .map_err(|_| bad("An attachment option names a file that was not uploaded here."))?;
+    if att.state == UploadState::Attached {
+        return Err(bad("That file is already part of a message."));
+    }
+    finalize(messages, &mut att).await?;
+    let mut obj = crate::routes::messages::model::attachment_object(&att);
+    obj.url = messages.sign_attachment_url(&obj.url);
+    Ok(serde_json::to_value(obj).unwrap_or_default())
 }

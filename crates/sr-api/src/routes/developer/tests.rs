@@ -121,6 +121,7 @@ pub(super) struct Env {
     pub(super) bus: Arc<InProcessBus>,
     pub(super) tokens: HashMap<i64, String>,
     pub(super) dms: Arc<DmLog>,
+    pub(super) storage: Arc<ObjectStoreStorage>,
     pub(super) guild: GuildId,
     pub(super) ch: ChannelId,
 }
@@ -263,7 +264,7 @@ pub(super) async fn env_full(
     let messages = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
-        storage,
+        storage.clone(),
         bus.clone(),
         Arc::new(FixedEntitlements(30 * 1024 * 1024)),
         Arc::new(backend.clone()),
@@ -309,6 +310,7 @@ pub(super) async fn env_full(
         bus,
         tokens,
         dms,
+        storage,
         guild,
         ch,
     }

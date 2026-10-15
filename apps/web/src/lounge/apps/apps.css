@@ -56,3 +56,8 @@
   cursor: pointer;
   text-decoration: underline;
 }
+
+.lng-appform-file {
+  max-inline-size: 100%;
+  font: inherit;
+}
