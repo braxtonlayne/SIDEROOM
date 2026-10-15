@@ -11,7 +11,7 @@ import { useStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { CommunityDialog } from '../community/CommunityDialog';
 import { Leveling } from '../community/Leveling';
-import { Suggestions, votesOf } from '../community/Suggestions';
+import { Suggestions } from '../community/Suggestions';
 import { Tickets } from '../community/Tickets';
 import { ServerTagChip } from '../components/ServerTagChip';
 import { useModulesStore } from '../features/useModules';
@@ -32,9 +32,17 @@ vi.mock('../nav', async (orig) => ({
   useLoungeGoto: () => goto,
 }));
 
-const modules = (on: string[]) =>
+const modules = (on: string[], respond: string[] = []) =>
   http.get('*/api/v1/guilds/g1/modules', () =>
-    HttpResponse.json({ modules: Object.fromEntries(on.map((k) => [k, true])) }),
+    HttpResponse.json({
+      modules: Object.fromEntries(on.map((k) => [k, true])),
+      // G-71: the server says where the viewer may respond (Manage Server or the staff role).
+      member_capabilities: Object.fromEntries(
+        on
+          .filter((k) => k === 'community.suggestions' || k === 'community.tickets')
+          .map((k) => [k, { can_respond: respond.includes(k) }]),
+      ),
+    }),
   );
 
 /** Someone other than the viewer owns the server, so the viewer has no staff rights. */
@@ -104,6 +112,11 @@ describe('leveling (FTR-LVL-001)', () => {
     rank: 2,
     messages: 31,
     opted_out: false,
+    // G-70: the rank card carries the server's level roles for every member.
+    level_roles: [
+      { level: 5, role_id: 'r5' },
+      { level: 2, role_id: 'r2' },
+    ],
   };
   const board = [
     {
@@ -126,24 +139,11 @@ describe('leveling (FTR-LVL-001)', () => {
     },
   ];
 
-  it('shows the rank card, level roles for managers and the leaderboard, and opts out after a warning', async () => {
+  it('shows the rank card, the level roles and the leaderboard, and opts out after a warning', async () => {
     const puts: unknown[] = [];
     server.use(
       http.get('*/api/v1/guilds/g1/leveling/rank/:who', () => HttpResponse.json(card)),
       http.get('*/api/v1/guilds/g1/leveling/leaderboard', () => HttpResponse.json(board)),
-      http.get('*/api/v1/guilds/g1/sr/features', () =>
-        HttpResponse.json([
-          {
-            id: 'community.leveling',
-            settings: {
-              level_roles: [
-                { level: 5, role: 'r5' },
-                { level: 2, role: 'r2' },
-              ],
-            },
-          },
-        ]),
-      ),
       http.put('*/api/v1/users/@me/guilds/g1/leveling', async ({ request }) => {
         puts.push(await request.json());
         return new HttpResponse(null, { status: 204 });
@@ -183,10 +183,9 @@ describe('leveling (FTR-LVL-001)', () => {
   it('offers to take part again when opted out', async () => {
     server.use(
       http.get('*/api/v1/guilds/g1/leveling/rank/:who', () =>
-        HttpResponse.json({ ...card, opted_out: true, rank: null, xp: 0 }),
+        HttpResponse.json({ ...card, opted_out: true, rank: null, xp: 0, level_roles: [] }),
       ),
       http.get('*/api/v1/guilds/g1/leveling/leaderboard', () => HttpResponse.json([])),
-      http.get('*/api/v1/guilds/g1/sr/features', () => HttpResponse.json({}, { status: 403 })),
     );
     render(<Leveling guildId="g1" />);
     expect(await screen.findByText(/You opted out of leveling/)).toBeInTheDocument();
@@ -208,24 +207,21 @@ describe('suggestions (FTR-SUGG-001)', () => {
     responder_id: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
+    votes: { up: 4, down: 1 },
+    my_vote: null,
     ...over,
-  });
-
-  it('counts votes without the seeded reaction', () => {
-    expect(votesOf([{ count: 4 }, { count: 2 }])).toEqual({ up: 3, down: 1 });
-    expect(votesOf([{ count: 1 }])).toEqual({ up: 0, down: 0 });
-    expect(votesOf(undefined)).toEqual({ up: 0, down: 0 });
   });
 
   it('submits, shows votes and statuses, and lets staff respond', async () => {
     const posts: unknown[] = [];
     const patches: unknown[] = [];
     server.use(
+      modules(['community.suggestions'], ['community.suggestions']),
       http.get('*/api/v1/guilds/g1/suggestions', () =>
-        HttpResponse.json([sugg('1'), sugg('2', { status: 'approved', response: 'Soon!' })]),
-      ),
-      http.get('*/api/v1/channels/c1/messages/:mid', () =>
-        HttpResponse.json({ reactions: [{ count: 5 }, { count: 2 }] }),
+        HttpResponse.json([
+          sugg('1', { my_vote: 'up' }),
+          sugg('2', { status: 'approved', response: 'Soon!' }),
+        ]),
       ),
       http.post('*/api/v1/guilds/g1/suggestions', async ({ request }) => {
         posts.push(await request.json());
@@ -238,7 +234,9 @@ describe('suggestions (FTR-SUGG-001)', () => {
     );
     const { container } = render(<Suggestions guildId="g1" />);
     expect(await screen.findByText('Idea 1')).toBeInTheDocument();
-    expect(await screen.findAllByText('4 up, 1 down')).toHaveLength(2);
+    // The counts and the viewer's own vote come with the suggestions; nothing counts reactions any more.
+    expect(await screen.findAllByText(/4 up, 1 down/)).toHaveLength(2);
+    expect(screen.getByText(/\(you voted up\)/)).toBeInTheDocument();
     expect(screen.getByText('Soon!')).toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
 
@@ -247,7 +245,9 @@ describe('suggestions (FTR-SUGG-001)', () => {
     await waitFor(() => expect(posts).toEqual([{ content: 'More emoji' }]));
 
     const row = screen.getByText('Idea 1').closest('li')!;
-    await userEvent.click(within(row).getByRole('button', { name: 'Set status or respond' }));
+    await userEvent.click(
+      await within(row).findByRole('button', { name: 'Set status or respond' }),
+    );
     await userEvent.click(within(row).getByRole('combobox', { name: 'Status' }));
     await userEvent.click(screen.getByRole('option', { name: 'Considering' }));
     await userEvent.type(within(row).getByLabelText('Response'), 'Looking into it');
@@ -260,12 +260,25 @@ describe('suggestions (FTR-SUGG-001)', () => {
   it('hides the staff controls from ordinary members', async () => {
     asMember();
     server.use(
+      modules(['community.suggestions']),
       http.get('*/api/v1/guilds/g1/suggestions', () => HttpResponse.json([sugg('1')])),
-      http.get('*/api/v1/channels/c1/messages/:mid', () => HttpResponse.json({}, { status: 404 })),
     );
     render(<Suggestions guildId="g1" />);
     expect(await screen.findByText('Idea 1')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set status or respond' })).toBeNull();
+  });
+
+  it('shows the respond controls to a member the server lets respond, even without Manage Server', async () => {
+    asMember();
+    server.use(
+      modules(['community.suggestions'], ['community.suggestions']),
+      http.get('*/api/v1/guilds/g1/suggestions', () => HttpResponse.json([sugg('1')])),
+    );
+    render(<Suggestions guildId="g1" />);
+    expect(await screen.findByText('Idea 1')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Set status or respond' }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -307,6 +320,7 @@ describe('tickets (FTR-TICK-001)', () => {
   it("shows staff everyone's tickets and closes one", async () => {
     const closed: string[] = [];
     server.use(
+      modules(['community.tickets'], ['community.tickets']),
       http.get('*/api/v1/guilds/g1/tickets', () =>
         HttpResponse.json([ticket('1'), ticket('2', { status: 'closed' })]),
       ),

@@ -159,8 +159,14 @@ export const getUpcomingBirthdays = (guildId: string, limit = 25) =>
 
 // ---- modules switched on in a server
 
+/** What the caller may do in a module, computed by the server with the rule the module's routes enforce (G-71). */
+export interface ModuleCapabilities {
+  can_respond?: boolean;
+}
+
 export interface ModuleFlags {
   modules: Record<string, boolean>;
+  member_capabilities?: Record<string, ModuleCapabilities>;
 }
 
 export const getModules = (guildId: string) =>
@@ -179,6 +185,8 @@ export interface RankCard {
   rank: number | null;
   messages: number;
   opted_out: boolean;
+  /** The server's level rewards, lowest level first (G-70). */
+  level_roles?: { level: number; role_id: string }[];
 }
 
 export interface LeaderboardEntry {
@@ -287,6 +295,11 @@ export const deleteFeed = (guildId: string, id: string) =>
 
 export type SuggestionStatus = 'open' | 'considering' | 'approved' | 'denied' | 'implemented';
 
+export interface SuggestionVotes {
+  up: number;
+  down: number;
+}
+
 export interface Suggestion {
   id: string;
   channel_id: string;
@@ -298,6 +311,10 @@ export interface Suggestion {
   responder_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Votes on the card without the seed (G-72). */
+  votes?: SuggestionVotes;
+  /** The caller's own vote. */
+  my_vote?: 'up' | 'down' | null;
 }
 
 export const listSuggestions = (guildId: string, status?: SuggestionStatus) =>

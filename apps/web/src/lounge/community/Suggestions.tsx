@@ -1,11 +1,11 @@
 // Suggestions (FTR-SUGG-001): members post an idea to the server's suggestions channel; staff set a status and a
-// response. Vote counts are read from the reactions on the suggestion card (the server seeds the up and down
-// emoji first, in that order, and counts its own seed as one vote).
+// response. The vote counts and the viewer's own vote come with each suggestion (G-72); who may respond comes
+// from the server's module capabilities (G-71), not from Manage Server.
 import { Button, Select, TextArea } from '@sideroom/ui';
-import { useEffect, useState } from 'react';
-import { ApiError, apiFetch } from '../../api/client';
+import { useState } from 'react';
+import { ApiError } from '../../api/client';
 import { formatDateTime, useT, type MessageKey } from '../../i18n';
-import { useGuild, useUsers } from '../data';
+import { useUsers } from '../data';
 import {
   listSuggestions,
   respondToSuggestion,
@@ -13,6 +13,7 @@ import {
   type Suggestion,
   type SuggestionStatus,
 } from '../features/api';
+import { MODULE, useCanRespond } from '../features/useModules';
 import { useLoad } from './useLoad';
 
 export const STATUSES: SuggestionStatus[] = [
@@ -32,56 +33,19 @@ const STATUS_KEYS: Record<SuggestionStatus, MessageKey> = {
 export const MAX_SUGGESTION = 2000;
 const MAX_RESPONSE = 1000;
 
-export interface Votes {
-  up: number;
-  down: number;
-}
-
-/** Votes from a card's reactions: the first two are the seeded up and down emoji, each carrying the seed's own vote. */
-export function votesOf(reactions: { count: number }[] | undefined): Votes {
-  const n = (i: number) => Math.max((reactions?.[i]?.count ?? 1) - 1, 0);
-  return { up: n(0), down: n(1) };
-}
-
-async function fetchVotes(s: Suggestion): Promise<Votes | null> {
-  try {
-    const m = await apiFetch<{ reactions?: { count: number }[] }>(
-      `/channels/${encodeURIComponent(s.channel_id)}/messages/${encodeURIComponent(s.message_id)}`,
-      { retries: 0 },
-    );
-    return votesOf(m.reactions);
-  } catch {
-    return null;
-  }
-}
-
 export function Suggestions({ guildId }: { guildId: string }) {
   const t = useT();
-  const guild = useGuild(guildId);
-  const staff = !!guild?.permissions.manageGuild;
+  const staff = useCanRespond(guildId, MODULE.suggestions);
   const [filter, setFilter] = useState<SuggestionStatus | ''>('');
   const list = useLoad(
     () => listSuggestions(guildId, filter || undefined),
     `sugg-${guildId}-${filter}`,
   );
-  const [votes, setVotes] = useState<Record<string, Votes | null>>({});
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const rows = list.data;
-  useEffect(() => {
-    if (!rows) return;
-    let live = true;
-    void Promise.all(rows.slice(0, 25).map(async (s) => [s.id, await fetchVotes(s)] as const)).then(
-      (pairs) => {
-        if (live) setVotes(Object.fromEntries(pairs));
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [rows]);
 
   const submit = async () => {
     const content = text.trim();
@@ -156,7 +120,6 @@ export function Suggestions({ guildId }: { guildId: string }) {
               s={s}
               guildId={guildId}
               staff={staff}
-              votes={votes[s.id] ?? null}
               onChanged={list.reload}
             />
           ))}
@@ -170,13 +133,11 @@ function SuggestionRow({
   s,
   guildId,
   staff,
-  votes,
   onChanged,
 }: {
   s: Suggestion;
   guildId: string;
   staff: boolean;
-  votes: Votes | null;
   onChanged: () => void;
 }) {
   const t = useT();
@@ -213,10 +174,17 @@ function SuggestionRow({
         <span className="lng-status-chip" data-status={s.status}>
           {t(STATUS_KEYS[s.status])}
         </span>
-        {votes && (
+        {s.votes && (
           <span>
             {' '}
-            {t('lounge.community.suggestions.votes', { up: votes.up, down: votes.down })}
+            {t('lounge.community.suggestions.votes', { up: s.votes.up, down: s.votes.down })}
+            {s.my_vote
+              ? ` ${t(
+                  s.my_vote === 'up'
+                    ? 'lounge.community.suggestions.youVotedUp'
+                    : 'lounge.community.suggestions.youVotedDown',
+                )}`
+              : ''}
           </span>
         )}
       </p>

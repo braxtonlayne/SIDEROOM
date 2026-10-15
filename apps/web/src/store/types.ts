@@ -27,6 +27,10 @@ export interface Guild {
   unavailable?: boolean;
   /** The Staff Server (ADM-STF-010). Sent by the API when the viewer is a member. */
   is_staff_guild?: boolean;
+  /** Community channels (Discord shape, null when unset; G-76). */
+  rules_channel_id?: string | null;
+  public_updates_channel_id?: string | null;
+  safety_alerts_channel_id?: string | null;
 }
 
 export interface Channel {
