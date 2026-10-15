@@ -44,7 +44,7 @@ Slowmode presets, auto-thread for channels, "starboard," welcome DMs, birthday r
 1. Any member opens `/developers` → **Apply to build apps**. The form asks: what they want to build, prior work, and agreement to developer terms.
 2. Staff with `REVIEW_APPS` approve or deny. Approval sets the account flag `APP_DEVELOPER`.
 3. Before and after approval, app developers can create applications. Apps in `development` state work only:
-   - in guilds owned by the developer, or where the developer has `MANAGE_GUILD`, **and**
+   - in guilds owned by the developer or by an accepted app tester (up to 25 testers per application, D-204), or where the developer or an accepted tester has `MANAGE_GUILD`, **and**
    - where the guild has **≤ 25 members** (test servers).
    Installs into larger guilds are refused with error `900120 App not released`.
 4. **Release:** the developer submits a version (manifest: name, description, scopes, requested intents, command list, interaction endpoint, privacy policy URL) for review. Approved → `released`, installable anywhere. New versions that change scopes, intents, or activity code need re-review. Command or description changes need re-review only if flagged by the diff.
