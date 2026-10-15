@@ -42,4 +42,10 @@ export default {
   'settings.notifications.dmToastsDesc':
     'Show a small pop-up when a direct message arrives while you are looking at another channel.',
   'lounge.dmToast.title': '{name} sent you a message',
+  // LNG-USET-009 profile decoration and theme
+  'settings.profile.decoration': 'Avatar decoration',
+  'settings.profile.decorationNone': 'No decoration',
+  'settings.profile.themePrimary': 'Profile theme: main colour',
+  'settings.profile.themeAccent': 'Profile theme: accent colour',
+  'settings.profile.clearTheme': 'Remove profile theme',
 } satisfies Record<string, string>;

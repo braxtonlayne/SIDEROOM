@@ -141,6 +141,9 @@ export interface OwnProfile {
     banner: string | null;
     accent_color: number | null;
     profile_effect?: string | null;
+    avatar_decoration?: string | null;
+    /** Profile theme as two 0xRRGGBB colours, primary first. */
+    theme_colors?: [number, number] | null;
   };
   connected_accounts: Connection[];
   /** Platform badges (`staff` and `owner` only while `staff.show_badge` is on). */
@@ -164,6 +167,10 @@ export interface ProfilePatch {
   custom_status?: { text: string | null } | null;
   /** A slug from `GET /sr/profile-catalog`; null removes the effect. */
   profile_effect?: string | null;
+  /** A slug from `GET /sr/profile-catalog` decorations; null removes it. */
+  avatar_decoration?: string | null;
+  /** The profile theme: [primary, accent] as 0xRRGGBB; null clears it. */
+  theme_colors?: [number, number] | null;
 }
 export interface ProfileCatalog {
   effects: { slug: string; label_key: string }[];
