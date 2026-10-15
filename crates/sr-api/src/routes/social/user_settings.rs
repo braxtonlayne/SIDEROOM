@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sr_chat::social::notifications::NotificationLevel;
 use sr_chat::social::repo::Privacy;
+use sr_chat::social::safety::MediaFilter;
 use sr_chat::social::user_settings::{PrivacyUpdate, UserSettings};
+use std::collections::BTreeMap;
 use utoipa::ToSchema;
 
 /// The synced settings blob.
@@ -180,6 +182,23 @@ pub struct PrivacyObject {
     pub allow_server_member_dms: bool,
     /// DMs from non-friends land in Message Requests (default on).
     pub message_requests: bool,
+    /// How to show sensitive media in DMs, per source (LNG-USET-012).
+    pub sensitive_media: SensitiveMediaObject,
+    /// Flag likely spam into Message Requests (LNG-USET-013). Stored; no detector reads it yet.
+    pub dm_spam_filter: bool,
+    /// Per-server override of `allow_server_member_dms`: server id to allowed.
+    pub server_dm_overrides: BTreeMap<String, bool>,
+}
+
+/// Sensitive-media handling per source; each is `show`, `blur` or `block`.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SensitiveMediaObject {
+    /// DMs from friends (default `show`).
+    pub friends: String,
+    /// DMs from people who are not friends (default `blur`).
+    pub others: String,
+    /// Messages in servers (default `show`).
+    pub servers: String,
 }
 
 impl From<Privacy> for PrivacyObject {
@@ -190,6 +209,18 @@ impl From<Privacy> for PrivacyObject {
             friend_requests_server_members: p.friend_requests.server_members,
             allow_server_member_dms: p.dms.allow_server_member_dms,
             message_requests: p.dms.message_requests,
+            sensitive_media: SensitiveMediaObject {
+                friends: p.safety.sensitive_media.friends.as_str().to_owned(),
+                others: p.safety.sensitive_media.others.as_str().to_owned(),
+                servers: p.safety.sensitive_media.servers.as_str().to_owned(),
+            },
+            dm_spam_filter: p.safety.dm_spam_filter,
+            server_dm_overrides: p
+                .safety
+                .server_dm_overrides
+                .iter()
+                .map(|(g, v)| (g.to_string(), *v))
+                .collect(),
         }
     }
 }
@@ -202,6 +233,52 @@ pub struct PatchPrivacyBody {
     pub friend_requests_server_members: Option<bool>,
     pub allow_server_member_dms: Option<bool>,
     pub message_requests: Option<bool>,
+    /// Any of `friends`, `others`, `servers` (each `show`, `blur` or `block`); absent ones stay.
+    pub sensitive_media: Option<PatchSensitiveMedia>,
+    pub dm_spam_filter: Option<bool>,
+    /// Server id to `true`/`false` (set) or `null` (back to the default). At most 200 servers.
+    pub server_dm_overrides: Option<BTreeMap<String, Option<bool>>>,
+}
+
+/// Partial `sensitive_media`.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct PatchSensitiveMedia {
+    pub friends: Option<String>,
+    pub others: Option<String>,
+    pub servers: Option<String>,
+}
+
+fn media_filter(field: &str, v: Option<&String>) -> MsgResult<Option<MediaFilter>> {
+    v.map(|s| {
+        MediaFilter::parse(s).ok_or_else(|| {
+            invalid(
+                field,
+                "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+                "Must be show, blur or block.",
+            )
+        })
+    })
+    .transpose()
+}
+
+type OverridePatch = BTreeMap<u64, Option<bool>>;
+
+fn parse_overrides(raw: Option<BTreeMap<String, Option<bool>>>) -> MsgResult<Option<OverridePatch>> {
+    raw.map(|m| {
+        m.into_iter()
+            .map(|(k, v)| {
+                let id = k.parse::<u64>().ok().filter(|id| *id > 0).ok_or_else(|| {
+                    invalid(
+                        "server_dm_overrides",
+                        "SNOWFLAKE_TYPE_INVALID",
+                        "Keys must be server ids.",
+                    )
+                })?;
+                Ok((id, v))
+            })
+            .collect()
+    })
+    .transpose()
 }
 
 /// The caller's DM and friend-request privacy settings.
@@ -235,6 +312,7 @@ pub async fn patch_privacy(
     ApiJson(body): ApiJson<PatchPrivacyBody>,
 ) -> MsgResult<Json<PrivacyObject>> {
     let me = actor(&p)?;
+    let sm = body.sensitive_media.unwrap_or_default();
     let saved = deps
         .service
         .update_privacy(
@@ -245,6 +323,11 @@ pub async fn patch_privacy(
                 friend_server_members: body.friend_requests_server_members,
                 allow_server_member_dms: body.allow_server_member_dms,
                 message_requests: body.message_requests,
+                media_friends: media_filter("sensitive_media.friends", sm.friends.as_ref())?,
+                media_others: media_filter("sensitive_media.others", sm.others.as_ref())?,
+                media_servers: media_filter("sensitive_media.servers", sm.servers.as_ref())?,
+                dm_spam_filter: body.dm_spam_filter,
+                server_dm_overrides: parse_overrides(body.server_dm_overrides)?,
             },
         )
         .await?;

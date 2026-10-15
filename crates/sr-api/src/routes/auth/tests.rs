@@ -160,6 +160,7 @@ impl H {
             password_hash: self.hasher.hash(PW).unwrap(),
             state,
             age_confirmed: None,
+            age_confirmed_at: None,
             locale: "en-US".into(),
             flags: 0,
         });
@@ -815,6 +816,7 @@ async fn login_rehashes_outdated_parameters() {
         password_hash: old.hash(PW).unwrap(),
         state: AccountState::Active,
         age_confirmed: None,
+        age_confirmed_at: None,
         locale: "en-US".into(),
         flags: 0,
     });
@@ -1412,6 +1414,7 @@ async fn resend_verification_has_a_cooldown() {
         password_hash: h.hasher.hash(PW).unwrap(),
         state: AccountState::Active,
         age_confirmed: None,
+        age_confirmed_at: None,
         locale: "en-US".into(),
         flags: 0,
     });

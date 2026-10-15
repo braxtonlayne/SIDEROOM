@@ -256,11 +256,11 @@ impl RelationshipRepository for MemoryRepo {
     }
 
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy> {
-        Ok(self.lock()?.privacy.get(&user).copied().unwrap_or_default())
+        Ok(self.lock()?.privacy.get(&user).cloned().unwrap_or_default())
     }
 
     async fn put_privacy(&self, user: UserId, privacy: &Privacy) -> RepoResult<()> {
-        self.lock()?.privacy.insert(user, *privacy);
+        self.lock()?.privacy.insert(user, privacy.clone());
         Ok(())
     }
 

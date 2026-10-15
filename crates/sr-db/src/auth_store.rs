@@ -68,7 +68,8 @@ fn unique_to_false(r: Result<sqlx::postgres::PgQueryResult, sqlx::Error>) -> Sto
 }
 const ACCOUNT_COLS: &str = "id, person_id, username::text AS username, display_name, \
     email::text AS email, email_verified_at IS NOT NULL AS email_verified, password_hash, \
-    state::text AS state, age_confirmed, locale, flags";
+    state::text AS state, age_confirmed, \
+    EXTRACT(EPOCH FROM age_confirmed_at)::bigint AS age_confirmed_at, locale, flags";
 
 fn account_from_row(r: &sqlx::postgres::PgRow) -> StoreResult<AccountRecord> {
     let state: String = r.try_get("state").map_err(store_err)?;
@@ -88,6 +89,7 @@ fn account_from_row(r: &sqlx::postgres::PgRow) -> StoreResult<AccountRecord> {
             other => return Err(StoreError(format!("unknown account state {other}"))),
         },
         age_confirmed: r.try_get("age_confirmed").map_err(store_err)?,
+        age_confirmed_at: r.try_get("age_confirmed_at").map_err(store_err)?,
         locale: r.try_get("locale").map_err(store_err)?,
         flags: r.try_get("flags").map_err(store_err)?,
     })
@@ -283,6 +285,18 @@ impl AuthStore for PgAuthStore {
         .bind(id)
         .bind(confirmed)
         .bind(now as f64)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
+
+    async fn reset_age_confirmed(&self, id: i64) -> StoreResult<()> {
+        sqlx::query(
+            "UPDATE accounts SET age_confirmed = NULL, age_confirmed_at = NULL, \
+             updated_at = now() WHERE id = $1",
+        )
+        .bind(id)
         .execute(&self.pool)
         .await
         .map_err(store_err)?;

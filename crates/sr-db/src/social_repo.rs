@@ -23,7 +23,9 @@ use sr_chat::social::repo::{
     ProfileRepository, ReadStateRepository, RelationshipRepository, RepoResult,
     UserSettingsRepository,
 };
+use sr_chat::social::safety::{MediaFilter, SafetyPrefs, SensitiveMedia};
 use sr_chat::social::user_settings::UserSettings;
+use std::collections::BTreeMap;
 use sr_core::{ChannelId, GuildId, MessageId, UserId};
 
 /// Postgres-backed social repository.
@@ -52,6 +54,23 @@ fn i(id: u64) -> i64 {
 }
 fn uid(v: i64) -> UserId {
     UserId::new(v as u64)
+}
+
+fn media_filter(r: &PgRow, col: &str) -> RepoResult<MediaFilter> {
+    let code: i16 = r.try_get(col).map_err(db)?;
+    MediaFilter::from_code(code).ok_or_else(|| bad(col))
+}
+
+fn overrides_from_json(v: &serde_json::Value) -> BTreeMap<u64, bool> {
+    v.as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(k, v)| Some((k.parse().ok()?, v.as_bool()?)))
+        .collect()
+}
+
+fn overrides_to_json(m: &BTreeMap<u64, bool>) -> serde_json::Value {
+    serde_json::Value::Object(m.iter().map(|(k, v)| (k.to_string(), (*v).into())).collect())
 }
 
 fn guild_key(g: Option<GuildId>) -> i64 {
@@ -298,7 +317,8 @@ impl RelationshipRepository for PgSocialRepo {
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy> {
         let row = sqlx::query(
             "SELECT fr_everyone, fr_friends_of_friends, fr_server_members, \
-                    dm_server_members, dm_message_requests \
+                    dm_server_members, dm_message_requests, media_friends, media_others, \
+                    media_servers, dm_spam_filter, server_dm_overrides \
              FROM user_privacy WHERE user_id = $1",
         )
         .bind(i(user.get()))
@@ -318,17 +338,31 @@ impl RelationshipRepository for PgSocialRepo {
                 allow_server_member_dms: r.try_get("dm_server_members").map_err(db)?,
                 message_requests: r.try_get("dm_message_requests").map_err(db)?,
             },
+            safety: SafetyPrefs {
+                sensitive_media: SensitiveMedia {
+                    friends: media_filter(&r, "media_friends")?,
+                    others: media_filter(&r, "media_others")?,
+                    servers: media_filter(&r, "media_servers")?,
+                },
+                dm_spam_filter: r.try_get("dm_spam_filter").map_err(db)?,
+                server_dm_overrides: overrides_from_json(
+                    &r.try_get::<serde_json::Value, _>("server_dm_overrides")
+                        .map_err(db)?,
+                ),
+            },
         })
     }
 
     async fn put_privacy(&self, user: UserId, p: &Privacy) -> RepoResult<()> {
         sqlx::query(
             "INSERT INTO user_privacy (user_id, fr_everyone, fr_friends_of_friends, \
-               fr_server_members, dm_server_members, dm_message_requests) \
-             VALUES ($1, $2, $3, $4, $5, $6) \
+               fr_server_members, dm_server_members, dm_message_requests, media_friends, \
+               media_others, media_servers, dm_spam_filter, server_dm_overrides) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
              ON CONFLICT (user_id) DO UPDATE SET fr_everyone = $2, fr_friends_of_friends = $3, \
                fr_server_members = $4, dm_server_members = $5, dm_message_requests = $6, \
-               updated_at = now()",
+               media_friends = $7, media_others = $8, media_servers = $9, dm_spam_filter = $10, \
+               server_dm_overrides = $11, updated_at = now()",
         )
         .bind(i(user.get()))
         .bind(p.friend_requests.everyone)
@@ -336,6 +370,11 @@ impl RelationshipRepository for PgSocialRepo {
         .bind(p.friend_requests.server_members)
         .bind(p.dms.allow_server_member_dms)
         .bind(p.dms.message_requests)
+        .bind(p.safety.sensitive_media.friends.code())
+        .bind(p.safety.sensitive_media.others.code())
+        .bind(p.safety.sensitive_media.servers.code())
+        .bind(p.safety.dm_spam_filter)
+        .bind(overrides_to_json(&p.safety.server_dm_overrides))
         .execute(&self.pool)
         .await
         .map_err(db)?;

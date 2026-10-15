@@ -265,3 +265,57 @@ pub async fn age_gate(
     .await;
     Ok(StatusCode::NO_CONTENT)
 }
+
+/// Where the account stands on the 18+ age gate.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct AgeConfirmationObject {
+    /// `true` after "18 or older", `false` after "younger", `null` when never asked or reset.
+    pub confirmed: Option<bool>,
+    /// When the account confirmed it was 18 or older (RFC 3339); `null` otherwise.
+    pub confirmed_at: Option<String>,
+    /// How it was confirmed; always `self-declared` (D-032: no ID check).
+    pub method: Option<String>,
+}
+
+/// `GET /users/@me/age-confirmation`: the stored answer to the age gate (LNG-USET-015).
+#[utoipa::path(
+    get,
+    path = "/users/@me/age-confirmation",
+    responses((status = 200, body = AgeConfirmationObject), (status = 403, body = crate::openapi::ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn get_age_confirmation(
+    UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
+) -> R<Json<AgeConfirmationObject>> {
+    session_id(&p)?;
+    let account = current_account(&svc, p.user_id).await?;
+    let confirmed_at = account
+        .age_confirmed_at
+        .filter(|_| account.age_confirmed == Some(true))
+        .map(validate::iso8601);
+    Ok(Json(AgeConfirmationObject {
+        confirmed: account.age_confirmed,
+        method: confirmed_at.as_ref().map(|_| "self-declared".to_owned()),
+        confirmed_at,
+    }))
+}
+
+/// `DELETE /users/@me/age-confirmation`: forget the answer, so the age gate asks again
+/// ("re-confirm", LNG-USET-015). Restricted content is hidden until the account answers.
+#[utoipa::path(
+    delete,
+    path = "/users/@me/age-confirmation",
+    responses((status = 204, description = "Reset"), (status = 403, body = crate::openapi::ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn reset_age_confirmation(
+    UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
+) -> R<StatusCode> {
+    session_id(&p)?;
+    svc.store.reset_age_confirmed(p.user_id).await?;
+    svc.notify_user_update(p.user_id, serde_json::json!({ "age_confirmed": null }))
+        .await;
+    Ok(StatusCode::NO_CONTENT)
+}

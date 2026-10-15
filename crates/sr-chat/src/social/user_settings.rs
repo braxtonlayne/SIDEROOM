@@ -9,11 +9,13 @@
 
 use super::notifications::NotificationLevel;
 use super::relationships::FriendRequestSources;
+use super::safety::{MAX_SERVER_DM_OVERRIDES, MediaFilter};
 use super::repo::SocialRepository;
 use super::service::SocialService;
 use super::{SocialError, SocialResult};
 use serde_json::{Map, Value};
 use sr_core::UserId;
+use std::collections::BTreeMap;
 
 /// Largest synced blob, serialised.
 pub const MAX_SETTINGS_BYTES: usize = 64 * 1024;
@@ -118,13 +120,19 @@ pub fn check_blob(v: &Value) -> SocialResult<()> {
 }
 
 /// Partial update of the privacy settings; `None` leaves a field alone.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PrivacyUpdate {
     pub friend_everyone: Option<bool>,
     pub friend_of_friends: Option<bool>,
     pub friend_server_members: Option<bool>,
     pub allow_server_member_dms: Option<bool>,
     pub message_requests: Option<bool>,
+    pub media_friends: Option<MediaFilter>,
+    pub media_others: Option<MediaFilter>,
+    pub media_servers: Option<MediaFilter>,
+    pub dm_spam_filter: Option<bool>,
+    /// Guild id to override: `Some(allowed)` sets, `None` removes.
+    pub server_dm_overrides: Option<BTreeMap<u64, Option<bool>>>,
 }
 
 impl<R: SocialRepository> SocialService<R> {
@@ -202,6 +210,36 @@ impl<R: SocialRepository> SocialService<R> {
         }
         if let Some(v) = up.message_requests {
             p.dms.message_requests = v;
+        }
+        let s = &mut p.safety;
+        if let Some(v) = up.media_friends {
+            s.sensitive_media.friends = v;
+        }
+        if let Some(v) = up.media_others {
+            s.sensitive_media.others = v;
+        }
+        if let Some(v) = up.media_servers {
+            s.sensitive_media.servers = v;
+        }
+        if let Some(v) = up.dm_spam_filter {
+            s.dm_spam_filter = v;
+        }
+        for (guild, change) in up.server_dm_overrides.iter().flatten() {
+            match change {
+                Some(allowed) => {
+                    s.server_dm_overrides.insert(*guild, *allowed);
+                }
+                None => {
+                    s.server_dm_overrides.remove(guild);
+                }
+            }
+        }
+        if s.server_dm_overrides.len() > MAX_SERVER_DM_OVERRIDES {
+            return Err(SocialError::invalid(
+                "server_dm_overrides",
+                "BASE_TYPE_MAX_LENGTH",
+                format!("at most {MAX_SERVER_DM_OVERRIDES} servers"),
+            ));
         }
         self.repo().put_privacy(user, &p).await?;
         Ok(p)

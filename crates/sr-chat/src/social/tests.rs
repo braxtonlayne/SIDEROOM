@@ -1535,3 +1535,83 @@ async fn group_invites_respect_the_group_size_cap() {
         Err(SocialError::MaxGroupSize)
     ));
 }
+
+#[tokio::test]
+async fn safety_prefs_update_partially_and_overrides_gate_server_dms() {
+    use super::dm::DmAccess;
+    use super::safety::MediaFilter;
+    use super::user_settings::PrivacyUpdate;
+    use std::collections::BTreeMap;
+    let f = fx();
+    let defaults = f.svc.privacy(u(1)).await.unwrap();
+    assert_eq!(defaults.safety.sensitive_media.others, MediaFilter::Blur);
+    assert!(!defaults.safety.dm_spam_filter);
+
+    let p = f
+        .svc
+        .update_privacy(
+            u(1),
+            PrivacyUpdate {
+                media_friends: Some(MediaFilter::Block),
+                dm_spam_filter: Some(true),
+                server_dm_overrides: Some(BTreeMap::from([(70, Some(false)), (71, Some(true))])),
+                ..PrivacyUpdate::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(p.safety.sensitive_media.friends, MediaFilter::Block);
+    assert_eq!(p.safety.sensitive_media.others, MediaFilter::Blur, "untouched");
+    assert!(p.safety.dm_spam_filter);
+    assert_eq!(p.safety.server_dm_overrides.len(), 2);
+
+    // null removes one override, the rest stays.
+    let p = f
+        .svc
+        .update_privacy(
+            u(1),
+            PrivacyUpdate {
+                server_dm_overrides: Some(BTreeMap::from([(71, None)])),
+                ..PrivacyUpdate::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(p.safety.server_dm_overrides.get(&70), Some(&false));
+    assert!(!p.safety.server_dm_overrides.contains_key(&71));
+
+    // User 1 allows server DMs by default but not from server 70; user 2 shares only 70.
+    let (g70, g71) = (sr_core::GuildId::new(70), sr_core::GuildId::new(71));
+    f.svc.repo().add_member(g70, u(1), None, 0);
+    f.svc.repo().add_member(g70, u(2), None, 0);
+    f.svc.repo().add_member(g71, u(1), None, 0);
+    f.svc.repo().add_member(g71, u(3), None, 0);
+    assert!(matches!(
+        f.svc.open_dm(u(2), u(1)).await,
+        Err(SocialError::DmNotAllowed)
+    ));
+    let opened = f.svc.open_dm(u(3), u(1)).await.unwrap();
+    assert_eq!(opened.access, DmAccess::Request);
+}
+
+#[tokio::test]
+async fn too_many_server_dm_overrides_are_rejected() {
+    use super::safety::MAX_SERVER_DM_OVERRIDES;
+    use super::user_settings::PrivacyUpdate;
+    let f = fx();
+    let many = (1..=(MAX_SERVER_DM_OVERRIDES as u64 + 1))
+        .map(|g| (g, Some(true)))
+        .collect();
+    let err = f
+        .svc
+        .update_privacy(
+            u(1),
+            PrivacyUpdate {
+                server_dm_overrides: Some(many),
+                ..PrivacyUpdate::default()
+            },
+        )
+        .await;
+    assert!(err.is_err());
+    assert!(f.svc.privacy(u(1)).await.unwrap().safety.server_dm_overrides.is_empty());
+}

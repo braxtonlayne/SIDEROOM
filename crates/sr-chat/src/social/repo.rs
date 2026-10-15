@@ -6,6 +6,7 @@ use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
 use super::read_state::ReadState;
+use super::safety::SafetyPrefs;
 use super::relationships::{
     FriendRequestSources, RelOp, Relationship, RelationshipCounts, RelationshipKind,
 };
@@ -33,10 +34,11 @@ pub struct GuildMembership {
 }
 
 /// Per-user privacy preferences relevant to relationships and DMs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Privacy {
     pub friend_requests: FriendRequestSources,
     pub dms: DmPrivacy,
+    pub safety: SafetyPrefs,
 }
 
 #[async_trait]

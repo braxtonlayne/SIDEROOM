@@ -276,6 +276,41 @@ impl<R: SocialRepository> SocialService<R> {
         Ok(out)
     }
 
+    /// Whether DMs are welcome through at least one server both users are in: each shared
+    /// server uses the recipient's per-server override, or `default_allow` without one.
+    async fn shared_guild_allows(
+        &self,
+        sender: UserId,
+        recipient: UserId,
+        default_allow: bool,
+        safety: &super::safety::SafetyPrefs,
+    ) -> SocialResult<bool> {
+        let theirs: Vec<_> = self
+            .repo
+            .list_guild_memberships(recipient)
+            .await?
+            .into_iter()
+            .map(|m| m.guild)
+            .collect();
+        let mut any_shared = false;
+        for m in self.repo.list_guild_memberships(sender).await? {
+            if !theirs.contains(&m.guild) {
+                continue;
+            }
+            any_shared = true;
+            let allowed = safety
+                .server_dm_overrides
+                .get(&m.guild.get())
+                .copied()
+                .unwrap_or(default_allow);
+            if allowed {
+                return Ok(true);
+            }
+        }
+        // Memberships we could not enumerate (test doubles): keep the default.
+        Ok(if any_shared { false } else { default_allow })
+    }
+
     /// Find or create the 1:1 DM with `target` (`POST /users/@me/channels`).
     pub async fn open_dm(&self, me: UserId, target: UserId) -> SocialResult<OpenedDm> {
         if me == target {
@@ -283,8 +318,14 @@ impl<R: SocialRepository> SocialService<R> {
         }
         self.require_user(target).await?;
         let st = self.pair_state(me, target).await?;
-        let privacy = self.repo.get_privacy(target).await?.dms;
+        let full = self.repo.get_privacy(target).await?;
+        let mut privacy = full.dms;
         let shares = self.repo.shares_guild(me, target).await?;
+        if shares && !full.safety.server_dm_overrides.is_empty() {
+            privacy.allow_server_member_dms = self
+                .shared_guild_allows(me, target, privacy.allow_server_member_dms, &full.safety)
+                .await?;
+        }
         let existing = self.repo.find_dm(me, target).await?;
         let access = dm_access(st, &privacy, shares);
         // Friends/blocks decide; an existing conversation stays reachable unless blocked.

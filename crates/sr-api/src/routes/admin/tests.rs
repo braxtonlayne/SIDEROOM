@@ -231,6 +231,7 @@ async fn env_with(reauth: bool) -> Env {
             password_hash: hasher.hash("pw").unwrap(),
             state: AuthState::Active,
             age_confirmed: None,
+            age_confirmed_at: None,
             locale: "en-US".into(),
             flags: 0,
         });

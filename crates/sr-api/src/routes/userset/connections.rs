@@ -570,7 +570,7 @@ pub async fn callback(
 
 /// Body of `PUT /users/@me/connections/link`.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct LinkBody {
+pub struct ConnectionLinkBody {
     /// A link-only provider such as `website`, `xbox`, `roblox` or `tiktok`.
     pub provider: String,
     /// The account name shown on the profile (1 to 100 characters). For `website` it
@@ -602,14 +602,14 @@ fn bad_field(field: &str, message: &str) -> MsgError {
 #[utoipa::path(
     put,
     path = "/users/@me/connections/link",
-    request_body = LinkBody,
+    request_body = ConnectionLinkBody,
     responses((status = 200, body = ConnectionObject), (status = 400, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn put_link(
     UserOnly(p): UserOnly,
     Ext(social): Ext<SocialDeps>,
-    ApiJson(body): ApiJson<LinkBody>,
+    ApiJson(body): ApiJson<ConnectionLinkBody>,
 ) -> MsgResult<Json<ConnectionObject>> {
     let me = actor(&p)?;
     let (_, _, needs_url) = providers::link_spec(&body.provider)
@@ -849,7 +849,7 @@ pub fn router() -> Router<AppState> {
         ConnectionsResponse,
         ProviderObject,
         AuthorizeResponse,
-        LinkBody,
+        ConnectionLinkBody,
         PatchBody,
         ConnectionObject
     ))
