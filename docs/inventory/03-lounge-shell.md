@@ -28,7 +28,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-RAIL-009** [FE] Staff Server special frame/badge
 - [x] **LNG-RAIL-010** [FE] "+" Add a Server button → Create Server modal
 - [x] **LNG-RAIL-011** [FE] Discover (compass) button → Server Directory *(`lounge/shell/DirectoryDialog.tsx` over `GET /directory`, `POST /directory/{id}/join`; a modal, not a routed page; test `p11ShellDirectory.test.tsx`)*
-- [ ] **LNG-RAIL-012** [FE] Guild context menu: Mark As Read, Invite People, Mute Server ▸ (durations), Notification Settings ▸, Hide Muted Channels, Server Settings ▸ (shortcuts), Privacy Settings, Edit Per-server Profile, Create Channel/Category/Event, Leave Server, Copy Server ID
+- [x] **LNG-RAIL-012** [FE] Guild context menu: Mark As Read, Invite People, Mute Server ▸ (durations), Notification Settings ▸, Hide Muted Channels, Server Settings ▸ (shortcuts), Privacy Settings, Edit Per-server Profile, Create Channel/Category/Event, Leave Server, Copy Server ID *(`useGuildMenu.ts`, `GuildProfileDialog.tsx`; Create Event stays disabled: no scheduled-events API; Privacy Settings opens the user Privacy section; test `p11ShellRail.test.tsx`)*
 - [x] **LNG-RAIL-013** [FE] Voice-connected indicator on guild icon (speaker glyph) and live indicator
 - [x] **LNG-RAIL-014** [FE] "NEW" badge on recently joined servers
 - [ ] **LNG-RAIL-015** [FE] PWA install prompt replacing "Download apps" button

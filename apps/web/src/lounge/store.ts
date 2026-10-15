@@ -37,6 +37,7 @@ export const RIGHT_PANEL_MAX = 340;
 export type LoungeDialog =
   | { kind: 'addServer' }
   | { kind: 'directory' }
+  | { kind: 'guildProfile'; guildId: string }
   | { kind: 'createChannel'; guildId: string; parentId?: string | undefined; category?: boolean }
   | { kind: 'invite'; guildId: string; channelId?: string | undefined }
   | { kind: 'leaveServer'; guildId: string }

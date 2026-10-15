@@ -92,7 +92,10 @@ describe('LNG-RAIL-011 Server Directory', () => {
   it('reports a failed join on the card', async () => {
     server.use(
       http.post('*/api/v1/directory/d1/join', () =>
-        HttpResponse.json({ code: 40007, message: 'You are banned from this server.' }, { status: 403 }),
+        HttpResponse.json(
+          { code: 40007, message: 'You are banned from this server.' },
+          { status: 403 },
+        ),
       ),
     );
     at('/channels/g1/c1');

@@ -112,8 +112,12 @@ function GuildIcon({
     core.hideMuted,
     { type: 'separator' },
     ...(guild.isStaff ? [core.platformAdmin] : []),
-    core.settings,
+    core.settingsMenu,
+    core.privacy,
+    core.editProfile,
     core.createChannel,
+    core.createCategory,
+    { label: t('lounge.guildMenu.createEvent'), disabled: true },
     { type: 'separator' },
     ...(inFolder
       ? [

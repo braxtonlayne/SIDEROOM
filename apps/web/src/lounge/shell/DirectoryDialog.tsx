@@ -47,7 +47,7 @@ function Card({ g, onJoined }: { g: DirectoryGuild; onJoined: (id: string) => vo
         style={banner ? { backgroundImage: `url(${banner})` } : undefined}
       />
       <div className="lng-dir-body">
-        <Avatar name={g.name} src={cdnUrl('icons', g.id, g.icon, { size: 64 })} size={48} />
+        <Avatar name={g.name} src={cdnUrl('icons', g.id, g.icon, { size: 64 })} size={56} />
         <h3 className="lng-dir-name">
           {g.name}
           {g.featured && <span className="lng-tag">{t('lounge.directory.featured')}</span>}

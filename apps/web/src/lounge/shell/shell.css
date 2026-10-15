@@ -429,3 +429,21 @@
   margin: 0;
   font-size: 12px;
 }
+
+/* Per-server profile dialog (LNG-RAIL-012) */
+.lng-gp-image {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lng-gp-image-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lng-gp-banner {
+  inline-size: 120px;
+  block-size: 48px;
+  border-radius: 6px;
+  background: var(--bg-base-high, #333) center / cover;
+}
