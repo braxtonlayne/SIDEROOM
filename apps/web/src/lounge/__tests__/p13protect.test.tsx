@@ -75,7 +75,7 @@ describe('message request reasons (G-95, D-224)', () => {
 
   it('words each reason', () => {
     const now = epoch + 10 * 86_400_000;
-    const recipients = [{ id: idAt(epoch + 7 * 86_400_000) }];
+    const recipients = [{ id: idAt(epoch + 7 * 86_400_000), username: 'sam' }];
     expect(requestReasonText({ sr_request_reason: 'new_account', recipients }, t, now)).toBe(
       'lounge.requests.reasonNewAccount{"days":3}',
     );
