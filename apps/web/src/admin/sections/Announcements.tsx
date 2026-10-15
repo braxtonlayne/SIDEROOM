@@ -1,5 +1,5 @@
-// Platform announcement composer (ADM-PLT-009): create, reuse as a template and end. There is no edit route on
-// the server (an announcement is immutable once published), so "reuse" prefills the composer instead.
+// Platform announcement composer (ADM-PLT-009): create, edit while showing (G-69), reuse an ended one as a template,
+// and end. Severity, the critical flag and the message to everyone are fixed once published.
 import {
   Badge,
   Button,
@@ -61,6 +61,8 @@ export function AnnouncementsSection() {
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [ending, setEnding] = useState<api.PlatformAnnouncement | null>(null);
+  const [editing, setEditing] = useState<api.PlatformAnnouncement | null>(null);
+  const [edit, setEdit] = useState({ title: '', body: '', endsAt: '' });
   const [notice, setNotice] = useState<string | null>(null);
   const action = useAction();
 
@@ -76,6 +78,26 @@ export function AnnouncementsSection() {
   // A critical notice is always sent as a DM (D-192): the toggle is forced on and locked.
   const critical = draft.severity === 'critical';
   const dm = critical || draft.sendDm;
+
+  const editEndsMs = edit.endsAt ? new Date(edit.endsAt).getTime() : null;
+  const editEndsValid =
+    editEndsMs === null || (Number.isFinite(editEndsMs) && editEndsMs > Date.now());
+  const editValid =
+    edit.title.trim().length > 0 &&
+    edit.title.length <= TITLE_MAX &&
+    edit.body.trim().length > 0 &&
+    edit.body.length <= BODY_MAX &&
+    editEndsValid;
+  /** The local date-time input value for a stored end time. */
+  const toLocalInput = (ms: number | null | undefined) => {
+    if (!ms) return '';
+    const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60_000);
+    return d.toISOString().slice(0, 16);
+  };
+  const startEdit = (a: api.PlatformAnnouncement) => {
+    setEdit({ title: a.title, body: a.body, endsAt: toLocalInput(a.ends_at_ms) });
+    setEditing(a);
+  };
 
   const open = (d: Draft) => {
     setDraft(d);
@@ -138,30 +160,41 @@ export function AnnouncementsSection() {
                           : ''}
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      aria-label={t('admin.announcements.reuseAria', { title: a.title })}
-                      onClick={() =>
-                        open({
-                          title: a.title,
-                          body: a.body,
-                          severity: a.severity,
-                          endsAt: '',
-                          sendDm: false,
-                        })
-                      }
-                    >
-                      {t('admin.announcements.reuse')}
-                    </Button>
-                    {(status === 'active' || status === 'scheduled') && (
+                    {status === 'active' || status === 'scheduled' ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          aria-label={t('admin.announcements.editAria', { title: a.title })}
+                          onClick={() => startEdit(a)}
+                        >
+                          {t('admin.announcements.edit')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          aria-label={t('admin.announcements.endAria', { title: a.title })}
+                          onClick={() => setEnding(a)}
+                        >
+                          {t('admin.announcements.end')}
+                        </Button>
+                      </>
+                    ) : (
                       <Button
                         size="sm"
-                        variant="danger"
-                        aria-label={t('admin.announcements.endAria', { title: a.title })}
-                        onClick={() => setEnding(a)}
+                        variant="secondary"
+                        aria-label={t('admin.announcements.reuseAria', { title: a.title })}
+                        onClick={() =>
+                          open({
+                            title: a.title,
+                            body: a.body,
+                            severity: a.severity,
+                            endsAt: '',
+                            sendDm: false,
+                          })
+                        }
                       >
-                        {t('admin.announcements.end')}
+                        {t('admin.announcements.reuse')}
                       </Button>
                     )}
                   </li>
@@ -174,6 +207,50 @@ export function AnnouncementsSection() {
       <p className="ss-sub" style={{ marginTop: 16 }}>
         {t('admin.announcements.noEditNote')}
       </p>
+
+      <ReasonDialog
+        open={!!editing}
+        title={t('admin.announcements.editTitle')}
+        confirmLabel={t('admin.announcements.editSave')}
+        reasonOptional
+        valid={editValid}
+        onCancel={() => setEditing(null)}
+        onConfirm={async (reason) => {
+          if (!editing) return;
+          await api.editAnnouncement(editing.id, {
+            title: edit.title.trim(),
+            body: edit.body.trim(),
+            ...(editEndsMs !== null ? { ends_at_ms: editEndsMs } : {}),
+            reason,
+          });
+          setEditing(null);
+          setNotice(t('admin.announcements.edited'));
+          await list.reload();
+        }}
+      >
+        <TextInput
+          label={t('admin.announcements.fieldTitle')}
+          maxLength={TITLE_MAX}
+          value={edit.title}
+          onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+        />
+        <TextArea
+          label={t('admin.announcements.fieldBody')}
+          maxLength={BODY_MAX}
+          rows={5}
+          value={edit.body}
+          onChange={(e) => setEdit({ ...edit, body: e.target.value })}
+        />
+        <TextInput
+          label={t('admin.announcements.fieldEnds')}
+          hint={t('admin.announcements.fieldEndsHint')}
+          type="datetime-local"
+          value={edit.endsAt}
+          error={editEndsValid ? undefined : t('admin.announcements.endsInPast')}
+          onChange={(e) => setEdit({ ...edit, endsAt: e.target.value })}
+        />
+        <p className="ss-sub">{t('admin.announcements.editFixed')}</p>
+      </ReasonDialog>
 
       <ReasonDialog
         open={composing}
