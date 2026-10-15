@@ -1061,6 +1061,39 @@ fn new_member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         ),
         (Method::DELETE, "/library/bookmarks/5", None),
         (Method::GET, "/library/me/bookmarks", None),
+        (Method::GET, "/library/series/70/comments", None),
+        (
+            Method::POST,
+            "/library/series/70/comments",
+            Some(json!({ "body": "hi" })),
+        ),
+        (Method::GET, "/library/chapters/70/comments", None),
+        (
+            Method::POST,
+            "/library/chapters/70/comments",
+            Some(json!({ "body": "hi" })),
+        ),
+        (Method::GET, "/library/comments/5/replies", None),
+        (
+            Method::PATCH,
+            "/library/comments/5",
+            Some(json!({ "body": "x" })),
+        ),
+        (Method::DELETE, "/library/comments/5", None),
+        (Method::PUT, "/library/comments/5/like", None),
+        (Method::DELETE, "/library/comments/5/like", None),
+        (
+            Method::POST,
+            "/library/comments/5/report",
+            Some(json!({ "reason": "spam" })),
+        ),
+        (Method::GET, "/library/me/downloads", None),
+        (Method::POST, "/library/chapters/70/download", None),
+        (Method::PUT, "/library/chapters/70/presence", None),
+        (Method::DELETE, "/library/me/presence", None),
+        (Method::GET, "/library/friends/reading", None),
+        (Method::GET, "/library/me/notifications", None),
+        (Method::POST, "/library/me/notifications/seen", None),
     ]
 }
 
@@ -1074,6 +1107,12 @@ fn new_admin_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         (Method::GET, "/admin/library/chapters/70/uploads", None),
         (Method::GET, "/admin/library/uploads/5", None),
         (Method::POST, "/admin/library/uploads/5/complete", None),
+        (Method::GET, "/admin/library/comment-reports", None),
+        (
+            Method::POST,
+            "/admin/library/comment-reports/5/resolve",
+            Some(json!({ "hide": true })),
+        ),
     ]
 }
 
@@ -1094,6 +1133,22 @@ async fn the_new_routes_keep_the_auth_matrices() {
         assert_eq!(s, StatusCode::FORBIDDEN, "basic {m} {p}");
         assert_eq!(body["code"], 50013, "{m} {p}");
     }
+}
+
+#[tokio::test]
+async fn downloads_are_for_patrons_server_side() {
+    // Nobody holds the download perk in this environment, so the answer is 403 before anything is built.
+    let e = env().await;
+    let (s, body) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/library/chapters/70/download",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_eq!(body["code"], 50013);
 }
 
 #[tokio::test]

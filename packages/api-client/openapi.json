@@ -8603,6 +8603,144 @@
         ]
       }
     },
+    "/admin/library/comment-reports": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Open comment reports, oldest first (`REVIEW_READING`).",
+        "operationId": "admin_library_comment_reports",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Cursor from the previous page's `next_before`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCommentReports"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/library/comment-reports/{report_id}/resolve": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Resolve a report: hide the comment or dismiss the report (`REVIEW_READING`).",
+        "operationId": "admin_library_resolve_comment_report",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "description": "Report snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryResolveReportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/library/editions/{edition_id}": {
       "put": {
         "tags": [
@@ -37667,6 +37805,255 @@
         ]
       }
     },
+    "/library/chapters/{chapter_id}/comments": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Top-level comments on a chapter, newest first. `total` counts comments and replies.",
+        "operationId": "library_chapter_comments",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Cursor from the previous page's `next_before`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCommentPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comment on a chapter, or reply to one of its top-level comments (`parent_id`).",
+        "operationId": "library_post_chapter_comment",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryCommentInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryComment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (900011).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/chapters/{chapter_id}/download": {
+      "post": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "Download a chapter: a signed link to the CBZ, PDF or EPUB. Counts against the daily limit.",
+        "operationId": "library_download_chapter",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChapterExport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a Patron, or the series needs age confirmation (900011).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Too large to export, or no file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The daily limit is used up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/library/chapters/{chapter_id}/pages": {
       "get": {
         "tags": [
@@ -37709,6 +38096,66 @@
           },
           "403": {
             "description": "Age-restricted series and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/chapters/{chapter_id}/presence": {
+      "put": {
+        "tags": [
+          "presence"
+        ],
+        "summary": "Reader heartbeat: the caller is reading this chapter. Send it on opening a chapter and about\nevery 30 seconds; the presence lapses after 90 seconds. Nothing is shared when the member turned\nlibrary sharing off or paused their history (D-190); age-restricted series are masked.",
+        "operationId": "library_reading_heartbeat",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (900011).",
             "content": {
               "application/json": {
                 "schema": {
@@ -38198,6 +38645,436 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/comments/{comment_id}": {
+      "delete": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Delete one's own comment (its replies go with it).",
+        "operationId": "library_delete_comment",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "description": "Comment snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Edit one's own comment.",
+        "operationId": "library_edit_comment",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "description": "Comment snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryCommentPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryComment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/comments/{comment_id}/like": {
+      "put": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Like a comment (idempotent).",
+        "operationId": "library_like_comment",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "description": "Comment snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCountBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Take back a like.",
+        "operationId": "library_unlike_comment",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "description": "Comment snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCountBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/comments/{comment_id}/replies": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Replies to a top-level comment, oldest first.",
+        "operationId": "library_comment_replies",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Cursor from the previous page's `next_before`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "comment_id",
+            "in": "path",
+            "description": "Comment snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCommentPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/comments/{comment_id}/report": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Report a comment for the curators.",
+        "operationId": "library_report_comment",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "description": "Comment snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryReportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/friends/reading": {
+      "get": {
+        "tags": [
+          "presence"
+        ],
+        "summary": "Friends who are reading something now and share it.",
+        "operationId": "library_friends_reading",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryFriendsReading"
+                }
+              }
+            }
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -38815,6 +39692,42 @@
         ]
       }
     },
+    "/library/me/downloads": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "Whether the caller may download chapters, and how many downloads are left today.",
+        "operationId": "library_download_allowance",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryDownloadAllowance"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/library/me/follows": {
       "get": {
         "tags": [
@@ -38910,6 +39823,100 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/me/notifications": {
+      "get": {
+        "tags": [
+          "presence"
+        ],
+        "summary": "New chapters of followed series (bell on) since the caller last opened the bell, capped at 99.",
+        "operationId": "library_notification_count",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryNotificationCount"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/me/notifications/seen": {
+      "post": {
+        "tags": [
+          "presence"
+        ],
+        "summary": "The caller opened the bell: everything so far counts as seen.",
+        "operationId": "library_notifications_seen",
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/me/presence": {
+      "delete": {
+        "tags": [
+          "presence"
+        ],
+        "summary": "The caller stopped reading: end the presence now.",
+        "operationId": "library_reading_stop",
+        "responses": {
+          "204": {
+            "description": ""
           },
           "401": {
             "description": "",
@@ -39057,6 +40064,15 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/RankingPeriod"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "`global` (default), `friends` or `known`; the scoped ones count only members who share\ntheir reading (D-190).",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RankingScope"
             }
           },
           {
@@ -39590,6 +40606,168 @@
           },
           "401": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/series/{series_id}/comments": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Top-level comments on a series, newest first.",
+        "operationId": "library_series_comments",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Cursor from the previous page's `next_before`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCommentPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comment on a series, or reply to one of its top-level comments (`parent_id`).",
+        "operationId": "library_post_series_comment",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryCommentInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryComment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (900011).",
             "content": {
               "application/json": {
                 "schema": {
@@ -60815,6 +61993,236 @@
           }
         }
       },
+      "LibraryChapterExport": {
+        "type": "object",
+        "description": "A file ready to download.",
+        "required": [
+          "format",
+          "filename",
+          "url",
+          "size_bytes",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "filename": {
+            "type": "string",
+            "description": "The suggested file name."
+          },
+          "format": {
+            "type": "string",
+            "description": "`cbz`, `pdf` or `epub`."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string",
+            "description": "A signed link, valid for a few hours."
+          }
+        }
+      },
+      "LibraryComment": {
+        "type": "object",
+        "description": "A comment on a series or one of its chapters. Replies are one level deep.",
+        "required": [
+          "id",
+          "series_id",
+          "chapter_id",
+          "author_id",
+          "author_name",
+          "body",
+          "spoiler",
+          "like_count",
+          "reply_count",
+          "liked",
+          "mine",
+          "created_at_ms"
+        ],
+        "properties": {
+          "author_id": {
+            "type": "string"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "chapter_id": {
+            "type": "string",
+            "description": "`\"0\"` for a comment on the series itself."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "edited_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "like_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "liked": {
+            "type": "boolean",
+            "description": "The caller liked it."
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reply_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "series_id": {
+            "type": "string"
+          },
+          "spoiler": {
+            "type": "boolean"
+          }
+        }
+      },
+      "LibraryCommentInput": {
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A top-level comment of the same target to reply to."
+          },
+          "spoiler": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "LibraryCommentPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryComment"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Visible top-level comments and replies on this target (series or chapter)."
+          }
+        }
+      },
+      "LibraryCommentPatch": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spoiler": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "LibraryCommentReport": {
+        "type": "object",
+        "description": "A report waiting for a curator.",
+        "required": [
+          "id",
+          "reporter_id",
+          "reason",
+          "status",
+          "created_at_ms"
+        ],
+        "properties": {
+          "comment": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LibraryComment",
+                "description": "The reported comment, when it still exists."
+              }
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reporter_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "LibraryCommentReports": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryCommentReport"
+            }
+          }
+        }
+      },
       "LibraryCountBody": {
         "type": "object",
         "description": "A count after a vote.",
@@ -60825,6 +62233,86 @@
           "count": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "LibraryDownloadAllowance": {
+        "type": "object",
+        "description": "What the member may download.",
+        "required": [
+          "entitled",
+          "per_day",
+          "left"
+        ],
+        "properties": {
+          "entitled": {
+            "type": "boolean",
+            "description": "Holds the Patron download perk."
+          },
+          "left": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Downloads left in the rolling 24 hours.",
+            "minimum": 0
+          },
+          "per_day": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "LibraryFriendReading": {
+        "type": "object",
+        "description": "A friend who is reading something now.",
+        "required": [
+          "user_id",
+          "series_id",
+          "series_title",
+          "chapter_id",
+          "chapter_number",
+          "started_at_ms",
+          "expires_at_ms"
+        ],
+        "properties": {
+          "chapter_id": {
+            "type": "string"
+          },
+          "chapter_number": {
+            "type": "number",
+            "format": "double"
+          },
+          "expires_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Drop the entry at this time unless refreshed."
+          },
+          "series_id": {
+            "type": "string"
+          },
+          "series_title": {
+            "type": "string"
+          },
+          "started_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "LibraryFriendsReading": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryFriendReading"
+            }
           }
         }
       },
@@ -60925,6 +62413,20 @@
           }
         }
       },
+      "LibraryNotificationCount": {
+        "type": "object",
+        "description": "The notifications bell: new chapters of followed series (bell on) since the member last opened it.",
+        "required": [
+          "unread"
+        ],
+        "properties": {
+          "unread": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Capped at 99."
+          }
+        }
+      },
       "LibraryRatingAggregate": {
         "type": "object",
         "required": [
@@ -60942,6 +62444,30 @@
           "count": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "LibraryReportBody": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "1 to 500 characters."
+          }
+        }
+      },
+      "LibraryResolveReportBody": {
+        "type": "object",
+        "required": [
+          "hide"
+        ],
+        "properties": {
+          "hide": {
+            "type": "boolean",
+            "description": "Hide the comment (true) or dismiss the report (false)."
           }
         }
       },
@@ -65618,10 +67144,20 @@
           "all"
         ]
       },
+      "RankingScope": {
+        "type": "string",
+        "description": "Whose reading is counted: everyone (an anonymous aggregate), friends, or friends plus members\nof shared servers (\"people you know\"). Scoped counts honour the activity settings (D-190).",
+        "enum": [
+          "global",
+          "friends",
+          "known"
+        ]
+      },
       "RankingsBody": {
         "type": "object",
         "required": [
           "period",
+          "scope",
           "items"
         ],
         "properties": {
@@ -65633,6 +67169,9 @@
           },
           "period": {
             "$ref": "#/components/schemas/RankingPeriod"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RankingScope"
           }
         }
       },

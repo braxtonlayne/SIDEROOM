@@ -1519,7 +1519,10 @@ async fn a_chapter_export_is_a_cbz_of_the_pages_cached_by_page_list() {
     let bytes = w.storage.get(&key).await.unwrap();
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes.to_vec())).unwrap();
     assert_eq!(zip.len(), 3);
-    assert_eq!(zip.by_index(0).unwrap().name().unwrap().to_string(), "001.webp");
+    assert_eq!(
+        zip.by_index(0).unwrap().name().unwrap().to_string(),
+        "001.webp"
+    );
     assert_eq!(first.size_bytes, bytes.len() as u64);
     // The same page list reuses the stored file.
     let again = w.svc.export_chapter(w.member, c).await.unwrap();
