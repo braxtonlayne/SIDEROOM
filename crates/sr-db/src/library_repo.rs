@@ -953,6 +953,30 @@ impl LibraryRepository for PgLibraryRepo {
             .execute(&mut *tx)
             .await
             .map_err(db)?;
+        // Ratings, reviews and list entries move too (0690); where the member already has
+        // one on the target, the target's wins and the source's is dropped.
+        for sql in [
+            "INSERT INTO reading_ratings (user_id, series_id, score, updated_at) \
+             SELECT user_id, $2, score, updated_at FROM reading_ratings WHERE series_id = $1 \
+             ON CONFLICT DO NOTHING",
+            "DELETE FROM reading_ratings WHERE series_id = $1",
+            "UPDATE reading_reviews r SET series_id = $2 WHERE r.series_id = $1 \
+               AND NOT EXISTS (SELECT 1 FROM reading_reviews x WHERE x.series_id = $2 AND x.user_id = r.user_id)",
+            "DELETE FROM reading_reviews WHERE series_id = $1",
+            "INSERT INTO reading_list_items (list_id, series_id, position, note, added_at) \
+             SELECT list_id, $2, position, note, added_at FROM reading_list_items WHERE series_id = $1 \
+             ON CONFLICT DO NOTHING",
+            "DELETE FROM reading_list_items WHERE series_id = $1",
+        ] {
+            let q = sqlx::query(sql).bind(source);
+            // The deletes name only the source.
+            let q = if sql.contains("$2") {
+                q.bind(target)
+            } else {
+                q
+            };
+            q.execute(&mut *tx).await.map_err(db)?;
+        }
         sqlx::query(
             "UPDATE reading_series SET published = FALSE, merged_into = $2, updated_at = now() WHERE id = $1",
         )

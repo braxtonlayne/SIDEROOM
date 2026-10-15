@@ -37,6 +37,7 @@ sr-events = { path = "../sr-events" }
 sr-features = { path = "../sr-features" }
 sr-gateway = { path = "../sr-gateway" }
 sr-library = { path = "../sr-library" }
+sr-library-social = { path = "../sr-library-social" }
 sr-cinema = { path = "../sr-cinema" }
 sr-media = { path = "../sr-media" }
 sr-payments = { path = "../sr-payments" }

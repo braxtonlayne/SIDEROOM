@@ -25,6 +25,7 @@ sr-apps = { path = "../sr-apps" }
 sr-auth = { path = "../sr-auth", features = ["webauthn"] }
 sr-features = { path = "../sr-features" }
 sr-library = { path = "../sr-library" }
+sr-library-social = { path = "../sr-library-social" }
 sr-cinema = { path = "../sr-cinema" }
 sr-media = { path = "../sr-media" }
 sr-tv = { path = "../sr-tv" }
