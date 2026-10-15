@@ -122,6 +122,21 @@ describe('staff offers and delegations (ADM-STF-004)', () => {
     expect(screen.queryByRole('button', { name: 'Appoint directly' })).toBeNull();
     // Delegations are the Owner's.
     expect(screen.queryByRole('heading', { name: 'Delegations' })).toBeNull();
+    expect(screen.queryByText('Appoint directly (emergency)')).toBeNull();
+  });
+
+  it('keeps the Owner direct appoint in a closed emergency fold (G-80)', async () => {
+    asStaff({ perms: [], owner: true });
+    staffServer([http.get('*/api/v1/admin/staff/offers', () => HttpResponse.json([]))]);
+    openAdmin('staff');
+    const summary = await screen.findByText('Appoint directly (emergency)');
+    const fold = summary.closest('details')!;
+    expect(fold).not.toHaveAttribute('open');
+    // The header carries the offer only.
+    expect(screen.getAllByRole('button', { name: 'Send appointment offer' })).toHaveLength(1);
+    await userEvent.setup().click(summary);
+    expect(fold).toHaveAttribute('open');
+    expect(within(fold).getByRole('button', { name: 'Appoint directly' })).toBeInTheDocument();
   });
 
   it('delegates appointing with a permission ceiling (Owner)', async () => {

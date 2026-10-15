@@ -97,16 +97,7 @@ export function StaffSection() {
       <SectionHeader
         title={t('admin.staff.title')}
         description={t('admin.staff.description')}
-        actions={
-          <>
-            <Button onClick={openOffer}>{t('admin.staff.offerButton')}</Button>
-            {viewer.isOwner && (
-              <Button variant="secondary" onClick={openAppoint}>
-                {t('admin.staff.directButton')}
-              </Button>
-            )}
-          </>
-        }
+        actions={<Button onClick={openOffer}>{t('admin.staff.offerButton')}</Button>}
       />
       {notice && (
         <Notice variant="success" role="status" className="ss-status">
@@ -161,6 +152,16 @@ export function StaffSection() {
         )}
       </Async>
       <OffersCard reloadKey={offersKey} />
+      {viewer.isOwner && (
+        // The Owner's direct appoint (D-197 as amended) is an emergency path; offers are the normal one.
+        <details className="ss-emergency" style={{ marginTop: 16 }}>
+          <summary>{t('admin.staff.emergencySummary')}</summary>
+          <p className="ss-sub">{t('admin.staff.emergencyHint')}</p>
+          <Button variant="secondary" onClick={openAppoint}>
+            {t('admin.staff.directButton')}
+          </Button>
+        </details>
+      )}
       {viewer.isOwner && staff.data && <DelegationsCard members={staff.data} />}
       <Async res={former} label={t('admin.staff.loading')}>
         {(list) =>

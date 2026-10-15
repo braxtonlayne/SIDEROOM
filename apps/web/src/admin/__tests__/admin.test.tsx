@@ -413,6 +413,8 @@ describe('staff', () => {
     );
     openAdmin('staff');
     const user = userEvent.setup();
+    // The direct appoint sits in a closed "emergency" fold (G-80).
+    await user.click(await screen.findByText('Appoint directly (emergency)'));
     await user.click(await screen.findByRole('button', { name: 'Appoint directly' }));
     const dialog = await screen.findByRole('dialog', { name: 'Appoint staff' });
     const go = within(dialog).getByRole('button', { name: 'Appoint' });
