@@ -1,4 +1,4 @@
-export { useLocale, useT } from './react';
+export { useFullCatalogReady, useLocale, useT } from './react';
 export {
   formatDate,
   formatDateTime,

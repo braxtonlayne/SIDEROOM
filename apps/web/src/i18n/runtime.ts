@@ -1,5 +1,6 @@
 import { formatNodes, parseIcu, type FormatOptions, type Node, type Values } from './icu';
 import { en, type MessageKey } from './messages/en';
+import { isRestLoaded, onRestLoaded } from './messages/store';
 import { wrapPseudo } from './pseudo';
 
 /**
@@ -116,6 +117,25 @@ export function loadFullCatalog(): Promise<unknown> {
   return (fullCatalog ??= import('./messages/en.rest'));
 }
 
+// The catalog grew: re-render every `useT` subscriber so text that used the fallback is refreshed.
+onRestLoaded(emit);
+
+let failed = false;
+/** True once the rest catalog is registered, or its load failed (the app then opens degraded, not blank). */
+export const fullCatalogSettled = () => isRestLoaded() || failed;
+
+/**
+ * Start loading the rest catalog without blocking anything. If the chunk fails (offline, stale deploy) the
+ * gates open anyway; affected strings then show their keys.
+ */
+export function startFullCatalog(): void {
+  loadFullCatalog().catch((e: unknown) => {
+    console.error('Could not load the full message catalog', e);
+    failed = true;
+    emit();
+  });
+}
+
 export async function initLocale(): Promise<void> {
   let saved: string | null = null;
   try {
@@ -128,10 +148,9 @@ export async function initLocale(): Promise<void> {
   const fromBrowser = negotiateLocale(
     typeof navigator === 'undefined' ? [] : (navigator.languages ?? []),
   );
-  await Promise.all([
-    loadFullCatalog(),
-    setLocale(saved && LOCALES.some((l) => l.code === saved) ? saved : fromBrowser),
-  ]);
+  // The rest catalog loads in parallel and is NOT awaited: first paint only needs the core fragments.
+  startFullCatalog();
+  await setLocale(saved && LOCALES.some((l) => l.code === saved) ? saved : fromBrowser);
 }
 
 function messageFor(key: MessageKey): string {
@@ -149,9 +168,19 @@ function compile(key: MessageKey): Node[] {
   return nodes;
 }
 
+const warned = new Set<string>();
+
 /** Translate a catalog key. Unknown keys return the key itself so they stand out. */
 export function t(key: MessageKey, values: Values = {}): string {
-  if (!(key in en)) return key;
+  if (!(key in en)) {
+    if (import.meta.env.DEV && !isRestLoaded() && !warned.has(key)) {
+      warned.add(key);
+      console.warn(
+        `i18n: "${key}" used before the full catalog loaded. Routes outside the entrance must render behind CatalogGate; entrance keys belong in the entrance/a11y/pwa fragments.`,
+      );
+    }
+    return key;
+  }
   const info = localeInfo();
   const intl = info.code === 'en-XA' ? 'en' : info.code === 'ar-XB' ? 'ar' : info.code;
   const opts: FormatOptions = hour12 === undefined ? {} : { hour12 };

@@ -1,8 +1,8 @@
-import { registerFragments } from './store';
+import { markRestLoaded, registerFragments } from './store';
 
 /**
  * Every English fragment except the first-paint ones registered by './en.ts'. The app loads this module
- * once, as its own chunk, before it renders (`loadFullCatalog` in '../runtime.ts'); tests import it in
+ * once, as its own chunk, in parallel with the first paint (`loadFullCatalog` in '../runtime.ts'); non-entrance routes wait for it (`CatalogGate`); tests import it in
  * `test/setup.ts`. Adding a fragment needs no edit here.
  */
 const rest = import.meta.glob<Record<string, string>>(
@@ -10,5 +10,6 @@ const rest = import.meta.glob<Record<string, string>>(
   { eager: true, import: 'default' },
 );
 registerFragments(rest);
+markRestLoaded();
 
 export const restLoaded = true;
