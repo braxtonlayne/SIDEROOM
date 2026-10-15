@@ -268,6 +268,43 @@ impl Default for UnfurlConfig {
     }
 }
 
+/// `[gif]`: the GIF picker's provider (LNG-EXP-005). Empty `provider` switches the
+/// feature off; the picker then says no provider is connected. The server proxies every
+/// request and every preview, so members' browsers never contact the provider.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GifConfig {
+    /// `"tenor"` or empty (off).
+    pub provider: String,
+    /// The provider API key. Treat as a secret (`SR_GIF__API_KEY_FILE` works).
+    pub api_key: Secret,
+    /// Tenor `client_key`: names this installation in the provider's dashboard.
+    pub client_key: String,
+    /// ISO 3166-1 alpha-2 region for results, e.g. `US`.
+    pub country: String,
+    /// Locale for results, e.g. `en_US`.
+    pub locale: String,
+}
+
+impl Default for GifConfig {
+    fn default() -> Self {
+        Self {
+            provider: String::new(),
+            api_key: Secret::default(),
+            client_key: "sideroom".to_owned(),
+            country: "US".to_owned(),
+            locale: "en_US".to_owned(),
+        }
+    }
+}
+
+impl GifConfig {
+    /// Whether the picker has a usable provider.
+    pub fn enabled(&self) -> bool {
+        self.provider.eq_ignore_ascii_case("tenor") && !self.api_key.expose().is_empty()
+    }
+}
+
 /// `[search]`: the message search index (open questions 131-138).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -342,6 +379,7 @@ pub struct Config {
     pub gateway: GatewayLimits,
     pub search: SearchConfig,
     pub unfurl: UnfurlConfig,
+    pub gif: GifConfig,
     pub voice: VoiceConfig,
 }
 
@@ -390,6 +428,7 @@ pub const SECRET_FILE_KEYS: &[&str] = &[
     "storage.access_key",
     "storage.secret_key",
     "discord.client_secret",
+    "gif.api_key",
 ];
 
 /// The list-valued key that reads one entry per line from `SR_<KEY>_FILE`.

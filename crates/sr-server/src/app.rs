@@ -834,6 +834,27 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             Arc::new(move || ids.generate().get())
         },
     ));
+
+    // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
+    let gif_source: Option<Arc<dyn routes::gifs::GifSource>> = if cfg.gif.enabled() {
+        Some(Arc::new(routes::gifs::TenorSource::new(
+            cfg.gif.api_key.expose(),
+            &cfg.gif.client_key,
+            &cfg.gif.country,
+            &cfg.gif.locale,
+        )))
+    } else {
+        if !cfg.gif.provider.is_empty() {
+            tracing::warn!(
+                "gif.provider is set but unsupported or missing gif.api_key; the GIF picker stays off"
+            );
+        }
+        None
+    };
+    let gif_deps = Arc::new(routes::gifs::GifDeps::new(
+        gif_source,
+        Some(cdn_signer.clone()),
+    ));
     let push_subject = if cfg.server.public_url.starts_with("https://") {
         cfg.server.public_url.trim_end_matches('/').to_owned()
     } else {
@@ -924,6 +945,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(threads_deps.clone())
         .extension(social_api)
         .extension(push_deps)
+        .extension(gif_deps)
         .extension(settings_deps.clone())
         .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
             sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),

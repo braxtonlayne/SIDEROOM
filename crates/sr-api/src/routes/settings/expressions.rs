@@ -311,6 +311,24 @@ async fn store(deps: &SettingsDeps, key: &str, data: Bytes) -> ApiResult<()> {
     })
 }
 
+/// Longest edge of a stored custom emoji (LNG-EXP-002).
+pub const EMOJI_PX: u32 = 128;
+/// Longest edge of a stored guild sticker (LNG-EXP-003).
+pub const STICKER_PX: u32 = 320;
+
+/// Shrink an upload to fit `px` x `px`, keeping the aspect ratio (animated GIFs stay
+/// animated, metadata is stripped by the re-encode). Anything the image pipeline cannot
+/// decode (animated WebP or APNG, a truncated file) is stored as uploaded: the byte
+/// limits already applied, and the CDN re-validates every variant it serves. Returns the
+/// bytes to store and their file extension.
+fn fit_image(data: Bytes, fallback_ext: &'static str, px: u32) -> (Bytes, &'static str) {
+    use sr_storage::img::{Fit, Limits, normalize};
+    match normalize(&data, Fit::Bound { w: px, h: px }, &Limits::default()) {
+        Ok(n) => (Bytes::from(n.bytes), n.format.ext()),
+        Err(_) => (data, fallback_ext),
+    }
+}
+
 // ---- emoji -----------------------------------------------------------------------
 
 /// List a guild's emoji (any member).
@@ -403,7 +421,9 @@ pub async fn create_emoji(
         }
     };
     let roles = role_ids(&acc, &body.roles)?;
-    let key = format!("emoji/{gid}/{}.{}", deps.service.new_id(), img.extension());
+    let original_len = data.len() as u64;
+    let (data, ext) = fit_image(data, img.extension(), EMOJI_PX);
+    let key = format!("emoji/{gid}/{}.{ext}", deps.service.new_id());
     let emoji = deps
         .service
         .create_emoji(
@@ -413,7 +433,7 @@ pub async fn create_emoji(
             NewEmoji {
                 name: body.name,
                 animated: img.animated(),
-                size_bytes: data.len() as u64,
+                size_bytes: original_len,
                 media_key: key.clone(),
                 role_ids: roles,
             },
@@ -614,11 +634,14 @@ pub async fn create_sticker(
             ));
         }
     };
-    let key = format!(
-        "sticker/{gid}/{}.{}",
-        deps.service.new_id(),
-        img.extension()
-    );
+    let original_len = data.len() as u64;
+    // Static PNGs and GIFs are shrunk to the sticker size; APNG and Lottie are stored as is.
+    let (data, ext) = if matches!(format, StickerFormat::Png | StickerFormat::Gif) {
+        fit_image(data, img.extension(), STICKER_PX)
+    } else {
+        (data, img.extension())
+    };
+    let key = format!("sticker/{gid}/{}.{ext}", deps.service.new_id());
     let sticker = deps
         .service
         .create_sticker(
@@ -630,7 +653,7 @@ pub async fn create_sticker(
                 description: body.description,
                 tags: body.tags,
                 format,
-                size_bytes: data.len() as u64,
+                size_bytes: original_len,
                 media_key: key.clone(),
             },
         )
@@ -753,6 +776,30 @@ mod tests {
         assert_eq!(sniff(br#"{"v":"5.7","layers":[]}"#), Some(Image::Lottie));
         assert_eq!(sniff(b"<svg/>"), None);
         assert_eq!(sniff(b""), None);
+    }
+
+    fn png(w: u32, h: u32) -> Bytes {
+        let img = image::RgbaImage::from_pixel(w, h, image::Rgba([200, 30, 30, 255]));
+        let mut out = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+        Bytes::from(out.into_inner())
+    }
+
+    #[test]
+    fn emoji_and_stickers_are_shrunk_but_keep_their_aspect() {
+        let (b, ext) = fit_image(png(300, 200), "png", EMOJI_PX);
+        assert_eq!(ext, "png");
+        let d = image::load_from_memory(&b).unwrap();
+        assert_eq!((d.width(), d.height()), (128, 85));
+        let (b, _) = fit_image(png(900, 900), "png", STICKER_PX);
+        let d = image::load_from_memory(&b).unwrap();
+        assert_eq!((d.width(), d.height()), (320, 320));
+        // Already small: not enlarged.
+        let (b, _) = fit_image(png(64, 64), "png", EMOJI_PX);
+        assert_eq!(image::load_from_memory(&b).unwrap().width(), 64);
+        // Undecodable bytes are kept as uploaded with the sniffed extension.
+        let (b, ext) = fit_image(Bytes::from_static(PNG), "png", EMOJI_PX);
+        assert_eq!((&b[..], ext), (PNG, "png"));
     }
 
     #[test]

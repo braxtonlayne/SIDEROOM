@@ -5109,6 +5109,7 @@ dependencies = [
  "sr-library",
  "sr-markdown",
  "sr-media",
+ "sr-net",
  "sr-payments",
  "sr-push",
  "sr-review",

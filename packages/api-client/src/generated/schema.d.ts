@@ -5066,6 +5066,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gifs/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Featured categories for the picker's start page. */
+        get: operations["categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the GIF picker has a provider. */
+        get: operations["config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search GIFs. */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/trending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trending GIFs. */
+        get: operations["trending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds": {
         parameters: {
             query?: never;
@@ -10465,6 +10533,40 @@ export interface components {
         };
         GatewayInfo: {
             url: string;
+        };
+        /** @description The featured categories. */
+        GifCategoriesObject: {
+            categories: components["schemas"]["GifCategoryObject"][];
+        };
+        /** @description A featured search term. */
+        GifCategoryObject: {
+            image_url: string;
+            name: string;
+            /** @description Search with this term when the tile is chosen. */
+            search_term: string;
+        };
+        /** @description Whether the GIF picker is available on this installation. */
+        GifConfigObject: {
+            enabled: boolean;
+        };
+        /** @description One GIF in the picker. */
+        GifObject: {
+            /** Format: int32 */
+            height: number;
+            id: string;
+            /** @description Same-origin path of the proxied preview. */
+            preview_url: string;
+            title: string;
+            /** @description The original GIF URL; post this as the message content. */
+            url: string;
+            /** Format: int32 */
+            width: number;
+        };
+        /** @description A page of results. */
+        GifPageObject: {
+            /** @description Pass as `pos` for the next page; absent on the last page. */
+            next?: string | null;
+            results: components["schemas"]["GifObject"][];
         };
         GrantBody: {
             /**
@@ -30947,6 +31049,132 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifCategoriesObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifConfigObject"];
+                };
+            };
+        };
+    };
+    search: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Search text, 1 to 100 characters. */
+                q: string;
+                limit: number | null;
+                pos: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifPageObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    trending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Results per page, 1 to 50 (default 24). */
+                limit: number | null;
+                /** @description Continuation token from the previous page. */
+                pos: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifPageObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

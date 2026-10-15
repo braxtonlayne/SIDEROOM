@@ -222,6 +222,10 @@ GET	/donations/leaderboards/{board}	authenticated	other	allow	-
 GET	/donations/me	authenticated	other	allow	-
 GET	/gateway	public	none	allow	-
 GET	/gateway/bot	authenticated	other	allow	-
+GET	/gifs/categories	authenticated	self	deny	-
+GET	/gifs/config	authenticated	self	deny	-
+GET	/gifs/search	authenticated	self	deny	-
+GET	/gifs/trending	authenticated	self	deny	-
 GET	/guilds/templates/builtin	authenticated	membership	allow	-
 GET	/guilds/templates/{code}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}	authenticated	membership	allow	-
