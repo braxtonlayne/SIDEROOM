@@ -34,6 +34,7 @@ import {
 import { ChapterRate } from '../SeriesSocial';
 import { cacheChapter, readCachedManifest } from './offlineCache';
 import { PageImage } from './PageImage';
+import { EpubReader } from '../epub/EpubReader';
 import { PdfReader } from '../pdf/PdfReader';
 import { BookmarksPanel, SettingsPanel } from './Panels';
 import { useZoomPan } from './useZoomPan';
@@ -141,6 +142,22 @@ function ReaderLoader({ chapterId, page }: ReaderProps) {
           (parsePageParam(page, 100000) ??
             (saved.data && !saved.data.completed ? Math.max(0, saved.data.page_index) : 0)) + 1
         }
+        chapter={{
+          id: manifest.data.chapter.id,
+          number: manifest.data.chapter.number,
+          seriesTitle: series.data.series.title,
+          coverUrl: series.data.series.cover_url,
+        }}
+      />
+    );
+  // EPUB chapters: foliate-js reads the original in the browser (LIB-RDR-010).
+  if (manifest.data.chapter.format === 'epub' && manifest.data.source_url)
+    return (
+      <EpubReader
+        url={manifest.data.source_url}
+        title={manifest.data.chapter.title || series.data.series.title}
+        seriesId={series.data.series.id}
+        initialCfi={saved.data && !saved.data.completed ? (saved.data.cfi ?? null) : null}
         chapter={{
           id: manifest.data.chapter.id,
           number: manifest.data.chapter.number,

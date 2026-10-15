@@ -1514,3 +1514,42 @@
   overflow: hidden;
   direction: ltr;
 }
+
+/* EPUB reader (LIB-RDR-010) */
+.lib-epub {
+  display: flex;
+  flex-direction: column;
+}
+.lib-epub-host {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+}
+.lib-epub-view {
+  flex: 1;
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+.lib-epub-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 8px;
+  padding-inline: 12px;
+}
+.lib-epub-where {
+  flex: 1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib-epub-toc {
+  margin: 0;
+  padding-inline-start: 16px;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}

@@ -64,6 +64,8 @@ export interface ChapterProgress {
   page_index: number;
   percent: number;
   completed: boolean;
+  /** EPUB position, when the chapter is an EPUB. */
+  cfi?: string | null;
   updated_at_ms?: number;
 }
 
