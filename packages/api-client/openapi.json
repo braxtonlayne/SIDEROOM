@@ -12374,7 +12374,7 @@
         "tags": [
           "staff"
         ],
-        "summary": "Appoint an account: adds it to the Staff Server with the roles (`APPOINT_STAFF`).",
+        "summary": "Appoint an account directly, without its acceptance (Owner only, behind re-auth; D-197 as amended\n2026-10-15). Everyone else appoints through offers.",
         "operationId": "appoint",
         "requestBody": {
           "content": {
@@ -12471,6 +12471,55 @@
                   "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/Delegation"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/staff/former": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Closed appointments and why each ended: `left`, `kicked` or `revoked` (`APPOINT_STAFF`).",
+        "operationId": "former",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FormerStaff"
                   }
                 }
               }
@@ -13119,7 +13168,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SystemCounts"
+                  "$ref": "#/components/schemas/StatsView"
                 }
               }
             }
@@ -40597,6 +40646,186 @@
         ]
       }
     },
+    "/sr/features/flags": {
+      "get": {
+        "tags": [
+          "features"
+        ],
+        "summary": "The platform flags clients read at boot, e.g. `moderation.reports` (any signed-in human; bots\nare refused).",
+        "operationId": "client_flags",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientFlagsObject"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/invites": {
+      "get": {
+        "tags": [],
+        "summary": "`GET /sr/invites`: credits, open and redeemed codes and whether a code can be created.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberInvitesObject"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/invites {note?}`: create a code. 403 `900006`-style refusals are field errors on\n`invite` (`reason` in the code); 429 after ten in an hour.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInviteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberInvite"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/invites/{code}": {
+      "delete": {
+        "tags": [],
+        "summary": "`DELETE /sr/invites/{code}`: revoke an open code of your own. 404 when it is not open or not\nyours (a redemption in flight wins).",
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "description": "Invite code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/voice/turn": {
       "get": {
         "tags": [],
@@ -49098,6 +49327,10 @@
           "body": {
             "type": "string"
           },
+          "critical": {
+            "type": "boolean",
+            "description": "Outage or security notice: cannot be dismissed and is always sent as a DM (D-192).\nSame as `severity: \"critical\"`."
+          },
           "ends_at_ms": {
             "type": [
               "integer",
@@ -49107,7 +49340,8 @@
             "description": "Stop showing at this time (default: never)."
           },
           "send_dm": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Also DM it to everyone who has not turned off `notifications.platform_dm`."
           },
           "severity": {
             "oneOf": [
@@ -50143,18 +50377,33 @@
       "BanBody": {
         "type": "object",
         "description": "Ban body: the reason is the ban note.",
-        "required": [
-          "category"
-        ],
         "properties": {
           "category": {
-            "$ref": "#/components/schemas/BanCategory",
-            "description": "`serious` raises suspicion on the inviter (D-031); `standard` does not."
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BanCategory",
+                "description": "`serious` raises suspicion on the inviter (D-031); `standard` does not. Omit it to\ntake the default of `reason_category` (D-211)."
+              }
+            ]
           },
           "reason": {
             "type": [
               "string",
               "null"
+            ]
+          },
+          "reason_category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BanReason",
+                "description": "Why the account is banned. `illegal_content`, `child_safety`, `fraud` and\n`platform_abuse` default to `serious`; `harassment` and `ban_evasion` to `standard`."
+              }
             ]
           }
         }
@@ -50238,6 +50487,18 @@
             ]
           }
         }
+      },
+      "BanReason": {
+        "type": "string",
+        "description": "Why the staff member bans (D-211). Each has a default [`BanCategory`] the ban dialog starts\nfrom; staff can raise or lower it before confirming, and the stored category is what the\ninviter suspicion rule reads (D-031).",
+        "enum": [
+          "illegal_content",
+          "child_safety",
+          "fraud",
+          "platform_abuse",
+          "harassment",
+          "ban_evasion"
+        ]
       },
       "BanRecord": {
         "type": "object",
@@ -52817,6 +53078,25 @@
           }
         }
       },
+      "ClientFlagsObject": {
+        "type": "object",
+        "description": "Platform flags a client may read (D-216).",
+        "required": [
+          "flags"
+        ],
+        "properties": {
+          "flags": {
+            "type": "object",
+            "description": "Feature id to on/off, for platform-scope modules that declare themselves client-visible.",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "Collection": {
         "type": "object",
         "required": [
@@ -53582,45 +53862,14 @@
       },
       "CreateInviteBody": {
         "type": "object",
-        "description": "Body of `POST /channels/{id}/invites`. Every field is optional.",
+        "description": "Body of `POST /sr/invites`.",
         "properties": {
-          "external": {
+          "note": {
             "type": [
-              "boolean",
+              "string",
               "null"
             ],
-            "description": "SIDE ROOM: the invite is for sharing outside the platform (\"Copy link\").\nIt defaults to a single use (open question 134)."
-          },
-          "max_age": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "description": "Seconds until expiry, 0 to 604800 (default 86400).",
-            "minimum": 0
-          },
-          "max_uses": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "description": "0 to 100 (default 0 = unlimited; 1 for `external`).",
-            "minimum": 0
-          },
-          "temporary": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "unique": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "Accepted for Discord compatibility; every call creates a new invite."
+            "description": "Private note (\"for Sam\"), at most 100 characters."
           }
         }
       },
@@ -55867,6 +56116,37 @@
           }
         }
       },
+      "FormerStaff": {
+        "type": "object",
+        "description": "A closed appointment (G-23): who stopped being staff and how it ended.",
+        "required": [
+          "account_id",
+          "username",
+          "revoked_reason",
+          "revoked_at_ms",
+          "note"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "description": "The note staff gave when revoking (or the system text for leaving)."
+          },
+          "revoked_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "revoked_reason": {
+            "type": "string",
+            "description": "`left`, `kicked` or `revoked`."
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
       "ForumSettingsBody": {
         "type": "object",
         "description": "Forum and media settings, plus the thread defaults of text channels.",
@@ -57170,6 +57450,27 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "InviteBlocked": {
+        "type": "object",
+        "description": "Why a new code cannot be created right now.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "`too_new` only: the age an account needs, in days."
+          },
+          "reason": {
+            "type": "string",
+            "description": "`unverified`, `too_new`, `at_cap`, `no_credits` or `frozen`."
           }
         }
       },
@@ -58677,6 +58978,91 @@
           "episode",
           "unknown"
         ]
+      },
+      "MemberInvite": {
+        "type": "object",
+        "description": "One of the account's platform invites.",
+        "required": [
+          "code",
+          "link",
+          "note",
+          "created_at_ms"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Display form, `XXXXX-XXXXX`."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "link": {
+            "type": "string",
+            "description": "Path of the share link (`/join/<code>`); prefix with the site origin."
+          },
+          "note": {
+            "type": "string",
+            "description": "Private note, visible to the issuer and staff only."
+          },
+          "redeemed_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "redeemed_by": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RedeemedBy",
+                "description": "Redeemed codes only: the account that joined, and when."
+              }
+            ]
+          }
+        }
+      },
+      "MemberInvitesObject": {
+        "type": "object",
+        "description": "The Invites section of User Settings.",
+        "required": [
+          "credits",
+          "open",
+          "redeemed"
+        ],
+        "properties": {
+          "blocked": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InviteBlocked",
+                "description": "`None` when a code can be created now."
+              }
+            ]
+          },
+          "credits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Credits left: how many more people the account can bring."
+          },
+          "open": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemberInvite"
+            }
+          },
+          "redeemed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemberInvite"
+            }
+          }
+        }
       },
       "MemberObject": {
         "type": "object",
@@ -61052,17 +61438,32 @@
       },
       "PersonBanBody": {
         "type": "object",
-        "required": [
-          "category"
-        ],
         "properties": {
           "category": {
-            "$ref": "#/components/schemas/BanCategory"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BanCategory",
+                "description": "Omit it to take the default of `reason_category` (D-211)."
+              }
+            ]
           },
           "reason": {
             "type": [
               "string",
               "null"
+            ]
+          },
+          "reason_category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BanReason"
+              }
             ]
           },
           "source_account_id": {
@@ -62746,6 +63147,22 @@
             "type": "integer",
             "format": "int64",
             "description": "Length of the window in seconds."
+          }
+        }
+      },
+      "RedeemedBy": {
+        "type": "object",
+        "description": "The account that used a code.",
+        "required": [
+          "id",
+          "username"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
           }
         }
       },
@@ -64966,6 +65383,37 @@
             "description": "10 announcement, 11 public (default) or 12 private thread."
           }
         }
+      },
+      "StatsView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SystemCounts"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "egress_bytes": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64",
+                "description": "Bytes the SFU has sent since it started (absent without an embedded SFU).",
+                "minimum": 0
+              },
+              "voice_rooms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64",
+                "description": "Voice rooms with at least one participant (absent without an embedded SFU).",
+                "minimum": 0
+              }
+            }
+          }
+        ],
+        "description": "The dashboard counts, plus the voice figures when the SFU runs in this process."
       },
       "StatusView": {
         "type": "object",

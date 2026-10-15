@@ -23,6 +23,8 @@ export const AP = {
   APPOINT_STAFF: 19,
   MANAGE_TRANSCODE: 20,
   OPERATOR: 21,
+  MANAGE_CASES: 22,
+  MANAGE_TAKEDOWNS: 23,
   OWNER: 63,
 } as const;
 

@@ -78,6 +78,7 @@ export const AUDIT_ACTIONS: Record<number, ActionInfo> = {
   165: A('settings.auditText.a165'),
   166: A('settings.auditText.a166'),
   167: A('settings.auditText.a167'),
+  200: A('settings.auditText.a200', 'user'),
 };
 
 /** The action filter options, in number order. */
@@ -102,6 +103,12 @@ export interface Names {
   user: (id: string) => string;
   role: (id: string) => string;
   channel: (id: string) => string;
+}
+
+/** Built-in module writes carry `options.module`; the actor then reads "SIDE ROOM · <module>" (D-187). */
+export function actorLabel(entry: AuditEntry, fallback: string): string {
+  const m = entry.options?.module;
+  return typeof m === 'string' && m ? t('settings.auditText.moduleActor', { module: m }) : fallback;
 }
 
 /** "Alice banned Bob" / "Alice created an invite". */

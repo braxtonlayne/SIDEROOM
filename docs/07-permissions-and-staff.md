@@ -50,6 +50,8 @@ Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions
 | 19 | `APPOINT_STAFF` | Appoint or revoke staff (Owner-delegated, D-132) |
 | 20 | `MANAGE_TRANSCODE` | Manage transcode workers and the job queue |
 | 21 | `OPERATOR` | Infrastructure settings: storage, wallet, SMTP, backups |
+| 22 | `MANAGE_CASES` | Moderation cases, holds, evidence and appeals (D-210, D-213) |
+| 23 | `MANAGE_TAKEDOWNS` | Takedown notices and their records (D-210) |
 | 63 | `OWNER` | Implicit for the Staff Server owner. Everything |
 
 "High-level platform staff" (D-125) = any role holding `READ_PRIVATE_CONTENT`. Only the Owner can grant that bit.
@@ -68,8 +70,8 @@ Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions
 | App Reviewer | 769 | STAFF_BASIC, REVIEW_APPS, REVIEW_PACKAGES |
 | Library Curator | 85 | STAFF_BASIC, REVIEW_READING, PUBLISH_READING, MANAGE_COLLECTIONS |
 | Media Curator | 203 | STAFF_BASIC, REVIEW_MEDIA, PUBLISH_MEDIA, MANAGE_COLLECTIONS, MANAGE_TV |
-| Moderator | 7169 | STAFF_BASIC, MANAGE_DIRECTORY, MANAGE_ACCOUNTS, PLATFORM_BAN |
-| Senior Staff | 1818623 | Everything except OWNER, MANAGE_DONATIONS, VIEW_ACCESS_LOG and OPERATOR (so it includes APPOINT_STAFF and READ_PRIVATE_CONTENT) |
+| Moderator | 4201473 | STAFF_BASIC, MANAGE_DIRECTORY, MANAGE_ACCOUNTS, PLATFORM_BAN, MANAGE_CASES (D-210; was 7169, migration 0793) |
+| Senior Staff | 14401535 | Everything except OWNER, MANAGE_DONATIONS, VIEW_ACCESS_LOG and OPERATOR (so it includes APPOINT_STAFF, READ_PRIVATE_CONTENT, MANAGE_CASES and MANAGE_TAKEDOWNS; was 1818623, migration 0793) |
 | Owner | bit 63 | OWNER |
 
 Enforcement rules built on these (also the default, D-162): only the Owner may grant `READ_PRIVATE_CONTENT`, `APPOINT_STAFF`, `VIEW_ACCESS_LOG` or `OPERATOR`; a delegate can grant only bits they hold; the Owner role is never assignable (transfer is `sr-cli staff transfer-owner`); only the Owner can suspend, ban or reset 2FA of a staff account.

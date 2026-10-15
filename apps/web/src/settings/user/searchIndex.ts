@@ -84,6 +84,11 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
   },
   { section: 'connections', label: 'Connected accounts', keywords: 'discord link' },
   {
+    section: 'invites',
+    label: 'Invites',
+    keywords: 'invite code credits bring friends join link revoke',
+  },
+  {
     section: 'appearance',
     card: 'us-theme',
     label: 'Theme',

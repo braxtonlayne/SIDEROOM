@@ -1,4 +1,4 @@
-import { Button, Drawer, Notice, Select, TextInput } from '@sideroom/ui';
+import { Button, Checkbox, Drawer, Notice, Select, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import * as api from '../api';
 import * as donations from '../donations/api';
@@ -190,6 +190,23 @@ function AccountDrawer({
   const [personOpen, setPersonOpen] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const [delta, setDelta] = useState('1');
+  // The ban dialog: the reason category presets "serious" (D-211); staff can change it.
+  const [banReason, setBanReason] = useState<api.BanReason | ''>('');
+  const [banSerious, setBanSerious] = useState(false);
+  const openBan = (serious: boolean) => {
+    setBanReason('');
+    setBanSerious(serious);
+    setPending({ kind: 'ban', category: serious ? 'serious' : 'standard' });
+  };
+  const banReasonOptions = [
+    { value: '', label: t('admin.accounts.banReasonNone') },
+    { value: 'illegal_content', label: t('admin.accounts.banReason.illegalContent') },
+    { value: 'child_safety', label: t('admin.accounts.banReason.childSafety') },
+    { value: 'fraud', label: t('admin.accounts.banReason.fraud') },
+    { value: 'platform_abuse', label: t('admin.accounts.banReason.platformAbuse') },
+    { value: 'harassment', label: t('admin.accounts.banReason.harassment') },
+    { value: 'ban_evasion', label: t('admin.accounts.banReason.banEvasion') },
+  ];
   const d = res.data;
 
   const [notice, setNotice] = useState<string | null>(null);
@@ -285,16 +302,10 @@ function AccountDrawer({
               )}
               {viewer.can('PLATFORM_BAN') && a.state !== 'platform_banned' && (
                 <div className="adm-actions" role="group" aria-label={t('admin.accounts.banGroup')}>
-                  <Button
-                    variant="danger"
-                    onClick={() => setPending({ kind: 'ban', category: 'standard' })}
-                  >
+                  <Button variant="danger" onClick={() => openBan(false)}>
                     {t('admin.accounts.banStandard')}
                   </Button>
-                  <Button
-                    variant="danger"
-                    onClick={() => setPending({ kind: 'ban', category: 'serious' })}
-                  >
+                  <Button variant="danger" onClick={() => openBan(true)}>
                     {t('admin.accounts.banSerious')}
                   </Button>
                 </div>
@@ -476,7 +487,7 @@ function AccountDrawer({
                 open={pending?.kind === 'ban'}
                 title={t('admin.accounts.banTitle', { username: a.username })}
                 description={
-                  pending?.kind === 'ban' && pending.category === 'serious'
+                  banSerious
                     ? t('admin.accounts.banSeriousDescription')
                     : t('admin.accounts.banStandardDescription')
                 }
@@ -485,10 +496,32 @@ function AccountDrawer({
                 onCancel={() => setPending(null)}
                 onConfirm={async (reason) => {
                   if (pending?.kind !== 'ban') return;
-                  const r = await api.banAccount(id, pending.category, reason);
+                  const r = await api.banAccount(
+                    id,
+                    banSerious ? 'serious' : 'standard',
+                    reason,
+                    banReason || undefined,
+                  );
                   await finish(t('admin.accounts.banned', { count: r.accounts_banned }));
                 }}
-              />
+              >
+                <Select
+                  aria-label={t('admin.accounts.banReasonLabel')}
+                  options={banReasonOptions}
+                  value={banReason}
+                  onValueChange={(v) => {
+                    setBanReason(v as api.BanReason | '');
+                    const preset = api.BAN_REASONS.find((r) => r.value === v);
+                    if (preset) setBanSerious(preset.serious);
+                  }}
+                />
+                <Checkbox
+                  label={t('admin.accounts.banSeriousToggle')}
+                  description={t('admin.accounts.banSeriousToggleHint')}
+                  checked={banSerious}
+                  onChange={(e) => setBanSerious(e.target.checked)}
+                />
+              </ReasonDialog>
               <ReasonDialog
                 open={pending?.kind === 'credits'}
                 title={t('admin.accounts.creditsDialogTitle', { username: a.username })}

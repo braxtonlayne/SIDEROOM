@@ -2355,7 +2355,10 @@ export interface paths {
         /** List staff (`APPOINT_STAFF`). */
         get: operations["list"];
         put?: never;
-        /** Appoint an account: adds it to the Staff Server with the roles (`APPOINT_STAFF`). */
+        /**
+         * Appoint an account directly, without its acceptance (Owner only, behind re-auth; D-197 as amended
+         *     2026-10-15). Everyone else appoints through offers.
+         */
         post: operations["appoint"];
         delete?: never;
         options?: never;
@@ -2372,6 +2375,23 @@ export interface paths {
         };
         /** Open delegations of appointment rights (`APPOINT_STAFF`). */
         get: operations["list_delegations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/staff/former": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Closed appointments and why each ended: `left`, `kicked` or `revoked` (`APPOINT_STAFF`). */
+        get: operations["former"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7727,6 +7747,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/features/flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The platform flags clients read at boot, e.g. `moderation.reports` (any signed-in human; bots
+         *     are refused).
+         */
+        get: operations["client_flags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /sr/invites`: credits, open and redeemed codes and whether a code can be created. */
+        get: operations["list"];
+        put?: never;
+        /**
+         * `POST /sr/invites {note?}`: create a code. 403 `900006`-style refusals are field errors on
+         *     `invite` (`reason` in the code); 429 after ten in an hour.
+         */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/invites/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /sr/invites/{code}`: revoke an open code of your own. 404 when it is not open or not
+         *     yours (a redemption in flight wins).
+         */
+        delete: operations["revoke"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/voice/turn": {
         parameters: {
             query?: never;
@@ -9678,10 +9759,16 @@ export interface components {
         AnnouncementInput: {
             body: string;
             /**
+             * @description Outage or security notice: cannot be dismissed and is always sent as a DM (D-192).
+             *     Same as `severity: "critical"`.
+             */
+            critical?: boolean;
+            /**
              * Format: int64
              * @description Stop showing at this time (default: never).
              */
             ends_at_ms?: number | null;
+            /** @description Also DM it to everyone who has not turned off `notifications.platform_dm`. */
             send_dm?: boolean;
             severity?: null | components["schemas"]["AnnouncementSeverity"];
             /**
@@ -9979,9 +10066,9 @@ export interface components {
         };
         /** @description Ban body: the reason is the ban note. */
         BanBody: {
-            /** @description `serious` raises suspicion on the inviter (D-031); `standard` does not. */
-            category: components["schemas"]["BanCategory"];
+            category?: null | components["schemas"]["BanCategory"];
             reason?: string | null;
+            reason_category?: null | components["schemas"]["BanReason"];
         };
         /**
          * @description Reason category of a platform ban (doc 06 section 5.4, doc 09). Only
@@ -10006,6 +10093,13 @@ export interface components {
             items: components["schemas"]["BanRecord"][];
             next_after?: string | null;
         };
+        /**
+         * @description Why the staff member bans (D-211). Each has a default [`BanCategory`] the ban dialog starts
+         *     from; staff can raise or lower it before confirming, and the stored category is what the
+         *     inviter suspicion rule reads (D-031).
+         * @enum {string}
+         */
+        BanReason: "illegal_content" | "child_safety" | "fraud" | "platform_abuse" | "harassment" | "ban_evasion";
         BanRecord: {
             banned_by: string;
             category: components["schemas"]["BanCategory"];
@@ -10801,6 +10895,13 @@ export interface components {
         ClaimRequestInput: {
             note?: string;
         };
+        /** @description Platform flags a client may read (D-216). */
+        ClientFlagsObject: {
+            /** @description Feature id to on/off, for platform-scope modules that declare themselves client-visible. */
+            flags: {
+                [key: string]: boolean;
+            };
+        };
         Collection: {
             blurb?: string | null;
             display: components["schemas"]["CollectionDisplay"];
@@ -11024,26 +11125,10 @@ export interface components {
              */
             type: number;
         };
-        /** @description Body of `POST /channels/{id}/invites`. Every field is optional. */
+        /** @description Body of `POST /sr/invites`. */
         CreateInviteBody: {
-            /**
-             * @description SIDE ROOM: the invite is for sharing outside the platform ("Copy link").
-             *     It defaults to a single use (open question 134).
-             */
-            external?: boolean | null;
-            /**
-             * Format: int32
-             * @description Seconds until expiry, 0 to 604800 (default 86400).
-             */
-            max_age?: number | null;
-            /**
-             * Format: int32
-             * @description 0 to 100 (default 0 = unlimited; 1 for `external`).
-             */
-            max_uses?: number | null;
-            temporary?: boolean | null;
-            /** @description Accepted for Discord compatibility; every call creates a new invite. */
-            unique?: boolean | null;
+            /** @description Private note ("for Sam"), at most 100 characters. */
+            note?: string | null;
         };
         CreateInvoiceBody: {
             /** @description Contribute without showing the name (server contributions). */
@@ -11724,6 +11809,17 @@ export interface components {
             guild_id: string;
             questions: components["schemas"]["QuestionDto"][];
         };
+        /** @description A closed appointment (G-23): who stopped being staff and how it ended. */
+        FormerStaff: {
+            account_id: string;
+            /** @description The note staff gave when revoking (or the system text for leaving). */
+            note: string;
+            /** Format: int64 */
+            revoked_at_ms: number;
+            /** @description `left`, `kicked` or `revoked`. */
+            revoked_reason: string;
+            username: string;
+        };
         /** @description Forum and media settings, plus the thread defaults of text channels. */
         ForumSettingsBody: {
             available_tags?: components["schemas"]["TagBody"][] | null;
@@ -12116,6 +12212,16 @@ export interface components {
             sub?: string | null;
             token_type?: string | null;
             username?: string | null;
+        };
+        /** @description Why a new code cannot be created right now. */
+        InviteBlocked: {
+            /**
+             * Format: int64
+             * @description `too_new` only: the age an account needs, in days.
+             */
+            days?: number | null;
+            /** @description `unverified`, `too_new`, `at_cap`, `no_credits` or `frozen`. */
+            reason: string;
         };
         InviteChannel: {
             id: string;
@@ -12580,6 +12686,31 @@ export interface components {
          * @enum {string}
          */
         Media: "movie" | "episode" | "unknown";
+        /** @description One of the account's platform invites. */
+        MemberInvite: {
+            /** @description Display form, `XXXXX-XXXXX`. */
+            code: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** @description Path of the share link (`/join/<code>`); prefix with the site origin. */
+            link: string;
+            /** @description Private note, visible to the issuer and staff only. */
+            note: string;
+            /** Format: int64 */
+            redeemed_at_ms?: number | null;
+            redeemed_by?: null | components["schemas"]["RedeemedBy"];
+        };
+        /** @description The Invites section of User Settings. */
+        MemberInvitesObject: {
+            blocked?: null | components["schemas"]["InviteBlocked"];
+            /**
+             * Format: int64
+             * @description Credits left: how many more people the account can bring.
+             */
+            credits: number;
+            open: components["schemas"]["MemberInvite"][];
+            redeemed: components["schemas"]["MemberInvite"][];
+        };
         MemberObject: {
             avatar?: string | null;
             /** @description Per-server banner hash (LNG-GLD-012). */
@@ -13265,8 +13396,9 @@ export interface components {
             until_ms?: number | null;
         };
         PersonBanBody: {
-            category: components["schemas"]["BanCategory"];
+            category?: null | components["schemas"]["BanCategory"];
             reason?: string | null;
+            reason_category?: null | components["schemas"]["BanReason"];
             /** @description The account the ban is about; a serious ban raises suspicion on its inviter. */
             source_account_id?: string | null;
         };
@@ -13820,6 +13952,11 @@ export interface components {
              * @description Length of the window in seconds.
              */
             window_secs: number;
+        };
+        /** @description The account that used a code. */
+        RedeemedBy: {
+            id: string;
+            username: string;
         };
         /** @description Body for `POST /sr/auth/passkeys/register/finish`. */
         RegisterFinishBody: {
@@ -14482,6 +14619,19 @@ export interface components {
              * @description 10 announcement, 11 public (default) or 12 private thread.
              */
             type?: number | null;
+        };
+        /** @description The dashboard counts, plus the voice figures when the SFU runs in this process. */
+        StatsView: components["schemas"]["SystemCounts"] & {
+            /**
+             * Format: int64
+             * @description Bytes the SFU has sent since it started (absent without an embedded SFU).
+             */
+            egress_bytes?: number | null;
+            /**
+             * Format: int64
+             * @description Voice rooms with at least one participant (absent without an embedded SFU).
+             */
+            voice_rooms?: number | null;
         };
         StatusView: {
             /** @description Counts by invoice state over the last 90 days. */
@@ -24182,6 +24332,41 @@ export interface operations {
             };
         };
     };
+    former: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormerStaff"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_offers: {
         parameters: {
             query?: {
@@ -24616,7 +24801,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemCounts"];
+                    "application/json": components["schemas"]["StatsView"];
                 };
             };
             401: {
@@ -41818,6 +42003,143 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    client_flags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientFlagsObject"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberInvitesObject"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInviteBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberInvite"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invite code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -27,7 +27,7 @@ Discord's user-token automation ("self-bots") is not supported, and user session
 ## 3. Conventions (identical to Discord)
 
 - Snowflake IDs as strings. ISO8601 timestamps.
-- Error body `{ "code": <int>, "message": "...", "errors": {…field tree…} }`. Codes reuse Discord's JSON error codes where an equivalent exists (e.g. `10003 Unknown Channel`, `50013 Missing Permissions`). SIDE ROOM-specific codes start at `900000`. `900011` `AGE_CONFIRMATION_REQUIRED` (HTTP 403) means the content is visible but opening it needs the account to confirm it is 18 or older: show the age dialog, `POST /sr/age-gate`, retry (doc 06 §7, D-184). `GET /library/chapters/{id}/pages` returns it for age-restricted series, and every message endpoint under `/channels/{id}/...` returns it for an age-restricted (NSFW) server channel, or a thread of one, until the account has answered yes (D-032, LNG-CHN-006); DMs are never gated. Its permission checks come first, so a member who cannot see the channel still gets 50001.
+- Error body `{ "code": <int>, "message": "...", "errors": {…field tree…} }`. Codes reuse Discord's JSON error codes where an equivalent exists (e.g. `10003 Unknown Channel`, `50013 Missing Permissions`). SIDE ROOM-specific codes start at `900000`. `900014` `SECOND_FACTOR_REQUIRED` (HTTP 403) answers `POST /staff/offers/{id}/respond {accept:true}` when the account has neither an authenticator app nor a passkey (D-198): enrol one in Settings, Security, then accept. `900011` `AGE_CONFIRMATION_REQUIRED` (HTTP 403) means the content is visible but opening it needs the account to confirm it is 18 or older: show the age dialog, `POST /sr/age-gate`, retry (doc 06 §7, D-184). `GET /library/chapters/{id}/pages` returns it for age-restricted series, and every message endpoint under `/channels/{id}/...` returns it for an age-restricted (NSFW) server channel, or a thread of one, until the account has answered yes (D-032, LNG-CHN-006); DMs are never gated. Its permission checks come first, so a member who cannot see the channel still gets 50001.
 - Rate-limit headers `X-RateLimit-Limit/Remaining/Reset/Reset-After/Bucket/Scope`. 429 body includes `retry_after`.
 - Pagination: `before`, `after`, `around`, `limit`.
 - `X-Audit-Log-Reason` header is honoured.
@@ -85,7 +85,7 @@ Prefix `/api/v1/sr/...`. These are first-party-only unless an OAuth scope is gra
 | Submissions | `/sr/submissions` (create draft, upload parts, submit, withdraw), `/sr/review/queue`, `/sr/review/{id}/decision` |
 | Watch parties | `/sr/parties` (create, join, control) + gateway events |
 | Admin | `/sr/admin/...` (staff-only, see the admin spec) |
-| Features/settings | `/sr/features` (registry + effective settings for a scope) |
+| Features/settings | `/sr/features` (registry + effective settings for a scope); `GET /sr/features/flags` (any signed-in human, bots refused): `{flags: {<feature id>: bool}}` for platform-scope modules that declare themselves `client_visible` (first: `moderation.reports`), read by the web client at boot instead of build-time seeds (D-216) |
 | Packages | `/sr/packages` (themes/extensions/layouts/activities) |
 
 ### 5.1 Entrance and account auth endpoints
@@ -94,6 +94,9 @@ Implemented in `crates/sr-api/src/routes/auth/` (`routes::auth::router_with(serv
 
 | Method and path | Auth | Request | Response |
 |---|---|---|---|
+| `GET /sr/invites` | session | n/a | `{credits, open:[{code,link,note,created_at_ms}], redeemed:[{…,redeemed_by:{id,username},redeemed_at_ms}], blocked}`; `blocked` is `null` or `{reason: unverified|too_new|at_cap|no_credits|frozen, days?}` (the suspicion freeze is reported as `frozen` only, with generic wording). Bots and bearer tokens are refused (G-57) |
+| `POST /sr/invites` | session | `{note?}` (100 characters) | 201 with the new invite. Re-checks every rule in one transaction (verified email, `invites.min_account_age_days`, account cap D-014, open codes below remaining credits D-026, suspicion freeze); a refusal is 400 with field `invite` and the reason as code. 429 after 10 creations per hour per account |
+| `DELETE /sr/invites/{code}` | session | n/a | 204; 404 when the code is not open or not yours (a redemption in flight wins) |
 | `GET /sr/invites/{code}` | none | n/a | `{valid:true}`, `{valid:false}` (unknown, malformed, used and revoked are identical), or `{valid:false,reason:"closed"}` (cap reached; returned for every code). Per IP: 10/min and 50/day, then 429 |
 | `GET /sr/usernames/check?username=` | none | n/a | `{available:bool}` (invalid and reserved names are unavailable). 30/min per IP |
 | `POST /sr/register` | none | `{code,email,username,display_name?,password,accepted_house_notes:true}` | 201 `{id}` and the `sr_session` cookie. 400 with field errors (`email`, `username`, `display_name`, `password`, `rules`); 403 `900006` for any unusable invite; 403 `900005` when closed. Consumes the invite, checks the cap and issuer credit, writes ledger rows (issuer -1 `redemption`, new account +5 `initial_grant`) in one transaction, and emails a verification link. 5/min and 20/day per IP |
