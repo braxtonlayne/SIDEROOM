@@ -1,23 +1,31 @@
 //! Guild members: list, get, modify, kick.
 
-use super::dto::{MemberObject, ModifyMemberBody, parse_iso8601};
+use super::dto::{MemberObject, ModifyMemberBody, nullable, parse_iso8601};
 use super::util::{Api, actor, ce, id, users_for};
+use crate::routes::{MaybeExt, media::MediaDeps};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
     extract::{Path, Query},
     http::StatusCode,
-    routing::get,
+    routing::{get, patch},
 };
 use serde::Deserialize;
 use sr_chat::admin_repo::MemberFilter;
 use sr_chat::admin_rules::MemberPatch;
-use sr_core::{ApiError, GuildId, RoleId, UserId};
+use sr_core::{ApiError, ErrorCode, GuildId, RoleId, UserId};
+use sr_storage::media::MediaKind;
+use utoipa::ToSchema;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/guilds/{guild_id}/members", get(list_members))
         .route("/guilds/{guild_id}/members/search", get(search_members))
+        .route(
+            "/guilds/{guild_id}/members/@me",
+            patch(modify_own_member).layer(crate::routes::media::body_limit()),
+        )
+        .route("/users/@me/guilds/{guild_id}/member", get(get_own_member))
         .route(
             "/guilds/{guild_id}/members/{user_id}",
             get(get_member).patch(modify_member).delete(kick_member),
@@ -156,6 +164,7 @@ pub async fn modify_member(
         nick: body.nick,
         roles,
         communication_disabled_until_ms: timeout,
+        ..MemberPatch::default()
     };
     let m = api.edit_member(actor, gid, uid, patch).await.map_err(ce)?;
     let users = users_for(&*api, [m.user_id]).await?;
@@ -237,4 +246,139 @@ pub async fn search_members(
             .map(|m| MemberObject::new(m, false, &users))
             .collect(),
     ))
+}
+
+/// Body of `PATCH /guilds/{id}/members/@me`: the caller's per-server profile
+/// (LNG-GLD-012). Absent fields stay; `null` clears one.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct ModifyOwnMemberBody {
+    /// Nickname, 1 to 32 characters (needs `CHANGE_NICKNAME`).
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub nick: Option<Option<String>>,
+    /// Per-server avatar as an image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most,
+    /// cropped to a square).
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub avatar: Option<Option<String>>,
+    /// Per-server banner as an image data URI.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub banner: Option<Option<String>>,
+    /// Per-server bio, up to 190 characters.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub bio: Option<Option<String>>,
+}
+
+/// The caller's own member object in a server (`GET /users/@me/guilds/{id}/member`).
+#[utoipa::path(
+    get,
+    path = "/users/@me/guilds/{guild_id}/member",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 200, body = MemberObject), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_own_member(
+    p: Principal,
+    Api(api): Api,
+    Path(guild_id): Path<String>,
+) -> ApiResult<Json<MemberObject>> {
+    let me = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    let m = api.get_member(me, gid, me).await.map_err(ce)?;
+    let users = users_for(&*api, [m.user_id]).await?;
+    Ok(Json(MemberObject::new(&m, false, &users)))
+}
+
+/// Edit the caller\'s own per-server profile: nickname, avatar, banner and bio
+/// (LNG-GLD-012). Images arrive as data URIs and are stored under the user with a hash that
+/// is specific to this server, so the same picture in two servers stays independent.
+#[utoipa::path(
+    patch,
+    path = "/guilds/{guild_id}/members/@me",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    request_body = ModifyOwnMemberBody,
+    responses((status = 200, body = MemberObject), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn modify_own_member(
+    p: Principal,
+    Api(api): Api,
+    MaybeExt(media): MaybeExt<MediaDeps>,
+    Path(guild_id): Path<String>,
+    Json(body): Json<ModifyOwnMemberBody>,
+) -> ApiResult<Json<MemberObject>> {
+    let me = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    let before = api.get_member(me, gid, me).await.map_err(ce)?;
+    let wants_images = body.avatar.is_some() || body.banner.is_some();
+    if wants_images && media.is_none() {
+        tracing::error!("member image edit needs MediaDeps registered on AppState");
+        return Err(ErrorCode::SrInternal.into());
+    }
+    // Images first: a bad upload fails the whole edit before anything is written.
+    let mut stored: Vec<(MediaKind, String)> = Vec::new();
+    let mut keys: [Option<Option<String>>; 2] = [None, None];
+    let inputs = [
+        (MediaKind::MemberAvatar, "avatar", body.avatar),
+        (MediaKind::MemberBanner, "banner", body.banner),
+    ];
+    for (n, (kind, field, v)) in inputs.into_iter().enumerate() {
+        match (v, &media) {
+            (None, _) | (Some(Some(_)), None) => {}
+            (Some(None), _) => keys[n] = Some(None),
+            (Some(Some(uri)), Some(m)) => {
+                match m
+                    .store_scoped(kind, me.get(), Some(gid.get()), field, uri)
+                    .await
+                {
+                    Ok(h) => {
+                        stored.push((kind, h.clone()));
+                        keys[n] = Some(Some(h));
+                    }
+                    Err(e) => {
+                        for (k, h) in &stored {
+                            m.remove(*k, me.get(), h).await;
+                        }
+                        return Err(e);
+                    }
+                }
+            }
+        }
+    }
+    let [avatar_key, banner_key] = keys;
+    let patch = MemberPatch {
+        nick: body.nick,
+        avatar_key,
+        banner_key,
+        bio: body.bio,
+        ..MemberPatch::default()
+    };
+    let m = match api.edit_member(me, gid, me, patch).await {
+        Ok(m) => m,
+        Err(e) => {
+            if let Some(m) = &media {
+                for (k, h) in &stored {
+                    m.remove(*k, me.get(), h).await;
+                }
+            }
+            return Err(ce(e));
+        }
+    };
+    // Committed: delete the images this edit replaced or cleared.
+    if let Some(mx) = &media {
+        for (kind, old, new) in [
+            (MediaKind::MemberAvatar, &before.avatar_key, &m.avatar_key),
+            (MediaKind::MemberBanner, &before.banner_key, &m.banner_key),
+        ] {
+            if let Some(old) = old
+                && Some(old) != new.as_ref()
+            {
+                mx.remove(kind, me.get(), old).await;
+            }
+        }
+    }
+    let users = users_for(&*api, [m.user_id]).await?;
+    Ok(Json(MemberObject::new(&m, false, &users)))
 }

@@ -45,6 +45,9 @@ async fn fx() -> Fx {
                 joined_at_ms: T0,
                 communication_disabled_until_ms: None,
                 pending: false,
+                avatar_key: None,
+                banner_key: None,
+                bio: None,
             });
     }
     Fx {
@@ -404,6 +407,9 @@ fn push_member(f: &Fx, user: UserId, nick: Option<&str>, joined: i64, roles: Vec
             joined_at_ms: joined,
             communication_disabled_until_ms: None,
             pending: false,
+            avatar_key: None,
+            banner_key: None,
+            bio: None,
         });
 }
 
@@ -417,6 +423,7 @@ fn name(f: &Fx, user: UserId, username: &str, display: Option<&str>) {
             avatar_key: None,
             banner_key: None,
             bot: false,
+            primary_guild: None,
         },
     );
 }

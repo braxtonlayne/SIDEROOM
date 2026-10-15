@@ -107,6 +107,43 @@ pub trait GuildDirectory: Send + Sync {
         None
     }
 
+    /// The guild a channel belongs to. `None` for unknown channels and DMs. Default: unknown.
+    async fn channel_guild(&self, _channel: ChannelId) -> Option<GuildId> {
+        None
+    }
+
+    /// The soundboard sounds of `guild` as `SOUNDBOARD_SOUNDS` carries them. Default: none.
+    async fn soundboard_sounds(&self, _guild: GuildId) -> Vec<Value> {
+        Vec::new()
+    }
+
+    /// Per-guild voice settings (AFK channel and timeout). Default: none configured.
+    async fn voice_guild(&self, _guild: GuildId) -> crate::voice::VoiceGuildInfo {
+        crate::voice::VoiceGuildInfo::default()
+    }
+
+    /// Whether `user` answered yes to "Are you 18 or older?" (D-032), which age-restricted
+    /// voice channels need. Default: no (fail closed).
+    async fn age_confirmed(&self, _user: UserId) -> bool {
+        false
+    }
+
+    /// The video allowance `user` has in `guild` (`None`: a DM call): sender and viewer caps
+    /// from the server level, Patron exemption (D-050..D-052). Default: the free tier.
+    async fn voice_limits(
+        &self,
+        _user: UserId,
+        _guild: Option<GuildId>,
+    ) -> crate::voice::VoiceLimits {
+        crate::voice::VoiceLimits::free()
+    }
+
+    /// The members of the DM or group DM `channel` when `user` is one of them. `None`
+    /// when the channel is not a DM they belong to. Default: none (calls are refused).
+    async fn dm_call_members(&self, _channel: ChannelId, _user: UserId) -> Option<Vec<UserId>> {
+        None
+    }
+
     /// `user`'s effective permissions in `channel` (overwrites applied, owner and
     /// administrator bypass, timeouts restricted). `None` when they are not a member of
     /// `guild`. Default: not a member (fail closed).
@@ -121,6 +158,22 @@ pub trait GuildDirectory: Send + Sync {
 
     /// Guild member object for voice state payloads. Default: none.
     async fn member_payload(&self, _guild: GuildId, _user: UserId) -> Option<Value> {
+        None
+    }
+
+    /// The user's last attached socket closed: they are offline now (LNG-INV-005 uses this to
+    /// drop temporary memberships). Called once per transition, after the presence was
+    /// broadcast. Default: nothing.
+    async fn user_offline(&self, _user: UserId) {}
+
+    /// The members of `guild` who can see `channel`, for the lazy member list (op 102,
+    /// LNG-GLD-010). `None` when the directory cannot build one (default; the request is
+    /// then ignored).
+    async fn member_list(
+        &self,
+        _guild: GuildId,
+        _channel: ChannelId,
+    ) -> Option<crate::member_list::MemberListSource> {
         None
     }
 

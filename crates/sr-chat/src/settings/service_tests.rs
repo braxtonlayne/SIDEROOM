@@ -384,3 +384,256 @@ async fn audit_observer_sees_each_stored_entry() {
         .unwrap();
     assert_eq!(*seen.lock().unwrap(), vec![(e.id, AuditAction::RoleCreate)]);
 }
+
+#[tokio::test]
+async fn onboarding_saves_log_each_question_and_the_settings_separately() {
+    use super::community::{Onboarding, OnboardingOption, OnboardingPrompt};
+    let (svc, _) = setup();
+    let prompt = |id: u64, title: &str| OnboardingPrompt {
+        id,
+        title: title.into(),
+        single_select: true,
+        required: false,
+        in_onboarding: true,
+        options: vec![OnboardingOption {
+            id: id * 10,
+            title: "Option".into(),
+            description: None,
+            emoji: None,
+            channel_ids: vec![],
+            role_ids: vec![],
+        }],
+    };
+    let save = |o: Onboarding| svc.save_onboarding(Permissions::MANAGE_GUILD, ADMIN, o, |_| true);
+    let base = |prompts: Vec<OnboardingPrompt>, enabled: bool| Onboarding {
+        guild_id: G,
+        enabled,
+        default_channel_ids: if enabled {
+            (30..37).map(ChannelId::new).collect()
+        } else {
+            vec![]
+        },
+        prompts,
+    };
+    save(base(vec![prompt(1, "Pick"), prompt(2, "Gone")], false))
+        .await
+        .unwrap();
+    save(base(vec![prompt(1, "Pick one")], true)).await.unwrap();
+
+    let log = svc
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(G))
+        .await
+        .unwrap();
+    let count = |a: AuditAction| log.iter().filter(|e| e.action == a).count();
+    assert_eq!(count(AuditAction::OnboardingPromptCreate), 2);
+    assert_eq!(count(AuditAction::OnboardingPromptUpdate), 1);
+    assert_eq!(count(AuditAction::OnboardingPromptDelete), 1);
+    // Only the second save flipped `enabled`.
+    assert_eq!(count(AuditAction::OnboardingUpdate), 1);
+}
+
+#[tokio::test]
+async fn guild_tags_are_adopted_only_while_members_may_display_them() {
+    use super::tags::GuildTag;
+    let (svc, _) = setup();
+    let member = UserId::new(50);
+    let tag = |text: &str, display: bool| GuildTag {
+        guild_id: G,
+        tag: text.into(),
+        badge: 2,
+        color: 0xAA00FF,
+        members_can_display: display,
+    };
+    // Managers only.
+    assert!(matches!(
+        svc.save_guild_tag(Permissions::empty(), ADMIN, tag("SIDE", true))
+            .await,
+        Err(SettingsError::MissingPermissions)
+    ));
+    // No tag yet, and a non-member, cannot adopt.
+    assert!(svc.adopt_tag(member, Some(G), true).await.is_err());
+    svc.save_guild_tag(Permissions::MANAGE_GUILD, ADMIN, tag("SIDE", true))
+        .await
+        .unwrap();
+    assert!(svc.adopt_tag(member, Some(G), false).await.is_err());
+    let adopted = svc.adopt_tag(member, Some(G), true).await.unwrap().unwrap();
+    assert_eq!((adopted.tag.as_str(), adopted.badge), ("SIDE", 2));
+    assert_eq!(svc.primary_guild(member).await.unwrap(), Some(adopted));
+
+    // Switching the toggle off hides it everywhere, and nobody can newly adopt.
+    svc.save_guild_tag(Permissions::MANAGE_GUILD, ADMIN, tag("SIDE", false))
+        .await
+        .unwrap();
+    assert_eq!(svc.primary_guild(member).await.unwrap(), None);
+    assert!(svc.adopt_tag(UserId::new(51), Some(G), true).await.is_err());
+
+    // Removing the tag drops adoptions; clearing is always allowed.
+    svc.save_guild_tag(Permissions::MANAGE_GUILD, ADMIN, tag("SIDE", true))
+        .await
+        .unwrap();
+    assert!(svc.primary_guild(member).await.unwrap().is_some());
+    svc.clear_guild_tag(Permissions::MANAGE_GUILD, ADMIN, G)
+        .await
+        .unwrap();
+    assert_eq!(svc.primary_guild(member).await.unwrap(), None);
+    assert_eq!(svc.adopt_tag(member, None, false).await.unwrap(), None);
+    // Tag changes were audited as GuildUpdate with key diffs.
+    let log = svc
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(G))
+        .await
+        .unwrap();
+    assert!(
+        log.iter()
+            .any(|e| e.changes.iter().any(|c| c.key == "tag_members_can_display"))
+    );
+}
+
+fn new_sound(name: &str) -> super::service::NewSound {
+    super::service::NewSound {
+        name: name.into(),
+        volume: 0.8,
+        emoji_id: None,
+        emoji_name: Some("\u{1F514}".into()),
+        format: super::soundboard::SoundFormat::Wav,
+        size_bytes: 40_000,
+        duration_ms: 1_000,
+        media_key: "sounds/1/a.wav".into(),
+    }
+}
+
+#[tokio::test]
+async fn soundboard_sounds_follow_discords_permissions_and_are_audited() {
+    use super::service::SoundPatch;
+    let (svc, _) = setup();
+    let manage = Permissions::MANAGE_GUILD_EXPRESSIONS;
+    let create = Permissions::CREATE_GUILD_EXPRESSIONS;
+    let other = UserId::new(11);
+
+    // Creating needs either expression permission.
+    assert!(matches!(
+        svc.create_sound(Permissions::empty(), ADMIN, G, new_sound("ding"))
+            .await,
+        Err(SettingsError::MissingPermissions)
+    ));
+    let s = svc
+        .create_sound(create, ADMIN, G, new_sound(" ding "))
+        .await
+        .unwrap();
+    assert_eq!(s.name, "ding");
+    assert_eq!(s.creator_id, ADMIN);
+    assert!(
+        svc.create_sound(manage, other, G, new_sound("boop"))
+            .await
+            .is_ok()
+    );
+
+    // A creator edits and deletes their own sound; another creator cannot; a manager can.
+    let patch = SoundPatch {
+        name: Some("dong".into()),
+        volume: Some(0.5),
+        ..SoundPatch::default()
+    };
+    assert!(matches!(
+        svc.edit_sound(create, other, G, s.id, patch.clone()).await,
+        Err(SettingsError::MissingPermissions)
+    ));
+    let edited = svc.edit_sound(create, ADMIN, G, s.id, patch).await.unwrap();
+    assert_eq!((edited.name.as_str(), edited.volume), ("dong", 0.5));
+    // Nothing changed: no write and no audit entry.
+    let before = svc
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(G))
+        .await
+        .unwrap()
+        .len();
+    svc.edit_sound(manage, other, G, s.id, SoundPatch::default())
+        .await
+        .unwrap();
+    assert_eq!(
+        svc.list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(G))
+            .await
+            .unwrap()
+            .len(),
+        before
+    );
+    // Clearing the emoji.
+    let cleared = svc
+        .edit_sound(
+            manage,
+            other,
+            G,
+            s.id,
+            SoundPatch {
+                emoji: Some(None),
+                ..SoundPatch::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert!(cleared.emoji_name.is_none() && cleared.emoji_id.is_none());
+
+    assert!(matches!(
+        svc.delete_sound(create, other, G, s.id).await,
+        Err(SettingsError::MissingPermissions)
+    ));
+    svc.delete_sound(manage, other, G, s.id).await.unwrap();
+    assert!(matches!(
+        svc.delete_sound(manage, other, G, s.id).await,
+        Err(SettingsError::UnknownSound)
+    ));
+    assert!(matches!(
+        svc.edit_sound(manage, other, G, s.id, SoundPatch::default())
+            .await,
+        Err(SettingsError::UnknownSound)
+    ));
+
+    let log = svc
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(G))
+        .await
+        .unwrap();
+    let kinds: Vec<_> = log.iter().map(|e| e.action).collect();
+    assert!(kinds.contains(&AuditAction::SoundboardSoundCreate));
+    assert!(kinds.contains(&AuditAction::SoundboardSoundUpdate));
+    assert!(kinds.contains(&AuditAction::SoundboardSoundDelete));
+}
+
+#[tokio::test]
+async fn soundboard_uploads_are_checked_and_limited() {
+    let (svc, _) = setup();
+    let manage = Permissions::MANAGE_GUILD_EXPRESSIONS;
+    for bad in [
+        super::service::NewSound {
+            duration_ms: 5_001,
+            ..new_sound("long")
+        },
+        super::service::NewSound {
+            size_bytes: 600 * 1024,
+            ..new_sound("big")
+        },
+        super::service::NewSound {
+            volume: 1.5,
+            ..new_sound("loud")
+        },
+        new_sound("x"),
+    ] {
+        assert!(matches!(
+            svc.create_sound(manage, ADMIN, G, bad).await,
+            Err(SettingsError::Invalid { .. })
+        ));
+    }
+    for i in 0..48 {
+        svc.create_sound(manage, ADMIN, G, new_sound(&format!("snd{i}")))
+            .await
+            .unwrap();
+    }
+    assert!(matches!(
+        svc.create_sound(manage, ADMIN, G, new_sound("one more"))
+            .await,
+        Err(SettingsError::LimitReached("soundboard sounds"))
+    ));
+    // Another server has its own 48.
+    assert!(
+        svc.create_sound(manage, ADMIN, GuildId::new(2), new_sound("fresh"))
+            .await
+            .is_ok()
+    );
+}

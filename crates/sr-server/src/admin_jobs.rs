@@ -1,11 +1,12 @@
-//! Nightly verification of the staff access-log hash chain (ADM-STF-008, doc 07
-//! section 5). A break raises an `AccessLogChainBroken` staff alert through the
-//! admin service. The job re-queues itself like the other recurring singletons.
+//! Recurring admin jobs: the nightly verification of the staff access-log hash chain
+//! (ADM-STF-008, doc 07 section 5), the health check that raises disk, backup and transcode
+//! alerts (ADM-ALR-001) and the hourly expiry of unanswered staff offers (ADM-STF-004). Each
+//! re-queues itself like the other recurring singletons.
 
-use std::sync::Arc;
+use std::{path::Path, sync::Arc, time::Duration};
 
 use serde_json::json;
-use sr_admin::AdminService;
+use sr_admin::{AdminService, AlertSettings};
 use sr_db::{
     DbResult, PgPool,
     admin_repo::PgAdminRepo,
@@ -13,7 +14,20 @@ use sr_db::{
     jobs::{self, Job},
     runner::{HandlerError, JobRunner},
 };
-use sr_events::EventBus;
+use sr_events::{DomainEvent, EventBus, StaffAlertKind, Topic};
+
+use crate::staff_feed::{gib, used_percent};
+
+/// Health check singleton: disk, backups, failed transcodes.
+pub const HEALTH_JOB_ID: i64 = 131;
+pub const HEALTH_KIND: &str = "admin.health.check";
+const HEALTH_EVERY: Duration = Duration::from_secs(15 * 60);
+/// Offer expiry singleton.
+pub const OFFERS_JOB_ID: i64 = 132;
+pub const OFFERS_KIND: &str = "admin.offers.expire";
+const OFFERS_EVERY: Duration = Duration::from_secs(3600);
+/// The same alert is not raised again within this many hours.
+const REPEAT_AFTER_HOURS: i32 = 24;
 
 /// Reserved singleton id (below any Snowflake).
 pub const VERIFY_JOB_ID: i64 = 130;
@@ -40,10 +54,39 @@ pub fn register(
     bus: Arc<dyn EventBus>,
 ) -> JobRunner {
     let pool = pool.clone();
+    let repo = Arc::new(PgAdminRepo::new(pool.clone(), ids));
+    let admin = AdminService::new(repo.clone())
+        .with_extras(repo)
+        .with_bus(bus.clone());
+    let runner = {
+        let (pool, admin, bus) = (pool.clone(), admin.clone(), bus.clone());
+        runner.register(HEALTH_KIND, 1, move |job: Job| {
+            let (pool, admin, bus) = (pool.clone(), admin.clone(), bus.clone());
+            Box::pin(async move {
+                run_health(&pool, &admin, &bus).await;
+                jobs::reschedule_running(&pool, job.id, HEALTH_EVERY).await?;
+                Ok(())
+            })
+        })
+    };
+    let runner = {
+        let (pool, admin) = (pool.clone(), admin.clone());
+        runner.register(OFFERS_KIND, 1, move |job: Job| {
+            let (pool, admin) = (pool.clone(), admin.clone());
+            Box::pin(async move {
+                match admin.expire_offers().await {
+                    Ok(0) => {}
+                    Ok(n) => tracing::info!(expired = n, "staff offers expired"),
+                    Err(e) => tracing::warn!(error = %e, "could not expire staff offers"),
+                }
+                jobs::reschedule_running(&pool, job.id, OFFERS_EVERY).await?;
+                Ok(())
+            })
+        })
+    };
     runner.register(VERIFY_KIND, 1, move |job: Job| {
         let pool = pool.clone();
-        let service = AdminService::new(Arc::new(PgAdminRepo::new(pool.clone(), ids.clone())))
-            .with_bus(bus.clone());
+        let service = admin.clone();
         Box::pin(async move {
             let report = service
                 .verify_and_alert()
@@ -63,8 +106,214 @@ pub fn register(
     })
 }
 
-/// Create or re-arm the nightly verification singleton.
+/// Create or re-arm the recurring admin singletons.
 pub async fn schedule(pool: &PgPool) -> DbResult<()> {
     jobs::schedule_singleton(pool, VERIFY_JOB_ID, VERIFY_KIND, &json!({}), delay()).await?;
+    jobs::schedule_singleton(
+        pool,
+        HEALTH_JOB_ID,
+        HEALTH_KIND,
+        &json!({}),
+        Duration::from_secs(60),
+    )
+    .await?;
+    jobs::schedule_singleton(
+        pool,
+        OFFERS_JOB_ID,
+        OFFERS_KIND,
+        &json!({}),
+        Duration::from_secs(300),
+    )
+    .await?;
     Ok(())
+}
+
+// ---- health check (ADM-ALR-001) ---------------------------------------------------
+
+/// The disk alert text when the disk holding `path` is `threshold` percent full or more.
+pub fn disk_alert(path: &str, total: u64, available: u64, threshold: i64) -> Option<String> {
+    let used = used_percent(total, available)?;
+    (i64::from(used) >= threshold).then(|| {
+        format!(
+            "The disk holding {path} is {used}% full ({} free of {}).",
+            gib(available),
+            gib(total)
+        )
+    })
+}
+
+/// The backup alert text: no backup at all, or the newest one too old.
+pub fn backup_alert(dir: &str, newest_age: Option<Duration>, max_hours: i64) -> Option<String> {
+    match newest_age {
+        None => Some(format!("No backup found in {dir}.")),
+        Some(age) => {
+            let hours = age.as_secs() / 3600;
+            (i64::try_from(hours).unwrap_or(i64::MAX) > max_hours).then(|| {
+                format!(
+                    "The newest backup in {dir} is {hours} hours old (the limit is {max_hours})."
+                )
+            })
+        }
+    }
+}
+
+/// Age of the newest backup file (`*.dump` or `*.json` manifest) in `dir` or `dir/db`.
+pub fn newest_backup_age(dir: &Path) -> Option<Duration> {
+    let mut newest: Option<std::time::SystemTime> = None;
+    for d in [dir.to_path_buf(), dir.join("db")] {
+        let Ok(entries) = std::fs::read_dir(d) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let path = e.path();
+            let ext = path.extension().and_then(|x| x.to_str()).unwrap_or("");
+            if !matches!(ext, "dump" | "json") {
+                continue;
+            }
+            if let Ok(m) = e.metadata().and_then(|m| m.modified())
+                && newest.is_none_or(|n| m > n)
+            {
+                newest = Some(m);
+            }
+        }
+    }
+    newest.and_then(|m| m.elapsed().ok())
+}
+
+/// Disk check for the configured (or working) directory.
+fn check_disk(s: &AlertSettings) -> Option<String> {
+    let path = if s.disk_path.is_empty() {
+        "."
+    } else {
+        s.disk_path.as_str()
+    };
+    let total = fs4::total_space(path).ok()?;
+    let available = fs4::available_space(path).ok()?;
+    let label = if s.disk_path.is_empty() {
+        "the server data"
+    } else {
+        s.disk_path.as_str()
+    };
+    disk_alert(label, total, available, s.disk_percent)
+}
+
+/// Raise an alert unless the same kind was raised in the last day.
+async fn alert_once(pool: &PgPool, bus: &Arc<dyn EventBus>, kind: StaffAlertKind, detail: String) {
+    let recent: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM staff_alerts WHERE kind = $1 \
+                        AND created_at > now() - make_interval(hours => $2))",
+    )
+    .bind(kind.as_str())
+    .bind(REPEAT_AFTER_HOURS)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(true);
+    if recent {
+        return;
+    }
+    if let Err(e) = bus
+        .publish(Topic::Platform, DomainEvent::StaffAlert { kind, detail })
+        .await
+    {
+        tracing::warn!(error = %e, "could not publish a health alert");
+    }
+}
+
+/// Failed transcode jobs nobody was told about yet; one alert per job.
+async fn failed_transcodes(pool: &PgPool, bus: &Arc<dyn EventBus>) {
+    let rows: Vec<(i64, String, String)> = sqlx::query_as(
+        "SELECT j.id, j.kind, COALESCE(left(j.error, 160), '') FROM transcode_jobs j \
+         WHERE j.state = 'failed' AND j.finished_at > now() - interval '2 days' \
+           AND NOT EXISTS (SELECT 1 FROM staff_alerts a WHERE a.kind = 'transcode_failed' \
+                           AND a.detail LIKE 'Transcode job ' || j.id::text || ' %') \
+         ORDER BY j.id LIMIT 20",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    for (id, kind, error) in rows {
+        let detail = if error.is_empty() {
+            format!("Transcode job {id} ({kind}) failed.")
+        } else {
+            format!("Transcode job {id} ({kind}) failed: {error}")
+        };
+        let ev = DomainEvent::StaffAlert {
+            kind: StaffAlertKind::TranscodeFailed,
+            detail,
+        };
+        if let Err(e) = bus.publish(Topic::Platform, ev).await {
+            tracing::warn!(error = %e, "could not publish a transcode alert");
+        }
+    }
+}
+
+/// One pass of the health check.
+pub async fn run_health(pool: &PgPool, admin: &AdminService, bus: &Arc<dyn EventBus>) {
+    let settings = match admin.alert_settings().await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(error = %e, "health check: settings unreadable");
+            return;
+        }
+    };
+    let disk_settings = settings.clone();
+    if let Ok(Some(detail)) = tokio::task::spawn_blocking(move || check_disk(&disk_settings)).await
+    {
+        alert_once(pool, bus, StaffAlertKind::DiskLow, detail).await;
+    }
+    if !settings.backup_dir.is_empty() {
+        let (dir, max) = (settings.backup_dir.clone(), settings.backup_max_age_hours);
+        let age = {
+            let dir = dir.clone();
+            tokio::task::spawn_blocking(move || newest_backup_age(Path::new(&dir)))
+                .await
+                .ok()
+                .flatten()
+        };
+        if let Some(detail) = backup_alert(&dir, age, max) {
+            alert_once(pool, bus, StaffAlertKind::BackupFailed, detail).await;
+        }
+    }
+    failed_transcodes(pool, bus).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_disk_alert_fires_at_the_threshold() {
+        assert!(disk_alert("/data", 100, 21, 80).is_none());
+        let d = disk_alert("/data", 100, 20, 80).unwrap();
+        assert!(d.contains("80% full") && d.contains("/data"));
+        assert!(disk_alert("/data", 0, 0, 80).is_none());
+        assert!(disk_alert("/data", 100, 0, 99).is_some());
+    }
+
+    #[test]
+    fn the_backup_alert_covers_missing_and_stale_backups() {
+        let h = |n: u64| Some(Duration::from_secs(n * 3600));
+        assert!(backup_alert("/b", h(2), 36).is_none());
+        assert!(backup_alert("/b", h(36), 36).is_none());
+        let stale = backup_alert("/b", h(40), 36).unwrap();
+        assert!(stale.contains("40 hours old") && stale.contains("limit is 36"));
+        assert!(
+            backup_alert("/b", None, 36)
+                .unwrap()
+                .contains("No backup found")
+        );
+    }
+
+    #[test]
+    fn the_newest_backup_is_found_in_the_dir_or_its_db_folder() {
+        let dir = std::env::temp_dir().join(format!("sr-backup-test-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("db")).unwrap();
+        assert!(newest_backup_age(&dir).is_none());
+        std::fs::write(dir.join("db").join("sideroom-1.dump"), b"x").unwrap();
+        std::fs::write(dir.join("notes.txt"), b"x").unwrap();
+        let age = newest_backup_age(&dir).unwrap();
+        assert!(age < Duration::from_secs(60));
+        assert!(newest_backup_age(&dir.join("missing")).is_none());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

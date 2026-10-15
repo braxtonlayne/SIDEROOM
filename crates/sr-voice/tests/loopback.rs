@@ -61,6 +61,9 @@ impl World {
             deaf: false,
             ptt_required: false,
             priority: false,
+            camera: false,
+            screen: false,
+            tier: 0,
         }
     }
 
@@ -169,6 +172,7 @@ impl World {
                 CoreOutput::Event(CoreEvent::Closed { user, reason, .. }) => {
                     self.closed.push((user, reason));
                 }
+                CoreOutput::Event(CoreEvent::Active { .. }) => {}
             }
         }
     }

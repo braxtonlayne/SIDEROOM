@@ -208,6 +208,31 @@ impl AuthService {
         }
     }
 
+    /// Post a card to a Staff Server feed (`#new-members`). Best effort, like alerts.
+    pub(super) async fn staff_feed(
+        &self,
+        feed: sr_events::StaffFeedKind,
+        title: &str,
+        detail: &str,
+        link: Option<String>,
+    ) {
+        if let Some(bus) = &self.bus
+            && let Err(e) = bus
+                .publish(
+                    sr_events::Topic::Platform,
+                    sr_events::DomainEvent::StaffFeed {
+                        feed,
+                        title: title.to_owned(),
+                        detail: detail.to_owned(),
+                        link,
+                    },
+                )
+                .await
+        {
+            tracing::warn!(error = %e, "failed to publish staff feed card");
+        }
+    }
+
     /// Enable Discord sign-in and registration (open questions 78 and 79).
     pub fn with_discord(mut self, settings: &DiscordSettings) -> Result<Self, String> {
         self.discord = Some(DiscordOAuth::new(settings)?);

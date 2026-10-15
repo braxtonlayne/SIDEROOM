@@ -207,6 +207,69 @@ impl<R: SettingsRepository> SettingsService<R> {
         Ok(())
     }
 
+    /// Subscribe `target` to the announcements published in `source` (LNG-CHN-004). The
+    /// caller proved that `source` is an announcement channel they can see and that `target`
+    /// is a text or announcement channel of `guild`, where `perms` apply. Following twice
+    /// returns the existing subscription. `label` names the webhook (the followed server and
+    /// channel).
+    #[allow(clippy::too_many_arguments)]
+    pub async fn follow_channel(
+        &self,
+        perms: Permissions,
+        actor: UserId,
+        guild: GuildId,
+        target: ChannelId,
+        source: ChannelId,
+        label: &str,
+    ) -> SettingsResult<Webhook> {
+        require(perms, Permissions::MANAGE_WEBHOOKS)?;
+        if target == source {
+            return Err(SettingsError::invalid(
+                "webhook_channel_id",
+                "FOLLOW_SELF",
+                "a channel cannot follow itself",
+            ));
+        }
+        if let Some(existing) = self
+            .repo
+            .list_channel_followers(source)
+            .await?
+            .into_iter()
+            .find(|w| w.channel_id == target)
+        {
+            return Ok(existing);
+        }
+        Webhook::check_channel_quota(self.repo.count_channel_webhooks(target).await?)?;
+        let webhook = Webhook::new_follower(
+            self.new_webhook_id(),
+            guild,
+            target,
+            actor,
+            label,
+            source,
+            self.now(),
+        )?;
+        self.repo.insert_webhook(&webhook).await?;
+        self.record_audit(
+            guild,
+            actor,
+            AuditAction::WebhookCreate,
+            Some(webhook.id.get()),
+            vec![
+                AuditChange::new("name", None, Some(webhook.name.clone().into())),
+                AuditChange::new("channel_id", None, Some(target.get().to_string().into())),
+                AuditChange::new(
+                    "source_channel_id",
+                    None,
+                    Some(source.get().to_string().into()),
+                ),
+            ],
+            None,
+        )
+        .await?;
+        Ok(webhook)
+    }
+
     /// Resolve a webhook by id and execution token. A wrong token and an unknown
     /// id are indistinguishable to the caller.
     pub async fn authenticate_webhook(

@@ -17,6 +17,8 @@ export interface Guild {
   member_count?: number;
   /** True for READY stubs until GUILD_CREATE arrives. */
   unavailable?: boolean;
+  /** The Staff Server (ADM-STF-010). Sent by the API when the viewer is a member. */
+  is_staff_guild?: boolean;
 }
 
 export interface Channel {

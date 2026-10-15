@@ -9,6 +9,7 @@ use axum::extract::ws::{CloseFrame, Message as WsMessage, WebSocket, WebSocketUp
 use axum::response::Response;
 use axum::routing::get;
 use futures::{SinkExt, StreamExt};
+use sr_voice_proto::video::Video;
 use sr_voice_proto::wire::{
     Heartbeat, IceCandidate, Identify, Message, Resume, Sdp, Speaking, close, op,
 };
@@ -296,8 +297,21 @@ async fn handle_client(
             .await
         }
         op::IDENTIFY | op::RESUME => Err(close::ALREADY_AUTHENTICATED),
-        // Reserved ops (VIDEO, QUALITY) are accepted and ignored so newer clients can talk to older nodes.
-        op::VIDEO | op::QUALITY => Ok(None),
+        op::VIDEO => {
+            let v: Video = m.data().map_err(bad)?;
+            send(
+                h,
+                Cmd::Video {
+                    pid,
+                    conn_id,
+                    msg: Box::new(v),
+                },
+            )
+            .await
+        }
+        // QUALITY is server to client; a client sending it is ignored, so newer clients can
+        // talk to older nodes.
+        op::QUALITY => Ok(None),
         _ => Err(close::UNKNOWN_OPCODE),
     }
 }

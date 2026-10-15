@@ -30,6 +30,9 @@ pub mod channel_flags {
     pub const REQUIRE_TAG: u32 = 1 << 4;
     /// Media channel: hide the download button.
     pub const HIDE_MEDIA_DOWNLOAD_OPTIONS: u32 = 1 << 15;
+    /// Announcement channel: every message is published to the channels that follow it as
+    /// soon as it is sent (LNG-CHN-004). SIDE ROOM's own bit, outside Discord's range.
+    pub const AUTO_PUBLISH: u32 = 1 << 24;
     /// Bits a client may change on a forum or media channel.
     pub const FORUM_SETTABLE: u32 = REQUIRE_TAG | HIDE_MEDIA_DOWNLOAD_OPTIONS;
 }

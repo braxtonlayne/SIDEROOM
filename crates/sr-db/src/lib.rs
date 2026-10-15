@@ -7,11 +7,13 @@
 
 pub mod accounts;
 pub mod admin_repo;
+mod admin_repo_ext;
 pub mod apps_repo;
 pub mod auth_repo;
 pub mod auth_store;
 pub mod chat_repo;
 pub mod cinema_repo;
+pub mod directory_repo;
 mod error;
 mod guild_admin_repo;
 pub mod invite_join;

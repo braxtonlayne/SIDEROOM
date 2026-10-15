@@ -429,20 +429,19 @@ describe('Title editor', () => {
         linked = await readJson(request);
         return HttpResponse.json(title({ asset_id: '888' }));
       }),
-      http.get('*/api/v1/admin/transcode/assets/777', () =>
+      http.get('*/api/v1/admin/cinema/assets/777', () =>
         HttpResponse.json({
-          asset_id: '777',
-          state: 'transcoding',
-          profile_version: 3,
+          asset: { id: '777', state: 'transcoding', profile_version: 3 },
           jobs: [
             {
-              id: '5',
+              job_id: '5',
               asset_id: '777',
               kind: 'ladder',
               state: 'running',
               priority: 1,
               attempt: 1,
-              percent: 42,
+              cancel_requested: false,
+              progress: { stage: 'video', percent: 42 },
               created_at_ms: 1_700_000_000_000,
             },
           ],
@@ -474,10 +473,7 @@ describe('Title editor', () => {
       http.get('*/api/v1/admin/cinema/titles/10', () =>
         HttpResponse.json(detailOf(title({ asset_id: '777' }))),
       ),
-      http.get(
-        '*/api/v1/admin/transcode/assets/777',
-        () => new HttpResponse(null, { status: 404 }),
-      ),
+      http.get('*/api/v1/admin/cinema/assets/777', () => new HttpResponse(null, { status: 404 })),
     );
     const user = userEvent.setup();
     openAdmin('cinema-catalog');
@@ -545,62 +541,68 @@ describe('Cinema transcoding', () => {
   it('lists workers with drain, tokens and queue jobs with logs', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TRANSCODE'] });
     let drained: unknown;
+    let rerunBody: unknown;
     server.use(
       http.get('*/api/v1/admin/transcode/jobs', () =>
-        HttpResponse.json({
-          items: [
-            {
-              id: '9',
-              asset_id: '777',
-              kind: 'ladder',
-              state: 'failed',
-              priority: 1,
-              attempt: 3,
-              error: 'ffmpeg exited 1',
-              created_at_ms: 1_700_000_000_000,
-            },
-          ],
-        }),
+        HttpResponse.json([
+          {
+            job_id: '9',
+            asset_id: '777',
+            kind: 'ladder',
+            state: 'failed',
+            priority: 1,
+            attempt: 3,
+            cancel_requested: false,
+            error: 'ffmpeg exited 1',
+            created_at_ms: 1_700_000_000_000,
+          },
+        ]),
       ),
       http.get('*/api/v1/admin/transcode/jobs/9', () =>
         HttpResponse.json({
-          id: '9',
+          job_id: '9',
           asset_id: '777',
           kind: 'ladder',
           state: 'failed',
           priority: 1,
           attempt: 3,
+          cancel_requested: false,
           created_at_ms: 1,
           log_tail: 'Conversion failed!',
+          output_count: 0,
+          warnings: [],
         }),
       ),
-      http.post('*/api/v1/admin/transcode/assets/777/retranscode', () =>
-        HttpResponse.json({ asset_id: '777', state: 'transcoding', jobs: [] }),
+      http.get('*/api/v1/admin/transcode/queue', () =>
+        HttpResponse.json({ queued: 4, running: 1, failed_last_day: 2, succeeded_last_day: 30 }),
       ),
+      http.post('*/api/v1/admin/transcode/retranscode', async ({ request }) => {
+        rerunBody = await readJson(request);
+        return HttpResponse.json({ enqueued: ['1'], skipped: [], failed: [] });
+      }),
       http.get('*/api/v1/admin/transcode/workers', () =>
-        HttpResponse.json({
-          items: [
-            {
-              id: 'w1',
-              name: 'gpu-box',
-              version: '1.2',
-              capabilities: { nvenc: true },
-              last_seen_ms: 1_700_000_000_000,
-              online: true,
-              drain: false,
-              active_jobs: 1,
-            },
-          ],
-        }),
+        HttpResponse.json([
+          {
+            id: 'w1',
+            name: 'gpu-box',
+            version: '1.2',
+            token_id: 't1',
+            token_name: 'gpu-box',
+            token_revoked: false,
+            capabilities: { nvenc: true },
+            last_seen_ms: 1_700_000_000_000,
+            online: true,
+            drain: false,
+            active_jobs: 1,
+          },
+        ]),
       ),
-      http.post('*/api/v1/admin/transcode/workers/w1/drain', async ({ request }) => {
+      http.put('*/api/v1/admin/transcode/workers/w1/drain', async ({ request }) => {
         drained = await readJson(request);
-        return HttpResponse.json({});
+        return new HttpResponse(null, { status: 204 });
       }),
       http.get('*/api/v1/admin/transcode/tokens', () =>
-        HttpResponse.json({
-          items: [{ id: 't1', name: 'gpu-box', created_at_ms: 1_700_000_000_000 }],
-        }),
+        HttpResponse.json([{ id: 't1', name: 'gpu-box', created_at_ms: 1_700_000_000_000 }]),
       ),
     );
     const user = userEvent.setup();
@@ -620,6 +622,8 @@ describe('Cinema transcoding', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Re-run the transcode' })).toBeNull(),
     );
+    expect(rerunBody).toEqual({ scope: 'asset', id: '777', reason: 'again' });
+    expect(await screen.findByText(/4 queued, 1 running/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: 'Workers' }));
     await user.click(await screen.findByRole('switch', { name: 'Drain gpu-box' }));
@@ -650,8 +654,8 @@ describe('Cinema transcoding', () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TRANSCODE'] });
     let created: unknown;
     server.use(
-      http.get('*/api/v1/admin/transcode/jobs', () => HttpResponse.json({ items: [] })),
-      http.get('*/api/v1/admin/transcode/tokens', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/admin/transcode/jobs', () => HttpResponse.json([])),
+      http.get('*/api/v1/admin/transcode/tokens', () => HttpResponse.json([])),
       http.post('*/api/v1/admin/transcode/tokens', async ({ request }) => {
         created = await readJson(request);
         return HttpResponse.json({

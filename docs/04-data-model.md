@@ -71,12 +71,15 @@ Append-only. `(account_id, delta, reason enum{initial_grant, redemption, purchas
 ## 2. Guilds ("servers") and channels
 
 ### `guilds`
-id, name, icon_key, banner_key, splash_key, owner_id, description, `features text[]` (e.g. `COMMUNITY`, `DISCOVERABLE`, `STAFF`), verification_level, default_message_notifications, explicit_content_filter, mfa_level, system_channel_id, rules_channel_id, public_updates_channel_id, afk_channel_id, afk_timeout, preferred_locale, vanity_code, nsfw_level, `is_staff_guild bool` (exactly one row true, enforced by a partial unique index), boost_level (derived), traits jsonb, settings jsonb.
+id, name, icon_key, banner_key, splash_key, owner_id, description, `features text[]` (e.g. `COMMUNITY`, `DISCOVERABLE`, `STAFF`), verification_level, default_message_notifications, explicit_content_filter, mfa_level, system_channel_id, rules_channel_id, public_updates_channel_id, afk_channel_id, afk_timeout, preferred_locale, vanity_code (citext, unique, 3 to 32 letters, digits or hyphens), `vanity_uses` (joins through the code), nsfw_level, `is_staff_guild bool` (exactly one row true, enforced by a partial unique index), boost_level (derived), traits jsonb, settings jsonb.
 
 ### `guild_members`
-(guild_id, user_id) pk, nick, avatar_key (per-server), banner_key, bio, joined_at, premium_since, communication_disabled_until, flags, pending (membership screening).
+(guild_id, user_id) pk, nick, avatar_key (per-server), banner_key, bio, joined_at, premium_since, communication_disabled_until, flags, pending (membership screening, set at join when the Community has `screening_enabled`; pending members are read-only), `temporary bool` (joined through a temporary invite; the row is dropped when the member goes offline holding no role). The server tag lives in its own tables (migration 0631, LNG-SSET-011/012, LNG-GLD-011): `guild_tags` (guild_id pk, tag 2 to 4 letters or digits, badge smallint 0 to 15, color 24-bit RGB, members_can_display, updated_at) and `user_primary_guilds` (user_id pk, guild_id, set_at), the one tag a person shows; it is shown only while the tag exists, `members_can_display` is on and the person is still a member. (Phase 10 integration kept this one implementation; 0620 no longer adds `guilds.tag/tag_badge` or `accounts.primary_guild_*`.)
 
 Roles are a join table, `member_roles (guild_id, user_id, role_id)`, not an array column. Foreign keys cascade on role or member delete. The API still exposes `roles: [role ids]` on the member object.
+
+### `guild_directory`
+One row per server that asked to be listed (migration 0620, D-012): `guild_id` pk, `status` (`pending`, `approved`, `rejected`, `removed`), `category` (slug), `description` (blurb, 300), `featured`, `requested_by`, `requested_at`, `decided_by`, `decided_at`, `decision_note`. `guild_community` also holds the membership screening form: `screening_enabled`, `screening_description`, `screening_rules jsonb` (at most 16 strings).
 
 ### `roles`
 id, guild_id, name, color, secondary_color, icon_key, unicode_emoji, hoist, position, permissions (bigint, Discord bit layout), mentionable, managed, tags jsonb.

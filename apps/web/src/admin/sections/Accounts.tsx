@@ -1,14 +1,17 @@
-import { Button, Drawer, EmptyState, Notice, Select, TextInput } from '@sideroom/ui';
+import { Button, Drawer, Notice, Select, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import * as api from '../api';
+import * as donations from '../donations/api';
 import { useT, type MessageKey } from '../../i18n';
+import { DataTable, type Column } from '../DataTable';
+import { PersonDrawer } from './PersonDrawer';
 import {
   Async,
-  LoadMore,
   ReasonDialog,
   SectionHeader,
   StateBadge,
   fmtMs,
+  fmtUs,
   useAdminViewer,
   usePaged,
   useResource,
@@ -35,6 +38,57 @@ export function AccountsSection() {
       return { items: p.items, next: p.next_after };
     },
   );
+  const columns: Column<api.AccountSummary>[] = [
+    {
+      id: 'account',
+      header: t('admin.accounts.colAccount'),
+      locked: true,
+      csv: (a) => a.username,
+      cell: (a) => (
+        <>
+          <strong>{a.display_name || a.username}</strong>
+          <div className="ss-meta">@{a.username}</div>
+        </>
+      ),
+    },
+    {
+      id: 'email',
+      header: t('admin.accounts.colEmail'),
+      csv: (a) => a.email,
+      cell: (a) => (
+        <>
+          {a.email}
+          {!a.email_verified && <div className="ss-meta">{t('admin.accounts.unverified')}</div>}
+        </>
+      ),
+    },
+    {
+      id: 'state',
+      header: t('admin.accounts.colState'),
+      csv: (a) => a.state,
+      cell: (a) => <StateBadge state={a.state} />,
+    },
+    {
+      id: 'joined',
+      header: t('admin.accounts.colJoined'),
+      csv: (a) => new Date(a.created_at_ms).toISOString(),
+      cell: (a) => fmtMs(a.created_at_ms),
+    },
+    {
+      id: 'id',
+      header: t('admin.accounts.colId'),
+      defaultHidden: true,
+      csv: (a) => a.id,
+      cell: (a) => <span className="adm-mono">{a.id}</span>,
+    },
+    {
+      id: 'person',
+      header: t('admin.accounts.colPerson'),
+      defaultHidden: true,
+      csv: (a) => a.person_id,
+      cell: (a) => <span className="adm-mono">{a.person_id}</span>,
+    },
+  ];
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setApplied({ q: draft.q.trim(), state: draft.state });
@@ -46,91 +100,53 @@ export function AccountsSection() {
         title={t('admin.accounts.title')}
         description={t('admin.accounts.description')}
       />
-      <form
-        className="ss-toolbar"
-        onSubmit={submit}
-        role="search"
-        aria-label={t('admin.accounts.searchForm')}
-      >
-        <div className="ss-search">
-          <TextInput
-            label={t('admin.accounts.searchLabel')}
-            type="search"
-            value={draft.q}
-            placeholder={t('admin.accounts.searchPlaceholder')}
-            onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-          />
-        </div>
-        <Select
-          aria-label={t('admin.accounts.filterByState')}
-          options={stateOptions}
-          value={draft.state}
-          onValueChange={(state) => {
-            setDraft({ ...draft, state });
-            setApplied({ q: draft.q.trim(), state });
-          }}
-        />
-        <Button type="submit">{t('admin.accounts.search')}</Button>
-      </form>
-      {paged.error && (
-        <Notice variant="danger" className="ss-status" role="alert">
-          {paged.error}
-        </Notice>
-      )}
-      {!paged.error && !paged.loading && paged.items.length === 0 && (
-        <EmptyState
-          title={t('admin.accounts.emptyTitle')}
-          description={t('admin.accounts.emptyDescription')}
-        />
-      )}
-      {paged.items.length > 0 && (
-        <div className="adm-table-wrap">
-          <table className="adm-table" aria-label={t('admin.accounts.tableLabel')}>
-            <thead>
-              <tr>
-                <th scope="col">{t('admin.accounts.colAccount')}</th>
-                <th scope="col">{t('admin.accounts.colEmail')}</th>
-                <th scope="col">{t('admin.accounts.colState')}</th>
-                <th scope="col">{t('admin.accounts.colJoined')}</th>
-                <th scope="col">
-                  <span className="adm-vh">{t('admin.accounts.colActions')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {paged.items.map((a) => (
-                <tr key={a.id}>
-                  <td>
-                    <strong>{a.display_name || a.username}</strong>
-                    <div className="ss-meta">@{a.username}</div>
-                  </td>
-                  <td>
-                    {a.email}
-                    {!a.email_verified && (
-                      <div className="ss-meta">{t('admin.accounts.unverified')}</div>
-                    )}
-                  </td>
-                  <td>
-                    <StateBadge state={a.state} />
-                  </td>
-                  <td>{fmtMs(a.created_at_ms)}</td>
-                  <td>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      aria-label={t('admin.accounts.viewAria', { username: a.username })}
-                      onClick={() => setOpen(a.id)}
-                    >
-                      {t('admin.accounts.view')}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <LoadMore paged={paged} />
+      <DataTable
+        tableId="accounts"
+        label={t('admin.accounts.tableLabel')}
+        columns={columns}
+        paged={paged}
+        rowKey={(a) => a.id}
+        emptyTitle={t('admin.accounts.emptyTitle')}
+        emptyDescription={t('admin.accounts.emptyDescription')}
+        actions={(a) => (
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-label={t('admin.accounts.viewAria', { username: a.username })}
+            onClick={() => setOpen(a.id)}
+          >
+            {t('admin.accounts.view')}
+          </Button>
+        )}
+        filters={
+          <form
+            className="ss-toolbar"
+            onSubmit={submit}
+            role="search"
+            aria-label={t('admin.accounts.searchForm')}
+          >
+            <div className="ss-search">
+              <TextInput
+                label={t('admin.accounts.searchLabel')}
+                type="search"
+                value={draft.q}
+                placeholder={t('admin.accounts.searchPlaceholder')}
+                onChange={(e) => setDraft({ ...draft, q: e.target.value })}
+              />
+            </div>
+            <Select
+              aria-label={t('admin.accounts.filterByState')}
+              options={stateOptions}
+              value={draft.state}
+              onValueChange={(state) => {
+                setDraft({ ...draft, state });
+                setApplied({ q: draft.q.trim(), state });
+              }}
+            />
+            <Button type="submit">{t('admin.accounts.search')}</Button>
+          </form>
+        }
+      />
       {open && (
         <AccountDrawer id={open} onClose={() => setOpen(null)} onChanged={() => paged.reload()} />
       )}
@@ -165,6 +181,13 @@ function AccountDrawer({
   const tree = useResource(`tree:${id}:${viewer.can('MANAGE_INVITES')}`, async () =>
     viewer.can('MANAGE_INVITES') ? api.getInviteTree(id) : null,
   );
+  const entitlements = useResource(`ent:${id}:${viewer.can('MANAGE_DONATIONS')}`, async () =>
+    viewer.can('MANAGE_DONATIONS') ? donations.listGrants({ user_id: id }) : null,
+  );
+  const audit = useResource(`audit:${id}:${viewer.can('VIEW_ACCESS_LOG')}`, async () =>
+    viewer.can('VIEW_ACCESS_LOG') ? api.listAccessLog({ target_id: id, limit: 10 }) : null,
+  );
+  const [personOpen, setPersonOpen] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const [delta, setDelta] = useState('1');
   const d = res.data;
@@ -228,6 +251,8 @@ function AccountDrawer({
                     redeemed: det.invites_redeemed,
                   })}
                 </dd>
+                <dt>{t('admin.accounts.dtFlags')}</dt>
+                <dd>{a.flags}</dd>
                 <dt>{t('admin.accounts.dtSuspicion')}</dt>
                 <dd>{det.suspicion_level}</dd>
                 <dt>{t('admin.accounts.dtInviteCredits')}</dt>
@@ -318,6 +343,65 @@ function AccountDrawer({
                     </ul>
                   )}
                 </section>
+              )}
+              <div className="adm-actions">
+                <Button variant="secondary" onClick={() => setPersonOpen(true)}>
+                  {t('admin.accounts.openPerson')}
+                </Button>
+              </div>
+              {entitlements.data && (
+                <section className="ss-card" aria-labelledby="adm-ent-h">
+                  <h2 id="adm-ent-h">{t('admin.accounts.entitlementsTitle')}</h2>
+                  {entitlements.data.items.length === 0 ? (
+                    <p className="ss-sub">{t('admin.accounts.noEntitlements')}</p>
+                  ) : (
+                    <ul className="ss-list" aria-label={t('admin.accounts.entitlementsTitle')}>
+                      {entitlements.data.items.map((g) => (
+                        <li key={g.id} className="ss-row">
+                          <div className="ss-grow">
+                            <div className="ss-name">
+                              {g.kind} <StateBadge state={g.revoked_at_ms ? 'revoked' : 'active'} />
+                            </div>
+                            <div className="ss-meta">
+                              {g.permanent
+                                ? t('admin.accounts.entitlementPermanent')
+                                : g.ends_at_ms
+                                  ? t('admin.accounts.entitlementUntil', {
+                                      when: fmtMs(g.ends_at_ms),
+                                    })
+                                  : ''}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
+              {audit.data && (
+                <section className="ss-card" aria-labelledby="adm-audit-h">
+                  <h2 id="adm-audit-h">{t('admin.accounts.auditTitle')}</h2>
+                  {audit.data.items.length === 0 ? (
+                    <p className="ss-sub">{t('admin.accounts.noAudit')}</p>
+                  ) : (
+                    <ul className="ss-list" aria-label={t('admin.accounts.auditTitle')}>
+                      {audit.data.items.map((e) => (
+                        <li key={e.seq} className="ss-row">
+                          <div className="ss-grow">
+                            <div className="ss-name">{e.action}</div>
+                            <div className="ss-meta">
+                              {fmtUs(e.at_us)}
+                              {e.reason ? ` · ${e.reason}` : ''}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
+              {personOpen && (
+                <PersonDrawer personId={a.person_id} onClose={() => setPersonOpen(false)} />
               )}
               {det.recent_logins.length > 0 && (
                 <section className="ss-card" aria-labelledby="adm-login-h">

@@ -227,7 +227,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             auth_repo.clone(),
             id_src.clone(),
         )),
-        mailer,
+        mailer.clone(),
         id_src.clone(),
     )
     .with_config(auth_cfg.clone())
@@ -359,19 +359,22 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Threads: their own snowflake worker (process id + 5). The activity hook keeps
     // counters, reopens archived threads and auto-joins posters; it runs after the
     // social hooks on every stored message.
-    let threads_deps = Arc::new(routes::threads::ThreadsDeps::new(
-        sr_chat::threads::ThreadService::new(
-            PgChatRepo::new(pool.clone()),
-            clock.clone(),
-            SnowflakeGenerator::new(
+    let threads_deps = Arc::new(
+        routes::threads::ThreadsDeps::new(
+            sr_chat::threads::ThreadService::new(
+                PgChatRepo::new(pool.clone()),
                 clock.clone(),
-                cfg.server.worker_id,
-                (cfg.server.process_id + 5) % 32,
-            )
-            .context("thread snowflake generator")?,
-        ),
-        bus.clone(),
-    ));
+                SnowflakeGenerator::new(
+                    clock.clone(),
+                    cfg.server.worker_id,
+                    (cfg.server.process_id + 5) % 32,
+                )
+                .context("thread snowflake generator")?,
+            ),
+            bus.clone(),
+        )
+        .with_audit(audit_sink.clone()),
+    );
     let message_hooks: Arc<dyn sr_chat::message_hooks::MessageHooks> =
         Arc::new(sr_chat::threads::hooks::HookChain(vec![
             social,
@@ -394,7 +397,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         cfg.server.process_id,
     )
     .context("message snowflake generator")?
-    .with_cdn_signer(cdn_signer.clone());
+    .with_cdn_signer(cdn_signer.clone())
+    .with_audit(audit_sink.clone())
+    // Age-restricted channels need the 18+ answer (D-032, LNG-CHN-006).
+    .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())));
     // Rich messages: polls, stickers and link previews (LNG-MSG-010, LNG-MSG-014).
     if cfg.unfurl.allow_private_for_tests {
         tracing::warn!(
@@ -439,6 +445,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // audit entries it stores are announced on the gateway. The search index lives
     // in `[search] dir` (default `data/search`).
     let gateway_presence = Arc::new(crate::gateway_pg::GatewayPresence::default());
+    // Joining by invite, vanity code or the directory; also drops temporary memberships
+    // once their member has been offline for a minute (LNG-INV-005).
+    let member_joiner = Arc::new(routes::settings::InviteMemberJoiner::new(
+        Arc::new(sr_db::invite_join::PgInviteJoinRepo::new(pool.clone())),
+        Arc::new(PgChatRepo::new(pool.clone())),
+        bus.clone(),
+    ));
+    let temporary_members = Arc::new(crate::gateway_pg::TemporaryMembers::new(
+        member_joiner.clone(),
+        std::time::Duration::from_secs(60),
+    ));
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),
@@ -451,11 +468,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .context("settings snowflake generator")?
         .with_events(Arc::new(BusSettingsEvents::new(bus.clone())))
-        .with_joiner(Arc::new(routes::settings::InviteMemberJoiner::new(
-            Arc::new(sr_db::invite_join::PgInviteJoinRepo::new(pool.clone())),
-            Arc::new(PgChatRepo::new(pool.clone())),
-            bus.clone(),
-        )))
+        .with_joiner(member_joiner.clone())
         .with_presence(gateway_presence.clone())
         .with_timeouter(Arc::new(routes::settings::AdminMemberTimeouter::new(
             Arc::new(PgChatRepo::new(pool.clone())),
@@ -757,11 +770,16 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     } else {
         None
     };
+    let call_recorder = Arc::new(crate::voice::CallRecorder::default());
     let gateway = Gateway::new(
         GatewayConfig {
             // Cookie-authenticated web sessions may IDENTIFY from the public origin only.
             allowed_origins: vec![cfg.server.public_url.trim_end_matches('/').to_owned()],
-            voice: voice_setup.as_ref().map(|v| v.gateway.clone()),
+            voice: voice_setup.as_ref().map(|v| {
+                let mut g = v.gateway.clone();
+                g.calls = Some(call_recorder.clone());
+                g
+            }),
             ..GatewayConfig::default()
         },
         Arc::new(
@@ -769,12 +787,16 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 .with_apps(apps_service.clone()),
         ),
         Arc::new(
-            PgGuildDirectory::new(pool.clone(), clock.clone()).with_apps(apps_service.clone()),
+            PgGuildDirectory::new(pool.clone(), clock.clone())
+                .with_apps(apps_service.clone())
+                .with_temporary_members(temporary_members.clone())
+                .with_entitlements(payments.entitlements.clone()),
         ),
         bus.clone(),
     );
     gateway.start();
     gateway_presence.attach(gateway.clone());
+    temporary_members.attach(gateway.clone());
 
     // Social endpoints (relationships, DMs, acks, notification settings, profiles):
     // their own service on its own snowflake worker (process id + 3).
@@ -792,22 +814,47 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // each recipient before the message itself.
     let social_api = Arc::new(social_api);
     let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
+    call_recorder.bind(messages.clone());
 
     // Platform admin API: permissions are resolved per request from the Staff Server; every
     // action is written to the hash-chained access log. Feature toggles go through the shared
     // feature service and the System page reports the live gateway session count.
-    let admin = routes::admin::AdminDeps::new(
-        sr_admin::AdminService::new(Arc::new(sr_db::admin_repo::PgAdminRepo::new(
-            pool.clone(),
-            id_src.clone(),
-        )))
-        .with_bus(bus.clone()),
-    )
-    .with_features(features.clone())
-    .with_gateway_sessions({
-        let gw = gateway.clone();
-        Arc::new(move || gw.session_count())
-    });
+    // The system user speaks through the message stack: appointment DMs, announcement DMs and
+    // the cards of the Staff Server feeds (ADM-STF-007, ADM-ALR-001/002/003).
+    let admin_repo = Arc::new(sr_db::admin_repo::PgAdminRepo::new(
+        pool.clone(),
+        id_src.clone(),
+    ));
+    let staff_voice = Arc::new(crate::staff_feed::StaffVoice::new(
+        pool.clone(),
+        messages.clone(),
+        &cfg.server.public_url,
+    ));
+    let admin_service = sr_admin::AdminService::new(admin_repo.clone())
+        .with_extras(admin_repo)
+        .with_notifier(staff_voice.clone())
+        .with_bus(bus.clone());
+    crate::staff_feed::spawn(Arc::new(crate::staff_feed::StaffFeed {
+        voice: staff_voice,
+        admin: admin_service.clone(),
+        mailer,
+        bus: bus.clone(),
+        throttle: crate::staff_feed::MailThrottle::default(),
+    }));
+    // Sensitive admin actions (private content, account email and password, staff changes,
+    // announcements) need a second factor checked in the last 15 minutes (ADM-STF-009).
+    // `SR_ADMIN_REQUIRE_REAUTH=0` switches that off, for development and end-to-end tests.
+    let require_reauth = !matches!(
+        std::env::var("SR_ADMIN_REQUIRE_REAUTH").as_deref(),
+        Ok("0" | "false" | "off")
+    );
+    let admin = routes::admin::AdminDeps::new(admin_service)
+        .with_features(features.clone())
+        .with_reauth(require_reauth)
+        .with_gateway_sessions({
+            let gw = gateway.clone();
+            Arc::new(move || gw.session_count())
+        });
 
     let settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,
@@ -838,6 +885,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(threads_deps.clone())
         .extension(social_api)
         .extension(settings_deps.clone())
+        .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
+            sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
+        ))))
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
         .extension(library_deps)
@@ -929,6 +979,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
+    let runner = crate::jobs::register_insights(runner, &pool);
     let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
@@ -947,6 +998,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::payments_jobs::register(runner, &pool, payments.service.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
+    crate::jobs::schedule_insights(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
     crate::admin_jobs::schedule(&pool).await?;
@@ -992,7 +1044,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         tokio::spawn(async move {
             loop {
                 match rx.recv().await {
-                    Ok(e) => gw.voice_media_lost(e.user, e.channel).await,
+                    Ok(e) => match e.kind {
+                        sr_voice::SfuEventKind::Lost => {
+                            gw.voice_media_lost(e.user, e.channel).await
+                        }
+                        sr_voice::SfuEventKind::Active => gw.voice_activity(e.user, e.channel),
+                    },
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }

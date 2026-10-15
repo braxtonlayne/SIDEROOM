@@ -10,6 +10,7 @@
 //! | `InviteCreated` / `InviteDeleted` | `INVITE_CREATE` / `INVITE_DELETE` |
 //! | `EmojisUpdated` | `GUILD_EMOJIS_UPDATE` |
 //! | `StickersUpdated` | `GUILD_STICKERS_UPDATE` |
+//! | `SoundboardUpdated` | `GUILD_SOUNDBOARD_SOUNDS_UPDATE` |
 //! | `WebhooksUpdated` | `WEBHOOKS_UPDATE` |
 //! | `AutoModRuleCreated/Updated/Deleted` | `AUTO_MODERATION_RULE_CREATE/UPDATE/DELETE` |
 //! | `AutoModActionExecuted` | `AUTO_MODERATION_ACTION_EXECUTION` |
@@ -18,7 +19,7 @@
 
 use async_trait::async_trait;
 use serde_json::Value;
-use sr_core::{ChannelId, GuildId};
+use sr_core::{ChannelId, GuildId, UserId};
 use sr_events::{DomainEvent, EventBus};
 use std::sync::Arc;
 
@@ -41,6 +42,11 @@ pub enum SettingsEvent {
     },
     /// `payload` is `{guild_id, stickers: [...]}`.
     StickersUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
+    /// `payload` is `{guild_id, soundboard_sounds: [...]}`.
+    SoundboardUpdated {
         guild: GuildId,
         payload: Value,
     },
@@ -74,6 +80,12 @@ pub enum SettingsEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// A membership application was approved; `payload` is the member object.
+    MemberJoined {
+        guild: GuildId,
+        user: UserId,
+        payload: Value,
+    },
 }
 
 impl SettingsEvent {
@@ -83,13 +95,15 @@ impl SettingsEvent {
             | Self::InviteDeleted { guild, .. }
             | Self::EmojisUpdated { guild, .. }
             | Self::StickersUpdated { guild, .. }
+            | Self::SoundboardUpdated { guild, .. }
             | Self::WebhooksUpdated { guild, .. }
             | Self::AutoModRuleCreated { guild, .. }
             | Self::AutoModRuleUpdated { guild, .. }
             | Self::AutoModRuleDeleted { guild, .. }
             | Self::AutoModActionExecuted { guild, .. }
             | Self::AuditLogEntryCreated { guild, .. }
-            | Self::CommunityChanged { guild, .. } => *guild,
+            | Self::CommunityChanged { guild, .. }
+            | Self::MemberJoined { guild, .. } => *guild,
         }
     }
 
@@ -99,6 +113,7 @@ impl SettingsEvent {
             Self::InviteDeleted { .. } => "INVITE_DELETE",
             Self::EmojisUpdated { .. } => "GUILD_EMOJIS_UPDATE",
             Self::StickersUpdated { .. } => "GUILD_STICKERS_UPDATE",
+            Self::SoundboardUpdated { .. } => "GUILD_SOUNDBOARD_SOUNDS_UPDATE",
             Self::WebhooksUpdated { .. } => "WEBHOOKS_UPDATE",
             Self::AutoModRuleCreated { .. } => "AUTO_MODERATION_RULE_CREATE",
             Self::AutoModRuleUpdated { .. } => "AUTO_MODERATION_RULE_UPDATE",
@@ -106,6 +121,7 @@ impl SettingsEvent {
             Self::AutoModActionExecuted { .. } => "AUTO_MODERATION_ACTION_EXECUTION",
             Self::AuditLogEntryCreated { .. } => "GUILD_AUDIT_LOG_ENTRY_CREATE",
             Self::CommunityChanged { .. } => "GUILD_UPDATE",
+            Self::MemberJoined { .. } => "GUILD_MEMBER_ADD",
         }
     }
 }
@@ -155,6 +171,9 @@ impl SettingsEvent {
             Self::StickersUpdated { guild, payload } => {
                 DomainEvent::StickersUpdated { guild, payload }
             }
+            Self::SoundboardUpdated { guild, payload } => {
+                DomainEvent::SoundboardUpdated { guild, payload }
+            }
             Self::WebhooksUpdated { guild, channel } => {
                 DomainEvent::WebhooksUpdated { guild, channel }
             }
@@ -180,6 +199,15 @@ impl SettingsEvent {
             Self::CommunityChanged { guild, payload } => {
                 DomainEvent::GuildUpdated { guild, payload }
             }
+            Self::MemberJoined {
+                guild,
+                user,
+                payload,
+            } => DomainEvent::MemberJoined {
+                guild,
+                user,
+                payload,
+            },
         }
     }
 }

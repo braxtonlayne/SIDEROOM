@@ -50,6 +50,9 @@ pub struct PruneCriteria {
 pub trait GuildAdminRepository: Send + Sync {
     /// Persist the editable guild columns.
     async fn update_guild(&self, guild: &Guild) -> RepoResult<()>;
+    /// Persist the vanity code of a guild (`None` clears it). `false` when another guild
+    /// holds the code already (also when a concurrent claim wins the race).
+    async fn set_vanity(&self, guild: GuildId, code: Option<&str>) -> RepoResult<bool>;
     /// Delete the guild and everything under it.
     async fn delete_guild(&self, id: GuildId) -> RepoResult<()>;
     /// Guilds `user` is a member of, ordered by guild id.

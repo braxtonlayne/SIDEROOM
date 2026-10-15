@@ -1,6 +1,7 @@
 import { Notice, ProgressBar } from '@sideroom/ui';
 import * as api from '../api';
 import { formatNumber, useT } from '../../i18n';
+import { AlertsPanel, DonationsTile, ReviewTiles, SetupChecklist } from './DashboardExtras';
 import { Async, SectionHeader, Stat, useAdminViewer, useResource } from '../ui';
 
 const n = (v: number) => formatNumber(v);
@@ -69,6 +70,7 @@ export function DashboardSection() {
                 }
               />
             </div>
+            <ReviewTiles />
             {cap.data != null && (
               <section className="ss-card adm-gauge" aria-labelledby="adm-cap-h">
                 <h2 id="adm-cap-h">{t('admin.dashboard.capTitle')}</h2>
@@ -85,11 +87,20 @@ export function DashboardSection() {
                 </p>
               </section>
             )}
+            <DonationsTile />
+            <AlertsPanel deadJobs={s.jobs_dead} />
+            {(viewer.can('OPERATOR') || viewer.can('MANAGE_FEATURES')) && (
+              <SetupChecklist staff={s.staff} />
+            )}
           </>
         )}
       </Async>
-      <Notice variant="info" className="ss-status" title={t('admin.dashboard.notTrackedTitle')}>
-        {t('admin.dashboard.notTracked')}
+      <Notice
+        variant="info"
+        className="ss-status"
+        title={t('admin.dashboardExtras.notTrackedTitle')}
+      >
+        {t('admin.dashboardExtras.notTracked')}
       </Notice>
     </>
   );

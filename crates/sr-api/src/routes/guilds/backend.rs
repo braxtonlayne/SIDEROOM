@@ -44,6 +44,25 @@ pub trait GuildBackend: Send + Sync {
     async fn list_my_guilds(&self, user: UserId) -> ChatResult<Vec<(Guild, Permissions)>>;
     async fn edit_guild(&self, actor: UserId, id: GuildId, patch: GuildPatch) -> ChatResult<Guild>;
     async fn delete_guild(&self, actor: UserId, id: GuildId) -> ChatResult<()>;
+    /// The vanity invite code (`MANAGE_GUILD`).
+    async fn vanity_code(&self, actor: UserId, id: GuildId) -> ChatResult<Option<String>>;
+    /// Claim, change or release (`None`) the vanity invite code (`MANAGE_GUILD`); emits
+    /// `GUILD_UPDATE`.
+    async fn set_vanity_code(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        code: Option<String>,
+    ) -> ChatResult<Guild>;
+    /// Agree to the membership screening (LNG-GLD-008); emits `GUILD_MEMBER_UPDATE`.
+    async fn accept_screening(&self, user: UserId, guild: GuildId) -> ChatResult<Member>;
+    /// Grant the roles chosen through onboarding answers; returns the roles newly added.
+    async fn apply_onboarding_roles(
+        &self,
+        user: UserId,
+        guild: GuildId,
+        roles: &[RoleId],
+    ) -> ChatResult<Vec<RoleId>>;
     async fn leave_guild(&self, user: UserId, id: GuildId) -> ChatResult<()>;
     // channels
     async fn list_channels(
@@ -192,6 +211,21 @@ pub trait AuditSink: Send + Sync {
         changes: Vec<AuditChange>,
         reason: Option<&str>,
     );
+
+    /// Like [`Self::record`], with Discord's per-action `options` (`channel_id`,
+    /// `count`, ...). Sinks that cannot store options drop them.
+    async fn record_with_options(
+        &self,
+        guild: GuildId,
+        actor: UserId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        options: serde_json::Value,
+    ) {
+        let _ = options;
+        self.record(guild, actor, action, target_id, Vec::new(), None)
+            .await;
+    }
 }
 
 #[async_trait]
@@ -208,6 +242,22 @@ impl<R: SettingsRepository + 'static> AuditSink for SettingsService<R> {
         // The change is already committed; a failed audit write is logged, not surfaced.
         if let Err(e) = self
             .record_audit(guild, actor, action, target_id, changes, reason)
+            .await
+        {
+            tracing::warn!(error = %e, ?action, "failed to record audit entry");
+        }
+    }
+
+    async fn record_with_options(
+        &self,
+        guild: GuildId,
+        actor: UserId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        options: serde_json::Value,
+    ) {
+        if let Err(e) = self
+            .record_audit_with_options(guild, actor, action, target_id, options)
             .await
         {
             tracing::warn!(error = %e, ?action, "failed to record audit entry");
@@ -380,6 +430,51 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         Ok(())
     }
 
+    async fn vanity_code(&self, actor: UserId, id: GuildId) -> ChatResult<Option<String>> {
+        self.svc.vanity_code(actor, id).await
+    }
+
+    async fn set_vanity_code(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        code: Option<String>,
+    ) -> ChatResult<Guild> {
+        let g = self.svc.set_vanity_code(actor, id, code.as_deref()).await?;
+        self.audit(id, actor, AuditAction::GuildUpdate, id.get(), None)
+            .await;
+        let roles = self.svc.list_roles(actor, id).await.unwrap_or_default();
+        self.emit(DomainEvent::GuildUpdated {
+            guild: id,
+            payload: val(&GuildObject::new(&g, Some(&roles), None)),
+        })
+        .await;
+        Ok(g)
+    }
+
+    async fn accept_screening(&self, user: UserId, guild: GuildId) -> ChatResult<Member> {
+        let before = self.svc.get_member_view(user, guild, user).await?;
+        let m = self.svc.accept_screening(user, guild).await?;
+        if before.pending {
+            self.emit_member_updated(&m).await;
+        }
+        Ok(m)
+    }
+
+    async fn apply_onboarding_roles(
+        &self,
+        user: UserId,
+        guild: GuildId,
+        roles: &[RoleId],
+    ) -> ChatResult<Vec<RoleId>> {
+        let added = self.svc.apply_onboarding_roles(user, guild, roles).await?;
+        if !added.is_empty() {
+            let m = self.svc.get_member_view(user, guild, user).await?;
+            self.emit_member_updated(&m).await;
+        }
+        Ok(added)
+    }
+
     async fn leave_guild(&self, user: UserId, id: GuildId) -> ChatResult<()> {
         self.svc.leave_guild(user, id).await?;
         self.emit_member_left(id, user).await;
@@ -507,17 +602,30 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         overwrite: Overwrite,
     ) -> ChatResult<()> {
         let target = overwrite.id;
+        let kind = overwrite.kind;
+        let cleared = overwrite.allow.is_empty() && overwrite.deny.is_empty();
+        // Discord logs a new overwrite as CREATE (13) and a changed one as UPDATE (14); an
+        // empty one removes the row, which is a DELETE (15).
+        let existed = self
+            .svc
+            .get_channel_view(actor, channel)
+            .await
+            .map(|v| {
+                v.overwrites
+                    .iter()
+                    .any(|o| o.id == target && o.kind == kind)
+            })
+            .unwrap_or(false);
         let view = self.svc.set_overwrite(actor, channel, overwrite).await?;
         self.emit_channel_updated(&view).await;
-        if let Some(g) = view.channel.guild_id {
-            self.audit(
-                g,
-                actor,
-                AuditAction::ChannelOverwriteUpdate,
-                target.get(),
-                None,
-            )
-            .await;
+        let action = match (existed, cleared) {
+            (false, true) => None,
+            (true, true) => Some(AuditAction::ChannelOverwriteDelete),
+            (false, false) => Some(AuditAction::ChannelOverwriteCreate),
+            (true, false) => Some(AuditAction::ChannelOverwriteUpdate),
+        };
+        if let (Some(g), Some(action)) = (view.channel.guild_id, action) {
+            self.audit(g, actor, action, target.get(), None).await;
         }
         Ok(())
     }

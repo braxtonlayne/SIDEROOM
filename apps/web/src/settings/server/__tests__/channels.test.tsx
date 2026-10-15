@@ -266,6 +266,43 @@ describe('Channel editor extra tabs (LNG-CHN-017)', () => {
   });
 });
 
+describe('Forum settings', () => {
+  it('edits tags, sort and layout on the Features tab of a forum channel', async () => {
+    seed({ perms: [MANAGE.channels] });
+    const cap = capture();
+    server.use(
+      http.get('*/api/v1/guilds/g1/channels', () =>
+        HttpResponse.json([
+          ch('cat', 'Text', 4),
+          ch('c1', 'general', 15, {
+            parent_id: 'cat',
+            available_tags: [{ id: 't1', name: 'Question', moderated: false }],
+          }),
+        ]),
+      ),
+      http.patch('*/api/v1/channels/c1', async ({ request }) => {
+        await cap.record(request);
+        return HttpResponse.json(ch('c1', 'general', 15));
+      }),
+    );
+    await openSettings('channels');
+    await userEvent.click(await screen.findByRole('button', { name: '# general' }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Features' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add tag' }));
+    await userEvent.type(screen.getByLabelText('Tag 2 name'), 'Bug');
+    await userEvent.selectOptions(screen.getByLabelText('Default sort order'), '1');
+    await userEvent.selectOptions(screen.getByLabelText('Default layout'), '2');
+    await userEvent.click(screen.getByRole('button', { name: 'Save forum settings' }));
+    await waitFor(() => expect(cap.calls).toHaveLength(1));
+    expect(cap.calls[0]!.body).toEqual({
+      available_tags: [{ id: 't1', name: 'Question', moderated: false }, { name: 'Bug' }],
+      default_reaction_emoji: null,
+      default_sort_order: 1,
+      default_forum_layout: 2,
+    });
+  });
+});
+
 describe('overwriteApplies', () => {
   it('hides voice bits on text channels and text bits on voice channels', () => {
     const text = ch('a', 'a', 0) as never;

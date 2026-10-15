@@ -223,6 +223,26 @@ impl BusPaymentEvents {
 #[async_trait::async_trait]
 impl sr_payments::service::PaymentEvents for BusPaymentEvents {
     async fn payment_update(&self, user_id: i64, payload: serde_json::Value) {
+        // A newly credited invoice goes to the Staff Server's `#donations` feed (ADM-ALR-002).
+        // The card names no donor: staff with MANAGE_DONATIONS open the invoice to see who paid.
+        let state = payload.get("state").and_then(|s| s.as_str()).unwrap_or("");
+        if matches!(state, "confirmed" | "overpaid" | "late_paid")
+            && let Some(invoice) = payload.get("invoice_id").and_then(|s| s.as_str())
+        {
+            let sats = payload
+                .get("confirmed_sats")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0);
+            let ev = sr_events::DomainEvent::StaffFeed {
+                feed: sr_events::StaffFeedKind::Donation,
+                title: "Donation confirmed".to_owned(),
+                detail: format!("{sats} sats credited ({state})."),
+                link: Some(format!("/admin/donations/invoices/{invoice}")),
+            };
+            if let Err(e) = self.bus.publish(sr_events::Topic::Platform, ev).await {
+                tracing::warn!(error = %e, "publishing a donation feed card failed");
+            }
+        }
         self.to_user(user_id, sr_payments::PAYMENT_EVENT, payload)
             .await;
     }

@@ -13,6 +13,8 @@ pub enum SettingsError {
     InviteExhausted,
     #[error("invites are paused in this server")]
     InvitesPaused,
+    #[error("invites to the Staff Server are disabled")]
+    StaffServerInvites,
     #[error("user is banned from this guild")]
     Banned,
     #[error("maximum number of invites reached")]
@@ -21,12 +23,16 @@ pub enum SettingsError {
     UnknownEmoji,
     #[error("unknown sticker")]
     UnknownSticker,
+    #[error("unknown soundboard sound")]
+    UnknownSound,
     #[error("unknown webhook")]
     UnknownWebhook,
     #[error("unknown automod rule")]
     UnknownRule,
     #[error("unknown template")]
     UnknownTemplate,
+    #[error("unknown or already decided application")]
+    UnknownApplication,
     #[error("a server limit was reached: {0}")]
     LimitReached(&'static str),
     #[error("missing permissions")]
@@ -59,14 +65,21 @@ impl SettingsError {
             Self::InvitesPaused => {
                 ApiError::with_message(ErrorCode::FeatureDisabled, "Invites are paused")
             }
+            Self::StaffServerInvites => ApiError::with_message(
+                ErrorCode::FeatureDisabled,
+                "Invites to the Staff Server are disabled. Staff join by appointment.",
+            ),
             Self::Banned => ApiError::new(ErrorCode::UserBanned),
             Self::MaxInvites => ApiError::new(ErrorCode::MaxInvites),
             Self::UnknownEmoji | Self::UnknownSticker => ApiError::new(ErrorCode::UnknownEmoji),
+            Self::UnknownSound => ApiError::new(ErrorCode::UnknownSound),
             Self::UnknownWebhook => ApiError::new(ErrorCode::UnknownWebhook),
             Self::UnknownRule | Self::UnknownTemplate => ApiError::new(ErrorCode::General),
+            Self::UnknownApplication => ApiError::new(ErrorCode::SrNotFound),
             Self::LimitReached(what) => match *what {
                 "static emoji" | "animated emoji" => ApiError::new(ErrorCode::MaxEmojis),
                 "stickers" => ApiError::new(ErrorCode::MaxStickers),
+                "soundboard sounds" => ApiError::new(ErrorCode::MaxSounds),
                 _ => ApiError::with_message(
                     ErrorCode::InvalidFormBody,
                     format!("Maximum number of {what} reached"),

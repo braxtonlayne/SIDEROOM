@@ -235,20 +235,28 @@ export function usePaged<T, C = string>(
   const tRef = useRef(t);
   tRef.current = t;
   const [nonce, setNonce] = useState(0);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   const run = useCallback(async (cursor: C | null, append: boolean) => {
     const forKey = keyRef.current;
     setLoading(true);
+    const current = () => alive.current && keyRef.current === forKey;
     try {
       const page = await fetchRef.current(cursor);
-      if (keyRef.current !== forKey) return;
+      if (!current()) return;
       setItems((cur) => (append ? [...cur, ...page.items] : page.items));
       setNext(page.next ?? null);
       setError(null);
     } catch (e) {
-      if (keyRef.current === forKey) setError(errorText(e, tRef.current('admin.ui.loadError')));
+      if (current()) setError(errorText(e, tRef.current('admin.ui.loadError')));
     } finally {
-      if (keyRef.current === forKey) setLoading(false);
+      if (current()) setLoading(false);
     }
   }, []);
 
@@ -277,5 +285,89 @@ export function LoadMore({ paged }: { paged: Paged<unknown> }) {
         {t('admin.ui.loadMore')}
       </Button>
     </div>
+  );
+}
+
+// ---- plain form dialog (no reason) ----
+
+export interface FormDialogProps {
+  open: boolean;
+  title: string;
+  description?: ReactNode;
+  confirmLabel: string;
+  danger?: boolean;
+  children: ReactNode;
+  valid?: boolean;
+  onConfirm: () => Promise<unknown>;
+  onCancel: () => void;
+}
+
+/** A modal form for actions that carry fields but no audit reason; errors show inside and keep it open. */
+export function FormDialog({
+  open,
+  title,
+  description,
+  confirmLabel,
+  danger,
+  children,
+  valid = true,
+  onConfirm,
+  onCancel,
+}: FormDialogProps) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setError(null);
+      setBusy(false);
+    }
+  }, [open]);
+  const submit = async () => {
+    if (!valid || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      open={open}
+      onClose={busy ? () => undefined : onCancel}
+      title={title}
+      description={description}
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+            {t('admin.ui.cancel')}
+          </Button>
+          <Button
+            variant={danger ? 'danger' : 'primary'}
+            disabled={!valid}
+            loading={busy}
+            onClick={() => void submit()}
+          >
+            {confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      <form
+        className="adm-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
+        {children}
+        <ApiProblem error={error} />
+      </form>
+    </Modal>
   );
 }

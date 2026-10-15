@@ -10,6 +10,7 @@ import { useLoungeUi } from '../store';
 import { connectionMessage } from '../shell/Banners';
 import { useNotifSettings } from '../shell/notifSettings';
 import { useSelfPresence } from '../shell/selfPresence';
+import { usePlatformStaff } from '../shell/platformStaff';
 import { useSocial } from '../shell/social';
 
 vi.mock('../../store/connect', () => ({
@@ -595,5 +596,54 @@ describe('Home accessibility', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Select Friends' });
     await within(dialog).findByRole('checkbox', { name: /Bob B/ });
     expect(await axeViolations(dialog)).toEqual([]);
+  });
+});
+
+describe('platform admin entry points (ADM-STF-010, ADM-STF-011)', () => {
+  beforeEach(() => {
+    seed();
+    quiet();
+    usePlatformStaff.setState({ staff: false, loaded: false });
+  });
+
+  it('shows Platform Admin in the user menu to staff and opens /admin', async () => {
+    server.use(
+      http.get('*/api/v1/admin/me', () =>
+        HttpResponse.json({ is_owner: false, platform_permissions: '1', user_id: '1' }),
+      ),
+    );
+    const router = at('/channels/@me');
+    await userEvent.click(await screen.findByRole('button', { name: /Set status/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Platform Admin' }));
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/admin/));
+  });
+
+  it('does not show it to people who are not staff', async () => {
+    server.use(
+      http.get('*/api/v1/admin/me', () =>
+        HttpResponse.json({ message: 'Missing permissions' }, { status: 403 }),
+      ),
+    );
+    at('/channels/@me');
+    await userEvent.click(await screen.findByRole('button', { name: /Set status/ }));
+    await screen.findByRole('menuitem', { name: 'Invisible' });
+    await waitFor(() => expect(usePlatformStaff.getState().loaded).toBe(true));
+    expect(screen.queryByRole('menuitem', { name: 'Platform Admin' })).toBeNull();
+  });
+
+  it('frames the Staff Server in the rail and offers Platform Admin in its server menu', async () => {
+    server.use(
+      http.get('*/api/v1/admin/me', () =>
+        HttpResponse.json({ is_owner: false, platform_permissions: '1', user_id: '1' }),
+      ),
+    );
+    useStore.setState({
+      guilds: { g1: { id: 'g1', name: 'Staff Server', owner_id: '1', is_staff_guild: true } },
+    });
+    at('/channels/g1/c1');
+    const rail = await screen.findByRole('navigation', { name: /servers/i });
+    expect(await within(rail).findByText('STAFF')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Staff Server' }));
+    expect(await screen.findByRole('menuitem', { name: 'Platform Admin' })).toBeInTheDocument();
   });
 });

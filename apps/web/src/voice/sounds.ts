@@ -13,7 +13,8 @@ export type Cue =
   | 'undeafen'
   | 'pttOn'
   | 'pttOff'
-  | 'error';
+  | 'error'
+  | 'ring';
 
 export type CueGroup = 'joinLeave' | 'muteDeafen' | 'ptt' | 'always';
 
@@ -72,6 +73,16 @@ export const CUES: Record<Cue, { group: CueGroup; tones: Tone[] }> = {
   pttOn: { group: 'ptt', tones: [{ hz: 900, ms: 45 }] },
   pttOff: { group: 'ptt', tones: [{ hz: 600, ms: 45 }] },
   error: { group: 'always', tones: [{ hz: 220, ms: 160 }] },
+  /** One ring of the incoming-call tone; the overlay repeats it while the call rings. */
+  ring: {
+    group: 'always',
+    tones: [
+      { hz: 440, ms: 220 },
+      { hz: 480, ms: 220 },
+      { hz: 440, ms: 220 },
+      { hz: 480, ms: 220 },
+    ],
+  },
 };
 
 export interface CueSettings {

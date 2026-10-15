@@ -1,0 +1,47 @@
+export default {
+  'admin.dashboardExtras.notTrackedTitle': 'Not tracked here yet',
+  'admin.dashboardExtras.notTracked':
+    'Voice rooms, egress and storage used need a stats route that does not exist yet; they will appear when it does.',
+  'admin.dashboardExtras.reviewGroup': 'Review queue sizes',
+  'admin.dashboardExtras.reviewLibrary': 'Library submissions waiting',
+  'admin.dashboardExtras.reviewApps': 'App reviews waiting',
+  'admin.dashboardExtras.reviewCinema': 'Open Cinema reports',
+  'admin.dashboardExtras.donationsTitle': 'Donations against hosting cost',
+  'admin.dashboardExtras.donationsGauge': 'Donations credited this month against the hosting cost',
+  'admin.dashboardExtras.donationsSummary':
+    '{credited} credited this month of {cost} hosting cost.',
+  'admin.dashboardExtras.noCost':
+    '{credited} credited this month. Set the hosting cost under Donation pricing to see a gauge.',
+  'admin.dashboardExtras.alertsTitle': 'Recent alerts',
+  'admin.dashboardExtras.noAlerts': 'Nothing needs attention.',
+  'admin.dashboardExtras.alertBadge': 'Alert',
+  'admin.dashboardExtras.alertDeadJobs':
+    '{count, plural, one {# background job has failed for good} other {# background jobs have failed for good}}.',
+  'admin.dashboardExtras.alertProbe': '{name} is failing: {error}',
+  'admin.dashboardExtras.alertDonations':
+    '{count, plural, one {# donation invoice needs attention} other {# donation invoices need attention}}.',
+  'admin.dashboardExtras.alertChain': 'The access log hash chain breaks at entry {seq}.',
+  'admin.setup.title': 'Setup checklist',
+  'admin.setup.progress': '{done} of {total} steps done.',
+  'admin.setup.stateDone': 'Done',
+  'admin.setup.stateTodo': 'To do',
+  'admin.setup.stateUnknown': 'Cannot check yet',
+  'admin.setup.open': 'Open',
+  'admin.setup.openAria': 'Open the page for: {label}',
+  'admin.setup.storage': 'Object storage',
+  'admin.setup.storageOk': 'The storage probe passes.',
+  'admin.setup.storageBad': 'The storage probe is failing. Check the System page.',
+  'admin.setup.wallet': 'Bitcoin wallet for donations',
+  'admin.setup.walletOk': 'A wallet is configured.',
+  'admin.setup.walletMissing': 'No wallet yet. Donations stay off until one is set.',
+  'admin.setup.limits': 'Default limits',
+  'admin.setup.limitsChanged':
+    '{count, plural, one {# limit} other {# limits}} changed from the defaults.',
+  'admin.setup.limitsDefault': 'Every limit is still at its default. Review them.',
+  'admin.setup.staff': 'A second staff member',
+  'admin.setup.staffCount': '{count, plural, one {# staff member} other {# staff members}}.',
+  'admin.setup.smtp': 'Email (SMTP) test send',
+  'admin.setup.discord': 'Discord sign-in',
+  'admin.setup.voice': 'Voice and TURN test',
+  'admin.setup.noStatusRoute': 'The server has no status route for this yet.',
+} satisfies Record<string, string>;

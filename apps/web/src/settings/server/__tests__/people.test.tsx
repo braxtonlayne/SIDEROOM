@@ -123,6 +123,82 @@ describe('Members', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Kick bob' })).toBeNull());
   });
 
+  it('bulk-kicks the selected members, skipping those it cannot moderate', async () => {
+    seed({ perms: [MANAGE.kick], position: 3 });
+    const cap = capture();
+    server.use(
+      http.delete('*/api/v1/guilds/g1/members/2', async ({ request }) => {
+        await cap.record(request);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await openSettings('members');
+    await screen.findByText('3 members');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select bob' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select carol' }));
+    const bar = screen.getByRole('toolbar', { name: 'Bulk actions' });
+    expect(within(bar).getByText('2 members selected')).toBeInTheDocument();
+    expect(within(bar).queryByRole('button', { name: 'Add role' })).toBeNull();
+    await userEvent.click(within(bar).getByRole('button', { name: 'Kick' }));
+    const dialog = await screen.findByRole('dialog', { name: /Kick: 1 member/ });
+    await userEvent.type(within(dialog).getByLabelText('Reason'), 'cleanup');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kick' }));
+    await waitFor(() => expect(cap.calls).toHaveLength(1));
+    expect(await screen.findByText('Done for 1 member.')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Select bob' })).toBeNull();
+  });
+
+  it('bulk-adds a role and keeps the failed members selected', async () => {
+    seed({ perms: [MANAGE.roles], position: 9 });
+    const puts: string[] = [];
+    server.use(
+      http.put('*/api/v1/guilds/g1/members/:uid/roles/:rid', ({ params }) => {
+        puts.push(`${String(params.uid)}:${String(params.rid)}`);
+        return params.uid === '3'
+          ? HttpResponse.json({ message: 'Missing Permissions' }, { status: 403 })
+          : new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await openSettings('members');
+    await screen.findByText('3 members');
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'Select all members on this page' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Add role' }));
+    const dialog = await screen.findByRole('dialog', { name: /Add role: 3 members/ });
+    await userEvent.selectOptions(within(dialog).getByLabelText('Role'), 'low');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add role' }));
+    expect(await screen.findByText(/Done for 2, failed for 1/)).toBeInTheDocument();
+    expect(puts.sort()).toEqual(['1:low', '2:low', '3:low']);
+    expect(screen.getByText('1 member selected')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select carol' })).toBeChecked();
+  });
+
+  it('sorts the loaded members by when they joined', async () => {
+    seed({ perms: [MANAGE.kick] });
+    const joined = (id: string, name: string, at: string) =>
+      memberObj(id, name, [], { joined_at: at });
+    await openSettings('members');
+    server.use(
+      http.get('*/api/v1/guilds/g1/members', () =>
+        HttpResponse.json([
+          joined('1', 'me', '2026-03-01T00:00:00Z'),
+          joined('2', 'bob', '2026-01-01T00:00:00Z'),
+          joined('3', 'carol', '2026-02-01T00:00:00Z'),
+        ]),
+      ),
+    );
+    // Changing the role filter makes the page load again, now from the handler above.
+    await userEvent.selectOptions(screen.getByLabelText('Filter by role'), 'mod');
+    await screen.findByText('3 members');
+    const names = () =>
+      screen.getAllByRole('button', { name: /^Details for / }).map((b) => b.textContent);
+    await userEvent.selectOptions(screen.getByLabelText('Sort by'), 'oldest');
+    expect(names()).toEqual(['bob', 'carol', 'me']);
+    await userEvent.selectOptions(screen.getByLabelText('Sort by'), 'newest');
+    expect(names()).toEqual(['me', 'carol', 'bob']);
+  });
+
   it('bans with reason and a message-delete window', async () => {
     seed({ perms: [MANAGE.ban], position: 9 });
     const cap = capture();

@@ -394,3 +394,25 @@
 .ss-details dd {
   margin: 0;
 }
+
+.ss-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 8px;
+}
+.ss-preset {
+  inline-size: 44px;
+  block-size: 28px;
+  border-radius: 6px;
+  border: 2px solid var(--border, transparent);
+  cursor: pointer;
+}
+.ss-preset:focus-visible {
+  outline: 2px solid var(--focus-ring, currentColor);
+  outline-offset: 2px;
+}
+.ss-preset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

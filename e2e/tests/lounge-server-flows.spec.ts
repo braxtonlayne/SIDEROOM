@@ -89,12 +89,12 @@ test.describe('Lounge server flows', () => {
     await expect(b.getByRole('heading', { level: 1, name: 'general' })).toBeVisible();
 
     // B sees A's earlier message, then both exchange live messages.
-    await expect(b.getByText(`hello from A ${stamp}`)).toBeVisible();
+    await expect(b.getByText(`hello from A ${stamp}`, { exact: true })).toBeVisible();
     await composerSend(b, 'general', `hello from B ${stamp}`);
     await expect(b.getByText(`hello from B ${stamp}`)).toBeVisible();
-    await expect(a.getByText(`hello from B ${stamp}`)).toBeVisible();
+    await expect(a.getByText(`hello from B ${stamp}`, { exact: true })).toBeVisible();
     await composerSend(a, 'general', `reply from A ${stamp}`);
-    await expect(b.getByText(`reply from A ${stamp}`)).toBeVisible();
+    await expect(b.getByText(`reply from A ${stamp}`, { exact: true })).toBeVisible();
 
     // B is now a member of the server on the rail; a non-manager has no Create Channel entry.
     await b.getByTestId('channel-sidebar').getByRole('button', { name: serverName }).click();

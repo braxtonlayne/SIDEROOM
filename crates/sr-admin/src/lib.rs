@@ -10,18 +10,26 @@
 
 pub mod chain;
 pub mod error;
+pub mod ext;
 pub mod memory;
 pub mod model;
 pub mod repo;
 pub mod rules;
 pub mod service;
+mod service_ext;
 pub mod settings;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_ext;
 
 pub use error::{AdminError, AdminResult};
+pub use ext::*;
 pub use model::*;
 pub use repo::AdminRepository;
 pub use service::{AdminService, SYSTEM_USER_ID, SettingView};
+pub use service_ext::{
+    AlertSettings, BADGES, CardActionResult, STATS_TTL_MS, valid_email, valid_username,
+};
 pub use settings::SettingKind;

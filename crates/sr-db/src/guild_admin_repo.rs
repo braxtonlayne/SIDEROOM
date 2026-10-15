@@ -32,6 +32,7 @@ fn like_pattern(text: &str) -> String {
 }
 
 const MEMBER_SELECT: &str = "SELECT gm.guild_id, gm.user_id, gm.nick, gm.pending, \
+    gm.avatar_key, gm.banner_key, gm.bio, \
     (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
     (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
     COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -51,6 +52,9 @@ fn member_from(r: &PgRow) -> Result<Member, sqlx::Error> {
         joined_at_ms: r.try_get("joined_ms")?,
         communication_disabled_until_ms: r.try_get("timeout_ms")?,
         pending: r.try_get("pending")?,
+        avatar_key: r.try_get("avatar_key")?,
+        banner_key: r.try_get("banner_key")?,
+        bio: r.try_get("bio")?,
     })
 }
 
@@ -78,12 +82,27 @@ fn kind_str(k: OverwriteKind) -> &'static str {
 
 #[async_trait]
 impl GuildAdminRepository for PgChatRepo {
+    async fn set_vanity(&self, guild: GuildId, code: Option<&str>) -> RepoResult<bool> {
+        match sqlx::query("UPDATE guilds SET vanity_code = $2, updated_at = now() WHERE id = $1")
+            .bind(i(guild.get()))
+            .bind(code)
+            .execute(&self.pool)
+            .await
+        {
+            Ok(_) => Ok(true),
+            // The code is unique across guilds (CITEXT UNIQUE); a lost race reads as taken.
+            Err(sqlx::Error::Database(e)) if e.is_unique_violation() => Ok(false),
+            Err(e) => Err(db(e)),
+        }
+    }
+
     async fn update_guild(&self, g: &Guild) -> RepoResult<()> {
         sqlx::query(
             "UPDATE guilds SET name = $2, description = $3, icon_key = $4, owner_id = $5, \
              system_channel_id = $6, verification_level = $7, default_message_notifications = $8, \
              explicit_content_filter = $9, preferred_locale = $10, banner_key = $11, splash_key = $12, \
-             afk_channel_id = $13, afk_timeout = $14, updated_at = now() WHERE id = $1",
+             afk_channel_id = $13, afk_timeout = $14, \
+             updated_at = now() WHERE id = $1",
         )
         .bind(i(g.id.get()))
         .bind(&g.name)
@@ -106,13 +125,58 @@ impl GuildAdminRepository for PgChatRepo {
     }
 
     async fn delete_guild(&self, id: GuildId) -> RepoResult<()> {
-        // Roles, members, bans and channels cascade.
-        sqlx::query("DELETE FROM guilds WHERE id = $1 AND NOT is_staff_guild")
+        // LNG-SSET-073: soft delete. Messages become `user_deleted` with the 30-day
+        // purge window (held ones keep no purge time, D-122); the guild row and its
+        // channels stay until the purge job finds nothing left (see sr-server jobs).
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        // The vanity code is released at once: vanity lookups do not filter deleted
+        // servers, and another server may want the code.
+        let stamped = sqlx::query(
+            "UPDATE guilds SET deleted_at = now(), vanity_code = NULL \
+             WHERE id = $1 AND NOT is_staff_guild AND deleted_at IS NULL",
+        )
+        .bind(i(id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        if stamped == 0 {
+            return tx.commit().await.map_err(db);
+        }
+        sqlx::query(
+            "DELETE FROM pins WHERE channel_id IN (SELECT id FROM channels WHERE guild_id = $1)",
+        )
+        .bind(i(id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        sqlx::query(
+            "UPDATE messages SET visibility = 'user_deleted', pinned = FALSE, deleted_at = now(), \
+             purge_after = CASE WHEN hold_id IS NULL THEN now() + interval '30 days' END \
+             WHERE visibility = 'visible' \
+               AND channel_id IN (SELECT id FROM channels WHERE guild_id = $1)",
+        )
+        .bind(i(id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        for table in [
+            "guild_members",
+            "guild_invites",
+            "webhooks",
+            "application_installs",
+            // A deleted server leaves the Server Directory at once (LNG-GLD-013).
+            "guild_directory",
+        ] {
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "DELETE FROM {table} WHERE guild_id = $1"
+            )))
             .bind(i(id.get()))
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(db)?;
-        Ok(())
+        }
+        tx.commit().await.map_err(db)
     }
 
     async fn list_user_guilds(&self, user: UserId) -> RepoResult<Vec<Guild>> {
@@ -211,12 +275,17 @@ impl GuildAdminRepository for PgChatRepo {
         sqlx::query(
             "UPDATE guild_members SET nick = $3, \
              communication_disabled_until = to_timestamp($4::bigint::double precision / 1000.0), \
+             pending = $5, avatar_key = $6, banner_key = $7, bio = $8, \
              updated_at = now() WHERE guild_id = $1 AND user_id = $2",
         )
         .bind(i(m.guild_id.get()))
         .bind(i(m.user_id.get()))
         .bind(m.nick.as_deref())
         .bind(m.communication_disabled_until_ms)
+        .bind(m.pending)
+        .bind(m.avatar_key.as_deref())
+        .bind(m.banner_key.as_deref())
+        .bind(m.bio.as_deref())
         .execute(&mut *tx)
         .await
         .map_err(db)?;

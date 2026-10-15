@@ -17,6 +17,7 @@ use sr_chat::settings::community::{
     CommunitySettings, Onboarding, OnboardingOption, OnboardingPrompt, SafetyInputs,
     WelcomeChannel, WelcomeScreen,
 };
+use sr_chat::settings::repo::CommunityRepository;
 use sr_core::permissions::{OverwriteKind, Permissions};
 use sr_core::{ChannelId, ErrorCode, GuildId, RoleId};
 use std::collections::HashSet;
@@ -36,6 +37,18 @@ pub fn routes() -> Router<AppState> {
             "/guilds/{guild_id}/welcome-screen",
             get(get_welcome_screen).patch(modify_welcome_screen),
         )
+        .route(
+            "/guilds/{guild_id}/member-verification",
+            get(get_member_verification),
+        )
+        .route(
+            "/guilds/{guild_id}/requests/@me",
+            axum::routing::put(accept_screening),
+        )
+        .route(
+            "/guilds/{guild_id}/onboarding-responses",
+            axum::routing::post(post_onboarding_responses),
+        )
 }
 
 fn double_option<'de, D, T>(d: D) -> Result<Option<Option<T>>, D::Error>
@@ -51,7 +64,7 @@ fn opt_id<T: std::str::FromStr>(field: &str, raw: &Option<String>) -> ApiResult<
 }
 
 /// Every channel id must belong to the guild.
-async fn require_guild_channels(
+pub(super) async fn require_guild_channels(
     deps: &SettingsDeps,
     guild: GuildId,
     field: &str,
@@ -161,6 +174,11 @@ pub struct CommunityObject {
     /// Alert when more than this many members join per minute; 0 = off.
     pub raid_alert_joins_per_minute: u32,
     pub age_restricted: bool,
+    /// Membership screening is on: new members stay pending until they agree to the rules
+    /// (LNG-GLD-008).
+    pub screening_enabled: bool,
+    pub screening_description: Option<String>,
+    pub screening_rules: Vec<String>,
 }
 
 impl CommunityObject {
@@ -180,6 +198,9 @@ impl CommunityObject {
             invites_paused: s.invites_paused,
             raid_alert_joins_per_minute: s.raid_alert_joins_per_minute,
             age_restricted: s.age_restricted,
+            screening_enabled: s.screening_enabled,
+            screening_description: s.screening_description.clone(),
+            screening_rules: s.screening_rules.clone(),
         }
     }
 }
@@ -206,6 +227,11 @@ pub struct ModifyCommunityBody {
     pub invites_paused: Option<bool>,
     pub raid_alert_joins_per_minute: Option<u32>,
     pub age_restricted: Option<bool>,
+    pub screening_enabled: Option<bool>,
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<String>)]
+    pub screening_description: Option<Option<String>>,
+    pub screening_rules: Option<Vec<String>>,
 }
 
 /// SIDE ROOM community and safety settings (`MANAGE_GUILD`).
@@ -284,6 +310,15 @@ pub async fn modify_community(
     }
     if let Some(v) = body.age_restricted {
         s.age_restricted = v;
+    }
+    if let Some(v) = body.screening_enabled {
+        s.screening_enabled = v;
+    }
+    if let Some(v) = body.screening_description {
+        s.screening_description = v;
+    }
+    if let Some(v) = body.screening_rules {
+        s.screening_rules = v;
     }
     require_guild_channels(
         &deps,
@@ -653,4 +688,160 @@ pub async fn modify_welcome_screen(
         .map_err(se)?;
     publish_guild_update(&deps, &acc).await;
     Ok(Json(WelcomeScreenObject::of(&saved)))
+}
+
+// ---- join pipeline: membership screening and onboarding answers (LNG-GLD-008) -----
+
+/// One field of the membership screening form (Discord's `form_fields`).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct VerificationField {
+    /// Always `TERMS`: the rules the member agrees to.
+    pub field_type: &'static str,
+    pub label: &'static str,
+    pub values: Vec<String>,
+    pub required: bool,
+}
+
+/// What a new member sees before they may talk (`GET /guilds/{id}/member-verification`).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct MemberVerificationObject {
+    /// Screening is on and the server is a Community; otherwise members join straight in.
+    pub enabled: bool,
+    pub description: Option<String>,
+    pub form_fields: Vec<VerificationField>,
+}
+
+/// The membership screening form of a server. Any member (also a pending one) can read it;
+/// editing it goes through `PATCH /guilds/{id}/sr/community` (`screening_*`).
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/member-verification",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 200, body = MemberVerificationObject), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_member_verification(
+    p: Principal,
+    Ext(deps): Ext<SettingsDeps>,
+    Path(guild_id): Path<String>,
+) -> ApiResult<Json<MemberVerificationObject>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    deps.guild_access(user, gid).await?;
+    let s = deps.service.repo().get_community(gid).await.map_err(re)?;
+    Ok(Json(MemberVerificationObject {
+        enabled: s.community_enabled && s.screening_enabled,
+        description: s.screening_description,
+        form_fields: vec![VerificationField {
+            field_type: "TERMS",
+            label: "Read and agree to the server rules",
+            values: s.screening_rules,
+            required: true,
+        }],
+    }))
+}
+
+/// Body of `PUT /guilds/{id}/requests/@me`.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct AcceptScreeningBody {
+    /// Must be true (or absent): the member agrees to the rules.
+    pub agreed: Option<bool>,
+}
+
+/// Agree to the server rules and stop being `pending` (LNG-GLD-008). Pending members can
+/// read but not write until they do. Answers the member object; accepting again is harmless.
+#[utoipa::path(
+    put,
+    path = "/guilds/{guild_id}/requests/@me",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    request_body(content = AcceptScreeningBody, description = "Optional"),
+    responses((status = 200, body = crate::routes::guilds::dto::MemberObject), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn accept_screening(
+    p: Principal,
+    crate::routes::guilds::util::Api(api): crate::routes::guilds::util::Api,
+    Path(guild_id): Path<String>,
+    body: Option<Json<AcceptScreeningBody>>,
+) -> ApiResult<Json<crate::routes::guilds::dto::MemberObject>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    if body.and_then(|b| b.0.agreed) == Some(false) {
+        return Err(invalid(
+            "agreed",
+            "SCREENING_NOT_AGREED",
+            "You need to agree to the rules.",
+        ));
+    }
+    let m = api
+        .accept_screening(user, gid)
+        .await
+        .map_err(crate::routes::guilds::util::ce)?;
+    let users = crate::routes::guilds::util::users_for(&*api, [m.user_id]).await?;
+    Ok(Json(crate::routes::guilds::dto::MemberObject::new(
+        &m, false, &users,
+    )))
+}
+
+/// Body of `POST /guilds/{id}/onboarding-responses`.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct OnboardingResponseBody {
+    /// The chosen answers (option ids of the onboarding questions).
+    pub option_ids: Vec<String>,
+}
+
+/// What a member's onboarding answers unlock.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct OnboardingResultObject {
+    /// Channels to show: the default ones plus those of the chosen answers.
+    pub channel_ids: Vec<String>,
+    /// Roles newly granted by the answers (roles with moderation power are never granted).
+    pub role_ids: Vec<String>,
+}
+
+/// Submit the onboarding answers (LNG-GLD-008): the roles of the chosen options are granted
+/// and the channels to show come back. Needs onboarding to be on; required questions must be
+/// answered, single-select questions take one answer.
+#[utoipa::path(
+    post,
+    path = "/guilds/{guild_id}/onboarding-responses",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    request_body = OnboardingResponseBody,
+    responses((status = 200, body = OnboardingResultObject), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn post_onboarding_responses(
+    p: Principal,
+    Ext(deps): Ext<SettingsDeps>,
+    crate::routes::guilds::util::Api(api): crate::routes::guilds::util::Api,
+    Path(guild_id): Path<String>,
+    ApiJson(body): ApiJson<OnboardingResponseBody>,
+) -> ApiResult<Json<OnboardingResultObject>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    deps.guild_access(user, gid).await?;
+    let o = deps.service.repo().get_onboarding(gid).await.map_err(re)?;
+    let community = deps.service.repo().get_community(gid).await.map_err(re)?;
+    if !(o.enabled || community.onboarding_enabled) {
+        return Err(invalid(
+            "guild_id",
+            "ONBOARDING_DISABLED",
+            "This server has no onboarding.",
+        ));
+    }
+    let picked: Vec<u64> = body
+        .option_ids
+        .iter()
+        .map(|s| id("option_ids", s))
+        .collect::<ApiResult<_>>()?;
+    sr_chat::settings::community::validate_answers(&o, &picked).map_err(se)?;
+    let (channels, roles) = sr_chat::settings::community::resolve_answers(&o, &picked);
+    let added = api
+        .apply_onboarding_roles(user, gid, &roles)
+        .await
+        .map_err(crate::routes::guilds::util::ce)?;
+    Ok(Json(OnboardingResultObject {
+        channel_ids: strings(&channels),
+        role_ids: strings(&added),
+    }))
 }

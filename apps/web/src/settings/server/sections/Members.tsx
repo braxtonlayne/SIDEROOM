@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDateTime, useT } from '../../../i18n';
 import { useGuild } from '../../../store';
 import { onDispatch } from '../../../store/events';
+import { BulkDialog, type BulkKind, type BulkResult } from './MemberBulk';
 import { PruneDialog } from './PruneDialog';
 import * as api from '../api';
 import type { Viewer } from '../hooks';
@@ -37,6 +38,8 @@ export const TIMEOUT_CHOICES = [
 
 const memberName = (m: api.MemberObject) => m.nick || api.userName(m.user);
 
+type SortKey = 'name' | 'newest' | 'oldest';
+
 type Dialog = { kind: 'kick' | 'ban' | 'timeout' | 'roles'; member: api.MemberObject } | null;
 
 export function MembersSection({ guildId, viewer }: SectionProps) {
@@ -55,6 +58,10 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   const [details, setDetails] = useState<api.MemberObject | null>(null);
   const [pruning, setPruning] = useState(false);
   const [pruned, setPruned] = useState<number | null>(null);
+  const [sort, setSort] = useState<SortKey>('name');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<BulkKind | null>(null);
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
   const busy = useRef(false);
   /** Bumped when the filters change so a response for an older filter is dropped. */
   const generation = useRef(0);
@@ -146,8 +153,19 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   );
 
   const roleById = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles]);
-  // The server did the filtering (search text, role).
-  const filtered = members;
+  // The server did the filtering (search text, role); the order is applied here to the members loaded so far.
+  const filtered = useMemo(() => {
+    const out = [...members];
+    if (sort === 'name')
+      out.sort((a, b) =>
+        memberName(a).localeCompare(memberName(b), undefined, { sensitivity: 'base' }),
+      );
+    else {
+      const at = (m: api.MemberObject) => new Date(m.joined_at).getTime() || 0;
+      out.sort((a, b) => (sort === 'newest' ? at(b) - at(a) : at(a) - at(b)));
+    }
+    return out;
+  }, [members, sort]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / VIEW_PAGE));
   const safePage = Math.min(page, pageCount - 1);
   const visible = filtered.slice(safePage * VIEW_PAGE, (safePage + 1) * VIEW_PAGE);
@@ -160,6 +178,59 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
     if (m.user.id === viewer.userId) return t('settings.members.blockSelf');
     if (!viewer.isOwner && topOf(m) >= viewer.topPosition) return t('settings.members.blockRole');
     return undefined;
+  };
+
+  const selectedMembers = members.filter((m) => selected.has(m.user.id));
+  /** Kick and ban skip members the viewer cannot moderate; roles are checked by the server. */
+  const bulkTargets = (kind: BulkKind) =>
+    kind === 'kick' || kind === 'ban'
+      ? selectedMembers.filter((m) => !blockReason(m))
+      : selectedMembers;
+  const toggleOne = (id: string, on: boolean) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const pageIds = visible.map((m) => m.user.id);
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const someOnPage = pageIds.some((id) => selected.has(id));
+  const toggleAll = (on: boolean) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      for (const id of pageIds) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  const assignable = roles
+    .filter((r) => r.id !== guildId && (viewer.isOwner || r.position < viewer.topPosition))
+    .sort((a, b) => b.position - a.position);
+  const bulkApplied = (r: BulkResult) => {
+    if (r.roleId) {
+      const rid = r.roleId;
+      setMembers((cur) =>
+        cur.map((m) =>
+          r.ok.includes(m.user.id)
+            ? {
+                ...m,
+                roles:
+                  r.kind === 'addRole'
+                    ? m.roles.includes(rid)
+                      ? m.roles
+                      : [...m.roles, rid]
+                    : m.roles.filter((x) => x !== rid),
+              }
+            : m,
+        ),
+      );
+    } else setMembers((cur) => cur.filter((m) => !r.ok.includes(m.user.id)));
+    setBulk(null);
+    setBulkResult(r);
+    // Keep the failures selected so the action can be retried.
+    setSelected(new Set(r.failed));
   };
 
   const replace = (next: api.MemberObject) =>
@@ -203,6 +274,24 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
               ))}
           </select>
         </div>
+        <div>
+          <label className="ss-field-label" htmlFor="ss-member-sort">
+            {t('settings.members.sortBy')}
+          </label>
+          <select
+            id="ss-member-sort"
+            className="ss-select"
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value as SortKey);
+              setPage(0);
+            }}
+          >
+            <option value="name">{t('settings.members.sortName')}</option>
+            <option value="newest">{t('settings.members.sortNewest')}</option>
+            <option value="oldest">{t('settings.members.sortOldest')}</option>
+          </select>
+        </div>
         {viewer.can('KICK_MEMBERS') && (
           <Button variant="secondary" onClick={() => setPruning(true)}>
             {t('settings.members.prune')}
@@ -213,6 +302,44 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
         <p role="status" className="ss-sub">
           {t('settings.members.pruned', { count: pruned })}
         </p>
+      )}
+      {bulkResult && (
+        <p role="status" className="ss-sub">
+          {bulkResult.failed.length === 0
+            ? t('settings.members.bulkDone', { count: bulkResult.ok.length })
+            : t('settings.members.bulkPartial', {
+                ok: bulkResult.ok.length,
+                failed: bulkResult.failed.length,
+              })}
+        </p>
+      )}
+      {selected.size > 0 && (
+        <div className="ss-toolbar" role="toolbar" aria-label={t('settings.members.bulkBar')}>
+          <span>{t('settings.members.selected', { count: selected.size })}</span>
+          {viewer.can('MANAGE_ROLES') && (
+            <>
+              <Button size="sm" variant="secondary" onClick={() => setBulk('addRole')}>
+                {t('settings.members.bulkAddRole')}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setBulk('removeRole')}>
+                {t('settings.members.bulkRemoveRole')}
+              </Button>
+            </>
+          )}
+          {viewer.can('KICK_MEMBERS') && (
+            <Button size="sm" variant="danger" onClick={() => setBulk('kick')}>
+              {t('settings.members.kick')}
+            </Button>
+          )}
+          {viewer.can('BAN_MEMBERS') && (
+            <Button size="sm" variant="danger" onClick={() => setBulk('ban')}>
+              {t('settings.members.ban')}
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+            {t('settings.members.clearSelection')}
+          </Button>
+        </div>
       )}
       {error && <LoadError message={error} onRetry={() => void loadNext()} />}
       {loading && members.length === 0 && !error && (
@@ -231,6 +358,17 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
             </caption>
             <thead>
               <tr>
+                <th scope="col">
+                  <input
+                    type="checkbox"
+                    aria-label={t('settings.members.selectAll')}
+                    checked={allOnPage}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !allOnPage && someOnPage;
+                    }}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                  />
+                </th>
                 <th scope="col">{t('settings.members.colName')}</th>
                 <th scope="col">{t('settings.members.colSince')}</th>
                 <th scope="col">{t('settings.members.colRoles')}</th>
@@ -245,6 +383,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
                   roleById={roleById}
                   viewer={viewer}
                   block={blockReason(m)}
+                  checked={selected.has(m.user.id)}
+                  onCheck={(on) => toggleOne(m.user.id, on)}
                   onAction={(kind) => setDialog({ kind, member: m })}
                   onDetails={() => setDetails(m)}
                 />
@@ -276,6 +416,16 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
             )}
           </div>
         </>
+      )}
+      {bulk && (
+        <BulkDialog
+          guildId={guildId}
+          kind={bulk}
+          members={bulkTargets(bulk)}
+          assignable={assignable}
+          onClose={() => setBulk(null)}
+          onDone={bulkApplied}
+        />
       )}
       {pruning && (
         <PruneDialog
@@ -349,9 +499,13 @@ function MemberRow({
   roleById,
   viewer,
   block,
+  checked,
+  onCheck,
   onAction,
   onDetails,
 }: {
+  checked: boolean;
+  onCheck: (on: boolean) => void;
   member: api.MemberObject;
   roleById: Map<string, { id: string; name: string; color: number }>;
   viewer: Viewer;
@@ -391,6 +545,14 @@ function MemberRow({
   };
   return (
     <tr>
+      <td>
+        <input
+          type="checkbox"
+          aria-label={t('settings.members.selectMember', { name })}
+          checked={checked}
+          onChange={(e) => onCheck(e.target.checked)}
+        />
+      </td>
       <td>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <Avatar name={name} size={32} />

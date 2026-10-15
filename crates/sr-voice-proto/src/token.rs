@@ -41,6 +41,15 @@ pub struct JoinClaims {
     /// PRIORITY_SPEAKER: speaking events carry the priority bit.
     #[serde(default)]
     pub priority: bool,
+    /// May publish a camera (the sender allowance let it start one, VOX-SIG-009).
+    #[serde(default)]
+    pub camera: bool,
+    /// May publish a screen share and its audio.
+    #[serde(default)]
+    pub screen: bool,
+    /// The allowance tier for the egress governor (server level, or 4 for a Patron).
+    #[serde(default)]
+    pub tier: u8,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -143,6 +152,9 @@ mod tests {
             deaf: false,
             ptt_required: false,
             priority: false,
+            camera: false,
+            screen: false,
+            tier: 0,
         }
     }
 

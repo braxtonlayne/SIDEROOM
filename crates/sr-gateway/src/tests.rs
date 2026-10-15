@@ -30,6 +30,8 @@ struct FakeDir {
     perms: Mutex<HashMap<(UserId, GuildId), Permissions>>,
     friends: Mutex<HashMap<UserId, Vec<UserId>>>,
     sync: Mutex<HashMap<(UserId, GuildId), Value>>,
+    lists: Mutex<HashMap<(GuildId, ChannelId), member_list::MemberListSource>>,
+    offline: Mutex<Vec<UserId>>,
 }
 
 #[async_trait]
@@ -65,6 +67,16 @@ impl GuildDirectory for FakeDir {
     }
     async fn can_view_channel(&self, user: UserId, _g: GuildId, ch: ChannelId) -> bool {
         !self.hidden.lock().unwrap().contains(&(user, ch))
+    }
+    async fn member_list(
+        &self,
+        guild: GuildId,
+        channel: ChannelId,
+    ) -> Option<member_list::MemberListSource> {
+        self.lists.lock().unwrap().get(&(guild, channel)).cloned()
+    }
+    async fn user_offline(&self, user: UserId) {
+        self.offline.lock().unwrap().push(user);
     }
 }
 
@@ -1678,4 +1690,299 @@ async fn thread_list_sync_follows_guild_create() {
     d.expect_event("READY").await;
     d.expect_event("GUILD_CREATE").await;
     d.silent().await;
+}
+
+// ---- lazy member list (op 102, LNG-GLD-010) and the offline hook -----------------------
+
+fn list_member(id: u64, name: &str, hoist: Option<(&str, i32)>) -> member_list::ListMember {
+    member_list::ListMember {
+        user: u(id),
+        member: json!({ "user": { "id": id.to_string() }, "nick": name, "roles": [] }),
+        hoist: hoist.map(|(r, p)| (r.to_owned(), p)),
+        sort_key: name.to_owned(),
+    }
+}
+
+/// Eight members of `G1` as the directory sees them for `OPEN`.
+fn set_list(e: &Env, members: Vec<member_list::ListMember>) {
+    e.dir.lists.lock().unwrap().insert(
+        (G1, OPEN),
+        member_list::MemberListSource {
+            members,
+            everyone: true,
+        },
+    );
+}
+
+fn eight() -> Vec<member_list::ListMember> {
+    (1..=8)
+        .map(|n| list_member(n, &format!("m{n}"), None))
+        .collect()
+}
+
+/// A client's slice of the list, kept by applying dispatches the way a real client does.
+#[derive(Default)]
+struct Slice(Vec<Value>);
+
+impl Slice {
+    fn apply(&mut self, update: &Value) {
+        for op in update["d"]["ops"].as_array().unwrap() {
+            match op["op"].as_str().unwrap() {
+                "SYNC" => self.0.clone_from(op["items"].as_array().unwrap()),
+                "UPDATE" => self.0[op["index"].as_u64().unwrap() as usize] = op["item"].clone(),
+                "INSERT" => self
+                    .0
+                    .insert(op["index"].as_u64().unwrap() as usize, op["item"].clone()),
+                "DELETE" => {
+                    self.0.remove(op["index"].as_u64().unwrap() as usize);
+                }
+                other => panic!("unknown op {other}"),
+            }
+        }
+    }
+
+    /// `g:<id>` for headers and `m:<id>` for members.
+    fn keys(&self) -> Vec<String> {
+        self.0
+            .iter()
+            .map(|i| match i.get("group") {
+                Some(g) => format!("g:{}", g["id"].as_str().unwrap()),
+                None => format!("m:{}", i["member"]["user"]["id"].as_str().unwrap()),
+            })
+            .collect()
+    }
+}
+
+fn ask(guild: u64, ranges: Value) -> Value {
+    json!({"op": 102, "d": {"guild_id": guild.to_string(), "channels": {OPEN.to_string(): ranges}}})
+}
+
+#[tokio::test]
+async fn lazy_member_list_syncs_ranges_then_follows_presence() {
+    let e = env();
+    set_list(&e, eight());
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    a.drain().await;
+    a.send(ask(1, json!([[0, 9]]))).await;
+    let first = a.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    assert_eq!(first["d"]["guild_id"], "1");
+    assert_eq!(first["d"]["id"], "everyone");
+    assert_eq!(first["d"]["member_count"], 8);
+    assert_eq!(first["d"]["online_count"], 1);
+    assert_eq!(first["d"]["ops"][0]["op"], "SYNC");
+    assert_eq!(first["d"]["ops"][0]["range"], json!([0, 9]));
+    assert_eq!(
+        first["d"]["groups"],
+        json!([{"id": "online", "count": 1}, {"id": "offline", "count": 7}])
+    );
+    let mut mine = Slice::default();
+    mine.apply(&first);
+    assert_eq!(
+        mine.keys(),
+        [
+            "g:online",
+            "m:1",
+            "g:offline",
+            "m:2",
+            "m:3",
+            "m:4",
+            "m:5",
+            "m:6",
+            "m:7",
+            "m:8"
+        ]
+    );
+    assert_eq!(
+        first["d"]["ops"][0]["items"][1]["member"]["presence"]["status"],
+        "online"
+    );
+
+    // Another member comes online: the ops move them up and update the counts.
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    let upd = a.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(upd["d"]["user"]["id"], "2");
+    let next = a.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    assert_ne!(
+        next["d"]["ops"][0]["op"], "SYNC",
+        "small changes are ops, not a resync"
+    );
+    mine.apply(&next);
+    assert_eq!(
+        mine.keys(),
+        [
+            "g:online",
+            "m:1",
+            "m:2",
+            "g:offline",
+            "m:3",
+            "m:4",
+            "m:5",
+            "m:6",
+            "m:7",
+            "m:8"
+        ]
+    );
+    assert_eq!(mine.0[0]["group"]["count"], 2);
+    assert_eq!(mine.0[3]["group"]["count"], 6);
+    assert_eq!(next["d"]["online_count"], 2);
+
+    // ... and goes offline again.
+    drop(b);
+    a.expect_event("PRESENCE_UPDATE").await;
+    let back = a.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    mine.apply(&back);
+    assert_eq!(
+        mine.keys(),
+        [
+            "g:online",
+            "m:1",
+            "g:offline",
+            "m:2",
+            "m:3",
+            "m:4",
+            "m:5",
+            "m:6",
+            "m:7",
+            "m:8"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn lazy_member_list_follows_membership_and_role_events() {
+    let e = env();
+    set_list(&e, eight());
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    a.drain().await;
+    a.send(ask(1, json!([[0, 3], [4, 9]]))).await;
+    let first = a.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    assert_eq!(
+        first["d"]["ops"].as_array().unwrap().len(),
+        2,
+        "one SYNC per range"
+    );
+    assert_eq!(first["d"]["ops"][0]["range"], json!([0, 3]));
+    assert_eq!(first["d"]["ops"][1]["range"], json!([4, 9]));
+    let head = Slice(first["d"]["ops"][0]["items"].as_array().unwrap().clone());
+    assert_eq!(head.keys(), ["g:online", "m:1", "g:offline", "m:2"]);
+
+    // A member leaves: the directory no longer lists them.
+    let mut rest = eight();
+    rest.retain(|m| m.user != u(3));
+    set_list(&e, rest);
+    emit(
+        &e.bus,
+        DomainEvent::MemberLeft {
+            guild: G1,
+            user: u(3),
+        },
+    )
+    .await;
+    a.expect_event("GUILD_MEMBER_REMOVE").await;
+    let upd = a.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    assert_eq!(upd["d"]["member_count"], 7);
+    let ops = upd["d"]["ops"].as_array().unwrap();
+    assert!(ops.iter().any(|o| o["op"] == "DELETE"), "{upd}");
+
+    // A role is created with hoisted members: the moderator group appears on top.
+    let mut hoisted = eight();
+    hoisted.retain(|m| m.user != u(3));
+    hoisted[0] = list_member(1, "m1", Some(("mods", 5)));
+    set_list(&e, hoisted);
+    emit(
+        &e.bus,
+        DomainEvent::RoleUpdated {
+            guild: G1,
+            role: sr_core::RoleId::new(9),
+            payload: json!({"guild_id": "1", "role": {"id": "9"}}),
+        },
+    )
+    .await;
+    a.expect_event("GUILD_ROLE_UPDATE").await;
+    let upd = a.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    assert_eq!(upd["d"]["groups"][0], json!({"id": "mods", "count": 1}));
+}
+
+#[tokio::test]
+async fn lazy_member_list_requests_are_checked() {
+    let e = env();
+    set_list(&e, eight());
+    // u2 cannot see SECRET: its list is refused (OPEN stays available).
+    e.dir
+        .lists
+        .lock()
+        .unwrap()
+        .insert((G1, SECRET), member_list::MemberListSource::default());
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    b.drain().await;
+    b.send(json!({"op": 102, "d": {"guild_id": "1", "channels": {SECRET.to_string(): [[0, 9]]}}}))
+        .await;
+    b.silent().await;
+    // u3 is in another guild.
+    let mut c = connect(&e);
+    c.identify("user:3", 0, 1).await;
+    c.drain().await;
+    c.send(ask(1, json!([[0, 9]]))).await;
+    c.silent().await;
+    // Malformed ranges, unknown channels and a directory without a list are ignored.
+    b.send(ask(1, json!([[9, 0], "x"]))).await;
+    b.silent().await;
+    b.send(json!({"op": 102, "d": {"guild_id": "1", "channels": {"999": [[0, 9]]}}}))
+        .await;
+    b.silent().await;
+    b.send(json!({"op": 102, "d": {"guild_id": "nope"}})).await;
+    b.silent().await;
+    // A good request works, and an empty range list unsubscribes.
+    b.send(ask(1, json!([[0, 9]]))).await;
+    b.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    b.send(ask(1, json!([]))).await;
+    b.silent().await;
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    settle().await;
+    b.drain().await;
+    emit(
+        &e.bus,
+        DomainEvent::MemberLeft {
+            guild: G1,
+            user: u(8),
+        },
+    )
+    .await;
+    b.expect_event("GUILD_MEMBER_REMOVE").await;
+    b.silent().await;
+}
+
+#[tokio::test]
+async fn bots_need_the_members_intent_for_the_lazy_list() {
+    let e = env();
+    set_list(&e, eight());
+    let mut bot = connect(&e);
+    bot.identify("bot:1", intents::GUILDS, 1).await;
+    bot.drain().await;
+    bot.send(ask(1, json!([[0, 9]]))).await;
+    bot.silent().await;
+}
+
+#[tokio::test]
+async fn going_offline_tells_the_directory_once_per_transition() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut a2 = connect(&e);
+    a2.identify("user:1", 0, 1).await;
+    settle().await;
+    drop(a);
+    settle().await;
+    assert!(
+        e.dir.offline.lock().unwrap().is_empty(),
+        "another socket is still attached"
+    );
+    drop(a2);
+    settle().await;
+    assert_eq!(*e.dir.offline.lock().unwrap(), vec![u(1)]);
 }

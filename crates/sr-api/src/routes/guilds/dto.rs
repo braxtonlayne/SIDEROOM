@@ -124,6 +124,10 @@ pub struct UserRef {
     /// Present (true) for bot accounts only.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub bot: bool,
+    /// The server tag the user shows next to their name (LNG-SSET-012, read from
+    /// `guild_tags` + `user_primary_guilds`; set with `PUT /users/@me/primary-guild`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_guild: Option<crate::routes::social::model::PrimaryGuildObject>,
 }
 
 impl UserRef {
@@ -134,6 +138,7 @@ impl UserRef {
             username: None,
             global_name: None,
             bot: false,
+            primary_guild: None,
         }
     }
 
@@ -145,6 +150,10 @@ impl UserRef {
                 username: Some(u.username.clone()),
                 global_name: u.display_name.clone(),
                 bot: u.bot,
+                primary_guild: u
+                    .primary_guild
+                    .as_ref()
+                    .map(crate::routes::social::model::PrimaryGuildObject::of),
             },
             None => Self::new(id),
         }
@@ -389,6 +398,13 @@ pub struct GuildObject {
     pub explicit_content_filter: u8,
     pub preferred_locale: String,
     pub features: Vec<String>,
+    /// Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
+    /// in the rail and show the staff badge.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_staff_guild: bool,
+    /// Vanity invite code (LNG-INV-004).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vanity_url_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roles: Option<Vec<RoleObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -413,6 +429,8 @@ impl GuildObject {
             explicit_content_filter: g.explicit_content_filter,
             preferred_locale: g.preferred_locale.clone(),
             features: Vec::new(),
+            is_staff_guild: g.is_staff_guild,
+            vanity_url_code: g.vanity_code.clone(),
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
         }
@@ -428,6 +446,10 @@ pub struct GuildPreviewObject {
     pub owner: bool,
     pub permissions: String,
     pub features: Vec<String>,
+    /// Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
+    /// in the rail and show the staff badge.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_staff_guild: bool,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -435,6 +457,12 @@ pub struct MemberObject {
     pub user: UserRef,
     pub nick: Option<String>,
     pub avatar: Option<String>,
+    /// Per-server banner hash (LNG-GLD-012).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub banner: Option<String>,
+    /// Per-server bio (LNG-GLD-012).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bio: Option<String>,
     pub roles: Vec<String>,
     pub joined_at: String,
     pub premium_since: Option<String>,
@@ -453,7 +481,9 @@ impl MemberObject {
         Self {
             user: UserRef::of(m.user_id, users),
             nick: m.nick.clone(),
-            avatar: None,
+            avatar: m.avatar_key.clone(),
+            banner: m.banner_key.clone(),
+            bio: m.bio.clone(),
             roles: m.role_ids.iter().map(ToString::to_string).collect(),
             joined_at: iso8601(m.joined_at_ms),
             premium_since: None,
@@ -605,6 +635,10 @@ pub struct CreateChannelBody {
 #[derive(Debug, Default, Deserialize, ToSchema)]
 pub struct ModifyChannelBody {
     pub name: Option<String>,
+    /// Convert a text channel (0) to an announcement channel (5) or back; no other change of
+    /// type is allowed.
+    #[serde(rename = "type", default)]
+    pub kind: Option<i16>,
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
     pub topic: Option<Option<String>>,

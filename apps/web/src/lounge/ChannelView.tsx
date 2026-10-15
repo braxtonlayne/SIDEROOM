@@ -18,6 +18,7 @@ import {
 } from './data';
 import { AgeConfirmPrompt, useAgeGate } from './AgeGate';
 import { MessageList } from './MessageList';
+import { ForumView } from './forum/ForumView';
 import { VoiceChannelView } from './voice/VoiceChannelView';
 import { WatchPartyStrip } from '../watchparty/WatchPartyStrip';
 import { useLoungeGoto } from './nav';
@@ -120,6 +121,18 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         searchLabel={t('lounge.channelView.search', { target })}
         guildId={guildId}
         channelId={channelId}
+        badge={
+          channel?.type === 'rules'
+            ? t('lounge.channelView.badgeRules')
+            : channel?.type === 'announcement'
+              ? t('lounge.channelView.badgeAnnouncements')
+              : undefined
+        }
+        canUnpin={
+          channel?.permissions
+            ? channel.permissions.pinMessages
+            : isDm || !!guild?.permissions.pinMessages
+        }
       />
       <WatchPartyStrip channelId={channelId} />
       {gate.state !== 'open' ? (
@@ -146,6 +159,8 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
             />
           )}
         </div>
+      ) : channel && (channel.type === 'forum' || channel.type === 'media') ? (
+        <ForumView guildId={guildId} channel={channel} />
       ) : (
         <>
           <MessageList
@@ -192,6 +207,13 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
               (channel.permissions?.createThreads ?? true)
             }
             canSend={channel ? channel.canSend : true}
+            readOnlyNote={
+              channel?.type === 'rules'
+                ? t('lounge.channelView.readOnlyRules')
+                : channel?.type === 'announcement'
+                  ? t('lounge.channelView.readOnlyAnnouncements')
+                  : undefined
+            }
             replyTo={replyTo}
             onCancelReply={() => setReplyTo(null)}
             onEditLast={editLast}

@@ -14,6 +14,7 @@ use crate::{Principal, openapi::ErrorBody};
 use axum::{Json, extract::Path, http::StatusCode};
 use sr_chat::message_flags;
 use sr_chat::message_rules::{AllowedMentions, EditMessageInput};
+use sr_chat::settings::audit::AuditAction;
 use sr_chat::{ChatError, SendMessage};
 use sr_core::{AttachmentId, ChannelId, ErrorCode, MessageId, RoleId, UserId};
 use sr_events::DomainEvent;
@@ -44,6 +45,7 @@ pub async fn create_message(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
     MaybeExt(gate): MaybeExt<AutoModGateHandle>,
+    MaybeExt(settings): MaybeExt<crate::routes::settings::SettingsDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<CreateMessageBody>,
 ) -> MsgResult<Json<MessageObject>> {
@@ -241,6 +243,11 @@ pub async fn create_message(
     if let (Some(v), Some(guild)) = (&verdict, msg.guild_id) {
         publish_alerts(&deps, guild, v, Some(msg.id)).await;
     }
+    // Announcement channels set to auto-publish send the message on to their followers
+    // (LNG-CHN-004).
+    if let Some(s) = &settings {
+        super::crosspost::auto_publish(&deps, s, &msg).await;
+    }
     if msg.poll.is_some() {
         deps.schedule_poll_finalize(&msg).await;
     }
@@ -350,6 +357,11 @@ pub async fn delete_message(
         .get_channel(channel_id)
         .await?
         .and_then(|c| c.guild_id);
+    let author = deps
+        .repo
+        .get_message(channel_id, message_id)
+        .await?
+        .map(|m| m.author_id);
     deps.delete(user, channel_id, message_id).await?;
     deps.publish(DomainEvent::MessageDeleted {
         guild,
@@ -357,6 +369,17 @@ pub async fn delete_message(
         message_id: message_id.get(),
     })
     .await;
+    // Discord logs a delete only when someone other than the author removed it.
+    if let Some(author) = author.filter(|a| *a != user) {
+        deps.audit(
+            guild,
+            user,
+            AuditAction::MessageDelete,
+            Some(author.get()),
+            serde_json::json!({ "channel_id": channel_id.to_string(), "count": 1 }),
+        )
+        .await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -401,11 +424,20 @@ pub async fn bulk_delete(
         .and_then(|c| c.guild_id);
     let plans = deps.bulk_delete(user, channel_id, &ids).await?;
     let message_ids: Vec<u64> = plans.iter().map(|d| d.message_id.get()).collect();
+    let deleted = message_ids.len();
     deps.publish(DomainEvent::MessagesBulkDeleted {
         guild,
         channel: channel_id,
         message_ids,
     })
+    .await;
+    deps.audit(
+        guild,
+        user,
+        AuditAction::MessageBulkDelete,
+        Some(channel_id.get()),
+        serde_json::json!({ "count": deleted }),
+    )
     .await;
     Ok(StatusCode::NO_CONTENT)
 }

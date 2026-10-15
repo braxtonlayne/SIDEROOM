@@ -64,6 +64,7 @@ struct Opts {
     wired_joiner: bool,
     timeouter: Option<Arc<dyn super::MemberTimeouter>>,
     presence: Option<Arc<dyn super::PresenceCounter>>,
+    voice: Option<Arc<dyn crate::routes::voice::VoiceBackend>>,
 }
 
 async fn env() -> Env {
@@ -90,6 +91,9 @@ async fn env_with(opts: Opts) -> Env {
             joined_at_ms: T0,
             communication_disabled_until_ms: None,
             pending: false,
+            avatar_key: None,
+            banner_key: None,
+            bio: None,
         });
     }
     let mod_role = RoleId::new(gen_ids.generate().get());
@@ -198,7 +202,7 @@ async fn env_with(opts: Opts) -> Env {
         1,
     )
     .unwrap();
-    let state = AppState::builder()
+    let mut builder = AppState::builder()
         .bots(bots)
         .sessions(sessions.clone())
         .clock(dyn_clock)
@@ -212,8 +216,11 @@ async fn env_with(opts: Opts) -> Env {
         .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
             storage.clone(),
             sr_storage::cdn::CdnSigner::new(b"emoji-url-test-secret-0123456789".to_vec()),
-        )))
-        .build();
+        )));
+    if let Some(v) = opts.voice {
+        builder = builder.extension(Arc::new(crate::routes::voice::VoiceApi(v)));
+    }
+    let state = builder.build();
     let app = build_router(state, router().merge(messages::router()));
     Env {
         app,
@@ -2158,6 +2165,9 @@ async fn admin_timeouter_sets_the_deadline_and_announces_the_member() {
         joined_at_ms: T0,
         communication_disabled_until_ms: None,
         pending: false,
+        avatar_key: None,
+        banner_key: None,
+        bio: None,
     });
     let bus = Arc::new(InProcessBus::new());
     let mut events = bus.subscribe(Topic::Guild(guild));
@@ -2362,4 +2372,561 @@ async fn webhook_token_can_be_reset_but_never_read_back() {
     let text = log.to_string();
     assert!(!text.contains(&old) && !text.contains(&new));
     assert!(e.audit_actions().await.contains(&51));
+}
+
+// ---- phase 10: join notice, announcement following and publishing ------------------
+
+fn add_channel(e: &Env, id: u64, kind: sr_chat::ChannelType, name: &str, flags: u32) -> ChannelId {
+    let cid = ChannelId::new(id);
+    let mut c = sr_chat::Channel::new(cid, Some(e.guild), kind);
+    c.name = Some(name.to_owned());
+    c.flags = flags;
+    e.backend.data().channels.insert(cid, c);
+    cid
+}
+
+async fn say(e: &Env, channel: ChannelId, who: &str, text: &str) -> Value {
+    let (s, m) = e
+        .post(
+            &format!("/channels/{channel}/messages"),
+            who,
+            json!({ "content": text }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    m
+}
+
+async fn history(e: &Env, channel: ChannelId) -> Vec<Value> {
+    let (s, v) = e
+        .get(&format!("/channels/{channel}/messages?limit=50"), "owner")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    v.as_array().unwrap().clone()
+}
+
+#[tokio::test]
+async fn joining_posts_the_notice_in_the_system_channel_once() {
+    let e = wired().await;
+    let code = new_invite(&e, json!({})).await;
+    assert_eq!(e.accept(CAROL, &code).await.0, StatusCode::OK);
+    let notices = |h: &[Value]| h.iter().filter(|m| m["type"] == 7).count();
+    let h = history(&e, e.ch).await;
+    let m = h.iter().find(|m| m["type"] == 7).expect("join notice");
+    assert_eq!(m["author"]["id"], CAROL.to_string());
+    assert_eq!(notices(&h), 1);
+    // Joining again does not announce again, and other channels stay quiet.
+    assert_eq!(e.accept(CAROL, &code).await.0, StatusCode::OK);
+    assert_eq!(notices(&history(&e, e.ch).await), 1);
+    assert_eq!(notices(&history(&e, e.voice).await), 0);
+}
+
+#[tokio::test]
+async fn following_an_announcement_channel_and_publishing_to_followers() {
+    use futures::StreamExt;
+    use sr_events::{DomainEvent, EventBus, Topic};
+    let e = env().await;
+    let news = add_channel(&e, 7_001, sr_chat::ChannelType::Announcement, "news", 0);
+    let follow = format!("/channels/{news}/followers");
+    let target = json!({ "webhook_channel_id": e.ch.to_string() });
+
+    // Only announcement channels can be followed, into text channels, by managers.
+    let (s, v) = e
+        .post(
+            &format!("/channels/{}/followers", e.ch),
+            "owner",
+            target.clone(),
+        )
+        .await;
+    assert_eq!(
+        (s, v["code"].as_u64()),
+        (StatusCode::BAD_REQUEST, Some(50024)),
+        "{v}"
+    );
+    let (s, _) = e.post(&follow, "bob", target.clone()).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "bob lacks MANAGE_WEBHOOKS");
+    let (s, v) = e
+        .post(
+            &follow,
+            "owner",
+            json!({ "webhook_channel_id": e.voice.to_string() }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{v}");
+    let (s, v) = e
+        .post(
+            &follow,
+            "owner",
+            json!({ "webhook_channel_id": news.to_string() }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "no following yourself: {v}");
+
+    let (s, f) = e.post(&follow, "mod", target.clone()).await;
+    assert_eq!(s, StatusCode::OK, "{f}");
+    assert_eq!(f["channel_id"], news.to_string());
+    let webhook = f["webhook_id"].as_str().unwrap().to_owned();
+    // Following twice is the same subscription, and it shows up as a follower webhook.
+    let (_, again) = e.post(&follow, "owner", target.clone()).await;
+    assert_eq!(again["webhook_id"], webhook);
+    let (_, hooks) = e
+        .get(&format!("/channels/{}/webhooks", e.ch), "owner")
+        .await;
+    let hook = hooks
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|h| h["id"] == webhook)
+        .expect("follower webhook");
+    assert_eq!(hook["type"], 2);
+    assert!(hook["name"].as_str().unwrap().contains("#news"));
+
+    // Publishing: the owner posts, then publishes by hand.
+    let mut general = e.bus.subscribe(Topic::Channel(e.ch));
+    let post = say(&e, news, "owner", "Server maintenance tonight").await;
+    let src = post["id"].as_str().unwrap().to_owned();
+    assert_eq!(post["flags"].as_u64().unwrap() & 1, 0);
+    let (s, done) = e
+        .post(
+            &format!("/channels/{news}/messages/{src}/crosspost"),
+            "owner",
+            json!({}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{done}");
+    assert_eq!(done["flags"].as_u64().unwrap() & 1, 1, "CROSSPOSTED");
+    let copies: Vec<Value> = history(&e, e.ch)
+        .await
+        .into_iter()
+        .filter(|m| m["flags"].as_u64().unwrap_or(0) & 2 != 0)
+        .collect();
+    assert_eq!(copies.len(), 1, "one copy per follower");
+    assert_eq!(copies[0]["content"], "Server maintenance tonight");
+    assert_eq!(copies[0]["author"]["id"], OWNER.to_string());
+    assert_eq!(copies[0]["message_reference"]["message_id"], src);
+    assert_eq!(
+        copies[0]["message_reference"]["channel_id"],
+        news.to_string()
+    );
+    assert_eq!(copies[0]["mention_everyone"], false);
+    let ev = tokio::time::timeout(std::time::Duration::from_secs(1), general.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(ev, DomainEvent::MessageSent { channel, .. } if channel == e.ch));
+
+    // Once only; text channels have nothing to publish; others' messages need MANAGE_MESSAGES.
+    let (s, v) = e
+        .post(
+            &format!("/channels/{news}/messages/{src}/crosspost"),
+            "owner",
+            json!({}),
+        )
+        .await;
+    assert_eq!(
+        (s, v["code"].as_u64()),
+        (StatusCode::BAD_REQUEST, Some(40033)),
+        "{v}"
+    );
+    let plain = say(&e, e.ch, "owner", "just chat").await;
+    let (s, v) = e
+        .post(
+            &format!(
+                "/channels/{}/messages/{}/crosspost",
+                e.ch,
+                plain["id"].as_str().unwrap()
+            ),
+            "owner",
+            json!({}),
+        )
+        .await;
+    assert_eq!(
+        (s, v["code"].as_u64()),
+        (StatusCode::BAD_REQUEST, Some(50024)),
+        "{v}"
+    );
+    let second = say(&e, news, "owner", "second").await;
+    let second = second["id"].as_str().unwrap().to_owned();
+    let (s, _) = e
+        .post(
+            &format!("/channels/{news}/messages/{second}/crosspost"),
+            "bob",
+            json!({}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let mine = say(&e, news, "bob", "bob wrote this").await;
+    let (s, _) = e
+        .post(
+            &format!(
+                "/channels/{news}/messages/{}/crosspost",
+                mine["id"].as_str().unwrap()
+            ),
+            "bob",
+            json!({}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "authors may publish their own");
+
+    // Unfollowing is deleting the follower webhook.
+    let (s, _) = e.delete(&format!("/webhooks/{webhook}"), "owner").await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let before = history(&e, e.ch).await.len();
+    let (s, _) = e
+        .post(
+            &format!("/channels/{news}/messages/{second}/crosspost"),
+            "owner",
+            json!({}),
+        )
+        .await;
+    assert_eq!(
+        s,
+        StatusCode::OK,
+        "publishing without followers still marks the message"
+    );
+    assert_eq!(history(&e, e.ch).await.len(), before, "nothing was copied");
+}
+
+#[tokio::test]
+async fn auto_publish_sends_every_message_to_followers() {
+    let e = env().await;
+    let news = add_channel(
+        &e,
+        7_002,
+        sr_chat::ChannelType::Announcement,
+        "auto-news",
+        sr_chat::threads::channel_flags::AUTO_PUBLISH,
+    );
+    let quiet = add_channel(&e, 7_003, sr_chat::ChannelType::Announcement, "quiet", 0);
+    for source in [news, quiet] {
+        let (s, v) = e
+            .post(
+                &format!("/channels/{source}/followers"),
+                "owner",
+                json!({ "webhook_channel_id": e.ch.to_string() }),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+    }
+    let sent = say(&e, news, "owner", "auto announcement").await;
+    assert_eq!(
+        sent["flags"].as_u64().unwrap() & 1,
+        0,
+        "the response is the message as it was sent"
+    );
+    let h = history(&e, e.ch).await;
+    assert_eq!(
+        h.iter()
+            .filter(|m| m["content"] == "auto announcement")
+            .count(),
+        1,
+        "published as it was sent"
+    );
+    let (_, src) = e
+        .get(
+            &format!("/channels/{news}/messages/{}", sent["id"].as_str().unwrap()),
+            "owner",
+        )
+        .await;
+    assert_eq!(src["flags"].as_u64().unwrap() & 1, 1, "marked as published");
+    // A channel without the flag publishes on request only.
+    say(&e, quiet, "owner", "manual only").await;
+    assert!(
+        history(&e, e.ch)
+            .await
+            .iter()
+            .all(|m| m["content"] != "manual only")
+    );
+}
+
+#[tokio::test]
+async fn server_tags_are_managed_by_managers_and_adopted_by_members() {
+    let e = env().await;
+    let url = e.g("/tag");
+    let me = "/users/@me/primary-guild";
+
+    // No tag yet.
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        e.put(me, "bob", json!({"guild_id": e.guild.to_string()}))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+    // Only managers set it, and the text is validated.
+    let body = json!({"tag": "SIDE", "badge": 3, "color": 0xAA00FF});
+    assert_eq!(
+        e.put(&url, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.put(&url, "mod", json!({"tag": "toolong"})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (s, t) = e.put(&url, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{t}");
+    assert_eq!(t["tag"], "SIDE");
+    assert_eq!(t["members_can_display"], true);
+    assert_eq!(e.get(&url, "bob").await.1["badge"], 3);
+    // Non-members cannot read the tag or adopt it.
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        e.put(me, "carol", json!({"guild_id": e.guild.to_string()}))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // A member adopts it.
+    let (s, p) = e
+        .put(me, "bob", json!({"guild_id": e.guild.to_string()}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{p}");
+    assert_eq!(p["primary_guild"]["tag"], "SIDE");
+    assert_eq!(p["primary_guild"]["identity_enabled"], true);
+    assert_eq!(
+        p["primary_guild"]["identity_guild_id"],
+        e.guild.to_string().as_str()
+    );
+    assert_eq!(e.get(me, "bob").await.1["primary_guild"]["tag"], "SIDE");
+
+    // Turning "members can display" off hides it and blocks new adoption.
+    e.put(
+        &url,
+        "mod",
+        json!({"tag": "SIDE", "members_can_display": false}),
+    )
+    .await;
+    assert!(e.get(me, "bob").await.1["primary_guild"].is_null());
+
+    // Removing the tag is audited; adoption is cleared with null.
+    assert_eq!(e.delete(&url, "mod").await.0, StatusCode::NO_CONTENT);
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::NOT_FOUND);
+    let (s, p) = e.put(me, "bob", json!({"guild_id": null})).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(p["primary_guild"].is_null());
+    assert!(e.audit_actions().await.contains(&1));
+}
+
+#[tokio::test]
+async fn insights_need_a_manager_or_the_insights_permission() {
+    let e = env().await;
+    let url = e.g("/sr/insights?days=7");
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+    let (s, body) = e.get(&url, "mod").await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    // Nothing computed yet.
+    assert_eq!(body["days"], json!([]));
+    assert_eq!(body["top_channels"], json!([]));
+}
+
+#[tokio::test]
+async fn server_guide_is_edited_by_managers_and_read_by_members_while_enabled() {
+    let e = env().await;
+    let url = e.g("/sr/guide");
+    let body = json!({
+        "welcome_message": "Welcome aboard",
+        "todos": [{"title": "Say hi", "channel_id": e.ch.to_string()}],
+        "resources": [{"title": "Rules", "content": "Be kind."}],
+    });
+    assert_eq!(
+        e.put(&url, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (s, g) = e
+        .put(
+            &url,
+            "mod",
+            json!({"todos": [{"title": "x", "channel_id": "123"}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{g}");
+    let (s, g) = e.put(&url, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert!(g["todos"][0]["id"].is_string());
+    assert_eq!(g["resources"][0]["content"], "Be kind.");
+    assert_eq!(g["enabled"], false);
+
+    // Hidden from members until the guide is switched on.
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(e.get(&url, "mod").await.0, StatusCode::OK);
+    let (s, _) = e
+        .patch(&e.g("/sr/community"), "mod", json!({"guide_enabled": true}))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, g) = e.get(&url, "bob").await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_eq!(g["welcome_message"], "Welcome aboard");
+    assert_eq!(g["enabled"], true);
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn membership_applications_flow() {
+    let e = env().await;
+    let form = e.g("/sr/applications/form");
+    let apps = e.g("/sr/applications");
+
+    // Closed: outsiders cannot see the form, cannot apply.
+    assert_eq!(e.get(&form, "carol").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        e.post(&apps, "carol", json!({"answers": []})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    // Only managers set it up.
+    let body = json!({"enabled": true, "description": "Tell us about you",
+        "questions": [{"label": "Why join?", "kind": "paragraph", "required": true},
+                      {"label": "Handle", "kind": "short"}]});
+    assert_eq!(
+        e.put(&form, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.put(
+            &form,
+            "mod",
+            json!({"questions": [{"label": "x", "kind": "huge"}]})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let (s, f) = e.put(&form, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{f}");
+    let q1 = f["questions"][0]["id"].as_str().unwrap().to_owned();
+    assert_eq!(f["questions"][1]["kind"], "short");
+
+    // Open: an outsider reads the form and applies; members cannot.
+    assert_eq!(
+        e.get(&form, "carol").await.1["description"],
+        "Tell us about you"
+    );
+    assert_eq!(
+        e.post(
+            &apps,
+            "bob",
+            json!({"answers": [{"question_id": q1, "value": "x"}]})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        e.post(&apps, "carol", json!({"answers": []})).await.0,
+        StatusCode::BAD_REQUEST,
+        "a required question is unanswered"
+    );
+    let (s, a) = e
+        .post(
+            &apps,
+            "carol",
+            json!({"answers": [{"question_id": q1, "value": "I like manga"}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{a}");
+    assert_eq!(a["status"], "pending");
+    let app_id = a["id"].as_str().unwrap().to_owned();
+    // One at a time.
+    assert_eq!(
+        e.post(
+            &apps,
+            "carol",
+            json!({"answers": [{"question_id": q1, "value": "again"}]})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        e.get(&format!("{apps}/@me"), "carol").await.1["id"],
+        app_id.as_str()
+    );
+
+    // The queue is for managers.
+    assert_eq!(e.get(&apps, "bob").await.0, StatusCode::FORBIDDEN);
+    let (s, q) = e.get(&format!("{apps}?status=pending"), "mod").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(q.as_array().unwrap().len(), 1);
+    assert_eq!(q[0]["answers"][0]["value"], "I like manga");
+    assert_eq!(
+        e.get(&format!("{apps}?status=bogus"), "mod").await.0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // Reject, then apply again and get approved; a decided application stays decided.
+    let decision = format!("{apps}/{app_id}/decision");
+    assert_eq!(
+        e.post(&decision, "bob", json!({"approve": false})).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (s, r) = e
+        .post(
+            &decision,
+            "mod",
+            json!({"approve": false, "reason": "not now"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["status"], "rejected");
+    assert_eq!(r["rejection_reason"], "not now");
+    assert_eq!(
+        e.post(&decision, "mod", json!({"approve": true})).await.0,
+        StatusCode::NOT_FOUND
+    );
+    let (_, a2) = e
+        .post(
+            &apps,
+            "carol",
+            json!({"answers": [{"question_id": q1, "value": "second try"}]}),
+        )
+        .await;
+    let (s, ok) = e
+        .post(
+            &format!("{apps}/{}/decision", a2["id"].as_str().unwrap()),
+            "mod",
+            json!({"approve": true}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ok}");
+    assert_eq!(ok["status"], "approved");
+    assert_eq!(ok["reviewed_by"], MOD.to_string().as_str());
+}
+
+#[path = "soundboard_tests.rs"]
+mod soundboard_tests;
+
+// ---- Staff Server invites (ADM-STF-003) ---------------------------------------------
+
+#[tokio::test]
+async fn nobody_creates_or_redeems_invites_to_the_staff_server() {
+    let e = wired().await;
+    // An invite made while the server was ordinary...
+    let old = new_invite(&e, json!({"max_uses": 3})).await;
+    // ...stops working once the server is the Staff Server.
+    e.backend
+        .data()
+        .guilds
+        .get_mut(&e.guild)
+        .unwrap()
+        .is_staff_guild = true;
+    let (s, body) = e.post(&e.invites_path(), "owner", json!({})).await;
+    assert_eq!(
+        (s, body["code"].as_u64()),
+        (StatusCode::FORBIDDEN, Some(40006)),
+        "{body}"
+    );
+    assert!(body["message"].as_str().unwrap().contains("Staff Server"));
+    let r = e.accept(CAROL, &old).await;
+    assert_eq!(code_of(&r), (StatusCode::FORBIDDEN, Some(40006)));
+    assert!(!is_member(&e, CAROL));
+    assert_eq!(uses(&e, &old), 0, "a refusal keeps the use");
+    // Other servers are unaffected.
+    e.backend
+        .data()
+        .guilds
+        .get_mut(&e.guild)
+        .unwrap()
+        .is_staff_guild = false;
+    assert_eq!(e.accept(CAROL, &old).await.0, StatusCode::OK);
 }

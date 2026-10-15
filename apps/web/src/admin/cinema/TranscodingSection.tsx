@@ -13,7 +13,7 @@ import {
   Tabs,
   TextInput,
 } from '@sideroom/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useT } from '../../i18n';
 import {
   LoadMore,
@@ -293,6 +293,16 @@ function QueueTab() {
     }
   });
   const { busy, error, notice, run } = useRun();
+  const [counts, setCounts] = useState<tx.QueueCounts | null>(null);
+  useEffect(() => {
+    let live = true;
+    tx.getQueueCounts()
+      .then((c) => live && setCounts(c))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
   const [logs, setLogs] = useState<tx.TranscodeJob | null>(null);
   const [cancel, setCancel] = useState<tx.TranscodeJob | null>(null);
   const [rerun, setRerun] = useState<tx.TranscodeJob | null>(null);
@@ -311,6 +321,16 @@ function QueueTab() {
           {t('admin.transcoding.queue.refresh')}
         </Button>
       </div>
+      {counts && (
+        <p className="ss-sub" role="status">
+          {t('admin.transcoding.queue.counts', {
+            queued: counts.queued,
+            running: counts.running,
+            failed: counts.failed_last_day,
+            done: counts.succeeded_last_day,
+          })}
+        </p>
+      )}
       <Banner error={error} notice={notice} />
       {paged.error && (
         <LoadProblem
@@ -334,6 +354,7 @@ function QueueTab() {
                 <th scope="col">{t('admin.transcoding.col.job')}</th>
                 <th scope="col">{t('admin.transcoding.col.asset')}</th>
                 <th scope="col">{t('admin.transcoding.col.state')}</th>
+                <th scope="col">{t('admin.transcoding.col.priority')}</th>
                 <th scope="col">{t('admin.transcoding.col.worker')}</th>
                 <th scope="col">{t('admin.transcoding.col.created')}</th>
                 <th scope="col">{t('admin.transcoding.col.actions')}</th>
@@ -360,6 +381,7 @@ function QueueTab() {
                     )}
                     {j.error && <div className="ss-meta">{j.error}</div>}
                   </td>
+                  <td>{j.priority}</td>
                   <td>{j.worker_name ?? j.worker_id ?? ''}</td>
                   <td>{fmtMs(j.created_at_ms)}</td>
                   <td>

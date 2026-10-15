@@ -16,7 +16,10 @@ import { RovingNav } from '../a11y/RovingNav';
 import { useT } from '../i18n';
 import { useVoiceSession } from '../voice/session';
 import { useJoinVoice } from './voice/actions';
-import { useVoiceMenuEntries } from './voice/useVoiceMenu';
+import './voice/voice-p10.css';
+import { useVoicePerms } from './voice/perms';
+import { useVoiceUserMenu } from './voice/useVoiceUserMenu';
+import { dropVoiceUser, isVoiceDrag, readVoiceDrag, startVoiceDrag } from './voice/voiceDrag';
 import { groupChannels, isVoiceLike } from './channels';
 import {
   useChannels,
@@ -28,6 +31,7 @@ import {
   type VoiceMember,
 } from './data';
 import { useLoungeRoute } from './nav';
+import { NestedThreads } from './threads/NestedThreads';
 import { useGuildMenuCore } from './shell/useGuildMenu';
 import { useChannelDnd, type ChannelDropMark } from './shell/useChannelDnd';
 import { useChannelMenu } from './shell/useChannelMenu';
@@ -56,15 +60,31 @@ function VoiceMemberRow({
   const t = useT();
   const users = useUsers();
   const u = users[m.userId];
-  const menu = useVoiceMenuEntries(
+  const menu = useVoiceUserMenu(
     channel.guildId,
     { id: m.userId, name: u?.displayName ?? t('lounge.channelSidebar.unknown') },
     onError,
     channel.id,
   );
+  const canMove = useVoicePerms(channel.guildId, channel.id).moveMembers;
   if (!u) return null;
   return (
-    <li>
+    <li
+      draggable={canMove || undefined}
+      data-draggable={canMove || undefined}
+      onDragStart={
+        canMove
+          ? (e) => {
+              e.stopPropagation();
+              startVoiceDrag(e, {
+                userId: m.userId,
+                guildId: channel.guildId,
+                fromChannelId: channel.id,
+              });
+            }
+          : undefined
+      }
+    >
       <ContextMenu
         items={menu}
         label={t('lounge.channelSidebar.voiceActions', { name: u.displayName })}
@@ -74,9 +94,17 @@ function VoiceMemberRow({
           <span className="lng-voice-name">{u.displayName}</span>
           {m.streaming && <span className="lng-live">{t('lounge.channelSidebar.live')}</span>}
           {m.video && <Icon name="video" size={16} label={t('lounge.channelSidebar.cameraOn')} />}
-          {m.muted && <Icon name="mic-off" size={16} label={t('lounge.channelSidebar.muted')} />}
-          {m.deafened && (
-            <Icon name="volume-off" size={16} label={t('lounge.channelSidebar.deafened')} />
+          {m.serverMuted ? (
+            <Icon name="mic-off" size={16} label={t('lounge.channelSidebar.serverMuted')} />
+          ) : (
+            m.muted && <Icon name="mic-off" size={16} label={t('lounge.channelSidebar.muted')} />
+          )}
+          {m.serverDeafened ? (
+            <Icon name="volume-off" size={16} label={t('lounge.channelSidebar.serverDeafened')} />
+          ) : (
+            m.deafened && (
+              <Icon name="volume-off" size={16} label={t('lounge.channelSidebar.deafened')} />
+            )
           )}
         </div>
       </ContextMenu>
@@ -127,6 +155,7 @@ function ChannelRow({
   const connected = useVoiceSession((s) => s.channelId === channel.id && s.status !== 'idle');
   const members = useVoiceMembers(channel.id);
   const menu = useChannelMenu(channel, guild, channels, onError);
+  const [voiceDropOver, setVoiceDropOver] = useState(false);
   const nameId = useId();
   const icon = channel.locked ? 'lock' : CHANNEL_ICON[channel.type];
   const state = selected ? 'selected' : channel.unread && !channel.muted ? 'unread' : 'none';
@@ -167,6 +196,27 @@ function ChannelRow({
                     })
               }
               onClick={() => joinVoice(channel)}
+              data-voice-drop={voiceDropOver || undefined}
+              onDragOver={(e) => {
+                if (!isVoiceDrag(e)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                setVoiceDropOver(true);
+              }}
+              onDragLeave={() => setVoiceDropOver(false)}
+              onDrop={(e) => {
+                const data = readVoiceDrag(e);
+                if (!data) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setVoiceDropOver(false);
+                void dropVoiceUser(data, channel.guildId, channel.id).catch((err: unknown) =>
+                  onError(
+                    err instanceof Error ? err.message : t('lounge.channelSidebar.moveFailed'),
+                  ),
+                );
+              }}
             >
               <Icon name={icon} size={20} />
               <span className="lng-channel-name" id={nameId}>
@@ -233,6 +283,7 @@ function ChannelRow({
           )}
         </span>
       </ContextMenu>
+      {!isVoiceLike(channel) && <NestedThreads guildId={guild.id} channelId={channel.id} />}
     </li>
   );
 }
@@ -313,6 +364,7 @@ function GuildHeader({ guild }: { guild: Guild }) {
           } as MenuEntry,
         ]
       : []),
+    ...(guild.isStaff ? [core.platformAdmin] : []),
     ...((p.serverSettings ?? p.manageGuild) ? [core.settings] : []),
     ...(p.manageChannels
       ? [

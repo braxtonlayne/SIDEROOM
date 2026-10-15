@@ -4,7 +4,10 @@
 use crate::{
     auth::{AuthKind, Principal},
     error::HttpError,
-    routes::Ext,
+    routes::{
+        Ext,
+        auth::{AuthRouteError, AuthService, StaffMfa},
+    },
     state::AppState,
 };
 use axum::{
@@ -26,6 +29,9 @@ pub struct AdminDeps {
     pub service: AdminService,
     pub features: Option<FeatureService>,
     pub gateway_sessions: Option<Arc<dyn Fn() -> usize + Send + Sync>>,
+    /// Sensitive actions need a second factor checked within the last 15 minutes
+    /// (ADM-STF-009). Off by default so tests and development need no authenticator.
+    pub require_reauth: bool,
 }
 
 impl AdminDeps {
@@ -34,12 +40,20 @@ impl AdminDeps {
             service,
             features: None,
             gateway_sessions: None,
+            require_reauth: false,
         }
     }
 
     /// Feature toggles are exposed through this service.
     pub fn with_features(mut self, f: FeatureService) -> Self {
         self.features = Some(f);
+        self
+    }
+
+    /// Demand a fresh second factor for the sensitive admin routes (private content,
+    /// account email and password, 2FA reset, staff changes, announcements).
+    pub fn with_reauth(mut self, on: bool) -> Self {
+        self.require_reauth = on;
         self
     }
 
@@ -55,11 +69,100 @@ impl AdminDeps {
 pub struct StaffCtx {
     pub deps: Arc<AdminDeps>,
     pub caller: Caller,
+    /// The browser session the request came in on.
+    pub session_id: i64,
+    auth: Option<Arc<AuthService>>,
+    now_secs: i64,
 }
 
 impl StaffCtx {
     pub fn svc(&self) -> &AdminService {
         &self.deps.service
+    }
+
+    pub fn now_secs(&self) -> i64 {
+        self.now_secs
+    }
+
+    /// Refuse unless this session passed a second-factor check in the last 15 minutes
+    /// (ADM-STF-009). The client answers the `SrReauthRequired` error by calling
+    /// `POST /admin/reauth` and retrying. A no-op when [`AdminDeps::require_reauth`] is off.
+    pub async fn require_reauth(&self) -> Result<(), HttpError> {
+        if !self.deps.require_reauth {
+            return Ok(());
+        }
+        let auth = self.auth.as_ref().ok_or_else(|| {
+            tracing::error!("admin re-auth is on but no AuthService is registered");
+            HttpError::from(ErrorCode::SrInternal)
+        })?;
+        match crate::routes::auth::staff_mfa_state(
+            auth,
+            self.now_secs,
+            self.caller.user_id,
+            self.session_id,
+        )
+        .await
+        .map_err(auth_err)?
+        {
+            StaffMfa::Fresh => Ok(()),
+            StaffMfa::Stale => Err(ApiError::with_message(
+                ErrorCode::SrReauthRequired,
+                "Confirm your second factor to continue.",
+            )
+            .into()),
+            StaffMfa::NotEnrolled => Err(ApiError::with_message(
+                ErrorCode::SrReauthRequired,
+                "Set up two-factor authentication before using this admin action.",
+            )
+            .into()),
+        }
+    }
+
+    /// Open the 15-minute window with a TOTP, recovery or passkey proof.
+    pub async fn prove_second_factor(&self, method: &str, code: &str) -> Result<(), HttpError> {
+        let auth = self
+            .auth
+            .as_ref()
+            .ok_or_else(|| HttpError::from(ErrorCode::SrInternal))?;
+        crate::routes::auth::staff_mfa_prove(
+            auth,
+            self.now_secs,
+            self.caller.user_id,
+            self.session_id,
+            method,
+            code,
+        )
+        .await
+        .map_err(auth_err)
+    }
+
+    /// Where the session stands, for `GET /admin/reauth`.
+    pub async fn mfa_state(&self) -> Result<StaffMfa, HttpError> {
+        let Some(auth) = &self.auth else {
+            return Ok(StaffMfa::NotEnrolled);
+        };
+        crate::routes::auth::staff_mfa_state(
+            auth,
+            self.now_secs,
+            self.caller.user_id,
+            self.session_id,
+        )
+        .await
+        .map_err(auth_err)
+    }
+}
+
+fn auth_err(e: AuthRouteError) -> HttpError {
+    match e {
+        AuthRouteError::Api(h) => h,
+        AuthRouteError::Throttled { retry_after } => ApiError::with_message(
+            ErrorCode::TooManyRequests,
+            format!(
+                "Too many attempts. Try again in {} seconds.",
+                retry_after.max(1)
+            ),
+        )
+        .into(),
     }
 }
 
@@ -73,13 +176,19 @@ impl FromRequestParts<AppState> for StaffCtx {
         let p = Principal::from_request_parts(parts, state).await?;
         // Admin work needs a human browser session (CSRF-protected); bots and OAuth
         // tokens never carry platform standing.
-        if !matches!(p.kind, AuthKind::Session { .. }) {
+        let AuthKind::Session { session_id } = p.kind else {
             return Err(ErrorCode::SrStaffOnly.into());
-        }
+        };
         let Ext(deps) = Ext::<AdminDeps>::from_request_parts(parts, state).await?;
         let ip = client_ip(parts, state.settings().trust_forwarded_for);
         let caller = deps.service.resolve(p.user_id, ip).await.map_err(map_err)?;
-        Ok(Self { deps, caller })
+        Ok(Self {
+            deps,
+            caller,
+            session_id,
+            auth: state.extension::<AuthService>(),
+            now_secs: state.now_secs(),
+        })
     }
 }
 

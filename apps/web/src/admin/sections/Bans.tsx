@@ -2,6 +2,7 @@ import { Badge, Button, EmptyState, Notice, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
 import { useT } from '../../i18n';
+import { PersonDrawer } from './PersonDrawer';
 import { LoadMore, ReasonDialog, SectionHeader, fmtMs, usePaged } from '../ui';
 
 export function BansSection() {
@@ -9,6 +10,7 @@ export function BansSection() {
   const [activeOnly, setActiveOnly] = useState(true);
   const [target, setTarget] = useState<api.BanRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [person, setPerson] = useState<string | null>(null);
   const paged = usePaged<api.BanRecord>(`bans:${activeOnly}`, async (after) => {
     const p = await api.listBans({ active_only: activeOnly, after, limit: 50 });
     return { items: p.items, next: p.next_after };
@@ -46,7 +48,15 @@ export function BansSection() {
             <li key={b.id} className="ss-row">
               <div className="ss-grow">
                 <div className="ss-name">
-                  {t('admin.bans.person')} <span className="adm-mono">{b.person_id}</span>{' '}
+                  {t('admin.bans.person')}{' '}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={t('admin.bans.openPersonAria', { id: b.person_id })}
+                    onClick={() => setPerson(b.person_id)}
+                  >
+                    <span className="adm-mono">{b.person_id}</span>
+                  </Button>{' '}
                   <Badge variant={b.category === 'serious' ? 'danger' : 'warning'}>
                     {b.category}
                   </Badge>{' '}
@@ -79,6 +89,7 @@ export function BansSection() {
         </ul>
       )}
       <LoadMore paged={paged} />
+      {person && <PersonDrawer personId={person} onClose={() => setPerson(null)} />}
       <ReasonDialog
         open={!!target}
         title={t('admin.bans.liftTitle')}

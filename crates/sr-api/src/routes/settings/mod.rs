@@ -1,6 +1,6 @@
 //! Server-settings REST API (docs/specs/lounge-chat.md section 11, inventory
 //! `06-lounge-server-settings.md`): invites, audit log, emoji and stickers,
-//! AutoMod rules, webhooks, templates and community/onboarding settings.
+//! AutoMod rules, webhooks, templates, community/onboarding settings and server tags.
 //!
 //! Wiring, in the composition root:
 //!
@@ -21,6 +21,7 @@
 //! joined member through [`join::MemberJoiner`] (the composition root wires the
 //! bus-backed [`join::InviteMemberJoiner`]).
 
+pub mod applications;
 pub mod audit;
 pub mod automod;
 pub mod automod_gate;
@@ -28,10 +29,15 @@ pub mod community;
 pub mod deps;
 pub mod events;
 pub mod expressions;
+pub mod follow;
+pub mod guide;
+pub mod insights;
 pub mod invites;
 pub mod join;
 pub mod presence;
 pub mod repo;
+pub mod soundboard;
+pub mod tags;
 pub mod templates;
 pub mod timeout;
 pub mod webhooks;
@@ -61,10 +67,16 @@ pub fn router() -> Router<AppState> {
         .merge(invites::routes())
         .merge(audit::routes())
         .merge(expressions::routes())
+        .merge(soundboard::routes())
         .merge(automod::routes())
         .merge(webhooks::routes())
+        .merge(follow::routes())
         .merge(templates::routes())
         .merge(community::routes())
+        .merge(tags::routes())
+        .merge(insights::routes())
+        .merge(guide::routes())
+        .merge(applications::routes())
 }
 
 /// OpenAPI fragment for these routes; merge into [`crate::openapi::base`].
@@ -90,6 +102,15 @@ pub fn router() -> Router<AppState> {
         expressions::create_sticker,
         expressions::modify_sticker,
         expressions::delete_sticker,
+        soundboard::list_default_sounds,
+        soundboard::default_sound_audio,
+        soundboard::list_sounds,
+        soundboard::get_sound,
+        soundboard::sound_audio,
+        soundboard::create_sound,
+        soundboard::modify_sound,
+        soundboard::delete_sound,
+        soundboard::send_sound,
         automod::list_rules,
         automod::get_rule,
         automod::create_rule,
@@ -106,6 +127,7 @@ pub fn router() -> Router<AppState> {
         webhooks::modify_webhook_with_token,
         webhooks::delete_webhook_with_token,
         webhooks::execute_webhook,
+        follow::follow_channel,
         templates::list_builtin_templates,
         templates::create_guild_from_template,
         templates::get_template,
@@ -120,6 +142,23 @@ pub fn router() -> Router<AppState> {
         community::put_onboarding,
         community::get_welcome_screen,
         community::modify_welcome_screen,
+        community::get_member_verification,
+        community::accept_screening,
+        community::post_onboarding_responses,
+        tags::get_tag,
+        tags::put_tag,
+        tags::delete_tag,
+        tags::get_primary_guild,
+        tags::put_primary_guild,
+        insights::get_insights,
+        guide::get_guide,
+        guide::put_guide,
+        applications::get_form,
+        applications::put_form,
+        applications::submit_application,
+        applications::get_my_application,
+        applications::list_applications,
+        applications::decide_application,
     ),
     components(schemas(
         ErrorBody,
@@ -137,6 +176,9 @@ pub fn router() -> Router<AppState> {
         expressions::ModifyEmojiBody,
         expressions::CreateStickerBody,
         expressions::ModifyStickerBody,
+        soundboard::CreateSoundBody,
+        soundboard::ModifySoundBody,
+        soundboard::SendSoundBody,
         automod::RuleObject,
         automod::RuleBody,
         automod::TriggerMetadata,
@@ -146,6 +188,8 @@ pub fn router() -> Router<AppState> {
         webhooks::CreateWebhookBody,
         webhooks::ModifyWebhookBody,
         webhooks::ExecuteWebhookBody,
+        follow::FollowBody,
+        follow::FollowedChannelObject,
         templates::TemplateObject,
         templates::BuiltinTemplateObject,
         templates::GuildFromTemplateBody,
@@ -160,6 +204,31 @@ pub fn router() -> Router<AppState> {
         community::WelcomeScreenObject,
         community::WelcomeChannelDto,
         community::ModifyWelcomeScreenBody,
+        community::MemberVerificationObject,
+        community::VerificationField,
+        community::AcceptScreeningBody,
+        community::OnboardingResponseBody,
+        community::OnboardingResultObject,
+        tags::GuildTagObject,
+        tags::PutGuildTagBody,
+        tags::PrimaryGuildResponse,
+        tags::PutPrimaryGuildBody,
+        insights::InsightsObject,
+        guide::GuideObject,
+        guide::GuideTodoDto,
+        guide::GuideResourceDto,
+        guide::PutGuideBody,
+        applications::QuestionDto,
+        applications::PutFormBody,
+        applications::FormObject,
+        applications::AnswerDto,
+        applications::ApplicationObject,
+        applications::AnswerBody,
+        applications::SubmitBody,
+        applications::DecisionBody,
+        insights::InsightsDayObject,
+        insights::InsightsChannelObject,
+        crate::routes::social::model::PrimaryGuildObject,
     ))
 )]
 pub struct SettingsApiDoc;

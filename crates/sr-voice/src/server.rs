@@ -13,6 +13,7 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use sr_core::{ChannelId, UserId};
+use sr_voice_proto::video::Video;
 use sr_voice_proto::wire::{self, Message, Ready, close, op};
 use sr_voice_proto::{JoinClaims, TokenSigner, VoiceCommand, VoiceRelay};
 use str0m::Candidate;
@@ -79,6 +80,11 @@ pub(crate) enum Cmd {
         conn_id: u64,
         bits: u8,
     },
+    Video {
+        pid: ParticipantId,
+        conn_id: u64,
+        msg: Box<Video>,
+    },
     WsLost {
         pid: ParticipantId,
         conn_id: u64,
@@ -114,11 +120,21 @@ pub enum StartError {
     NoAnnounce,
 }
 
+/// What an [`SfuEvent`] reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SfuEventKind {
+    /// The SFU dropped the participant without being told to (media or WebSocket gone).
+    Lost,
+    /// The participant started speaking.
+    Active,
+}
+
 /// Something the gateway should hear about: a participant the SFU lost without being told to
 /// drop it (its WebSocket never came back within the resume window, or its media connection
-/// died). The gateway then clears the user's voice state.
+/// died), so the gateway clears the user's voice state; or one who started speaking.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SfuEvent {
+    pub kind: SfuEventKind,
     pub channel: ChannelId,
     pub user: UserId,
 }
@@ -251,7 +267,11 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         events: events.clone(),
     };
     let actor = Actor {
-        core: SfuCore::new(cfg.max_participants, cfg.max_room_size),
+        core: SfuCore::new(cfg.max_participants, cfg.max_room_size)
+            .with_bwe(cfg.video_bwe)
+            .with_governor(crate::governor::GovernorConfig::with_budget_mbps(
+                cfg.egress_budget_mbps,
+            )),
         cfg,
         socks,
         port_idx: ports.iter().enumerate().map(|(i, p)| (*p, i)).collect(),
@@ -262,7 +282,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         tcp: HashMap::new(),
         next_sock: 0,
         draining: false,
-        last_forwarded: 0,
+        last_counts: (0, 0, 0),
         pending_flags: HashMap::new(),
         events,
     };
@@ -379,7 +399,7 @@ struct Actor {
     tcp: HashMap<SocketAddr, mpsc::Sender<Vec<u8>>>,
     next_sock: usize,
     draining: bool,
-    last_forwarded: u64,
+    last_counts: (u64, u64, u64),
     /// Flag changes that arrived before the participant joined (a moderator muted someone
     /// between `VOICE_SERVER_UPDATE` and their connection). Applied at join, dropped after
     /// the token lifetime.
@@ -458,9 +478,18 @@ impl Actor {
     fn on_tick(&mut self) {
         let now = Instant::now();
         let snap = self.core.snapshot();
-        let delta = snap.forwarded_packets.saturating_sub(self.last_forwarded);
-        self.last_forwarded = snap.forwarded_packets;
-        metrics::publish(&snap, delta);
+        let counts = (
+            snap.forwarded_packets,
+            snap.forwarded_frames,
+            snap.keyframe_requests,
+        );
+        let deltas = metrics::Deltas {
+            packets: counts.0.saturating_sub(self.last_counts.0),
+            frames: counts.1.saturating_sub(self.last_counts.1),
+            keyframes: counts.2.saturating_sub(self.last_counts.2),
+        };
+        self.last_counts = counts;
+        metrics::publish(&snap, deltas);
         self.pending_flags
             .retain(|_, (_, at)| now.saturating_duration_since(*at) <= PENDING_FLAGS_TTL);
         // Participants whose WebSocket stayed away past the resume window are dropped.
@@ -566,6 +595,14 @@ impl Actor {
                     self.core.set_client_speaking(now, pid, bits);
                 }
             }
+            Cmd::Video { pid, conn_id, msg } => {
+                if self.is_current(pid, conn_id)
+                    && let Err(e) = self.core.handle_video(now, pid, *msg)
+                {
+                    tracing::debug!(error = %e, "rejected video message");
+                    self.send_ws(pid, WsOut::Close(close::DECODE_ERROR, "bad video message"));
+                }
+            }
             Cmd::WsLost { pid, conn_id } => {
                 if let Some(s) = self.sessions.get_mut(&pid)
                     && s.conn.as_ref().is_some_and(|c| c.id == conn_id)
@@ -612,6 +649,9 @@ impl Actor {
             deaf: c.deaf,
             ptt_required: c.ptt_required,
             priority: c.priority,
+            camera: c.camera,
+            screen: c.screen,
+            tier: c.tier,
         };
         if let Some((f, at)) = self.pending_flags.remove(&(c.channel_id, c.user_id))
             && now.saturating_duration_since(at) <= PENDING_FLAGS_TTL
@@ -723,12 +763,23 @@ impl Actor {
                 deaf,
                 ptt_required,
                 priority,
+                camera,
+                screen,
             } => {
+                // The tier is fixed at join; a level change applies from the next join.
+                let tier = self
+                    .core
+                    .participant_of(user)
+                    .and_then(|p| self.core.flags_of(p))
+                    .map_or(0, |f| f.tier);
                 let flags = Flags {
                     speak,
                     deaf,
                     ptt_required,
                     priority,
+                    camera,
+                    screen,
+                    tier,
                 };
                 if !self.core.set_flags(now, channel, user, flags) {
                     self.pending_flags.insert((channel, user), (flags, now));
@@ -739,6 +790,14 @@ impl Actor {
                 self.core
                     .disconnect_user(channel, user, CloseReason::Disconnected);
             }
+            VoiceCommand::StreamViewers {
+                channel,
+                owner,
+                viewers,
+                live,
+            } => self
+                .core
+                .set_stream_viewers(now, channel, owner, viewers, live),
             VoiceCommand::CloseRoom { channel } => self.core.close_room(channel),
         }
     }
@@ -764,6 +823,13 @@ impl Actor {
                 CoreOutput::Event(CoreEvent::Signal { to, msg }) => {
                     self.send_ws(to, WsOut::Msg(msg));
                 }
+                CoreOutput::Event(CoreEvent::Active { user, channel }) => {
+                    let _ = self.events.send(SfuEvent {
+                        kind: SfuEventKind::Active,
+                        channel,
+                        user,
+                    });
+                }
                 CoreOutput::Event(CoreEvent::Closed {
                     pid,
                     reason,
@@ -772,7 +838,11 @@ impl Actor {
                 }) => {
                     // Not asked for by the gateway: tell it, so it clears the voice state.
                     if matches!(reason, CloseReason::Left | CloseReason::Connection) {
-                        let _ = self.events.send(SfuEvent { channel, user });
+                        let _ = self.events.send(SfuEvent {
+                            kind: SfuEventKind::Lost,
+                            channel,
+                            user,
+                        });
                     }
                     if let Some(s) = self.sessions.remove(&pid) {
                         self.by_session.remove(&s.session_id);

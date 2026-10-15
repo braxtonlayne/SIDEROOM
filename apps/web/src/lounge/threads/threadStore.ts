@@ -24,6 +24,16 @@ export interface ThreadInfo {
   lastMessageId: string | null;
   /** Archive time, used to page archived lists. */
   archiveTimestamp: string | null;
+  /** Private thread (channel type 12): only invited members see it. */
+  isPrivate: boolean;
+  /** Seconds between messages for members without Manage Messages/Threads. */
+  slowmode: number;
+  /** Minutes of inactivity before the thread archives itself. */
+  autoArchive: number;
+  /** Forum posts: ids of the tags applied to the post. */
+  appliedTags: string[];
+  /** Forum posts: the thread owner pinned it (flag 2). */
+  pinned: boolean;
 }
 
 interface WireThread {
@@ -36,7 +46,16 @@ interface WireThread {
   message_count?: number | null;
   member_count?: number | null;
   member?: unknown;
-  thread_metadata?: { archived?: boolean; locked?: boolean; archive_timestamp?: string } | null;
+  type?: number;
+  rate_limit_per_user?: number | null;
+  flags?: number | null;
+  applied_tags?: string[] | null;
+  thread_metadata?: {
+    archived?: boolean;
+    locked?: boolean;
+    archive_timestamp?: string;
+    auto_archive_duration?: number;
+  } | null;
 }
 
 export function toThread(w: WireThread, prev?: ThreadInfo): ThreadInfo | null {
@@ -55,6 +74,12 @@ export function toThread(w: WireThread, prev?: ThreadInfo): ThreadInfo | null {
     joined: 'member' in w ? !!w.member : (prev?.joined ?? false),
     lastMessageId: w.last_message_id ?? prev?.lastMessageId ?? null,
     archiveTimestamp: meta?.archive_timestamp ?? prev?.archiveTimestamp ?? null,
+    isPrivate: w.type === undefined ? (prev?.isPrivate ?? false) : w.type === 12,
+    slowmode: w.rate_limit_per_user ?? prev?.slowmode ?? 0,
+    autoArchive: meta?.auto_archive_duration ?? prev?.autoArchive ?? 1440,
+    appliedTags: w.applied_tags ?? prev?.appliedTags ?? [],
+    pinned:
+      w.flags === undefined || w.flags === null ? (prev?.pinned ?? false) : (w.flags & 2) !== 0,
   };
 }
 
@@ -82,8 +107,21 @@ export interface ThreadsState {
   /** Start a thread that is not attached to a message (`POST /channels/{c}/threads`). */
   createStandalone(
     channelId: string,
-    body: { name: string; auto_archive_duration?: number },
+    body: { name: string; auto_archive_duration?: number; private?: boolean },
   ): Promise<ThreadInfo>;
+  /** Thread settings (`PATCH /channels/{thread}`). */
+  update(
+    threadId: string,
+    patch: {
+      name?: string;
+      rate_limit_per_user?: number;
+      auto_archive_duration?: number;
+      locked?: boolean;
+      archived?: boolean;
+    },
+  ): Promise<void>;
+  /** Delete the thread (`DELETE /channels/{thread}`). */
+  destroy(threadId: string): Promise<void>;
   join(threadId: string): Promise<void>;
   leave(threadId: string): Promise<void>;
   reset(): void;
@@ -135,15 +173,28 @@ export const useThreads = create<ThreadsState>()((set, get) => ({
     return t;
   },
   async createStandalone(channelId, body) {
+    const { private: isPrivate, ...rest } = body;
     const w = await apiFetch<WireThread>(`/channels/${channelId}/threads`, {
       method: 'POST',
-      json: { ...body, type: 11 },
+      json: { ...rest, type: isPrivate ? 12 : 11, ...(isPrivate ? { invitable: true } : {}) },
       retries: 0,
     });
     get().upsert([{ ...w, member: w.member ?? {} }]);
     const t = get().byId[w.id];
     if (!t) throw new Error('The thread could not be created.');
     return t;
+  },
+  async update(threadId, patch) {
+    const w = await apiFetch<WireThread>(`/channels/${threadId}`, {
+      method: 'PATCH',
+      json: patch,
+      retries: 0,
+    });
+    get().upsert([w]);
+  },
+  async destroy(threadId) {
+    await apiFetch<void>(`/channels/${threadId}`, { method: 'DELETE', retries: 0 });
+    get().remove(threadId);
   },
   async join(threadId) {
     await apiFetch<void>(`/channels/${threadId}/thread-members/@me`, { method: 'PUT', retries: 0 });

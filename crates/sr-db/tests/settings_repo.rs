@@ -357,3 +357,370 @@ async fn webhook_avatar_key_round_trips_and_clears() {
             .is_none()
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn server_tag_adoption_shows_only_for_members_while_allowed() {
+    use sr_chat::repo::UserLookup;
+    use sr_chat::settings::repo::TagRepository;
+    use sr_chat::settings::tags::GuildTag;
+
+    let pool = pool().await;
+    let test_ids = ids(7);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (gid, _, owner) = guild(&pool, &test_ids).await;
+    let lookup = PgChatRepo::new(pool.clone());
+    let shown = |u: UserId| {
+        let lookup = lookup.clone();
+        async move { lookup.users(&[u]).await.unwrap().remove(0).primary_guild }
+    };
+
+    let mut tag = GuildTag {
+        guild_id: gid,
+        tag: "SIDE".into(),
+        badge: 4,
+        color: 0x00FF_00FF,
+        members_can_display: true,
+    };
+    repo.put_guild_tag(&tag).await.unwrap();
+    assert_eq!(repo.get_guild_tag(gid).await.unwrap(), Some(tag.clone()));
+    assert_eq!(shown(owner).await, None, "nobody adopted yet");
+
+    repo.set_primary_guild(owner, Some(gid)).await.unwrap();
+    assert_eq!(repo.get_primary_guild(owner).await.unwrap(), Some(gid));
+    let pg = shown(owner).await.expect("adopted tag is shown");
+    assert_eq!((pg.guild_id, pg.tag.as_str(), pg.badge), (gid, "SIDE", 4));
+    assert_eq!(pg.color, 0x00FF_00FF);
+
+    // The toggle hides it everywhere without forgetting the adoption.
+    tag.members_can_display = false;
+    repo.put_guild_tag(&tag).await.unwrap();
+    assert_eq!(shown(owner).await, None);
+    tag.members_can_display = true;
+    repo.put_guild_tag(&tag).await.unwrap();
+    assert!(shown(owner).await.is_some());
+
+    // Leaving the guild hides it.
+    sqlx::query("DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2")
+        .bind(gid.get() as i64)
+        .bind(owner.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(shown(owner).await, None);
+
+    // Deleting the tag clears every adoption of it.
+    assert!(repo.delete_guild_tag(gid).await.unwrap());
+    assert_eq!(repo.get_primary_guild(owner).await.unwrap(), None);
+    assert!(!repo.delete_guild_tag(gid).await.unwrap());
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn insights_are_computed_per_day_and_read_back() {
+    use sr_chat::settings::repo::InsightsRepository;
+    use sr_db::settings_repo::compute_insights_day;
+
+    let pool = pool().await;
+    let test_ids = ids(8);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (gid, general, _owner) = guild(&pool, &test_ids).await;
+    let _: String = sqlx::query_scalar("SELECT sr_ensure_message_partition(CURRENT_DATE - 1)")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // Two messages at noon yesterday UTC.
+    let day_start_ms: i64 = sqlx::query_scalar(
+        "SELECT (extract(epoch FROM date_trunc('day', now() AT TIME ZONE 'UTC') - interval '1 day') * 1000)::bigint",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let noon_floor: i64 = sqlx::query_scalar(
+        "SELECT sr_snowflake_floor(to_timestamp($1::double precision / 1000.0) + interval '12 hours')",
+    )
+    .bind(day_start_ms)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let author = account(&pool, &test_ids).await;
+    // Distinct ids per run: the floor is the same for every run on a shared database.
+    let jitter = i64::from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos(),
+    ) % 1_000_000
+        * 2;
+    for k in 0..2 {
+        sqlx::query(
+            "INSERT INTO messages (id, channel_id, guild_id, author_id, content) \
+             VALUES ($1, $2, $3, $4, 'hi')",
+        )
+        .bind(noon_floor + jitter + k)
+        .bind(general.get() as i64)
+        .bind(gid.get() as i64)
+        .bind(author.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    sqlx::query(
+        "UPDATE guild_members SET joined_at = now() - interval '2 days' WHERE guild_id = $1",
+    )
+    .bind(gid.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    compute_insights_day(&pool, day_start_ms).await.unwrap();
+    // Recomputing replaces rather than doubles.
+    compute_insights_day(&pool, day_start_ms).await.unwrap();
+
+    let now_ms = day_start_ms + 86_400_000 + 3_600_000;
+    let ins = repo.insights(gid, 7, now_ms).await.unwrap();
+    assert_eq!(ins.days.len(), 1);
+    assert_eq!(ins.days[0].messages, 2);
+    assert_eq!((ins.days[0].members, ins.days[0].joins), (1, 0));
+    assert_eq!(ins.days[0].voice_minutes, 0);
+    assert_eq!(ins.top_channels.len(), 1);
+    assert_eq!(ins.top_channels[0].channel_id, general);
+    assert_eq!(ins.top_channels[0].messages, 2);
+    // A window that ends before that day sees nothing.
+    let earlier = repo.insights(gid, 7, day_start_ms).await.unwrap();
+    assert!(earlier.days.is_empty());
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn guide_round_trips() {
+    use sr_chat::settings::guide::{Guide, GuideResource, GuideTodo};
+    use sr_chat::settings::repo::GuideRepository;
+
+    let pool = pool().await;
+    let test_ids = ids(9);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (gid, general, _) = guild(&pool, &test_ids).await;
+    assert_eq!(
+        repo.get_guide(gid).await.unwrap(),
+        Guide {
+            guild_id: gid,
+            ..Guide::default()
+        }
+    );
+    let g = Guide {
+        guild_id: gid,
+        welcome_message: Some("hello".into()),
+        todos: vec![GuideTodo {
+            id: 7,
+            title: "Say hi".into(),
+            description: Some("in general".into()),
+            channel_id: Some(general),
+        }],
+        resources: vec![GuideResource {
+            id: 8,
+            title: "Rules".into(),
+            content: "# Rules".into(),
+        }],
+    };
+    repo.put_guide(&g).await.unwrap();
+    assert_eq!(repo.get_guide(gid).await.unwrap(), g);
+    let cleared = Guide {
+        guild_id: gid,
+        ..Guide::default()
+    };
+    repo.put_guide(&cleared).await.unwrap();
+    assert_eq!(repo.get_guide(gid).await.unwrap(), cleared);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn applications_queue_and_approval_adds_the_member() {
+    use sr_chat::settings::applications::{
+        Answer, Application, ApplicationForm, ApplicationStatus, Question, QuestionKind,
+    };
+    use sr_chat::settings::repo::ApplicationRepository;
+
+    let pool = pool().await;
+    let test_ids = ids(10);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (gid, _, owner) = guild(&pool, &test_ids).await;
+    let applicant = account(&pool, &test_ids).await;
+    let other = account(&pool, &test_ids).await;
+
+    let form = ApplicationForm {
+        guild_id: gid,
+        enabled: true,
+        description: Some("hi".into()),
+        questions: vec![Question {
+            id: 5,
+            label: "Why?".into(),
+            kind: QuestionKind::Paragraph,
+            required: true,
+        }],
+    };
+    repo.put_application_form(&form).await.unwrap();
+    assert_eq!(repo.get_application_form(gid).await.unwrap(), form);
+
+    let app = |user: UserId| Application {
+        id: test_ids.generate().get(),
+        guild_id: gid,
+        user_id: user,
+        answers: vec![Answer {
+            question_id: 5,
+            value: "because".into(),
+        }],
+        status: ApplicationStatus::Pending,
+        created_at_ms: NOW,
+        reviewed_by: None,
+        reviewed_at_ms: None,
+        rejection_reason: None,
+    };
+    let first = app(applicant);
+    assert!(repo.insert_application(&first).await.unwrap());
+    assert!(
+        !repo.insert_application(&app(applicant)).await.unwrap(),
+        "one pending application per person"
+    );
+    let second = app(other);
+    assert!(repo.insert_application(&second).await.unwrap());
+
+    let pending = repo
+        .list_applications(gid, Some(ApplicationStatus::Pending), None, 10)
+        .await
+        .unwrap();
+    assert_eq!(
+        pending.iter().map(|a| a.id).collect::<Vec<_>>(),
+        vec![second.id, first.id],
+        "newest first"
+    );
+    let paged = repo
+        .list_applications(gid, None, Some(second.id), 10)
+        .await
+        .unwrap();
+    assert_eq!(paged.len(), 1);
+
+    // Rejecting keeps the person out and records the reason.
+    let rejected = repo
+        .decide_application(gid, second.id, false, owner, NOW + 5, Some("no"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(rejected.status, ApplicationStatus::Rejected);
+    assert_eq!(rejected.rejection_reason.as_deref(), Some("no"));
+    assert_eq!(rejected.reviewed_by, Some(owner));
+    let member_of = |user: UserId| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2)",
+            )
+            .bind(gid.get() as i64)
+            .bind(user.get() as i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    assert!(!member_of(other).await);
+
+    // Approving adds the member in the same transaction; a decided one cannot be redone.
+    let approved = repo
+        .decide_application(gid, first.id, true, owner, NOW + 9, Some("ignored"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(approved.status, ApplicationStatus::Approved);
+    assert_eq!(approved.rejection_reason, None);
+    assert_eq!(approved.reviewed_at_ms, Some(NOW + 9));
+    assert!(member_of(applicant).await);
+    assert!(
+        repo.decide_application(gid, first.id, false, owner, NOW + 10, None)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // A rejected person may apply again.
+    assert!(repo.insert_application(&app(other)).await.unwrap());
+    let latest = repo.latest_application(gid, other).await.unwrap().unwrap();
+    assert_eq!(latest.status, ApplicationStatus::Pending);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn soundboard_sounds_round_trip_and_follow_their_guild() {
+    use sr_chat::settings::soundboard::{Sound, SoundFormat};
+    use sr_core::SoundId;
+
+    let pool = pool().await;
+    let test_ids = ids(7);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (g, _, owner) = guild(&pool, &test_ids).await;
+    let (other, _, _) = guild(&pool, &test_ids).await;
+
+    let mk = |name: &str, emoji: Option<&str>| Sound {
+        id: SoundId::new(test_ids.generate().get()),
+        guild_id: g,
+        name: name.into(),
+        volume: 0.75,
+        emoji_id: None,
+        emoji_name: emoji.map(str::to_owned),
+        available: true,
+        creator_id: owner,
+        media_key: format!("sound/{g}/{name}.wav"),
+        format: SoundFormat::Wav,
+        duration_ms: 1_250,
+        created_at_ms: NOW,
+    };
+    let a = mk("ding", Some("\u{1F514}"));
+    let b = mk("dong", None);
+    repo.insert_sound(&a).await.unwrap();
+    repo.insert_sound(&b).await.unwrap();
+
+    let list = repo.list_sounds(g).await.unwrap();
+    assert_eq!(list.len(), 2);
+    let got = repo.get_sound(g, a.id).await.unwrap().unwrap();
+    assert_eq!(got.name, "ding");
+    assert_eq!(got.volume, 0.75);
+    assert_eq!(got.emoji_name.as_deref(), Some("\u{1F514}"));
+    assert_eq!(got.format, SoundFormat::Wav);
+    assert_eq!(got.duration_ms, 1_250);
+    assert_eq!(got.media_key, a.media_key);
+    assert_eq!(got.creator_id, owner);
+
+    // Another server cannot see or touch it.
+    assert!(repo.get_sound(other, a.id).await.unwrap().is_none());
+    assert!(repo.list_sounds(other).await.unwrap().is_empty());
+    assert!(!repo.delete_sound(other, a.id).await.unwrap());
+
+    // Update keeps the file and the author.
+    let mut changed = got.clone();
+    changed.name = "bong".into();
+    changed.volume = 0.2;
+    changed.emoji_name = None;
+    repo.update_sound(&changed).await.unwrap();
+    let after = repo.get_sound(g, a.id).await.unwrap().unwrap();
+    assert_eq!((after.name.as_str(), after.volume), ("bong", 0.2));
+    assert!(after.emoji_name.is_none());
+    assert_eq!(after.media_key, a.media_key);
+
+    // The database refuses what the domain would: a name that is too short, a sound longer
+    // than five seconds, an unknown format.
+    let mut bad = mk("ok", None);
+    bad.name = "x".into();
+    assert!(repo.insert_sound(&bad).await.is_err());
+    let mut long = mk("long", None);
+    long.duration_ms = 5_001;
+    assert!(repo.insert_sound(&long).await.is_err());
+
+    assert!(repo.delete_sound(g, a.id).await.unwrap());
+    assert!(!repo.delete_sound(g, a.id).await.unwrap());
+    assert_eq!(repo.list_sounds(g).await.unwrap().len(), 1);
+    // Deleting the guild takes its sounds along.
+    sqlx::query("DELETE FROM guilds WHERE id = $1")
+        .bind(g.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert!(repo.list_sounds(g).await.unwrap().is_empty());
+}

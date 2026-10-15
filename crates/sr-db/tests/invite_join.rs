@@ -307,3 +307,66 @@ async fn parallel_accepts_of_a_limited_invite_never_exceed_max_uses() {
     assert_eq!(ok, 3);
     assert_eq!(f.uses(&code).await, 3);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn nobody_joins_the_staff_server_by_invite() {
+    let f = fx(23).await;
+    // The one Staff Server: reuse it or turn up a bare one.
+    let guild: i64 = match sqlx::query_scalar::<_, i64>(
+        "SELECT id FROM guilds WHERE is_staff_guild",
+    )
+    .fetch_optional(&f.pool)
+    .await
+    .unwrap()
+    {
+        Some(id) => id,
+        None => {
+            let id = f.ids.generate().get() as i64;
+            sqlx::query(
+                "INSERT INTO guilds (id, name, owner_id, is_staff_guild) VALUES ($1, 'Staff', $2, true)",
+            )
+            .bind(id)
+            .bind(f.owner.get() as i64)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+            id
+        }
+    };
+    let channel = f.ids.generate().get() as i64;
+    sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES ($1, $2, 0, 'old-invite')")
+        .bind(channel)
+        .bind(guild)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    let code = format!("s{}", f.ids.generate().get());
+    let inv = GuildInvite::new(
+        code.clone(),
+        GuildId::new(guild as u64),
+        ChannelId::new(channel as u64),
+        f.owner,
+        InviteOptions {
+            max_age_secs: 0,
+            max_uses: 5,
+            temporary: false,
+        },
+        NOW,
+    )
+    .unwrap();
+    f.settings.insert_invite(&inv).await.unwrap();
+    let joiner = account(&f.pool, &f.ids).await;
+    let r = f.join.join_via_invite(&code, joiner, NOW).await;
+    assert!(matches!(r, Err(SettingsError::StaffServerInvites)), "{r:?}");
+    assert_eq!(f.uses(&code).await, 0, "the refusal keeps the use");
+    let member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2)",
+    )
+    .bind(guild)
+    .bind(joiner.get() as i64)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    assert!(!member);
+}

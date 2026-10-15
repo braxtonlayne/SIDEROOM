@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Op } from '../../gateway/protocol';
 import type { VoiceState } from '../../store/types';
-import { MAX_REJOINS, SERVER_WAIT_MS, VoiceController, type ControllerDeps } from '../controller';
+import {
+  MAX_MIC_RECOVERIES,
+  MAX_REJOINS,
+  SERVER_WAIT_MS,
+  VoiceController,
+  type ControllerDeps,
+} from '../controller';
 import {
   VoiceConnectError,
   type ConnectParams,
@@ -9,7 +15,7 @@ import {
   type VoiceEngine,
 } from '../engine';
 import { HANG_MS } from '../vad';
-import { IDLE_SESSION, resetSession, useVoiceSession } from '../session';
+import { IDLE_SESSION, PING_HISTORY, resetSession, useVoiceSession } from '../session';
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../settings';
 import { fakeAudio } from './fakes';
 
@@ -643,11 +649,107 @@ describe('server-driven changes', () => {
     expect(sess().status).toBe('connected');
   });
 
-  it('a lost microphone ends the call with a fix-it message', async () => {
+  it('a lost microphone falls back to the default input and keeps the call (VOX-CLI-001)', async () => {
     const h = harness();
+    useVoiceSettings.setState({
+      settings: { ...DEFAULT_VOICE_SETTINGS, inputDeviceId: 'usb-1' },
+    });
     await connected(h);
     h.last().events.micLost();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(h.last().inputDevices.at(-1)).toMatchObject({ deviceId: 'default' });
+    expect(sess().status).toBe('connected');
+    expect(sess().error).toBeNull();
+    expect(sess().notice).toMatch(/default input/);
+    h.c.dismissNotice();
+    expect(sess().notice).toBeNull();
+  });
+
+  it('a lost microphone ends the call with a fix-it message when the default fails too', async () => {
+    const h = harness();
+    await connected(h);
+    h.last().setInputDevice = () => Promise.reject(new Error('nope'));
+    h.last().events.micLost();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(sess().error).toMatchObject({ code: 'mic', mic: 'no-device' });
+  });
+
+  it('shows and clears the egress governor notice (VOX-UI-014)', async () => {
+    const h = harness();
+    await connected(h);
+    h.last().events.governor!(true);
+    expect(sess().reducedQuality).toBe(true);
+    h.last().events.governor!(false);
+    expect(sess().reducedQuality).toBe(false);
+  });
+
+  it('a refused camera keeps the call and shows the limit with an upgrade hint (VOX-UI-013)', async () => {
+    const h = harness();
+    await connected(h);
+    h.emit('SR_VOICE_ERROR', { guild_id: 'g1', channel_id: 'c1', code: 'video_limit', limit: 5 });
+    expect(sess().status).toBe('connected');
+    expect(sess().refusal).toMatchObject({ code: 'videoLimit' });
+    expect(sess().refusal!.message).toContain('video limit (5)');
+    h.c.dismissRefusal();
+    expect(sess().refusal).toBeNull();
+    h.emit('SR_VOICE_ERROR', { guild_id: 'g1', channel_id: 'c1', code: 'viewer_cap' });
+    expect(sess().refusal).toMatchObject({ code: 'viewerCap' });
+    expect(sess().status).toBe('connected');
+  });
+
+  it('understands the codes the gateway sends for refused video and streams', async () => {
+    const h = harness();
+    await connected(h);
+    h.emit('SR_VOICE_ERROR', {
+      guild_id: 'g1',
+      channel_id: 'c1',
+      code: 'video_limit_reached',
+      limit: 4,
+      count: 4,
+    });
+    expect(sess().refusal).toMatchObject({ code: 'videoLimit' });
+    h.c.dismissRefusal();
+    // Stream ops are answered without a channel.
+    h.emit('SR_VOICE_ERROR', {
+      guild_id: null,
+      channel_id: null,
+      code: 'stream_full',
+      limit: 2,
+      count: 2,
+    });
+    expect(sess().refusal).toMatchObject({ code: 'viewerCap' });
+    h.c.dismissRefusal();
+    h.emit('SR_VOICE_ERROR', { guild_id: null, channel_id: null, code: 'unknown_stream' });
+    expect(sess().status).toBe('connected');
+    expect(sess().refusal).toBeNull();
+  });
+
+  it('gives up after repeated device losses', async () => {
+    const h = harness();
+    await connected(h);
+    for (let i = 0; i < MAX_MIC_RECOVERIES; i++) {
+      h.last().events.micLost();
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+    expect(sess().status).toBe('connected');
+    h.last().events.micLost();
+    expect(sess().error).toMatchObject({ code: 'mic', mic: 'no-device' });
+  });
+
+  it('keeps a ping history for the graph, capped, and clears it on leave', async () => {
+    const h = harness();
+    await connected(h);
+    for (let i = 0; i < PING_HISTORY + 5; i++)
+      h.last().events.quality({ level: 'good', pingMs: 20 + i, lossPct: 0 });
+    expect(sess().pingHistory).toHaveLength(PING_HISTORY);
+    expect(sess().pingHistory.at(-1)).toBe(20 + PING_HISTORY + 4);
+    h.last().events.quality({ level: 'unknown', pingMs: null, lossPct: null });
+    expect(sess().pingHistory).toHaveLength(PING_HISTORY);
+    h.c.leave();
+    expect(sess().pingHistory).toEqual([]);
   });
 });
 

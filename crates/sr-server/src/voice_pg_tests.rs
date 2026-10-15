@@ -190,6 +190,7 @@ async fn voice_joins_and_moderation_run_on_postgres_data() {
                 turn: TurnConfig::default(),
                 relay: None,
                 session_grace: Duration::from_secs(20),
+                calls: None,
             }),
             ..GatewayConfig::default()
         },
@@ -245,4 +246,190 @@ async fn voice_joins_and_moderation_run_on_postgres_data() {
     o.event("VOICE_SERVER_UPDATE").await;
     assert_eq!(gw.voice_occupants(voice).len(), 2);
     gw.shutdown();
+}
+
+/// Entitlements from the default donation config: `patrons` have Patron perks, `levels`
+/// maps a guild to its server level.
+struct FakeEntitlements {
+    patrons: Vec<i64>,
+    levels: Vec<(i64, u8)>,
+}
+
+#[async_trait]
+impl sr_payments::entitlements::Entitlements for FakeEntitlements {
+    async fn user(
+        &self,
+        user_id: i64,
+    ) -> sr_payments::PayResult<sr_payments::entitlements::UserEntitlement> {
+        Ok(sr_payments::entitlements::UserEntitlement {
+            user_id,
+            patron: sr_payments::entitlements::PatronStatus {
+                active: self.patrons.contains(&user_id),
+                ..sr_payments::entitlements::PatronStatus::none()
+            },
+        })
+    }
+
+    async fn guild(
+        &self,
+        guild_id: i64,
+    ) -> sr_payments::PayResult<sr_payments::entitlements::GuildEntitlement> {
+        Ok(sr_payments::entitlements::GuildEntitlement {
+            guild_id,
+            level: self
+                .levels
+                .iter()
+                .find(|(g, _)| *g == guild_id)
+                .map_or(0, |(_, l)| *l),
+            pool_cents: 0,
+            grace_until_ms: None,
+        })
+    }
+
+    async fn limits(
+        &self,
+        user_id: i64,
+        guild_id: Option<i64>,
+    ) -> sr_payments::PayResult<sr_payments::config::Limits> {
+        let level = guild_id
+            .and_then(|g| self.levels.iter().find(|(x, _)| *x == g))
+            .map_or(0, |(_, l)| *l);
+        Ok(sr_payments::config::effective_limits(
+            &sr_payments::config::DonationConfig::default(),
+            self.patrons.contains(&user_id),
+            level,
+        ))
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_directory_answers_age_afk_allowance_and_dm_questions() {
+    use sr_chat::social::repo::DmRepository;
+
+    let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+    let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+        .await
+        .expect("connect");
+    sr_db::migrate(&pool).await.expect("migrate");
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let w = ((std::process::id() % 15) * 2) as u8 + 2;
+    let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+    let (owner, member, patron, stranger) = (
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+    );
+    let chat = PgChatRepo::new(pool.clone());
+    let bp = sr_chat::guild_rules::plan_new_guild(owner, "Directory", clock.now_unix_ms(), || {
+        ids.generate()
+    })
+    .expect("plan guild");
+    chat.insert_guild(&bp).await.expect("insert guild");
+    let guild = bp.guild.id;
+    let (voice, afk) = (bp.channels[3].id, bp.channels[3].id);
+
+    let ents = Arc::new(FakeEntitlements {
+        patrons: vec![patron.get() as i64],
+        levels: vec![(guild.get() as i64, 2)],
+    });
+    let dir = PgGuildDirectory::new(pool.clone(), clock.clone()).with_entitlements(ents);
+
+    // The guild of a channel, and the AFK settings.
+    assert_eq!(dir.channel_guild(voice).await, Some(guild));
+    assert_eq!(dir.channel_guild(ChannelId::new(1)).await, None);
+    assert_eq!(dir.voice_guild(guild).await.afk_channel, None);
+    sqlx::query("UPDATE guilds SET afk_channel_id = $2, afk_timeout = 600 WHERE id = $1")
+        .bind(guild.get() as i64)
+        .bind(afk.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let g = dir.voice_guild(guild).await;
+    assert_eq!((g.afk_channel, g.afk_timeout_secs), (Some(afk), 600));
+
+    // Age-restricted channels, and the one-time answer.
+    assert!(
+        !dir.voice_channel(guild, voice)
+            .await
+            .unwrap()
+            .age_restricted
+    );
+    sqlx::query("UPDATE channels SET nsfw = TRUE WHERE id = $1")
+        .bind(voice.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert!(
+        dir.voice_channel(guild, voice)
+            .await
+            .unwrap()
+            .age_restricted
+    );
+    assert!(!dir.age_confirmed(member).await);
+    sqlx::query("UPDATE accounts SET age_confirmed_at = now() WHERE id = $1")
+        .bind(member.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert!(dir.age_confirmed(member).await);
+    assert!(!dir.age_confirmed(stranger).await);
+
+    // The allowance: server level 2 for members, Patron perks for the Patron.
+    let m = dir.voice_limits(member, Some(guild)).await;
+    assert_eq!((m.video_senders, m.exempt, m.tier), (12, false, 2));
+    assert!(m.allows(1080, 60));
+    let p = dir.voice_limits(patron, Some(guild)).await;
+    assert!(p.exempt);
+    assert_eq!(p.tier, 4);
+    let free = dir.voice_limits(member, None).await;
+    assert_eq!(
+        (free.video_senders, free.tier),
+        (5, 0),
+        "a DM call is the free tier"
+    );
+    assert!(!free.allows(1080, 30));
+
+    // DM calls: only recipients, and they see the other members.
+    let social = sr_db::social_repo::PgSocialRepo::new(pool.clone());
+    let dm = ChannelId::new(ids.generate().get());
+    social.insert_dm(dm, member, patron).await.expect("dm");
+    let mut members = dir.dm_call_members(dm, member).await.expect("a recipient");
+    members.sort();
+    let mut expect = vec![member, patron];
+    expect.sort();
+    assert_eq!(members, expect);
+    assert!(dir.dm_call_members(dm, stranger).await.is_none());
+    assert!(
+        dir.dm_call_members(voice, member).await.is_none(),
+        "a server channel is not a DM"
+    );
+
+    // Soundboard sounds as op 31 sends them.
+    use sr_chat::settings::repo::ExpressionRepository;
+    use sr_chat::settings::soundboard::{Sound, SoundFormat};
+    let repo = sr_db::settings_repo::PgSettingsRepo::new(pool.clone());
+    repo.insert_sound(&Sound {
+        id: sr_core::SoundId::new(ids.generate().get()),
+        guild_id: guild,
+        name: "ding".into(),
+        volume: 0.5,
+        emoji_id: None,
+        emoji_name: Some("\u{1F514}".into()),
+        available: true,
+        creator_id: owner,
+        media_key: "sound/x/ding.wav".into(),
+        format: SoundFormat::Wav,
+        duration_ms: 500,
+        created_at_ms: clock.now_unix_ms(),
+    })
+    .await
+    .unwrap();
+    let sounds = dir.soundboard_sounds(guild).await;
+    assert_eq!(sounds.len(), 1);
+    assert_eq!(sounds[0]["name"], "ding");
+    assert_eq!(sounds[0]["volume"], 0.5);
+    assert_eq!(sounds[0]["guild_id"], guild.to_string());
+    assert_eq!(sounds[0]["user_id"], owner.to_string());
 }

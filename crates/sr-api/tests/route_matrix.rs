@@ -283,23 +283,6 @@ fn concrete(path: &str) -> String {
     out
 }
 
-/// Handlers that extract their service (`AuthService`) before the `Principal`. With no
-/// service registered, which is this test's setup, they answer 500 (a misconfiguration
-/// error that carries no data) instead of 401. In a real deployment the service exists and
-/// the `Principal` extractor refuses. Follow-up: reorder the extractors so every route
-/// answers 401 first, then empty this list. Only a 500 is tolerated here.
-const NEEDS_DEPS_FIRST: &[(&str, &str)] = &[
-    ("DELETE", "/sr/auth/passkeys/{id}"),
-    ("GET", "/sr/auth/passkeys"),
-    ("PATCH", "/sr/auth/passkeys/{id}"),
-    ("POST", "/sr/auth/email/change"),
-    ("POST", "/sr/auth/passkeys/register/begin"),
-    ("POST", "/sr/auth/passkeys/register/finish"),
-    ("POST", "/sr/auth/passkeys/verify/begin"),
-    ("POST", "/sr/auth/password"),
-    ("PUT", "/sr/auth/username"),
-];
-
 /// Every route the matrix calls `authenticated` refuses a request with no credentials.
 #[tokio::test]
 async fn authenticated_routes_answer_401_without_credentials() {
@@ -317,9 +300,7 @@ async fn authenticated_routes_answer_401_without_credentials() {
             .unwrap();
         let app = build_router(AppState::builder().build(), routes::all());
         let resp = app.oneshot(req).await.unwrap();
-        let exempt = NEEDS_DEPS_FIRST.contains(&(m.as_str(), p.as_str()))
-            && resp.status() == StatusCode::INTERNAL_SERVER_ERROR;
-        if resp.status() != StatusCode::UNAUTHORIZED && !exempt {
+        if resp.status() != StatusCode::UNAUTHORIZED {
             bad.push(format!("{m} {p} -> {}", resp.status()));
         }
     }

@@ -68,6 +68,19 @@ impl GuildRepository for MemoryRepo {
         Ok(self.lock()?.guilds.get(&id).cloned())
     }
 
+    async fn guild_by_vanity(&self, code: &str) -> RepoResult<Option<GuildId>> {
+        Ok(self
+            .lock()?
+            .guilds
+            .values()
+            .find(|g| {
+                g.vanity_code
+                    .as_deref()
+                    .is_some_and(|v| v.eq_ignore_ascii_case(code))
+            })
+            .map(|g| g.id))
+    }
+
     async fn page_members(
         &self,
         guild: GuildId,
@@ -377,6 +390,18 @@ impl MessageRepository for MemoryRepo {
         Ok(out)
     }
 
+    async fn set_message_flags(
+        &self,
+        _channel: ChannelId,
+        message: MessageId,
+        flags: u32,
+    ) -> RepoResult<()> {
+        if let Some(m) = self.lock()?.messages.iter_mut().find(|m| m.id == message) {
+            m.flags = flags;
+        }
+        Ok(())
+    }
+
     async fn set_pinned(
         &self,
         channel: ChannelId,
@@ -400,6 +425,24 @@ impl MessageRepository for MemoryRepo {
 
 #[async_trait]
 impl GuildAdminRepository for MemoryRepo {
+    async fn set_vanity(&self, guild: GuildId, code: Option<&str>) -> RepoResult<bool> {
+        let mut s = self.lock()?;
+        if let Some(c) = code
+            && s.guilds.values().any(|g| {
+                g.id != guild
+                    && g.vanity_code
+                        .as_deref()
+                        .is_some_and(|v| v.eq_ignore_ascii_case(c))
+            })
+        {
+            return Ok(false);
+        }
+        if let Some(g) = s.guilds.get_mut(&guild) {
+            g.vanity_code = code.map(str::to_owned);
+        }
+        Ok(true)
+    }
+
     async fn update_guild(&self, guild: &Guild) -> RepoResult<()> {
         self.lock()?.guilds.insert(guild.id, guild.clone());
         Ok(())

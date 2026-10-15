@@ -238,6 +238,7 @@ export function toLoungeGuild(
     name: g.name,
     iconUrl: null,
     ownerId: g.owner_id ?? '',
+    ...(g.is_staff_guild ? { isStaff: true } : {}),
     unread,
     mentionCount,
     permissions: perms,

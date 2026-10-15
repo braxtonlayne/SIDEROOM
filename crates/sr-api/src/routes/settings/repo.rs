@@ -4,18 +4,24 @@
 
 use async_trait::async_trait;
 use sr_chat::repo::RepoResult;
+use sr_chat::settings::applications::{Application, ApplicationForm, ApplicationStatus};
 use sr_chat::settings::audit::{AuditEntry, AuditQuery};
 use sr_chat::settings::automod::AutoModRule;
 use sr_chat::settings::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use sr_chat::settings::expressions::{Emoji, Sticker};
+use sr_chat::settings::guide::Guide;
+use sr_chat::settings::insights::Insights;
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
-    AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
-    InviteRepository, SettingsRepository, TemplateRepository, WebhookRepository,
+    ApplicationRepository, AuditRepository, AutoModRepository, CommunityRepository,
+    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository,
+    SettingsRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
+use sr_chat::settings::soundboard::Sound;
+use sr_chat::settings::tags::GuildTag;
 use sr_chat::settings::templates::GuildTemplate;
 use sr_chat::settings::webhooks::Webhook;
-use sr_core::{ChannelId, EmojiId, GuildId, StickerId, UserId, WebhookId};
+use sr_core::{ChannelId, EmojiId, GuildId, SoundId, StickerId, UserId, WebhookId};
 use std::sync::Arc;
 
 /// A shared handle to any [`SettingsRepository`].
@@ -53,6 +59,9 @@ impl InviteRepository for DynRepo {
     }
     async fn is_banned(&self, guild: GuildId, user: UserId) -> RepoResult<bool> {
         self.0.is_banned(guild, user).await
+    }
+    async fn vanity_uses(&self, guild: GuildId) -> RepoResult<u32> {
+        self.0.vanity_uses(guild).await
     }
 }
 
@@ -101,6 +110,21 @@ impl ExpressionRepository for DynRepo {
     async fn delete_sticker(&self, guild: GuildId, id: StickerId) -> RepoResult<bool> {
         self.0.delete_sticker(guild, id).await
     }
+    async fn list_sounds(&self, guild: GuildId) -> RepoResult<Vec<Sound>> {
+        self.0.list_sounds(guild).await
+    }
+    async fn get_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<Option<Sound>> {
+        self.0.get_sound(guild, id).await
+    }
+    async fn insert_sound(&self, sound: &Sound) -> RepoResult<()> {
+        self.0.insert_sound(sound).await
+    }
+    async fn update_sound(&self, sound: &Sound) -> RepoResult<()> {
+        self.0.update_sound(sound).await
+    }
+    async fn delete_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<bool> {
+        self.0.delete_sound(guild, id).await
+    }
 }
 
 #[async_trait]
@@ -129,6 +153,9 @@ impl WebhookRepository for DynRepo {
     }
     async fn list_guild_webhooks(&self, guild: GuildId) -> RepoResult<Vec<Webhook>> {
         self.0.list_guild_webhooks(guild).await
+    }
+    async fn list_channel_followers(&self, source: ChannelId) -> RepoResult<Vec<Webhook>> {
+        self.0.list_channel_followers(source).await
     }
     async fn count_channel_webhooks(&self, channel: ChannelId) -> RepoResult<usize> {
         self.0.count_channel_webhooks(channel).await
@@ -179,5 +206,86 @@ impl CommunityRepository for DynRepo {
     }
     async fn put_welcome_screen(&self, screen: &WelcomeScreen) -> RepoResult<()> {
         self.0.put_welcome_screen(screen).await
+    }
+}
+
+#[async_trait]
+impl TagRepository for DynRepo {
+    async fn get_guild_tag(&self, guild: GuildId) -> RepoResult<Option<GuildTag>> {
+        self.0.get_guild_tag(guild).await
+    }
+    async fn put_guild_tag(&self, tag: &GuildTag) -> RepoResult<()> {
+        self.0.put_guild_tag(tag).await
+    }
+    async fn delete_guild_tag(&self, guild: GuildId) -> RepoResult<bool> {
+        self.0.delete_guild_tag(guild).await
+    }
+    async fn get_primary_guild(&self, user: UserId) -> RepoResult<Option<GuildId>> {
+        self.0.get_primary_guild(user).await
+    }
+    async fn set_primary_guild(&self, user: UserId, guild: Option<GuildId>) -> RepoResult<()> {
+        self.0.set_primary_guild(user, guild).await
+    }
+}
+
+#[async_trait]
+impl InsightsRepository for DynRepo {
+    async fn insights(&self, guild: GuildId, days: u32, now_ms: i64) -> RepoResult<Insights> {
+        self.0.insights(guild, days, now_ms).await
+    }
+}
+
+#[async_trait]
+impl GuideRepository for DynRepo {
+    async fn get_guide(&self, guild: GuildId) -> RepoResult<Guide> {
+        self.0.get_guide(guild).await
+    }
+    async fn put_guide(&self, guide: &Guide) -> RepoResult<()> {
+        self.0.put_guide(guide).await
+    }
+}
+
+#[async_trait]
+impl ApplicationRepository for DynRepo {
+    async fn get_application_form(&self, guild: GuildId) -> RepoResult<ApplicationForm> {
+        self.0.get_application_form(guild).await
+    }
+    async fn put_application_form(&self, form: &ApplicationForm) -> RepoResult<()> {
+        self.0.put_application_form(form).await
+    }
+    async fn insert_application(&self, app: &Application) -> RepoResult<bool> {
+        self.0.insert_application(app).await
+    }
+    async fn get_application(&self, guild: GuildId, id: u64) -> RepoResult<Option<Application>> {
+        self.0.get_application(guild, id).await
+    }
+    async fn latest_application(
+        &self,
+        guild: GuildId,
+        user: UserId,
+    ) -> RepoResult<Option<Application>> {
+        self.0.latest_application(guild, user).await
+    }
+    async fn list_applications(
+        &self,
+        guild: GuildId,
+        status: Option<ApplicationStatus>,
+        before: Option<u64>,
+        limit: usize,
+    ) -> RepoResult<Vec<Application>> {
+        self.0.list_applications(guild, status, before, limit).await
+    }
+    async fn decide_application(
+        &self,
+        guild: GuildId,
+        id: u64,
+        approve: bool,
+        reviewer: UserId,
+        now_ms: i64,
+        reason: Option<&str>,
+    ) -> RepoResult<Option<Application>> {
+        self.0
+            .decide_application(guild, id, approve, reviewer, now_ms, reason)
+            .await
     }
 }

@@ -22,7 +22,7 @@ use sr_core::{ChannelId, Clock, GuildId, Permissions, UserId};
 use sr_db::{auth_repo::PgAuthRepo, chat_repo::PgChatRepo, social_repo::PgSocialRepo};
 use sr_gateway::{
     AuthError, AuthedUser, Authenticator, GuildDirectory, LARGE_THRESHOLD_DEFAULT,
-    VoiceChannelInfo, VoiceChannelKind,
+    VoiceChannelInfo, VoiceChannelKind, VoiceGuildInfo, VoiceLimits,
 };
 use std::sync::Arc;
 
@@ -153,6 +153,8 @@ pub struct PgGuildDirectory {
     social: PgSocialRepo,
     clock: Arc<dyn Clock>,
     apps: Option<Arc<sr_apps::AppsService>>,
+    offline: Option<Arc<TemporaryMembers>>,
+    entitlements: Option<Arc<dyn sr_payments::entitlements::Entitlements>>,
 }
 
 impl PgGuildDirectory {
@@ -163,7 +165,25 @@ impl PgGuildDirectory {
             pool,
             clock,
             apps: None,
+            offline: None,
+            entitlements: None,
         }
+    }
+
+    /// Drop temporary memberships when a user goes offline (LNG-INV-005).
+    pub fn with_temporary_members(mut self, hook: Arc<TemporaryMembers>) -> Self {
+        self.offline = Some(hook);
+        self
+    }
+
+    /// Server levels and Patron status for the voice allowance (D-050..D-052). Without it
+    /// everyone gets the free tier.
+    pub fn with_entitlements(
+        mut self,
+        entitlements: Arc<dyn sr_payments::entitlements::Entitlements>,
+    ) -> Self {
+        self.entitlements = Some(entitlements);
+        self
     }
 
     /// Lets READY describe a bot's application (`application: {id, flags}`).
@@ -352,6 +372,95 @@ impl PgGuildDirectory {
 
 #[async_trait]
 impl GuildDirectory for PgGuildDirectory {
+    async fn user_offline(&self, user: UserId) {
+        if let Some(hook) = &self.offline {
+            hook.schedule(user);
+        }
+    }
+
+    async fn member_list(
+        &self,
+        guild: GuildId,
+        channel: ChannelId,
+    ) -> Option<sr_gateway::member_list::MemberListSource> {
+        use sr_gateway::member_list::{ListMember, MemberListSource};
+        /// Lists beyond this many members are not served lazily; the sidebar falls back to
+        /// the paged `GET /guilds/{id}/members`.
+        const MAX_LIST_MEMBERS: usize = 20_000;
+        let built = async {
+            let g = self.chat.get_guild(guild).await?;
+            let Some(g) = g else { return Ok(None) };
+            let roles = self.chat.list_roles(guild).await?;
+            let overwrites = self.chat.get_overwrites(channel).await?;
+            let now = self.clock.now_unix_ms();
+            let mut all = Vec::new();
+            let mut after = None;
+            loop {
+                let page = self.chat.page_members(guild, after, 1000).await?;
+                let full = page.len() == 1000;
+                after = page.last().map(|m| m.user_id);
+                all.extend(page);
+                if !full {
+                    break;
+                }
+                if all.len() > MAX_LIST_MEMBERS {
+                    return Ok::<_, sr_chat::RepoError>(None);
+                }
+            }
+            let total = all.len();
+            let visible: Vec<_> = all
+                .into_iter()
+                .filter(|m| {
+                    sr_chat::perms::channel_permissions(&g, m, &roles, &overwrites, now)
+                        .contains(Permissions::VIEW_CHANNEL)
+                })
+                .collect();
+            let mut users = std::collections::HashMap::new();
+            for chunk in visible.chunks(1000) {
+                let ids: Vec<UserId> = chunk.iter().map(|m| m.user_id).collect();
+                for u in self.chat.users(&ids).await? {
+                    users.insert(u.id, u);
+                }
+            }
+            let members = visible
+                .iter()
+                .map(|m| {
+                    let hoist = roles
+                        .iter()
+                        .filter(|r| r.hoist && m.role_ids.contains(&r.id))
+                        .max_by_key(|r| r.position)
+                        .map(|r| (r.id.to_string(), r.position));
+                    let user = users.get(&m.user_id);
+                    let sort_key = m
+                        .nick
+                        .clone()
+                        .or_else(|| user.and_then(|u| u.display_name.clone()))
+                        .or_else(|| user.map(|u| u.username.clone()))
+                        .unwrap_or_default();
+                    ListMember {
+                        user: m.user_id,
+                        member: serde_json::to_value(MemberObject::new(m, false, &users))
+                            .unwrap_or(Value::Null),
+                        hoist,
+                        sort_key,
+                    }
+                })
+                .collect::<Vec<_>>();
+            Ok(Some(MemberListSource {
+                everyone: members.len() == total,
+                members,
+            }))
+        }
+        .await;
+        match built {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!(error = %e, "building a member list failed");
+                None
+            }
+        }
+    }
+
     async fn guilds_for_user(&self, user: UserId) -> Vec<GuildId> {
         let rows = sqlx::query_scalar::<_, i64>(
             "SELECT guild_id FROM guild_members WHERE user_id = $1 ORDER BY guild_id",
@@ -439,6 +548,91 @@ impl GuildDirectory for PgGuildDirectory {
         })
     }
 
+    async fn channel_guild(&self, channel: ChannelId) -> Option<GuildId> {
+        match self.chat.get_channel(channel).await {
+            Ok(c) => c.and_then(|c| c.guild_id),
+            Err(e) => {
+                tracing::error!(error = %e, "channel_guild failed");
+                None
+            }
+        }
+    }
+
+    async fn voice_guild(&self, guild: GuildId) -> VoiceGuildInfo {
+        match self.chat.get_guild(guild).await {
+            Ok(Some(g)) => VoiceGuildInfo {
+                afk_channel: g.afk_channel_id,
+                afk_timeout_secs: g.afk_timeout,
+            },
+            Ok(None) => VoiceGuildInfo::default(),
+            Err(e) => {
+                tracing::error!(error = %e, "voice_guild failed");
+                VoiceGuildInfo::default()
+            }
+        }
+    }
+
+    async fn age_confirmed(&self, user: UserId) -> bool {
+        match sqlx::query_scalar::<_, bool>(
+            "SELECT age_confirmed_at IS NOT NULL FROM accounts WHERE id = $1",
+        )
+        .bind(user.get() as i64)
+        .fetch_optional(&self.pool)
+        .await
+        {
+            Ok(v) => v.unwrap_or(false),
+            Err(e) => {
+                tracing::warn!(error = %e, "age lookup failed; treating the account as unconfirmed");
+                false
+            }
+        }
+    }
+
+    async fn voice_limits(&self, user: UserId, guild: Option<GuildId>) -> VoiceLimits {
+        let Some(ents) = &self.entitlements else {
+            return VoiceLimits::free();
+        };
+        match ents
+            .limits(user.get() as i64, guild.map(|g| g.get() as i64))
+            .await
+        {
+            Ok(l) => VoiceLimits {
+                video_senders: l.video_senders,
+                stream_viewers: l.stream_viewers,
+                exempt: l.exempt_from_sender_limit,
+                profiles: l.video_profiles.iter().map(|p| (p.height, p.fps)).collect(),
+                tier: sr_voice::governor::Tier::of(l.guild_level, l.patron).0,
+            },
+            Err(e) => {
+                tracing::error!(error = %e, "voice_limits failed; using the free tier");
+                VoiceLimits::free()
+            }
+        }
+    }
+
+    async fn dm_call_members(&self, channel: ChannelId, user: UserId) -> Option<Vec<UserId>> {
+        match self.social.get_dm(channel).await {
+            Ok(Some(dm)) if dm.has(user) => Some(dm.recipients),
+            Ok(_) => None,
+            Err(e) => {
+                tracing::error!(error = %e, "dm_call_members failed");
+                None
+            }
+        }
+    }
+
+    async fn soundboard_sounds(&self, guild: GuildId) -> Vec<Value> {
+        use sr_chat::settings::repo::ExpressionRepository;
+        let repo = sr_db::settings_repo::PgSettingsRepo::new(self.pool.clone());
+        match repo.list_sounds(guild).await {
+            Ok(list) => list.iter().map(|s| s.to_json(None)).collect(),
+            Err(e) => {
+                tracing::error!(error = %e, "soundboard_sounds failed");
+                Vec::new()
+            }
+        }
+    }
+
     async fn voice_channel(&self, guild: GuildId, channel: ChannelId) -> Option<VoiceChannelInfo> {
         match self.chat.get_channel(channel).await {
             Ok(Some(c)) if c.guild_id == Some(guild) => Some(VoiceChannelInfo {
@@ -449,6 +643,7 @@ impl GuildDirectory for PgGuildDirectory {
                 },
                 user_limit: c.user_limit.unwrap_or(0),
                 bitrate: c.bitrate,
+                age_restricted: c.nsfw,
             }),
             Ok(_) => None,
             Err(e) => {
@@ -564,6 +759,52 @@ impl GuildDirectory for PgGuildDirectory {
     }
 }
 
+/// Temporary membership (LNG-INV-005): a member who joined through a temporary invite and holds
+/// no role is removed once they have been offline for `grace`. The grace period spares them a
+/// removal when the connection merely blinks (a reload, a flaky network).
+///
+/// The gateway is built after the settings state, so it is attached late with
+/// [`TemporaryMembers::attach`].
+pub struct TemporaryMembers {
+    joiner: Arc<sr_api::routes::settings::InviteMemberJoiner>,
+    gateway: std::sync::OnceLock<sr_gateway::Gateway>,
+    grace: std::time::Duration,
+}
+
+impl TemporaryMembers {
+    pub fn new(
+        joiner: Arc<sr_api::routes::settings::InviteMemberJoiner>,
+        grace: std::time::Duration,
+    ) -> Self {
+        Self {
+            joiner,
+            gateway: std::sync::OnceLock::new(),
+            grace,
+        }
+    }
+
+    pub fn attach(&self, gateway: sr_gateway::Gateway) {
+        let _ = self.gateway.set(gateway);
+    }
+
+    /// `user` just went offline: after the grace period, drop their temporary memberships
+    /// unless they came back.
+    pub fn schedule(self: &Arc<Self>, user: UserId) {
+        let me = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(me.grace).await;
+            let back = me
+                .gateway
+                .get()
+                .and_then(|gw| gw.presence(user))
+                .is_some_and(|p| p.status != "offline");
+            if !back {
+                me.joiner.drop_temporary(user).await;
+            }
+        });
+    }
+}
+
 /// Presence for invite previews, read from the gateway's in-memory presence map.
 /// The gateway is built after the settings state, so it is attached late with
 /// [`GatewayPresence::attach`]; until then every user counts as offline.
@@ -663,5 +904,118 @@ mod tests {
             );
             assert!(c.get("recipient_ids").is_none());
         }
+    }
+
+    /// The lazy member list lists the members who can see the channel, with their hoisted
+    /// role and display name, and says whether it is the `everyone` list.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn member_list_has_the_channels_viewers_with_hoisted_roles() {
+        use sr_chat::{ChatLimits, ChatService, role_rules::NewRole};
+        use sr_core::permissions::{Overwrite, OverwriteKind};
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let w = ((std::process::id() % 8) * 2) as u8 + 3;
+        let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+        let svc = ChatService::new(
+            PgChatRepo::new(pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), w + 16, w + 16).expect("ids"),
+            ChatLimits::default(),
+        );
+        let (owner, regular, outsider) = (
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+        );
+        let bp = svc.create_guild(owner, "List Club").await.unwrap();
+        let (guild, general) = (bp.guild.id, bp.channels[2].id);
+        for u in [regular, outsider] {
+            sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+                .bind(guild.get() as i64)
+                .bind(u.get() as i64)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let mods = svc
+            .create_role(
+                owner,
+                guild,
+                NewRole {
+                    name: Some("mods".into()),
+                    hoist: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)")
+            .bind(guild.get() as i64)
+            .bind(regular.get() as i64)
+            .bind(mods.id.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE guild_members SET nick = 'Zoe' WHERE guild_id = $1 AND user_id = $2")
+            .bind(guild.get() as i64)
+            .bind(regular.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let dir = PgGuildDirectory::new(pool.clone(), clock.clone());
+        let open = dir.member_list(guild, general).await.expect("a list");
+        assert!(open.everyone);
+        assert_eq!(open.members.len(), 3);
+        let zoe = open.members.iter().find(|m| m.user == regular).unwrap();
+        assert_eq!(zoe.sort_key, "Zoe");
+        assert_eq!(zoe.hoist, Some((mods.id.to_string(), mods.position)));
+        assert_eq!(zoe.member["nick"], "Zoe");
+        assert_eq!(zoe.member["roles"][0], mods.id.to_string());
+        assert!(
+            open.members
+                .iter()
+                .find(|m| m.user == owner)
+                .unwrap()
+                .hoist
+                .is_none()
+        );
+
+        // Only the role may see the channel: the outsider drops out and the list is no
+        // longer the `everyone` list.
+        let deny_everyone = Overwrite {
+            id: guild.snowflake(),
+            kind: OverwriteKind::Role,
+            allow: Permissions::empty(),
+            deny: Permissions::VIEW_CHANNEL,
+        };
+        let allow_mods = Overwrite {
+            id: mods.id.snowflake(),
+            kind: OverwriteKind::Role,
+            allow: Permissions::VIEW_CHANNEL,
+            deny: Permissions::empty(),
+        };
+        svc.set_overwrite(owner, general, deny_everyone)
+            .await
+            .unwrap();
+        svc.set_overwrite(owner, general, allow_mods).await.unwrap();
+        let private = dir.member_list(guild, general).await.expect("a list");
+        assert!(!private.everyone);
+        let mut users: Vec<_> = private.members.iter().map(|m| m.user).collect();
+        users.sort();
+        let mut want = vec![owner, regular];
+        want.sort();
+        assert_eq!(users, want);
+        // Unknown guilds have no list.
+        assert!(
+            dir.member_list(GuildId::new(1), ChannelId::new(1))
+                .await
+                .is_none()
+        );
     }
 }

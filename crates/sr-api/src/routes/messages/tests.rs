@@ -48,6 +48,35 @@ impl UploadEntitlements for Perks {
     }
 }
 
+/// Captures audit writes (LNG-SSET-056).
+#[derive(Default)]
+struct AuditLog(std::sync::Mutex<Vec<(sr_chat::settings::audit::AuditAction, Option<u64>, Value)>>);
+
+#[async_trait]
+impl crate::routes::guilds::backend::AuditSink for AuditLog {
+    async fn record(
+        &self,
+        _guild: GuildId,
+        _actor: UserId,
+        _action: sr_chat::settings::audit::AuditAction,
+        _target_id: Option<u64>,
+        _changes: Vec<sr_chat::settings::audit::AuditChange>,
+        _reason: Option<&str>,
+    ) {
+    }
+
+    async fn record_with_options(
+        &self,
+        _guild: GuildId,
+        _actor: UserId,
+        action: sr_chat::settings::audit::AuditAction,
+        target_id: Option<u64>,
+        options: Value,
+    ) {
+        self.0.lock().unwrap().push((action, target_id, options));
+    }
+}
+
 struct Env {
     app: Router,
     backend: MemoryBackend,
@@ -59,15 +88,17 @@ struct Env {
     deps: Arc<MessagesDeps>,
     jobs: Arc<rich_tests::RecordingScheduler>,
     web: Arc<rich_tests::FakeWeb>,
+    audit: Arc<AuditLog>,
 }
 
 async fn env_with(entitlements: Arc<dyn UploadEntitlements>) -> Env {
-    env_full(entitlements, None).await
+    env_full(entitlements, None, None).await
 }
 
 async fn env_full(
     entitlements: Arc<dyn UploadEntitlements>,
     gate: Option<crate::routes::settings::AutoModGateHandle>,
+    age: Option<Arc<dyn crate::routes::search::AgeGate>>,
 ) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
@@ -87,6 +118,9 @@ async fn env_full(
         joined_at_ms: T0,
         communication_disabled_until_ms: None,
         pending: false,
+        avatar_key: None,
+        banner_key: None,
+        bio: None,
     });
 
     let bots = Arc::new(MemoryBots::new());
@@ -102,6 +136,7 @@ async fn env_full(
     // Rate limiting has its own tests; here it would only throttle the test client.
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
+    let audit = Arc::new(AuditLog::default());
     let deps = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
@@ -117,7 +152,12 @@ async fn env_full(
     .unwrap()
     .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
         b"messages-test-secret-0123456789ab".to_vec(),
-    ));
+    ))
+    .with_audit(audit.clone());
+    let deps = match age {
+        Some(a) => deps.with_age_gate(a),
+        None => deps,
+    };
     let jobs = Arc::new(rich_tests::RecordingScheduler::default());
     let web = Arc::new(rich_tests::FakeWeb::default());
     let deps = Arc::new(deps.with_rich(super::RichDeps {
@@ -147,6 +187,7 @@ async fn env_full(
         deps,
         jobs,
         web,
+        audit,
     }
 }
 
@@ -504,6 +545,43 @@ async fn mentions_are_permission_gated() {
         )
         .await;
     assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+}
+
+#[tokio::test]
+async fn age_restricted_channels_need_the_18_plus_answer() {
+    // Only the owner has confirmed; bob has not (D-032, LNG-CHN-006).
+    let confirmed = crate::routes::search::ConfirmedUsers([UserId::new(OWNER)].into());
+    let e = env_full(
+        Arc::new(FixedEntitlements(30 * MIB)),
+        None,
+        Some(Arc::new(confirmed)),
+    )
+    .await;
+    // An ordinary channel is open to bob.
+    e.say("bob", "hello").await;
+    e.backend.data().channels.get_mut(&e.ch).unwrap().nsfw = true;
+    for (method, path, body) in [
+        (Method::GET, "/messages", None),
+        (Method::POST, "/messages", Some(json!({"content": "x"}))),
+        (Method::GET, "/pins", None),
+    ] {
+        let (s, _, v) = e.call(method.clone(), path, "bob", body.clone()).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{method} {path}: {v}");
+        assert_eq!(v["code"], 900_011, "{method} {path}: {v}");
+    }
+    // The confirmed owner reads and writes as usual.
+    e.say("owner", "adults only").await;
+    assert_eq!(e.get("/messages", "owner").await.0, StatusCode::OK);
+    // Answering yes (modelled by adding bob) opens the channel for him too.
+    let both = crate::routes::search::ConfirmedUsers([UserId::new(OWNER), UserId::new(BOB)].into());
+    let e2 = env_full(
+        Arc::new(FixedEntitlements(30 * MIB)),
+        None,
+        Some(Arc::new(both)),
+    )
+    .await;
+    e2.backend.data().channels.get_mut(&e2.ch).unwrap().nsfw = true;
+    e2.say("bob", "now allowed").await;
 }
 
 #[tokio::test]
@@ -1447,6 +1525,7 @@ async fn gated_env() -> Env {
         Some(crate::routes::settings::AutoModGateHandle(Arc::new(
             FakeGate,
         ))),
+        None,
     )
     .await
 }
@@ -1514,3 +1593,102 @@ async fn messages_work_without_a_registered_gate() {
 }
 
 mod rich_tests;
+
+#[tokio::test]
+async fn moderator_message_actions_are_audited() {
+    use sr_chat::settings::audit::AuditAction;
+    let e = env().await;
+    let bobs = id_of(&e.say("bob", "mine").await);
+    let owners = id_of(&e.say("owner", "mod's").await);
+    let bobs2 = id_of(&e.say("bob", "again").await);
+    let bobs3 = id_of(&e.say("bob", "and again").await);
+    let bobs4 = id_of(&e.say("bob", "last").await);
+    let pin = format!("/pins/{bobs}");
+
+    e.status(Method::PUT, &pin, "owner").await;
+    e.status(Method::DELETE, &pin, "owner").await;
+    // The author deleting their own message is not an audit event; a moderator is.
+    e.status(Method::DELETE, &format!("/messages/{owners}"), "owner")
+        .await;
+    e.status(Method::DELETE, &format!("/messages/{bobs2}"), "bob")
+        .await;
+    e.status(Method::DELETE, &format!("/messages/{bobs3}"), "owner")
+        .await;
+    let (s, _) = e
+        .post(
+            "/messages/bulk-delete",
+            "owner",
+            json!({ "messages": [bobs, bobs4] }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+
+    let log = e.audit.0.lock().unwrap().clone();
+    let ch = e.ch.to_string();
+    assert_eq!(
+        log,
+        vec![
+            (
+                AuditAction::MessagePin,
+                Some(BOB),
+                json!({ "channel_id": ch, "message_id": bobs })
+            ),
+            (
+                AuditAction::MessageUnpin,
+                Some(BOB),
+                json!({ "channel_id": ch, "message_id": bobs })
+            ),
+            (
+                AuditAction::MessageDelete,
+                Some(BOB),
+                json!({ "channel_id": ch, "count": 1 })
+            ),
+            (
+                AuditAction::MessageBulkDelete,
+                Some(e.ch.get()),
+                json!({ "count": 2 })
+            ),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_finished_call_becomes_a_call_message_with_its_details() {
+    let e = env().await;
+    let mut events = e.events();
+    super::call_record::post_call_record(
+        &e.deps,
+        e.ch,
+        UserId::new(OWNER),
+        &[UserId::new(OWNER), UserId::new(BOB)],
+        T0,
+        T0 + 90_000,
+    )
+    .await
+    .unwrap();
+
+    // Announced like any message.
+    let DomainEvent::MessageSent { data, author, .. } = next_event(&mut events).await else {
+        panic!("expected MESSAGE_CREATE");
+    };
+    assert_eq!(author, UserId::new(OWNER));
+    assert_eq!(data["type"], 3);
+    assert_eq!(data["content"], "");
+    assert_eq!(data["call"]["participants"], json!(["1", "2"]));
+    assert_eq!(
+        data["call"]["ended_timestamp"],
+        "2027-01-15T08:01:30.000000+00:00"
+    );
+
+    // And listed the same way, as a system message nobody can edit.
+    let (s, list) = e.get("/messages", "bob").await;
+    assert_eq!(s, StatusCode::OK);
+    let m = list.as_array().unwrap().first().unwrap().clone();
+    assert_eq!(m["type"], 3);
+    assert_eq!(m["call"]["participants"], json!(["1", "2"]));
+    let id = m["id"].as_str().unwrap();
+    let (s, _) = e
+        .patch(&format!("/messages/{id}"), "owner", json!({"content": "x"}))
+        .await;
+    assert!(s.is_client_error(), "call records are not editable");
+}

@@ -16,9 +16,13 @@
 //! ```
 
 mod accounts;
+mod accounts_ext;
+mod announce;
 mod ctx;
 mod invites;
+mod private;
 mod staff;
+mod staff_ext;
 mod system;
 
 #[cfg(test)]
@@ -39,6 +43,20 @@ pub fn router() -> Router<AppState> {
         .route("/admin/me", get(staff::me))
         .route("/admin/staff", get(staff::list).post(staff::appoint))
         .route("/admin/staff/roles", get(staff::roles))
+        .route(
+            "/admin/staff/offers",
+            get(staff_ext::list_offers).post(staff_ext::create_offer),
+        )
+        .route(
+            "/admin/staff/offers/{offer_id}",
+            axum::routing::delete(staff_ext::cancel_offer),
+        )
+        .route("/staff/offers/{offer_id}/respond", post(staff_ext::respond))
+        .route("/admin/staff/delegations", get(staff_ext::list_delegations))
+        .route(
+            "/admin/staff/{account_id}/delegation",
+            put(staff_ext::delegate).delete(staff_ext::undelegate),
+        )
         .route(
             "/admin/staff/{account_id}",
             axum::routing::delete(staff::revoke),
@@ -69,6 +87,22 @@ pub fn router() -> Router<AppState> {
         .route(
             "/admin/accounts/{account_id}/ban",
             post(accounts::ban_account),
+        )
+        .route(
+            "/admin/accounts/{account_id}/rename",
+            post(accounts_ext::rename),
+        )
+        .route(
+            "/admin/accounts/{account_id}/change-email",
+            post(accounts_ext::change_email),
+        )
+        .route(
+            "/admin/accounts/{account_id}/badges",
+            post(accounts_ext::badges),
+        )
+        .route(
+            "/admin/accounts/{account_id}/force-password-reset",
+            post(accounts_ext::force_password_reset),
         )
         .route("/admin/persons/{person_id}", get(accounts::person))
         .route("/admin/persons/{person_id}/ban", post(accounts::ban_person))
@@ -118,6 +152,34 @@ pub fn router() -> Router<AppState> {
         )
         .route("/admin/access-log", get(system::access_log))
         .route("/admin/access-log/verify", get(system::verify_access_log))
+        .route(
+            "/admin/reauth",
+            get(private::reauth_status).post(private::reauth),
+        )
+        .route(
+            "/admin/private/channels/{channel_id}/messages",
+            get(private::messages),
+        )
+        .route(
+            "/admin/private/accounts/{account_id}/dms",
+            get(private::account_dms),
+        )
+        .route(
+            "/admin/private/guilds/{guild_id}/channels",
+            get(private::guild_channels),
+        )
+        .route(
+            "/admin/announcements",
+            get(announce::list).post(announce::create),
+        )
+        .route(
+            "/admin/announcements/{announcement_id}",
+            axum::routing::delete(announce::end),
+        )
+        .route("/announcements/active", get(announce::active))
+        .route("/admin/alerts", get(announce::alerts))
+        .route("/admin/alerts/{alert_id}/ack", post(announce::ack))
+        .route("/admin/card-actions", post(announce::card_action))
 }
 
 /// OpenAPI fragment for the admin endpoints.
@@ -130,6 +192,29 @@ pub fn router() -> Router<AppState> {
         staff::appoint,
         staff::set_roles,
         staff::revoke,
+        staff_ext::list_offers,
+        staff_ext::create_offer,
+        staff_ext::cancel_offer,
+        staff_ext::respond,
+        staff_ext::list_delegations,
+        staff_ext::delegate,
+        staff_ext::undelegate,
+        accounts_ext::rename,
+        accounts_ext::change_email,
+        accounts_ext::badges,
+        accounts_ext::force_password_reset,
+        private::reauth_status,
+        private::reauth,
+        private::messages,
+        private::account_dms,
+        private::guild_channels,
+        announce::list,
+        announce::create,
+        announce::end,
+        announce::active,
+        announce::alerts,
+        announce::ack,
+        announce::card_action,
         accounts::search,
         accounts::detail,
         accounts::suspend,
@@ -168,6 +253,29 @@ pub fn router() -> Router<AppState> {
         staff::Me,
         staff::AppointBody,
         staff::RolesBody,
+        staff_ext::OfferBody,
+        staff_ext::RespondBody,
+        staff_ext::DelegateBody,
+        accounts_ext::RenameBody,
+        accounts_ext::ChangeEmailBody,
+        accounts_ext::BadgesBody,
+        accounts_ext::ForcePasswordResetResult,
+        private::ReauthStatus,
+        private::ReauthBody,
+        announce::AnnounceBody,
+        announce::CardActionBody,
+        sr_admin::StaffOffer,
+        sr_admin::OfferState,
+        sr_admin::Delegation,
+        sr_admin::Announcement,
+        sr_admin::AnnouncementSeverity,
+        sr_admin::AnnouncementInput,
+        sr_admin::StaffAlertRow,
+        sr_admin::PrivateChannel,
+        sr_admin::PrivateEdit,
+        sr_admin::PrivateMessage,
+        sr_admin::PrivateMessagePage,
+        sr_admin::CardActionResult,
         accounts::BanBody,
         accounts::PersonBanBody,
         accounts::ForceLogoutResult,

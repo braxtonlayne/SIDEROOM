@@ -198,6 +198,9 @@ pub fn plan_create_channel(
 
 #[derive(Debug, Clone, Default)]
 pub struct ChannelPatch {
+    /// Convert between a text and an announcement channel (Discord's `type` 0 and 5). Any
+    /// other change of type is refused.
+    pub kind: Option<ChannelType>,
     pub name: Option<String>,
     pub topic: Option<Option<String>>,
     pub nsfw: Option<bool>,
@@ -219,6 +222,23 @@ pub fn plan_edit_channel(
         return Err(ChatError::NotInGuild);
     }
     let mut out = channel.clone();
+    if let Some(k) = patch.kind
+        && k != channel.kind
+    {
+        let swap = matches!(
+            (channel.kind, k),
+            (ChannelType::Text, ChannelType::Announcement)
+                | (ChannelType::Announcement, ChannelType::Text)
+        );
+        if !swap {
+            return Err(ChatError::invalid(
+                "type",
+                "CHANNEL_TYPE_INVALID",
+                "Only a text channel can become an announcement channel and back.",
+            ));
+        }
+        out.kind = k;
+    }
     let name_in = patch
         .name
         .as_deref()

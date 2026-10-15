@@ -5,11 +5,16 @@
 
 pub mod config;
 pub mod core;
+pub mod governor;
+pub mod keyframe;
+pub mod layers;
+pub mod loadtest;
+pub mod loss;
 pub mod metrics;
 pub mod server;
 pub mod speaking;
 pub mod ws;
 
 pub use config::SfuConfig;
-pub use server::{SfuEvent, SfuHandle, StartError, start};
+pub use server::{SfuEvent, SfuEventKind, SfuHandle, StartError, start};
 pub use ws::router;

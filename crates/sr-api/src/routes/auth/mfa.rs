@@ -43,7 +43,7 @@ pub(super) async fn reauthenticate(
 
 /// `POST /sr/auth/totp/enroll`: create a pending secret and return the
 /// provisioning URI (render as a QR code) and the manual-entry key.
-pub async fn enroll(Svc { svc, .. }: Svc, UserOnly(p): UserOnly) -> R<Json<Value>> {
+pub async fn enroll(UserOnly(p): UserOnly, Svc { svc, .. }: Svc) -> R<Json<Value>> {
     session_id(&p)?;
     let account = current_account(&svc, p.user_id).await?;
     if svc
@@ -78,8 +78,8 @@ pub struct CodeBody {
 /// recovery codes, shown once.
 pub async fn verify(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<CodeBody>,
 ) -> R<Json<Value>> {
     session_id(&p)?;
@@ -138,8 +138,8 @@ pub struct PasswordBody {
 /// recovery codes.
 pub async fn disable(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<PasswordBody>,
 ) -> R<StatusCode> {
     session_id(&p)?;

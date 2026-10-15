@@ -3,8 +3,8 @@
 
 use super::deps::{ChannelAccess, SettingsDeps, actor, id, re, se};
 use super::events::SettingsEvent;
-use crate::routes::Ext;
 use crate::routes::guilds::dto::{UserRef, iso8601};
+use crate::routes::{Ext, MaybeExt};
 use crate::{
     HttpError, Principal, auth::UserOnly, error::ApiResult, openapi::ErrorBody, state::AppState,
 };
@@ -40,6 +40,13 @@ pub struct InviteGuild {
     pub id: String,
     pub name: String,
     pub icon: Option<String>,
+    /// Invite splash hash, same URL shape as the icon (LNG-INV-004).
+    pub splash: Option<String>,
+    /// Banner hash, same URL shape as the icon.
+    pub banner: Option<String>,
+    pub description: Option<String>,
+    /// The server's vanity code, when it has one.
+    pub vanity_url_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -90,6 +97,10 @@ impl InviteObject {
                 id: guild.id.to_string(),
                 name: guild.name.clone(),
                 icon: guild.icon_key.clone(),
+                splash: guild.splash_key.clone(),
+                banner: guild.banner_key.clone(),
+                description: guild.description.clone(),
+                vanity_url_code: guild.vanity_code.clone(),
             },
             channel: InviteChannel {
                 id: channel.id.to_string(),
@@ -186,6 +197,10 @@ pub async fn create_invite(
     let channel_id: ChannelId = id("channel_id", &channel_id)?;
     let body = body.map(|Json(b)| b).unwrap_or_default();
     let acc = deps.channel_access(user, channel_id).await?;
+    // Ordinary invites to the Staff Server are refused; staff join by appointment.
+    if acc.guild.guild.is_staff_guild {
+        return Err(se(sr_chat::settings::SettingsError::StaffServerInvites));
+    }
     let base = InviteOptions::for_request(body.external.unwrap_or(false));
     let opts = InviteOptions {
         max_age_secs: body.max_age.unwrap_or(base.max_age_secs),
@@ -306,7 +321,46 @@ async fn add_counts(deps: &SettingsDeps, guild: GuildId, out: &mut InviteObject)
     Ok(())
 }
 
-async fn usable_invite(deps: &SettingsDeps, code: &str) -> ApiResult<GuildInvite> {
+/// The invite behind a server's vanity code (LNG-INV-004): the system channel, else the
+/// first text or announcement channel, with the owner as inviter. Never expires.
+async fn vanity_invite(deps: &SettingsDeps, code: &str) -> ApiResult<Option<GuildInvite>> {
+    let Some(gid) = deps.chat.guild_by_vanity(code).await.map_err(re)? else {
+        return Ok(None);
+    };
+    let Some(guild) = deps.chat.get_guild(gid).await.map_err(re)? else {
+        return Ok(None);
+    };
+    let channel = match guild.system_channel_id {
+        Some(c) => Some(c),
+        None => {
+            let mut channels = deps.chat.list_guild_channels(gid).await.map_err(re)?;
+            channels.retain(|c| {
+                matches!(
+                    c.kind,
+                    sr_chat::ChannelType::Text | sr_chat::ChannelType::Announcement
+                )
+            });
+            channels.sort_by_key(|c| (c.position, c.id));
+            channels.first().map(|c| c.id)
+        }
+    };
+    let Some(channel) = channel else {
+        return Ok(None);
+    };
+    let uses = deps.service.repo().vanity_uses(gid).await.map_err(re)?;
+    Ok(Some(GuildInvite::vanity(
+        guild.vanity_code.clone().unwrap_or_else(|| code.to_owned()),
+        gid,
+        channel,
+        guild.owner_id,
+        uses,
+        deps.now_ms(),
+    )))
+}
+
+/// A stored invite that is still usable (revoked, expired and used-up all read as
+/// unknown or their own error).
+async fn stored_invite(deps: &SettingsDeps, code: &str) -> ApiResult<GuildInvite> {
     if !sr_chat::settings::invites::is_valid_code(code) {
         return Err(ErrorCode::UnknownInvite.into());
     }
@@ -319,6 +373,21 @@ async fn usable_invite(deps: &SettingsDeps, code: &str) -> ApiResult<GuildInvite
         .ok_or(ErrorCode::UnknownInvite)?;
     inv.check_usable(deps.now_ms()).map_err(se)?;
     Ok(inv)
+}
+
+/// Like [`stored_invite`], and a server's vanity code resolves too when no invite has that
+/// text.
+async fn usable_invite(deps: &SettingsDeps, code: &str) -> ApiResult<GuildInvite> {
+    if !sr_chat::settings::invites::is_valid_code(code) {
+        return Err(ErrorCode::UnknownInvite.into());
+    }
+    let stored = deps.service.repo().get_invite(code).await.map_err(re)?;
+    if stored.is_none()
+        && let Some(v) = vanity_invite(deps, code).await?
+    {
+        return Ok(v);
+    }
+    stored_invite(deps, code).await
 }
 
 /// Resolve an invite code (any signed-in user). Revoked, expired and used-up
@@ -369,7 +438,7 @@ pub async fn delete_invite(
     Path(code): Path<String>,
 ) -> ApiResult<Json<InviteObject>> {
     let user = actor(&p)?;
-    let inv = usable_invite(&deps, &code).await?;
+    let inv = stored_invite(&deps, &code).await?;
     let out = render_one(&deps, &inv).await?;
     let guild = deps.guild_access(user, inv.guild_id).await?;
     let mut perms = guild.perms;
@@ -411,6 +480,7 @@ pub async fn delete_invite(
 pub async fn accept_invite(
     UserOnly(p): UserOnly,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(messages): MaybeExt<crate::routes::messages::MessagesDeps>,
     Path(code): Path<String>,
 ) -> ApiResult<Json<InviteObject>> {
     let user = actor(&p)?;
@@ -422,5 +492,13 @@ pub async fn accept_invite(
         .join_with_invite(&code, user, deps.now_ms())
         .await
         .map_err(HttpError)?;
+    // The join pipeline (LNG-GLD-008): the member row, its `pending` screening state and the
+    // `GUILD_MEMBER_ADD` are written by the joiner; the visible part is the notice in the
+    // system channel.
+    if let (sr_chat::settings::join::InviteJoin::Joined { member, .. }, Some(m)) =
+        (&outcome, &messages)
+    {
+        crate::routes::messages::system::post_user_join(m, member.guild_id, member.user_id).await;
+    }
     Ok(Json(render_one(&deps, outcome.invite()).await?))
 }

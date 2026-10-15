@@ -36,6 +36,33 @@ pub struct UserObject {
     /// Present (true) for bot accounts only.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub bot: bool,
+    /// The server tag this user displays (LNG-SSET-012); Discord's `primary_guild`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_guild: Option<PrimaryGuildObject>,
+}
+
+/// A displayed server tag: `{identity_guild_id, identity_enabled, tag, badge, color}`.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PrimaryGuildObject {
+    pub identity_guild_id: String,
+    pub identity_enabled: bool,
+    pub tag: String,
+    /// Badge icon id (0 to 15).
+    pub badge: u8,
+    /// Badge colour, 24-bit RGB.
+    pub color: u32,
+}
+
+impl PrimaryGuildObject {
+    pub fn of(p: &sr_chat::settings::tags::PrimaryGuild) -> Self {
+        Self {
+            identity_guild_id: p.guild_id.to_string(),
+            identity_enabled: true,
+            tag: p.tag.clone(),
+            badge: p.badge,
+            color: p.color,
+        }
+    }
 }
 
 impl UserObject {
@@ -48,6 +75,7 @@ impl UserObject {
                 avatar: u.avatar_key.clone(),
                 banner: u.banner_key.clone(),
                 bot: u.bot,
+                primary_guild: u.primary_guild.as_ref().map(PrimaryGuildObject::of),
             },
             None => Self {
                 id: id.to_string(),
@@ -56,6 +84,7 @@ impl UserObject {
                 avatar: None,
                 banner: None,
                 bot: false,
+                primary_guild: None,
             },
         }
     }

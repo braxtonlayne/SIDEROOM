@@ -31,6 +31,6 @@ test.describe('e2e fixtures', () => {
     const text = `fixture hello ${Date.now()}`;
     await a.page.keyboard.type(text);
     await a.page.keyboard.press('Enter');
-    await expect(b.page.getByText(text)).toBeVisible();
+    await expect(b.page.getByText(text, { exact: true })).toBeVisible();
   });
 });

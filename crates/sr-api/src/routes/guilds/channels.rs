@@ -314,7 +314,18 @@ pub async fn modify_channel(
         let obj = t.modify(user, cid, patch).await.map_err(ce)?;
         return Ok(Json(obj));
     }
+    let kind = match body.kind {
+        None => None,
+        Some(code) => Some(ChannelType::from_code(code).ok_or_else(|| {
+            HttpError(ApiError::invalid_form().field(
+                "type",
+                "ENUM_TYPE_INVALID",
+                "Not a channel type.",
+            ))
+        })?),
+    };
     let patch = ChannelPatch {
+        kind,
         name: body.name,
         topic: body.topic,
         nsfw: body.nsfw,

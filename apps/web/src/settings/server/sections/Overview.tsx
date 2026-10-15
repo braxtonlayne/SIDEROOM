@@ -7,6 +7,7 @@ import * as api from '../api';
 import { useDraft, useGuildEvents, useResource, useSettingsForm } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, NotAvailable, SectionHeader, useAction } from '../ui';
+import { BannerPresets } from './BannerPresets';
 import { ImageField } from './ImageField';
 
 interface Fields {
@@ -148,6 +149,13 @@ function OverviewForm({
           ownerId={guildId}
           value={draft.value.banner}
           onChange={(v) => draft.set('banner', v)}
+        />
+        <BannerPresets
+          onPick={(uri) => {
+            action.clear();
+            draft.set('banner', uri);
+          }}
+          onUnsupported={() => action.setError(t('settings.bannerPresets.unsupported'))}
         />
         <ImageField
           label={t('settings.overview.splashLabel')}

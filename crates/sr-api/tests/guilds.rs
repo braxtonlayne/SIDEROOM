@@ -179,6 +179,9 @@ async fn guild(f: &Fx) -> (String, Value) {
             joined_at_ms: T0,
             communication_disabled_until_ms: None,
             pending: false,
+            avatar_key: None,
+            banner_key: None,
+            bio: None,
         });
     }
     (id, g)
@@ -684,6 +687,60 @@ async fn bans_flow() {
 }
 
 #[tokio::test]
+async fn bulk_ban_bans_what_it_can_and_lists_the_rest() {
+    let f = fixture();
+    let (gid, _) = guild(&f).await;
+    let g = GuildId::new(gid.parse().unwrap());
+    let uri = format!("/guilds/{gid}/bulk-ban");
+    let mut events = f.bus.subscribe(Topic::Guild(g));
+
+    // Plain members may not bulk ban.
+    let (s, _) = post(&f, &uri, "bob", json!({ "user_ids": ["3"] })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // Shape checks.
+    let (s, _) = post(&f, &uri, "owner", json!({ "user_ids": [] })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = post(&f, &uri, "owner", json!({ "user_ids": ["x"] })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = post(
+        &f,
+        &uri,
+        "owner",
+        json!({ "user_ids": ["2"], "delete_message_seconds": 999_999 }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    // Member 2, non-member 50 (pre-emptive) and the owner (1, never bannable).
+    let (s, out) = post(
+        &f,
+        &uri,
+        "owner",
+        json!({ "user_ids": ["2", "50", "1", "2"], "reason": "raid" }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{out}");
+    assert_eq!(out["banned_users"], json!(["2", "50"]));
+    assert_eq!(out["failed_users"], json!(["1"]));
+    let (_, list) = get(&f, &format!("/guilds/{gid}/bans"), "owner").await;
+    assert_eq!(list.as_array().unwrap().len(), 2);
+    let (s, _) = get(&f, &format!("/guilds/{gid}"), "bob").await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // One GUILD_BAN_ADD per banned user.
+    let mut bans = 0;
+    while let Some(ev) = next_event(&mut events).await {
+        if matches!(ev, DomainEvent::MemberBanned { .. }) {
+            bans += 1;
+        }
+    }
+    assert_eq!(bans, 2);
+
+    // Nobody bannable is an error, not an empty success.
+    let (s, _) = post(&f, &uri, "owner", json!({ "user_ids": ["1"] })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
 async fn mutations_publish_domain_events() {
     let f = fixture();
     let (gid, created) = guild(&f).await;
@@ -916,6 +973,66 @@ async fn guild_mutations_are_audited_and_role_creation_announces_shifted_roles()
     assert_eq!(log[2].2.as_deref(), Some("spam"));
 }
 
+#[tokio::test]
+async fn overwrite_audit_tells_create_update_and_clear_apart() {
+    let rec = Arc::new(Recorder::default());
+    let f = fixture_with(Some(rec.clone()));
+    let (_, g) = guild(&f).await;
+    let ch = g["channels"][2]["id"].as_str().unwrap().to_owned();
+    let url = format!("/channels/{ch}/permissions/2");
+    for allow in ["1024", "3072", "0"] {
+        let (s, _) = put(
+            &f,
+            &url,
+            "owner",
+            json!({ "type": 1, "allow": allow, "deny": "0" }),
+        )
+        .await;
+        assert_eq!(s, StatusCode::NO_CONTENT);
+    }
+    let log = rec.0.lock().unwrap().clone();
+    let actions: Vec<_> = log.iter().map(|e| (e.0, e.1)).collect();
+    assert_eq!(
+        actions,
+        vec![
+            (AuditAction::ChannelOverwriteCreate, Some(2)),
+            (AuditAction::ChannelOverwriteUpdate, Some(2)),
+            (AuditAction::ChannelOverwriteDelete, Some(2)),
+        ]
+    );
+}
+
+/// The Staff Server says so in its payloads (ADM-STF-010); GUILD_CREATE uses the same
+/// `GuildObject`. Ordinary servers omit the field.
+#[tokio::test]
+async fn staff_server_is_flagged_in_guild_payloads() {
+    let f = fixture();
+    let (gid, created) = guild(&f).await;
+    assert!(created.get("is_staff_guild").is_none(), "{created}");
+    let (_, list) = get(&f, "/users/@me/guilds", "owner").await;
+    assert!(list[0].get("is_staff_guild").is_none(), "{list}");
+
+    f.repo
+        .store
+        .lock()
+        .unwrap()
+        .guilds
+        .get_mut(&GuildId::new(gid.parse().unwrap()))
+        .unwrap()
+        .is_staff_guild = true;
+    let (s, g) = get(&f, &format!("/guilds/{gid}"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_eq!(g["is_staff_guild"], true);
+    let (_, list) = get(&f, "/users/@me/guilds", "bob").await;
+    let entry = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["id"] == gid.as_str())
+        .unwrap();
+    assert_eq!(entry["is_staff_guild"], true);
+}
+
 fn png_uri(w: u32, h: u32, seed: u8) -> String {
     let img = image::RgbaImage::from_fn(w, h, |x, y| {
         image::Rgba([(x % 255) as u8, (y % 255) as u8, seed, 255])
@@ -1039,6 +1156,7 @@ fn name_user(f: &Fx, id: u64, username: &str, display: Option<&str>) {
             avatar_key: None,
             banner_key: None,
             bot: false,
+            primary_guild: None,
         },
     );
 }
@@ -1352,4 +1470,63 @@ async fn role_emoji_and_icon_replace_each_other_and_clean_up() {
     // Without Manage Roles nothing is stored.
     let (s, _) = patch(&f, &uri, "bob", json!({ "icon": png_uri(40, 40, 3) })).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn text_channels_become_announcement_channels_and_back() {
+    let f = fixture();
+    let (_gid, created) = guild(&f).await;
+    let general = created["channels"][2]["id"].as_str().unwrap().to_owned();
+    let uri = format!("/channels/{general}");
+
+    // Members cannot convert; only text and announcement channels swap.
+    let (s, _) = patch(&f, &uri, "bob", json!({ "type": 5 })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, e) = patch(&f, &uri, "owner", json!({ "type": 2 })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    let (s, e) = patch(&f, &uri, "owner", json!({ "type": 4242 })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+
+    // The auto-publish flag only sticks on announcement channels.
+    let auto = 1u64 << 24;
+    let (s, c) = patch(&f, &uri, "owner", json!({ "flags": auto })).await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(
+        c["flags"].as_u64().unwrap() & auto,
+        0,
+        "a text channel ignores it"
+    );
+    let (s, c) = patch(&f, &uri, "owner", json!({ "type": 5, "flags": auto })).await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(c["type"], 5);
+    assert_eq!(c["flags"].as_u64().unwrap() & auto, auto);
+    // Other edits keep the flag; clearing it is explicit.
+    let (_, c) = patch(&f, &uri, "owner", json!({ "topic": "news" })).await;
+    assert_eq!(c["flags"].as_u64().unwrap() & auto, auto);
+    let (_, c) = patch(&f, &uri, "owner", json!({ "flags": 0 })).await;
+    assert_eq!(c["flags"].as_u64().unwrap() & auto, 0);
+    // Back to text.
+    let (s, c) = patch(&f, &uri, "owner", json!({ "type": 0 })).await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(c["type"], 0);
+}
+
+#[tokio::test]
+async fn editing_a_channel_without_changing_its_type_is_not_a_conversion() {
+    let f = fixture();
+    let (_gid, created) = guild(&f).await;
+    let voice = created["channels"][3]["id"].as_str().unwrap().to_owned();
+    // Sending the channel's own type is a no-op, as Discord clients do.
+    let (s, c) = patch(
+        &f,
+        &format!("/channels/{voice}"),
+        "owner",
+        json!({ "type": 2, "name": "lounge" }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(
+        (c["type"].as_u64(), c["name"].as_str()),
+        (Some(2), Some("lounge"))
+    );
 }

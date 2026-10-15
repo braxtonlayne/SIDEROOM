@@ -15,6 +15,6 @@ pub mod firehose;
 pub mod ids;
 
 pub use bus::{EventBus, EventError, InProcessBus};
-pub use event::{DomainEvent, StaffAlertKind, Topic};
+pub use event::{DomainEvent, StaffAlertKind, StaffFeedKind, Topic};
 pub use firehose::FirehoseDedup;
 pub use ids::{ChannelId, GuildId, RoleId, UserId};

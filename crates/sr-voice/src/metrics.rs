@@ -10,6 +10,9 @@ pub const EGRESS_BPS: &str = "sr_voice_egress_bits_per_second";
 pub const INGRESS_BPS: &str = "sr_voice_ingress_bits_per_second";
 pub const PACKET_LOSS: &str = "sr_voice_packet_loss_ratio";
 pub const FORWARDED: &str = "sr_voice_forwarded_packets_total";
+pub const FORWARDED_FRAMES: &str = "sr_voice_forwarded_video_frames_total";
+pub const GOVERNOR_SEVERITY: &str = "sr_voice_governor_severity";
+pub const KEYFRAME_REQUESTS: &str = "sr_voice_keyframe_requests_total";
 
 /// Describe the metrics once at startup.
 pub fn describe() {
@@ -22,14 +25,34 @@ pub fn describe() {
         "Mean packet loss fraction (0..1) participants report for audio received from the SFU"
     );
     metrics::describe_counter!(FORWARDED, "Audio packets forwarded to subscribers");
+    metrics::describe_counter!(FORWARDED_FRAMES, "Video frames forwarded to subscribers");
+    metrics::describe_gauge!(
+        GOVERNOR_SEVERITY,
+        "Egress governor severity, 0 when not engaged (doc 08 section 3)"
+    );
+    metrics::describe_counter!(
+        KEYFRAME_REQUESTS,
+        "Keyframe requests sent to publishers (after coalescing)"
+    );
 }
 
-/// Publish a snapshot; `forwarded_delta` is the packets forwarded since the last call.
-pub fn publish(s: &Snapshot, forwarded_delta: u64) {
+/// Counter increments since the last [`publish`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Deltas {
+    pub packets: u64,
+    pub frames: u64,
+    pub keyframes: u64,
+}
+
+/// Publish a snapshot and the counter increments since the last call.
+pub fn publish(s: &Snapshot, deltas: Deltas) {
     metrics::gauge!(ROOMS).set(s.rooms as f64);
     metrics::gauge!(PARTICIPANTS).set(s.participants as f64);
     metrics::gauge!(EGRESS_BPS).set(s.egress_bps);
     metrics::gauge!(INGRESS_BPS).set(s.ingress_bps);
     metrics::gauge!(PACKET_LOSS).set(s.loss_ratio);
-    metrics::counter!(FORWARDED).increment(forwarded_delta);
+    metrics::counter!(FORWARDED).increment(deltas.packets);
+    metrics::counter!(FORWARDED_FRAMES).increment(deltas.frames);
+    metrics::counter!(KEYFRAME_REQUESTS).increment(deltas.keyframes);
+    metrics::gauge!(GOVERNOR_SEVERITY).set(f64::from(s.governor_severity));
 }

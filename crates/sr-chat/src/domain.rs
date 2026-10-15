@@ -137,6 +137,8 @@ pub struct Guild {
     pub default_message_notifications: u8,
     pub explicit_content_filter: u8,
     pub preferred_locale: String,
+    /// Vanity invite code (`/invite/<code>`), free of charge (LNG-INV-004).
+    pub vanity_code: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -170,7 +172,14 @@ pub struct Member {
     pub role_ids: Vec<RoleId>,
     pub joined_at_ms: i64,
     pub communication_disabled_until_ms: Option<i64>,
+    /// Membership screening not yet accepted (LNG-GLD-008): read-only until it is.
     pub pending: bool,
+    /// Per-server profile (LNG-GLD-012): avatar hash, same URL shape as a user avatar.
+    pub avatar_key: Option<String>,
+    /// Per-server profile banner hash.
+    pub banner_key: Option<String>,
+    /// Per-server bio.
+    pub bio: Option<String>,
 }
 
 impl Member {

@@ -47,6 +47,23 @@ export const loadPermissions = once(async (wasmUrl) => {
   };
 });
 
+export const loadGraph = once(async (wasmUrl) => {
+  const m = await import("../dist/graph/graph.js");
+  await m.default({ module_or_path: wasmUrl });
+  const [iterations, seed, , springLength] = m.layoutDefaults();
+  return {
+    layout: (nodeCount, edges, options = {}) =>
+      m.layoutGraph(
+        nodeCount,
+        edges instanceof Uint32Array ? edges : Uint32Array.from(edges),
+        options.iterations ?? 0,
+        options.seed ?? 0,
+        options.springLength ?? 0,
+      ),
+    defaults: { iterations, seed, springLength },
+  };
+});
+
 export async function initWasm(options = {}) {
   const [theme, markdown, permissions] = await Promise.all([
     loadTheme(options.theme),

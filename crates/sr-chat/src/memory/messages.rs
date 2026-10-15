@@ -74,6 +74,19 @@ impl GuildRepository for MemoryBackend {
         Ok(self.data().guilds.get(&id).cloned())
     }
 
+    async fn guild_by_vanity(&self, code: &str) -> RepoResult<Option<GuildId>> {
+        Ok(self
+            .data()
+            .guilds
+            .values()
+            .find(|g| {
+                g.vanity_code
+                    .as_deref()
+                    .is_some_and(|v| v.eq_ignore_ascii_case(code))
+            })
+            .map(|g| g.id))
+    }
+
     async fn page_members(
         &self,
         guild: GuildId,
@@ -312,6 +325,18 @@ impl MessageRepository for MemoryBackend {
             .iter()
             .filter(|m| m.channel_id == channel && s.pins.contains_key(&m.id))
             .count())
+    }
+
+    async fn set_message_flags(
+        &self,
+        _channel: ChannelId,
+        message: MessageId,
+        flags: u32,
+    ) -> RepoResult<()> {
+        if let Some(m) = self.data().messages.iter_mut().find(|m| m.id == message) {
+            m.flags = flags;
+        }
+        Ok(())
     }
 
     async fn set_pinned(

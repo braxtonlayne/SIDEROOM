@@ -562,6 +562,12 @@ pub fn check_remove_member(
 /// Settings that do not belong to the channel's type are ignored.
 pub fn apply_forum_patch(channel: &mut Channel, patch: &ForumPatch) -> ChatResult<()> {
     let kind = channel.kind;
+    if kind == crate::domain::ChannelType::Announcement
+        && let Some(f) = patch.flags
+    {
+        let keep = channel.flags & !channel_flags::AUTO_PUBLISH;
+        channel.flags = keep | (f & channel_flags::AUTO_PUBLISH);
+    }
     if kind.hosts_threads() || kind.is_forum_like() {
         if let Some(d) = patch.default_auto_archive_duration {
             channel.forum.default_auto_archive_duration = Some(validate_auto_archive(d)?);

@@ -1,7 +1,8 @@
-import { Badge, Button, Notice, Switch } from '@sideroom/ui';
+import { Badge, Button, Drawer, Notice, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
 import { useT } from '../../i18n';
+import { SchemaForm, overridesOf, schemaFields, type SettingsValues } from '../SchemaForm';
 import { Async, ReasonDialog, SectionHeader, useResource } from '../ui';
 
 export function FeaturesSection() {
@@ -11,6 +12,9 @@ export function FeaturesSection() {
     null,
   );
   const [notice, setNotice] = useState<string | null>(null);
+  const [configuring, setConfiguring] = useState<api.FeatureView | null>(null);
+  const [draft, setDraft] = useState<SettingsValues>({});
+  const [saving, setSaving] = useState(false);
 
   return (
     <>
@@ -40,6 +44,23 @@ export function FeaturesSection() {
                     </div>
                     <div className="ss-meta">{f.description}</div>
                   </div>
+                  {schemaFields(f.schema).length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={t('admin.features.settingsAria', { name: f.name })}
+                      onClick={() => {
+                        setDraft(
+                          f.settings && typeof f.settings === 'object'
+                            ? (f.settings as SettingsValues)
+                            : {},
+                        );
+                        setConfiguring(f);
+                      }}
+                    >
+                      {t('admin.features.settings')}
+                    </Button>
+                  )}
                   <Switch
                     label={t('admin.features.enabledLabel', { name: f.name })}
                     checked={f.enabled}
@@ -61,6 +82,45 @@ export function FeaturesSection() {
           )
         }
       </Async>
+      <Drawer
+        open={!!configuring}
+        onClose={() => setConfiguring(null)}
+        title={t('admin.features.settingsTitle', { name: configuring?.name ?? '' })}
+      >
+        {configuring && (
+          <div className="adm-form">
+            <p className="ss-sub">{t('admin.features.settingsIntro')}</p>
+            <SchemaForm
+              fields={schemaFields(configuring.schema)}
+              values={draft}
+              onChange={setDraft}
+            />
+            <div className="adm-actions">
+              <Button loading={saving} onClick={() => setSaving(true)}>
+                {t('admin.features.saveSettings')}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Drawer>
+      <ReasonDialog
+        open={saving && !!configuring}
+        title={t('admin.features.saveSettingsTitle', { name: configuring?.name ?? '' })}
+        confirmLabel={t('admin.features.saveSettings')}
+        reasonOptional
+        onCancel={() => setSaving(false)}
+        onConfirm={async (reason) => {
+          if (!configuring) return;
+          await api.patchFeature(configuring.id, {
+            settings: overridesOf(schemaFields(configuring.schema), draft),
+            ...(reason ? { reason } : {}),
+          });
+          setNotice(t('admin.features.settingsSaved', { name: configuring.name }));
+          setSaving(false);
+          setConfiguring(null);
+          await res.reload();
+        }}
+      />
       <ReasonDialog
         open={!!target}
         title={

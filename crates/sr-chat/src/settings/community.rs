@@ -2,6 +2,7 @@
 //! guild-level security flags (invite pause, raid alerts) from Safety Setup.
 
 use serde::{Deserialize, Serialize};
+use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, GuildId, RoleId};
 
 use super::error::{SettingsError, SettingsResult};
@@ -12,6 +13,9 @@ pub const MAX_PROMPTS: usize = 15;
 pub const MAX_OPTIONS_PER_PROMPT: usize = 50;
 pub const MAX_WELCOME_CHANNELS: usize = 5;
 pub const MAX_WELCOME_DESCRIPTION: usize = 140;
+pub const MAX_SCREENING_RULES: usize = 16;
+pub const MAX_SCREENING_RULE_CHARS: usize = 300;
+pub const MAX_SCREENING_DESCRIPTION: usize = 300;
 
 /// Per-guild community and safety flags.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -31,6 +35,51 @@ pub struct CommunitySettings {
     /// Raid protection: alert when joins per minute exceed this (0 = off).
     pub raid_alert_joins_per_minute: u32,
     pub age_restricted: bool,
+    /// Membership screening (LNG-GLD-008): new members stay `pending` until they agree to
+    /// the rules below. Only takes effect while Community is on.
+    pub screening_enabled: bool,
+    /// Text shown above the rules.
+    pub screening_description: Option<String>,
+    /// The rules a new member agrees to (at most [`MAX_SCREENING_RULES`]).
+    pub screening_rules: Vec<String>,
+}
+
+/// Validate and trim the membership screening form: 1 to 16 rules of at most 300
+/// characters when screening is on, a description of at most 300.
+pub fn validate_screening(
+    enabled: bool,
+    description: Option<&str>,
+    rules: &[String],
+) -> SettingsResult<(Option<String>, Vec<String>)> {
+    let bad = |field: &str, msg: &str| SettingsError::invalid(field, "SCREENING_INVALID", msg);
+    let description = description
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(str::to_owned);
+    if description
+        .as_ref()
+        .is_some_and(|d| d.chars().count() > MAX_SCREENING_DESCRIPTION)
+    {
+        return Err(bad("description", "must be 300 or fewer in length"));
+    }
+    let rules: Vec<String> = rules
+        .iter()
+        .map(|r| r.trim().to_owned())
+        .filter(|r| !r.is_empty())
+        .collect();
+    if rules.len() > MAX_SCREENING_RULES {
+        return Err(bad("form_fields", "at most 16 rules"));
+    }
+    if rules
+        .iter()
+        .any(|r| r.chars().count() > MAX_SCREENING_RULE_CHARS)
+    {
+        return Err(bad("form_fields", "rules are at most 300 characters"));
+    }
+    if enabled && rules.is_empty() {
+        return Err(bad("form_fields", "add at least one rule"));
+    }
+    Ok((description, rules))
 }
 
 impl CommunitySettings {
@@ -108,6 +157,7 @@ pub fn disable_community(s: &mut CommunitySettings) {
     s.onboarding_enabled = false;
     s.welcome_screen_enabled = false;
     s.guide_enabled = false;
+    s.screening_enabled = false;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -207,6 +257,59 @@ pub fn resolve_answers(o: &Onboarding, picked: &[u64]) -> (Vec<ChannelId>, Vec<R
         }
     }
     (channels, roles)
+}
+
+/// Check a member's answers against the form: every id must be an option of the form,
+/// a single-select question takes at most one, and required in-onboarding questions
+/// need an answer.
+pub fn validate_answers(o: &Onboarding, picked: &[u64]) -> SettingsResult<()> {
+    let bad = |msg: &str| SettingsError::invalid("option_ids", "ONBOARDING_ANSWER_INVALID", msg);
+    let known: Vec<u64> = o
+        .prompts
+        .iter()
+        .flat_map(|p| p.options.iter().map(|opt| opt.id))
+        .collect();
+    if picked.iter().any(|id| !known.contains(id)) {
+        return Err(bad("unknown answer"));
+    }
+    for p in &o.prompts {
+        let n = p
+            .options
+            .iter()
+            .filter(|opt| picked.contains(&opt.id))
+            .count();
+        if p.single_select && n > 1 {
+            return Err(bad("this question takes one answer"));
+        }
+    }
+    if !missing_required(o, picked).is_empty() {
+        return Err(bad("answer the required questions"));
+    }
+    Ok(())
+}
+
+/// Permission bits an onboarding answer may never grant through a role (Discord applies the
+/// same rule when onboarding is configured).
+pub const ONBOARDING_FORBIDDEN: Permissions = Permissions::ADMINISTRATOR
+    .union(Permissions::MANAGE_GUILD)
+    .union(Permissions::MANAGE_ROLES)
+    .union(Permissions::MANAGE_CHANNELS)
+    .union(Permissions::KICK_MEMBERS)
+    .union(Permissions::BAN_MEMBERS)
+    .union(Permissions::MANAGE_MESSAGES)
+    .union(Permissions::MANAGE_WEBHOOKS)
+    .union(Permissions::MANAGE_THREADS)
+    .union(Permissions::MANAGE_NICKNAMES)
+    .union(Permissions::MODERATE_MEMBERS)
+    .union(Permissions::MENTION_EVERYONE)
+    .union(Permissions::MANAGE_GUILD_EXPRESSIONS)
+    .union(Permissions::MANAGE_EVENTS)
+    .union(Permissions::MANAGE_EXTENSIONS);
+
+/// Whether a role may be granted by an onboarding answer: not integration-managed and none
+/// of [`ONBOARDING_FORBIDDEN`].
+pub fn onboarding_role_is_safe(perms: Permissions, managed: bool) -> bool {
+    !managed && !perms.intersects(ONBOARDING_FORBIDDEN)
 }
 
 /// Whether the member must answer before joining (any required in-onboarding prompt
@@ -343,6 +446,61 @@ mod tests {
         assert_eq!(roles, vec![RoleId::new(7)]);
         assert_eq!(missing_required(&o, &[]), vec![1]);
         assert!(missing_required(&o, &[11]).is_empty());
+    }
+
+    #[test]
+    fn answers_are_validated() {
+        let mut o = onboarding(true, 3);
+        assert!(validate_answers(&o, &[10]).is_ok());
+        assert!(
+            validate_answers(&o, &[10, 11]).is_ok(),
+            "multi select by default"
+        );
+        assert!(validate_answers(&o, &[]).is_err(), "required question");
+        assert!(validate_answers(&o, &[999]).is_err(), "unknown option");
+        o.prompts[0].single_select = true;
+        assert!(validate_answers(&o, &[10, 11]).is_err(), "single select");
+        assert!(validate_answers(&o, &[11]).is_ok());
+    }
+
+    #[test]
+    fn onboarding_roles_cannot_carry_power() {
+        assert!(onboarding_role_is_safe(Permissions::empty(), false));
+        assert!(onboarding_role_is_safe(Permissions::SEND_MESSAGES, false));
+        assert!(
+            !onboarding_role_is_safe(Permissions::empty(), true),
+            "managed"
+        );
+        for p in [
+            Permissions::ADMINISTRATOR,
+            Permissions::MANAGE_ROLES,
+            Permissions::KICK_MEMBERS,
+            Permissions::MENTION_EVERYONE,
+            Permissions::SEND_MESSAGES | Permissions::BAN_MEMBERS,
+        ] {
+            assert!(!onboarding_role_is_safe(p, false), "{p:?}");
+        }
+    }
+
+    #[test]
+    fn screening_form_is_validated() {
+        let rules = vec!["  Be kind ".to_owned(), String::new(), "No spam".to_owned()];
+        let (d, r) = validate_screening(true, Some("  hi "), &rules).unwrap();
+        assert_eq!(
+            (d.as_deref(), r.as_slice()),
+            (
+                Some("hi"),
+                &["Be kind".to_owned(), "No spam".to_owned()][..]
+            )
+        );
+        assert!(
+            validate_screening(true, None, &[]).is_err(),
+            "on needs a rule"
+        );
+        assert!(validate_screening(false, None, &[]).is_ok());
+        assert!(validate_screening(false, None, &vec!["x".to_owned(); 17]).is_err());
+        assert!(validate_screening(false, None, &["y".repeat(301)]).is_err());
+        assert!(validate_screening(false, Some(&"z".repeat(301)), &[]).is_err());
     }
 
     #[test]

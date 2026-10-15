@@ -55,8 +55,8 @@ Phase 3 · Decisions: D-125, D-130–D-133, D-012, D-023, D-031 · Docs 07, 06, 
 5. The Owner cannot be revoked. Ownership transfer is CLI-only (`sr-cli staff transfer-owner`).
 
 ## 5. Acceptance criteria
-- [ ] Ordinary server invites to the Staff Server fail. "Invite to Server" is hidden there.
-- [ ] Granting a Staff Server role with a platform bit to a non-appointed account has no platform effect (server-side test).
-- [ ] Removing a staff member from the Staff Server revokes access to `/admin` APIs within 1s.
-- [ ] Every Private Content Viewer request produces a hash-chained log row. A tampered row is detected by the nightly verifier.
+- [x] Ordinary server invites to the Staff Server fail (create and redeem; _backend done_). "Invite to Server" is hidden there (_client, open_).
+- [x] Granting a Staff Server role with a platform bit to a non-appointed account has no platform effect (server-side test).
+- [x] Removing a staff member from the Staff Server revokes access to `/admin` APIs within 1s (immediately: standing is evaluated on every request).
+- [x] Every Private Content Viewer request produces a hash-chained log row. A tampered row is detected by the nightly verifier.
 - [ ] All configurable numbers in docs 06/08/09 are editable in Admin → Limits/Donations without a restart.

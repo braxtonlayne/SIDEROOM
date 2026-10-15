@@ -27,6 +27,13 @@ pub struct SfuConfig {
     pub heartbeat_interval: Duration,
     /// Shared secret for join tokens (`sr_voice_proto::TokenSigner`).
     pub token_secret: Vec<u8>,
+    /// Egress budget for the governor in Mbit/s (`voice.egress_budget_mbps`). `0` turns the
+    /// governor off. Doc 08 suggests 70 % of the measured uplink.
+    pub egress_budget_mbps: f64,
+    /// Use str0m's TWCC bandwidth estimator per subscriber (`voice.video_bwe`). Off by
+    /// default: it makes str0m pad every sending connection to 50 kbit/s. See
+    /// [`crate::core::SfuCore::with_bwe`].
+    pub video_bwe: bool,
 }
 
 impl Default for SfuConfig {
@@ -42,6 +49,8 @@ impl Default for SfuConfig {
             resume_window: Duration::from_secs(20),
             heartbeat_interval: Duration::from_millis(13_750),
             token_secret: Vec::new(),
+            egress_budget_mbps: 0.0,
+            video_bwe: false,
         }
     }
 }

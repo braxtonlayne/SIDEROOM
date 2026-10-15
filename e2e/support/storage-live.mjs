@@ -292,7 +292,9 @@ const textBytes = Buffer.from('hello from the live storage test\n'.repeat(2000))
       rng.headers.get('content-range') === `bytes 5-14/${textBytes.length}`,
     `status ${rng.status}`,
   );
-  const tampered = await fetch(abs.replace(/sig=./, 'sig=A')).catch(() => ({ status: 0 }));
+  const tampered = await fetch(
+    abs.replace(/sig=(.)/, (_, c) => 'sig=' + (c === 'A' ? 'B' : 'A')),
+  ).catch(() => ({ status: 0 }));
   check('tampered CDN signature rejected', [401, 403].includes(tampered.status), tampered.status);
   const noSig = await fetch(abs.split('?')[0]).catch(() => ({ status: 0 }));
   check('unsigned CDN URL rejected', [401, 403].includes(noSig.status), noSig.status);

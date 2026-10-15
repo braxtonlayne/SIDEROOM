@@ -73,6 +73,9 @@ fn token(user: u64, exp: u64, speak: bool) -> String {
             deaf: false,
             ptt_required: false,
             priority: false,
+            camera: false,
+            screen: false,
+            tier: 0,
         })
         .unwrap()
 }
@@ -619,6 +622,8 @@ async fn gateway_commands_mute_and_disconnect_on_the_media_path() {
             deaf: false,
             ptt_required: false,
             priority: false,
+            camera: false,
+            screen: false,
         })
         .await;
     // Frames already in flight when the mute landed may still arrive; let them drain
@@ -696,6 +701,8 @@ async fn a_mute_issued_before_the_client_connects_still_applies() {
             deaf: false,
             ptt_required: false,
             priority: false,
+            camera: false,
+            screen: false,
         })
         .await;
     let mut a = Vc::connect(&server, 1, false).await;

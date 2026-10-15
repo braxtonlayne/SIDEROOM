@@ -26,12 +26,16 @@ pub type AuditObserver = Arc<dyn Fn(&AuditEntry) + Send + Sync>;
 /// Source of invite-code entropy.
 pub type Entropy = Arc<dyn Fn() -> u64 + Send + Sync>;
 
+mod application_ops;
 mod community_ops;
 mod expression_ops;
+mod sound_ops;
+mod tag_ops;
 mod template_ops;
 mod webhook_ops;
 
 pub use expression_ops::StickerPatch;
+pub use sound_ops::{NewSound, SoundPatch};
 pub use webhook_ops::WebhookPatch;
 
 pub struct SettingsService<R> {
@@ -180,6 +184,30 @@ impl<R: SettingsRepository> SettingsService<R> {
             self.now(),
         )?
         .with_changes(changes);
+        self.store_audit(&entry).await?;
+        Ok(entry)
+    }
+
+    /// Append an audit entry that carries Discord's per-action `options`
+    /// (`channel_id`, `count`, `message_id`, ...).
+    pub async fn record_audit_with_options(
+        &self,
+        guild: GuildId,
+        actor: UserId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        options: serde_json::Value,
+    ) -> SettingsResult<AuditEntry> {
+        let entry = AuditEntry::new(
+            self.ids.generate().get(),
+            guild,
+            actor,
+            action,
+            target_id,
+            None,
+            self.now(),
+        )?
+        .with_options(options);
         self.store_audit(&entry).await?;
         Ok(entry)
     }

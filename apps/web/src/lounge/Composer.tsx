@@ -96,6 +96,8 @@ export interface ComposerProps {
   /** "#general" or a person's name; used in the placeholder. */
   target: string;
   canSend: boolean;
+  /** Replaces "no permission" when the channel is read-only by design (rules, announcements). */
+  readOnlyNote?: string | undefined;
   replyTo: Message | null;
   onCancelReply: () => void;
   /** ArrowUp in an empty composer: edit my last message. */
@@ -179,6 +181,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     guildId,
     target,
     canSend,
+    readOnlyNote,
     replyTo,
     onCancelReply,
     onEditLast,
@@ -689,7 +692,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   timeStyle: 'short',
                 }),
               })
-            : t('lounge.composer.noPermission')}
+            : (readOnlyNote ?? t('lounge.composer.noPermission'))}
         </div>
       </div>
     );

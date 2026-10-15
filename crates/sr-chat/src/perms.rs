@@ -28,6 +28,7 @@ pub fn default_everyone_permissions() -> Permissions {
         | P::SEND_MESSAGES_IN_THREADS
         | P::USE_EMBEDDED_ACTIVITIES
         | P::USE_SOUNDBOARD
+        | P::USE_EXTERNAL_SOUNDS
         | P::CREATE_EVENTS
         | P::SEND_VOICE_MESSAGES
         | P::SEND_POLLS
@@ -103,7 +104,8 @@ pub fn channel_permissions(
     if !perms.contains(Permissions::VIEW_CHANNEL) {
         return Permissions::empty();
     }
-    if member.is_timed_out(now_ms) {
+    if member.is_timed_out(now_ms) || member.pending {
+        // Timed out, or still behind the membership screening (LNG-GLD-008): read-only.
         perms &= Permissions::VIEW_CHANNEL | Permissions::READ_MESSAGE_HISTORY;
     }
     perms
@@ -165,6 +167,7 @@ pub(crate) mod fixtures {
             icon_key: None,
             banner_key: None,
             splash_key: None,
+            vanity_code: None,
             owner_id: UserId::new(OWNER),
             is_staff_guild: false,
             system_channel_id: None,
@@ -208,6 +211,9 @@ pub(crate) mod fixtures {
             joined_at_ms: 0,
             communication_disabled_until_ms: None,
             pending: false,
+            avatar_key: None,
+            banner_key: None,
+            bio: None,
         }
     }
 }
@@ -300,6 +306,28 @@ mod tests {
         );
         let after = channel_permissions(&guild(), &m, &[everyone()], &[], 3_000);
         assert!(after.contains(Permissions::SEND_MESSAGES));
+    }
+
+    #[test]
+    fn pending_screening_is_read_only_but_not_for_the_owner() {
+        let mut m = member(5, &[]);
+        m.pending = true;
+        let p = channel_permissions(&guild(), &m, &[everyone()], &[], 0);
+        assert_eq!(
+            p,
+            Permissions::VIEW_CHANNEL | Permissions::READ_MESSAGE_HISTORY
+        );
+        // Accepting the rules restores the ordinary permissions.
+        m.pending = false;
+        let p = channel_permissions(&guild(), &m, &[everyone()], &[], 0);
+        assert!(p.contains(Permissions::SEND_MESSAGES));
+        // The owner is never held back (they cannot be pending, and the bypass comes first).
+        let mut owner = member(OWNER, &[]);
+        owner.pending = true;
+        assert_eq!(
+            channel_permissions(&guild(), &owner, &[everyone()], &[], 0),
+            Permissions::ALL
+        );
     }
 
     #[test]

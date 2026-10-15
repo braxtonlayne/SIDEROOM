@@ -7,15 +7,15 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [x] **LNG-GLD-002** [BE] Create guild (default @everyone, #general, General voice, categories) → `POST /guilds`
 - [x] **LNG-GLD-003** [BE] Create from template (built-in + Discord-compatible template JSON) *(`GET /guilds/templates/builtin`, `POST /guilds/templates/{code}` and `POST /guilds {template}` in one transaction; the wizard still creates the extras client-side until the paired web change lands)*
 - [x] **LNG-GLD-004** [BE] Get/modify/delete guild; owner transfer
-- [ ] **LNG-GLD-005** [BE] Member list/search/get/modify (nick, roles, timeout, voice mute/deaf/move), kick, prune (dry-run count). Done: list, search (`query`, `role_id`, `/members/search`), role members, get, modify, kick, prune with count preview, judged on messages and last-seen (D-166). Open: voice mute/deaf/move
-- [ ] **LNG-GLD-006** [BE] Bans (create with delete-message-seconds, list, remove), bulk ban
+- [x] **LNG-GLD-005** [BE] Member list/search/get/modify (nick, roles, timeout, voice mute/deaf/move), kick, prune (dry-run count). *(voice mute/deaf/move is `PATCH /guilds/{id}/voice-states/{user_id}`, `crates/sr-api/src/routes/voice.rs` with its tests and the gateway voice tests; the member list, search, get, modify, kick and prune are in `routes/guilds/members.rs` and `prune.rs`)*
+- [x] **LNG-GLD-006** [BE] Bans (create with delete-message-seconds, list, remove), bulk ban *(`POST /guilds/{id}/bulk-ban` in `routes/guilds/bans.rs`, test `bulk_ban_bans_what_it_can_and_lists_the_rest` in `crates/sr-api/tests/guilds.rs`)*
 - [x] **LNG-GLD-007** [BE] Roles CRUD, positions, hierarchy enforcement (can't manage roles ≥ own top role)
-- [ ] **LNG-GLD-008** [BE] Guild member join/leave pipeline (system message, welcome screen, onboarding, membership screening `pending`)
-- [ ] **LNG-GLD-009** [GW] GUILD_CREATE (lazy), GUILD_UPDATE, GUILD_DELETE, GUILD_MEMBER_ADD/UPDATE/REMOVE, GUILD_ROLE_*, GUILD_BAN_*
-- [ ] **LNG-GLD-010** [GW] Lazy member list (op 102 ranges → GUILD_MEMBER_LIST_UPDATE ops SYNC/INSERT/UPDATE/DELETE)
-- [ ] **LNG-GLD-011** [BE] Server tag (short tag text + badge icon) shown next to members globally if they opt in
-- [ ] **LNG-GLD-012** [BE] Per-server profiles (nick, avatar, banner, bio)
-- [ ] **LNG-GLD-013** [BE] Server Directory: listing request, categories, staff approval state, search API
+- [x] **LNG-GLD-008** [BE] Guild member join/leave pipeline (system message, welcome screen, onboarding, membership screening `pending`) *(the join transaction adds the member as `pending` when the Community has screening on, posts the type 7 notice in the system channel and dispatches `GUILD_MEMBER_ADD`; `GET /guilds/{id}/member-verification`, `PUT /guilds/{id}/requests/@me`, `POST /guilds/{id}/onboarding-responses`; pending members are read-only in `sr-chat` `perms.rs`; tests in `crates/sr-api/tests/lounge.rs` and `routes/settings/tests.rs`, Postgres in `crates/sr-db/tests/lounge_repo.rs`)*
+- [x] **LNG-GLD-009** [GW] GUILD_CREATE (lazy), GUILD_UPDATE, GUILD_DELETE, GUILD_MEMBER_ADD/UPDATE/REMOVE, GUILD_ROLE_*, GUILD_BAN_* *(`hub.rs` `to_dispatch` maps every guild, member, role and ban event; `GUILD_CREATE` carries `presences` and `members` only below the large threshold; tests `guild_admin_events_dispatch_their_payload_objects`, `membership_changes_update_subscriptions`, `guild_deleted_notifies_and_unsubscribes` in `crates/sr-gateway/src/tests.rs`)*
+- [x] **LNG-GLD-010** [GW] Lazy member list (op 102 ranges → GUILD_MEMBER_LIST_UPDATE ops SYNC/INSERT/UPDATE/DELETE) *(`crates/sr-gateway/src/member_list.rs` builds and diffs the list, `lists.rs` keeps the subscriptions and refreshes them, op 102 in `conn.rs`; the directory side is `PgGuildDirectory::member_list`; tests in `member_list.rs`, `tests.rs` and `gateway_pg.rs`)*
+- [x] **LNG-GLD-011** [BE] Server tag (short tag text + badge icon) shown next to members globally if they opt in *(p10 integration: one implementation, LNG-SSET-012's `guild_tags` + `user_primary_guilds` (migration 0631), `GET/PUT/DELETE /guilds/{id}/tag`, `GET/PUT /users/@me/primary-guild`; member/ban/author user references carry `primary_guild` read from it; tests `server_tag_is_shown_next_to_members_who_opt_in` (sr-api lounge) and `server_tag_adoption_shows_only_for_members_while_allowed` (sr-db))*
+- [x] **LNG-GLD-012** [BE] Per-server profiles (nick, avatar, banner, bio) *(`PATCH /guilds/{id}/members/@me`, `GET /users/@me/guilds/{id}/member`, member object `avatar/banner/bio`, images scoped to the server in `sr-storage` `MediaKind::MemberAvatar`; test `members_edit_their_own_per_server_profile`)*
+- [x] **LNG-GLD-013** [BE] Server Directory: listing request, categories, staff approval state, search API *(migration 0620 `guild_directory`; `routes/directory.rs`: categories, search, join, request/state/withdraw for managers, queue and decisions for staff with `MANAGE_DIRECTORY`; rules in `sr-chat` `settings/directory.rs`; tests `server_directory_listing_approval_search_and_join` and `directory_listings_round_trip_and_filter`)*
 - [x] **LNG-GLD-014** [BE] Community enable checks (verification level, explicit filter, rules & updates channels)
 - [x] **LNG-GLD-015** [FE] Create Server modal step 1: title, subtitle, "Create My Own", "START FROM A TEMPLATE" list (Gaming, Friends, Study Group, School Club, Local Community, Artists & Creators, Watch Club, Reading Club), "Have an invite already?" + Join a Server *(templates are applied by the client after creation; LNG-GLD-003 is the backend half)*
 - [x] **LNG-GLD-016** [FE] Create Server step 2: "Tell us more about your server" (club/community vs me & friends, skip)
@@ -42,53 +42,53 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [x] **LNG-CHN-001** [DB] channels, permission_overwrites, channel_recipients migrations
 - [x] **LNG-CHN-002** [BE] Create/modify/delete channel (all types), position updates (bulk), sync permissions with category
 - [x] **LNG-CHN-003** [BE] Permission overwrite CRUD + effective-permission computation per member
-- [ ] **LNG-CHN-004** [BE] Announcement channels: follow (creates webhook in target), crosspost/publish, auto-publish feature hook
-- [ ] **LNG-CHN-005** [BE] Slowmode (rate_limit_per_user) enforcement with bypass permissions
-- [ ] **LNG-CHN-006** [BE] NSFW / age-restricted channel gate (D-032)
-- [ ] **LNG-CHN-007** [GW] CHANNEL_CREATE/UPDATE/DELETE, CHANNEL_PINS_UPDATE
+- [x] **LNG-CHN-004** [BE] Announcement channels: follow (creates webhook in target), crosspost/publish, auto-publish feature hook *(`POST /channels/{id}/followers`, `POST /channels/{id}/messages/{id}/crosspost`, `AUTO_PUBLISH` channel flag, text/announcement conversion with `PATCH /channels/{id}` `type`; `routes/settings/follow.rs` and `routes/messages/crosspost.rs`; tests in `routes/settings/tests.rs` and `crates/sr-api/tests/guilds.rs`; attachments are not copied)*
+- [x] **LNG-CHN-005** [BE] Slowmode (rate_limit_per_user) enforcement with bypass permissions *(`message_rules::check_slowmode` applied by `ChatService::send_message`; `MANAGE_MESSAGES`, `MANAGE_CHANNELS` and `BYPASS_SLOWMODE` skip it; tests `slowmode` in `message_rules/tests.rs` and `slowmode_returns_retry_after` in `routes/messages/tests.rs`)*
+- [x] **LNG-CHN-006** [BE] NSFW / age-restricted channel gate (D-032) *(every message endpoint answers 403 `900011` for an NSFW channel, or a thread of one, until the account has answered the age gate: `MessagesDeps::access` with the `AgeGate`; test `age_restricted_channels_need_the_18_plus_answer`)*
+- [x] **LNG-CHN-007** [GW] CHANNEL_CREATE/UPDATE/DELETE, CHANNEL_PINS_UPDATE *(`hub.rs` dispatches `CHANNEL_CREATE/UPDATE/DELETE` to the viewers and `CHANNEL_PINS_UPDATE` with the `GUILDS` intent; tests `rest_message_family_is_dispatched_with_payloads`, `channel_delete_reaches_only_the_producer_computed_viewers`)*
 - [x] **LNG-CHN-008** [FE] Channel list: categories (collapse/expand, persist), "+" create channel per category, drag-and-drop reorder & re-parent (managers)
 - [x] **LNG-CHN-009** [FE] Channel row: type icon (text #, announcement megaphone, forum, media, voice speaker, stage, rules book, locked variants, NSFW variant), name, unread white text + left pill, mention badge, muted dim, hover icons (create invite, edit channel gear) *(no NSFW icon variant yet)*
-- [ ] **LNG-CHN-010** [FE] Voice channel row: connected-user sub-rows (avatar, name, speaking ring, mute/deaf/server-mute icons, camera, LIVE badge), user limit "n/m", voice status text, stream preview on hover
+- [ ] **LNG-CHN-010** [FE] Voice channel row: connected-user sub-rows (avatar, name, speaking ring, mute/deaf/server-mute icons, camera, LIVE badge), user limit "n/m", voice status text, stream preview on hover *Partial: connected-user sub-rows with avatar, speaking ring, mute/deaf, server-mute/deaf, camera, LIVE and "n/m" are built. Still open: voice status text and stream preview on hover.*
 - [ ] **LNG-CHN-011** [FE] Events row at top (count, opens events modal)
-- [ ] **LNG-CHN-012** [FE] "Unread mentions" / "New unreads" floating jump pills (top/bottom)
+- [x] **LNG-CHN-012** [FE] "Unread mentions" / "New unreads" floating jump pills (top/bottom) *Top "N unread mentions" jump pill (to the first unread mention) and a clickable new-messages banner (to the first unread); the bottom pill is the existing "Jump to present". lounge/MessageList.tsx, test p10LoungeFe.test.tsx.*
 - [x] **LNG-CHN-013** [FE] Channel context menu: Mark As Read, Copy Link, Mute Channel ▸, Notification Settings ▸, Edit Channel, Duplicate Channel, Create Text/Voice Channel, Delete Channel, Copy Channel ID, Invite People
 - [x] **LNG-CHN-014** [FE] Category context menu: Mark As Read, Collapse, Collapse All, Mute Category, Notification Settings, Edit Category, Delete Category, Copy ID
 - [x] **LNG-CHN-015** [FE] Create Channel modal: type radio (Text, Voice, Forum, Announcement, Stage, Media, Watch Party) with descriptions, name input (auto-slug for text), Private Channel toggle → member/role picker step *(no Watch Party type yet)*
 - [x] **LNG-CHN-016** [FE] Create Category modal (name, private toggle)
 - [ ] **LNG-CHN-017** [FE] Edit Channel settings: Overview (name, topic, slowmode, age-restricted, announcement toggle, hide after inactivity, default thread archive, voice: bitrate, video quality, user limit, region), Permissions (simple private toggle + advanced roles/members overwrite matrix with ✓/✕/⧸ tri-state per permission, search, "sync with category"), Invites, Integrations (webhooks, followed), Features (feature modules channel scope), Delete Channel *Partial: Invites, Integrations (channel webhooks) and Features (thread defaults) tabs are built. Still open: the announcement toggle (the API cannot change a channel's type), voice settings, per-channel feature-module switches (only /admin/features exists) and followed channels.*
-- [ ] **LNG-CHN-018** [FE] Channel header: icon + name, topic (click → topic modal), thread list icon, notification bell menu, pins popout, member list toggle, search, inbox, help
-- [ ] **LNG-CHN-019** [FE] Channel welcome header ("Welcome to #channel! This is the start of the #channel channel." + Edit Channel)
-- [ ] **LNG-CHN-020** [FE] Pins popout (list, jump, unpin)
-- [ ] **LNG-CHN-021** [FE] Read-only/announcement composer state + "Follow" button
-- [x] **LNG-CHN-022** [FE] Age-gate interstitial for restricted channels *The answer is saved with POST /sr/age-gate and remembered per device (no call reads it back); the server does not block restricted channels itself.*
+- [ ] **LNG-CHN-018** [FE] Channel header: icon + name, topic (click → topic modal), thread list icon, notification bell menu, pins popout, member list toggle, search, inbox, help *Partial: name, topic modal, threads list, notification bell menu (mute durations + settings), pins popout, member toggle and search are built. Still open: inbox and help (placeholders).*
+- [x] **LNG-CHN-019** [FE] Channel welcome header ("Welcome to #channel! This is the start of the #channel channel." + Edit Channel) *MessageList welcome row has the Edit Channel button for people who manage channels.*
+- [x] **LNG-CHN-020** [FE] Pins popout (list, jump, unpin) *lounge/header/PinsButton.tsx: list, jump, unpin (GET /channels/{id}/pins).*
+- [ ] **LNG-CHN-021** [FE] Read-only/announcement composer state + "Follow" button *Partial: read-only composer states for rules and announcement channels. The Follow button is not wired yet; the backend now exists (`POST /channels/{id}/followers`, lounge-be LNG-CHN-004).*
+- [x] **LNG-CHN-022** [FE] Age-gate interstitial for restricted channels *The answer is saved with POST /sr/age-gate and remembered per device (no call reads it back); the message endpoints answer 403 `900011` until the answer is saved (LNG-CHN-006), so retry the request after `POST /sr/age-gate`.*
 - [x] **LNG-CHN-023** [FE] Hide Muted Channels behavior
-- [ ] **LNG-CHN-024** [FE] Rules channel + Updates channel badges (Community)
+- [ ] **LNG-CHN-024** [FE] Rules channel + Updates channel badges (Community) *Partial: Rules and Announcements badges in the channel header. The Updates channel has no field on the guild yet.*
 
 ## LNG-THR — Threads
 - [x] **LNG-THR-001** [BE] Start thread from message / without message, private threads, join/leave, add/remove member, archive/lock/unarchive, auto-archive job
 - [x] **LNG-THR-002** [BE] Active/archived (public/private/joined) listings with pagination
 - [x] **LNG-THR-003** [GW] THREAD_CREATE/UPDATE/DELETE/LIST_SYNC/MEMBER_UPDATE/MEMBERS_UPDATE
-- [ ] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search) *Partial: Active and Archived lists with Load more are built (header Threads button). Joined filter and search are not.*
-- [ ] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view) *Partial: Side pane with name, Follow/Following, close, messages and composer is built. Members list, notification menu and open-full-view are not.*
+- [x] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search) *Joined / Active / Archived tabs plus search in lounge/threads/ThreadsButton.tsx.*
+- [x] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view) *lounge/threads/ThreadPane.tsx: members popover (ThreadMembers.tsx), options menu (follow, mute, settings), Open full view (expands the pane over the channel).*
 - [x] **LNG-THR-006** [FE] Thread starter row under message ("N Messages ›" + last message preview) *Shows the thread name and message count; no last-message preview yet.*
-- [ ] **LNG-THR-007** [FE] Threads nested in channel list (joined/active)
-- [ ] **LNG-THR-008** [FE] Create Thread composer (name, private toggle, archive duration) *Partial: Create Thread dialog (from a message, or standalone from the plus menu and /thread) takes a name and archive duration. The private-thread toggle is not built.*
-- [ ] **LNG-THR-009** [FE] Thread settings (name, slowmode, archive duration, lock, delete)
+- [x] **LNG-THR-007** [FE] Threads nested in channel list (joined/active) *lounge/threads/NestedThreads.tsx under each channel row (followed threads and the open one).*
+- [x] **LNG-THR-008** [FE] Create Thread composer (name, private toggle, archive duration) *Private thread switch in CreateThreadDialog (standalone threads send type 12).*
+- [x] **LNG-THR-009** [FE] Thread settings (name, slowmode, archive duration, lock, delete) *lounge/threads/ThreadSettingsDialog.tsx: name, slowmode, archive duration, lock, delete.*
 
 ## LNG-FRM — Forum & media channels
 - [x] **LNG-FRM-001** [BE] Forum posts (thread + starter message), tags (available_tags, moderated tags), required tag, default reaction, sort order, layout, guidelines
-- [ ] **LNG-FRM-002** [FE] Forum channel view: guidelines banner, "New Post" button, search posts, sort & view (list/gallery), tag filter chips
-- [ ] **LNG-FRM-003** [FE] Forum post card (title, tags, author, preview text, media thumbnail, reaction, message count, last activity)
-- [ ] **LNG-FRM-004** [FE] New Post composer (title, tags picker, content, attachments)
-- [ ] **LNG-FRM-005** [FE] Media channel gallery view (thumbnail grid, filters)
-- [ ] **LNG-FRM-006** [FE] Forum settings section (tags editor, default reaction, layout, sort, guidelines)
+- [x] **LNG-FRM-002** [FE] Forum channel view: guidelines banner, "New Post" button, search posts, sort & view (list/gallery), tag filter chips *lounge/forum/ForumView.tsx: guidelines banner (channel topic), New Post, search, sort, list/gallery, tag chips.*
+- [ ] **LNG-FRM-003** [FE] Forum post card (title, tags, author, preview text, media thumbnail, reaction, message count, last activity) *Partial: card has title, tags, author, preview, thumbnail, message count and last activity. Reaction count is not shown.*
+- [ ] **LNG-FRM-004** [FE] New Post composer (title, tags picker, content, attachments) *Partial: title, tag picker (required-tag aware) and message. Attachments are refused by the server for forum posts.*
+- [x] **LNG-FRM-005** [FE] Media channel gallery view (thumbnail grid, filters) *Media channels use ForumView with the gallery layout by default and tag filters.*
+- [x] **LNG-FRM-006** [FE] Forum settings section (tags editor, default reaction, layout, sort, guidelines) *ForumSettings in settings/server/sections/ChannelTabs.tsx (Features tab of a forum/media channel): tags, default reaction, sort, layout; guidelines are the channel topic on Overview.*
 
 ## LNG-INV — Server invites
 - [x] **LNG-INV-001** [DB] invites table
 - [x] **LNG-INV-002** [BE] Create invite (max_age, max_uses, temporary, unique), list per guild/channel, delete, accept (`POST /invites/{code}`), get with counts
-- [ ] **LNG-INV-003** [BE] External-share default single-use (D-022) via `target=external` flag
-- [ ] **LNG-INV-004** [BE] Vanity URL (free) + invite splash
-- [ ] **LNG-INV-005** [BE] Temporary membership removal on disconnect without roles
+- [x] **LNG-INV-003** [BE] External-share default single-use (D-022) via `target=external` flag *(`POST /channels/{id}/invites` with `external: true` defaults to a single use, `InviteOptions::external_default`; test `invite_defaults_external_and_overrides`)*
+- [x] **LNG-INV-004** [BE] Vanity URL (free) + invite splash *(`GET|PATCH /guilds/{id}/vanity-url`; `GET`/`POST /invites/{code}` fall back to the vanity code; the invite object carries the splash; test `vanity_url_works_like_a_free_invite_that_never_expires`)*
+- [x] **LNG-INV-005** [BE] Temporary membership removal on disconnect without roles *(`guild_members.temporary`, `InviteJoinRepository::take_temporary_memberships`, the gateway `user_offline` hook and `TemporaryMembers` with a one minute grace; tests `temporary_members_leave_when_they_go_offline_unless_they_hold_a_role` and `temporary_members_are_dropped_unless_they_hold_a_role`)*
 - [ ] **LNG-INV-006** [GW] INVITE_CREATE/DELETE
 - [x] **LNG-INV-007** [FE] Invite modal: friend list with "Invite" buttons + search, link field with Copy, "Edit invite link" (expire after, max uses, temporary), default single-use for copy *("Copy link" creates an `external` invite, single use for 7 days, and says so; "Invite friends" DMs use the server defaults of 7 days and unlimited uses, D-182; the pickers edit either; no temporary-membership toggle yet)*
 - [ ] **LNG-INV-008** [FE] Invite embed in chat (server card with Join/Joined, expired state)

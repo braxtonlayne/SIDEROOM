@@ -133,7 +133,21 @@ export interface ChannelObject {
   /** Minutes of inactivity before new threads in this channel archive. */
   default_auto_archive_duration?: number | null;
   default_thread_rate_limit_per_user?: number | null;
+  /** Forum and media channels. */
+  available_tags?: ForumTag[] | null;
+  default_reaction_emoji?: { emoji_id?: string | null; emoji_name?: string | null } | null;
+  /** 0 latest activity, 1 creation date. */
+  default_sort_order?: number | null;
+  /** 0 not set, 1 list, 2 gallery. */
+  default_forum_layout?: number | null;
   permission_overwrites: OverwriteObject[];
+}
+export interface ForumTag {
+  id?: string;
+  name: string;
+  moderated?: boolean;
+  emoji_id?: string | null;
+  emoji_name?: string | null;
 }
 export interface ChannelBody {
   name?: string;
@@ -146,6 +160,10 @@ export interface ChannelBody {
   lock_permissions?: boolean;
   default_auto_archive_duration?: number;
   default_thread_rate_limit_per_user?: number;
+  available_tags?: ForumTag[];
+  default_reaction_emoji?: { emoji_name: string } | null;
+  default_sort_order?: number | null;
+  default_forum_layout?: number;
 }
 export const listChannels = (g: string) =>
   apiFetch<ChannelObject[]>(`/guilds/${g}/channels`, { retries: 0 });
