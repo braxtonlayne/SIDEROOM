@@ -632,6 +632,11 @@ pub struct EditSelfBody {
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<CustomStatusBody>)]
     pub custom_status: Option<Option<CustomStatusBody>>,
+    /// The account's interface language as a BCP 47 tag (`de`, `pt-BR`, `zh-Hant-TW`); mails,
+    /// push text and system DMs follow it. Malformed tags and the pseudo-locales (`en-XA`,
+    /// `ar-XB`) are refused; tags without a translation fall back to English when used.
+    #[serde(default)]
+    pub locale: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

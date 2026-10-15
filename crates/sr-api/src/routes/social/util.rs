@@ -146,3 +146,64 @@ mod tests {
         assert_eq!(parse_iso("2026-13-02T03:04:05Z"), None);
     }
 }
+
+/// Normalise a BCP 47 language tag (`pt_br` becomes `pt-BR`, `zh-hant-tw` becomes `zh-Hant-TW`).
+/// `None` for malformed tags and for the layout-testing pseudo-locales `en-XA` and `ar-XB`.
+pub fn normalize_locale(raw: &str) -> Option<String> {
+    let tag = raw.trim().replace('_', "-");
+    if tag.is_empty() || tag.len() > 35 {
+        return None;
+    }
+    let mut out: Vec<String> = Vec::new();
+    for (i, part) in tag.split('-').enumerate() {
+        let alpha = part.bytes().all(|b| b.is_ascii_alphabetic());
+        let alnum = part.bytes().all(|b| b.is_ascii_alphanumeric());
+        let cased = match (i, part.len()) {
+            (0, 2 | 3) if alpha => part.to_ascii_lowercase(),
+            (0, _) => return None,
+            (_, 4) if alpha => {
+                let l = part.to_ascii_lowercase();
+                format!("{}{}", l[..1].to_ascii_uppercase(), &l[1..])
+            }
+            (_, 2) if alpha => part.to_ascii_uppercase(),
+            (_, 3) if part.bytes().all(|b| b.is_ascii_digit()) => part.to_owned(),
+            (_, 5..=8) if alnum => part.to_ascii_lowercase(),
+            _ => return None,
+        };
+        out.push(cased);
+    }
+    let joined = out.join("-");
+    (!matches!(joined.as_str(), "en-XA" | "ar-XB")).then_some(joined)
+}
+
+#[cfg(test)]
+mod locale_tests {
+    use super::normalize_locale;
+
+    #[test]
+    fn tags_are_normalised_and_junk_is_refused() {
+        for (raw, want) in [
+            ("en", "en"),
+            ("de-de", "de-DE"),
+            ("pt_br", "pt-BR"),
+            ("zh-hant-tw", "zh-Hant-TW"),
+            (" fr ", "fr"),
+            ("es-419", "es-419"),
+        ] {
+            assert_eq!(normalize_locale(raw).as_deref(), Some(want), "{raw}");
+        }
+        for bad in [
+            "",
+            "e",
+            "english",
+            "en-",
+            "en--US",
+            "de-DE-@",
+            "en-XA",
+            "ar-xb",
+            "x".repeat(40).as_str(),
+        ] {
+            assert_eq!(normalize_locale(bad), None, "{bad}");
+        }
+    }
+}

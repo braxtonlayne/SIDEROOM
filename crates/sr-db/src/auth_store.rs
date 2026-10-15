@@ -289,6 +289,16 @@ impl AuthStore for PgAuthStore {
         Ok(())
     }
 
+    async fn set_locale(&self, id: i64, locale: &str) -> StoreResult<()> {
+        sqlx::query("UPDATE accounts SET locale = $2, updated_at = now() WHERE id = $1")
+            .bind(id)
+            .bind(locale)
+            .execute(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(())
+    }
+
     async fn set_display_name(&self, id: i64, display_name: Option<&str>) -> StoreResult<()> {
         sqlx::query("UPDATE accounts SET display_name = $2, updated_at = now() WHERE id = $1")
             .bind(id)

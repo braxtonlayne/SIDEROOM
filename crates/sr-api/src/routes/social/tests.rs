@@ -967,6 +967,8 @@ async fn profile_edit_and_view() {
         json!({"bio": "b".repeat(191)}),
         json!({"pronouns": "p".repeat(41)}),
         json!({"accent_color": 0x0100_0000u32}),
+        json!({"locale": "not a tag"}),
+        json!({"locale": "en-XA"}),
         json!({"custom_status": {"text": "t".repeat(129)}}),
         json!({"custom_status": {"text": "x", "expires_at": "tomorrow"}}),
     ] {

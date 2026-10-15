@@ -145,6 +145,15 @@ pub struct AuthService {
 }
 
 impl AuthService {
+    /// Set the account's locale (`PATCH /users/@me {locale}`).
+    pub async fn set_locale(
+        &self,
+        id: i64,
+        locale: &str,
+    ) -> Result<(), sr_auth::store::StoreError> {
+        self.store.set_locale(id, locale).await
+    }
+
     /// The account row of `id` and whether TOTP is confirmed on it (for `GET /users/@me`).
     pub async fn account_overview(
         &self,
