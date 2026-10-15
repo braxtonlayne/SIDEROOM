@@ -1,7 +1,7 @@
 /** Typed facade over the wasm-pack output in `dist/`. Call `initWasm()` (or any `load*`) once before use. */
 
 export interface ThemeIssue {
-  severity: "error" | "warning";
+  severity: 'error' | 'warning';
   /** Stable machine code, e.g. `unknown-token`, `low-contrast`. */
   code: string;
   /** `manifest.id`, `tokens.--ui-accent`, `assets[0].path`, ... */
@@ -58,7 +58,7 @@ export interface MarkdownApi {
 
 export interface PermissionOverwrite {
   id: string;
-  kind: "role" | "member";
+  kind: 'role' | 'member';
   /** Permission bitfield as a decimal string. */
   allow: string;
   deny: string;
@@ -120,6 +120,71 @@ export interface GraphApi {
   defaults: { iterations: number; seed: number; springLength: number };
 }
 
+/** Why an archive pre-check refused a file; `files` names up to ten offending entries. */
+export interface ArchiveRefusal {
+  kind:
+    | 'too_large'
+    | 'too_many_entries'
+    | 'entry_too_large'
+    | 'suspicious_ratio'
+    | 'unsafe_path'
+    | 'encrypted'
+    | 'avif'
+    | 'no_pages'
+    | 'not_an_archive'
+    | 'unreadable';
+  message: string;
+  files: string[];
+}
+
+/** Where a page sits in a ZIP, so the browser can inflate and decode it. */
+export interface ZipProbe {
+  name: string;
+  local_offset: number;
+  compressed: number;
+  size: number;
+  /** 0 stored, 8 deflate. */
+  method: number;
+}
+
+export type ArchivePrecheck =
+  /** The directory starts before the bytes given: read this many bytes from the end and call again. */
+  | { need_tail: number }
+  | { ok: false; container?: string; error: ArchiveRefusal }
+  /** 7z and RAR cannot be listed from a tail; only the container and size were checked. */
+  | { ok: true; container: '7z' | 'rar'; listed: false }
+  | {
+      ok: true;
+      container: 'zip';
+      listed: true;
+      pages: number;
+      total_bytes: number;
+      largest_bytes: number;
+      first_names: string[];
+      comic_info: boolean;
+      series_json: boolean;
+      ignored: number;
+      first: ZipProbe;
+      last: ZipProbe;
+    };
+
+/** Browser pre-checks for Library uploads (LIB-ING-009), judged by the same rules as the server. */
+export interface LibraryApi {
+  /**
+   * Check an archive from its first bytes, its last `firstTail` bytes (or the `need_tail` the previous
+   * call asked for) and its size. `maxArchiveBytes` is the operator's upload limit (0 = the default).
+   */
+  precheck(
+    head: Uint8Array,
+    tail: Uint8Array,
+    fileLen: number,
+    maxArchiveBytes?: number,
+  ): ArchivePrecheck;
+  /** Bytes from the end of the file to read first. */
+  firstTail: number;
+  defaults: { maxArchive: number; maxEntries: number; maxEntry: number; maxTotal: number };
+}
+
 /** Optional overrides of where the `.wasm` binaries are loaded from (defaults to `dist/<name>/`). */
 export interface WasmInitOptions {
   theme?: string | URL;
@@ -133,6 +198,9 @@ export function loadMarkdown(wasmUrl?: string | URL): Promise<MarkdownApi>;
 export function loadPermissions(wasmUrl?: string | URL | BufferSource): Promise<PermissionsApi>;
 /** Loaded on its own (not part of `initWasm`): only the Invite Graph needs it. */
 export function loadGraph(wasmUrl?: string | URL | BufferSource): Promise<GraphApi>;
+
+/** Loaded on its own: only the Library upload forms need it. */
+export function loadLibrary(wasmUrl?: string | URL | BufferSource): Promise<LibraryApi>;
 
 /** Load all modules in parallel. */
 export function initWasm(options?: WasmInitOptions): Promise<{

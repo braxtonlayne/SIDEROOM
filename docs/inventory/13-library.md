@@ -19,7 +19,7 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [x] **LIB-ING-006** [BE] series.json parser
 - [x] **LIB-ING-007** [BE] Auto-crop border detection data (optional per page) *(phase 11: `ingest::crop`, stored in `reading_pages.crop` (0691) and in the page manifest; the reader does not apply it yet)* *(phase 13: the reader applies the crop data with the "Crop borders" setting)*
 - [x] **LIB-ING-008** [BE] Library `SubmissionKind` impls (series, items) with publish actions *(phase 5: `sr-library::submissions`, `library.series` and `library.items`; members build drafts and upload through the existing presigned-PUT + `library.ingest` path scoped to their submission, a curator with `REVIEW_READING` approves and the Library service publishes; see submissions-and-review spec section 9)*
-- [ ] **LIB-ING-009** [WASM] Client-side pre-checks (image validity, sizes) before upload
+- [x] **LIB-ING-009** [WASM] Client-side pre-checks (image validity, sizes) before upload *(phase 13: `crates/sr-library-wasm` reads a CBZ's central directory from the file's tail and judges it with `crates/sr-library-rules`, the same code the server's archive reader now uses (names, junk, natural order, entry and total budgets, ratio, encrypted, AVIF); the browser then inflates and decodes the first and last page (`library/precheck.ts`, `createImageBitmap`); wired into the member upload and the admin re-convert; 7z and RAR pass on container and size only; parity test against `ArchiveReader`)*
 
 ## LIB-UI — Section chrome
 - [x] **LIB-UI-001** [FE] Section top bar with "The library" active

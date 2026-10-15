@@ -162,6 +162,8 @@ page, cover or source references it, and expires abandoned upload slots (and the
 
 New chapters also reach followers as **Web Push** (title: series, body: "Chapter N is out", collapse key per series), sent by the push consumer on the `chapter_published` `SR_LIBRARY_UPDATE` event and suppressed while any session of the member is active (D-191). The Lounge feed module (FTR-LIBF-001) already posts them into a channel.
 
+Before a CBZ is uploaded the browser reads its table of contents in WebAssembly (`sr-library-wasm`, built on `sr-library-rules`, the same rules the server's archive reader applies) and decodes the first and last page, so a refusal the server would give comes before the upload. 7z and RAR are checked for container and size only.
+
 The reader keeps the current and the next chapter in the browser's Cache Storage for offline reading (LIB-RDR-015; a setting in the reader panel, default on). It is a cache and not a download; the service worker still never touches `/cdn`.
 
 ### 6.7 Gaps
@@ -172,4 +174,3 @@ The reader keeps the current and the next chapter in the browser's Cache Storage
 * Volume bundles (one archive holding several chapters) are not split automatically; upload one archive per chapter.
 * PDF pages are not rasterized on the server: the browser reads the original with pdf.js (D-217).
 * EPUB reading (foliate-js) is not built: the dependency is not installed (needs a download).
-* Client-side archive pre-checks before upload (LIB-ING-009) need a new WASM crate and are not built.

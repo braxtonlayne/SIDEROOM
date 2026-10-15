@@ -85,6 +85,21 @@ export default {
   'library.panels.settings.offline': 'Keep chapters for offline reading',
   'library.panels.settings.offlineHint':
     'Saves the chapter you are reading and the next one in this browser. Uses storage and data; turn it off on a metered connection.',
+  // Upload pre-checks (precheck.ts)
+  'library.precheck.avif':
+    'AVIF pages are not supported: {files}. Convert them to JPEG, PNG or WebP.',
+  'library.precheck.unsafePath': 'The archive has an unsafe file name: {files}.',
+  'library.precheck.encrypted': 'The archive is password protected ({files}).',
+  'library.precheck.entryTooLarge': 'A page is larger than the limit: {files}.',
+  'library.precheck.suspiciousRatio':
+    'A file compresses suspiciously well and was refused: {files}.',
+  'library.precheck.tooManyEntries': 'The archive has too many files.',
+  'library.precheck.tooLarge': 'The archive is larger than the upload limit.',
+  'library.precheck.noPages': 'The archive has no JPEG, PNG, WebP or GIF pages.',
+  'library.precheck.notAnArchive': 'This is not a ZIP, 7z or RAR archive.',
+  'library.precheck.unreadable': 'The archive could not be read.',
+  'library.precheck.badImage': 'The page {name} is not a readable image.',
+  'library.precheck.hugeImage': 'The page {name} is larger than the 60 megapixel limit.',
   // Home: recommendations
   'library.home.because.title': 'Because you read {title}',
 };

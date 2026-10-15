@@ -5,6 +5,7 @@ import { Button, Checkbox, Modal, Notice } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import { ApiProblem, Async, useResource } from '../ui';
+import { isZipName, precheckArchive } from '../../library/precheck';
 import * as api from './api';
 
 export function PagesDialog({
@@ -167,6 +168,13 @@ function Reconvert({
   const run = async (file: File) => {
     setError(null);
     try {
+      if (isZipName(file.name)) {
+        const check = await precheckArchive(file);
+        if (!check.ok) {
+          setError(check.message);
+          return;
+        }
+      }
       setState({ phase: 'uploading' });
       const slot = await api.beginUpload(chapter.id, file);
       const put = await fetch(slot.upload_url, { method: slot.upload_method, body: file });
