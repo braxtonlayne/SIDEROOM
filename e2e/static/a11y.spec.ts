@@ -62,6 +62,7 @@ test('the skip link is the first tab stop and moves focus to the main landmark',
   page,
 }) => {
   await page.goto('/login');
+  await page.locator('h1').first().waitFor();
   await page.keyboard.press('Tab');
   const skip = page.getByRole('link', { name: 'Skip to main content' });
   await expect(skip).toBeFocused();
