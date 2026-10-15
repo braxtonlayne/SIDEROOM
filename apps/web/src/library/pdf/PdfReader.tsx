@@ -13,7 +13,7 @@ type State =
 /**
  * Reads a PDF chapter with pdf.js in the browser (G-59): `source_url` is the signed link the page manifest
  * returns for PDF chapters (docs/specs/library-reader.md section 6.4). One page at a time, fit to width, with
- * previous and next. Shows a plain "not installed" state while `pdfjs-dist` is absent from the build.
+ * previous and next.
  */
 export function PdfReader({
   url,

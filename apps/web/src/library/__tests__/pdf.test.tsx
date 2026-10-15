@@ -2,14 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../test/server';
 import { setProgressApi, localProgress } from '../progress';
-import {
-  __setPdfjsForTests,
-  loadPdfjs,
-  pdfjsInstalled,
-  PdfNotInstalledError,
-  renderPdfCover,
-  type PdfjsLike,
-} from '../pdf/pdfjs';
+import { __setPdfjsForTests, pdfjsInstalled, renderPdfCover, type PdfjsLike } from '../pdf/pdfjs';
 import { chapter, manifest, renderAt, useLibraryApi } from './harness';
 
 const rendered: number[] = [];
@@ -57,19 +50,18 @@ afterEach(() => {
 });
 
 describe('G-59 pdf.js integration', () => {
-  it('reports pdf.js as not installed in this tree and rejects with a typed error', async () => {
-    expect(pdfjsInstalled()).toBe(false);
-    await expect(loadPdfjs()).rejects.toBeInstanceOf(PdfNotInstalledError);
-    await expect(renderPdfCover(new Blob(['%PDF']))).rejects.toBeInstanceOf(PdfNotInstalledError);
+  it('treats pdf.js as part of the build', () => {
+    expect(pdfjsInstalled()).toBe(true);
   });
 
-  it('shows a clear not-installed state when a PDF chapter is opened', async () => {
+  it('shows the failed state when pdf.js cannot be loaded', async () => {
+    __setPdfjsForTests(() => Promise.reject(new Error('chunk load failed')));
     useLibraryApi();
     server.use(
       http.get('*/api/v1/library/chapters/:id/pages', () => HttpResponse.json(pdfManifest())),
     );
     renderAt('/library/r/c1');
-    expect(await screen.findByText('PDF reading is not installed')).toBeInTheDocument();
+    expect(await screen.findByText('This PDF could not be opened')).toBeInTheDocument();
   });
 
   it('reads a PDF chapter page by page through pdf.js', async () => {

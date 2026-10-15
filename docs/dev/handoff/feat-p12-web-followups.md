@@ -48,3 +48,7 @@ Also updated inventory notes: XC-PWA-006, LNG-USET-056, LNG-THR-005, LNG-CHN-021
 ## Open owner questions
 
 - G-59: approving `pdfjs-dist` as an npm dependency (a download), and whether the worker should run as a real worker (`worker-src 'self' blob:` already allows it).
+
+## pdfjs-dist added (owner approved, 2026-10-15)
+
+`pdfjs-dist` 6.4.299 is now a dependency of `apps/web`. `library/pdf/pdfjs.ts` loads it with a lazy `import('pdfjs-dist')` and the worker via `?url`, so it ships as its own chunk (about 145 KB gzip) plus a separate worker asset and stays out of first-load bundles. The "not installed" path is gone; a failed load shows the "could not be opened" state. Still missing for G-59: a cover-submission endpoint, image mode and PDF reading progress.

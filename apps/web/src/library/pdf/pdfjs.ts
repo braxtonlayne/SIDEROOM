@@ -2,11 +2,8 @@
  * pdf.js integration (G-59, P11-LIB-2, D-190 context): PDFs are read and their cover rendered in the browser,
  * the server never rasterizes (docs/open-question-answers.md P11-LIB-2).
  *
- * `pdfjs-dist` is an allowed component (doc 03 section 3) but is NOT installed in this tree yet (adding a
- * dependency means a download, which needs the owner). The library is therefore loaded through
- * `import.meta.glob`, which matches nothing while the package is absent and so builds cleanly; every caller
- * gets a `PdfNotInstalledError` and shows a "not installed" state. Once `pdfjs-dist` is added to
- * `apps/web/package.json` and the lockfile, the glob matches and nothing else changes.
+ * `pdfjs-dist` (Mozilla pdf.js, allowed by doc 03 section 3) is loaded lazily, with its worker as a separate
+ * asset, so it is fetched only when someone opens a PDF or uploads one.
  */
 
 /** The slice of the pdf.js API used here, so tests can supply a stand-in. */
@@ -37,14 +34,9 @@ export class PdfNotInstalledError extends Error {
   }
 }
 
-const libs = import.meta.glob('/node_modules/pdfjs-dist/build/pdf.min.mjs') as Record<
-  string,
-  () => Promise<unknown>
->;
-const workers = import.meta.glob('/node_modules/pdfjs-dist/build/pdf.worker.min.mjs', {
-  query: '?url',
-  import: 'default',
-}) as Record<string, () => Promise<string>>;
+const loadLib = () => import('pdfjs-dist') as Promise<unknown>;
+const loadWorker = () =>
+  import('pdfjs-dist/build/pdf.worker.min.mjs?url').then((m: { default: string }) => m.default);
 
 let override: (() => Promise<PdfjsLike>) | null = null;
 let cached: Promise<PdfjsLike> | null = null;
@@ -55,19 +47,20 @@ export function __setPdfjsForTests(loader: (() => Promise<PdfjsLike>) | null) {
   cached = null;
 }
 
-/** Whether the build found `pdfjs-dist` (no network, no import). */
-export const pdfjsInstalled = () => override !== null || Object.keys(libs).length > 0;
+/** pdf.js is a dependency of the web app; kept for callers that show a "not installed" state. */
+export const pdfjsInstalled = () => true;
 
 export function loadPdfjs(): Promise<PdfjsLike> {
   if (override) return override();
-  const load = Object.values(libs)[0];
-  if (!load) return Promise.reject(new PdfNotInstalledError());
   cached ??= (async () => {
-    const lib = (await load()) as PdfjsLike;
-    const worker = Object.values(workers)[0];
-    if (worker && lib.GlobalWorkerOptions) lib.GlobalWorkerOptions.workerSrc = await worker();
+    const lib = (await loadLib()) as PdfjsLike;
+    if (lib.GlobalWorkerOptions) lib.GlobalWorkerOptions.workerSrc = await loadWorker();
     return lib;
   })();
+  // A failed chunk load should be retried next time rather than cached forever.
+  cached.catch(() => {
+    cached = null;
+  });
   return cached;
 }
 

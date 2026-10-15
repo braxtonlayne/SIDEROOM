@@ -19,6 +19,7 @@
     "@tanstack/react-router": "^1.78.0",
     "@tanstack/react-virtual": "^3.10.9",
     "hls.js": "1.7.3",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0"
