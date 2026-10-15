@@ -371,33 +371,6 @@ async fn privileged_and_invalid_intents() {
 }
 
 #[tokio::test]
-async fn only_the_single_shard_is_accepted() {
-    let e = env();
-    // The default every library sends.
-    let mut c = connect(&e);
-    c.recv().await;
-    c.send(json!({"op": 2, "d": {"token": "bot:1", "intents": intents::GUILDS, "shard": [0, 1]}}))
-        .await;
-    c.expect_event("READY").await;
-    // Any other shard layout is refused with 4010.
-    for shard in [json!([0, 2]), json!([1, 2]), json!([1, 1]), json!([0])] {
-        let mut c = connect(&e);
-        c.recv().await;
-        c.send(
-            json!({"op": 2, "d": {"token": "bot:1", "intents": intents::GUILDS, "shard": shard}}),
-        )
-        .await;
-        assert_eq!(c.recv_close().await, close::INVALID_SHARD, "{shard}");
-    }
-    // User clients do not shard and are not asked to.
-    let mut c = connect(&e);
-    c.recv().await;
-    c.send(json!({"op": 2, "d": {"token": "user:1", "shard": [3, 9]}}))
-        .await;
-    c.expect_event("READY").await;
-}
-
-#[tokio::test]
 async fn fan_out_is_permission_filtered_per_recipient() {
     let e = env();
     let mut a = connect(&e);
@@ -1985,4 +1958,145 @@ async fn going_offline_tells_the_directory_once_per_transition() {
     drop(a2);
     settle().await;
     assert_eq!(*e.dir.offline.lock().unwrap(), vec![u(1)]);
+}
+
+// ---------------------------------------------------------------- sharding (DEV-BOT-002)
+
+/// `(guild_id >> 22) % shard_count` picks the shard: these two guilds land on shards 0 and 1
+/// of 2 (and both on shard 0 of 1).
+const GA: GuildId = GuildId::new(5);
+const GB: GuildId = GuildId::new((1 << 22) | 5);
+
+fn sharded_env() -> Env {
+    let e = env();
+    e.dir.guilds.lock().unwrap().insert(u(6), vec![GA, GB]);
+    e
+}
+
+async fn shard_client(e: &Env, shard: Value) -> Client {
+    let mut c = connect(e);
+    c.recv().await;
+    c.send(json!({"op": 2, "d": {"token": "bot:6", "intents": GUILDS_MSGS, "shard": shard}}))
+        .await;
+    c
+}
+
+#[tokio::test]
+async fn invalid_shards_are_refused_and_the_default_is_accepted() {
+    let e = sharded_env();
+    let mut c = shard_client(&e, json!([0, 1])).await;
+    c.expect_event("READY").await;
+    for shard in [
+        json!([0, 0]),
+        json!([2, 2]),
+        json!([5, 2]),
+        json!([0]),
+        json!([0, 1025]),
+        json!([0, 1, 2]),
+    ] {
+        let mut c = shard_client(&e, shard.clone()).await;
+        assert_eq!(c.recv_close().await, close::INVALID_SHARD, "{shard}");
+    }
+    // Bots may use any count up to the limit, users never shard and are not asked to.
+    let mut c = shard_client(&e, json!([1023, 1024])).await;
+    c.expect_event("READY").await;
+    let mut c = connect(&e);
+    c.recv().await;
+    c.send(json!({"op": 2, "d": {"token": "user:1", "shard": [3, 9]}}))
+        .await;
+    c.expect_event("READY").await;
+}
+
+#[tokio::test]
+async fn a_shard_only_gets_the_guilds_it_owns() {
+    let e = sharded_env();
+    let mut s0 = shard_client(&e, json!([0, 2])).await;
+    let ready = s0.expect_event("READY").await;
+    assert_eq!(ready["d"]["shard"], json!([0, 2]));
+    assert_eq!(ready["d"]["guilds"].as_array().unwrap().len(), 1);
+    assert_eq!(ready["d"]["guilds"][0]["id"], json!(GA));
+    let gc = s0.expect_event("GUILD_CREATE").await;
+    assert_eq!(gc["d"]["id"], json!(GA));
+
+    let mut s1 = shard_client(&e, json!([1, 2])).await;
+    let ready = s1.expect_event("READY").await;
+    assert_eq!(ready["d"]["guilds"][0]["id"], json!(GB));
+    assert_eq!(s1.expect_event("GUILD_CREATE").await["d"]["id"], json!(GB));
+
+    // one shard of one gets both
+    let mut all = shard_client(&e, json!([0, 1])).await;
+    assert_eq!(
+        all.expect_event("READY").await["d"]["guilds"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn guild_events_and_joins_reach_only_the_owning_shard() {
+    let e = sharded_env();
+    let mut s0 = shard_client(&e, json!([0, 2])).await;
+    s0.expect_event("READY").await;
+    s0.expect_event("GUILD_CREATE").await;
+    let mut s1 = shard_client(&e, json!([1, 2])).await;
+    s1.expect_event("READY").await;
+    s1.expect_event("GUILD_CREATE").await;
+
+    emit(&e.bus, msg(GB, OPEN, 900)).await;
+    let m = s1.expect_event("MESSAGE_CREATE").await;
+    assert_eq!(m["d"]["id"], "900");
+    settle().await;
+    s0.silent().await;
+
+    emit(&e.bus, msg(GA, OPEN, 901)).await;
+    assert_eq!(s0.expect_event("MESSAGE_CREATE").await["d"]["id"], "901");
+    settle().await;
+    s1.silent().await;
+
+    // the bot joins another guild owned by shard 1: only that shard sees GUILD_CREATE
+    let gc = GuildId::new((3 << 22) | 9);
+    e.dir
+        .guilds
+        .lock()
+        .unwrap()
+        .get_mut(&u(6))
+        .unwrap()
+        .push(gc);
+    emit(
+        &e.bus,
+        DomainEvent::MemberJoined {
+            guild: gc,
+            user: u(6),
+            payload: json!({}),
+        },
+    )
+    .await;
+    assert_eq!(s1.expect_event("GUILD_CREATE").await["d"]["id"], json!(gc));
+    settle().await;
+    s0.silent().await;
+}
+
+#[tokio::test]
+async fn user_scoped_events_follow_the_guild_or_go_to_shard_zero() {
+    let e = sharded_env();
+    let mut s0 = shard_client(&e, json!([0, 2])).await;
+    s0.expect_event("READY").await;
+    s0.expect_event("GUILD_CREATE").await;
+    let mut s1 = shard_client(&e, json!([1, 2])).await;
+    s1.expect_event("READY").await;
+    s1.expect_event("GUILD_CREATE").await;
+    let scoped = |payload: Value| DomainEvent::UserScoped {
+        users: vec![u(6)],
+        name: "INTERACTION_CREATE".to_owned(),
+        payload,
+    };
+    emit(&e.bus, scoped(json!({"guild_id": GB.to_string(), "n": 1}))).await;
+    assert_eq!(s1.expect_event("INTERACTION_CREATE").await["d"]["n"], 1);
+    emit(&e.bus, scoped(json!({"n": 2}))).await;
+    assert_eq!(s0.expect_event("INTERACTION_CREATE").await["d"]["n"], 2);
+    settle().await;
+    s0.silent().await;
+    s1.silent().await;
 }

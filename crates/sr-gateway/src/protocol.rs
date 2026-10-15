@@ -49,6 +49,9 @@ pub mod op {
 }
 
 /// Discord-numbered close codes.
+/// Largest `shard_count` an IDENTIFY may name.
+pub const MAX_SHARDS: u32 = 1024;
+
 pub mod close {
     pub const UNKNOWN_ERROR: u16 = 4000;
     pub const UNKNOWN_OPCODE: u16 = 4001;
@@ -56,7 +59,7 @@ pub mod close {
     pub const NOT_AUTHENTICATED: u16 = 4003;
     pub const AUTHENTICATION_FAILED: u16 = 4004;
     pub const ALREADY_AUTHENTICATED: u16 = 4005;
-    /// IDENTIFY named a shard other than `[0, 1]` (this server does not shard).
+    /// IDENTIFY named an invalid shard (`shard_id >= shard_count`, a count of 0 or above the limit).
     pub const INVALID_SHARD: u16 = 4010;
     pub const SESSION_TIMED_OUT: u16 = 4009;
     /// More than 120 client ops within 60 s on one connection.
@@ -171,7 +174,7 @@ pub struct Identify {
     pub properties: Value,
     #[serde(default)]
     pub presence: Option<PresenceUpdate>,
-    /// `[shard_id, shard_count]`; only `[0, 1]` is accepted (no sharding).
+    /// `[shard_id, shard_count]` (bots only); `shard_count` is at most [`MAX_SHARDS`].
     #[serde(default)]
     pub shard: Option<Vec<u32>>,
 }
