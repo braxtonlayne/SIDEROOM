@@ -1338,3 +1338,19 @@
   text-transform: uppercase;
   color: var(--text-muted);
 }
+
+/* ENT-UI-022 welcome */
+.lng-welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lng-welcome h3 {
+  margin: 0 0 4px;
+  font-size: 1em;
+}
+.lng-welcome-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

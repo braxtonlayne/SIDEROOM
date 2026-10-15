@@ -92,6 +92,8 @@ export interface UserPrefs {
   pauseHistory: boolean;
   activityAsStatus: boolean;
   shareDetectedActivities: boolean;
+  /** The first-run welcome was shown and closed (ENT-UI-022). */
+  welcomeDone: boolean;
   // Language
   locale: string;
   timeFormat: TimeFormat;
@@ -150,6 +152,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   pauseHistory: false,
   activityAsStatus: false,
   shareDetectedActivities: true,
+  welcomeDone: false,
   locale: 'auto',
   timeFormat: 'auto',
   keybinds: {},
@@ -234,6 +237,7 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     titleBlink: bool(r.titleBlink, d.titleBlink),
     reactionNotifications: bool(r.reactionNotifications, d.reactionNotifications),
     dmToasts: bool(r.dmToasts, d.dmToasts),
+    welcomeDone: bool(r.welcomeDone, d.welcomeDone),
     pushInactiveMinutes: (PUSH_INACTIVE_CHOICES as readonly number[]).includes(
       r.pushInactiveMinutes as number,
     )

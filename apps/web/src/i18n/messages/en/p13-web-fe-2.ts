@@ -50,4 +50,16 @@ export default {
     'This file is larger than your {limit} upload limit and may be refused.',
   'lounge.uploadTray.overLimitPatron':
     'This file is larger than your {limit} upload limit and may be refused. Patrons can upload larger files.',
+  // ENT-UI-022 first-run welcome
+  'lounge.welcome.title': 'Welcome to SIDE ROOM',
+  'lounge.welcome.intro':
+    'A few quick things to make it yours. You can change all of them later in Settings.',
+  'lounge.welcome.themeHeading': 'Pick a look',
+  'lounge.welcome.avatarHeading': 'Add a picture',
+  'lounge.welcome.avatarText': 'A profile picture helps people recognise you.',
+  'lounge.welcome.avatarButton': 'Open profile settings',
+  'lounge.welcome.mfaHeading': 'Protect your account',
+  'lounge.welcome.mfaText': 'Two-step sign-in keeps your account safe even if your password leaks.',
+  'lounge.welcome.mfaButton': 'Set up two-step sign-in',
+  'lounge.welcome.done': 'Got it',
 } satisfies Record<string, string>;

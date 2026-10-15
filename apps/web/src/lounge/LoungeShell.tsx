@@ -6,6 +6,7 @@ import { useT } from '../i18n';
 import { useAppBadge } from '../pwa/useAppBadge';
 import { useDesktopNotify } from './shell/desktopNotify';
 import { DmToasts } from './shell/DmToasts';
+import { Welcome } from './shell/Welcome';
 import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
 import { useVisualViewport } from './useVisualViewport';
 import { ChannelSidebar } from './ChannelSidebar';
@@ -299,6 +300,7 @@ function Shell() {
     >
       <ToastProvider>
         <DmToasts />
+        <Welcome />
         <SectionBar />
         {!isMobile && <TitleStrip title={title} />}
         <ConnectionBanner />
