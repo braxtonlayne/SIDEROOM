@@ -238,7 +238,7 @@ function MemberRow({ dm, userId, isOwner }: { dm: DmChannel; userId: string; isO
   const me = useCurrentUser();
   const presence = usePresence(userId);
   const [error, setError] = useState(false);
-  const name = users[userId]?.displayName ?? t('lounge.panels.unknown');
+  const name = users[userId]?.displayName ?? t('lounge.homeSidebar.unknown');
   const viewerIsOwner = dm.ownerId === me.id;
   return (
     <li className="prf-member">
@@ -293,7 +293,7 @@ function GroupPanel({ dm }: { dm: DmChannel }) {
   const users = useUsers();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const [settings, setSettings] = useState(false);
-  const title = dmTitle(dm, (id) => users[id]?.displayName ?? t('lounge.panels.unknown'));
+  const title = dmTitle(dm, (id) => users[id]?.displayName ?? t('lounge.homeSidebar.unknown'));
   const everyone = [me.id, ...dm.recipientIds];
   return (
     <div className="lng-profile" aria-label={t('lounge.panels.groupMembers')}>

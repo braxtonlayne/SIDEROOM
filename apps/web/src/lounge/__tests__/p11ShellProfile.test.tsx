@@ -219,7 +219,9 @@ describe('full profile (LNG-PRF-004..007)', () => {
     expect(within(modal).getByText('Friends Since')).toBeInTheDocument();
     expect(within(modal).getByText(/Feb 3, 2025/)).toBeInTheDocument();
     expect(within(modal).getByText(/Joined Store Guild on Jan 10, 2025/)).toBeInTheDocument();
-    expect(within(modal).getByRole('textbox', { name: 'Note (only visible to you)' })).toBeInTheDocument();
+    expect(
+      within(modal).getByRole('textbox', { name: 'Note (only visible to you)' }),
+    ).toBeInTheDocument();
     // Tabs
     expect(within(modal).getByText('Watching Akira')).toBeInTheDocument();
     await userEvent.click(within(modal).getByRole('tab', { name: 'Watching & Reading' }));
