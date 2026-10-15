@@ -74,6 +74,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     if p == "/interactions" {
         return true;
     }
+    // The web client's command picker index (bots manage their commands under /applications).
+    if p.starts_with("/channels/") && p.ends_with("/application-commands") {
+        return true;
+    }
     false
 }
 
@@ -149,6 +153,11 @@ mod tests {
             (Method::POST, "/applications/{application_id}/versions"),
             (Method::POST, "/guilds"),
             (Method::POST, "/interactions"),
+            (Method::GET, "/channels/{channel_id}/application-commands"),
+            (
+                Method::POST,
+                "/applications/{application_id}/interactions-key",
+            ),
         ] {
             assert!(bot_denied(&m, p), "{m} {p}");
         }

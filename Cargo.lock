@@ -5134,6 +5134,7 @@ version = "0.0.0"
 dependencies = [
  "async-trait",
  "data-encoding",
+ "ed25519-dalek",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -5510,6 +5511,7 @@ dependencies = [
  "sr-gateway",
  "sr-library",
  "sr-media",
+ "sr-net",
  "sr-payments",
  "sr-review",
  "sr-search",
@@ -5524,6 +5526,7 @@ dependencies = [
  "tokio-stream",
  "tower",
  "tracing",
+ "url",
 ]
 
 [[package]]

@@ -3,9 +3,10 @@
 use super::{
     AppVersionAdmin, AppVersionObject, ApplicationObject, ApplyBody, AuditEntryObject,
     CreateApplicationBody, CreatedApplication, DecideRequestBody, DecideVersionBody, DevDeps,
-    DeveloperRequestAdmin, DeveloperRequestObject, DeveloperStatus, InstallObject, PasswordBody,
-    PatchApplicationBody, PatchBotBody, ResetSecretResult, ResetTokenResult, SubmitVersionBody,
-    SuspendBody, app_err, dto::VersionApplication, invalid, parse_id,
+    DeveloperRequestAdmin, DeveloperRequestObject, DeveloperStatus, InstallObject,
+    InteractionsKeyObject, PasswordBody, PatchApplicationBody, PatchBotBody, ResetSecretResult,
+    ResetTokenResult, SubmitVersionBody, SuspendBody, app_err, dto::VersionApplication, invalid,
+    parse_id,
 };
 use crate::{
     auth::SessionOnly,
@@ -205,10 +206,77 @@ async fn render(
         .flat_map(|a| [a.owner_id, a.bot_user_id])
         .collect();
     let users = deps.users(&ids).await?;
-    Ok(apps
-        .iter()
-        .map(|a| ApplicationObject::new(a, &users, owner_view, staff))
-        .collect())
+    let mut out = Vec::with_capacity(apps.len());
+    for a in apps {
+        let mut o = ApplicationObject::new(a, &users, owner_view, staff);
+        if owner_view {
+            let info = deps.apps.endpoint_info(a.id).await.map_err(app_err)?;
+            o.interactions_endpoint_url = info.url;
+            o.verify_key = info.verify_key;
+        }
+        out.push(o);
+    }
+    Ok(out)
+}
+
+/// Create the application's interactions signing key when it has none (older applications)
+/// and return the public key. Idempotent; the key is never rotated here.
+#[utoipa::path(
+    post, path = "/applications/{application_id}/interactions-key", tag = "developer",
+    params(("application_id" = String, Path, description = "Application snowflake")),
+    responses((status = 200, body = InteractionsKeyObject), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn ensure_interactions_key(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<DevDeps>,
+    Path(id): Path<String>,
+) -> MsgResult<Json<InteractionsKeyObject>> {
+    let id = parse_id(&id, APP)?;
+    let info = deps
+        .apps
+        .ensure_signing_key(p.user_id, id)
+        .await
+        .map_err(app_err)?;
+    Ok(Json(InteractionsKeyObject {
+        verify_key: info.verify_key.unwrap_or_default(),
+    }))
+}
+
+/// Check a new endpoint URL (format, then a signed PING round trip) and store it.
+async fn apply_endpoint(deps: &DevDeps, owner: i64, id: i64, url: Option<String>) -> MsgResult<()> {
+    let Some(url) = url else {
+        deps.apps
+            .set_endpoint(owner, id, None)
+            .await
+            .map_err(app_err)?;
+        return Ok(());
+    };
+    sr_apps::AppsService::check_endpoint_url(&url).map_err(app_err)?;
+    if !deps.endpoints_available() {
+        return Err(invalid(
+            "interactions_endpoint_url",
+            "NOT_AVAILABLE",
+            "HTTP interactions endpoints are not available on this server.",
+        ));
+    }
+    deps.apps
+        .ensure_signing_key(owner, id)
+        .await
+        .map_err(app_err)?;
+    let seed = deps.apps.signing_seed(id).await.map_err(app_err)?;
+    deps.verify_endpoint(id, &url, &seed).await.map_err(|m| {
+        invalid(
+            "interactions_endpoint_url",
+            "INTERACTIONS_ENDPOINT_VERIFY",
+            &m,
+        )
+    })?;
+    deps.apps
+        .set_endpoint(owner, id, Some(url))
+        .await
+        .map_err(app_err)?;
+    Ok(())
 }
 
 /// Create an application and its bot.
@@ -302,6 +370,30 @@ pub async fn patch_app(
 ) -> MsgResult<Json<ApplicationObject>> {
     let id = parse_id(&id, APP)?;
     let current = deps.apps.owned(p.user_id, id).await.map_err(app_err)?;
+    // The endpoint is checked first: a refused URL leaves the rest of the patch unapplied.
+    let only_endpoint = body.interactions_endpoint_url.is_some()
+        && body.name.is_none()
+        && body.description.is_none()
+        && body.icon.is_none()
+        && body.tags.is_none()
+        && body.bot_public.is_none()
+        && body.bot_require_code_grant.is_none()
+        && body.redirect_uris.is_none()
+        && body.install_params.is_none()
+        && body.terms_of_service_url.is_none()
+        && body.privacy_policy_url.is_none()
+        && body.privileged_intents.is_none();
+    if let Some(ep) = body.interactions_endpoint_url.clone() {
+        apply_endpoint(&deps, p.user_id, id, ep).await?;
+    }
+    if only_endpoint {
+        let app = deps.apps.owned(p.user_id, id).await.map_err(app_err)?;
+        return Ok(Json(
+            render(&deps, std::slice::from_ref(&app), true, false)
+                .await?
+                .remove(0),
+        ));
+    }
     let install_params: Option<InstallParamsInput> = match body.install_params {
         Some(v) => Some(serde_json::from_value(v).map_err(|_| {
             invalid(

@@ -11,6 +11,7 @@ use sr_apps::{
     repo::{
         AccountBrief, AppsRepository, CodeConsume, InstallOutcome, InstallWrite, RefreshLookup,
     },
+    signing::SigningSeed,
 };
 use sr_auth::session::TokenHash;
 
@@ -633,6 +634,56 @@ impl AppsRepository for PgAppsRepo {
         let app = fetch_app(&mut tx, id).await?;
         tx.commit().await.map_err(db)?;
         Ok(app)
+    }
+
+    async fn interactions_config(&self, app: i64) -> AppsResult<InteractionsConfig> {
+        let r = sqlx::query(
+            "SELECT interactions_endpoint_url, interactions_signing_seed \
+             FROM applications WHERE id = $1",
+        )
+        .bind(app)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?
+        .ok_or(AppsError::NotFound("application"))?;
+        let seed: Option<Vec<u8>> = r.try_get("interactions_signing_seed").map_err(db)?;
+        Ok(InteractionsConfig {
+            endpoint_url: r.try_get("interactions_endpoint_url").map_err(db)?,
+            seed: seed.as_deref().and_then(SigningSeed::from_slice),
+        })
+    }
+
+    async fn set_interactions_config(
+        &self,
+        app: i64,
+        endpoint_url: Option<Option<String>>,
+        seed_if_absent: Option<SigningSeed>,
+        audit: Option<AuditRow>,
+    ) -> AppsResult<()> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let mut qb = QueryBuilder::<Postgres>::new("UPDATE applications SET updated_at = now()");
+        if let Some(u) = endpoint_url {
+            qb.push(", interactions_endpoint_url = ").push_bind(u);
+        }
+        if let Some(seed) = seed_if_absent {
+            qb.push(", interactions_signing_seed = COALESCE(interactions_signing_seed, ")
+                .push_bind(seed.as_bytes().to_vec())
+                .push(")");
+        }
+        qb.push(" WHERE id = ").push_bind(app);
+        let n = qb
+            .build()
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?
+            .rows_affected();
+        if n == 0 {
+            return Err(AppsError::NotFound("application"));
+        }
+        if let Some(a) = audit {
+            audit_in(&mut tx, &a).await?;
+        }
+        tx.commit().await.map_err(db)
     }
 
     async fn set_bot_name(&self, app: i64, name: &str, audit: AuditRow) -> AppsResult<()> {
@@ -1304,6 +1355,33 @@ impl AppsRepository for PgAppsRepo {
         );
         let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(app)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                let p: i64 = r.try_get("permissions").map_err(db)?;
+                Ok(Install {
+                    application_id: r.try_get("application_id").map_err(db)?,
+                    guild_id: r.try_get("guild_id").map_err(db)?,
+                    installed_by: r.try_get("installed_by").map_err(db)?,
+                    scopes: r.try_get("scopes").map_err(db)?,
+                    permissions: p as u64,
+                    role_id: r.try_get("role_id").map_err(db)?,
+                    created_at_ms: r.try_get("created_ms").map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn guild_installs(&self, guild: i64) -> AppsResult<Vec<Install>> {
+        let sql = format!(
+            "SELECT application_id, guild_id, installed_by, scopes, permissions, role_id, {} \
+             FROM application_installs WHERE guild_id = $1 ORDER BY application_id",
+            ms("created_at", "created_ms")
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(guild)
             .fetch_all(&self.pool)
             .await
             .map_err(db)?;

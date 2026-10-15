@@ -2,10 +2,12 @@
 //! review, installs. OAuth2, commands and interactions are in the sibling modules.
 
 mod commands;
+mod endpoint;
 mod interactions;
 mod oauth;
 
 pub use commands::*;
+pub use endpoint::*;
 pub use interactions::*;
 pub use oauth::*;
 
@@ -579,6 +581,12 @@ impl AppsService {
     pub async fn installs_of(&self, owner: i64, id: i64) -> AppsResult<Vec<Install>> {
         let app = self.owned(owner, id).await?;
         self.repo.installs(app.id).await
+    }
+
+    /// Number of servers the application is installed in (the recommended shard count is
+    /// derived from it).
+    pub async fn install_count(&self, app: i64) -> AppsResult<usize> {
+        Ok(self.repo.installs(app).await?.len())
     }
 
     // ------------------------------------------------------------ bot credentials

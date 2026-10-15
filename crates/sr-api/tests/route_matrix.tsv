@@ -158,6 +158,7 @@ GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permi
 GET	/applications/{application_id}/installs	authenticated	owner	deny	-
 GET	/applications/{application_id}/versions	authenticated	owner	deny	-
 GET	/channels/{channel_id}	authenticated	membership	allow	-
+GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-
 GET	/channels/{channel_id}/call	authenticated	membership	allow	-
 GET	/channels/{channel_id}/invites	authenticated	membership	allow	-
 GET	/channels/{channel_id}/messages	authenticated	membership	allow	-
@@ -452,6 +453,7 @@ POST	/applications	authenticated	owner	deny	-
 POST	/applications/{application_id}/bot/reset-token	authenticated	owner	deny	-
 POST	/applications/{application_id}/commands	authenticated	owner	allow	-
 POST	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
+POST	/applications/{application_id}/interactions-key	authenticated	owner	deny	-
 POST	/applications/{application_id}/reset-secret	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions/{version_id}/withdraw	authenticated	owner	deny	-

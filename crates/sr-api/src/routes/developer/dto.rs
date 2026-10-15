@@ -77,6 +77,13 @@ pub struct ApplicationObject {
     /// Last four characters of the client secret (owner view only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_secret_hint: Option<String>,
+    /// HTTP interactions endpoint URL (owner view only; absent = gateway delivery).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interactions_endpoint_url: Option<String>,
+    /// Ed25519 public key (hex) that verifies the platform's signed requests (owner view
+    /// only, present once the key exists).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verify_key: Option<String>,
     /// Staff view of a suspension.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suspended_reason: Option<String>,
@@ -144,6 +151,8 @@ impl ApplicationObject {
             client_secret_hint: owner_view
                 .then(|| format!("...{}", app.client_secret_hint))
                 .filter(|_| !app.client_secret_hint.is_empty()),
+            interactions_endpoint_url: None,
+            verify_key: None,
             suspended_reason: staff_view.then(|| app.suspended_reason.clone()).flatten(),
             created_at: iso(app.created_at_ms),
         }
@@ -184,6 +193,10 @@ pub struct PatchApplicationBody {
     #[serde(default, deserialize_with = "sr_apps::service::nullable")]
     pub privacy_policy_url: Option<Option<String>>,
     pub privileged_intents: Option<Vec<String>>,
+    /// `https` URL that receives signed interactions instead of the gateway (`null` removes
+    /// it). The URL is verified with a signed PING before it is saved.
+    #[serde(default, deserialize_with = "sr_apps::service::nullable")]
+    pub interactions_endpoint_url: Option<Option<String>>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -583,6 +596,8 @@ pub struct CreateInteractionBody {
     /// 2 command, 3 component, 4 autocomplete, 5 modal submit.
     #[serde(rename = "type")]
     pub kind: i64,
+    /// Optional for components: the message author's application is used when omitted.
+    #[serde(default)]
     pub application_id: String,
     pub channel_id: String,
     pub guild_id: Option<String>,
@@ -635,4 +650,29 @@ impl std::fmt::Debug for PasswordBody {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("PasswordBody(..)")
     }
+}
+
+/// Public key that verifies the platform's signed interaction requests.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct InteractionsKeyObject {
+    /// Ed25519 public key, lower-case hex.
+    pub verify_key: String,
+}
+
+/// An application in the command picker.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CommandIndexApp {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
+    pub bot_id: String,
+}
+
+/// `GET /channels/{id}/application-commands`.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CommandIndex {
+    pub applications: Vec<CommandIndexApp>,
+    /// Discord command objects the caller may use here.
+    #[schema(value_type = Vec<Object>)]
+    pub application_commands: Vec<Value>,
 }

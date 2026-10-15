@@ -6,6 +6,8 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+data-encoding = "2.11.1"
+ed25519-dalek = "3.0.0"
 serde.workspace = true
 serde_json.workspace = true
 sr-auth = { path = "../sr-auth" }
@@ -14,7 +16,6 @@ thiserror.workspace = true
 tracing = "0.1"
 
 [dev-dependencies]
-data-encoding = "2.11.1"
 sha2 = "0.11.0"
 tokio = { workspace = true, features = ["macros", "rt", "time"] }
 

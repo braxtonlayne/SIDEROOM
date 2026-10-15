@@ -259,16 +259,21 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         id_src.clone(),
     ));
     let apps_auth = Arc::new(sr_apps::auth::AppsAuth::new(apps_service.clone()));
-    let dev_deps = Arc::new(routes::developer::DevDeps::new(
-        (*apps_service).clone(),
-        Arc::new(PgChatRepo::new(pool.clone())),
-        bus.clone(),
-        Arc::new(routes::developer::AuthPasswordConfirm::new(
-            auth_service.clone(),
+    let dev_deps = Arc::new(
+        routes::developer::DevDeps::new(
+            (*apps_service).clone(),
+            Arc::new(PgChatRepo::new(pool.clone())),
+            bus.clone(),
+            Arc::new(routes::developer::AuthPasswordConfirm::new(
+                auth_service.clone(),
+            )),
+            clock.clone(),
+            &cfg.server.public_url,
+        )
+        .with_endpoint_client(Arc::new(
+            crate::endpoint_client::SafeEndpointClient::production(),
         )),
-        clock.clone(),
-        &cfg.server.public_url,
-    ));
+    );
 
     let s = &cfg.storage;
     let storage: Arc<dyn ObjectStorage> = Arc::new(

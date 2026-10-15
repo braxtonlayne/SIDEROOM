@@ -75,10 +75,36 @@ pub struct HopResponse {
     pub body: Vec<u8>,
 }
 
-/// Performs a single GET without following redirects.
+/// One outgoing POST. `addrs` are validated; the transport must not resolve the host.
+#[derive(Debug, Clone)]
+pub struct PostRequest {
+    pub url: Url,
+    pub addrs: Vec<SocketAddr>,
+    /// Extra headers (name, value); `Content-Type` is `application/json`.
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
+    /// Hard cap on the response body read.
+    pub max_bytes: usize,
+}
+
+/// The answer to a POST, whatever its status (callers need to tell a 401 from a 200).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PostResponse {
+    pub status: u16,
+    pub body: Vec<u8>,
+}
+
+/// Performs a single request without following redirects.
 #[async_trait]
 pub trait HttpTransport: Send + Sync {
     async fn get(&self, req: &HopRequest) -> Result<HopResponse, NetError>;
+
+    /// POST a JSON body. Transports that cannot POST keep this default.
+    async fn post(&self, _req: &PostRequest) -> Result<PostResponse, NetError> {
+        Err(NetError::Http(
+            "POST is not supported by this transport".into(),
+        ))
+    }
 }
 
 /// reqwest over rustls, pinned via [`pinned_builder`].
@@ -131,6 +157,35 @@ impl HttpTransport for ReqwestTransport {
         if !(200..300).contains(&out.status) {
             return Ok(out);
         }
+        while let Some(chunk) = resp.chunk().await.map_err(|e| http_err(&e.without_url()))? {
+            if out.body.len() + chunk.len() > req.max_bytes {
+                return Err(NetError::TooLarge);
+            }
+            out.body.extend_from_slice(&chunk);
+        }
+        Ok(out)
+    }
+
+    async fn post(&self, req: &PostRequest) -> Result<PostResponse, NetError> {
+        let client = pinned_builder(&self.user_agent, &req.url, &req.addrs)
+            .build()
+            .map_err(|e| NetError::Http(e.to_string()))?;
+        let mut builder = client
+            .post(req.url.clone())
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::ACCEPT, "application/json")
+            .body(req.body.clone());
+        for (k, v) in &req.headers {
+            builder = builder.header(k.as_str(), v.as_str());
+        }
+        let mut resp = builder
+            .send()
+            .await
+            .map_err(|e| http_err(&e.without_url()))?;
+        let mut out = PostResponse {
+            status: resp.status().as_u16(),
+            body: Vec::new(),
+        };
         while let Some(chunk) = resp.chunk().await.map_err(|e| http_err(&e.without_url()))? {
             if out.body.len() + chunk.len() > req.max_bytes {
                 return Err(NetError::TooLarge);
@@ -199,6 +254,34 @@ impl SafeClient {
         max_bytes: usize,
     ) -> Result<SafeResponse, NetError> {
         tokio::time::timeout(TOTAL_TIMEOUT, self.get_inner(url, accept, max_bytes))
+            .await
+            .map_err(|_| NetError::Timeout)?
+    }
+
+    /// POST `body` (JSON) once under the SSRF policy. Redirects are never followed (a 3xx
+    /// comes back as a plain status) and any status is returned; the whole call is bounded
+    /// by `timeout` (at most [`TOTAL_TIMEOUT`]).
+    pub async fn post_json(
+        &self,
+        url: &Url,
+        headers: Vec<(String, String)>,
+        body: Vec<u8>,
+        max_bytes: usize,
+        timeout: Duration,
+    ) -> Result<PostResponse, NetError> {
+        let work = async {
+            let addrs = resolve_validated(&self.policy, &*self.resolver, url).await?;
+            self.transport
+                .post(&PostRequest {
+                    url: url.clone(),
+                    addrs,
+                    headers,
+                    body,
+                    max_bytes,
+                })
+                .await
+        };
+        tokio::time::timeout(timeout.min(TOTAL_TIMEOUT), work)
             .await
             .map_err(|_| NetError::Timeout)?
     }
@@ -461,6 +544,79 @@ mod tests {
                 "{u}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn post_is_validated_pinned_and_returns_any_status() {
+        struct Poster(Mutex<Vec<PostRequest>>);
+        #[async_trait]
+        impl HttpTransport for Poster {
+            async fn get(&self, _: &HopRequest) -> Result<HopResponse, NetError> {
+                Err(NetError::Http("no".into()))
+            }
+            async fn post(&self, req: &PostRequest) -> Result<PostResponse, NetError> {
+                self.0.lock().unwrap().push(req.clone());
+                Ok(PostResponse {
+                    status: 401,
+                    body: b"no".to_vec(),
+                })
+            }
+        }
+        let poster = Arc::new(Poster(Mutex::default()));
+        let table = HashMap::from([
+            ("good.test".to_owned(), vec![ips(&["8.8.8.8"])]),
+            ("bad.test".to_owned(), vec![ips(&["10.0.0.1"])]),
+        ]);
+        let c = SafeClient::new(
+            Policy::default(),
+            Arc::new(Table(Mutex::new(table))),
+            poster.clone(),
+        );
+        let t = Duration::from_secs(2);
+        let r = c
+            .post_json(
+                &Url::parse("https://good.test/i").unwrap(),
+                vec![("X-A".into(), "b".into())],
+                b"{}".to_vec(),
+                64,
+                t,
+            )
+            .await
+            .unwrap();
+        assert_eq!(r.status, 401);
+        assert_eq!(
+            poster.0.lock().unwrap()[0].addrs[0].ip().to_string(),
+            "8.8.8.8"
+        );
+        let err = c
+            .post_json(
+                &Url::parse("https://bad.test/i").unwrap(),
+                vec![],
+                vec![],
+                64,
+                t,
+            )
+            .await
+            .unwrap_err();
+        assert!(is_private(&err), "{err:?}");
+        assert_eq!(
+            poster.0.lock().unwrap().len(),
+            1,
+            "no request to a private host"
+        );
+        // A transport without POST support fails closed.
+        let (g, _) = client(&[("good.test", vec![vec!["8.8.8.8"]])], &[]);
+        assert!(
+            g.post_json(
+                &Url::parse("https://good.test/").unwrap(),
+                vec![],
+                vec![],
+                8,
+                t
+            )
+            .await
+            .is_err()
+        );
     }
 
     #[tokio::test]

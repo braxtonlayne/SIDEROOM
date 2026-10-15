@@ -17,8 +17,9 @@ pub mod policy;
 pub mod resolve;
 
 pub use client::{
-    CONNECT_TIMEOUT, HopRequest, HopResponse, HttpTransport, MAX_REDIRECTS, NetError,
-    ReqwestTransport, SafeClient, SafeResponse, TOTAL_TIMEOUT, is_redirect, pinned_builder,
+    CONNECT_TIMEOUT, HopRequest, HopResponse, HttpTransport, MAX_REDIRECTS, NetError, PostRequest,
+    PostResponse, ReqwestTransport, SafeClient, SafeResponse, TOTAL_TIMEOUT, is_redirect,
+    pinned_builder,
 };
 pub use policy::{Blocked, MAX_URL_LEN, Policy, is_forbidden_ip};
 pub use resolve::{Resolver, SystemResolver, resolve_validated};

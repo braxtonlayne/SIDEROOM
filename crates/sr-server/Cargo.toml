@@ -24,6 +24,7 @@ tokio-stream.workspace = true
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 serde.workspace = true
 serde_json.workspace = true
+url = "2.5.8"
 thiserror.workspace = true
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
 sr-admin = { path = "../sr-admin" }
@@ -37,6 +38,7 @@ sr-events = { path = "../sr-events" }
 sr-features = { path = "../sr-features" }
 sr-gateway = { path = "../sr-gateway" }
 sr-library = { path = "../sr-library" }
+sr-net = { path = "../sr-net" }
 sr-cinema = { path = "../sr-cinema" }
 sr-media = { path = "../sr-media" }
 sr-payments = { path = "../sr-payments" }
