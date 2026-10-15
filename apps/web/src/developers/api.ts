@@ -49,6 +49,10 @@ export const resetBotToken = (appId: string, password: string) =>
 export const deleteApp = (appId: string, password: string) =>
   apiFetch<void>(`/applications/${id(appId)}`, { method: 'DELETE', json: { password }, ...ro });
 
+/** Creates the interactions signing key when the app has none; returns the public key. Idempotent. */
+export const createInteractionsKey = (appId: string) =>
+  apiPost<{ verify_key: string }>(`/applications/${id(appId)}/interactions-key`, {});
+
 export const listInstalls = (appId: string) =>
   apiFetch<AppInstall[]>(`/applications/${id(appId)}/installs`, ro);
 

@@ -34,6 +34,10 @@ export interface DevApp {
   privileged_intents: { requested: IntentName[]; approved: IntentName[] };
   /** Last characters of the client secret, e.g. `...abcd`; the secret itself is never returned again. */
   client_secret_hint: string | null;
+  /** HTTPS endpoint that receives signed interactions instead of the gateway (owner view). */
+  interactions_endpoint_url?: string | null;
+  /** Ed25519 public key (hex) that verifies those requests; absent until created. */
+  verify_key?: string | null;
   created_at: string;
 }
 
@@ -49,6 +53,8 @@ export interface AppPatch {
   terms_of_service_url?: string | null;
   /** The privileged intents the bot asks for (the full requested set). */
   privileged_intents?: IntentName[];
+  /** Saving verifies it with a signed PING; null removes it. */
+  interactions_endpoint_url?: string | null;
 }
 
 /** Returned once by POST /applications. */
