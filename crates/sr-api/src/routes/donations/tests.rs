@@ -266,6 +266,7 @@ async fn every_route_needs_a_session_and_admin_routes_need_the_permission() {
             Some(json!({"hidden_from_leaderboard": true})),
         ),
         (Method::GET, "/donations/leaderboards/donors", None),
+        (Method::GET, "/donations/leaderboards/contributors/movies", None),
     ];
     for (m, p, b) in &member {
         let (s, _) = e.call(None, m.clone(), p, b.clone()).await;
@@ -624,6 +625,67 @@ async fn preferences_server_support_and_leaderboards_respect_privacy() {
         e.get(ALICE, "/donations/leaderboards/donors?window=7d")
             .await
             .0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test]
+async fn contributor_boards_rank_cache_and_honour_the_opt_out() {
+    use sr_payments::repo::ContributionKind as K;
+    let e = env(true).await;
+    e.repo.add_contributions(ALICE, K::Movies, 3);
+    e.repo.add_contributions(BOB, K::Movies, 5);
+    e.repo.add_contributions(CAROL, K::Movies, 5);
+    e.repo.add_contributions(ALICE, K::Chapters, 40);
+    let (s, b) = e
+        .get(ALICE, "/donations/leaderboards/contributors/movies")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let names: Vec<_> = b["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| (i["name"].as_str().unwrap(), i["count"].as_i64().unwrap()))
+        .collect();
+    assert_eq!(names, [("Bob", 5), ("Carol", 5), ("Alice", 3)], "ties by account id");
+    assert_eq!(b["me"]["rank"], 3);
+    assert_eq!(b["kind"], "movies");
+    let (_, ch) = e
+        .get(ALICE, "/donations/leaderboards/contributors/chapters?limit=1")
+        .await;
+    assert_eq!(ch["items"][0]["count"], 40);
+    assert_eq!(ch["me"]["rank"], 1);
+    let (_, ep) = e
+        .get(ALICE, "/donations/leaderboards/contributors/episodes")
+        .await;
+    assert!(ep["items"].as_array().unwrap().is_empty());
+    assert!(ep["me"].is_null());
+    // Bob opts out: he leaves the board at once (the cache is dropped on a change).
+    let (s, p) = e
+        .call(
+            Some(BOB),
+            Method::PATCH,
+            "/donations/me/preferences",
+            Some(json!({"hide_contributions": true})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{p}");
+    assert_eq!(p["hide_contributions"], true);
+    let (_, me) = e.get(BOB, "/donations/me").await;
+    assert_eq!(me["preferences"]["hide_contributions"], true);
+    let (_, b2) = e
+        .get(BOB, "/donations/leaderboards/contributors/movies")
+        .await;
+    assert!(b2["me"].is_null(), "an opted-out account has no rank");
+    assert!(
+        b2["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|i| i["name"] != "Bob")
+    );
+    assert_eq!(
+        e.get(ALICE, "/donations/leaderboards/contributors/nope").await.0,
         StatusCode::BAD_REQUEST
     );
 }

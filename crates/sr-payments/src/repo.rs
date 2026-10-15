@@ -122,6 +122,44 @@ pub struct DonorPrefs {
     pub hide_name: bool,
     pub hide_amount: bool,
     pub hide_badge: bool,
+    /// Keep the account off the contributor boards (movies, episodes, chapters).
+    pub hide_contributions: bool,
+}
+
+/// What the contributor boards count (doc 08 section 4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ContributionKind {
+    Movies,
+    Episodes,
+    Chapters,
+}
+
+impl ContributionKind {
+    pub const ALL: [ContributionKind; 3] = [Self::Movies, Self::Episodes, Self::Chapters];
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "movies" => Some(Self::Movies),
+            "episodes" => Some(Self::Episodes),
+            "chapters" => Some(Self::Chapters),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Movies => "movies",
+            Self::Episodes => "episodes",
+            Self::Chapters => "chapters",
+        }
+    }
+}
+
+/// One contributor and how many approved items still count for them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContributorRow {
+    pub user_id: i64,
+    pub count: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -312,6 +350,19 @@ pub trait PaymentRepo: Send + Sync {
         since_ms: Option<i64>,
         limit: u32,
     ) -> PayResult<Vec<LeaderRow>>;
+    /// Ranked contributors of one kind (credits that were not revoked), most items first. Accounts that
+    /// opted out or were hidden by staff are left out.
+    async fn leaderboard_contributors(
+        &self,
+        kind: ContributionKind,
+        limit: u32,
+    ) -> PayResult<Vec<ContributorRow>>;
+    /// A user's 1-based rank and count on a contributor board; `None` when absent or opted out.
+    async fn contributor_rank(
+        &self,
+        user_id: i64,
+        kind: ContributionKind,
+    ) -> PayResult<Option<(u32, i64)>>;
     /// A user's total and 1-based rank among donors.
     async fn donor_rank(
         &self,

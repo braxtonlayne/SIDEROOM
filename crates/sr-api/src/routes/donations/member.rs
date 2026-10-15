@@ -13,7 +13,7 @@ use sr_core::{ApiError, ErrorCode};
 use sr_payments::{
     Entitlements, PayError, Purpose,
     entitlements::DAY_MS,
-    repo::{DonorPrefs, LeaderRow, PaymentRepo},
+    repo::{ContributionKind, DonorPrefs, LeaderRow, PaymentRepo},
     service::InvoiceRequest,
     utc_month_start_ms,
 };
@@ -240,6 +240,7 @@ fn prefs_view(p: DonorPrefs) -> PrefsView {
         hide_name: p.hide_name,
         hide_amount: p.hide_amount,
         hide_badge: p.hide_badge,
+        hide_contributions: p.hide_contributions,
     }
 }
 
@@ -283,10 +284,15 @@ pub async fn patch_preferences(
         hide_name: b.hide_name.unwrap_or(cur.hide_name),
         hide_amount: b.hide_amount.unwrap_or(cur.hide_amount),
         hide_badge: b.hide_badge.unwrap_or(cur.hide_badge),
+        hide_contributions: b.hide_contributions.unwrap_or(cur.hide_contributions),
     };
     repo.set_donor_prefs(ctx.user, next)
         .await
         .map_err(map_pay)?;
+    if next.hide_contributions != cur.hide_contributions {
+        // An opt-out takes effect at once, not at the next hourly rebuild.
+        ctx.deps.contributors.invalidate_all();
+    }
     Ok(Json(prefs_view(next)))
 }
 
@@ -514,6 +520,67 @@ pub async fn leaderboard(
     Ok(Json(BoardView {
         board,
         window,
+        items: cached.1.iter().take(limit).cloned().collect(),
+        me,
+        generated_at_ms: cached.0,
+    }))
+}
+
+/// A contributor board: approved `movies`, `episodes` (Cinema) or `chapters` (Library), most first
+/// (D-074). Accounts that opted out in their preferences are not listed. Cached for an hour.
+#[utoipa::path(
+    get, path = "/donations/leaderboards/contributors/{kind}", operation_id = "donations_contributor_leaderboard",
+    params(("kind" = String, Path, description = "`movies`, `episodes` or `chapters`"), BoardQuery),
+    responses((status = 200, body = ContributorBoardView), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn contributor_leaderboard(
+    ctx: DonorCtx,
+    Path(kind): Path<String>,
+    Query(q): Query<BoardQuery>,
+) -> ApiResult<Json<ContributorBoardView>> {
+    let Some(which) = ContributionKind::parse(&kind) else {
+        return Err(ApiError::invalid_form()
+            .field("kind", "ENUM_TYPE_INVALID", "Use movies, episodes or chapters.")
+            .into());
+    };
+    let repo = ctx.svc().repo();
+    let cached = match ctx.deps.contributors.get(&kind).await {
+        Some(c) => c,
+        None => {
+            let rows = repo
+                .leaderboard_contributors(which, 100)
+                .await
+                .map_err(map_pay)?;
+            let ids: Vec<i64> = rows.iter().map(|r| r.user_id).collect();
+            let names = repo.profiles(&ids).await.map_err(map_pay)?;
+            let items: Vec<ContributorItem> = rows
+                .iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    let p = names.iter().find(|p| p.id == r.user_id);
+                    ContributorItem {
+                        rank: u32::try_from(i + 1).unwrap_or(u32::MAX),
+                        user_id: r.user_id.to_string(),
+                        name: p.map_or_else(|| "Unknown".to_owned(), |p| p.name.clone()),
+                        avatar: p.and_then(|p| p.avatar.clone()),
+                        count: r.count,
+                    }
+                })
+                .collect();
+            let entry = Arc::new((now_ms(), items));
+            ctx.deps.contributors.insert(kind.clone(), entry.clone()).await;
+            entry
+        }
+    };
+    let limit = q.limit.unwrap_or(50).clamp(1, 100) as usize;
+    let me = repo
+        .contributor_rank(ctx.user, which)
+        .await
+        .map_err(map_pay)?
+        .map(|(rank, count)| ContributorRank { rank, count });
+    Ok(Json(ContributorBoardView {
+        kind,
         items: cached.1.iter().take(limit).cloned().collect(),
         me,
         generated_at_ms: cached.0,

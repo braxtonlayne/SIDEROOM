@@ -211,6 +211,8 @@ pub struct PrefsView {
     pub hide_name: bool,
     pub hide_amount: bool,
     pub hide_badge: bool,
+    /// Off the contributor boards (movies, episodes, chapters).
+    pub hide_contributions: bool,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -218,6 +220,7 @@ pub struct PrefsBody {
     pub hide_name: Option<bool>,
     pub hide_amount: Option<bool>,
     pub hide_badge: Option<bool>,
+    pub hide_contributions: Option<bool>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -286,6 +289,31 @@ pub struct BoardView {
     pub window: String,
     pub items: Vec<BoardItem>,
     pub me: Option<MyRank>,
+    pub generated_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ContributorItem {
+    pub rank: u32,
+    pub user_id: String,
+    pub name: String,
+    pub avatar: Option<String>,
+    /// Approved items that still count (revoked credits do not).
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ContributorRank {
+    pub rank: u32,
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ContributorBoardView {
+    /// `movies`, `episodes` or `chapters`.
+    pub kind: String,
+    pub items: Vec<ContributorItem>,
+    pub me: Option<ContributorRank>,
     pub generated_at_ms: i64,
 }
 

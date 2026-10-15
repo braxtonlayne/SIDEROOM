@@ -40,6 +40,8 @@ struct Mem {
     notices: HashMap<i64, u8>,
     watcher: WatcherStatus,
     profiles: HashMap<i64, Profile>,
+    /// `(user, kind, approved items)`, set up by tests.
+    contributions: Vec<(i64, ContributionKind, i64)>,
 }
 
 #[derive(Default)]
@@ -65,6 +67,11 @@ impl MemoryRepo {
                 owner,
             },
         );
+    }
+
+    /// Test setup: `user` has `count` approved items of `kind`.
+    pub fn add_contributions(&self, user: i64, kind: ContributionKind, count: i64) {
+        self.m().contributions.push((user, kind, count));
     }
 
     pub fn add_profile(&self, id: i64, name: &str) {
@@ -953,6 +960,42 @@ impl PaymentRepo for MemoryRepo {
         rows.sort_by_key(|r| (std::cmp::Reverse(r.cents), r.guild_id));
         rows.truncate(limit as usize);
         Ok(rows)
+    }
+
+    async fn leaderboard_contributors(
+        &self,
+        kind: ContributionKind,
+        limit: u32,
+    ) -> PayResult<Vec<ContributorRow>> {
+        let m = self.m();
+        let mut rows: Vec<ContributorRow> = m
+            .contributions
+            .iter()
+            .filter(|(u, k, _)| {
+                *k == kind
+                    && !m.staff_hidden_users.contains(u)
+                    && !m.prefs.get(u).is_some_and(|p| p.hide_contributions)
+            })
+            .map(|(u, _, c)| ContributorRow {
+                user_id: *u,
+                count: *c,
+            })
+            .collect();
+        rows.sort_by_key(|r| (std::cmp::Reverse(r.count), r.user_id));
+        rows.truncate(limit as usize);
+        Ok(rows)
+    }
+
+    async fn contributor_rank(
+        &self,
+        user_id: i64,
+        kind: ContributionKind,
+    ) -> PayResult<Option<(u32, i64)>> {
+        let all = self.leaderboard_contributors(kind, u32::MAX).await?;
+        Ok(all
+            .iter()
+            .position(|r| r.user_id == user_id)
+            .map(|i| (u32::try_from(i + 1).unwrap_or(u32::MAX), all[i].count)))
     }
 
     async fn donor_rank(
