@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ComingSoon } from '@sideroom/ui';
 import { useT } from '../i18n';
 import { useVoiceSession } from '../voice/session';
+import { InboxButton } from './inbox/InboxButton';
 import { useLoungeUi } from './store';
 
 /** Thin global section bar above everything (spec 1). Collapsible via the store setting. */
@@ -81,14 +82,7 @@ export function TitleStrip({ title }: { title: string }) {
             <Icon name="menu" size={16} />
           </button>
         </Tooltip>
-        <button
-          type="button"
-          className="lng-icon-btn"
-          aria-label={t('lounge.chrome.inbox')}
-          onClick={() => setComing(t('lounge.chrome.inbox'))}
-        >
-          <Icon name="bell" size={16} />
-        </button>
+        <InboxButton iconSize={16} />
         <button
           type="button"
           className="lng-icon-btn"

@@ -2,6 +2,7 @@ import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../i18n';
 import { NotifyButton } from './header/NotifyButton';
+import { InboxButton } from './inbox/InboxButton';
 import { PinsButton } from './header/PinsButton';
 import { SearchBox } from './SearchBox';
 import { ThreadsButton } from './threads/ThreadsButton';
@@ -136,7 +137,7 @@ export function ChannelHeader({
             />
           </label>
         )}
-        <Soon icon="bookmark" label={t('lounge.channelHeader.inbox')} />
+        <InboxButton />
         <Soon icon="info" label={t('lounge.channelHeader.help')} />
       </div>
       <Modal
