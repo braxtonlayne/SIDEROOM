@@ -1101,3 +1101,78 @@ async fn frozen_issuers_cannot_have_invites_redeemed() {
         .unwrap();
     assert!(register(invite(false).await).await.is_ok());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn appointments_record_how_they_ended() {
+    use sr_chat::admin_repo::GuildAdminRepository;
+    use sr_core::{GuildId, UserId};
+    let pool = pool().await;
+    let r = repo(&pool);
+    let guild = staff_guild(&pool).await;
+    let role_id = role(&pool, guild, P::STAFF_BASIC).await;
+    let actor = account(&pool, None).await;
+    let (left, kicked, revoked) = (
+        account(&pool, None).await,
+        account(&pool, None).await,
+        account(&pool, None).await,
+    );
+    for who in [left, kicked, revoked] {
+        r.appoint(
+            who,
+            &[role_id],
+            actor,
+            "x",
+            &entry(actor, "staff.appoint", Some(who)),
+        )
+        .await
+        .unwrap();
+    }
+    // The member leaves, is kicked by a moderator, or staff revoke the appointment.
+    sqlx::query("DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2")
+        .bind(guild)
+        .bind(left)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let chat = sr_db::chat_repo::PgChatRepo::new(pool.clone());
+    chat.remove_member_kicked(GuildId::new(guild as u64), UserId::new(kicked as u64))
+        .await
+        .unwrap();
+    r.revoke_staff(
+        revoked,
+        actor,
+        "bye",
+        &entry(actor, "staff.revoke", Some(revoked)),
+    )
+    .await
+    .unwrap();
+    let former = r.former_staff(50).await.unwrap();
+    let why = |id: i64| {
+        former
+            .iter()
+            .find(|f| f.account_id == id)
+            .map(|f| f.revoked_reason.as_str())
+    };
+    assert_eq!(why(left), Some("left"));
+    assert_eq!(why(kicked), Some("kicked"));
+    assert_eq!(why(revoked), Some("revoked"));
+    // An open appointment is not listed.
+    let current = account(&pool, None).await;
+    r.appoint(
+        current,
+        &[role_id],
+        actor,
+        "x",
+        &entry(actor, "staff.appoint", Some(current)),
+    )
+    .await
+    .unwrap();
+    assert!(
+        r.former_staff(50)
+            .await
+            .unwrap()
+            .iter()
+            .all(|f| f.account_id != current)
+    );
+}

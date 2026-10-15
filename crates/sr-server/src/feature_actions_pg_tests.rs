@@ -509,3 +509,76 @@ async fn starboard_and_welcome_run_through_the_runtime() {
         .unwrap();
     assert!(state_row.is_some());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn module_edits_are_audited_as_the_system_user_with_the_module_name() {
+    use sr_api::routes::guilds::backend::backend_with_audit;
+    use sr_chat::settings::{
+        SettingsService,
+        audit::{AuditAction, AuditQuery},
+    };
+    use sr_core::permissions::Permissions;
+    use sr_db::settings_repo::PgSettingsRepo;
+    let f = fx().await;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let settings = Arc::new(SettingsService::new(
+        PgSettingsRepo::new(f.pool.clone()),
+        clock.clone(),
+        SnowflakeGenerator::new(clock.clone(), 27, 27).unwrap(),
+        Arc::new(|| 7),
+    ));
+    let dynbus: Arc<dyn EventBus> = f.bus.clone();
+    let guilds = backend_with_audit(
+        ChatService::new(
+            PgChatRepo::new(f.pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), 26, 26).unwrap(),
+            ChatLimits::default(),
+        ),
+        dynbus,
+        settings.clone(),
+    );
+    let actions = PgFeatureActions::new(
+        f.pool.clone(),
+        f.messages.clone(),
+        Arc::new(ThreadsDeps::new(
+            sr_chat::threads::ThreadService::new(
+                PgChatRepo::new(f.pool.clone()),
+                clock.clone(),
+                SnowflakeGenerator::new(clock.clone(), 28, 28).unwrap(),
+            ),
+            f.bus.clone() as Arc<dyn EventBus>,
+        )),
+        guilds,
+        "https://sr.test",
+    );
+
+    // A module's edit is audited as the system user, naming the module...
+    sr_features::scope_module(
+        "lounge.slowmode_plus",
+        "Slowmode plus",
+        actions.set_slowmode(f.general, 12),
+    )
+    .await
+    .unwrap();
+    // ...and the same edit outside a module handler still names the acting owner.
+    actions.set_slowmode(f.general, 20).await.unwrap();
+
+    let log = settings
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(f.guild))
+        .await
+        .unwrap();
+    let edits: Vec<_> = log
+        .iter()
+        .filter(|e| e.action == AuditAction::ChannelUpdate)
+        .collect();
+    assert_eq!(edits.len(), 2, "{log:?}");
+    // Newest first: the unscoped edit, then the module's.
+    assert_eq!(edits[0].actor_id, f.owner);
+    assert!(edits[0].options.is_none());
+    assert_eq!(edits[1].actor_id, UserId::new(SYSTEM_USER_ID as u64));
+    let o = edits[1].options.as_ref().unwrap();
+    assert_eq!(o["module"], "Slowmode plus");
+    assert_eq!(o["module_id"], "lounge.slowmode_plus");
+}
