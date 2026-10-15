@@ -36,7 +36,8 @@ export function EventAlerts() {
     void navigate({
       to: '.',
       search: ((prev: Record<string, unknown>) => {
-        const { event: _event, ...rest } = prev;
+        const rest = { ...prev };
+        delete rest.event;
         return rest;
       }) as never,
       replace: true,

@@ -69,7 +69,7 @@ export function ServerInvite() {
       await navigate({
         to: '/channels/$guildId/$channelId',
         params: {
-          guildId: joined.type === 0 ? (joined.guild?.id ?? '@me') : '@me',
+          guildId: joined.type !== 1 ? (joined.guild?.id ?? '@me') : '@me',
           channelId: joined.channel.id,
         },
       });

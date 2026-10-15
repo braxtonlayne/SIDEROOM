@@ -521,7 +521,7 @@ export const useStore = create<StoreState>()((set, get) => {
       const invite = await rest.acceptInvite(code);
       // The gateway also delivers GUILD_CREATE; loading here makes the guild usable immediately.
       // A group DM invite has no guild: the gateway delivers the new DM channel.
-      if (invite.type === 0 && invite.guild)
+      if (invite.type !== 1 && invite.guild)
         await get()
           .loadGuild(invite.guild.id)
           .catch(() => undefined);
