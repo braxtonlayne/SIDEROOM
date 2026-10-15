@@ -313,7 +313,7 @@ async fn the_directory_answers_age_afk_allowance_and_dm_questions() {
         .expect("connect");
     sr_db::migrate(&pool).await.expect("migrate");
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-    let w = ((std::process::id() % 16) * 2) as u8 + 2;
+    let w = ((std::process::id() % 15) * 2) as u8 + 2;
     let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
     let (owner, member, patron, stranger) = (
         account(&pool, &ids).await,
