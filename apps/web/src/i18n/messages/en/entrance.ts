@@ -179,4 +179,144 @@ export default {
   'entrance.support.rules.body':
     'Report it to a server moderator, or read the house notes for what is and is not allowed.',
   'entrance.support.rules.link': 'House notes',
+  // Shared by the link and reset pages (G-86)
+  'entrance.common.oneMoment': 'One moment…',
+  'entrance.common.unreachable': "We couldn't reach the door. Check your connection and try again.",
+  'entrance.common.tooManyTries':
+    'Too many tries. Try again in {minutes, plural, one {# minute} other {# minutes}}.',
+  'entrance.common.backToSignIn': 'Back to sign in',
+
+  // Owner login link
+  'entrance.loginLink.eyebrow': 'Owner access.',
+  'entrance.loginLink.heading': 'One door,',
+  'entrance.loginLink.headingAccent': 'one use.',
+  'entrance.loginLink.copy': 'This link signs you in once. It does not reset your password.',
+  'entrance.loginLink.footLabel': 'Member entrance / 04',
+  'entrance.loginLink.formEyebrow': 'Login link',
+  'entrance.loginLink.title': 'Signing you in.',
+  'entrance.loginLink.missing':
+    'This link is missing its token. Open the full link from the terminal output again.',
+  'entrance.loginLink.expired':
+    'This link is invalid, has expired, or was already used. Links work once and last an hour. Run the bootstrap command again for a new one.',
+  'entrance.loginLink.usePassword': 'Use your password instead',
+
+  // "This wasn't me" email-change link
+  'entrance.emailCancel.eyebrow': "Wasn't you?",
+  'entrance.emailCancel.heading': 'Consider it',
+  'entrance.emailCancel.headingAccent': 'stopped.',
+  'entrance.emailCancel.copy': 'If someone else asked to change your email, this undoes it.',
+  'entrance.emailCancel.footLabel': 'Member entrance / 05',
+  'entrance.emailCancel.formEyebrow': 'Email change',
+  'entrance.emailCancel.title': 'Securing your account.',
+  'entrance.emailCancel.done':
+    'Done. If the change had not gone through yet, it is cancelled and your email is unchanged. If it had, every device is now signed out.',
+  'entrance.emailCancel.adviceBefore': 'Someone may know your password. Use',
+  'entrance.emailCancel.adviceLink': 'Forgot password',
+  'entrance.emailCancel.adviceAfter':
+    'to set a new one, and turn on two-factor authentication in Settings.',
+  'entrance.emailCancel.missing':
+    'This link is missing its token. Open the full link from the email again.',
+  'entrance.emailCancel.invalid':
+    'This link is invalid, has expired, or was already used. Links work once and last seven days. If you still think someone has your account, sign in and change your password, or use Forgot password.',
+
+  // Forgot and reset password
+  'entrance.forgot.eyebrow': 'Locked out?',
+  'entrance.forgot.heading': 'No harm,',
+  'entrance.forgot.headingAccent': 'no fuss.',
+  'entrance.forgot.copy': "We'll send a link to get you back in.",
+  'entrance.forgot.footLabel': 'Member entrance / 01',
+  'entrance.forgot.formEyebrow': 'Forgot password',
+  'entrance.forgot.title': 'Let’s fix that.',
+  'entrance.forgot.sub': 'Enter the email on your account.',
+  'entrance.forgot.sent':
+    'If that address is on the list, a link is on its way. It works once, for 30 minutes.',
+  'entrance.forgot.email': 'Email',
+  'entrance.forgot.sending': 'Sending…',
+  'entrance.forgot.submit': 'Send the link',
+  'entrance.reset.eyebrow': 'Fresh start.',
+  'entrance.reset.heading': 'A new key,',
+  'entrance.reset.headingAccent': 'same door.',
+  'entrance.reset.copy': "Choose a password you haven't used anywhere else.",
+  'entrance.reset.footLabel': 'Member entrance / 01',
+  'entrance.reset.formEyebrow': 'Reset password',
+  'entrance.reset.title': 'Choose a new one.',
+  'entrance.reset.mismatch': "Those passwords don't match.",
+  'entrance.reset.expired': 'That link has expired or was already used. Ask for a new one.',
+  'entrance.reset.done':
+    'Password changed. If you use two-step sign-in, you’ll still be asked for your code.',
+  'entrance.reset.password': 'New password',
+  'entrance.reset.passwordHint': 'At least 10 characters.',
+  'entrance.reset.confirm': 'Confirm new password',
+  'entrance.reset.saving': 'Saving…',
+  'entrance.reset.submit': 'Set password',
+
+  // Verify email page
+  'entrance.verifyEmail.eyebrow': 'Almost there.',
+  'entrance.verifyEmail.heading': 'Check the',
+  'entrance.verifyEmail.headingAccent': 'door.',
+  'entrance.verifyEmail.copy': 'One click confirms this address belongs to you.',
+  'entrance.verifyEmail.footLabel': 'Member entrance / 03',
+  'entrance.verifyEmail.formEyebrow': 'Verify email',
+  'entrance.verifyEmail.title': 'Confirming your address.',
+  'entrance.verifyEmail.done':
+    'Your email is verified. Thanks for confirming. If you were changing your address, the new one is now what you sign in with.',
+  'entrance.verifyEmail.expired':
+    'That link has expired or was already used. Sign in and ask for a new one from the banner in the lounge, or, if you were changing your email, start the change again from Settings, My Account.',
+
+  // Two-step sign-in
+  'entrance.twoFactor.otpGroup': 'Six-digit code',
+  'entrance.twoFactor.digit': 'Digit {n}',
+  'entrance.twoFactor.tooMany':
+    'Too many attempts. Try again in {minutes, plural, one {# minute} other {# minutes}}.',
+  'entrance.twoFactor.badCode': "That code didn't match. Check your authenticator and try again.",
+  'entrance.twoFactor.badRecovery': "That recovery code isn't valid.",
+  'entrance.twoFactor.needDigits': 'Enter all six digits.',
+  'entrance.twoFactor.needRecovery': 'Enter a recovery code.',
+  'entrance.twoFactor.eyebrow': 'One more lock.',
+  'entrance.twoFactor.heading': 'Just to be',
+  'entrance.twoFactor.headingAccent': 'sure.',
+  'entrance.twoFactor.copy': "Confirm it's really you, then you're in.",
+  'entrance.twoFactor.footLabel': 'Member entrance / 02',
+  'entrance.twoFactor.formEyebrow': 'Two-step check',
+  'entrance.twoFactor.titleTotp': 'Your code.',
+  'entrance.twoFactor.titlePasskey': 'Your passkey.',
+  'entrance.twoFactor.titleRecovery': 'Recovery code.',
+  'entrance.twoFactor.subTotp': 'Enter the six-digit code from your authenticator app.',
+  'entrance.twoFactor.subPasskey': 'Use the passkey on this device or a security key.',
+  'entrance.twoFactor.subRecovery': 'Enter one of the recovery codes you saved. Each works once.',
+  'entrance.twoFactor.recoveryLabel': 'Recovery code',
+  'entrance.twoFactor.trust': 'Trust this device for 30 days',
+  'entrance.twoFactor.checking': 'Checking…',
+  'entrance.twoFactor.submit': 'Step inside',
+  'entrance.twoFactor.usePasskey': 'Use your passkey',
+  'entrance.twoFactor.usePasskeyInstead': 'Use a passkey instead',
+  'entrance.twoFactor.useTotp': 'Use an authenticator code',
+  'entrance.twoFactor.useRecovery': 'Use a recovery code',
+
+  // Discord callback
+  'entrance.discord.finishing': 'Finishing your Discord sign-in…',
+
+  // Server invite and template pages
+  'entrance.serverInvite.someServer': 'a server',
+  'entrance.serverInvite.counts': '{online} online · {members} members',
+  'entrance.serverInvite.loading': 'Loading invite…',
+  'entrance.serverInvite.invalid': 'This invite is invalid or has expired.',
+  'entrance.serverInvite.invited': 'You’ve been invited to join',
+  'entrance.serverInvite.accept': 'Accept invite',
+  'entrance.serverInvite.login': 'Log in to accept',
+  'entrance.template.tooFast': 'You are doing that too quickly. Wait a moment and try again.',
+  'entrance.template.badName': 'Server names are 2 to 100 characters.',
+  'entrance.template.failed': 'Could not create the server. Try again.',
+  'entrance.template.loading': 'Loading template…',
+  'entrance.template.invalid': 'This template does not exist or was deleted.',
+  'entrance.template.loginTitle': 'Log in to use this template',
+  'entrance.template.login': 'Log in',
+  'entrance.template.start': 'Start a server from the template',
+  'entrance.template.stats':
+    '{channels} channels · {roles} roles · used {uses, plural, one {# time} other {# times}}',
+  'entrance.template.by': ' · by {name}',
+  'entrance.template.channelsLabel': 'Channels in this template',
+  'entrance.template.voicePrefix': 'Voice: ',
+  'entrance.template.name': 'Server name',
+  'entrance.template.create': 'Create server',
 } satisfies Record<string, string>;

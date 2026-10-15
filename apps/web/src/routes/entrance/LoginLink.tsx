@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { loginWithLink } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
+import { useT } from '../../i18n/react';
 import { minutesFromSeconds } from '../../lib/validation';
 
 type State =
@@ -12,13 +13,12 @@ type State =
   | { kind: 'throttled'; retryAfter: number | null }
   | { kind: 'error' };
 
-const NETWORK = "We couldn't reach the door. Check your connection and try again.";
-
 /**
  * Owner one-time login link: `/login/link?token=…`. Posts the token once, shows progress, and on success
  * continues to the Lounge. A failed link explains how to get a new one; it never leaves a session behind.
  */
 export function LoginLink() {
+  const t = useT();
   const router = useRouter();
   const { token } = useSearch({ strict: false }) as { token?: string };
   const [state, setState] = useState<State>(() =>
@@ -41,43 +41,43 @@ export function LoginLink() {
 
   return (
     <AuthSplit
-      eyebrow="Owner access."
-      heading="One door,"
-      accent="one use."
-      copy="This link signs you in once. It does not reset your password."
-      footLabel="Member entrance / 04"
+      eyebrow={t('entrance.loginLink.eyebrow')}
+      heading={t('entrance.loginLink.heading')}
+      accent={t('entrance.loginLink.headingAccent')}
+      copy={t('entrance.loginLink.copy')}
+      footLabel={t('entrance.loginLink.footLabel')}
     >
-      <FormHead eyebrow="Login link" title="Signing you in." />
+      <FormHead
+        eyebrow={t('entrance.loginLink.formEyebrow')}
+        title={t('entrance.loginLink.title')}
+      />
       {state.kind === 'signing-in' && (
         <p role="status" className="ent-sub">
-          One moment…
+          {t('entrance.common.oneMoment')}
         </p>
       )}
       {state.kind === 'missing' && (
         <p role="alert" className="ent-sub">
-          This link is missing its token. Open the full link from the terminal output again.
+          {t('entrance.loginLink.missing')}
         </p>
       )}
       {state.kind === 'expired' && (
         <p role="alert" className="ent-sub">
-          This link is invalid, has expired, or was already used. Links work once and last an hour.
-          Run the bootstrap command again for a new one.
+          {t('entrance.loginLink.expired')}
         </p>
       )}
       {state.kind === 'throttled' && (
         <p role="alert" className="ent-sub">
-          {`Too many tries. Try again in ${minutesFromSeconds(state.retryAfter)} minute${
-            minutesFromSeconds(state.retryAfter) === 1 ? '' : 's'
-          }.`}
+          {t('entrance.common.tooManyTries', { minutes: minutesFromSeconds(state.retryAfter) })}
         </p>
       )}
       {state.kind === 'error' && (
         <p role="alert" className="ent-sub">
-          {NETWORK}
+          {t('entrance.common.unreachable')}
         </p>
       )}
       <p className="ent-footnote">
-        <Link to="/login">Use your password instead</Link>
+        <Link to="/login">{t('entrance.loginLink.usePassword')}</Link>
       </p>
     </AuthSplit>
   );

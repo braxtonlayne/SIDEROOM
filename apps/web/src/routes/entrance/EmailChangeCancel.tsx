@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { cancelEmailChange } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
+import { useT } from '../../i18n/react';
 import { minutesFromSeconds } from '../../lib/validation';
 
 type State = 'working' | 'missing' | 'done' | 'invalid' | 'throttled' | 'error';
@@ -13,6 +14,7 @@ type State = 'working' | 'missing' | 'done' | 'invalid' | 'throttled' | 'error';
  * completed, every session and trusted device is signed out instead (the server decides which).
  */
 export function EmailChangeCancel() {
+  const t = useT();
   const { token } = useSearch({ strict: false }) as { token?: string };
   const [state, setState] = useState<State>(token ? 'working' : 'missing');
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
@@ -31,57 +33,57 @@ export function EmailChangeCancel() {
       });
   }, [token]);
 
-  const minutes = minutesFromSeconds(retryAfter);
   return (
     <AuthSplit
-      eyebrow="Wasn't you?"
-      heading="Consider it"
-      accent="stopped."
-      copy="If someone else asked to change your email, this undoes it."
-      footLabel="Member entrance / 05"
+      eyebrow={t('entrance.emailCancel.eyebrow')}
+      heading={t('entrance.emailCancel.heading')}
+      accent={t('entrance.emailCancel.headingAccent')}
+      copy={t('entrance.emailCancel.copy')}
+      footLabel={t('entrance.emailCancel.footLabel')}
     >
-      <FormHead eyebrow="Email change" title="Securing your account." />
+      <FormHead
+        eyebrow={t('entrance.emailCancel.formEyebrow')}
+        title={t('entrance.emailCancel.title')}
+      />
       {state === 'working' && (
         <p role="status" className="ent-sub">
-          One moment…
+          {t('entrance.common.oneMoment')}
         </p>
       )}
       {state === 'done' && (
         <>
           <p role="status" className="ent-sub">
-            Done. If the change had not gone through yet, it is cancelled and your email is
-            unchanged. If it had, every device is now signed out.
+            {t('entrance.emailCancel.done')}
           </p>
           <p className="ent-sub">
-            Someone may know your password. Use <Link to="/forgot">Forgot password</Link> to set a
-            new one, and turn on two-factor authentication in Settings.
+            {t('entrance.emailCancel.adviceBefore')}{' '}
+            <Link to="/forgot">{t('entrance.emailCancel.adviceLink')}</Link>{' '}
+            {t('entrance.emailCancel.adviceAfter')}
           </p>
         </>
       )}
       {state === 'missing' && (
         <p role="alert" className="ent-sub">
-          This link is missing its token. Open the full link from the email again.
+          {t('entrance.emailCancel.missing')}
         </p>
       )}
       {state === 'invalid' && (
         <p role="alert" className="ent-sub">
-          This link is invalid, has expired, or was already used. Links work once and last seven
-          days. If you still think someone has your account, sign in and change your password, or
-          use Forgot password.
+          {t('entrance.emailCancel.invalid')}
         </p>
       )}
       {state === 'throttled' && (
         <p role="alert" className="ent-sub">
-          {`Too many tries. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`}
+          {t('entrance.common.tooManyTries', { minutes: minutesFromSeconds(retryAfter) })}
         </p>
       )}
       {state === 'error' && (
         <p role="alert" className="ent-sub">
-          We couldn't reach the door. Check your connection and try again.
+          {t('entrance.common.unreachable')}
         </p>
       )}
       <p className="ent-footnote">
-        <Link to="/login">Back to sign in</Link>
+        <Link to="/login">{t('entrance.common.backToSignIn')}</Link>
       </p>
     </AuthSplit>
   );
