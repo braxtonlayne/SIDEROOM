@@ -90,7 +90,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-CMP-001** [FE] Rich composer on Lexical (inline tokens for mentions, emoji, channels, timestamps) *(scheduled after the LNG-MSGUI gaps; the composer stays a textarea through Phase 2, D-174)*
 
 ## LNG-EXP — Expression (emoji, stickers, GIFs, soundboard data)
-- [ ] **LNG-EXP-001** [DB] emojis, stickers, sticker_packs, soundboard_sounds *Partial: emojis, emoji_roles, stickers (0032) and soundboard_sounds (0640) exist; sticker_packs does not (default packs, EXP-004).*
+- [x] **LNG-EXP-001** [DB] emojis, stickers, sticker_packs, soundboard_sounds *Partial: emojis, emoji_roles, stickers (0032) and soundboard_sounds (0640) exist; sticker_packs does not (default packs, EXP-004).* *(p12 lounge-ch-be: `sticker_packs` and `stickers.pack_id` exist (migration 0794); default packs wait for artwork (LNG-EXP-004))*
 - [x] **LNG-EXP-002** [BE] Guild emoji CRUD (PNG/GIF/WebP ≤ 256 KB, auto-resize 128px, animated), role restrictions *Built in routes/settings/expressions.rs; uploads are now shrunk to 128 px (animated GIF stays animated, undecodable animated WebP is stored as uploaded).*
 - [x] **LNG-EXP-003** [BE] Guild stickers CRUD (PNG/APNG/GIF ≤ 512 KB, 320×320, related emoji, description, tags) *Built in expressions.rs; static PNG/GIF are shrunk to 320 px, APNG and Lottie stored as is.*
 - [ ] **LNG-EXP-004** [BE] Default sticker packs (original artwork)

@@ -152,7 +152,13 @@ pub(crate) async fn revoke(
     user: UserId,
     code: &str,
 ) -> ApiResult<Option<InviteObject>> {
-    let Some(inv) = deps.service.repo().get_group_invite(code).await.map_err(re)? else {
+    let Some(inv) = deps
+        .service
+        .repo()
+        .get_group_invite(code)
+        .await
+        .map_err(re)?
+    else {
         return Ok(None);
     };
     let dm = deps

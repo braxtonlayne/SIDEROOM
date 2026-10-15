@@ -509,3 +509,197 @@ async fn starboard_and_welcome_run_through_the_runtime() {
         .unwrap();
     assert!(state_row.is_some());
 }
+
+/// A voice layer for the tests: who is where, and a move that just relocates the member.
+#[derive(Default)]
+struct FakeVoice(std::sync::Mutex<std::collections::HashMap<u64, u64>>);
+
+impl FakeVoice {
+    fn put(&self, user: u64, channel: ChannelId) {
+        self.0.lock().unwrap().insert(user, channel.get());
+    }
+    fn leave(&self, user: u64) {
+        self.0.lock().unwrap().remove(&user);
+    }
+    fn at(&self, user: u64) -> Option<u64> {
+        self.0.lock().unwrap().get(&user).copied()
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::feature_actions::VoiceControl for FakeVoice {
+    fn occupants(&self, channel: ChannelId) -> Vec<UserId> {
+        self.0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, c)| **c == channel.get())
+            .map(|(u, _)| UserId::new(*u))
+            .collect()
+    }
+
+    async fn move_member(
+        &self,
+        _actor: UserId,
+        _guild: GuildId,
+        user: UserId,
+        to: ChannelId,
+    ) -> Result<(), crate::feature_actions::VoiceMoveError> {
+        let mut m = self.0.lock().unwrap();
+        if !m.contains_key(&user.get()) {
+            return Err(crate::feature_actions::VoiceMoveError::NotInVoice);
+        }
+        m.insert(user.get(), to.get());
+        Ok(())
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn join_to_create_makes_and_removes_rooms_through_the_real_services() {
+    use sr_features::modules::join_to_create::JOIN_TO_CREATE_ID;
+    let f = fx().await;
+    let voice = Arc::new(FakeVoice::default());
+    let actions = Arc::new(
+        PgFeatureActions::new(
+            f.pool.clone(),
+            f.messages.clone(),
+            Arc::new(ThreadsDeps::new(
+                sr_chat::threads::ThreadService::new(
+                    PgChatRepo::new(f.pool.clone()),
+                    Arc::new(SystemClock),
+                    SnowflakeGenerator::new(SystemClock, 27, 27).unwrap(),
+                ),
+                f.bus.clone(),
+            )),
+            f.guilds.clone(),
+            "https://sr.test",
+        )
+        .with_voice(voice.clone()),
+    );
+    let ids = Arc::new(SnowflakeGenerator::new(SystemClock, 28, 28).unwrap());
+    let mut reg = FeatureRegistry::new();
+    modules::register_all(&mut reg).unwrap();
+    let settings = FeatureService::new(
+        Arc::new(reg),
+        Arc::new(PgSettingsStore::new(f.pool.clone(), ids)),
+        None,
+    );
+    let hub = f
+        .guilds
+        .create_channel(
+            f.owner,
+            f.guild,
+            sr_chat::channel_rules::NewChannel::new(sr_chat::ChannelType::Voice, "Create a room"),
+            vec![],
+        )
+        .await
+        .unwrap()
+        .channel
+        .id;
+    let scope = ScopeRef::Guild { guild: f.guild };
+    settings
+        .set_enabled(JOIN_TO_CREATE_ID, &scope, Some(true))
+        .await
+        .unwrap();
+    settings
+        .set_settings(
+            JOIN_TO_CREATE_ID,
+            &scope,
+            json!({"hubs": [hub.to_string()], "user_limit": 3})
+                .as_object()
+                .cloned()
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let rt = FeatureRuntime::new(FeatureCtx {
+        bus: f.bus.clone(),
+        settings,
+        clock: Arc::new(SystemClock),
+        actions: actions.clone(),
+        state: Arc::new(PgFeatureState::new(f.pool.clone())),
+    });
+    let joined = |channel: ChannelId| DomainEvent::VoiceJoined {
+        guild: f.guild,
+        channel,
+        user: UserId::new(5),
+    };
+
+    // Ann joins the hub: a room named for her appears in the hub's category, she is moved in,
+    // owns it, and the limit applies.
+    voice.put(5, hub);
+    rt.dispatch(&joined(hub)).await;
+    let room = ChannelId::new(voice.at(5).expect("moved"));
+    assert_ne!(room, hub);
+    let row = sqlx::query(
+        "SELECT name, type, user_limit, parent_id FROM channels WHERE id = $1",
+    )
+    .bind(room.get() as i64)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    use sqlx::Row;
+    assert_eq!(row.get::<String, _>("name"), "ann's room");
+    assert_eq!(row.get::<i16, _>("type"), 2);
+    assert_eq!(row.get::<Option<i32>, _>("user_limit"), Some(3));
+    let hub_parent: Option<i64> = sqlx::query_scalar("SELECT parent_id FROM channels WHERE id = $1")
+        .bind(hub.get() as i64)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(row.get::<Option<i64>, _>("parent_id"), hub_parent);
+    let ow: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT target_id, allow FROM permission_overwrites WHERE channel_id = $1 AND target_type = 'member'",
+    )
+    .bind(room.get() as i64)
+    .fetch_all(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(ow.len(), 1);
+    assert_eq!(ow[0].0, 5, "the owner's overwrite");
+    let manage =
+        i64::try_from(sr_core::permissions::Permissions::MANAGE_CHANNELS.bits()).unwrap();
+    assert_ne!(ow[0].1 & manage, 0, "can manage the room");
+
+    // Bob joins the room, Ann leaves: it stays. Bob leaves: the room is deleted.
+    voice.put(6, room);
+    voice.leave(5);
+    rt.dispatch(&DomainEvent::VoiceLeft {
+        guild: f.guild,
+        channel: room,
+        user: UserId::new(5),
+    })
+    .await;
+    let exists = |id: ChannelId| {
+        let pool = f.pool.clone();
+        async move {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)",
+            )
+            .bind(id.get() as i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or(false)
+        }
+    };
+    assert!(exists(room).await);
+    voice.leave(6);
+    rt.dispatch(&DomainEvent::VoiceLeft {
+        guild: f.guild,
+        channel: room,
+        user: UserId::new(6),
+    })
+    .await;
+    assert!(!exists(room).await, "the empty room was deleted");
+    assert!(exists(hub).await, "the hub stays");
+    let left: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM feature_state WHERE feature = $1 AND guild_id = $2",
+    )
+    .bind(JOIN_TO_CREATE_ID)
+    .bind(f.guild.get() as i64)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(left, 0, "no bookkeeping left behind");
+}

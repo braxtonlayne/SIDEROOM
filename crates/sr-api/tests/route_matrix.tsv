@@ -57,6 +57,8 @@ DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	member
 DELETE	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
@@ -273,6 +275,9 @@ GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles/{role_id}/members	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/scheduled-events/{event_id}/users	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}/audio	authenticated	membership	allow	-
@@ -297,6 +302,7 @@ GET	/guilds/{guild_id}/tickets	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/webhooks	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/widget	authenticated	membership	allow	-
 GET	/invites/{code}	authenticated	membership	allow	-
 GET	/library/chapters/{chapter_id}/bookmarks	authenticated	other	allow	-
 GET	/library/chapters/{chapter_id}/pages	authenticated	other	allow	-
@@ -326,9 +332,13 @@ GET	/requests	authenticated	other	allow	-
 GET	/soundboard-default-sounds	authenticated	other	allow	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	other	allow	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
+GET	/sr/auth/reauth	authenticated	self	deny	-
 GET	/sr/csrf	authenticated	other	allow	-
+GET	/sr/profile-catalog	authenticated	other	deny	-
 GET	/sr/voice/turn	authenticated	other	allow	-
 GET	/stage-instances/{channel_id}	authenticated	membership	allow	-
+GET	/sticker-packs	authenticated	other	allow	-
+GET	/stickers/{sticker_id}/url	authenticated	other	allow	-
 GET	/streams/{stream_key}/preview	authenticated	membership	allow	-
 GET	/submissions	authenticated	other	allow	-
 GET	/submissions/kinds	authenticated	other	allow	-
@@ -404,6 +414,7 @@ PATCH	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	a
 PATCH	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/sr/features/{feature_id}	authenticated	membership	allow	-
@@ -414,6 +425,7 @@ PATCH	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/voice-states/{user_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/widget	authenticated	membership	allow	-
 PATCH	/library/lists/{list_id}	authenticated	other	allow	-
 PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-
 PATCH	/stage-instances/{channel_id}	authenticated	membership	allow	-
@@ -557,11 +569,13 @@ POST	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/bulk-ban	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/mfa	authenticated	owner	allow	-
 POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/sr/applications	authenticated	other	allow	-
 POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-
@@ -592,6 +606,7 @@ POST	/sr/auth/passkeys/register/begin	authenticated	self	deny	-
 POST	/sr/auth/passkeys/register/finish	authenticated	self	deny	-
 POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-
 POST	/sr/auth/password	authenticated	self	deny	-
+POST	/sr/auth/reauth	authenticated	self	deny	-
 POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-
 POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
@@ -674,6 +689,7 @@ PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/tag	authenticated	membership	allow	-

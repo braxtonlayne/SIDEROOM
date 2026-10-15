@@ -98,7 +98,7 @@ describe('System messages and the widget (Overview)', () => {
       }),
     );
     await openSettings('overview');
-    await userEvent.click(await screen.findByRole('checkbox', { name: 'Enable the server widget' }));
+    await userEvent.click(await screen.findByRole('switch', { name: 'Enable the server widget' }));
     await screen.findByText('Widget settings saved.');
     await userEvent.selectOptions(screen.getByLabelText('Invite channel'), 'c1');
     await waitFor(() => expect(cap.calls).toHaveLength(2));
@@ -110,7 +110,7 @@ describe('System messages and the widget (Overview)', () => {
 describe('Protection (Moderation)', () => {
   const baseline = () =>
     server.use(
-      http.get('*/api/v1/guilds/g1/automod/rules', () => HttpResponse.json([])),
+      http.get('*/api/v1/guilds/g1/auto-moderation/rules', () => HttpResponse.json([])),
     );
 
   it('the owner switches on the 2FA requirement for moderators', async () => {
@@ -126,7 +126,7 @@ describe('Protection (Moderation)', () => {
       }),
     );
     await openSettings('moderation');
-    const sw = await screen.findByRole('checkbox', { name: 'Require 2FA for moderator actions' });
+    const sw = await screen.findByRole('switch', { name: 'Require 2FA for moderator actions' });
     expect(sw).toBeEnabled();
     await userEvent.click(sw);
     await screen.findByText('Two-factor requirement saved.');
@@ -142,7 +142,7 @@ describe('Protection (Moderation)', () => {
       http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community())),
     );
     await openSettings('moderation');
-    const sw = await screen.findByRole('checkbox', { name: 'Require 2FA for moderator actions' });
+    const sw = await screen.findByRole('switch', { name: 'Require 2FA for moderator actions' });
     expect(sw).toBeDisabled();
     expect(sw).toBeChecked();
     expect(screen.getByText('Only the server owner can change this.')).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe('Protection (Moderation)', () => {
     );
     await openSettings('moderation');
     await userEvent.click(
-      await screen.findByRole('checkbox', { name: 'Filter spam in direct messages from members' }),
+      await screen.findByRole('switch', { name: 'Filter spam in direct messages from members' }),
     );
     await screen.findByText('Protection settings saved.');
     expect(cap.calls[0]!.body).toEqual({ dm_spam_filter: true });

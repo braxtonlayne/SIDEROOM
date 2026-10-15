@@ -719,13 +719,16 @@ mod tests {
         let t = due_transitions(&all, NOW + HOUR);
         assert_eq!(
             t,
-            vec![Transition {
-                id: 1,
-                to: EventStatus::Active
-            }, Transition {
-                id: 2,
-                to: EventStatus::Completed
-            }]
+            vec![
+                Transition {
+                    id: 1,
+                    to: EventStatus::Active
+                },
+                Transition {
+                    id: 2,
+                    to: EventStatus::Completed
+                }
+            ]
         );
         assert_eq!(EventStatus::from_code(2), Some(EventStatus::Active));
         assert_eq!(EntityType::from_code(3), Some(EntityType::External));

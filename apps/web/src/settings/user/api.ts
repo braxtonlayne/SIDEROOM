@@ -126,6 +126,7 @@ export interface OwnProfile {
     pronouns: string | null;
     banner: string | null;
     accent_color: number | null;
+    profile_effect?: string | null;
   };
   connected_accounts: Connection[];
 }
@@ -145,7 +146,15 @@ export interface ProfilePatch {
   pronouns?: string | null;
   accent_color?: number | null;
   custom_status?: { text: string | null } | null;
+  /** A slug from `GET /sr/profile-catalog`; null removes the effect. */
+  profile_effect?: string | null;
 }
+export interface ProfileCatalog {
+  effects: { slug: string; label_key: string }[];
+  decorations: { slug: string; asset?: string | null; label_key: string }[];
+}
+export const getProfileCatalog = () =>
+  apiFetch<ProfileCatalog>('/sr/profile-catalog', { retries: 0 });
 export const patchSelf = (body: ProfilePatch) =>
   apiFetch<{ user?: OwnProfile['user'] }>('/users/@me', {
     method: 'PATCH',

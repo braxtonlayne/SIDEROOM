@@ -476,18 +476,12 @@ pub async fn modify_event(
             Some(Some(t)) => Some(Some(parse_time("scheduled_end_time", t)?)),
         },
         entity_type: body.entity_type.map(entity_of).transpose()?,
-        location: body
-            .entity_metadata
-            .map(|m| m.and_then(|m| m.location)),
+        location: body.entity_metadata.map(|m| m.and_then(|m| m.location)),
         status: body
             .status
             .map(|s| {
                 EventStatus::from_code(s).ok_or_else(|| {
-                    invalid(
-                        "status",
-                        "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
-                        "Must be 1 to 4.",
-                    )
+                    invalid("status", "ENUM_TYPE_BASE_TYPE_BAD_VALUE", "Must be 1 to 4.")
                 })
             })
             .transpose()?,

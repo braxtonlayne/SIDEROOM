@@ -57,7 +57,8 @@ describe('LNG-RAIL-012 guild context menu', () => {
       within(menu).getByRole('menuitemcheckbox', { name: 'Hide Muted Channels' }),
     ).toBeTruthy();
     await userEvent.hover(within(menu).getByRole('menuitem', { name: 'Server Settings' }));
-    expect(within(menu).getByRole('menuitem', { name: 'Create Event' })).toHaveAttribute(
+    // Create Event is live for people who may create events (P12 scheduled events).
+    expect(within(menu).getByRole('menuitem', { name: 'Create Event' })).not.toHaveAttribute(
       'aria-disabled',
       'true',
     );

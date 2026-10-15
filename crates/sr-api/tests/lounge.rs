@@ -133,7 +133,9 @@ async fn world() -> World {
             5,
         )
         .unwrap()
-        .with_events(Arc::new(settings::events::BusSettingsEvents::new(bus.clone())))
+        .with_events(Arc::new(settings::events::BusSettingsEvents::new(
+            bus.clone(),
+        )))
         .with_joiner(joiner.clone()),
     );
 
@@ -1233,7 +1235,10 @@ async fn hidden_directory_categories_are_not_offered_or_accepted() {
         )
         .await;
     assert_eq!(s, StatusCode::OK);
-    assert_eq!(w.get(CAROL, "/directory").await.1.as_array().unwrap().len(), 1);
+    assert_eq!(
+        w.get(CAROL, "/directory").await.1.as_array().unwrap().len(),
+        1
+    );
     hide(json!(["gaming"])).await.unwrap();
     assert_eq!(w.get(CAROL, "/directory").await.1, json!([]));
     assert_eq!(
@@ -1306,7 +1311,8 @@ async fn group_dm_invites_create_resolve_join_and_revoke() {
     assert_eq!(again["approximate_member_count"], 4, "no second seat");
     // Dave heard about the group, and sees it in his list.
     let mut names = Vec::new();
-    while let Ok(Some(ev)) = tokio::time::timeout(Duration::from_millis(50), dave_events.next()).await
+    while let Ok(Some(ev)) =
+        tokio::time::timeout(Duration::from_millis(50), dave_events.next()).await
     {
         if let DomainEvent::UserScoped { name, .. } = ev {
             names.push(name);
@@ -1695,7 +1701,10 @@ async fn scheduled_event_rsvp_status_and_permissions() {
         StatusCode::NO_CONTENT
     );
     let (_, got) = w.get(CAROL, &format!("{one}?with_user_count=true")).await;
-    assert_eq!((got["user_count"].as_u64(), got["user_rsvp"].as_bool()), (Some(1), Some(false)));
+    assert_eq!(
+        (got["user_count"].as_u64(), got["user_rsvp"].as_bool()),
+        (Some(1), Some(false))
+    );
 
     // Only the creator (CREATE_EVENTS) or a MANAGE_EVENTS holder changes or deletes it.
     assert_eq!(
@@ -1706,7 +1715,9 @@ async fn scheduled_event_rsvp_status_and_permissions() {
     let (s, ev) = w.patch(BOB, &one, json!({ "name": "Pub quiz" })).await;
     assert_eq!(s, StatusCode::OK, "{ev}");
     assert_eq!(ev["name"], "Pub quiz");
-    let (s, ev) = w.patch(OWNER, &one, json!({ "description": "Teams of four" })).await;
+    let (s, ev) = w
+        .patch(OWNER, &one, json!({ "description": "Teams of four" }))
+        .await;
     assert_eq!(s, StatusCode::OK, "{ev}");
 
     // Status: scheduled -> active -> completed; no skipping, nothing after the end.
@@ -1742,12 +1753,19 @@ async fn scheduled_event_rsvp_status_and_permissions() {
     );
     let (_, list) = w.get(BOB, &path).await;
     assert_eq!(list, json!([]), "ended events leave the list");
-    assert_eq!(w.get(BOB, &one).await.1["status"], 3, "but can still be read");
+    assert_eq!(
+        w.get(BOB, &one).await.1["status"],
+        3,
+        "but can still be read"
+    );
 
     // Deleting removes it for good, and unknown ids answer 10070.
     assert_eq!(w.delete(OWNER, &one).await.0, StatusCode::NO_CONTENT);
     let (s, gone) = w.get(BOB, &one).await;
-    assert_eq!((s, gone["code"].as_u64()), (StatusCode::NOT_FOUND, Some(10070)));
+    assert_eq!(
+        (s, gone["code"].as_u64()),
+        (StatusCode::NOT_FOUND, Some(10070))
+    );
 
     // The gateway heard about all of it, in order.
     let mut seen = Vec::new();
@@ -1758,10 +1776,16 @@ async fn scheduled_event_rsvp_status_and_permissions() {
     }
     assert_eq!(seen.first(), Some(&"GUILD_SCHEDULED_EVENT_CREATE"));
     assert!(seen.contains(&"GUILD_SCHEDULED_EVENT_USER_ADD"), "{seen:?}");
-    assert!(seen.contains(&"GUILD_SCHEDULED_EVENT_USER_REMOVE"), "{seen:?}");
+    assert!(
+        seen.contains(&"GUILD_SCHEDULED_EVENT_USER_REMOVE"),
+        "{seen:?}"
+    );
     assert_eq!(seen.last(), Some(&"GUILD_SCHEDULED_EVENT_DELETE"));
     assert!(
-        seen.iter().filter(|n| **n == "GUILD_SCHEDULED_EVENT_UPDATE").count() >= 3,
+        seen.iter()
+            .filter(|n| **n == "GUILD_SCHEDULED_EVENT_UPDATE")
+            .count()
+            >= 3,
         "{seen:?}"
     );
 }

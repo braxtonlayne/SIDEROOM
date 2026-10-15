@@ -951,7 +951,10 @@ mod tests {
             mfa_level: Some(1),
             ..Default::default()
         };
-        assert!(edit(&manager, 5, same, &g2).is_ok(), "unchanged value is not a change");
+        assert!(
+            edit(&manager, 5, same, &g2).is_ok(),
+            "unchanged value is not a change"
+        );
         let off = GuildPatch {
             mfa_level: Some(0),
             ..Default::default()
@@ -971,7 +974,10 @@ mod tests {
             ),
             ..Default::default()
         };
-        assert_eq!(edit(&manager, 5, flags, &g).unwrap().system_channel_flags, 3);
+        assert_eq!(
+            edit(&manager, 5, flags, &g).unwrap().system_channel_flags,
+            3
+        );
         let undefined = GuildPatch {
             system_channel_flags: Some(1 << 6),
             ..Default::default()

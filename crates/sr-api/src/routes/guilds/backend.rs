@@ -463,8 +463,15 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
             .map(|b| guild_changes(b, &g))
             .unwrap_or_default();
         if let Some(a) = &self.audit {
-            a.record(id, actor, AuditAction::GuildUpdate, Some(id.get()), changes, None)
-                .await;
+            a.record(
+                id,
+                actor,
+                AuditAction::GuildUpdate,
+                Some(id.get()),
+                changes,
+                None,
+            )
+            .await;
         }
         let roles = self.svc.list_roles(actor, id).await.unwrap_or_default();
         self.emit(DomainEvent::GuildUpdated {

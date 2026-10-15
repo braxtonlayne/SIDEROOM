@@ -50,11 +50,7 @@ fn changes(old: &ScheduledEvent, new: &ScheduledEvent) -> Vec<AuditChange> {
         old.start_ms.into(),
         new.start_ms.into(),
     );
-    push(
-        "scheduled_end_time",
-        old.end_ms.into(),
-        new.end_ms.into(),
-    );
+    push("scheduled_end_time", old.end_ms.into(), new.end_ms.into());
     push(
         "entity_type",
         old.entity_type.code().into(),
@@ -79,11 +75,7 @@ impl<R: SettingsRepository> SettingsService<R> {
     }
 
     /// Interest counts of `events` and which of them `viewer` marked.
-    pub async fn event_stats(
-        &self,
-        viewer: UserId,
-        events: &[u64],
-    ) -> SettingsResult<EventStats> {
+    pub async fn event_stats(&self, viewer: UserId, events: &[u64]) -> SettingsResult<EventStats> {
         if events.is_empty() {
             return Ok(EventStats::default());
         }
@@ -174,7 +166,11 @@ impl<R: SettingsRepository> SettingsService<R> {
             actor,
             AuditAction::ScheduledEventDelete,
             Some(id),
-            vec![AuditChange::new("name", Some(old.name.clone().into()), None)],
+            vec![AuditChange::new(
+                "name",
+                Some(old.name.clone().into()),
+                None,
+            )],
             None,
         )
         .await?;

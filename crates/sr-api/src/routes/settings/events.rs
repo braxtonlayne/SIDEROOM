@@ -21,8 +21,8 @@
 use async_trait::async_trait;
 use serde_json::Value;
 use sr_core::{ChannelId, GuildId, UserId};
-use sr_events::{DomainEvent, EventBus};
 pub use sr_events::ScheduledEventKind as ScheduledEventDispatch;
+use sr_events::{DomainEvent, EventBus};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq)]

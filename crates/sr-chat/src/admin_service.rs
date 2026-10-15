@@ -107,9 +107,11 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
             None => true,
         };
         if let Some(Some(cid)) = patch.widget_channel_id {
-            let ok = self.repo.get_channel(cid).await?.is_some_and(|ch| {
-                ch.guild_id == Some(id) && ch.kind != ChannelType::Category
-            });
+            let ok = self
+                .repo
+                .get_channel(cid)
+                .await?
+                .is_some_and(|ch| ch.guild_id == Some(id) && ch.kind != ChannelType::Category);
             if !ok {
                 return Err(ChatError::invalid(
                     "channel_id",

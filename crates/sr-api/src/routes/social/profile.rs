@@ -19,12 +19,12 @@ use axum::{
     extract::{Path, Query},
 };
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use serde_json::Value;
 use sr_chat::social::profile::ProfileEdit;
 use sr_core::ErrorCode;
 use sr_core::UserId;
 use sr_storage::media::MediaKind;
+use utoipa::ToSchema;
 
 /// A user's profile: bio, pronouns, banner, accent colour and the connections they
 /// made visible.

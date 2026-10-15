@@ -1,8 +1,8 @@
 //! Orchestration for the social domain: load state, run the pure rules, persist.
 
 use super::dm::{
-    self, AddPlan, DmAccess, DmChannel, DmKind, GroupEdit, GroupInvite, InviteJoinPlan, RequestState,
-    dm_access,
+    self, AddPlan, DmAccess, DmChannel, DmKind, GroupEdit, GroupInvite, InviteJoinPlan,
+    RequestState, dm_access,
 };
 use super::notifications::{
     self, ChannelOverride, MentionKind, Mute, MuteDuration, NotificationLevel, ScopeSettings,
@@ -489,8 +489,7 @@ impl<R: SocialRepository> SocialService<R> {
     ) -> SocialResult<(DmChannel, bool)> {
         let (inv, ch) = self.group_invite(code).await?;
         let groups = self.repo.count_groups(user).await?;
-        let plan =
-            dm::plan_group_invite_join(user, &ch, &inv, self.now(), groups, &self.limits)?;
+        let plan = dm::plan_group_invite_join(user, &ch, &inv, self.now(), groups, &self.limits)?;
         if plan == InviteJoinPlan::AlreadyMember {
             return Ok((ch, false));
         }
@@ -504,11 +503,7 @@ impl<R: SocialRepository> SocialService<R> {
     }
 
     /// Revoke an invite (group owner). Returns the group.
-    pub async fn revoke_group_invite(
-        &self,
-        actor: UserId,
-        code: &str,
-    ) -> SocialResult<DmChannel> {
+    pub async fn revoke_group_invite(&self, actor: UserId, code: &str) -> SocialResult<DmChannel> {
         let inv = self
             .repo
             .get_group_invite(code)

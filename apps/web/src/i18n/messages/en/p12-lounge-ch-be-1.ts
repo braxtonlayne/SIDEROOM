@@ -34,4 +34,6 @@ export default {
   'settings.protection.newAccountError': 'Enter a whole number of days from 0 to 365.',
   'settings.protection.save': 'Save',
   'settings.protection.saved': 'Protection settings saved.',
+  'settings.profile.effect': 'Profile effect',
+  'settings.profile.effectNone': 'None',
 } satisfies Record<string, string>;

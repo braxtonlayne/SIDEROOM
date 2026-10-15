@@ -35,7 +35,10 @@ use utoipa::ToSchema;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/guilds/{guild_id}/mfa", post(set_mfa_level))
-        .route("/guilds/{guild_id}/widget", get(get_widget).patch(set_widget))
+        .route(
+            "/guilds/{guild_id}/widget",
+            get(get_widget).patch(set_widget),
+        )
         .route("/sr/auth/reauth", get(reauth_status).post(reauth))
 }
 
@@ -354,4 +357,3 @@ pub async fn set_widget(
         .map_err(ce)?;
     Ok(Json(widget_of(&g)))
 }
-

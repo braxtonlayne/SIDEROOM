@@ -1460,7 +1460,14 @@ async fn group_invites_are_owner_only_expire_and_add_the_joiner() {
         .await
         .unwrap();
     assert_eq!(inv.expires_at_ms - inv.created_at_ms, 24 * 60 * 60 * 1000);
-    assert_eq!(f.svc.list_group_invites(u(1), group.id).await.unwrap().len(), 1);
+    assert_eq!(
+        f.svc
+            .list_group_invites(u(1), group.id)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
 
     // A stranger joins; joining twice changes nothing and burns nothing.
     let (joined, added) = f.svc.join_group_invite(u(8), "abcd1234").await.unwrap();
@@ -1479,7 +1486,13 @@ async fn group_invites_are_owner_only_expire_and_add_the_joiner() {
         f.svc.join_group_invite(u(10), "abcd1234").await,
         Err(SocialError::UnknownInvite)
     ));
-    assert!(f.svc.list_group_invites(u(1), group.id).await.unwrap().is_empty());
+    assert!(
+        f.svc
+            .list_group_invites(u(1), group.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     // Expiry after 24 hours; an unknown code is just unknown.
     let inv = f
