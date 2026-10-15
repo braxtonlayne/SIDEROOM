@@ -250,11 +250,12 @@ export function HistoryPage() {
       void qc.invalidateQueries({ queryKey: ['library', 'unread'] });
     },
   });
+  const recent = q.data;
   const days = useMemo(() => {
-    const out: { key: string; label: string; items: NonNullable<typeof q.data> }[] = [];
+    const out: { key: string; label: string; items: NonNullable<typeof recent> }[] = [];
     const today = dayKey(Date.now());
     const yesterday = dayKey(Date.now() - 86_400_000);
-    for (const i of q.data ?? []) {
+    for (const i of recent ?? []) {
       const key = dayKey(i.updatedAtMs);
       let g = out[out.length - 1];
       if (!g || g.key !== key) {
@@ -273,7 +274,7 @@ export function HistoryPage() {
       g.items.push(i);
     }
     return out;
-  }, [q.data, t]);
+  }, [recent, t]);
   return (
     <div className="lib-history">
       <div className="lib-page-head">
@@ -303,51 +304,51 @@ export function HistoryPage() {
           {days.map((day) => (
             <section key={day.key} aria-label={day.label}>
               <h2 className="lib-h3">{day.label}</h2>
-        <ul className="lib-update-list lib-update-list-wide">
-          {day.items.map((i) => (
-            <li key={i.chapterId} className="lib-update-row">
-              <Link
-                to="/library/s/$seriesId"
-                params={{ seriesId: i.seriesId }}
-                className="lib-update-cover"
-                aria-hidden
-                tabIndex={-1}
-              >
-                {i.coverUrl ? (
-                  <img src={i.coverUrl} alt="" loading="lazy" />
-                ) : (
-                  <span>{i.seriesTitle.charAt(0)}</span>
-                )}
-              </Link>
-              <div className="lib-update-text">
-                <Link
-                  to="/library/s/$seriesId"
-                  params={{ seriesId: i.seriesId }}
-                  className="lib-update-title"
-                >
-                  {i.seriesTitle}
-                </Link>
-                <span className="lib-update-line">{progressLine(i)}</span>
-              </div>
-              <Link
-                to="/library/r/$chapterId/{-$page}"
-                params={{ chapterId: i.chapterId, page: String(i.pageIndex + 1) }}
-                className="lib-btn"
-              >
-                {t('library.pages.history.continue')}
-              </Link>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={remove.isPending}
-                aria-label={t('library.pages.history.removeItem', { title: i.seriesTitle })}
-                onClick={() => remove.mutate(i.chapterId)}
-              >
-                <Icon name="close" size={16} />
-              </Button>
-            </li>
-          ))}
-        </ul>
+              <ul className="lib-update-list lib-update-list-wide">
+                {day.items.map((i) => (
+                  <li key={i.chapterId} className="lib-update-row">
+                    <Link
+                      to="/library/s/$seriesId"
+                      params={{ seriesId: i.seriesId }}
+                      className="lib-update-cover"
+                      aria-hidden
+                      tabIndex={-1}
+                    >
+                      {i.coverUrl ? (
+                        <img src={i.coverUrl} alt="" loading="lazy" />
+                      ) : (
+                        <span>{i.seriesTitle.charAt(0)}</span>
+                      )}
+                    </Link>
+                    <div className="lib-update-text">
+                      <Link
+                        to="/library/s/$seriesId"
+                        params={{ seriesId: i.seriesId }}
+                        className="lib-update-title"
+                      >
+                        {i.seriesTitle}
+                      </Link>
+                      <span className="lib-update-line">{progressLine(i)}</span>
+                    </div>
+                    <Link
+                      to="/library/r/$chapterId/{-$page}"
+                      params={{ chapterId: i.chapterId, page: String(i.pageIndex + 1) }}
+                      className="lib-btn"
+                    >
+                      {t('library.pages.history.continue')}
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={remove.isPending}
+                      aria-label={t('library.pages.history.removeItem', { title: i.seriesTitle })}
+                      onClick={() => remove.mutate(i.chapterId)}
+                    >
+                      <Icon name="close" size={16} />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
             </section>
           ))}
         </div>

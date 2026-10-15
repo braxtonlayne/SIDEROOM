@@ -211,11 +211,18 @@ function Trending() {
   const t = useT();
   const [scope, setScope] = useState<RankingScope>('global');
   const q = useQuery({
-    queryKey: scope === 'global' ? keys.browse({ sort: 'followers', limit: 5 }) : socialKeys.rankings('week', undefined, scope),
+    queryKey:
+      scope === 'global'
+        ? keys.browse({ sort: 'followers', limit: 5 })
+        : socialKeys.rankings('week', undefined, scope),
     queryFn: async () =>
       scope === 'global'
         ? browseSeries({ sort: 'followers', limit: 5 })
-        : { items: (await getRankings({ period: 'week', scope, limit: 5 })).items.map((r) => r.series) },
+        : {
+            items: (await getRankings({ period: 'week', scope, limit: 5 })).items.map(
+              (r) => r.series,
+            ),
+          },
   });
   return (
     <section className="lib-section" aria-labelledby="lib-trending">
@@ -289,7 +296,11 @@ function Because() {
   return (
     <>
       {rows.map((r) => (
-        <section key={r.seed_id} className="lib-section" aria-label={t('library.home.because.title', { title: r.seed_title })}>
+        <section
+          key={r.seed_id}
+          className="lib-section"
+          aria-label={t('library.home.because.title', { title: r.seed_title })}
+        >
           <div className="lib-section-head">
             <h2 className="lib-h2">{t('library.home.because.title', { title: r.seed_title })}</h2>
           </div>

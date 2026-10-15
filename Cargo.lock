@@ -5465,6 +5465,7 @@ name = "sr-library-social"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "moka",
  "serde",
  "serde_json",
  "sqlx",

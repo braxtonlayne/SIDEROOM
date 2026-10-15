@@ -113,7 +113,12 @@ describe('credits and comment reports (LIB-ADM-002)', () => {
               reason: 'spam',
               status: 'open',
               created_at_ms: 1_700_000_000_000,
-              comment: { id: '4', body: 'Buy cheap watches', author_name: 'Spammer', series_id: '7' },
+              comment: {
+                id: '4',
+                body: 'Buy cheap watches',
+                author_name: 'Spammer',
+                series_id: '7',
+              },
             },
           ],
         }),

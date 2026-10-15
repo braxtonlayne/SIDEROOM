@@ -45,7 +45,9 @@ beforeEach(() => {
 
 describe('offline cache helpers', () => {
   it('keys pages by path without the signature', () => {
-    expect(pathKey('/cdn/library/1/c1/0001.webp?exp=9&sig=abc')).toBe('/cdn/library/1/c1/0001.webp');
+    expect(pathKey('/cdn/library/1/c1/0001.webp?exp=9&sig=abc')).toBe(
+      '/cdn/library/1/c1/0001.webp',
+    );
     expect(pathKey('https://x.example/cdn/a.webp?sig=1')).toBe('/cdn/a.webp');
   });
 
@@ -100,7 +102,9 @@ describe('cacheChapter', () => {
     expect(await cacheChapter(manifest(1))).toBe(0);
     const { api } = fakeCaches();
     vi.stubGlobal('caches', api);
-    expect(await cacheChapter(manifest(1, { chapter: { ...manifest(1).chapter, format: 'pdf' } }))).toBe(0);
+    expect(
+      await cacheChapter(manifest(1, { chapter: { ...manifest(1).chapter, format: 'pdf' } })),
+    ).toBe(0);
     vi.stubGlobal('navigator', {
       ...navigator,
       storage: { estimate: async () => ({ usage: 99, quota: 100 }) },

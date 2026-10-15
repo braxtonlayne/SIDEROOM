@@ -86,7 +86,10 @@ export function validateBrowseSearch(s: Record<string, unknown>): BrowseSearch {
   set('language', str(s.language));
   set('year_from', num(s.year_from));
   set('year_to', num(s.year_to));
-  set('rating_min', ((n) => (n !== undefined && n >= 1 && n <= 10 ? n : undefined))(num(s.rating_min)));
+  set(
+    'rating_min',
+    ((n) => (n !== undefined && n >= 1 && n <= 10 ? n : undefined))(num(s.rating_min)),
+  );
   set('age', oneOf(s.age, AGES));
   set(
     'sort',

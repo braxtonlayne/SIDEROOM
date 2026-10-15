@@ -152,7 +152,10 @@ export function useLibraryApi(
     http.get('*/api/v1/library/me/downloads', () =>
       HttpResponse.json({ entitled: false, per_day: 0, left: 0 }),
     ),
-    http.put('*/api/v1/library/chapters/:id/presence', () => new HttpResponse(null, { status: 204 })),
+    http.put(
+      '*/api/v1/library/chapters/:id/presence',
+      () => new HttpResponse(null, { status: 204 }),
+    ),
     http.delete('*/api/v1/library/me/presence', () => new HttpResponse(null, { status: 204 })),
     http.get('*/api/v1/library/chapters/:id/comments', () =>
       HttpResponse.json({ items: [], next_before: null, total: 0 }),

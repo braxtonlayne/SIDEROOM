@@ -4,7 +4,8 @@ export default {
   'library.comments.count': '{n, plural, one {# comment} other {# comments}}',
   'library.comments.loadError': 'Could not load the comments.',
   'library.comments.emptyTitle': 'No comments yet',
-  'library.comments.emptyDescription': 'Be the first to say something. Mark spoilers so others can skip them.',
+  'library.comments.emptyDescription':
+    'Be the first to say something. Mark spoilers so others can skip them.',
   'library.comments.loadMore': 'Load more comments',
   'library.comments.bodyLabel': 'Add a comment',
   'library.comments.replyLabel': 'Write a reply',
@@ -28,7 +29,8 @@ export default {
   'library.comments.showReplies': '{n, plural, one {Show # reply} other {Show # replies}}',
   // Downloads (SeriesExtras.tsx, Patron perk, D-075)
   'library.download.button': 'Download',
-  'library.download.left': '{n, plural, one {# download left today} other {# downloads left today}}',
+  'library.download.left':
+    '{n, plural, one {# download left today} other {# downloads left today}}',
   'library.download.limitReached': "You have used today's downloads. Try again tomorrow.",
   'library.download.tooLarge': 'This chapter is too large to export.',
   'library.download.failed': 'Could not prepare the download.',
@@ -47,7 +49,8 @@ export default {
   'library.related.emptyDescription': 'Related series appear as the library grows.',
   'library.contributors.loadError': 'Could not load the contributors.',
   'library.contributors.emptyTitle': 'No contributors listed',
-  'library.contributors.emptyDescription': 'Credits appear once members publish chapters of this series.',
+  'library.contributors.emptyDescription':
+    'Credits appear once members publish chapters of this series.',
   'library.contributors.members': 'Uploaded by',
   'library.contributors.groups': 'Release groups',
   'library.contributors.chapters': '{n, plural, one {# chapter} other {# chapters}}',
@@ -80,7 +83,8 @@ export default {
   'library.browse.ratingAtLeast': '{n} or higher',
   // Reader: offline cache
   'library.panels.settings.offline': 'Keep chapters for offline reading',
-  'library.panels.settings.offlineHint': 'Saves the chapter you are reading and the next one in this browser. Uses storage and data; turn it off on a metered connection.',
+  'library.panels.settings.offlineHint':
+    'Saves the chapter you are reading and the next one in this browser. Uses storage and data; turn it off on a metered connection.',
   // Home: recommendations
   'library.home.because.title': 'Because you read {title}',
 };

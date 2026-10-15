@@ -1338,3 +1338,65 @@ async fn contributors_list_credited_members_and_release_groups() {
     assert_eq!(c.members[0].chapters, 1);
     e.teardown().await;
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn cached_rankings_are_shared_globally_and_kept_per_member_for_scopes() {
+    let e = Env::new().await;
+    let svc = e.svc.clone().with_trending_cache(
+        std::time::Duration::from_secs(3600),
+        std::time::Duration::from_secs(600),
+    );
+    let (me, other, friend) = (e.user().await, e.user().await, e.user().await);
+    e.befriend(me.user_id, friend.user_id).await;
+    let s = e.series("Cached", false).await;
+    let c = e.chapter(s, 1.0).await;
+    e.progress(friend.user_id, s, c, true).await;
+    let first = svc
+        .rankings_scoped(me, RankingScope::Friends, RankingPeriod::Week, None, None)
+        .await
+        .unwrap();
+    assert_eq!(first.items.len(), 1);
+    let g1 = svc
+        .rankings(me, RankingPeriod::Week, None, None)
+        .await
+        .unwrap();
+    // New reading shows up only after the cache lapses.
+    let s2 = e.series("Later", false).await;
+    let c2 = e.chapter(s2, 1.0).await;
+    e.progress(friend.user_id, s2, c2, true).await;
+    let second = svc
+        .rankings_scoped(me, RankingScope::Friends, RankingPeriod::Week, None, None)
+        .await
+        .unwrap();
+    assert_eq!(second.items.len(), 1, "served from the 10-minute cache");
+    let g2 = svc
+        .rankings(other, RankingPeriod::Week, None, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        g2.items.len(),
+        g1.items.len(),
+        "the global aggregate is shared across members"
+    );
+    // Another member has their own scoped entry (no friends, so nothing), computed fresh.
+    let theirs = svc
+        .rankings_scoped(
+            other,
+            RankingScope::Friends,
+            RankingPeriod::Week,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(theirs.items.is_empty());
+    // Without the cache the new reading is there at once.
+    let live = e
+        .svc
+        .rankings_scoped(me, RankingScope::Friends, RankingPeriod::Week, None, None)
+        .await
+        .unwrap();
+    assert_eq!(live.items.len(), 2);
+    e.teardown().await;
+}

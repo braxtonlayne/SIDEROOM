@@ -348,7 +348,8 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
   // may see it (activity settings, D-190) and answers 204 either way.
   useEffect(() => {
     const beat = () => {
-      if (document.visibilityState === 'visible') void readingHeartbeat(chapter.id).catch(() => undefined);
+      if (document.visibilityState === 'visible')
+        void readingHeartbeat(chapter.id).catch(() => undefined);
     };
     beat();
     const timer = window.setInterval(beat, PRESENCE_MS);

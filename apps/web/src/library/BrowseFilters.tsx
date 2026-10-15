@@ -101,13 +101,7 @@ export function GenrePicker({
   );
 }
 
-export function TagField({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-}) {
+export function TagField({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   const t = useT();
   const [draft, setDraft] = useState('');
   const tags = csvList(value);

@@ -34,6 +34,46 @@ impl LibrarySocial {
         limit: Option<u32>,
     ) -> SocialResult<Rankings> {
         let limit = i64::from(rules::limit(limit));
+        // The caches are keyed by everything that changes the answer; the member only counts for the
+        // scoped scopes (their friends are theirs).
+        let cache = self.trending.as_ref().map(|c| {
+            let who = if scope == RankingScope::Global {
+                0
+            } else {
+                v.user_id
+            };
+            let key = format!(
+                "{scope:?}|{period:?}|{}|{limit}|{}|{who}",
+                kind.as_deref().unwrap_or(""),
+                v.hide_restricted
+            );
+            let store = if scope == RankingScope::Global {
+                &c.global
+            } else {
+                &c.scoped
+            };
+            (store.clone(), key)
+        });
+        if let Some((store, key)) = &cache
+            && let Some(hit) = store.get(key).await
+        {
+            return Ok(hit);
+        }
+        let fresh = self.compute_rankings(v, scope, period, kind, limit).await?;
+        if let Some((store, key)) = cache {
+            store.insert(key, fresh.clone()).await;
+        }
+        Ok(fresh)
+    }
+
+    async fn compute_rankings(
+        &self,
+        v: Viewer,
+        scope: RankingScope,
+        period: RankingPeriod,
+        kind: Option<String>,
+        limit: i64,
+    ) -> SocialResult<Rankings> {
         if scope != RankingScope::Global {
             return self.scoped_rankings(v, scope, period, kind, limit).await;
         }

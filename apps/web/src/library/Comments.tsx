@@ -245,9 +245,7 @@ function CommentItem({
             maxLength={500}
             onChange={(e) => setReason(e.target.value)}
           />
-          {report.isError && (
-            <Notice variant="danger">{t('library.comments.reportError')}</Notice>
-          )}
+          {report.isError && <Notice variant="danger">{t('library.comments.reportError')}</Notice>}
           <div className="lib-actions">
             <Button type="submit" size="sm" disabled={!reason.trim() || report.isPending}>
               {t('library.comments.reportSend')}

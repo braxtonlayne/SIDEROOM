@@ -122,7 +122,9 @@ describe('related and contributors tabs (LIB-SOC-005, LIB-SER-005)', () => {
     renderAt('/library/s/1');
     await user.click(await screen.findByRole('tab', { name: 'Related' }));
     expect(await screen.findByText('Monster')).toBeInTheDocument();
-    expect(screen.getByText('Similar genres and tags · Read by people you know')).toBeInTheDocument();
+    expect(
+      screen.getByText('Similar genres and tags · Read by people you know'),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Contributors' }));
     expect(await screen.findByText('Uploader Una')).toBeInTheDocument();
     expect(screen.getByText('12 chapters')).toBeInTheDocument();
@@ -149,7 +151,9 @@ describe('downloads and sharing (LIB-SER-002/004, LIB-RDR-016)', () => {
         });
       }),
     );
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
     const user = userEvent.setup();
     renderAt('/library/s/1');
     const row = (await screen.findByText(/Chapter 3/, { selector: '.lib-chapter-title' })).closest(
@@ -232,7 +236,11 @@ describe('Because you read (LIB-SOC-005)', () => {
       http.get('*/api/v1/library/recommendations', () =>
         HttpResponse.json({
           rows: [
-            { seed_id: '1', seed_title: 'Frieren', items: [{ score: 3, reasons: ['tags'], series: DONE }] },
+            {
+              seed_id: '1',
+              seed_title: 'Frieren',
+              items: [{ score: 3, reasons: ['tags'], series: DONE }],
+            },
           ],
         }),
       ),

@@ -109,7 +109,12 @@ export function cropView(
   const kw = w - left - right;
   const kh = h - top - bottom;
   const sane = [left, top, right, bottom].every((n) => Number.isFinite(n) && n >= 0);
-  if (!sane || kw < w * 0.4 || kh < h * 0.4 || (left === 0 && top === 0 && right === 0 && bottom === 0))
+  if (
+    !sane ||
+    kw < w * 0.4 ||
+    kh < h * 0.4 ||
+    (left === 0 && top === 0 && right === 0 && bottom === 0)
+  )
     return null;
   return {
     ratio: `${kw} / ${kh}`,

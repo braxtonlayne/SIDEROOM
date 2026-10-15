@@ -87,13 +87,15 @@ export function VirtualGrid<T>({
   const cols = virtual ? columnsFor(width) : 0;
   const rows = virtual ? Math.ceil(items.length / cols) : 0;
   const stride = rowH + GAP;
-  const { first, last } = virtual ? visibleRows(view.offset, view.viewport, stride, rows) : { first: 0, last: 0 };
+  const { first, last } = virtual
+    ? visibleRows(view.offset, view.viewport, stride, rows)
+    : { first: 0, last: 0 };
 
   // Learn the real row height from the first mounted row.
   useLayoutEffect(() => {
     const h = firstRow.current?.offsetHeight ?? 0;
     if (virtual && h > 0 && Math.abs(h - rowH) > 1) setRowH(h);
-  });
+  }, [virtual, rowH, first, cols]);
 
   if (!virtual)
     return (

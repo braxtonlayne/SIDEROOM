@@ -276,7 +276,9 @@ describe('rankings', () => {
         return HttpResponse.json({
           period: 'week',
           scope: u.searchParams.get('scope') ?? 'global',
-          items: [{ rank: 1, score: 2, readers: 1, rating_average: null, rating_count: 0, series: A }],
+          items: [
+            { rank: 1, score: 2, readers: 1, rating_average: null, rating_count: 0, series: A },
+          ],
         });
       }),
     );

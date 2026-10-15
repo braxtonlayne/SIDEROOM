@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+moka = { workspace = true, features = ["future"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres"] }
 sr-library = { path = "../sr-library" }
 thiserror.workspace = true

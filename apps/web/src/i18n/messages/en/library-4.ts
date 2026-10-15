@@ -61,7 +61,8 @@ export default {
   'library.panels.settings.tapZonesHint': 'Tap the left or right third of the page to turn it.',
   'library.panels.settings.coverOffset': 'Show first page alone in double-page mode',
   'library.panels.settings.crop': 'Crop borders',
-  'library.panels.settings.cropHint': 'Cuts the blank borders found when the chapter was converted. Pages without border data show whole.',
+  'library.panels.settings.cropHint':
+    'Cuts the blank borders found when the chapter was converted. Pages without border data show whole.',
   'library.panels.settings.everywhere': 'Use for all series',
   'library.panels.settings.everywhereHint': 'Off: changes apply to this series only.',
   'library.panels.settings.reset': 'Reset this series to my defaults',
