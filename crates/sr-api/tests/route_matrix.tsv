@@ -332,12 +332,15 @@ GET	/library/me/notifications	authenticated	other	allow	-
 GET	/library/me/progress	authenticated	other	allow	-
 GET	/library/me/unread	authenticated	other	allow	-
 GET	/library/rankings	authenticated	other	allow	-
+GET	/library/recommendations	authenticated	other	allow	-
 GET	/library/search	authenticated	other	allow	-
 GET	/library/series	authenticated	other	allow	-
 GET	/library/series/{series_id}	authenticated	other	allow	-
 GET	/library/series/{series_id}/chapters	authenticated	other	allow	-
 GET	/library/series/{series_id}/comments	authenticated	other	allow	-
+GET	/library/series/{series_id}/contributors	authenticated	other	allow	-
 GET	/library/series/{series_id}/ratings	authenticated	other	allow	-
+GET	/library/series/{series_id}/related	authenticated	other	allow	-
 GET	/library/series/{series_id}/reviews	authenticated	other	allow	-
 GET	/library/updates	authenticated	other	allow	-
 GET	/library/users/{user_id}/lists	authenticated	other	allow	-

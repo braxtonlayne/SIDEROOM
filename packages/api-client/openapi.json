@@ -40125,6 +40125,55 @@
         ]
       }
     },
+    "/library/recommendations": {
+      "get": {
+        "tags": [
+          "discover"
+        ],
+        "summary": "\"Because you read X\": up to three rows, one per recently read series.",
+        "operationId": "library_recommendations",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBecauseBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/library/reviews/{review_id}/helpful": {
       "put": {
         "tags": [
@@ -40794,6 +40843,63 @@
         ]
       }
     },
+    "/library/series/{series_id}/contributors": {
+      "get": {
+        "tags": [
+          "discover"
+        ],
+        "summary": "Who uploaded and credited the chapters, and the release groups.",
+        "operationId": "library_contributors",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryContributors"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/library/series/{series_id}/follow": {
       "put": {
         "tags": [
@@ -41062,6 +41168,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SeriesRatings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/series/{series_id}/related": {
+      "get": {
+        "tags": [
+          "discover"
+        ],
+        "summary": "Series like this one: shared genres and tags, and what the people you know read next.",
+        "operationId": "library_related",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "series_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryRelatedBody"
                 }
               }
             }
@@ -61993,6 +62167,42 @@
           }
         }
       },
+      "LibraryBecauseBody": {
+        "type": "object",
+        "required": [
+          "rows"
+        ],
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryBecauseEntry"
+            }
+          }
+        }
+      },
+      "LibraryBecauseEntry": {
+        "type": "object",
+        "required": [
+          "seed_id",
+          "seed_title",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryRelatedEntry"
+            }
+          },
+          "seed_id": {
+            "type": "string"
+          },
+          "seed_title": {
+            "type": "string"
+          }
+        }
+      },
       "LibraryChapterExport": {
         "type": "object",
         "description": "A file ready to download.",
@@ -62223,6 +62433,48 @@
           }
         }
       },
+      "LibraryContributor": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "name",
+          "chapters"
+        ],
+        "properties": {
+          "chapters": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Credited chapters in this series."
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "LibraryContributors": {
+        "type": "object",
+        "required": [
+          "members",
+          "groups"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryReleaseGroup"
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryContributor"
+            }
+          }
+        }
+      },
       "LibraryCountBody": {
         "type": "object",
         "description": "A count after a vote.",
@@ -62444,6 +62696,60 @@
           "count": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "LibraryRelatedBody": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryRelatedEntry"
+            }
+          }
+        }
+      },
+      "LibraryRelatedEntry": {
+        "type": "object",
+        "required": [
+          "score",
+          "reasons",
+          "series"
+        ],
+        "properties": {
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`tags` and/or `coread`."
+          },
+          "score": {
+            "type": "number",
+            "format": "double"
+          },
+          "series": {
+            "$ref": "#/components/schemas/Series"
+          }
+        }
+      },
+      "LibraryReleaseGroup": {
+        "type": "object",
+        "required": [
+          "name",
+          "chapters"
+        ],
+        "properties": {
+          "chapters": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },

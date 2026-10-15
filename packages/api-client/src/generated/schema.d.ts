@@ -7503,6 +7503,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** "Because you read X": up to three rows, one per recently read series. */
+        get: operations["library_recommendations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/reviews/{review_id}/helpful": {
         parameters: {
             query?: never;
@@ -7607,6 +7624,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/series/{series_id}/contributors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who uploaded and credited the chapters, and the release groups. */
+        get: operations["library_contributors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/series/{series_id}/follow": {
         parameters: {
             query?: never;
@@ -7655,6 +7689,23 @@ export interface paths {
          *     with the distribution of scores.
          */
         get: operations["library_series_ratings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Series like this one: shared genres and tags, and what the people you know read next. */
+        get: operations["library_related"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13321,6 +13372,14 @@ export interface components {
             /** @description `false` opts the caller out of XP in this server and deletes their XP. */
             enabled: boolean;
         };
+        LibraryBecauseBody: {
+            rows: components["schemas"]["LibraryBecauseEntry"][];
+        };
+        LibraryBecauseEntry: {
+            items: components["schemas"]["LibraryRelatedEntry"][];
+            seed_id: string;
+            seed_title: string;
+        };
         /** @description A file ready to download. */
         LibraryChapterExport: {
             /** Format: int64 */
@@ -13388,6 +13447,19 @@ export interface components {
         };
         LibraryCommentReports: {
             items: components["schemas"]["LibraryCommentReport"][];
+        };
+        LibraryContributor: {
+            /**
+             * Format: int64
+             * @description Credited chapters in this series.
+             */
+            chapters: number;
+            name: string;
+            user_id: string;
+        };
+        LibraryContributors: {
+            groups: components["schemas"]["LibraryReleaseGroup"][];
+            members: components["schemas"]["LibraryContributor"][];
         };
         /** @description A count after a vote. */
         LibraryCountBody: {
@@ -13461,6 +13533,21 @@ export interface components {
             average?: number | null;
             /** Format: int64 */
             count: number;
+        };
+        LibraryRelatedBody: {
+            items: components["schemas"]["LibraryRelatedEntry"][];
+        };
+        LibraryRelatedEntry: {
+            /** @description `tags` and/or `coread`. */
+            reasons: string[];
+            /** Format: double */
+            score: number;
+            series: components["schemas"]["Series"];
+        };
+        LibraryReleaseGroup: {
+            /** Format: int64 */
+            chapters: number;
+            name: string;
         };
         LibraryReportBody: {
             /** @description 1 to 500 characters. */
@@ -42812,6 +42899,36 @@ export interface operations {
             };
         };
     };
+    library_recommendations: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryBecauseBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_review_helpful: {
         parameters: {
             query?: never;
@@ -43180,6 +43297,44 @@ export interface operations {
             };
         };
     };
+    library_contributors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryContributors"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_follow: {
         parameters: {
             query?: never;
@@ -43369,6 +43524,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesRatings"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_related: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryRelatedBody"];
                 };
             };
             401: {

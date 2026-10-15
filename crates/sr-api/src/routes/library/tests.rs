@@ -1061,6 +1061,9 @@ fn new_member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         ),
         (Method::DELETE, "/library/bookmarks/5", None),
         (Method::GET, "/library/me/bookmarks", None),
+        (Method::GET, "/library/series/70/related", None),
+        (Method::GET, "/library/series/70/contributors", None),
+        (Method::GET, "/library/recommendations", None),
         (Method::GET, "/library/series/70/comments", None),
         (
             Method::POST,
