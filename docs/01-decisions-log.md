@@ -236,3 +236,14 @@ Adopted from the "Phase 8 to 11 handoff questions" section of [open-question-ans
 | D-214 | **Report snapshots are readable by case staff**: the reported message plus ten before and after, taken at report time; opening one is access-logged with the case id; anything beyond needs `READ_PRIVATE_CONTENT` (D-125). (MOD-9) | Default |
 | D-215 | **Appeals ship with cases**: one appeal per decision, from the ban screen, reviewed by a different staff member (the Owner when nobody else holds the bit). (MOD-10) | Default |
 | D-216 | **Clients read platform flags from `GET /sr/features/flags`** (flags marked `client_visible`, any signed-in human), replacing build-time seeds such as `VITE_FEATURE_MODERATION_REPORTS`. (MOD-11) | Default |
+
+## Phase 12 handoff answers (2026-10-15)
+
+Adopted from the "Phase 12 handoff questions" section of [open-question-answers.md](open-question-answers.md) (question ids in parentheses). The direct-appointment owner decision of the same day (keep `POST /admin/staff`, Owner only, behind re-auth) is recorded by the amended D-197 on `feat/p12-admin-mod-be` and gets no new number here. Implementation work is G-68 onward in [dev/answers-followups-p12.md](dev/answers-followups-p12.md).
+
+| ID | Decision | Status |
+|---|---|---|
+| D-217 | **PDFs are read in the browser with `pdfjs-dist`; no server rasterizer.** `pdfjs-dist` (6.4.299) is an approved `apps/web` dependency, loaded lazily as its own chunk with a real worker; the server only validates PDFs (`pdf.rs`), the cover of a PDF submission is rendered client-side and submitted, and reading progress is the page index. `pdfium-render` stays approved under ADR-0005 but is not used or bundled; LIB-ING-004's image mode is closed, not deferred. Closes open-questions item 2 and P11-LIB-2. (P12-WFU-1) | Decided (owner) |
+| D-218 | **`/rank`, `/suggest` and `/ticket` are offered in every server.** When the matching module is off, the Community dialog says so and links people who manage the server to Server Settings → Features; the command set does not change per server. (P12-FUI-1) | Decided (owner) |
+| D-219 | **The birthday card lives on User Settings → Profiles → Servers.** Birthdays are announced per server, so the card sits with the per-server profile; the main profile tab keeps Discord's layout. (P12-FUI-2) | Decided (owner) |
+| D-220 | **App tester slots count invitations, and testers may install private development apps.** The 25-tester cap of D-204 counts pending invitations together with accepted testers (a developer frees a slot by withdrawing an invitation); an accepted tester may install a `development` application whether or not it is public, still only where they hold `MANAGE_GUILD` in a guild of at most 25 members. Amends D-204. (P12-DPB-1, P12-DPB-2) | Default |
