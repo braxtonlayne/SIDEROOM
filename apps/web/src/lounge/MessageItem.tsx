@@ -333,6 +333,7 @@ function MessageItemImpl(props: MessageItemProps) {
     return entries;
   }, [
     t,
+    prefs.ttsRate,
     developerMode,
     m,
     isOwn,
