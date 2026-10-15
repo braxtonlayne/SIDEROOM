@@ -12,7 +12,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [x] **ADM-STF-007** [BE] System user + bot-style card poster for staff channels (components with action handlers) _sr-server staff_feed.rs: StaffVoice posts cards as the system user, POST /admin/card-actions runs sr:ack:, sr:clear-suspicion: and sr:retry-job: with the presser own permissions. Review-queue Approve/Reject buttons belong to the REV items._
 - [x] **ADM-STF-008** [BE] Hash-chained access log writer + nightly verifier job + alert
 - [x] **ADM-STF-009** [BE] Re-auth (2FA within 15 min) middleware for sensitive admin routes _AdminDeps::with_reauth + StaffCtx::require_reauth; GET/POST /admin/reauth; applied to private reads, email change, forced password reset, reset-2fa, staff appoint/offer/roles/revoke/delegate, announcements. SR_ADMIN_REQUIRE_REAUTH=0 turns it off for dev. Test: admin/tests.rs sensitive_routes_wait_for_a_fresh_second_factor._
-- [x] **ADM-STF-010** [FE] Staff Server rail frame, "SIDE ROOM Staff" profile badge *(rail frame and STAFF badge in `lounge/GuildRail.tsx`, driven by `is_staff_guild` on the guild payload (sent since the p10 integration: guild object, GUILD_CREATE, `GET /users/@me/guilds`); there is no profile badge yet, see handoff admin-fe)*
+- [x] **ADM-STF-010** [FE] Staff Server rail frame, "SIDE ROOM Staff" profile badge *(rail frame and STAFF badge in `lounge/GuildRail.tsx`, driven by `is_staff_guild` on the guild payload (sent since the p10 integration: guild object, GUILD_CREATE, `GET /users/@me/guilds`); there is no profile badge: the user/profile objects carry no staff flag (accounts.flags bits 0/1 are system and app developer, 8 to 11 are staff-granted badges), so p11 left it; needs a BE flag first, see handoff feat-p11-p10-client)*
 - [x] **ADM-STF-011** [FE] "Platform Admin" entry in Staff Server dropdown and user menu *(`lounge/shell/StatusMenu.tsx`, the server menus and `platformStaff.ts`; test in `lounge/__tests__/homeFlows.test.tsx`)*
 
 ## ADM-UI — Admin pages shell
@@ -53,7 +53,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 ## ADM-COM — Community
 - [ ] **ADM-COM-001** [FE] Server Directory approvals (request detail, preview server, approve/deny with note, categories manager, featured)
 - [ ] **ADM-COM-002** [FE] Servers search (all guilds), metadata view, transfer ownership, delete
-- [ ] **ADM-COM-003** [FE] Private Content Viewer (channel/DM picker, reason + 2FA gate, read-only message list incl. deleted ≤ 30d and edit history, banner "Access is logged")
+- [x] **ADM-COM-003** [FE] Private Content Viewer (channel/DM picker, reason + 2FA gate, read-only message list incl. deleted ≤ 30d and edit history, banner "Access is logged") *(p11: `admin/sections/PrivateContent.tsx` (section `private-content`, needs READ_PRIVATE_CONTENT): look up by channel id, by account (its DMs) or by server (its channels), reason required, paging, deleted/edited badges, edit history; the 2FA gate is the re-auth modal (`admin/ReauthHost.tsx`, `withReauth` in `admin/reauth.ts`); tests `admin/__tests__/p11client.test.tsx`)*
 - [x] **ADM-COM-004** [BE] Private content read API (deleted + edits), logging every request _GET /admin/private/channels/{id}/messages (deleted within retention.deleted_message_days plus edit history), /admin/private/accounts/{id}/dms, /admin/private/guilds/{id}/channels. Reason required, fresh 2FA, hash-chained private_read row written before content returns._
 
 ## ADM-PLT — Platform settings
