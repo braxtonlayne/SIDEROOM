@@ -41,4 +41,8 @@ export default {
   'lounge.guildProfile.saveError': 'Your profile could not be saved.',
   'lounge.guildProfile.cancel': 'Cancel',
   'lounge.guildProfile.save': 'Save',
+  'lounge.banners.dismissAnnouncement': 'Dismiss announcement: {title}',
+  'lounge.banners.updateReady': 'A new version of SIDE ROOM is ready.',
+  'lounge.banners.updateReload': 'Reload to update',
+  'lounge.banners.dismissUpdate': 'Dismiss update notice',
 } satisfies Record<string, string>;

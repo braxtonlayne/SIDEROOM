@@ -11,7 +11,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-SHL-006** [FE] Quick Switcher (Ctrl/⌘+K): fuzzy search of DMs, channels, servers, users; prefixes `@ # ! *`; recent list
 - [x] **LNG-SHL-007** [FE] Keyboard shortcut system + shortcut sheet modal (Ctrl+/)
 - [x] **LNG-SHL-008** [FE] Connection state banner ("Connecting…", "Reconnecting…", offline mode)
-- [ ] **LNG-SHL-009** [FE] App-level notices bar (verify email, update available, platform announcements)
+- [x] **LNG-SHL-009** [FE] App-level notices bar (verify email, update available, platform announcements) *(`shell/Banners.tsx` NoticesBar: verify email, PWA update waiting, `GET /announcements/active` with per-browser dismissal; test `p11ShellNotices.test.tsx`)*
 - [x] **LNG-SHL-010** [FE] Mobile layout: swipeable panes (list ↔ chat ↔ members), bottom tab bar (Home, Notifications, You)
 - [x] **LNG-SHL-011** [FE] Drag-and-drop file overlay on the chat column
 - [x] **LNG-SHL-012** [FE] Global modals host + context-menu host + popout host (profile popouts)

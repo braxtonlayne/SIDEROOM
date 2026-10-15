@@ -153,6 +153,9 @@
   background: var(--bg-base-low);
   border-bottom: 1px solid var(--ui-border);
 }
+.lng-banner[data-tone='danger'] {
+  background: color-mix(in srgb, var(--danger, #ed4245) 25%, var(--bg-base-low));
+}
 .lng-banner[data-tone='warn'] {
   background: color-mix(in srgb, var(--warning, #faa61a) 25%, var(--bg-base-low));
 }
