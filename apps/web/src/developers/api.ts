@@ -6,6 +6,7 @@ import type {
   AppCreated,
   AppInstall,
   AppPatch,
+  AppTester,
   AppVersion,
   ApplyBody,
   AuthorizePreview,
@@ -53,6 +54,29 @@ export const deleteApp = (appId: string, password: string) =>
 export const createInteractionsKey = (appId: string) =>
   apiPost<{ verify_key: string }>(`/applications/${id(appId)}/interactions-key`, {});
 
+/** Runs the signed PING check against the saved URL and switches a disabled endpoint back on (D-186). */
+export const verifyEndpoint = (appId: string) =>
+  apiPost<{
+    interactions_endpoint_url: string | null;
+    interactions_endpoint_state: 'enabled' | 'disabled';
+    verify_key: string | null;
+  }>(`/applications/${id(appId)}/endpoint/verify`, {});
+
+// ---- testers (D-204) ----
+export const listTesters = (appId: string) =>
+  apiFetch<AppTester[]>(`/applications/${id(appId)}/testers`, ro);
+/** Invite by username; the person answers a system DM. */
+export const inviteTester = (appId: string, username: string) =>
+  apiPost<AppTester>(`/applications/${id(appId)}/testers`, { username });
+export const removeTester = (appId: string, userId: string) =>
+  apiFetch<void>(`/applications/${id(appId)}/testers/${id(userId)}`, { method: 'DELETE', ...ro });
+/** The invitee's answer (the Accept and Decline buttons of the system DM). */
+export const respondTesterInvite = (inviteId: string, accept: boolean) =>
+  apiPost<{ application_id: string; name: string; accepted: boolean }>(
+    `/developers/tester-invites/${id(inviteId)}/respond`,
+    { accept },
+  );
+
 export const listInstalls = (appId: string) =>
   apiFetch<AppInstall[]>(`/applications/${id(appId)}/installs`, ro);
 
@@ -96,6 +120,7 @@ export const keys = {
   apps: ['dev', 'apps'] as const,
   app: (appId: string) => ['dev', 'app', appId] as const,
   installs: (appId: string) => ['dev', 'installs', appId] as const,
+  testers: (appId: string) => ['dev', 'testers', appId] as const,
   versions: (appId: string) => ['dev', 'versions', appId] as const,
   status: ['dev', 'status'] as const,
 };
