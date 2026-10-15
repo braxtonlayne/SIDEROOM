@@ -22,6 +22,7 @@ import {
 import type { ProfileTarget } from './popoutStore';
 import { usePopout } from './popoutStore';
 import { useProfileView } from './profileView';
+import { statsText } from './useProfile';
 
 const date = (iso: string | null | undefined) =>
   iso && !Number.isNaN(Date.parse(iso)) ? formatDate(new Date(iso), { dateStyle: 'medium' }) : null;
@@ -144,9 +145,13 @@ export function FullProfile({ target, onClose }: { target: ProfileTarget; onClos
   const isBot = !!users[target.userId]?.bot || !!profile?.user.bot;
   const [dmError, setDmError] = useState(false);
 
-  const memberSince = date(profile?.created_at) ?? date(snowflakeTime(target.userId));
+  const memberSince =
+    date(profile?.member_since ?? profile?.created_at) ?? date(snowflakeTime(target.userId));
   const joinedHere = target.guildId
-    ? date(profile?.mutual_guilds?.find((g) => g.id === target.guildId)?.member_since)
+    ? date(
+        profile?.mutual_guilds?.find((g) => g.id === target.guildId)?.member_since ??
+          profile?.guild_member_profile?.joined_at,
+      )
     : null;
   const here = guilds.find((g) => g.id === target.guildId);
   const friendsCount = profile?.mutual_friends_count ?? profile?.mutual_friends?.length ?? 0;
@@ -358,7 +363,9 @@ export function FullProfile({ target, onClose }: { target: ProfileTarget; onClos
                               />
                             )}
                           </span>
-                          {c.stats && <span className="lng-muted">{c.stats}</span>}
+                          {statsText(c.stats) && (
+                            <span className="lng-muted">{statsText(c.stats)}</span>
+                          )}
                         </span>
                         {href && (
                           <a

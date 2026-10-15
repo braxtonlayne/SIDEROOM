@@ -5,6 +5,7 @@ import {
   Outlet,
   type RouterHistory,
 } from '@tanstack/react-router';
+import { lazy, Suspense } from 'react';
 import { useT } from './i18n';
 import { createCinemaRoutes } from './cinema/routes';
 import { createLibraryRoutes } from './library/routes';
@@ -28,7 +29,22 @@ import { VerifyEmail } from './routes/entrance/VerifyEmail';
 import { EmailChangeCancel } from './routes/entrance/EmailChangeCancel';
 import { ServerTemplate } from './routes/entrance/ServerTemplate';
 
-const root = createRootRoute({ component: Outlet });
+// The re-auth dialog (ADM-STF-009) lives at the root so staff-card buttons in the Lounge can open the
+// second-factor window too; it is its own chunk and renders nothing until asked.
+const ReauthHost = lazy(() =>
+  import('./admin/ReauthHost').then((m) => ({ default: m.ReauthHost })),
+);
+function RootLayout() {
+  return (
+    <>
+      <Outlet />
+      <Suspense fallback={null}>
+        <ReauthHost />
+      </Suspense>
+    </>
+  );
+}
+const root = createRootRoute({ component: RootLayout });
 const r = <P extends string>(path: P, component: () => React.JSX.Element | null) =>
   createRoute({ getParentRoute: () => root, path, component });
 

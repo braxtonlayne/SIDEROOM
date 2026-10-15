@@ -46,7 +46,6 @@ export default {
   'admin.privateContent.error': 'Could not read this conversation.',
   'lounge.components.staffDone': 'Done.',
   'lounge.components.staffFailed': 'That did not work. Try again.',
-  'lounge.announcements.label': 'Announcements',
   'settings.serverTag.nav': 'Server Tag',
   'settings.serverTag.title': 'Server Tag',
   'settings.serverTag.description':

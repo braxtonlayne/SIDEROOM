@@ -1,8 +1,7 @@
-// Platform announcement banner (ADM-PLT-009 client side).
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+// Platform announcements (ADM-PLT-009 client side). The Lounge notices bar renders them (p11ShellNotices).
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse, server } from '../../test/server';
-import { AnnouncementBanner } from './index';
+import { canDismiss, useActiveAnnouncements } from './index';
 
 const note = (over: Record<string, unknown> = {}) => ({
   id: '1',
@@ -13,18 +12,20 @@ const note = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-describe('AnnouncementBanner', () => {
+describe('useActiveAnnouncements', () => {
   beforeEach(() => localStorage.clear());
 
-  it('shows active notices and renders nothing when there are none', async () => {
+  it('loads the active notices, and an empty list when there are none', async () => {
     server.use(http.get('*/api/v1/announcements/active', () => HttpResponse.json([note()])));
-    const first = render(<AnnouncementBanner />);
-    expect(await screen.findByText('Maintenance tonight')).toBeInTheDocument();
+    const first = renderHook(() => useActiveAnnouncements());
+    await waitFor(() => expect(first.result.current.announcements).toHaveLength(1));
+    expect(first.result.current.announcements[0]!.title).toBe('Maintenance tonight');
     first.unmount();
 
     server.use(http.get('*/api/v1/announcements/active', () => HttpResponse.json([])));
-    const second = render(<AnnouncementBanner />);
-    await waitFor(() => expect(second.container).toBeEmptyDOMElement());
+    const second = renderHook(() => useActiveAnnouncements());
+    await new Promise((r) => setTimeout(r, 30));
+    expect(second.result.current.announcements).toEqual([]);
   });
 
   it('remembers a dismissed notice but never lets a critical one go', async () => {
@@ -36,25 +37,27 @@ describe('AnnouncementBanner', () => {
         ]),
       ),
     );
-    const view = render(<AnnouncementBanner />);
-    await screen.findByText('Maintenance tonight');
-    expect(screen.getAllByRole('button', { name: 'Dismiss' })).toHaveLength(1);
-    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
-    expect(screen.queryByText('Maintenance tonight')).not.toBeInTheDocument();
-    expect(screen.getByText('Outage')).toBeInTheDocument();
+    const view = renderHook(() => useActiveAnnouncements());
+    await waitFor(() => expect(view.result.current.announcements).toHaveLength(2));
+    expect(view.result.current.announcements.filter(canDismiss).map((a) => a.id)).toEqual(['1']);
+    act(() => {
+      view.result.current.dismiss('1');
+      view.result.current.dismiss('2');
+    });
+    expect(view.result.current.announcements.map((a) => a.id)).toEqual(['2']);
 
     view.unmount();
-    render(<AnnouncementBanner />);
-    await screen.findByText('Outage');
-    expect(screen.queryByText('Maintenance tonight')).not.toBeInTheDocument();
+    const again = renderHook(() => useActiveAnnouncements());
+    await waitFor(() => expect(again.result.current.announcements).toHaveLength(1));
+    expect(again.result.current.announcements[0]!.title).toBe('Outage');
   });
 
   it('keeps quiet when the request fails', async () => {
     server.use(
       http.get('*/api/v1/announcements/active', () => new HttpResponse(null, { status: 500 })),
     );
-    const { container } = render(<AnnouncementBanner />);
+    const view = renderHook(() => useActiveAnnouncements());
     await new Promise((r) => setTimeout(r, 30));
-    expect(container).toBeEmptyDOMElement();
+    expect(view.result.current.announcements).toEqual([]);
   });
 });

@@ -15,8 +15,11 @@ export const decorationUrl = (asset: string | null | undefined): string | null =
 export const EFFECT_IDS = ['sparkle', 'aurora', 'snow', 'embers'] as const;
 export type EffectId = (typeof EFFECT_IDS)[number];
 
-export const effectOf = (e: { id: string } | null | undefined): EffectId | null =>
-  e && (EFFECT_IDS as readonly string[]).includes(e.id) ? (e.id as EffectId) : null;
+/** The effect to draw: the server sends a slug, Discord an `{ id }` object; unknown ids draw nothing. */
+export const effectOf = (e: string | { id: string } | null | undefined): EffectId | null => {
+  const id = typeof e === 'string' ? e : e?.id;
+  return id && (EFFECT_IDS as readonly string[]).includes(id) ? (id as EffectId) : null;
+};
 
 function Decoration({ src }: { src: string }) {
   const [failed, setFailed] = useState(false);

@@ -75,7 +75,9 @@ export function useProfileView(userId: string, guildId?: string): ProfileView {
     accent: accentCss(accentNum),
     theme: profileTheme(colors, accentNum),
     effect: effectOf(gp?.profile_effect ?? up?.profile_effect),
-    decoration: profile?.user.avatar_decoration_data ?? null,
+    decoration:
+      profile?.user.avatar_decoration_data ??
+      (up?.avatar_decoration ? { asset: up.avatar_decoration } : null),
     badges: badgeViews(profile?.badges, {
       isServerOwner: !!guild && guild.ownerId === userId,
       serverTag: tag,

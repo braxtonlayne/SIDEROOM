@@ -91,7 +91,14 @@ function UserProfilePanel({ userId }: { userId: string }) {
   );
 }
 
-/** Group name and icon (`PATCH /channels/{id}`), open to every member like on Discord. */
+/**
+ * Group name and icon, open to every member like on Discord. The server edits group DMs at
+ * `PATCH /users/@me/channels/{id}` (`/channels/{id}` belongs to guild channels). It stores the icon as a key and
+ * does not accept an image upload yet, so only removing the icon is offered (see feat-p11-integration.md).
+ */
+/** Turn on once the server turns an uploaded group icon (data URI) into a stored image, as for guild icons. */
+const GROUP_ICON_UPLOAD = false;
+
 function GroupSettingsDialog({ dm, onClose }: { dm: DmChannel; onClose: () => void }) {
   const t = useT();
   const [name, setName] = useState(dm.name ?? '');
@@ -108,7 +115,7 @@ function GroupSettingsDialog({ dm, onClose }: { dm: DmChannel; onClose: () => vo
     if (icon !== undefined) body.icon = icon;
     try {
       const ch = await apiFetch<{ id: string; name?: string | null; icon?: string | null }>(
-        `/channels/${encodeURIComponent(dm.id)}`,
+        `/users/@me/channels/${encodeURIComponent(dm.id)}`,
         { method: 'PATCH', json: body, retries: 0 },
       );
       useStore.getState().applyDispatch('CHANNEL_UPDATE', {
@@ -150,21 +157,26 @@ function GroupSettingsDialog({ dm, onClose }: { dm: DmChannel; onClose: () => vo
         />
         <div className="lng-gp-image-row">
           <Avatar name={name || t('lounge.dmPanel.groupIcon')} src={shown} size={56} />
-          <input
-            ref={file}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            hidden
-            aria-label={t('lounge.dmPanel.iconFile')}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = '';
-              if (f) readAsDataUri(f).then(setIcon, () => setError(t('lounge.dmPanel.readError')));
-            }}
-          />
-          <Button size="sm" variant="secondary" onClick={() => file.current?.click()}>
-            {t('lounge.dmPanel.changeIcon')}
-          </Button>
+          {GROUP_ICON_UPLOAD && (
+            <>
+              <input
+                ref={file}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                hidden
+                aria-label={t('lounge.dmPanel.iconFile')}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f)
+                    readAsDataUri(f).then(setIcon, () => setError(t('lounge.dmPanel.readError')));
+                }}
+              />
+              <Button size="sm" variant="secondary" onClick={() => file.current?.click()}>
+                {t('lounge.dmPanel.changeIcon')}
+              </Button>
+            </>
+          )}
           {shown && (
             <Button size="sm" variant="ghost" onClick={() => setIcon(null)}>
               {t('lounge.dmPanel.removeIcon')}

@@ -6,6 +6,7 @@ import { resendVerification } from '../../api/entrance';
 import { t, useT } from '../../i18n';
 import { applyPendingUpdate, usePwaState } from '../../pwa/state';
 import { useConnectionStatus } from '../../store';
+import { canDismiss, useActiveAnnouncements } from '../announcements';
 
 /** True while the browser reports no network. */
 export function useOnline(): boolean {
@@ -69,63 +70,8 @@ interface Notice {
   body: ReactNode;
   action?: ReactNode;
   dismissLabel: string;
-  onDismiss(): void;
-}
-
-/** A platform announcement (`GET /announcements/active`, ADM-PLT-009). */
-export interface PlatformAnnouncement {
-  id: string;
-  title: string;
-  body: string;
-  severity: 'info' | 'warning' | 'critical';
-  starts_at_ms: number;
-  ends_at_ms?: number | null;
-  ended_at_ms?: number | null;
-}
-
-const SEEN_KEY = 'sr.announcements.dismissed';
-
-function readDismissed(): string[] {
-  try {
-    const v = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as unknown;
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function rememberDismissed(id: string) {
-  try {
-    // Keep the list short: only ids that are still around matter.
-    localStorage.setItem(SEEN_KEY, JSON.stringify([...readDismissed(), id].slice(-50)));
-  } catch {
-    /* storage unavailable: the notice returns on reload */
-  }
-}
-
-/** Announcements showing right now that this browser has not dismissed. */
-export function useAnnouncements(): { items: PlatformAnnouncement[]; dismiss(id: string): void } {
-  const [items, setItems] = useState<PlatformAnnouncement[]>([]);
-  useEffect(() => {
-    let live = true;
-    apiFetch<PlatformAnnouncement[]>('/announcements/active', { retries: 0 })
-      .then((list) => {
-        if (!live || !Array.isArray(list)) return;
-        const seen = readDismissed();
-        setItems(list.filter((a) => !seen.includes(a.id)));
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, []);
-  return {
-    items,
-    dismiss: (id) => {
-      rememberDismissed(id);
-      setItems((l) => l.filter((a) => a.id !== id));
-    },
-  };
+  /** Absent for notices that cannot be dismissed (critical announcements). */
+  onDismiss?: () => void;
 }
 
 /**
@@ -140,7 +86,8 @@ export function NoticesBar() {
   const [verifyHidden, setVerifyHidden] = useState(false);
   const [updateHidden, setUpdateHidden] = useState(false);
   const pwa = usePwaState();
-  const announcements = useAnnouncements();
+  // One source of truth for announcements (ADM-PLT-009): polled, critical ones cannot be dismissed.
+  const announcements = useActiveAnnouncements();
 
   useEffect(() => {
     let live = true;
@@ -163,7 +110,7 @@ export function NoticesBar() {
   };
 
   const notices: Notice[] = [];
-  for (const a of announcements.items) {
+  for (const a of announcements.announcements) {
     notices.push({
       key: `announcement-${a.id}`,
       tone: a.severity === 'critical' ? 'danger' : a.severity === 'warning' ? 'warn' : 'info',
@@ -173,7 +120,7 @@ export function NoticesBar() {
         </span>
       ),
       dismissLabel: t('lounge.banners.dismissAnnouncement', { title: a.title }),
-      onDismiss: () => announcements.dismiss(a.id),
+      ...(canDismiss(a) ? { onDismiss: () => announcements.dismiss(a.id) } : {}),
     });
   }
   if (pwa.updateReady && !updateHidden)
@@ -223,14 +170,16 @@ export function NoticesBar() {
         <div key={n.key} className="lng-banner" data-tone={n.tone}>
           {n.body}
           {n.action}
-          <button
-            type="button"
-            className="lng-icon-btn"
-            aria-label={n.dismissLabel}
-            onClick={n.onDismiss}
-          >
-            {'×'}
-          </button>
+          {n.onDismiss && (
+            <button
+              type="button"
+              className="lng-icon-btn"
+              aria-label={n.dismissLabel}
+              onClick={n.onDismiss}
+            >
+              {'×'}
+            </button>
+          )}
         </div>
       ))}
     </div>

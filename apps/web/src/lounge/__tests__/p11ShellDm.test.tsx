@@ -231,9 +231,9 @@ describe('LNG-DM-007 group DM panel', () => {
     ).toBeNull();
   });
 
-  it('renames the group and sets an icon', async () => {
+  it('renames the group', async () => {
     server.use(
-      http.patch('*/api/v1/channels/grp', async (ctx) => {
+      http.patch('*/api/v1/users/@me/channels/grp', async (ctx) => {
         await record('PATCH')(ctx);
         return HttpResponse.json({ id: 'grp', name: 'Quartet' });
       }),
@@ -247,7 +247,9 @@ describe('LNG-DM-007 group DM panel', () => {
     await userEvent.type(name, 'Quartet');
     await userEvent.click(within(dlg).getByRole('button', { name: 'Save' }));
     await waitFor(() =>
-      expect(calls.find((c) => c.key === 'PATCH /channels/grp')?.body).toEqual({ name: 'Quartet' }),
+      expect(calls.find((c) => c.key === 'PATCH /users/@me/channels/grp')?.body).toEqual({
+        name: 'Quartet',
+      }),
     );
     await waitFor(() => expect(useStore.getState().channels.grp?.name).toBe('Quartet'));
   });

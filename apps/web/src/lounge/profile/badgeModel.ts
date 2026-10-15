@@ -14,6 +14,10 @@ export type BadgeKind =
   | 'contributor'
   | 'early-member'
   | 'app-developer'
+  | 'platform-owner'
+  | 'bug-hunter'
+  | 'honorary'
+  | 'bot'
   | 'server-tag'
   | 'other';
 
@@ -35,6 +39,10 @@ const ICON: Record<BadgeKind, IconName> = {
   contributor: 'sparkle',
   'early-member': 'clock',
   'app-developer': 'settings',
+  'platform-owner': 'shield',
+  'bug-hunter': 'alert',
+  honorary: 'heart',
+  bot: 'settings',
   'server-tag': 'users',
   other: 'info',
 };
@@ -50,6 +58,11 @@ function kindOf(id: string): { kind: BadgeKind; tier: string } {
     return { kind: 'early-member', tier: '' };
   if (lower === 'app-developer' || lower === 'developer')
     return { kind: 'app-developer', tier: '' };
+  // Ids the server sends (userset-be, LNG-PRF-002) that have no Discord twin.
+  if (lower === 'owner') return { kind: 'platform-owner', tier: '' };
+  if (lower === 'bug-hunter') return { kind: 'bug-hunter', tier: '' };
+  if (lower === 'honorary') return { kind: 'honorary', tier: '' };
+  if (lower === 'bot') return { kind: 'bot', tier: '' };
   return { kind: 'other', tier: '' };
 }
 
@@ -61,6 +74,10 @@ function labelOf(kind: BadgeKind, tier: string, fallback: string): string {
     contributor: () => t('lounge.badges.contributor'),
     'early-member': () => t('lounge.badges.earlyMember'),
     'app-developer': () => t('lounge.badges.appDeveloper'),
+    'platform-owner': () => t('lounge.badges.platformOwner'),
+    'bug-hunter': () => t('lounge.badges.bugHunter'),
+    honorary: () => t('lounge.badges.honorary'),
+    bot: () => t('lounge.badges.bot'),
     'server-tag': () => t('lounge.badges.serverTag'),
     other: () => fallback,
   }[kind]();
@@ -78,7 +95,7 @@ export interface DerivedBadgeInput {
 
 /** All badges to show, in display order: owner, platform badges as sent, then the server tag. */
 export function badgeViews(
-  wire: readonly WireBadge[] | null | undefined,
+  wire: readonly (WireBadge | string)[] | null | undefined,
   derived: DerivedBadgeInput = {},
 ): BadgeView[] {
   const out: BadgeView[] = [];
@@ -91,7 +108,10 @@ export function badgeViews(
       icon: ICON.owner,
     });
   const seen = new Set<string>();
-  for (const b of wire ?? []) {
+  for (const raw of wire ?? []) {
+    // The server sends plain ids; Discord-style objects carry their own description.
+    const b: WireBadge | null = typeof raw === 'string' ? { id: raw } : raw;
+    // A server-owner badge is derived above from the guild; the platform `owner` badge is the platform's.
     if (!b?.id || seen.has(b.id)) continue;
     seen.add(b.id);
     const { kind, tier } = kindOf(b.id);

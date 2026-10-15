@@ -42,6 +42,10 @@ describe('LNG-SHL-009 notices bar', () => {
     const bar = await screen.findByRole('region', { name: 'Notices' });
     expect(await within(bar).findByText('Title a1')).toBeInTheDocument();
     expect(within(bar).getByText('Title a2')).toBeInTheDocument();
+    // Critical announcements cannot be dismissed.
+    expect(
+      within(bar).queryByRole('button', { name: 'Dismiss announcement: Title a2' }),
+    ).toBeNull();
     await userEvent.click(
       within(bar).getByRole('button', { name: 'Dismiss announcement: Title a1' }),
     );
