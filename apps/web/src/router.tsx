@@ -43,13 +43,9 @@ function RootLayout() {
   return (
     <>
       {/* Entrance routes paint from the core catalog; every other route waits for the full one. */}
-      {isCorePath(pathname) ? (
+      <CatalogGate bypass={isCorePath(pathname)} fallback={<RouteFallback />}>
         <Outlet />
-      ) : (
-        <CatalogGate fallback={<RouteFallback />}>
-          <Outlet />
-        </CatalogGate>
-      )}
+      </CatalogGate>
       <CatalogGate>
         <Suspense fallback={null}>
           <ReauthHost />
