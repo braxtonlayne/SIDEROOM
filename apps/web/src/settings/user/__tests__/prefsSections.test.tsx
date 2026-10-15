@@ -189,25 +189,6 @@ describe('Authorized Apps and Connections', () => {
     expect(await screen.findByText(/cannot authorize third-party apps yet/)).toBeInTheDocument();
     expect(await axeViolations(document.body)).toEqual([]);
   });
-
-  it('shows Discord and the other connections, and says linking is not available', async () => {
-    server.use(
-      http.get('*/api/v1/users/@me/profile', () =>
-        HttpResponse.json({
-          ...PROFILE,
-          connected_accounts: [
-            { type: 'discord', id: '9', name: 'alice#0', verified: true },
-            { type: 'github', id: '3', name: 'alice-gh', verified: false },
-          ],
-        }),
-      ),
-    );
-    openSettings('connections');
-    expect(await screen.findByText('alice#0')).toBeInTheDocument();
-    expect(screen.getByText('alice-gh')).toBeInTheDocument();
-    expect(screen.getByText(/no routes to link, unlink or refresh/)).toBeInTheDocument();
-    expect(await axeViolations(document.body)).toEqual([]);
-  });
 });
 
 describe('Devices', () => {

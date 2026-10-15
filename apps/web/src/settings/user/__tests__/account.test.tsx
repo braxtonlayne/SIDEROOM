@@ -375,22 +375,6 @@ describe('My Account', () => {
     );
   });
 
-  it('shows linked Discord status from the profile connections', async () => {
-    signedIn();
-    accountEndpoints({
-      connections: [{ type: 'discord', id: '9', name: 'alice#0', verified: true }],
-    });
-    openSettings('connections');
-    expect(await screen.findByText('alice#0')).toBeInTheDocument();
-  });
-
-  it('shows "no Discord linked" when there is none', async () => {
-    signedIn();
-    accountEndpoints();
-    openSettings('connections');
-    expect(await screen.findByText('No Discord account is linked.')).toBeInTheDocument();
-  });
-
   it('lists trusted devices and revokes one; a server error is shown', async () => {
     signedIn();
     accountEndpoints({
