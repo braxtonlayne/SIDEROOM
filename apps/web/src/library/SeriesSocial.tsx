@@ -19,14 +19,17 @@ import {
   addToList,
   createList,
   deleteReview,
+  getChapterRating,
   getMyLists,
   getRatings,
   getReviews,
   putReview,
+  rateChapter,
   rateSeries,
   removeFromList,
   setHelpful,
   socialKeys,
+  unrateChapter,
   unrateSeries,
   type RatingAggregate,
   type RatingScope,
@@ -431,5 +434,52 @@ function ReviewItem({ review, seriesId }: { review: Review; seriesId: string }) 
         )}
       </div>
     </li>
+  );
+}
+
+/* ---------------------------------------------------------- chapter rating */
+
+/** "Rate this chapter" on the end-of-chapter card (LIB-RDR-008). */
+export function ChapterRate({ chapterId }: { chapterId: string }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const key = ['library', 'chapter-rating', chapterId] as const;
+  const q = useQuery({ queryKey: key, queryFn: () => getChapterRating(chapterId), retry: false });
+  const rate = useMutation({
+    mutationFn: async (score: number | null) => {
+      if (score === null) await unrateChapter(chapterId);
+      else await rateChapter(chapterId, score);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+  if (q.isError) return null;
+  const r = q.data;
+  return (
+    <div className="lib-chapter-rate">
+      <label className="lib-select lib-rate">
+        <span>{t('library.social.chapterRate.label')}</span>
+        <select
+          value={r?.mine ?? ''}
+          disabled={!r || rate.isPending}
+          onChange={(e) => rate.mutate(e.target.value === '' ? null : Number(e.target.value))}
+        >
+          <option value="">{t('library.social.rating.none')}</option>
+          {SCORES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </label>
+      {r && r.count > 0 && (
+        <span className="lib-muted">
+          {t('library.social.chapterRate.average', {
+            avg: scoreText(r.average),
+            count: r.count,
+          })}
+        </span>
+      )}
+      {rate.isError && <Notice variant="danger">{t('library.social.rating.error')}</Notice>}
+    </div>
   );
 }

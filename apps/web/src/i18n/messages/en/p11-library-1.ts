@@ -46,6 +46,10 @@ export default {
   'library.social.reviews.helpfulCount':
     '{n, plural, one {# person found this helpful} other {# people found this helpful}}',
   'library.social.reviews.delete': 'Delete',
+  // End-of-chapter card (reader)
+  'library.social.chapterRate.label': 'Rate this chapter',
+  'library.social.chapterRate.average':
+    'Average {avg} from {count, plural, one {# rating} other {# ratings}}',
   // Reading lists (Lists.tsx)
   'library.lists.visibility.private': 'Only me',
   'library.lists.visibility.friends': 'Friends',

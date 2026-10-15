@@ -28,6 +28,7 @@ import {
   spreadIndexOf,
   tapStep,
 } from './model';
+import { ChapterRate } from '../SeriesSocial';
 import { PageImage } from './PageImage';
 import { BookmarksPanel, SettingsPanel } from './Panels';
 import { useZoomPan } from './useZoomPan';
@@ -691,7 +692,7 @@ function EndCard({
       <Link className="lib-btn" to="/library/s/$seriesId" params={{ seriesId }}>
         {t('library.reader.backToSeries')}
       </Link>
-      <p className="lib-muted">{t('library.reader.socialSoon')}</p>
+      <ChapterRate chapterId={chapter.id} />
     </section>
   );
 }
