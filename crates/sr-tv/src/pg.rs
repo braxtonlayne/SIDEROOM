@@ -377,9 +377,10 @@ impl TvRepository for PgTvRepo {
 
     async fn put_reminder(&self, r: &ReminderRecord) -> TvResult<()> {
         sqlx::query(
-            "INSERT INTO tv_reminders (account_id, block_id, channel_id, title, start_ms, remind_at)              VALUES (        Ok((s.unwrap_or(seq_base), d.unwrap_or(disc_base)))
-    }
-, $2, $3, $4, $5, $6)              ON CONFLICT (account_id, block_id) DO UPDATE SET channel_id = EXCLUDED.channel_id,              title = EXCLUDED.title, start_ms = EXCLUDED.start_ms, remind_at = EXCLUDED.remind_at",
+            "INSERT INTO tv_reminders (account_id, block_id, channel_id, title, start_ms, remind_at) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
+             ON CONFLICT (account_id, block_id) DO UPDATE SET channel_id = EXCLUDED.channel_id, \
+             title = EXCLUDED.title, start_ms = EXCLUDED.start_ms, remind_at = EXCLUDED.remind_at",
         )
         .bind(r.account_id)
         .bind(r.block_id)
@@ -394,9 +395,7 @@ impl TvRepository for PgTvRepo {
     }
 
     async fn delete_reminder(&self, account_id: i64, block_id: i64) -> TvResult<bool> {
-        let done = sqlx::query("DELETE FROM tv_reminders WHERE account_id =         Ok((s.unwrap_or(seq_base), d.unwrap_or(disc_base)))
-    }
- AND block_id = $2")
+        let done = sqlx::query("DELETE FROM tv_reminders WHERE account_id = $1 AND block_id = $2")
             .bind(account_id)
             .bind(block_id)
             .execute(&self.pool)
@@ -407,9 +406,10 @@ impl TvRepository for PgTvRepo {
 
     async fn take_due_reminders(&self, now_ms: i64, limit: i64) -> TvResult<Vec<ReminderRecord>> {
         let rows = sqlx::query(
-            "DELETE FROM tv_reminders WHERE (account_id, block_id) IN (                  SELECT account_id, block_id FROM tv_reminders WHERE remind_at <=         Ok((s.unwrap_or(seq_base), d.unwrap_or(disc_base)))
-    }
-                  ORDER BY remind_at LIMIT $2 FOR UPDATE SKIP LOCKED)              RETURNING account_id, block_id, channel_id, title, start_ms, remind_at",
+            "DELETE FROM tv_reminders WHERE (account_id, block_id) IN ( \
+                 SELECT account_id, block_id FROM tv_reminders WHERE remind_at <= $1 \
+                 ORDER BY remind_at LIMIT $2 FOR UPDATE SKIP LOCKED) \
+             RETURNING account_id, block_id, channel_id, title, start_ms, remind_at",
         )
         .bind(now_ms)
         .bind(limit)

@@ -310,7 +310,7 @@ fn room_request(
     };
     Ok(RoomRequest {
         deps,
-        user: i64::try_from(p.user_id).unwrap_or(0),
+        user: p.user_id,
         title_id,
         episode_id,
     })
