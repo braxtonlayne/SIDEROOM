@@ -152,6 +152,27 @@ describe('StartPartyDialog with a title', () => {
   });
 });
 
+describe('StartPartyDialog for a Live TV channel (G-16)', () => {
+  it('starts without asking for a title and sends the channel', async () => {
+    onCreate();
+    const { history } = mount(
+      <StartPartyDialog
+        open
+        onClose={() => undefined}
+        liveChannel={{ channelId: '3', label: 'Channel 101, Toonami' }}
+        channelId="52"
+      />,
+    );
+    expect(await screen.findByText('Start a party for Channel 101, Toonami.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Search the cinema')).toBeNull();
+    const start = screen.getByRole('button', { name: 'Start party' });
+    expect(start).toBeEnabled();
+    await userEvent.setup().click(start);
+    await waitFor(() => expect(history.location.pathname).toBe('/cinema/party/900'));
+    expect(created).toEqual([{ tv_channel_id: '3', channel_id: '52' }]);
+  });
+});
+
 describe('StartPartyDialog without a title (the voice call bar)', () => {
   it('searches the cinema, picks a film and starts the party in the call channel', async () => {
     onCreate();

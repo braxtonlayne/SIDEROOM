@@ -1,8 +1,7 @@
 // Typed fetchers for the Live TV viewer routes: docs/specs/cinema-live-tv.md section 8 ("HTTP API as built", crate
 // `sr-tv`). The only place that knows URLs and wire field names: each fetcher adapts the server's shape to the UI
-// types in types.ts. Not on the server yet (so the UI degrades honestly): favorites (they live in the settings
-// blob, see favourites.ts), reminders (`setReminder` is an ASSUMED route and answers "not available yet" until it
-// exists), block synopses and ratings (read from the Cinema catalog by title id, see useBlockInfo).
+// types in types.ts. Not on the server (so the UI degrades honestly): favorites (they live in the settings
+// blob, see favourites.ts), block synopses and ratings (read from the Cinema catalog by title id, see useBlockInfo).
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch } from '../../api/client';
 import { getTitle } from '../api';
@@ -213,7 +212,7 @@ export async function refreshTune(channelId: string): Promise<{
   };
 }
 
-/** ASSUMED `PUT|DELETE /tv/reminders/{blockId}` (TV-PLY-005): not on the server yet, so this answers 404. */
+/** `PUT|DELETE /tv/reminders/{blockId}` (TV-PLY-005, G-10): a DM and a push shortly before the programme starts. */
 export const setReminder = (blockId: string, on: boolean) =>
   apiFetch<void>(`${BASE}/reminders/${enc(blockId)}`, {
     method: on ? 'PUT' : 'DELETE',

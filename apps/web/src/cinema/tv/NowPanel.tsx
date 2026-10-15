@@ -3,6 +3,7 @@ import { Suspense, lazy, useState } from 'react';
 import { useT } from '../../i18n';
 import { kindYear, watchChannelHref } from './model';
 import { useBlockInfo } from './api';
+import { WatchTogether } from './WatchTogether';
 import type { ChannelNow, TvBlock, TvChannel } from './types';
 
 const LivePreview = lazy(() => import('./LivePreview').then((m) => ({ default: m.LivePreview })));
@@ -112,6 +113,7 @@ export function NowPanel({
               <span aria-hidden="true">▶</span> {t('cinema.nowPanel.tuneIn')}
             </a>
           )}
+          {now && <WatchTogether channel={channel} className="tv-btn" />}
           {canManage && (
             <a className="tv-btn" href="/admin/cinema-live-tv">
               {t('cinema.nowPanel.editLineup')}
