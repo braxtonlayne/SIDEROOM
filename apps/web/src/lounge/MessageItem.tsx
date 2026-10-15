@@ -150,7 +150,12 @@ function MessageBody({
       {showCards && inviteCode && <InviteCard code={inviteCode} />}
       {showCards && messageLinks.map((l) => <MessageLinkCard key={l.messageId} link={l} />)}
       {m.components && m.components.length > 0 && (
-        <ComponentRows rows={m.components} guildId={guildId} />
+        <ComponentRows
+          rows={m.components}
+          guildId={guildId}
+          channelId={m.channelId}
+          messageId={m.id}
+        />
       )}
       {m.stickers?.map((s) => (
         <Sticker key={s.id} sticker={s} guildId={guildId} />

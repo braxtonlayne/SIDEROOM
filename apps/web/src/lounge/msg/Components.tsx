@@ -1,9 +1,11 @@
 import { Spinner, useToast } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
+import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import type { RawComponent } from '../../store/types';
 import { useChannels, useMembers, useRoles, type Snowflake } from '../data';
 import { isHttpUrl } from './format';
+import { parseStaffButton, runStaffButton } from './staffActions';
 
 export type { RawComponent };
 
@@ -15,6 +17,8 @@ export const interactionConfig = { timeoutMs: 3000 };
 /** Select menu kinds (Discord component types): string, user, role, mentionable, channel. */
 const SELECT_TYPES = [3, 5, 6, 7, 8];
 
+const isStaff = (customId: string | undefined) => parseStaffButton(customId) !== null;
+
 /**
  * Buttons and select menus on app messages (LNG-MSGUI-022). Link buttons open their URL; everything else
  * shows a loading state and then "This interaction failed" because the interaction endpoint is not part of
@@ -24,9 +28,14 @@ const SELECT_TYPES = [3, 5, 6, 7, 8];
 export function ComponentRows({
   rows,
   guildId,
+  channelId,
+  messageId,
 }: {
   rows: RawComponent[];
   guildId?: Snowflake | undefined;
+  /** With `messageId`: lets `sr:` buttons of system cards (offers, staff alerts) run on the server. */
+  channelId?: Snowflake | undefined;
+  messageId?: Snowflake | undefined;
 }) {
   const t = useT();
   const toast = useToast();
@@ -36,6 +45,28 @@ export function ComponentRows({
   const [busy, setBusy] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
+  // Staff card buttons (`sr:` custom ids) are answered once; afterwards they stay disabled.
+  const [staffDone, setStaffDone] = useState<string | null>(null);
+
+  const staffPress = async (key: string, customId: string | undefined) => {
+    const button = parseStaffButton(customId);
+    if (!button || !channelId || !messageId) return;
+    setBusy(key);
+    try {
+      const out = await runStaffButton(button, { channelId, messageId });
+      setStaffDone(out.message ?? t('lounge.components.staffDone'));
+    } catch (e) {
+      toast.show({
+        title:
+          e instanceof ApiError && e.body?.message
+            ? e.body.message
+            : t('lounge.components.staffFailed'),
+        variant: 'danger',
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   /** Starts an interaction: the control shows a spinner until the (never arriving) answer times out. */
   const interact = (key: string) => {
@@ -75,6 +106,11 @@ export function ComponentRows({
 
   return (
     <div className="lng-components">
+      {staffDone !== null && (
+        <p className="lng-muted" role="status">
+          {staffDone}
+        </p>
+      )}
       {rows
         .filter((r) => r.type === 1)
         .slice(0, 5)
@@ -110,9 +146,15 @@ export function ComponentRows({
                     type="button"
                     className="lng-cbtn"
                     data-style={style}
-                    disabled={c.disabled || busy === key}
+                    disabled={
+                      c.disabled || busy === key || (staffDone !== null && isStaff(c.custom_id))
+                    }
                     aria-busy={busy === key || undefined}
-                    onClick={() => interact(key)}
+                    onClick={() =>
+                      isStaff(c.custom_id) && channelId && messageId
+                        ? void staffPress(key, c.custom_id)
+                        : interact(key)
+                    }
                   >
                     {busy === key && <Spinner label={t('lounge.components.waitingForApp')} />}
                     {c.label ?? t('lounge.components.buttonDefault')}
