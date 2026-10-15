@@ -22,6 +22,7 @@ import { ForumView } from './forum/ForumView';
 import { VoiceChannelView } from './voice/VoiceChannelView';
 import { WatchPartyStrip } from '../watchparty/WatchPartyStrip';
 import { useLoungeGoto } from './nav';
+import { usePublicUpdatesChannel } from './header/useUpdatesChannel';
 import { useMyTimeout } from './timeout';
 import { useLoungeUi } from './store';
 import { openProfilePopout } from './profile/popoutStore';
@@ -50,6 +51,8 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const timedOutUntil = useMyTimeout(isDm ? undefined : guildId);
 
   const channel = channels.find((c) => c.id === channelId);
+  const isAnnouncement = !isDm && channel?.type === 'announcement';
+  const updatesChannelId = usePublicUpdatesChannel(guildId, isAnnouncement);
   const gate = useAgeGate(channel?.nsfw);
   const goto = useLoungeGoto();
   const dm = dms.find((d) => d.id === channelId);
@@ -144,10 +147,13 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         badge={
           channel?.type === 'rules'
             ? t('lounge.channelView.badgeRules')
-            : channel?.type === 'announcement'
-              ? t('lounge.channelView.badgeAnnouncements')
+            : isAnnouncement
+              ? channelId === updatesChannelId
+                ? t('lounge.channelView.badgeUpdates')
+                : t('lounge.channelView.badgeAnnouncements')
               : undefined
         }
+        followable={isAnnouncement}
         canUnpin={
           channel?.permissions
             ? channel.permissions.pinMessages

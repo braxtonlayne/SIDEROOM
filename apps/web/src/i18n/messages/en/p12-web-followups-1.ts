@@ -4,4 +4,21 @@ export default {
   // G-35 Community wizard safety switches
   'settings.communityWizard.alreadyOn': 'Already on for this server.',
   'settings.communityWizard.safetyNeeded': 'Turn both switches on to continue.',
+  // G-30 Follow an announcement channel
+  'lounge.followButton.label': 'Follow',
+  'lounge.followButton.tooltip': "Get this channel's announcements in one of your channels",
+  'lounge.followButton.title': 'Follow this channel',
+  'lounge.followButton.description':
+    'Announcements published here are copied into the channel you choose.',
+  'lounge.followButton.channel': 'Post announcements in',
+  'lounge.followButton.choose': 'Choose a channel',
+  'lounge.followButton.loading': 'Loading your channels…',
+  'lounge.followButton.loadError': 'Could not load your channels. Try again in a moment.',
+  'lounge.followButton.forbidden': 'You need the Manage Webhooks permission in that channel.',
+  'lounge.followButton.failed': 'Could not follow this channel. Try again in a moment.',
+  'lounge.followButton.confirm': 'Follow',
+  'lounge.followButton.cancel': 'Cancel',
+  'lounge.followButton.close': 'Close',
+  'lounge.followButton.done': 'Done. Announcements will appear in #{channel}.',
+  'lounge.channelView.badgeUpdates': 'Updates',
 } satisfies Record<string, string>;
