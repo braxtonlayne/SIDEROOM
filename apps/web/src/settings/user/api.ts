@@ -86,6 +86,20 @@ export interface ChangeEmailBody {
 /** `POST /sr/auth/email/change`: mails a confirmation link to the new address (204). */
 export const changeEmail = (body: ChangeEmailBody) => apiPost<void>('/sr/auth/email/change', body);
 
+export interface DeleteAccountBody {
+  password: string;
+  /** The account's username, typed to confirm (case-insensitive). */
+  username: string;
+  /** Required with two-factor on, unless this session passed a check in the last 15 minutes. */
+  mfa?: { method: 'totp' | 'recovery'; code: string };
+}
+/**
+ * `POST /sr/auth/account/delete` (204, the session cookie is cleared). Refused with a field error `staff`, `owner`
+ * or `guilds` while the account is on the staff, is the Owner, or still owns a server.
+ */
+export const deleteAccount = (body: DeleteAccountBody) =>
+  apiPost<void>('/sr/auth/account/delete', body);
+
 export interface TotpEnrollment {
   otpauth_uri: string;
   manual_entry_key: string;

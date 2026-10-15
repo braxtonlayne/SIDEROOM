@@ -12,4 +12,18 @@ export default {
   'admin.announcements.edited': 'Announcement updated.',
   'admin.announcements.editFixed':
     'Severity and the message to everyone cannot change, and nobody is messaged again.',
+  // Delete account (settings/user/sections/DeleteAccount.tsx, G-82)
+  'settings.account.deleteButton': 'Delete my account',
+  'settings.account.deleteTitle': 'Delete your account',
+  'settings.account.deleteDescription':
+    'This cannot be undone. You are signed out everywhere, your username is held for 30 days, and you need a new invite to return.',
+  'settings.account.deleteTypeUsername': 'Type your username, {username}, to confirm',
+  'settings.account.deleteUsernameMismatch': 'Type your username exactly to confirm.',
+  'settings.account.deleteCodeLabel': 'Authenticator or recovery code',
+  'settings.account.deleteEnterCode': 'Enter a code from your authenticator app or a recovery code.',
+  'settings.account.deleteConfirm': 'Delete my account for good',
+  'settings.account.deleteStaff':
+    'You are on the staff. Leave the Staff Server first, then delete your account.',
+  'settings.account.deleteOwner':
+    'You are the Owner. Transfer ownership first, then delete your account.',
 } satisfies Record<string, string>;
