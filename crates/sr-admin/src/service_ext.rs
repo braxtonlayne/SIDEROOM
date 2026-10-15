@@ -738,11 +738,17 @@ impl AdminService {
         {
             return Err(AdminError::Invalid("it must end after it starts".into()));
         }
+        // `critical: true` is the same as severity `critical`; a critical notice is always DM'd (D-192).
+        let severity = if input.critical {
+            AnnouncementSeverity::Critical
+        } else {
+            input.severity.unwrap_or(AnnouncementSeverity::Info)
+        };
         let new = NewAnnouncement {
             title,
             body,
-            severity: input.severity.unwrap_or(AnnouncementSeverity::Info),
-            send_dm: input.send_dm,
+            severity,
+            send_dm: input.send_dm || severity == AnnouncementSeverity::Critical,
             created_by: c.user_id,
             starts_at_ms: starts,
             ends_at_ms: input.ends_at_ms,

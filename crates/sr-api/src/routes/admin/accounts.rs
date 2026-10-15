@@ -10,7 +10,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sr_admin::{
     AccountDetail, AccountPage, AccountQuery, AccountState, AccountSummary, BanCategory,
-    BanOutcome, BanPage, DeleteRequest, PersonDetail, Reset2faReport, UnbanOutcome,
+    BanOutcome, BanPage, BanReason, DeleteRequest, PersonDetail, Reset2faReport, UnbanOutcome,
 };
 use utoipa::ToSchema;
 
@@ -214,9 +214,27 @@ reason_action!(
 /// Ban body: the reason is the ban note.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct BanBody {
-    /// `serious` raises suspicion on the inviter (D-031); `standard` does not.
-    pub category: BanCategory,
+    /// `serious` raises suspicion on the inviter (D-031); `standard` does not. Omit it to
+    /// take the default of `reason_category` (D-211).
+    pub category: Option<BanCategory>,
+    /// Why the account is banned. `illegal_content`, `child_safety`, `fraud` and
+    /// `platform_abuse` default to `serious`; `harassment` and `ban_evasion` to `standard`.
+    pub reason_category: Option<BanReason>,
     pub reason: Option<String>,
+}
+
+/// The category to store: the explicit one, else the default of the reason category (D-211).
+fn ban_category(
+    category: Option<BanCategory>,
+    reason_category: Option<BanReason>,
+) -> Result<BanCategory, crate::HttpError> {
+    category
+        .or(reason_category.map(BanReason::default_category))
+        .ok_or_else(|| {
+            map_err(sr_admin::AdminError::Invalid(
+                "send a category or a reason_category".into(),
+            ))
+        })
 }
 
 /// Platform-ban the Person behind an account (`PLATFORM_BAN`).
@@ -236,7 +254,12 @@ pub async fn ban_account(
 ) -> ApiResult<Json<BanOutcome>> {
     let r = reason(&headers, b.reason.as_deref());
     ctx.svc()
-        .ban_account(&ctx.caller, id(&account_id)?, b.category, r.as_deref())
+        .ban_account(
+            &ctx.caller,
+            id(&account_id)?,
+            ban_category(b.category, b.reason_category)?,
+            r.as_deref(),
+        )
         .await
         .map(Json)
         .map_err(map_err)
@@ -260,7 +283,9 @@ pub async fn person(ctx: StaffCtx, Path(person_id): Path<String>) -> ApiResult<J
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct PersonBanBody {
-    pub category: BanCategory,
+    /// Omit it to take the default of `reason_category` (D-211).
+    pub category: Option<BanCategory>,
+    pub reason_category: Option<BanReason>,
     pub reason: Option<String>,
     /// The account the ban is about; a serious ban raises suspicion on its inviter.
     pub source_account_id: Option<String>,
@@ -287,7 +312,7 @@ pub async fn ban_person(
             &ctx.caller,
             id(&person_id)?,
             b.source_account_id.as_deref().map(id).transpose()?,
-            b.category,
+            ban_category(b.category, b.reason_category)?,
             r.as_deref(),
         )
         .await

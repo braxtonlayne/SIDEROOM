@@ -43,6 +43,7 @@ pub fn router() -> Router<AppState> {
         .route("/admin/me", get(staff::me))
         .route("/admin/staff", get(staff::list).post(staff::appoint))
         .route("/admin/staff/roles", get(staff::roles))
+        .route("/admin/staff/former", get(staff::former))
         .route(
             "/admin/staff/offers",
             get(staff_ext::list_offers).post(staff_ext::create_offer),
@@ -189,6 +190,7 @@ pub fn router() -> Router<AppState> {
         staff::me,
         staff::list,
         staff::roles,
+        staff::former,
         staff::appoint,
         staff::set_roles,
         staff::revoke,
@@ -319,6 +321,7 @@ pub fn router() -> Router<AppState> {
         sr_admin::InvitePage,
         sr_admin::SuspectPerson,
         sr_admin::SystemCounts,
+        system::StatsView,
         sr_admin::JobRow,
         sr_admin::JobPage,
     ))

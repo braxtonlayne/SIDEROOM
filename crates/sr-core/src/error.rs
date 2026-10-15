@@ -109,6 +109,7 @@ error_codes! {
     SrConflict = 900010, 409, "The current state does not allow this action";
     SrAgeConfirmationRequired = 900011, 403, "You need to confirm you are 18 or older to open this";
     SrSoundboardCooldown = 900012, 429, "Wait a moment before playing another sound";
+    SrSecondFactorRequired = 900014, 403, "Set up a second factor (authenticator app or passkey) first";
     SrAppNotReleased = 900120, 403, "App not released";
     SrAppSuspended = 900121, 403, "This application is suspended";
     SrIgnoreListFull = 900101, 400, "Your ignore list is full";

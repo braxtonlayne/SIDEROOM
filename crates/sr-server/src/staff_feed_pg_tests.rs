@@ -492,6 +492,7 @@ async fn announcements_can_be_sent_as_dms_to_everyone_active() {
                 title: "Downtime".into(),
                 body: "Tonight at 22:00 UTC.".into(),
                 severity: Some(AnnouncementSeverity::Warning),
+                critical: false,
                 send_dm: true,
                 starts_at_ms: None,
                 ends_at_ms: None,
@@ -517,6 +518,55 @@ async fn announcements_can_be_sent_as_dms_to_everyone_active() {
     assert!(wait_for(|| async { dms(a).await == 1 && dms(f.owner).await == 1 }).await);
     assert_eq!(dms(b).await, 0);
     assert_eq!(f.admin.active_announcements().await.unwrap().len(), 1);
+
+    // D-192: Anna turns the platform DMs off. An ordinary announcement skips her, a critical one
+    // (which is always sent) still reaches her.
+    sqlx::query(
+        "INSERT INTO user_settings (user_id, settings, version)          VALUES ($1, '{\"notifications\": {\"platform_dm\": false}}', 1)",
+    )
+    .bind(a)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    for (title, critical) in [("Quiet news", false), ("Outage", true)] {
+        f.admin
+            .announce(
+                &c,
+                AnnouncementInput {
+                    title: title.into(),
+                    body: "Body.".into(),
+                    severity: None,
+                    critical,
+                    send_dm: !critical,
+                    starts_at_ms: None,
+                    ends_at_ms: None,
+                },
+                None,
+            )
+            .await
+            .unwrap();
+    }
+    let titled = |who: i64, title: &'static str| {
+        let pool = f.pool.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM messages m JOIN channel_recipients cr ON cr.channel_id = m.channel_id                  WHERE cr.user_id = $1 AND m.author_id = 1 AND m.embeds->0->>'title' = $2",
+            )
+            .bind(who)
+            .bind(title)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    assert!(
+        wait_for(|| async {
+            titled(f.owner, "Outage").await == 1 && titled(f.owner, "Quiet news").await == 1
+        })
+        .await
+    );
+    assert!(wait_for(|| async { titled(a, "Outage").await == 1 }).await);
+    assert_eq!(titled(a, "Quiet news").await, 0);
     f.db.cleanup().await.unwrap();
 }
 

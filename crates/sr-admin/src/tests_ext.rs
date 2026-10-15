@@ -777,6 +777,7 @@ async fn announcements_show_between_their_times_and_can_be_ended() {
         title: title.into(),
         body: "Maintenance tonight at 22:00 UTC.".into(),
         severity: Some(AnnouncementSeverity::Warning),
+        critical: false,
         send_dm: true,
         starts_at_ms: None,
         ends_at_ms: Some(T0 + DAY),
@@ -806,6 +807,16 @@ async fn announcements_show_between_their_times_and_can_be_ended() {
     e.svc.announce(&o, quiet, None).await.unwrap();
     assert_eq!(e.notes.broadcasts.lock().unwrap().len(), 1);
     assert_eq!(e.svc.active_announcements().await.unwrap().len(), 2);
+    // D-192: a critical notice is always sent as a DM, even without `send_dm`.
+    let mut critical = input("Outage");
+    critical.send_dm = false;
+    critical.critical = true;
+    critical.severity = None;
+    let c = e.svc.announce(&o, critical, None).await.unwrap();
+    assert_eq!(c.severity, AnnouncementSeverity::Critical);
+    assert!(c.send_dm);
+    assert_eq!(e.notes.broadcasts.lock().unwrap().len(), 2);
+    e.svc.end_announcement(&o, c.id, None).await.unwrap();
     // Ending one early.
     e.svc
         .end_announcement(&o, a.id, Some("done"))
@@ -815,7 +826,7 @@ async fn announcements_show_between_their_times_and_can_be_ended() {
     // They lapse by themselves.
     e.clock.advance_ms(2 * DAY);
     assert!(e.svc.active_announcements().await.unwrap().is_empty());
-    assert_eq!(e.svc.list_announcements(&o).await.unwrap().len(), 2);
+    assert_eq!(e.svc.list_announcements(&o).await.unwrap().len(), 3);
 }
 
 // ---- ADM-ALR: alerts and card actions -------------------------------------------------

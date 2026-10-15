@@ -223,15 +223,28 @@ pub async fn patch_feature(
 /// Dashboard counts (`STAFF_BASIC`).
 #[utoipa::path(
     get, path = "/admin/stats",
-    responses((status = 200, body = SystemCounts), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
+    responses((status = 200, body = StatsView), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
     security(("session" = []))
 )]
-pub async fn stats(ctx: StaffCtx) -> ApiResult<Json<SystemCounts>> {
-    ctx.svc()
-        .stats(&ctx.caller)
-        .await
-        .map(Json)
-        .map_err(map_err)
+pub async fn stats(ctx: StaffCtx) -> ApiResult<Json<StatsView>> {
+    let counts = ctx.svc().stats(&ctx.caller).await.map_err(map_err)?;
+    let voice = ctx.deps.voice_stats.as_ref().map(|f| f());
+    Ok(Json(StatsView {
+        counts,
+        voice_rooms: voice.map(|v| v.0),
+        egress_bytes: voice.map(|v| v.1),
+    }))
+}
+
+/// The dashboard counts, plus the voice figures when the SFU runs in this process.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct StatsView {
+    #[serde(flatten)]
+    pub counts: SystemCounts,
+    /// Voice rooms with at least one participant (absent without an embedded SFU).
+    pub voice_rooms: Option<u64>,
+    /// Bytes the SFU has sent since it started (absent without an embedded SFU).
+    pub egress_bytes: Option<u64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

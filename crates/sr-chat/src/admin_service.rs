@@ -651,7 +651,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
             top_role_position(&target, &c.roles),
             guild_permissions(&c.guild, &target, &c.roles),
         )?;
-        self.repo.remove_member(id, user).await?;
+        self.repo.remove_member_kicked(id, user).await?;
         Ok(())
     }
 

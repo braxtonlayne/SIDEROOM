@@ -577,6 +577,24 @@ pub async fn delete_account(
     let done = match svc.store.delete_account(account.id, ledger_id).await? {
         Ok(d) => d,
         Err(DeleteRefusal::NotActive) => return Err(ErrorCode::UnknownAccount.into()),
+        Err(DeleteRefusal::Owner) => {
+            return Err(ApiError::invalid_form()
+                .field(
+                    "owner",
+                    "is_owner",
+                    "The Owner cannot delete the account. Transfer ownership first (sr-cli staff transfer-owner).",
+                )
+                .into());
+        }
+        Err(DeleteRefusal::Staff) => {
+            return Err(ApiError::invalid_form()
+                .field(
+                    "staff",
+                    "is_staff",
+                    "You are on the staff. Leave the Staff Server first, then delete your account.",
+                )
+                .into());
+        }
         Err(DeleteRefusal::OwnsGuilds(ids)) => {
             let list: Vec<String> = ids.iter().map(ToString::to_string).collect();
             return Err(ApiError::invalid_form()
@@ -662,6 +680,17 @@ pub enum StaffMfa {
 
 /// The window length in seconds (D-167).
 pub const STAFF_MFA_WINDOW_SECS: i64 = MFA_FRESH_SECS;
+
+/// Does the account have a confirmed TOTP or a passkey? (second factor to accept an appointment, D-198)
+pub(super) async fn has_second_factor(svc: &AuthService, user_id: i64) -> R<bool> {
+    let account = current_account(svc, user_id).await?;
+    let has_totp = svc
+        .store
+        .totp_get(account.id)
+        .await?
+        .is_some_and(|t| t.confirmed);
+    Ok(has_totp || svc.has_passkeys(account.id).await?)
+}
 
 pub(super) async fn staff_mfa_state(
     svc: &AuthService,

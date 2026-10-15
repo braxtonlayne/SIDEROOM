@@ -160,6 +160,14 @@ pub const CATALOG: &[SettingDef] = &[
         "Standard attachment size limit in bytes.",
     ),
     int(
+        "submissions.daily_upload_bytes",
+        "limits",
+        0,
+        10_995_116_277_760,
+        53_687_091_200,
+        "Bytes a member may upload to submissions per UTC day (default 50 GiB, 0 = unlimited; staff are exempt).",
+    ),
+    int(
         "messages.max_length",
         "limits",
         1,

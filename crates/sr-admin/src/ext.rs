@@ -186,6 +186,11 @@ pub struct AnnouncementInput {
     pub title: String,
     pub body: String,
     pub severity: Option<AnnouncementSeverity>,
+    /// Outage or security notice: cannot be dismissed and is always sent as a DM (D-192).
+    /// Same as `severity: "critical"`.
+    #[serde(default)]
+    pub critical: bool,
+    /// Also DM it to everyone who has not turned off `notifications.platform_dm`.
     #[serde(default)]
     pub send_dm: bool,
     /// Start showing at this time (default: now).
