@@ -3,6 +3,7 @@ import {
   LOCALES,
   getHour12,
   getLocale,
+  fullCatalogSettled,
   getVersion,
   localeInfo,
   setHour12,
@@ -38,4 +39,10 @@ export function useLocale() {
     hour12: getHour12(),
     setHour12,
   };
+}
+
+/** True once the full English catalog is available (or failed to load, so the app opens degraded). */
+export function useFullCatalogReady(): boolean {
+  useSyncExternalStore(subscribe, getVersion, getVersion);
+  return fullCatalogSettled();
 }

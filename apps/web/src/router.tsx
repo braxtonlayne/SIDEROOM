@@ -3,10 +3,14 @@ import {
   createRoute,
   createRouter,
   Outlet,
+  useRouterState,
   type RouterHistory,
 } from '@tanstack/react-router';
 import { lazy, Suspense } from 'react';
 import { useT } from './i18n';
+import { CatalogGate } from './i18n/CatalogGate';
+import { isCorePath } from './i18n/corePaths';
+import { RouteFallback } from './lib/lazyRoute';
 import { createCinemaRoutes } from './cinema/routes';
 import { createLibraryRoutes } from './library/routes';
 import { createLoungeRoutes } from './routes/lounge';
@@ -35,12 +39,22 @@ const ReauthHost = lazy(() =>
   import('./admin/ReauthHost').then((m) => ({ default: m.ReauthHost })),
 );
 function RootLayout() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <>
-      <Outlet />
-      <Suspense fallback={null}>
-        <ReauthHost />
-      </Suspense>
+      {/* Entrance routes paint from the core catalog; every other route waits for the full one. */}
+      {isCorePath(pathname) ? (
+        <Outlet />
+      ) : (
+        <CatalogGate fallback={<RouteFallback />}>
+          <Outlet />
+        </CatalogGate>
+      )}
+      <CatalogGate>
+        <Suspense fallback={null}>
+          <ReauthHost />
+        </Suspense>
+      </CatalogGate>
     </>
   );
 }

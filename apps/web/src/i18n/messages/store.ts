@@ -24,3 +24,20 @@ export function registerFragments(
     }
   }
 }
+
+/** True once the non-first-paint fragments (`./en.rest.ts`) are registered. Tests register them in `test/setup.ts`. */
+let restLoaded = false;
+const restListeners = new Set<() => void>();
+export const isRestLoaded = () => restLoaded;
+
+/** Called by `./en.rest.ts` after it registers; wakes everything waiting on the full catalog. */
+export function markRestLoaded(): void {
+  if (restLoaded) return;
+  restLoaded = true;
+  for (const l of [...restListeners]) l();
+}
+
+export function onRestLoaded(listener: () => void): () => void {
+  restListeners.add(listener);
+  return () => restListeners.delete(listener);
+}
