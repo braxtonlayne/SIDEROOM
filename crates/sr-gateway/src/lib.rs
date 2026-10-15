@@ -12,6 +12,7 @@ pub mod conn;
 pub mod hub;
 mod lists;
 pub mod member_list;
+pub mod presence;
 pub mod protocol;
 mod session;
 #[cfg(any(test, feature = "test-support"))]

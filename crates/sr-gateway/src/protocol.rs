@@ -194,6 +194,10 @@ pub struct PresenceUpdate {
     pub since: Option<u64>,
     #[serde(default)]
     pub afk: bool,
+    /// Per platform status (`desktop`, `web`, `mobile`), filled in by the gateway when it
+    /// merges sessions; clients cannot set it.
+    #[serde(default, skip_deserializing)]
+    pub client_status: Value,
 }
 
 fn online() -> String {
@@ -207,6 +211,7 @@ impl Default for PresenceUpdate {
             activities: Vec::new(),
             since: None,
             afk: false,
+            client_status: Value::Null,
         }
     }
 }

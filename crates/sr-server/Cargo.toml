@@ -49,10 +49,14 @@ sr-unfurl = { path = "../sr-unfurl" }
 sr-voice = { path = "../sr-voice" }
 sr-voice-proto = { path = "../sr-voice-proto" }
 sr-storage = { path = "../sr-storage" }
+sr-net = { path = "../sr-net" }
+bytes = "1"
+tempfile = "3"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 tracing = "0.1"
 
 [dev-dependencies]
+zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
 sr-chat = { path = "../sr-chat", features = ["memory"] }

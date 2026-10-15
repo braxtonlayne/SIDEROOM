@@ -16,6 +16,16 @@ pub struct Profile {
     pub pronouns: Option<String>,
     /// Display name shown instead of the username (Discord `global_name`).
     pub display_name: Option<String>,
+    /// Slug of an approved avatar decoration (LNG-PRF-009).
+    pub avatar_decoration: Option<String>,
+    /// Slug of an approved profile effect.
+    pub profile_effect: Option<String>,
+    /// Profile theme: two 0xRRGGBB colours (LNG-PRF-010), both or neither.
+    pub theme_colors: Option<[u32; 2]>,
+    /// Account creation time, unix ms ("Member since"); 0 when unknown.
+    pub created_ms: i64,
+    /// Public badges (`staff`, `owner`, `patron`, `early_member`, `app_developer`, `bot`).
+    pub badges: Vec<String>,
     pub connections: Vec<Connection>,
 }
 
@@ -31,6 +41,12 @@ pub struct Connection {
     pub verified: bool,
     pub visible: bool,
     pub created_ms: i64,
+    /// Public profile link of the account (shown as a link on the profile).
+    pub url: Option<String>,
+    /// Show the stats line / activity from this connection on the profile.
+    pub show_activity: bool,
+    /// Public stats captured at link time or by the refresh job, e.g. `{"followers": 12}`.
+    pub stats: serde_json::Value,
 }
 
 /// Partial profile update. Outer `None` = leave alone, inner `None` = clear.
@@ -42,6 +58,9 @@ pub struct ProfileEdit {
     pub bio: Option<Option<String>>,
     pub pronouns: Option<Option<String>>,
     pub display_name: Option<Option<String>>,
+    pub avatar_decoration: Option<Option<String>>,
+    pub profile_effect: Option<Option<String>>,
+    pub theme_colors: Option<Option<[u32; 2]>>,
 }
 
 /// Apply an edit with validation, returning the new profile fields.
@@ -78,6 +97,22 @@ pub fn apply_edit(
             ));
         }
         current.accent_color = color;
+    }
+    if let Some(slug) = &edit.avatar_decoration {
+        current.avatar_decoration = clean_slug("avatar_decoration", slug.as_deref())?;
+    }
+    if let Some(slug) = &edit.profile_effect {
+        current.profile_effect = clean_slug("profile_effect", slug.as_deref())?;
+    }
+    if let Some(colors) = edit.theme_colors {
+        if colors.is_some_and(|c| c.iter().any(|v| *v > 0x00FF_FFFF)) {
+            return Err(SocialError::invalid(
+                "theme_colors",
+                "NUMBER_TYPE_MAX",
+                "must be 24-bit RGB values",
+            ));
+        }
+        current.theme_colors = colors;
     }
     if let Some(key) = &edit.avatar_key {
         current.avatar_key = clean_text("avatar", key.as_deref(), 256)?;
@@ -127,4 +162,21 @@ pub fn visible_connections(profile: &Profile, viewer: UserId) -> Vec<Connection>
         .filter(|c| c.visible || viewer == profile.user)
         .cloned()
         .collect()
+}
+
+/// A decoration or effect slug: lowercase letters, digits and `-`, 1 to 48 characters.
+fn clean_slug(field: &str, slug: Option<&str>) -> SocialResult<Option<String>> {
+    let Some(s) = slug else { return Ok(None) };
+    let ok = !s.is_empty()
+        && s.len() <= 48
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    if !ok {
+        return Err(SocialError::invalid(
+            field,
+            "BASE_TYPE_BAD_FORMAT",
+            "must be 1-48 lowercase letters, digits or dashes",
+        ));
+    }
+    Ok(Some(s.to_owned()))
 }

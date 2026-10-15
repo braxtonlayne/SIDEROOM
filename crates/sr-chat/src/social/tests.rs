@@ -299,6 +299,9 @@ async fn connections_verified_only_via_oauth() {
         verified,
         visible: true,
         created_ms: 0,
+        url: None,
+        show_activity: true,
+        stats: serde_json::Value::Null,
     };
     f.svc.upsert_connection(conn(true)).await.unwrap();
     assert!(!f.svc.get_profile(u(1), u(1)).await.unwrap().connections[0].verified);
@@ -985,6 +988,7 @@ async fn profile_edit_and_connections() {
                 banner_key: Some(Some("banners/1".into())),
                 display_name: Some(Some("  Ada L.  ".into())),
                 avatar_key: Some(Some("0123456789abcdef0123456789abcdef".into())),
+                ..ProfileEdit::default()
             },
         )
         .await
@@ -1036,6 +1040,9 @@ async fn profile_edit_and_connections() {
         verified: false,
         visible,
         created_ms: 0,
+        url: None,
+        show_activity: true,
+        stats: serde_json::Value::Null,
     };
     f.svc.upsert_connection(conn(true, "pub")).await.unwrap();
     f.svc.upsert_connection(conn(false, "priv")).await.unwrap();
@@ -1321,4 +1328,77 @@ async fn global_default_level_sits_between_guild_setting_and_guild_default() {
         .await
         .unwrap();
     assert_eq!(f.svc.default_notification_level(u(1)).await.unwrap(), None);
+}
+
+#[tokio::test]
+async fn profile_decoration_effect_and_theme_are_validated() {
+    let f = fx();
+    f.svc_repo().store.lock().unwrap().profiles.insert(
+        u(1),
+        Profile {
+            user: u(1),
+            ..Profile::default()
+        },
+    );
+    let p = f
+        .svc
+        .edit_profile(
+            u(1),
+            &ProfileEdit {
+                avatar_decoration: Some(Some("neon-halo".into())),
+                profile_effect: Some(Some("snow-2".into())),
+                theme_colors: Some(Some([0x00AB_CDEF, 0x0012_3456])),
+                ..ProfileEdit::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(p.avatar_decoration.as_deref(), Some("neon-halo"));
+    assert_eq!(p.profile_effect.as_deref(), Some("snow-2"));
+    assert_eq!(p.theme_colors, Some([0x00AB_CDEF, 0x0012_3456]));
+
+    for bad in ["Neon Halo", "", "x/y", &"a".repeat(49)] {
+        let err = f
+            .svc
+            .edit_profile(
+                u(1),
+                &ProfileEdit {
+                    avatar_decoration: Some(Some(bad.to_owned())),
+                    ..ProfileEdit::default()
+                },
+            )
+            .await;
+        assert!(err.is_err(), "{bad:?} must be refused");
+    }
+    // A colour wider than 24 bits is refused and the stored theme is unchanged.
+    let err = f
+        .svc
+        .edit_profile(
+            u(1),
+            &ProfileEdit {
+                theme_colors: Some(Some([0x0100_0000, 0])),
+                ..ProfileEdit::default()
+            },
+        )
+        .await;
+    assert!(err.is_err());
+    // `null` clears each of them.
+    let cleared = f
+        .svc
+        .edit_profile(
+            u(1),
+            &ProfileEdit {
+                avatar_decoration: Some(None),
+                profile_effect: Some(None),
+                theme_colors: Some(None),
+                ..ProfileEdit::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert!(
+        cleared.avatar_decoration.is_none()
+            && cleared.profile_effect.is_none()
+            && cleared.theme_colors.is_none()
+    );
 }

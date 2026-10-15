@@ -236,10 +236,23 @@ impl Client {
 
     /// HELLO, IDENTIFY, READY, one GUILD_CREATE per guild. Returns READY.
     async fn identify(&mut self, token: &str, intents: u64, guilds: usize) -> Value {
+        self.identify_with(token, intents, guilds, json!({})).await
+    }
+
+    /// Like `identify` with IDENTIFY `properties` (os, browser, device).
+    async fn identify_with(
+        &mut self,
+        token: &str,
+        intents: u64,
+        guilds: usize,
+        properties: Value,
+    ) -> Value {
         let hello = self.recv().await;
         assert_eq!(hello["op"], 10);
-        self.send(json!({"op": 2, "d": {"token": token, "intents": intents, "properties": {}}}))
-            .await;
+        self.send(
+            json!({"op": 2, "d": {"token": token, "intents": intents, "properties": properties}}),
+        )
+        .await;
         let ready = self.expect_event("READY").await;
         for _ in 0..guilds {
             self.expect_event("GUILD_CREATE").await;
@@ -1985,4 +1998,124 @@ async fn going_offline_tells_the_directory_once_per_transition() {
     drop(a2);
     settle().await;
     assert_eq!(*e.dir.offline.lock().unwrap(), vec![u(1)]);
+}
+
+// ---- LNG-PRF-013/014/015: per-session presence, idle, activities, client_status --------
+
+#[tokio::test]
+async fn idle_is_per_session_and_every_session_must_be_idle() {
+    let e = env();
+    let mut watcher = connect(&e);
+    watcher.identify("user:2", 0, 1).await;
+    let mut web = connect(&e);
+    web.identify_with("user:1", 0, 1, json!({"os": "Linux", "browser": "Firefox"}))
+        .await;
+    let mut phone = connect(&e);
+    phone
+        .identify_with(
+            "user:1",
+            0,
+            1,
+            json!({"os": "Android", "browser": "SideRoom"}),
+        )
+        .await;
+    settle().await;
+    watcher.drain().await;
+
+    // The browser goes AFK after 10 minutes; the phone is still in use.
+    web.send(
+        json!({"op": 3, "d": {"status": "online", "afk": true, "since": 1000, "activities": []}}),
+    )
+    .await;
+    let p = watcher.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(
+        p["d"]["status"], "online",
+        "one active session keeps the user online"
+    );
+    assert_eq!(
+        p["d"]["client_status"],
+        json!({"web": "idle", "mobile": "online"})
+    );
+    watcher.drain().await;
+
+    // Now the phone idles too: the user shows idle.
+    phone
+        .send(json!({"op": 3, "d": {"status": "online", "afk": true, "activities": []}}))
+        .await;
+    let p = watcher.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["status"], "idle");
+    assert_eq!(e.gw.presence(u(1)).unwrap().status, "idle");
+    watcher.drain().await;
+
+    // Activity on the phone brings the user back online.
+    phone
+        .send(json!({"op": 3, "d": {"status": "online", "afk": false, "activities": []}}))
+        .await;
+    let p = watcher.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["status"], "online");
+    assert_eq!(p["d"]["client_status"]["mobile"], "online");
+    // Closing the active phone leaves the idle browser: idle again.
+    watcher.drain().await;
+    drop(phone);
+    let p = watcher.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["status"], "idle");
+    assert_eq!(p["d"]["client_status"], json!({"web": "idle"}));
+}
+
+#[tokio::test]
+async fn activities_are_sanitised_and_cleared_when_the_session_leaves() {
+    let e = env();
+    let mut watcher = connect(&e);
+    watcher.identify("user:2", 0, 1).await;
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    settle().await;
+    watcher.drain().await;
+
+    a.send(json!({"op": 3, "d": {"status": "online", "activities": [
+        {"type": 6, "name": "Some Manga", "state": "Chapter 4", "secret": "dropped"},
+        {"type": 99, "name": "bad"},
+        {"type": 0, "name": ""}
+    ]}}))
+    .await;
+    let p = watcher.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(
+        p["d"]["activities"],
+        json!([{"type": 6, "name": "Some Manga", "state": "Chapter 4"}])
+    );
+    watcher.drain().await;
+    drop(a);
+    let p = watcher.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["status"], "offline");
+    assert_eq!(e.gw.presence(u(1)).unwrap().activities, Vec::<Value>::new());
+}
+
+#[tokio::test]
+async fn dnd_from_one_session_applies_to_all_and_invisible_hides_the_platforms() {
+    let e = env();
+    let mut watcher = connect(&e);
+    watcher.identify("user:2", 0, 1).await;
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&e);
+    b.identify("user:1", 0, 1).await;
+    settle().await;
+    watcher.drain().await;
+
+    a.send(json!({"op": 3, "d": {"status": "dnd", "activities": []}}))
+        .await;
+    assert_eq!(
+        watcher.expect_event("PRESENCE_UPDATE").await["d"]["status"],
+        "dnd"
+    );
+    watcher.drain().await;
+    a.send(json!({"op": 3, "d": {"status": "invisible", "activities": []}}))
+        .await;
+    let p = watcher.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["status"], "offline");
+    assert_eq!(
+        p["d"]["client_status"],
+        json!({}),
+        "invisible shows no platform"
+    );
 }

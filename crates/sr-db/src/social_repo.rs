@@ -258,8 +258,8 @@ impl RelationshipRepository for PgSocialRepo {
 
     async fn list_guild_memberships(&self, user: UserId) -> RepoResult<Vec<GuildMembership>> {
         let sql = format!(
-            "SELECT guild_id, nick, {} AS joined_ms FROM guild_members \
-             WHERE user_id = $1 ORDER BY guild_id",
+            "SELECT guild_id, nick, avatar_key, banner_key, bio, {} AS joined_ms \
+             FROM guild_members WHERE user_id = $1 ORDER BY guild_id",
             ms("joined_at")
         );
         let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
@@ -273,6 +273,9 @@ impl RelationshipRepository for PgSocialRepo {
                     guild: GuildId::new(r.try_get::<i64, _>("guild_id").map_err(db)? as u64),
                     nick: r.try_get("nick").map_err(db)?,
                     joined_at_ms: r.try_get("joined_ms").map_err(db)?,
+                    avatar_key: r.try_get("avatar_key").map_err(db)?,
+                    banner_key: r.try_get("banner_key").map_err(db)?,
+                    bio: r.try_get("bio").map_err(db)?,
                 })
             })
             .collect()
@@ -931,16 +934,46 @@ fn override_from_row(r: &PgRow) -> RepoResult<ChannelOverride> {
 impl ProfileRepository for PgSocialRepo {
     async fn get_profile(&self, user: UserId) -> RepoResult<Option<Profile>> {
         let row = sqlx::query(
-            "SELECT avatar_key, banner_key, accent_color, bio, pronouns, \
-             display_name FROM accounts WHERE id = $1",
+            "SELECT a.avatar_key, a.banner_key, a.accent_color, a.bio, a.pronouns, a.display_name, \
+             a.avatar_decoration, a.profile_effect, a.theme_primary, a.theme_accent, a.is_bot, \
+             a.flags, (EXTRACT(EPOCH FROM a.created_at) * 1000)::BIGINT AS created_ms, \
+             EXISTS(SELECT 1 FROM staff_appointments s \
+                    WHERE s.account_id = a.id AND s.revoked_at IS NULL) AS is_staff, \
+             EXISTS(SELECT 1 FROM guilds g WHERE g.is_staff_guild AND g.owner_id = a.id) AS is_owner, \
+             (EXISTS(SELECT 1 FROM entitlement_grants e \
+                     WHERE e.kind = 'patron' AND e.user_id = a.id AND e.revoked_ms IS NULL \
+                       AND (e.permanent OR e.ends_ms > (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT \
+                            OR e.starts_ms + COALESCE(e.days, 0) * 86400000 \
+                               > (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT)) \
+              AND NOT COALESCE((SELECT d.hide_badge FROM donor_preferences d \
+                                WHERE d.user_id = a.id), FALSE)) AS is_patron \
+             FROM accounts a WHERE a.id = $1",
         )
         .bind(i(user.get()))
         .fetch_optional(&self.pool)
         .await
         .map_err(db)?;
         let Some(r) = row else { return Ok(None) };
+        let flags: i64 = r.try_get("flags").map_err(db)?;
+        let mut badges = Vec::new();
+        for (on, name) in [
+            (r.try_get::<bool, _>("is_owner").map_err(db)?, "owner"),
+            (r.try_get::<bool, _>("is_staff").map_err(db)?, "staff"),
+            (r.try_get::<bool, _>("is_patron").map_err(db)?, "patron"),
+            (flags & (1 << 9) != 0, "contributor"),
+            (flags & (1 << 8) != 0, "early_member"),
+            (flags & (1 << 10) != 0, "bug_hunter"),
+            (flags & (1 << 11) != 0, "honorary"),
+            (flags & (1 << 1) != 0, "app_developer"),
+            (r.try_get::<bool, _>("is_bot").map_err(db)?, "bot"),
+        ] {
+            if on {
+                badges.push(name.to_owned());
+            }
+        }
         let sql = format!(
-            "SELECT provider, external_id, display_name, verified, visible, {} AS created_ms \
+            "SELECT provider, external_id, display_name, verified, visible, url, show_activity, \
+             stats, {} AS created_ms \
              FROM user_connections WHERE user_id = $1 ORDER BY created_at, provider, external_id",
             ms("created_at")
         );
@@ -959,6 +992,9 @@ impl ProfileRepository for PgSocialRepo {
                     display_name: c.try_get("display_name").map_err(db)?,
                     verified: c.try_get("verified").map_err(db)?,
                     visible: c.try_get("visible").map_err(db)?,
+                    url: c.try_get("url").map_err(db)?,
+                    show_activity: c.try_get("show_activity").map_err(db)?,
+                    stats: c.try_get("stats").map_err(db)?,
                     created_ms: c.try_get("created_ms").map_err(db)?,
                 })
             })
@@ -974,6 +1010,17 @@ impl ProfileRepository for PgSocialRepo {
             bio: r.try_get("bio").map_err(db)?,
             pronouns: r.try_get("pronouns").map_err(db)?,
             display_name: r.try_get("display_name").map_err(db)?,
+            avatar_decoration: r.try_get("avatar_decoration").map_err(db)?,
+            profile_effect: r.try_get("profile_effect").map_err(db)?,
+            theme_colors: match (
+                r.try_get::<Option<i32>, _>("theme_primary").map_err(db)?,
+                r.try_get::<Option<i32>, _>("theme_accent").map_err(db)?,
+            ) {
+                (Some(a), Some(b)) => Some([a as u32, b as u32]),
+                _ => None,
+            },
+            created_ms: r.try_get("created_ms").map_err(db)?,
+            badges,
             connections,
         }))
     }
@@ -981,7 +1028,8 @@ impl ProfileRepository for PgSocialRepo {
     async fn put_profile(&self, p: &Profile) -> RepoResult<()> {
         sqlx::query(
             "UPDATE accounts SET banner_key = $2, accent_color = $3, bio = $4, pronouns = $5, \
-             avatar_key = $6, display_name = $7, updated_at = now() WHERE id = $1",
+             avatar_key = $6, display_name = $7, avatar_decoration = $8, profile_effect = $9, \
+             theme_primary = $10, theme_accent = $11, updated_at = now() WHERE id = $1",
         )
         .bind(i(p.user.get()))
         .bind(p.banner_key.as_deref())
@@ -990,6 +1038,10 @@ impl ProfileRepository for PgSocialRepo {
         .bind(p.pronouns.as_deref())
         .bind(p.avatar_key.as_deref())
         .bind(p.display_name.as_deref())
+        .bind(p.avatar_decoration.as_deref())
+        .bind(p.profile_effect.as_deref())
+        .bind(p.theme_colors.map(|c| c[0] as i32))
+        .bind(p.theme_colors.map(|c| c[1] as i32))
         .execute(&self.pool)
         .await
         .map_err(db)?;
@@ -999,11 +1051,11 @@ impl ProfileRepository for PgSocialRepo {
     async fn upsert_connection(&self, c: &Connection) -> RepoResult<()> {
         sqlx::query(
             "INSERT INTO user_connections (user_id, provider, external_id, display_name, \
-               verified, visible, created_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7::bigint / 1000.0)) \
+               verified, visible, url, show_activity, stats, created_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $8, $9, $10, to_timestamp($7::bigint / 1000.0)) \
              ON CONFLICT (user_id, provider, external_id) DO UPDATE SET \
                display_name = $4, verified = user_connections.verified OR $5, visible = $6, \
-               updated_at = now()",
+               url = $8, show_activity = $9, stats = $10, updated_at = now()",
         )
         .bind(i(c.user.get()))
         .bind(&c.provider)
@@ -1012,6 +1064,9 @@ impl ProfileRepository for PgSocialRepo {
         .bind(c.verified)
         .bind(c.visible)
         .bind(c.created_ms)
+        .bind(c.url.as_deref())
+        .bind(c.show_activity)
+        .bind(&c.stats)
         .execute(&self.pool)
         .await
         .map_err(db)?;
@@ -1030,6 +1085,86 @@ impl ProfileRepository for PgSocialRepo {
         .bind(i(user.get()))
         .bind(provider)
         .bind(external_id)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn connection_owner(
+        &self,
+        provider: &str,
+        external_id: &str,
+    ) -> RepoResult<Option<UserId>> {
+        let owner: Option<i64> = sqlx::query_scalar(
+            "SELECT user_id FROM user_connections \
+             WHERE provider = $1 AND external_id = $2 AND verified LIMIT 1",
+        )
+        .bind(provider)
+        .bind(external_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(owner.map(|o| UserId::new(o as u64)))
+    }
+
+    async fn stale_connections(
+        &self,
+        before_ms: i64,
+        providers: &[&str],
+        limit: usize,
+    ) -> RepoResult<Vec<Connection>> {
+        let providers: Vec<String> = providers.iter().map(|p| (*p).to_owned()).collect();
+        let rows = sqlx::query(
+            "SELECT user_id, provider, external_id, display_name, visible, url, stats \
+             FROM user_connections \
+             WHERE verified AND show_activity AND provider = ANY($1) \
+               AND (stats_refreshed_at IS NULL \
+                    OR stats_refreshed_at < to_timestamp($2::bigint / 1000.0)) \
+             ORDER BY stats_refreshed_at NULLS FIRST LIMIT $3",
+        )
+        .bind(&providers)
+        .bind(before_ms)
+        .bind(i64::try_from(limit).unwrap_or(100))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|c| {
+                Ok(Connection {
+                    user: UserId::new(c.try_get::<i64, _>("user_id").map_err(db)? as u64),
+                    provider: c.try_get("provider").map_err(db)?,
+                    external_id: c.try_get("external_id").map_err(db)?,
+                    display_name: c.try_get("display_name").map_err(db)?,
+                    verified: true,
+                    visible: c.try_get("visible").map_err(db)?,
+                    url: c.try_get("url").map_err(db)?,
+                    show_activity: true,
+                    stats: c.try_get("stats").map_err(db)?,
+                    created_ms: 0,
+                })
+            })
+            .collect()
+    }
+
+    async fn set_connection_stats(
+        &self,
+        user: UserId,
+        provider: &str,
+        external_id: &str,
+        stats: &serde_json::Value,
+        now_ms: i64,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE user_connections SET stats = $4, \
+               stats_refreshed_at = to_timestamp($5::bigint / 1000.0), updated_at = now() \
+             WHERE user_id = $1 AND provider = $2 AND external_id = $3",
+        )
+        .bind(i(user.get()))
+        .bind(provider)
+        .bind(external_id)
+        .bind(stats)
+        .bind(now_ms)
         .execute(&self.pool)
         .await
         .map_err(db)?;

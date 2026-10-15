@@ -17,8 +17,9 @@ use sr_auth::{
     },
     session::TokenHash,
     store::{
-        AccountRecord, AccountState, AuthStore, InviteState, PasskeyRecord, RegisterRejection,
-        RegisterTx, Registered, StoreError, StoreResult, TrustedDeviceRecord,
+        AccountRecord, AccountState, AuthStore, DeleteRefusal, DeletedAccount, InviteState,
+        PasskeyRecord, RegisterRejection, RegisterTx, Registered, StoreError, StoreResult,
+        TrustedDeviceRecord,
     },
 };
 
@@ -197,7 +198,9 @@ impl AuthStore for PgAuthStore {
     }
 
     async fn username_exists(&self, username: &str) -> StoreResult<bool> {
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM accounts WHERE username = $1)")
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM accounts WHERE username = $1) \n             OR EXISTS(SELECT 1 FROM deleted_accounts WHERE username = $1 AND username_release_at > now())",
+        )
             .bind(username)
             .fetch_one(&self.pool)
             .await
@@ -695,6 +698,31 @@ impl AuthStore for PgAuthStore {
         .await
         .map_err(store_err)?;
         Ok(r.rows_affected() > 0)
+    }
+
+    async fn delete_account(
+        &self,
+        id: i64,
+        ledger_id: i64,
+    ) -> StoreResult<Result<DeletedAccount, DeleteRefusal>> {
+        let done = crate::account_deletion::delete_account(&self.pool, id, ledger_id)
+            .await
+            .map_err(store_err)?;
+        Ok(match done {
+            Ok(r) => Ok(DeletedAccount {
+                guilds_left: r.guilds_left,
+                friends: r.friends,
+                other_relations: r.other_relations,
+                credits_forfeited: r.credits_forfeited,
+                invites_revoked: r.invites_revoked,
+                avatar_key: r.avatar_key,
+                banner_key: r.banner_key,
+            }),
+            Err(crate::account_deletion::Blocked::NotActive) => Err(DeleteRefusal::NotActive),
+            Err(crate::account_deletion::Blocked::OwnsGuilds(g)) => {
+                Err(DeleteRefusal::OwnsGuilds(g))
+            }
+        })
     }
 
     async fn audit(

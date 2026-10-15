@@ -78,8 +78,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [ ] **LNG-DM-009** [FE] Blocked-user message collapse ("1 blocked message — Show")
 
 ## LNG-PRF — Profiles
-- [ ] **LNG-PRF-001** [DB] Profile fields (avatar, banner, accent colors, bio, pronouns, decoration, effect, per-guild overrides)
-- [ ] **LNG-PRF-002** [BE] `GET /users/{id}/profile` (mutuals, connections, badges, member since, friends since, guild member profile)
+- [x] **LNG-PRF-001** [DB] Profile fields (avatar, banner, accent colors, bio, pronouns, decoration, effect, per-guild overrides) *(accounts.avatar_decoration, profile_effect, theme_*; per-server fields already on guild_members; migration 0660; tests profile_be.rs)*
+- [x] **LNG-PRF-002** [BE] `GET /users/{id}/profile` (mutuals, connections, badges, member since, friends since, guild member profile) *(GET /users/{id}/profile adds badges, member_since, guild_member_profile via ?guild_id=; social tests)*
 - [ ] **LNG-PRF-003** [FE] Profile popout (mini): banner, avatar/status, name, username, pronouns, badges, custom status bubble, roles (guild), note, "Message @x" input, View Full Profile
 - [ ] **LNG-PRF-004** [FE] Full profile modal: banner, avatar, name, `username • pronouns`, badges row, Message button, add-friend/friends icon, ⋯ menu
 - [ ] **LNG-PRF-005** [FE] Full profile left column: bio (markdown), Member Since, Friends Since, Connections list (icon, account name, ↗, optional stats line), Note
@@ -91,5 +91,6 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [ ] **LNG-PRF-011** [FE] Per-server profile rendering in guild context
 - [x] **LNG-PRF-012** [BE] User notes CRUD (private)
 - [ ] **LNG-PRF-013** [BE][FE] Presence: status, custom status, activities (game, watching, reading, listening), client platform icons (web/mobile)
-- [ ] **LNG-PRF-014** [GW] `PRESENCE_UPDATE` fan-out (friends + shared guilds, intent-filtered)
-- [ ] **LNG-PRF-015** [BE] Idle detection (client reports AFK after 10 min) + multi-session presence merging
+   - Backend done (sanitised activities incl. type 6 Reading, client_status per platform, custom status); the FE half belongs to the shell agent.
+- [x] **LNG-PRF-014** [GW] `PRESENCE_UPDATE` fan-out (friends + shared guilds, intent-filtered) *(fan-out to friends and shared guilds already existed; now carries client_status and the merged sessions; gateway tests)*
+- [x] **LNG-PRF-015** [BE] Idle detection (client reports AFK after 10 min) + multi-session presence merging *(sr-gateway presence.rs: per-session afk/idle merge; gateway tests)*

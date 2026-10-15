@@ -282,6 +282,7 @@ async fn profile_and_presence() {
                 banner_key: Some(Some("banners/x".into())),
                 avatar_key: Some(Some("0123456789abcdef0123456789abcdef".into())),
                 display_name: Some(Some("Al Ice".into())),
+                ..ProfileEdit::default()
             },
         )
         .await
@@ -304,6 +305,9 @@ async fn profile_and_presence() {
             verified: false,
             visible,
             created_ms: 0,
+            url: None,
+            show_activity: true,
+            stats: serde_json::Value::Null,
         })
         .await
         .unwrap();

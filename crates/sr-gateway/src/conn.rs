@@ -226,8 +226,8 @@ impl Conn {
             op::PRESENCE_UPDATE => {
                 let upd: PresenceUpdate = serde_json::from_value(p.d)
                     .map_err(|_| Stop::Close(close::DECODE_ERROR, "bad presence"))?;
-                if let Some(s) = &self.session {
-                    self.gw.set_presence(s.user, upd).await;
+                if let Some(s) = self.session.clone() {
+                    self.gw.set_session_presence(&s, upd).await;
                 }
                 Ok(())
             }
@@ -319,10 +319,12 @@ impl Conn {
             .take()
             .ok_or(Stop::Close(close::UNKNOWN_ERROR, "no session channel"))?;
         let session = self.gw.create_session(&user, wanted, self.id, tx).await;
-        self.session = Some(session);
+        self.gw
+            .set_session_platform(&session, crate::presence::platform_of(&id.properties));
+        self.session = Some(session.clone());
         self.touch_seen();
         if let Some(p) = id.presence {
-            self.gw.set_presence(user.user_id, p).await;
+            self.gw.set_session_presence(&session, p).await;
         }
         Ok(())
     }

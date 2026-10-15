@@ -38,6 +38,7 @@ sr-events = { path = "../sr-events" }
 sr-markdown = { path = "../sr-markdown" }
 sr-search = { path = "../sr-search" }
 sr-unfurl = { path = "../sr-unfurl" }
+sr-net = { path = "../sr-net" }
 sr-storage = { path = "../sr-storage" }
 subtle = "2"
 thiserror.workspace = true

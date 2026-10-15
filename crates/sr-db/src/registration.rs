@@ -120,7 +120,9 @@ pub async fn register_with_invite(
     }
 
     let username_taken: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM accounts WHERE username = $1)")
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM accounts WHERE username = $1) \n             OR EXISTS(SELECT 1 FROM deleted_accounts WHERE username = $1 AND username_release_at > now())",
+        )
             .bind(&r.username)
             .fetch_one(&mut *tx)
             .await?;
