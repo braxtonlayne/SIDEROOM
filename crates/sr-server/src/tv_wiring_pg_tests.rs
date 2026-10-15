@@ -349,3 +349,33 @@ async fn a_channel_is_scheduled_from_the_real_catalog_and_tables() {
     assert_eq!(kinds, ["program", "slate", "program", "slate"]);
     w.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn block_length_comes_from_the_asset_when_it_is_shorter_than_the_runtime() {
+    let w = World::new().await;
+    // The catalog says 95 minutes, the probed asset is 80 minutes and 30 seconds.
+    let film = w.film(TitleKind::Movie, "Short Cut", false, &[], 95).await;
+    let other = w.film(TitleKind::Movie, "Unprobed", false, &[], 60).await;
+    sqlx::query(
+        "INSERT INTO video_assets (id, filename, original_key, original_ext, original_size, duration_ms) \
+         VALUES ($1, 'a.mkv', 'originals/x/source.mkv', 'mkv', 10, 4830000)",
+    )
+    .bind(film.asset_id.unwrap())
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    let cat = RepoTvCatalog::new(w.repo.clone()).with_asset_durations(Arc::new(
+        crate::tv_catalog::PgAssetDurations::new(w.db.pool().clone()),
+    ));
+    let pool = cat.pool(&PoolFilter::default(), false, 10).await.unwrap();
+    let short = pool.iter().find(|i| i.title_id == film.id).unwrap();
+    assert_eq!(short.duration_ms, 4_830_000, "the asset wins over runtime_min");
+    let unprobed = pool.iter().find(|i| i.title_id == other.id).unwrap();
+    assert_eq!(unprobed.duration_ms, 60 * 60_000, "no asset row: runtime_min");
+    assert_eq!(
+        cat.item(film.id, None).await.unwrap().unwrap().duration_ms,
+        4_830_000
+    );
+    w.db.cleanup().await.unwrap();
+}
