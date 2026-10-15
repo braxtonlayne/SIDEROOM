@@ -63,7 +63,7 @@ Applied as rules:
 | Styling | CSS Modules + CSS custom properties (design tokens). No Tailwind in the Lounge kit, to keep Discord-like precision |
 | Virtualized lists | TanStack Virtual (message list, member list, grids) |
 | Video player | hls.js (Safari uses native HLS) |
-| Reader | Custom canvas/IMG reader. `pdf.js` for PDFs. `foliate-js` for EPUB |
+| Reader | Custom canvas/IMG reader. `pdfjs-dist` (pdf.js) for PDFs, rendered in the browser with its own worker (D-217). `foliate-js` for EPUB |
 | PWA | `vite-plugin-pwa` (Workbox). Web Push via VAPID (Rust `web-push` crate server-side) |
 | Tests | Vitest + Testing Library. Playwright e2e |
 | Lint/format | ESLint + Prettier (or Biome) |
@@ -87,7 +87,7 @@ These are the **only** non-Rust runtime components. Adding another needs an ADR.
 |---|---|---|---|
 | PostgreSQL | C | No Rust relational DB is mature enough to be the system of record | 0001 |
 | FFmpeg libs (via bindings) | C | No Rust equivalent for full decode/scale/H.264 NVENC | 0005 |
-| libwebp, pdfium, unrar (via bindings) | C/C++ | Format support | 0005 |
+| libwebp, pdfium, unrar (via bindings) | C/C++ | Format support. pdfium: approved, not used: PDFs are rendered client-side (D-217) | 0005 |
 | coturn | C | No maintained Rust TURN server | 0004 |
 | Caddy (optional) | Go | Convenience. Can be replaced by rustls in `sr-server` | — |
 | Browser JS ecosystem | TS | Frontend (D-151) | — |

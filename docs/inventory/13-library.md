@@ -14,7 +14,7 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [x] **LIB-ING-001** [BE] Image page pipeline: decode JPEG/PNG/WebP/GIF -> lossy WebP q85 (PNG sources also lossless, smaller kept; D-168) + sized variants 720/1080/1600 + blurhash + dimensions + spread detection. AVIF is rejected, not decoded (D-169)
 - [x] **LIB-ING-002** [BE] Archive readers: ZIP/CBZ, 7z/CB7, RAR/CBR (behind `library.ingest.rar_enabled`; D-170) under one set of limits (natural sort, ignore junk files like `__MACOSX`, `Thumbs.db`)
 - [x] **LIB-ING-003** [BE] ComicInfo.xml parser → metadata
-- [x] **LIB-ING-004** [BE] PDF: keep original and validate; no server rasterizer *(re-scoped 2026-10-15, P11-LIB-2: `ingest::pdf::validate` accepts or refuses the original and the job keeps it as the chapter source; the reader and the cover thumbnail use `pdf.js` in the browser. Image mode (pdfium) reopens only if the owner approves bundling it.)*
+- [x] **LIB-ING-004** [BE] PDF: keep original and validate; no server rasterizer *(re-scoped 2026-10-15, P11-LIB-2: `ingest::pdf::validate` accepts or refuses the original and the job keeps it as the chapter source; the reader and the cover thumbnail use `pdf.js` in the browser. Image mode closed (D-217): pdfium stays approved under ADR-0005 but is not used.)*
 - [x] **LIB-ING-005** [BE] EPUB: validate, extract metadata/cover, keep as-is (`ingest::epub::inspect`)
 - [x] **LIB-ING-006** [BE] series.json parser
 - [x] **LIB-ING-007** [BE] Auto-crop border detection data (optional per page) *(phase 11: `ingest::crop`, stored in `reading_pages.crop` (0691) and in the page manifest; the reader does not apply it yet)*

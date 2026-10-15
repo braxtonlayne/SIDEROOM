@@ -76,7 +76,7 @@ Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions
 
 Enforcement rules built on these (also the default, D-162): only the Owner may grant `READ_PRIVATE_CONTENT`, `APPOINT_STAFF`, `VIEW_ACCESS_LOG` or `OPERATOR`; a delegate can grant only bits they hold; the Owner role is never assignable (transfer is `sr-cli staff transfer-owner`); only the Owner can suspend, ban or reset 2FA of a staff account.
 
-- **Joining:** server invites to the Staff Server are disabled. The only way in is an **appointment**: a member with `APPOINT_STAFF` opens Admin → Staff → Appoint, picks an account, and selects starting roles. The appointee receives a system DM and accepts, then is added. Everything is logged.
+- **Joining:** server invites to the Staff Server are disabled. The only way in is an **appointment**: a member with `APPOINT_STAFF` opens Admin → Staff → Appoint, picks an account, and selects starting roles. The appointee receives a system DM and accepts, then is added. Everything is logged. The offer is the normal path. The Owner may also appoint directly from Admin → Staff ("Appoint directly (emergency)", behind re-auth and logged); `sr-cli staff appoint` covers bootstrap, before any web session exists (D-197 as amended).
 - **Leaving or removal** revokes staff status instantly: active admin sessions are invalidated and the gateway pushes `SR_STAFF_ALERT {revoked}`.
 - Staff membership is shown as a "SIDE ROOM Staff" badge on profiles (configurable).
 
