@@ -251,6 +251,12 @@ impl DownloadService {
             .ok_or_else(|| MediaError::Forbidden("Downloads are for Patrons.".into()))
     }
 
+    /// Downloads per day of a member who holds the perk; `None` for everybody else. Library
+    /// chapter downloads count against their own table with this allowance (D-075).
+    pub async fn per_day(&self, user: i64) -> MediaResult<Option<u32>> {
+        Ok(self.entitlements.allowance(user).await?.map(|a| a.per_day))
+    }
+
     /// Fails with `Forbidden` unless the member holds the download perk.
     pub async fn check_entitled(&self, user: i64) -> MediaResult<()> {
         self.allowance(user).await.map(|_| ())

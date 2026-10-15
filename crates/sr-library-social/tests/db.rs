@@ -1027,3 +1027,189 @@ async fn comments_replies_likes_reports_and_blocks() {
     assert!(e.svc.comments(a, 0, ch, None, None).await.is_err());
     e.teardown().await;
 }
+
+#[derive(Default)]
+struct Rec(std::sync::Mutex<Vec<(Vec<i64>, serde_json::Value)>>);
+
+#[async_trait::async_trait]
+impl sr_library::LibraryEvents for Rec {
+    async fn emit(&self, _: Vec<i64>, _: serde_json::Value) {}
+    async fn emit_activity(&self, users: Vec<i64>, payload: serde_json::Value) {
+        self.0.lock().unwrap().push((users, payload));
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn reading_presence_goes_to_friends_and_honours_privacy() {
+    let e = Env::new().await;
+    let rec = std::sync::Arc::new(Rec::default());
+    let svc = e.svc.clone().with_events(rec.clone());
+    let (me, friend, stranger) = (e.adult().await, e.user().await, e.user().await);
+    e.befriend(me.user_id, friend.user_id).await;
+    let open = e.series("Open", false).await;
+    let spicy = e.series("Spicy", true).await;
+    let (c1, c2) = (e.chapter(open, 36.0).await, e.chapter(spicy, 1.0).await);
+    let types = || -> Vec<String> {
+        rec.0
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(_, p)| p["type"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    svc.heartbeat_reading(me, c1).await.unwrap();
+    // A second heartbeat on the same chapter is quiet.
+    svc.heartbeat_reading(me, c1).await.unwrap();
+    assert_eq!(types(), ["reading"]);
+    {
+        let sent = rec.0.lock().unwrap();
+        assert_eq!(sent[0].0, vec![friend.user_id]);
+        assert_eq!(sent[0].1["activity"]["type"], 6);
+        assert_eq!(sent[0].1["activity"]["state"], "Chapter 36");
+    }
+    let seen = svc.friends_reading(friend).await.unwrap();
+    assert_eq!(seen.items.len(), 1);
+    assert_eq!(seen.items[0].series_title, "Open");
+    assert!(
+        svc.friends_reading(stranger)
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    // An adult series is not shared by default (hide_age_restricted defaults on) ...
+    svc.heartbeat_reading(me, c2).await.unwrap();
+    assert_eq!(types(), ["reading", "stopped"]);
+    assert!(svc.friends_reading(friend).await.unwrap().items.is_empty());
+    // ... and is masked when the member allows it, and only an adult friend sees it.
+    sqlx::query(
+        "INSERT INTO user_settings (user_id, settings) \
+         VALUES ($1, '{\"activity\":{\"hide_age_restricted\":false}}'::jsonb)",
+    )
+    .bind(me.user_id)
+    .execute(e.pool())
+    .await
+    .unwrap();
+    svc.heartbeat_reading(me, c2).await.unwrap();
+    let last = rec.0.lock().unwrap().last().cloned().unwrap();
+    assert_eq!(last.1["activity"]["details"], "Age-restricted title");
+    assert!(last.1.get("series_id").is_none());
+    assert!(svc.friends_reading(friend).await.unwrap().items.is_empty());
+    let adult_friend = Viewer {
+        adult: true,
+        ..friend
+    };
+    assert_eq!(
+        svc.friends_reading(adult_friend).await.unwrap().items.len(),
+        1
+    );
+    // A restricted series needs the 18+ answer to read at all.
+    assert_eq!(
+        svc.heartbeat_reading(friend, c2).await,
+        Err(SocialError::AgeConfirmationRequired)
+    );
+    // Pausing the history shares nothing and ends the presence.
+    sqlx::query("UPDATE user_settings SET settings = '{\"activity\":{\"paused\":true}}'::jsonb WHERE user_id = $1")
+        .bind(me.user_id)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    svc.heartbeat_reading(me, c1).await.unwrap();
+    assert!(svc.friends_reading(friend).await.unwrap().items.is_empty());
+    assert_eq!(types().last().map(String::as_str), Some("stopped"));
+    e.teardown().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_bell_counts_new_chapters_after_the_follow_and_the_last_look() {
+    let e = Env::new().await;
+    let me = e.user().await;
+    let s = e.series("Followed", false).await;
+    let old = e.chapter(s, 1.0).await;
+    sqlx::query(
+        "UPDATE reading_chapters SET published_at = now() - interval '2 days' WHERE id = $1",
+    )
+    .bind(old)
+    .execute(e.pool())
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO reading_follows (user_id, series_id, notify) VALUES ($1, $2, TRUE)")
+        .bind(me.user_id)
+        .bind(s)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    // Chapters from before the follow do not count.
+    assert_eq!(e.svc.notification_count(me).await.unwrap().unread, 0);
+    let c2 = e.chapter(s, 2.0).await;
+    let c3 = e.chapter(s, 3.0).await;
+    for c in [c2, c3] {
+        sqlx::query(
+            "UPDATE reading_chapters SET published_at = now() + interval '1 second' WHERE id = $1",
+        )
+        .bind(c)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    }
+    assert_eq!(e.svc.notification_count(me).await.unwrap().unread, 2);
+    // A muted bell counts nothing; opening the bell clears the count.
+    sqlx::query("UPDATE reading_follows SET notify = FALSE WHERE user_id = $1")
+        .bind(me.user_id)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    assert_eq!(e.svc.notification_count(me).await.unwrap().unread, 0);
+    sqlx::query("UPDATE reading_follows SET notify = TRUE WHERE user_id = $1")
+        .bind(me.user_id)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    sqlx::query("UPDATE reading_chapters SET published_at = now() - interval '1 second' WHERE series_id = $1 AND id <> $2")
+        .bind(s)
+        .bind(old)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    e.svc.mark_notifications_seen(me).await.unwrap();
+    assert_eq!(e.svc.notification_count(me).await.unwrap().unread, 0);
+    e.teardown().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn download_slots_follow_the_daily_allowance() {
+    let e = Env::new().await;
+    let me = e.user().await;
+    let s = e.series("Dl", false).await;
+    let c = e.chapter(s, 1.0).await;
+    assert_eq!(e.svc.downloads_left(me.user_id, 2).await.unwrap(), 2);
+    e.svc
+        .take_download_slot(me.user_id, c, "cbz", 2)
+        .await
+        .unwrap();
+    e.svc
+        .take_download_slot(me.user_id, c, "cbz", 2)
+        .await
+        .unwrap();
+    assert!(matches!(
+        e.svc.take_download_slot(me.user_id, c, "cbz", 2).await,
+        Err(SocialError::Conflict(_))
+    ));
+    assert_eq!(e.svc.downloads_left(me.user_id, 2).await.unwrap(), 0);
+    // Yesterday's downloads fall out of the window; zero means none at all.
+    sqlx::query("UPDATE reading_downloads SET created_at = now() - interval '25 hours'")
+        .execute(e.pool())
+        .await
+        .unwrap();
+    assert_eq!(e.svc.downloads_left(me.user_id, 2).await.unwrap(), 2);
+    assert!(
+        e.svc
+            .take_download_slot(me.user_id, c, "pdf", 0)
+            .await
+            .is_err()
+    );
+    e.teardown().await;
+}

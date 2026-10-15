@@ -25,7 +25,9 @@
 
 mod admin;
 mod comments;
+mod downloads;
 mod member;
+mod presence;
 mod reading;
 mod social;
 mod uploads;
@@ -238,14 +240,25 @@ impl BusLibraryEvents {
 
 #[async_trait::async_trait]
 impl sr_library::LibraryEvents for BusLibraryEvents {
+    async fn emit_activity(&self, users: Vec<i64>, payload: serde_json::Value) {
+        self.publish("SR_ACTIVITY_UPDATE", users, payload).await;
+    }
+
     async fn emit(&self, users: Vec<i64>, payload: serde_json::Value) {
+        self.publish(sr_library::reading::EVENT_NAME, users, payload)
+            .await;
+    }
+}
+
+impl BusLibraryEvents {
+    async fn publish(&self, name: &str, users: Vec<i64>, payload: serde_json::Value) {
         let users: Vec<UserId> = users
             .into_iter()
             .filter_map(|u| u64::try_from(u).ok().map(UserId::new))
             .collect();
         let ev = sr_events::DomainEvent::UserScoped {
             users: users.clone(),
-            name: sr_library::reading::EVENT_NAME.to_owned(),
+            name: name.to_owned(),
             payload,
         };
         for u in users {
@@ -254,7 +267,7 @@ impl sr_library::LibraryEvents for BusLibraryEvents {
                 .publish(sr_events::Topic::User(u), ev.clone())
                 .await
             {
-                tracing::warn!(error = %e, "publishing SR_LIBRARY_UPDATE failed");
+                tracing::warn!(error = %e, event = name, "publishing a library event failed");
             }
         }
     }
@@ -344,6 +357,25 @@ pub fn router() -> Router<AppState> {
         .route(
             "/library/comments/{comment_id}/report",
             post(comments::report),
+        )
+        .route(
+            "/library/chapters/{chapter_id}/presence",
+            put(presence::heartbeat),
+        )
+        .route("/library/me/presence", delete(presence::stop))
+        .route("/library/friends/reading", get(presence::friends_reading))
+        .route(
+            "/library/me/notifications",
+            get(presence::notification_count),
+        )
+        .route(
+            "/library/me/notifications/seen",
+            post(presence::notifications_seen),
+        )
+        .route("/library/me/downloads", get(downloads::allowance))
+        .route(
+            "/library/chapters/{chapter_id}/download",
+            post(downloads::download),
         )
         .route("/library/me/lists", get(social::my_lists))
         .route("/library/lists", post(social::create_list))
@@ -518,6 +550,13 @@ pub fn router() -> Router<AppState> {
         uploads::complete,
         uploads::status,
         uploads::list,
+        presence::heartbeat,
+        presence::stop,
+        presence::friends_reading,
+        presence::notification_count,
+        presence::notifications_seen,
+        downloads::allowance,
+        downloads::download,
         comments::series_comments,
         comments::post_series_comment,
         comments::chapter_comments,
@@ -583,6 +622,11 @@ pub fn router() -> Router<AppState> {
         sr_library::reading::BookmarkEntry,
         sr_library::reading::BookmarkPage,
         social::CountBody,
+        downloads::Allowance,
+        sr_library_social::model::FriendReading,
+        sr_library_social::model::FriendsReading,
+        sr_library_social::model::NotificationCount,
+        sr_library::exports::ChapterExport,
         comments::ReportBody,
         comments::ReportList,
         comments::ResolveBody,

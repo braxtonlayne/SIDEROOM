@@ -9,10 +9,13 @@
 
 pub mod comments;
 pub mod discover;
+pub mod downloads;
 pub mod error;
 pub mod ids;
 pub mod lists;
 pub mod model;
+pub mod notifications;
+pub mod presence;
 pub mod ratings;
 pub mod reviews;
 pub mod rules;

@@ -328,3 +328,39 @@ pub struct CommentReport {
     /// The reported comment, when it still exists.
     pub comment: Option<Comment>,
 }
+
+// ---- reading presence and the bell (LIB-RDR-017, LIB-SOC-007) -----------------
+
+/// A friend who is reading something now.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryFriendReading)]
+pub struct FriendReading {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub user_id: i64,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub series_id: i64,
+    pub series_title: String,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub chapter_id: i64,
+    pub chapter_number: f64,
+    pub started_at_ms: i64,
+    /// Drop the entry at this time unless refreshed.
+    pub expires_at_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryFriendsReading)]
+pub struct FriendsReading {
+    pub items: Vec<FriendReading>,
+}
+
+/// The notifications bell: new chapters of followed series (bell on) since the member last opened it.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryNotificationCount)]
+pub struct NotificationCount {
+    /// Capped at 99.
+    pub unread: i64,
+}
