@@ -16,6 +16,7 @@ import { MemberActionDialog } from './shell/MemberDialogs';
 import { NicknameDialog, NoteDialog } from './shell/UserDialogs';
 import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
+import { SlowmodeDialog } from './shell/SlowmodeDialog';
 import { TransferOwnershipDialog } from './shell/TransferOwnershipDialog';
 import { CommunityDialog } from './community/CommunityDialog';
 import { CreateThreadDialog } from './threads/CreateThreadDialog';
@@ -57,6 +58,10 @@ export function LoungeDialogs() {
           channelId={dialog.channelId}
           onClose={close}
         />
+      );
+    case 'slowmode':
+      return (
+        <SlowmodeDialog guildId={dialog.guildId} channelId={dialog.channelId} onClose={close} />
       );
     case 'memberAction':
       return (

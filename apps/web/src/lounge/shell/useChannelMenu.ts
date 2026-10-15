@@ -19,6 +19,9 @@ const TYPE_NUM: Record<Channel['type'], number> = {
   rules: 0,
 };
 
+/** Channel kinds a slowmode preset can be applied to. */
+const SLOWMODE_KINDS = new Set<Channel['type']>(['text', 'announcement', 'forum', 'media', 'voice']);
+
 /** Context-menu entries for a channel or category (LNG-CHN-013, LNG-CHN-014). */
 export function useChannelMenu(
   channel: Channel,
@@ -190,6 +193,16 @@ export function useChannelMenu(
           ...(channel.parentId ? { parentId: channel.parentId } : {}),
         }),
     },
+    // Slowmode presets applied on demand (G-74): for channels that take messages, with Manage Channels.
+    ...(manage && SLOWMODE_KINDS.has(channel.type)
+      ? [
+          {
+            label: 'Apply Slowmode Preset',
+            onSelect: () =>
+              openDialog({ kind: 'slowmode', guildId: guild.id, channelId: channel.id }),
+          } as MenuEntry,
+        ]
+      : []),
     moveUp,
     moveDown,
     remove,
