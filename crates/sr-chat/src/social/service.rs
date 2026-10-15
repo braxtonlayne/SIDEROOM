@@ -741,6 +741,30 @@ impl<R: SocialRepository> SocialService<R> {
         ))
     }
 
+    /// The full notification verdict for one recipient (LNG-NTF-002): resolves level
+    /// and mute for the channel, then runs [`notifications::decide`].
+    #[allow(clippy::too_many_arguments)]
+    pub async fn decide_notification(
+        &self,
+        user: UserId,
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        category: Option<ChannelId>,
+        guild_default: NotificationLevel,
+        input: notifications::NotifyInput,
+    ) -> SocialResult<notifications::NotifyDecision> {
+        let r = self
+            .resolve_notifications(user, guild, channel, category, guild_default)
+            .await?;
+        let scope = self.repo.get_scope(user, guild).await?;
+        Ok(notifications::decide(
+            r.level,
+            r.muted,
+            scope.as_ref(),
+            input,
+        ))
+    }
+
     // ---- profiles -------------------------------------------------------
 
     pub async fn get_profile(&self, viewer: UserId, user: UserId) -> SocialResult<Profile> {
@@ -781,6 +805,14 @@ impl<R: SocialRepository> SocialService<R> {
             mutual_guilds,
             friends_since_ms,
         })
+    }
+
+    /// The guilds `user` belongs to, with their per-server profile fields.
+    pub async fn own_guild_memberships(
+        &self,
+        user: UserId,
+    ) -> SocialResult<Vec<super::repo::GuildMembership>> {
+        Ok(self.repo.list_guild_memberships(user).await?)
     }
 
     /// Who should hear about a change to `user`'s profile or presence: friends and
@@ -847,6 +879,58 @@ impl<R: SocialRepository> SocialService<R> {
             ));
         }
         Ok(self.repo.upsert_connection(&c).await?)
+    }
+
+    /// The connections of `user`, including hidden ones (the owner's view).
+    pub async fn own_connections(&self, user: UserId) -> SocialResult<Vec<Connection>> {
+        Ok(self
+            .repo
+            .get_profile(user)
+            .await?
+            .ok_or(SocialError::UnknownUser)?
+            .connections)
+    }
+
+    /// Change a stored connection (visibility, stats toggle, name, link, stats) without
+    /// touching its verified flag and without counting against the connection limit.
+    pub async fn update_connection(&self, c: Connection) -> SocialResult<()> {
+        profile::validate_connection(&c)?;
+        Ok(self.repo.upsert_connection(&c).await?)
+    }
+
+    /// The account holding a *verified* connection to this provider identity.
+    pub async fn connection_owner(
+        &self,
+        provider: &str,
+        external_id: &str,
+    ) -> SocialResult<Option<UserId>> {
+        Ok(self.repo.connection_owner(provider, external_id).await?)
+    }
+
+    /// Verified connections whose stats are older than `before_ms` (stats refresh job).
+    pub async fn stale_connections(
+        &self,
+        before_ms: i64,
+        providers: &[&str],
+        limit: usize,
+    ) -> SocialResult<Vec<Connection>> {
+        Ok(self
+            .repo
+            .stale_connections(before_ms, providers, limit)
+            .await?)
+    }
+
+    /// Store refreshed stats of one connection.
+    pub async fn refresh_connection_stats(
+        &self,
+        c: &Connection,
+        stats: &serde_json::Value,
+    ) -> SocialResult<()> {
+        let now = self.now();
+        Ok(self
+            .repo
+            .set_connection_stats(c.user, &c.provider, &c.external_id, stats, now)
+            .await?)
     }
 
     pub async fn remove_connection(

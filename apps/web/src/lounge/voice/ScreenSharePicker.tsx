@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Modal, Notice, Radio, RadioGroup, Switch } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { VIDEO_PUBLISH } from '../../voice/protocol';
+import { getVoiceSettings } from '../../voice/settings';
 import {
   DEFAULT_PRESET_ID,
   presetLabel,
@@ -38,16 +39,20 @@ export function ScreenSharePicker({
   initial,
 }: ScreenSharePickerProps) {
   const t = useT();
+  // Settings > Voice & Video holds the defaults; a running share keeps what it was started with.
+  const defaults = getVoiceSettings();
   const firstFree =
     SHARE_PRESETS.find(
-      (p) => p.id === (initial?.presetId ?? DEFAULT_PRESET_ID) && !presetLocked(p, profiles),
+      (p) =>
+        p.id === (initial?.presetId ?? defaults.sharePresetId ?? DEFAULT_PRESET_ID) &&
+        !presetLocked(p, profiles),
     ) ??
     SHARE_PRESETS.find((p) => !presetLocked(p, profiles)) ??
     SHARE_PRESETS[0]!;
   const [source, setSource] = useState<ShareSource>(initial?.source ?? 'screen');
   const [presetId, setPresetId] = useState(firstFree.id);
-  const [audio, setAudio] = useState(initial?.audio ?? true);
-  const [hint, setHint] = useState<ContentHint>(initial?.hint ?? 'motion');
+  const [audio, setAudio] = useState(initial?.audio ?? defaults.shareAudio);
+  const [hint, setHint] = useState<ContentHint>(initial?.hint ?? defaults.shareHint);
   const preset = SHARE_PRESETS.find((p) => p.id === presetId) ?? firstFree;
 
   return (

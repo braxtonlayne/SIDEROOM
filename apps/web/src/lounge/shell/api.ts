@@ -61,6 +61,16 @@ export const createDm = (recipientIds: string[]) =>
     'POST',
     recipientIds.length === 1 ? { recipient_id: recipientIds[0] } : { recipients: recipientIds },
   );
+/**
+ * Add a friend to a group DM (204), or to a 1:1 DM, which spawns a new group and answers with it (200).
+ * `PUT /channels/{id}/recipients/{user_id}`.
+ */
+export const addRecipient = (channelId: string, userId: string) =>
+  send<DmObject | undefined>(
+    `/channels/${encodeURIComponent(channelId)}/recipients/${encodeURIComponent(userId)}`,
+    'PUT',
+    {},
+  );
 /** Close a DM (hides it from the list). */
 export const closeDm = (channelId: string) =>
   send<void>(`/users/@me/channels/${encodeURIComponent(channelId)}`, 'DELETE');

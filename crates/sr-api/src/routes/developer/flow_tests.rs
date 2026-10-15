@@ -1485,3 +1485,131 @@ async fn responses_with_secrets_are_not_cacheable() {
         );
     }
 }
+
+// ======================================================================= web client helpers
+
+#[tokio::test]
+async fn a_component_press_finds_its_application_from_the_message_author() {
+    let f = fx().await;
+    let mut bot_events = f.e.user_events(f.bot.parse().unwrap());
+    let (s, v) =
+        f.e.post(
+            Who::Bot(&f.token),
+            &format!("/channels/{}/messages", f.e.ch),
+            json!({"content": "Pick", "components": [{"type": 1, "components": [
+                {"type": 2, "style": 1, "label": "Go", "custom_id": "go"}]}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let mid = v["id"].as_str().unwrap().to_owned();
+    // no application_id at all: the web client does not know it
+    let (s, v) =
+        f.e.post(
+            Who::Session(BOB),
+            "/interactions",
+            json!({"type": 3, "channel_id": f.e.ch.to_string(), "message_id": mid,
+                   "data": {"custom_id": "go", "component_type": 2}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{v}");
+    let ev = next_named(&mut bot_events, "INTERACTION_CREATE").await;
+    assert_eq!(ev["application_id"], json!(f.app));
+    assert_eq!(ev["data"]["custom_id"], "go");
+    // a message that is a person's, not an application's, is refused
+    let (_, theirs) =
+        f.e.post(
+            Who::Session(BOB),
+            &format!("/channels/{}/messages", f.e.ch),
+            json!({"content": "mine"}),
+        )
+        .await;
+    let (s, v) =
+        f.e.post(
+            Who::Session(BOB),
+            "/interactions",
+            json!({"type": 3, "channel_id": f.e.ch.to_string(), "message_id": theirs["id"],
+                   "data": {"custom_id": "go", "component_type": 2}}),
+        )
+        .await;
+    assert_eq!((s, code_of(&v)), (StatusCode::BAD_REQUEST, 50035), "{v}");
+    // and without a message id there is nothing to resolve
+    let (s, _) =
+        f.e.post(
+            Who::Session(BOB),
+            "/interactions",
+            json!({"type": 3, "channel_id": f.e.ch.to_string(),
+                   "data": {"custom_id": "go", "component_type": 2}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn the_command_index_lists_what_the_caller_may_use() {
+    let f = fx().await;
+    let path = format!("/channels/{}/application-commands", f.e.ch);
+    // a command only administrators may use (default_member_permissions = ADMINISTRATOR)
+    let (s, v) =
+        f.e.post(
+            Who::Bot(&f.token),
+            &format!("/applications/{}/commands", f.app),
+            json!({"name": "secret", "description": "Admins only", "default_member_permissions": "8"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+
+    let (s, v) = f.e.get(Who::Session(BOB), &path).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["applications"][0]["id"], json!(f.app));
+    assert_eq!(v["applications"][0]["bot_id"], json!(f.bot));
+    let names: Vec<&str> = v["application_commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["echo"], "bob cannot see the admin command");
+    assert_eq!(v["application_commands"][0]["application_id"], json!(f.app));
+    assert_eq!(v["application_commands"][0]["options"][0]["name"], "text");
+
+    // the owner of the server is an administrator
+    let (_, v) = f.e.get(Who::Session(OWNER), &path).await;
+    assert_eq!(v["application_commands"].as_array().unwrap().len(), 2);
+
+    // signed out, not a member, a bot
+    assert_eq!(f.e.get(Who::Anon, &path).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        f.e.get(Who::Session(CAROL), &path).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        f.e.get(Who::Bot(&f.token), &path).await.0,
+        StatusCode::FORBIDDEN
+    );
+    // an application that is not installed offers nothing
+    let (other, _, _, _) = f.e.new_app().await;
+    let _ = other;
+    let (_, v) = f.e.get(Who::Session(BOB), &path).await;
+    assert_eq!(v["applications"].as_array().unwrap().len(), 1);
+
+    // a suspended application disappears
+    let (st, _) =
+        f.e.post(
+            Who::Session(super::tests::STAFF),
+            &format!("/admin/developers/apps/{}/suspend", f.app),
+            json!({"reason": "abuse"}),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let (_, v) = f.e.get(Who::Session(BOB), &path).await;
+    assert_eq!(v["application_commands"], json!([]));
+}
+
+#[tokio::test]
+async fn gateway_bot_recommends_one_shard_per_thousand_servers() {
+    let f = fx().await;
+    let (s, v) = f.e.get(Who::Bot(&f.token), "/gateway/bot").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["shards"], 1);
+    assert_eq!(v["session_start_limit"]["max_concurrency"], 1);
+}

@@ -39,11 +39,26 @@ export interface LoungeUser {
 export interface Activity {
   kind: 'playing' | 'watching' | 'reading' | 'listening' | 'custom';
   text: string;
+  /** Second line of a rich activity ("S1 E3 · Episode title", "Chapter 12"). */
+  details?: string;
+  /** Epoch ms the activity started, for "for 12 minutes". */
+  startedAt?: number;
+  /** Platform of a game activity ("steam", "playstation", "xbox", "switch", "pc"); picks the card icon. */
+  platform?: string;
+  /** Set when the activity is a SIDE ROOM watch party that can be joined (/cinema/party/{id}). */
+  partyId?: string;
+  /** Epoch ms after which the client drops the activity unless it was refreshed. */
+  expiresAt?: number;
 }
 
 export interface Presence {
   status: PresenceStatus;
+  /** The activity shown on one line (custom status first when there is no other). */
   activity?: Activity;
+  /** Every activity, custom status excluded, for cards (Active Now, full profile). */
+  activities?: Activity[];
+  /** The custom status, when set. */
+  custom?: Activity;
 }
 
 export interface GuildPermissions {
@@ -141,6 +156,10 @@ export interface DmChannel {
   /** Recipient ids (excluding the viewer); more than one means a group DM. */
   recipientIds: Snowflake[];
   name?: string | null;
+  /** Group DM owner. */
+  ownerId?: Snowflake | null;
+  /** Group DM icon URL. */
+  iconUrl?: string | null;
   lastMessageAt: string;
   unread: boolean;
   mentionCount: number;
@@ -298,6 +317,8 @@ export interface Message {
   forwarded?: ForwardSnapshot | null;
   /** Voice message (flag 1 << 13). */
   voice?: boolean;
+  /** Ephemeral app reply (flag 1 << 6): only this viewer sees it and it is never stored. */
+  ephemeral?: boolean;
   suppressEmbeds?: boolean;
   /** Buttons and selects on app messages. */
   components?: import('../store/types').RawComponent[];

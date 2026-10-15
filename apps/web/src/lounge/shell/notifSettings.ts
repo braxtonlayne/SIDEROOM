@@ -22,6 +22,8 @@ export interface GuildNotif extends MuteInfo {
   level: number | null;
   suppressEveryone: boolean;
   suppressRoles: boolean;
+  suppressHighlights: boolean;
+  mobilePush: boolean;
   channels: Record<string, ChannelNotif>;
 }
 
@@ -34,6 +36,8 @@ interface WireGuildSettings {
   message_notifications?: number | null;
   suppress_everyone?: boolean;
   suppress_roles?: boolean;
+  suppress_highlights?: boolean;
+  mobile_push?: boolean;
   channel_overrides?: {
     channel_id: string;
     muted: boolean;
@@ -56,6 +60,8 @@ export function fromWire(w: WireGuildSettings): GuildNotif {
     level: w.message_notifications ?? null,
     suppressEveryone: !!w.suppress_everyone,
     suppressRoles: !!w.suppress_roles,
+    suppressHighlights: !!w.suppress_highlights,
+    mobilePush: w.mobile_push ?? true,
     channels,
   };
 }
@@ -93,6 +99,8 @@ export interface NotifState {
       level?: number | null;
       suppressEveryone?: boolean;
       suppressRoles?: boolean;
+      suppressHighlights?: boolean;
+      mobilePush?: boolean;
     },
   ): Promise<void>;
   patchChannel(
@@ -131,6 +139,10 @@ export const useNotifSettings = create<NotifState>()((set, get) => ({
         ? { suppress_everyone: patch.suppressEveryone }
         : {}),
       ...(patch.suppressRoles !== undefined ? { suppress_roles: patch.suppressRoles } : {}),
+      ...(patch.suppressHighlights !== undefined
+        ? { suppress_highlights: patch.suppressHighlights }
+        : {}),
+      ...(patch.mobilePush !== undefined ? { mobile_push: patch.mobilePush } : {}),
     };
     const w = await apiFetch<WireGuildSettings>(settingsPath(guildId), {
       method: 'PATCH',

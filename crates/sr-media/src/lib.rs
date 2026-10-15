@@ -17,6 +17,7 @@ pub mod assets;
 pub mod downloads;
 pub mod grant;
 pub mod http;
+pub mod naming;
 pub mod output_storage;
 pub mod plan;
 pub mod playback;

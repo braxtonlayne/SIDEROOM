@@ -1171,3 +1171,230 @@
     transition: none;
   }
 }
+
+/* ---------- social: ratings, reviews, lists, rankings (phase 11) ---------- */
+.lib-chapter-row {
+  display: flex;
+  align-items: stretch;
+}
+.lib-chapter-row .lib-chapter-link {
+  flex: 1;
+  min-inline-size: 0;
+}
+.lib-chapter-upto {
+  flex: none;
+  inline-size: 40px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  border-inline-start: 1px solid var(--sr-line);
+  color: var(--sr-text-2);
+  cursor: pointer;
+}
+.lib-chapter-upto:hover:not(:disabled),
+.lib-chapter-upto:focus-visible {
+  background: var(--sr-bg-1);
+  color: var(--sr-gold);
+}
+
+.lib-rating {
+  margin-block: 16px;
+}
+.lib-rating-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+.lib-rating-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.lib-rating-score strong {
+  font-size: 22px;
+  color: var(--sr-gold);
+}
+.lib-rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.lib-rating-dist {
+  margin-block-start: 10px;
+  font-size: 13px;
+}
+.lib-rating-dist summary {
+  cursor: pointer;
+  color: var(--sr-text-2);
+}
+.lib-rating-dist ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  max-inline-size: 360px;
+}
+.lib-rating-dist li {
+  display: grid;
+  grid-template-columns: 24px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  padding-block: 2px;
+}
+.lib-rating-dist-bar {
+  display: block;
+  block-size: 8px;
+  background: var(--sr-bg-2);
+}
+.lib-rating-dist-bar > span {
+  display: block;
+  block-size: 100%;
+  background: var(--sr-gold);
+}
+.lib-rating-dist-n {
+  text-align: end;
+  color: var(--sr-text-2);
+}
+
+.lib-pick-list {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.lib-inline-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.lib-inline-form > :first-child {
+  flex: 1;
+}
+
+.lib-review-form {
+  display: grid;
+  gap: 12px;
+  max-inline-size: 640px;
+  margin-block: 12px 20px;
+}
+.lib-review-list {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 16px;
+}
+.lib-review {
+  padding: 16px;
+  border: 1px solid var(--sr-line);
+  background: var(--sr-bg-1);
+}
+.lib-review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.lib-review-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--sr-gold);
+  font-size: 13px;
+}
+.lib-review-body {
+  margin-block: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lib-review-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lib-rank-list {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--sr-line);
+}
+.lib-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-block-end: 1px solid var(--sr-line);
+}
+.lib-rank-row:last-child {
+  border-block-end: 0;
+}
+.lib-rank-n {
+  flex: none;
+  inline-size: 36px;
+  font-family: var(--sr-font-display);
+  font-size: 24px;
+  color: var(--sr-gold);
+  text-align: center;
+}
+.lib-rank-stats {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.lib-list-tiles {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.lib-list-tile-link {
+  position: relative;
+  display: block;
+  min-block-size: 190px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid var(--sr-line);
+  background: var(--sr-bg-2);
+  color: inherit;
+  text-decoration: none;
+}
+.lib-list-tile-link:hover {
+  border-color: var(--sr-gold);
+}
+.lib-list-tile .lib-list-title {
+  font-size: 20px;
+  max-inline-size: 70%;
+}
+.lib-fan-tile {
+  inset-block-end: -14px;
+}
+.lib-fan-tile img {
+  inline-size: 56px;
+  block-size: 82px;
+  margin-inline-start: -26px;
+}
+.lib-featured-tag {
+  display: inline-block;
+  margin-block-start: 8px;
+}
+.lib-list-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.lib-list-title a {
+  color: inherit;
+  text-decoration: none;
+}
+.lib-list-title a:hover {
+  text-decoration: underline;
+}

@@ -133,6 +133,19 @@ export function useLibraryApi(
     http.get('*/api/v1/library/me/follows', () =>
       HttpResponse.json({ items: [], total: 6, limit: 1, offset: 0 }),
     ),
+    // Social routes (phase 11): empty by default; tests override them with server.use.
+    http.get('*/api/v1/library/series/:id/ratings', () =>
+      HttpResponse.json({
+        mine: null,
+        global: { average: null, count: 0 },
+        friends: { average: null, count: 0 },
+        known: { average: null, count: 0 },
+        distribution: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      }),
+    ),
+    http.get('*/api/v1/library/me/lists', () => HttpResponse.json({ items: [] })),
+    http.get('*/api/v1/library/lists/featured', () => HttpResponse.json({ items: [] })),
+    http.get('*/api/v1/library/me/unread', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/library/search', () =>
       HttpResponse.json({ series: [A, R], authors: ['An Author'], genres: ['fantasy'], tags: [] }),
     ),

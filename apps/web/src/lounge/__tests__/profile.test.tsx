@@ -156,8 +156,9 @@ describe('profile popout host', () => {
     const pop = await screen.findByRole('dialog', { name: 'User profile' });
     await userEvent.click(within(pop).getByRole('button', { name: 'View Full Profile' }));
     const modal = await screen.findByRole('dialog', { name: 'Bob' });
-    expect(await within(modal).findByText('Mutual servers — 1')).toBeInTheDocument();
+    await userEvent.click(await within(modal).findByRole('tab', { name: '1 Mutual Server' }));
     expect(within(modal).getByText('Store Guild')).toBeInTheDocument();
+    await userEvent.click(within(modal).getByRole('tab', { name: '1 Mutual Friend' }));
     expect(within(modal).getByText('Dana')).toBeInTheDocument();
     expect(within(modal).getByText(/github/)).toBeInTheDocument();
     expect(await axeViolations(modal)).toEqual([]);

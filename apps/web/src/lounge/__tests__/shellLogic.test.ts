@@ -215,6 +215,8 @@ describe('notification settings', () => {
       level: 1,
       suppressEveryone: true,
       suppressRoles: false,
+      suppressHighlights: false,
+      mobilePush: true,
       channels: { c1: { muted: true, endsAt: null, level: 2 } },
     });
   });
@@ -248,6 +250,8 @@ describe('notification settings', () => {
     level: null,
     suppressEveryone: false,
     suppressRoles: false,
+    suppressHighlights: false,
+    mobilePush: true,
     channels: {},
     ...over,
   });

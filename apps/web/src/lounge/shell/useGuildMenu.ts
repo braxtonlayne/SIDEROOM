@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import type { MenuEntry } from '@sideroom/ui';
 import { useEffect } from 'react';
 import { t } from '../../i18n';
+import { useOpenUserSettings } from '../../settings/user/nav';
 import { useCurrentUser, useLoungeActions, type Guild } from '../data';
 import { useLoungeUi } from '../store';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './notifSettings';
@@ -47,6 +48,7 @@ export function useGuildMenuCore(guild: Guild) {
   const hideMuted = useLoungeUi((s) => !!s.hideMutedChannels[guild.id]);
   const toggleHideMuted = useLoungeUi((s) => s.toggleHideMuted);
   const mute = useMuteEntry(guild.id);
+  const openUserSettings = useOpenUserSettings();
   const p = guild.permissions;
   const isOwner = guild.ownerId === me.id;
   return {
@@ -76,6 +78,39 @@ export function useGuildMenuCore(guild: Guild) {
       disabled: !(p.serverSettings ?? p.manageGuild),
       onSelect: () =>
         void navigate({ to: '/settings/server/$guildId', params: { guildId: guild.id } }),
+    } as MenuEntry,
+    /** Server Settings ▸ with a shortcut per section the viewer's base permissions open (LNG-RAIL-012). */
+    settingsMenu: {
+      type: 'submenu',
+      label: 'Server Settings',
+      disabled: !(p.serverSettings ?? p.manageGuild),
+      items: (
+        [
+          ['overview', t('lounge.guildMenu.sectionOverview'), p.manageGuild],
+          ['roles', t('lounge.guildMenu.sectionRoles'), !!(p.serverSettings ?? p.manageGuild)],
+          ['channels', t('lounge.guildMenu.sectionChannels'), p.manageChannels],
+          ['members', t('lounge.guildMenu.sectionMembers'), !!(p.serverSettings ?? p.manageGuild)],
+          ['invites', t('lounge.guildMenu.sectionInvites'), p.manageGuild],
+          ['community', t('lounge.guildMenu.sectionCommunity'), p.manageGuild],
+        ] as [string, string, boolean][]
+      ).map(([section, label, on]) => ({
+        label,
+        disabled: !on,
+        onSelect: () =>
+          void navigate({
+            to: '/settings/server/$guildId/$section',
+            params: { guildId: guild.id, section },
+          }),
+      })),
+    } as MenuEntry,
+    /** Privacy lives in the person's own settings (there is no per-server switch in the API). */
+    privacy: {
+      label: t('lounge.guildMenu.privacySettings'),
+      onSelect: () => openUserSettings('privacy'),
+    } as MenuEntry,
+    editProfile: {
+      label: t('lounge.guildMenu.editProfile'),
+      onSelect: () => openDialog({ kind: 'guildProfile', guildId: guild.id }),
     } as MenuEntry,
     createChannel: {
       label: 'Create Channel',

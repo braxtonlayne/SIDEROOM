@@ -75,10 +75,73 @@ pub struct HopResponse {
     pub body: Vec<u8>,
 }
 
-/// Performs a single GET without following redirects.
+/// One outgoing POST. `addrs` are validated; the transport must not resolve the host.
+#[derive(Debug, Clone)]
+pub struct PostRequest {
+    pub url: Url,
+    pub addrs: Vec<SocketAddr>,
+    /// Extra headers (name, value); `Content-Type` is `application/json`.
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
+    /// Hard cap on the response body read.
+    pub max_bytes: usize,
+}
+
+/// The answer to a POST, whatever its status (callers need to tell a 401 from a 200).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PostResponse {
+    pub status: u16,
+    pub body: Vec<u8>,
+}
+
+/// Performs a single request without following redirects.
 #[async_trait]
 pub trait HttpTransport: Send + Sync {
     async fn get(&self, req: &HopRequest) -> Result<HopResponse, NetError>;
+
+    /// One API request (GET or form POST, with credentials) to validated addresses, never
+    /// following a redirect. Transports that only fetch public pages need not implement it.
+    async fn send(&self, req: &ApiHop) -> Result<HopResponse, NetError> {
+        let _ = req;
+        Err(NetError::Http("this transport only supports GET".into()))
+    }
+
+    /// POST a JSON body. Transports that cannot POST keep this default.
+    async fn post(&self, _req: &PostRequest) -> Result<PostResponse, NetError> {
+        Err(NetError::Http(
+            "POST is not supported by this transport".into(),
+        ))
+    }
+}
+
+/// How an [`ApiCall`] sends its body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ApiMethod {
+    Get,
+    /// `application/x-www-form-urlencoded` POST.
+    PostForm(Vec<(String, String)>),
+}
+
+/// An authenticated API call (OAuth token exchange, user-info lookup). The URL is checked
+/// against the SSRF policy exactly like a fetch; redirects are not followed at all.
+#[derive(Debug, Clone)]
+pub struct ApiCall {
+    pub url: Url,
+    pub method: ApiMethod,
+    /// Extra headers such as `Authorization: Bearer ...` or `Client-Id`.
+    pub headers: Vec<(String, String)>,
+    /// HTTP basic credentials (client id and secret), when the provider wants them there.
+    pub basic: Option<(String, String)>,
+    pub accept: &'static str,
+    /// Hard cap on the body read.
+    pub max_bytes: usize,
+}
+
+/// An [`ApiCall`] bound to validated addresses.
+#[derive(Debug, Clone)]
+pub struct ApiHop {
+    pub call: ApiCall,
+    pub addrs: Vec<SocketAddr>,
 }
 
 /// reqwest over rustls, pinned via [`pinned_builder`].
@@ -105,6 +168,41 @@ fn http_err(e: &reqwest::Error) -> NetError {
 
 #[async_trait]
 impl HttpTransport for ReqwestTransport {
+    async fn send(&self, req: &ApiHop) -> Result<HopResponse, NetError> {
+        let call = &req.call;
+        let client = pinned_builder(&self.user_agent, &call.url, &req.addrs)
+            .build()
+            .map_err(|e| NetError::Http(e.to_string()))?;
+        let mut builder = match &call.method {
+            ApiMethod::Get => client.get(call.url.clone()),
+            ApiMethod::PostForm(pairs) => {
+                let body = url::form_urlencoded::Serializer::new(String::new())
+                    .extend_pairs(pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+                    .finish();
+                client
+                    .post(call.url.clone())
+                    .header(
+                        reqwest::header::CONTENT_TYPE,
+                        "application/x-www-form-urlencoded",
+                    )
+                    .body(body)
+            }
+        };
+        builder = builder.header(reqwest::header::ACCEPT, call.accept);
+        for (k, v) in &call.headers {
+            builder = builder.header(k.as_str(), v.as_str());
+        }
+        if let Some((user, pass)) = &call.basic {
+            builder = builder.basic_auth(user, Some(pass));
+        }
+        let resp = builder
+            .send()
+            .await
+            // `without_url` keeps query strings (which may carry codes) out of logs.
+            .map_err(|e| http_err(&e.without_url()))?;
+        read_body(resp, call.max_bytes, true).await
+    }
+
     async fn get(&self, req: &HopRequest) -> Result<HopResponse, NetError> {
         let client = pinned_builder(&self.user_agent, &req.url, &req.addrs)
             .build()
@@ -139,6 +237,64 @@ impl HttpTransport for ReqwestTransport {
         }
         Ok(out)
     }
+
+    async fn post(&self, req: &PostRequest) -> Result<PostResponse, NetError> {
+        let client = pinned_builder(&self.user_agent, &req.url, &req.addrs)
+            .build()
+            .map_err(|e| NetError::Http(e.to_string()))?;
+        let mut builder = client
+            .post(req.url.clone())
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::ACCEPT, "application/json")
+            .body(req.body.clone());
+        for (k, v) in &req.headers {
+            builder = builder.header(k.as_str(), v.as_str());
+        }
+        let mut resp = builder
+            .send()
+            .await
+            .map_err(|e| http_err(&e.without_url()))?;
+        let mut out = PostResponse {
+            status: resp.status().as_u16(),
+            body: Vec::new(),
+        };
+        while let Some(chunk) = resp.chunk().await.map_err(|e| http_err(&e.without_url()))? {
+            if out.body.len() + chunk.len() > req.max_bytes {
+                return Err(NetError::TooLarge);
+            }
+            out.body.extend_from_slice(&chunk);
+        }
+        Ok(out)
+    }
+}
+
+async fn read_body(
+    mut resp: reqwest::Response,
+    max_bytes: usize,
+    keep_error_body: bool,
+) -> Result<HopResponse, NetError> {
+    let header = |resp: &reqwest::Response, name| {
+        resp.headers()
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+    };
+    let mut out = HopResponse {
+        status: resp.status().as_u16(),
+        content_type: header(&resp, reqwest::header::CONTENT_TYPE),
+        location: header(&resp, reqwest::header::LOCATION),
+        body: Vec::new(),
+    };
+    if !keep_error_body && !(200..300).contains(&out.status) {
+        return Ok(out);
+    }
+    while let Some(chunk) = resp.chunk().await.map_err(|e| http_err(&e.without_url()))? {
+        if out.body.len() + chunk.len() > max_bytes {
+            return Err(NetError::TooLarge);
+        }
+        out.body.extend_from_slice(&chunk);
+    }
+    Ok(out)
 }
 
 /// A successful response.
@@ -190,6 +346,27 @@ impl SafeClient {
         &self.policy
     }
 
+    /// One API call under the SSRF policy: the host is resolved and every address checked,
+    /// the connection is pinned to them, and a redirect is an error (credentials never
+    /// follow one). Returns the status and the capped body of *any* status, so callers can
+    /// read an OAuth error document; transport failures and over-long bodies are errors.
+    pub async fn call(&self, call: ApiCall) -> Result<(u16, Vec<u8>), NetError> {
+        tokio::time::timeout(TOTAL_TIMEOUT, async {
+            let addrs = resolve_validated(&self.policy, &*self.resolver, &call.url).await?;
+            let max = call.max_bytes;
+            let resp = self.transport.send(&ApiHop { call, addrs }).await?;
+            if is_redirect(resp.status) {
+                return Err(NetError::BadRedirect);
+            }
+            if resp.body.len() > max {
+                return Err(NetError::TooLarge);
+            }
+            Ok((resp.status, resp.body))
+        })
+        .await
+        .map_err(|_| NetError::Timeout)?
+    }
+
     /// GET `url`, following at most [`MAX_REDIRECTS`] redirects and validating every hop.
     /// The whole call is bounded by [`TOTAL_TIMEOUT`]; the body by `max_bytes`.
     pub async fn get(
@@ -199,6 +376,34 @@ impl SafeClient {
         max_bytes: usize,
     ) -> Result<SafeResponse, NetError> {
         tokio::time::timeout(TOTAL_TIMEOUT, self.get_inner(url, accept, max_bytes))
+            .await
+            .map_err(|_| NetError::Timeout)?
+    }
+
+    /// POST `body` (JSON) once under the SSRF policy. Redirects are never followed (a 3xx
+    /// comes back as a plain status) and any status is returned; the whole call is bounded
+    /// by `timeout` (at most [`TOTAL_TIMEOUT`]).
+    pub async fn post_json(
+        &self,
+        url: &Url,
+        headers: Vec<(String, String)>,
+        body: Vec<u8>,
+        max_bytes: usize,
+        timeout: Duration,
+    ) -> Result<PostResponse, NetError> {
+        let work = async {
+            let addrs = resolve_validated(&self.policy, &*self.resolver, url).await?;
+            self.transport
+                .post(&PostRequest {
+                    url: url.clone(),
+                    addrs,
+                    headers,
+                    body,
+                    max_bytes,
+                })
+                .await
+        };
+        tokio::time::timeout(timeout.min(TOTAL_TIMEOUT), work)
             .await
             .map_err(|_| NetError::Timeout)?
     }
@@ -464,6 +669,79 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn post_is_validated_pinned_and_returns_any_status() {
+        struct Poster(Mutex<Vec<PostRequest>>);
+        #[async_trait]
+        impl HttpTransport for Poster {
+            async fn get(&self, _: &HopRequest) -> Result<HopResponse, NetError> {
+                Err(NetError::Http("no".into()))
+            }
+            async fn post(&self, req: &PostRequest) -> Result<PostResponse, NetError> {
+                self.0.lock().unwrap().push(req.clone());
+                Ok(PostResponse {
+                    status: 401,
+                    body: b"no".to_vec(),
+                })
+            }
+        }
+        let poster = Arc::new(Poster(Mutex::default()));
+        let table = HashMap::from([
+            ("good.test".to_owned(), vec![ips(&["8.8.8.8"])]),
+            ("bad.test".to_owned(), vec![ips(&["10.0.0.1"])]),
+        ]);
+        let c = SafeClient::new(
+            Policy::default(),
+            Arc::new(Table(Mutex::new(table))),
+            poster.clone(),
+        );
+        let t = Duration::from_secs(2);
+        let r = c
+            .post_json(
+                &Url::parse("https://good.test/i").unwrap(),
+                vec![("X-A".into(), "b".into())],
+                b"{}".to_vec(),
+                64,
+                t,
+            )
+            .await
+            .unwrap();
+        assert_eq!(r.status, 401);
+        assert_eq!(
+            poster.0.lock().unwrap()[0].addrs[0].ip().to_string(),
+            "8.8.8.8"
+        );
+        let err = c
+            .post_json(
+                &Url::parse("https://bad.test/i").unwrap(),
+                vec![],
+                vec![],
+                64,
+                t,
+            )
+            .await
+            .unwrap_err();
+        assert!(is_private(&err), "{err:?}");
+        assert_eq!(
+            poster.0.lock().unwrap().len(),
+            1,
+            "no request to a private host"
+        );
+        // A transport without POST support fails closed.
+        let (g, _) = client(&[("good.test", vec![vec!["8.8.8.8"]])], &[]);
+        assert!(
+            g.post_json(
+                &Url::parse("https://good.test/").unwrap(),
+                vec![],
+                vec![],
+                8,
+                t
+            )
+            .await
+            .is_err()
+        );
+    }
+
+    #[tokio::test]
     async fn operator_opt_in_allows_private_hosts() {
         let script = Arc::new(Script {
             routes: HashMap::from([("http://127.0.0.1:3002/x".to_owned(), ok("local"))]),
@@ -480,6 +758,136 @@ mod tests {
         assert_eq!(
             get(&c, "http://127.0.0.1:3002/x").await.unwrap().text(),
             "local"
+        );
+    }
+
+    /// Records API calls and answers from a table keyed by URL.
+    struct ApiScript {
+        routes: HashMap<String, HopResponse>,
+        seen: Mutex<Vec<ApiHop>>,
+    }
+    #[async_trait]
+    impl HttpTransport for ApiScript {
+        async fn get(&self, _req: &HopRequest) -> Result<HopResponse, NetError> {
+            Err(NetError::Http("get not scripted".into()))
+        }
+        async fn send(&self, req: &ApiHop) -> Result<HopResponse, NetError> {
+            self.seen.lock().unwrap().push(req.clone());
+            self.routes
+                .get(req.call.url.as_str())
+                .cloned()
+                .ok_or_else(|| NetError::Http("no route".into()))
+        }
+    }
+
+    fn api(url: &str) -> ApiCall {
+        ApiCall {
+            url: Url::parse(url).unwrap(),
+            method: ApiMethod::PostForm(vec![("code".into(), "abc".into())]),
+            headers: vec![("Authorization".into(), "Bearer t".into())],
+            basic: None,
+            accept: "application/json",
+            max_bytes: 1024,
+        }
+    }
+
+    fn api_client(routes: &[(&str, HopResponse)]) -> (SafeClient, Arc<ApiScript>) {
+        let script = Arc::new(ApiScript {
+            routes: routes
+                .iter()
+                .map(|(u, r)| ((*u).to_owned(), r.clone()))
+                .collect(),
+            seen: Mutex::default(),
+        });
+        let table = HashMap::from([("api.example.com".to_owned(), vec![ips(&["93.184.216.34"])])]);
+        let c = SafeClient::new(
+            Policy::default(),
+            Arc::new(Table(Mutex::new(table))),
+            script.clone(),
+        );
+        (c, script)
+    }
+
+    #[tokio::test]
+    async fn api_calls_are_pinned_and_return_error_documents() {
+        let mut bad = ok("{\"error\":\"invalid_grant\"}");
+        bad.status = 400;
+        let (c, s) = api_client(&[("https://api.example.com/token", bad)]);
+        let (status, body) = c.call(api("https://api.example.com/token")).await.unwrap();
+        assert_eq!(
+            status, 400,
+            "the caller reads the provider's error document"
+        );
+        assert!(String::from_utf8_lossy(&body).contains("invalid_grant"));
+        let seen = s.seen.lock().unwrap();
+        assert_eq!(
+            seen[0].addrs[0].ip().to_string(),
+            "93.184.216.34",
+            "pinned address"
+        );
+        assert_eq!(seen[0].call.headers[0].1, "Bearer t");
+    }
+
+    #[tokio::test]
+    async fn api_calls_never_follow_redirects_or_reach_private_hosts() {
+        let (c, s) = api_client(&[(
+            "https://api.example.com/token",
+            redir("http://169.254.169.254/latest"),
+        )]);
+        assert_eq!(
+            c.call(api("https://api.example.com/token"))
+                .await
+                .unwrap_err(),
+            NetError::BadRedirect
+        );
+        assert_eq!(
+            s.seen.lock().unwrap().len(),
+            1,
+            "the redirect target is not contacted"
+        );
+        for u in [
+            "http://127.0.0.1/token",
+            "https://10.0.0.1/token",
+            "ftp://api.example.com/x",
+        ] {
+            assert!(
+                matches!(c.call(api(u)).await.unwrap_err(), NetError::Blocked(_)),
+                "{u}"
+            );
+        }
+        // The default transport cannot send API calls.
+        let get_only = SafeClient::new(
+            Policy::default(),
+            Arc::new(Table(Mutex::new(HashMap::from([(
+                "api.example.com".to_owned(),
+                vec![ips(&["93.184.216.34"])],
+            )])))),
+            Arc::new(Script {
+                routes: HashMap::new(),
+                seen: Mutex::default(),
+            }),
+        );
+        assert!(
+            get_only
+                .call(api("https://api.example.com/token"))
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn api_bodies_are_capped() {
+        let big = HopResponse {
+            status: 200,
+            body: vec![b'x'; 2048],
+            ..HopResponse::default()
+        };
+        let (c, _) = api_client(&[("https://api.example.com/big", big)]);
+        assert_eq!(
+            c.call(api("https://api.example.com/big"))
+                .await
+                .unwrap_err(),
+            NetError::TooLarge
         );
     }
 }

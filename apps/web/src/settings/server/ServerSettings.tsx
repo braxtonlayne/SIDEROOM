@@ -24,6 +24,7 @@ import { ChannelsSection } from './sections/Channels';
 import { CommunitySection } from './sections/Community';
 import { DeleteServerSection } from './sections/DeleteServer';
 import { ExpressionsSection } from './sections/Expressions';
+import { FeaturesSection } from './sections/Features';
 import { IntegrationsSection } from './sections/Integrations';
 import { InvitesSection } from './sections/Invites';
 import { MembersSection } from './sections/Members';
@@ -31,6 +32,7 @@ import { ModerationSection } from './sections/Moderation';
 import { OverviewSection } from './sections/Overview';
 import { RolesSection } from './sections/Roles';
 import { ServerSupportSection } from './sections/ServerSupport';
+import { TagSection } from './sections/Tag';
 
 export interface SectionProps {
   guildId: string;
@@ -82,6 +84,13 @@ export const SECTIONS: SectionDef[] = [
     component: ServerSupportSection,
   },
   {
+    id: 'tag',
+    label: 'settings.serverTag.nav',
+    group: 'SERVER',
+    visible: (v) => v.can('MANAGE_GUILD'),
+    component: TagSection,
+  },
+  {
     id: 'channels',
     label: 'settings.server.channels',
     group: 'SERVER',
@@ -115,6 +124,13 @@ export const SECTIONS: SectionDef[] = [
     group: 'PEOPLE',
     visible: (v) => v.can('BAN_MEMBERS'),
     component: BansSection,
+  },
+  {
+    id: 'features',
+    label: 'settings.server.features',
+    group: 'APPS',
+    visible: (v) => v.can('MANAGE_GUILD'),
+    component: FeaturesSection,
   },
   {
     id: 'integrations',

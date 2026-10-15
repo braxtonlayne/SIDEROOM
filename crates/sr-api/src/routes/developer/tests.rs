@@ -125,6 +125,13 @@ pub(super) fn summary(id: i64, name: &str, bot: bool) -> UserSummary {
 }
 
 pub(super) async fn env_with(enforce: bool) -> Env {
+    env_full(enforce, None).await
+}
+
+pub(super) async fn env_full(
+    enforce: bool,
+    endpoint: Option<Arc<dyn super::EndpointClient>>,
+) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
     let backend = MemoryBackend::new();
@@ -225,7 +232,7 @@ pub(super) async fn env_with(enforce: bool) -> Env {
     }
 
     let chat: Arc<dyn ChatRepository> = Arc::new(backend.clone());
-    let dev = DevDeps::new(
+    let mut dev = DevDeps::new(
         svc.clone(),
         chat,
         bus.clone(),
@@ -234,6 +241,9 @@ pub(super) async fn env_with(enforce: bool) -> Env {
         "https://side.test",
     )
     .with_ack_window(Duration::from_millis(150));
+    if let Some(c) = endpoint {
+        dev = dev.with_endpoint_client(c);
+    }
     let messages = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),

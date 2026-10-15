@@ -578,7 +578,7 @@ impl LibraryRepository for PgLibraryRepo {
 
     async fn list_pages(&self, chapter_id: i64) -> LibraryResult<Vec<PageRecord>> {
         let rows = sqlx::query(
-            "SELECT idx, key, variants, width, height, is_double_spread, blurhash \
+            "SELECT idx, key, variants, width, height, is_double_spread, blurhash, crop \
              FROM reading_pages WHERE chapter_id = $1 ORDER BY idx",
         )
         .bind(chapter_id)
@@ -605,6 +605,10 @@ impl LibraryRepository for PgLibraryRepo {
                     height: r.try_get("height").map_err(db)?,
                     is_double_spread: r.try_get("is_double_spread").map_err(db)?,
                     blurhash: r.try_get("blurhash").map_err(db)?,
+                    crop: r
+                        .try_get::<Option<serde_json::Value>, _>("crop")
+                        .map_err(db)?
+                        .and_then(|v| serde_json::from_value(v).ok()),
                 })
             })
             .collect()
@@ -953,6 +957,30 @@ impl LibraryRepository for PgLibraryRepo {
             .execute(&mut *tx)
             .await
             .map_err(db)?;
+        // Ratings, reviews and list entries move too (0690); where the member already has
+        // one on the target, the target's wins and the source's is dropped.
+        for sql in [
+            "INSERT INTO reading_ratings (user_id, series_id, score, updated_at) \
+             SELECT user_id, $2, score, updated_at FROM reading_ratings WHERE series_id = $1 \
+             ON CONFLICT DO NOTHING",
+            "DELETE FROM reading_ratings WHERE series_id = $1",
+            "UPDATE reading_reviews r SET series_id = $2 WHERE r.series_id = $1 \
+               AND NOT EXISTS (SELECT 1 FROM reading_reviews x WHERE x.series_id = $2 AND x.user_id = r.user_id)",
+            "DELETE FROM reading_reviews WHERE series_id = $1",
+            "INSERT INTO reading_list_items (list_id, series_id, position, note, added_at) \
+             SELECT list_id, $2, position, note, added_at FROM reading_list_items WHERE series_id = $1 \
+             ON CONFLICT DO NOTHING",
+            "DELETE FROM reading_list_items WHERE series_id = $1",
+        ] {
+            let q = sqlx::query(sql).bind(source);
+            // The deletes name only the source.
+            let q = if sql.contains("$2") {
+                q.bind(target)
+            } else {
+                q
+            };
+            q.execute(&mut *tx).await.map_err(db)?;
+        }
         sqlx::query(
             "UPDATE reading_series SET published = FALSE, merged_into = $2, updated_at = now() WHERE id = $1",
         )
@@ -1327,11 +1355,15 @@ impl LibraryRepository for PgLibraryRepo {
             let heights: Vec<i32> = pages.iter().map(|p| p.height).collect();
             let spreads: Vec<bool> = pages.iter().map(|p| p.is_double_spread).collect();
             let hashes: Vec<Option<String>> = pages.iter().map(|p| p.blurhash.clone()).collect();
+            let crops: Vec<Option<String>> = pages
+                .iter()
+                .map(|p| p.crop.and_then(|c| serde_json::to_string(&c).ok()))
+                .collect();
             sqlx::query(
-                "INSERT INTO reading_pages (chapter_id, idx, key, variants, width, height, is_double_spread, blurhash) \
-                 SELECT $1, t.idx, t.key, t.variants::jsonb, t.width, t.height, t.spread, t.blurhash \
-                 FROM UNNEST($2::int[], $3::text[], $4::text[], $5::int[], $6::int[], $7::bool[], $8::text[]) \
-                   AS t(idx, key, variants, width, height, spread, blurhash)",
+                "INSERT INTO reading_pages (chapter_id, idx, key, variants, width, height, is_double_spread, blurhash, crop) \
+                 SELECT $1, t.idx, t.key, t.variants::jsonb, t.width, t.height, t.spread, t.blurhash, t.crop::jsonb \
+                 FROM UNNEST($2::int[], $3::text[], $4::text[], $5::int[], $6::int[], $7::bool[], $8::text[], $9::text[]) \
+                   AS t(idx, key, variants, width, height, spread, blurhash, crop)",
             )
             .bind(chapter)
             .bind(idx)
@@ -1341,6 +1373,7 @@ impl LibraryRepository for PgLibraryRepo {
             .bind(heights)
             .bind(spreads)
             .bind(hashes)
+            .bind(crops)
             .execute(&mut *tx)
             .await
             .map_err(db)?;

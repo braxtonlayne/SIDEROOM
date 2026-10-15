@@ -171,6 +171,30 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
   { section: 'keybinds', label: 'Keybinds', keywords: 'shortcuts hotkeys' },
   { section: 'language', card: 'us-lang', label: 'Language and region', keywords: 'locale' },
   { section: 'language', card: 'us-time', label: '12 or 24-hour clock', keywords: 'time format' },
+  {
+    section: 'text',
+    card: 'us-media-size',
+    label: 'Inline media size',
+    keywords: 'pictures videos attachments small large',
+  },
+  {
+    section: 'language',
+    card: 'us-ui-lang',
+    label: 'Interface language',
+    keywords: 'translation english',
+  },
+  {
+    section: 'streamer',
+    card: 'us-streamer',
+    label: 'Streamer Mode',
+    keywords: 'hide email invite links obs sounds',
+  },
+  {
+    section: 'advanced',
+    card: 'us-test-mode',
+    label: 'App test mode',
+    keywords: 'diagnostics pseudo language developers',
+  },
   { section: 'advanced', card: 'us-dev', label: 'Developer mode', keywords: 'copy id' },
   { section: 'advanced', card: 'us-reset', label: 'Reset UI state', keywords: 'layout panels' },
 ];

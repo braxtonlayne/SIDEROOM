@@ -15,6 +15,7 @@
 
 pub mod archive;
 pub mod comicinfo;
+pub mod crop;
 pub mod epub;
 pub mod image;
 pub mod pdf;

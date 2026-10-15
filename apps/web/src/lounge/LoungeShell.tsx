@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
 import { useT } from '../i18n';
 import { useAppBadge } from '../pwa/useAppBadge';
+import { useDesktopNotify } from './shell/desktopNotify';
+import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
 import { useVisualViewport } from './useVisualViewport';
 import { ChannelSidebar } from './ChannelSidebar';
 import { ChannelView } from './ChannelView';
@@ -36,6 +38,7 @@ import { ConnectionBanner, NoticesBar } from './shell/Banners';
 import { useAgeCleared, useAgeGate } from './AgeGate';
 import { PopoutHost } from './profile/ProfilePopout';
 import { ReminderTicker } from './shell/ReminderTicker';
+import { InteractionModalHost } from './apps/InteractionModal';
 import { ThreadPane } from './threads/ThreadPane';
 import { useShellBoot } from './shell/useShellBoot';
 import { ShortcutSheet } from './ShortcutSheet';
@@ -215,6 +218,8 @@ function Shell() {
 
   useShellBoot();
   useAppBadge();
+  useDesktopNotify();
+  useDesktopAlerts();
   useVisualViewport();
   const openSettings = useOpenUserSettings();
   const theme = useAppliedTheme();
@@ -315,7 +320,7 @@ function Shell() {
                 {isHome ? (
                   channelId && <DmProfilePanel dmId={channelId} />
                 ) : (
-                  <MemberList guildId={guildId!} />
+                  <MemberList guildId={guildId!} channelId={channelId} />
                 )}
               </aside>
             </>
@@ -366,6 +371,7 @@ function Shell() {
           <p>{t('lounge.loungeShell.inboxNote')}</p>
         </ComingSoon>
         <LoungeDialogs />
+        <InteractionModalHost />
         <PopoutHost />
         <ReminderTicker />
         <QuickSwitcher open={switcher} onClose={() => setSwitcher(false)} />

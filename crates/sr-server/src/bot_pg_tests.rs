@@ -377,10 +377,14 @@ async fn a_bot_connects_listens_with_the_right_intents_and_answers_commands() {
             Opened::Ready(..) => panic!("{bad:?} connected"),
         }
     }
-    // One shard only.
-    match Client::open(&gw, &token, intents::GUILDS, Some(json!([0, 2]))).await {
+    // A shard id outside its count is refused; a real shard of two connects (DEV-BOT-002).
+    match Client::open(&gw, &token, intents::GUILDS, Some(json!([2, 2]))).await {
         Opened::Closed(c) => assert_eq!(c, close::INVALID_SHARD),
-        Opened::Ready(..) => panic!("sharded identify accepted"),
+        Opened::Ready(..) => panic!("out-of-range shard accepted"),
+    }
+    match Client::open(&gw, &token, intents::GUILDS, Some(json!([1, 2]))).await {
+        Opened::Closed(c) => panic!("shard 1 of 2 refused with {c}"),
+        Opened::Ready(..) => {}
     }
     // A privileged intent needs to be enabled for the application first.
     match Client::open(

@@ -19,6 +19,7 @@ import type {
   Role,
   Snowflake,
 } from './data';
+import { cdnUrl } from '../store/cdn';
 import { cmpId } from '../store/reducer';
 import { canOpenSettingsFromBits } from '../settings/server/permissions';
 import type * as S from '../store/types';
@@ -221,6 +222,8 @@ export function toDmChannel(c: S.Channel, rs: S.ReadState | undefined): DmChanne
     id: c.id,
     recipientIds: (c.recipients ?? []).map((u) => u.id),
     name: c.name ?? null,
+    ...(c.owner_id ? { ownerId: c.owner_id } : {}),
+    ...(c.icon ? { iconUrl: cdnUrl('icons', c.id, c.icon, { size: 128 }) } : {}),
     lastMessageAt: snowflakeTime(c.last_message_id),
     unread: isUnread(c, rs),
     mentionCount: rs?.mention_count ?? 0,
@@ -265,22 +268,56 @@ const ACTIVITY_KIND: Record<number, Activity['kind']> = {
   2: 'listening',
   3: 'watching',
   4: 'custom',
+  /** SIDE ROOM's "Reading" (Discord has no type 6; contract with the presence backend). */
+  6: 'reading',
 };
 
 interface WireActivity {
   type?: number;
   name?: string;
   state?: string | null;
+  details?: string | null;
+  timestamps?: { start?: number | null } | null;
+  /** Game platform (Discord's `platform` field). */
+  platform?: string | null;
+  /** SIDE ROOM watch party that can be joined. */
+  party?: { id?: string | null } | null;
+  expires_at_ms?: number | null;
 }
 
-export function toLoungePresence(p: S.Presence | undefined): Presence {
+function toActivity(a: WireActivity): Activity | null {
+  if (a.type === undefined) return null;
+  const kind = ACTIVITY_KIND[a.type];
+  if (!kind) return null;
+  // Watching/reading carry the application in `name` ("SIDE ROOM Cinema") and the title in `details`.
+  const titled = (a.type === 3 || a.type === 6) && !!a.details;
+  const text = (a.type === 4 ? (a.state ?? a.name) : titled ? a.details : a.name) ?? '';
+  if (!text) return null;
+  const out: Activity = { kind, text };
+  const sub = titled ? a.state : (a.details ?? a.state);
+  if (a.type !== 4 && sub) out.details = sub;
+  if (a.timestamps?.start) out.startedAt = a.timestamps.start;
+  if (a.platform) out.platform = a.platform;
+  if (a.party?.id) out.partyId = a.party.id;
+  if (a.expires_at_ms) out.expiresAt = a.expires_at_ms;
+  return out;
+}
+
+export function toLoungePresence(p: S.Presence | undefined, now = Date.now()): Presence {
   const status = p?.status ?? 'offline';
-  const a = (p?.activities as WireActivity[] | undefined)?.find(
-    (x) => x.type !== undefined && ACTIVITY_KIND[x.type] !== undefined,
-  );
-  if (!a || a.type === undefined) return { status };
-  const text = (a.type === 4 ? (a.state ?? a.name) : a.name) ?? '';
-  return text ? { status, activity: { kind: ACTIVITY_KIND[a.type]!, text } } : { status };
+  const all = ((p?.activities as WireActivity[] | undefined) ?? [])
+    .map(toActivity)
+    .filter((a): a is Activity => a !== null && !(a.expiresAt && a.expiresAt <= now));
+  const custom = all.find((a) => a.kind === 'custom');
+  const rich = all.filter((a) => a.kind !== 'custom');
+  const first = all[0];
+  if (!first) return { status };
+  return {
+    status,
+    activity: first,
+    ...(rich.length ? { activities: rich } : {}),
+    ...(custom ? { custom } : {}),
+  };
 }
 
 export function toLoungeMember(m: S.Member, user: LoungeUser): Member {
@@ -294,6 +331,7 @@ export function toLoungeMember(m: S.Member, user: LoungeUser): Member {
 
 const FLAG_SUPPRESS_EMBEDS = 1 << 2;
 const FLAG_VOICE = 1 << 13;
+const FLAG_EPHEMERAL = 1 << 6;
 
 function decodeWaveform(b64: string | null | undefined): number[] | null {
   if (!b64) return null;
@@ -415,6 +453,7 @@ export function toLoungeMessage(m: S.Message): Message {
         }
       : {}),
     ...(flags & FLAG_VOICE ? { voice: true } : {}),
+    ...(flags & FLAG_EPHEMERAL ? { ephemeral: true } : {}),
     ...(flags & FLAG_SUPPRESS_EMBEDS ? { suppressEmbeds: true } : {}),
   };
 }

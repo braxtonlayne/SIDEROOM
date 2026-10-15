@@ -1,0 +1,27 @@
+[package]
+name = "sr-push"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aes-gcm = "0.10"
+async-trait.workspace = true
+base64 = "0.23.1"
+getrandom = "0.4"
+hkdf = "0.12"
+p256 = { version = "0.13", default-features = false, features = ["arithmetic", "ecdh", "ecdsa", "std"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+sr-net = { path = "../sr-net" }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "time"] }
+url = "2.5.8"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "time", "macros"] }

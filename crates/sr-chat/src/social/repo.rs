@@ -18,11 +18,16 @@ pub type RepoResult<T> = Result<T, RepoError>;
 
 /// One guild membership of a user, as the social layer needs it (mutual guilds,
 /// guild-wide acknowledgement, presence fan-out).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct GuildMembership {
     pub guild: GuildId,
     pub nick: Option<String>,
     pub joined_at_ms: i64,
+    /// Per-server profile overrides (LNG-PRF-001): avatar and banner content hashes and
+    /// the about me the member set for this server only.
+    pub avatar_key: Option<String>,
+    pub banner_key: Option<String>,
+    pub bio: Option<String>,
 }
 
 /// Per-user privacy preferences relevant to relationships and DMs.
@@ -155,6 +160,38 @@ pub trait ProfileRepository: Send + Sync {
         external_id: &str,
     ) -> RepoResult<()>;
     async fn count_connections(&self, user: UserId) -> RepoResult<usize>;
+    /// The account that holds a *verified* connection to this provider identity, if any.
+    async fn connection_owner(
+        &self,
+        provider: &str,
+        external_id: &str,
+    ) -> RepoResult<Option<UserId>> {
+        let _ = (provider, external_id);
+        Ok(None)
+    }
+    /// Verified connections that show their stats and were refreshed before `before_ms`
+    /// (or never), for the listed providers, oldest first.
+    async fn stale_connections(
+        &self,
+        before_ms: i64,
+        providers: &[&str],
+        limit: usize,
+    ) -> RepoResult<Vec<Connection>> {
+        let _ = (before_ms, providers, limit);
+        Ok(Vec::new())
+    }
+    /// Store refreshed public stats of one connection.
+    async fn set_connection_stats(
+        &self,
+        user: UserId,
+        provider: &str,
+        external_id: &str,
+        stats: &serde_json::Value,
+        now_ms: i64,
+    ) -> RepoResult<()> {
+        let _ = (user, provider, external_id, stats, now_ms);
+        Ok(())
+    }
 }
 
 #[async_trait]

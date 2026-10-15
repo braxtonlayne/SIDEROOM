@@ -6,6 +6,7 @@ import {
   useId,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -17,6 +18,7 @@ import { usePrefsStore, useSavedPrefs } from '../settings/user/prefs';
 import { convertEmoticons } from './emoticons';
 import { EmojiPicker } from './components/EmojiPicker';
 import { ExpressionPicker, type GuildSticker } from './components/ExpressionPicker';
+import { customEmojiText } from './components/EmojiPicker';
 import { EMOJI_CATEGORIES } from './components/emoji';
 import {
   insertAt,
@@ -53,6 +55,20 @@ import {
   type Trigger,
 } from './msg/autocomplete';
 import { AutocompletePopup } from './msg/AutocompletePopup';
+import { ScheduleDialog } from './features/ScheduleDialog';
+import { CommandForm } from './apps/CommandForm';
+import {
+  indexedCommands,
+  matchTyped,
+  parseTypedArgs,
+  runsImmediately,
+  searchCommands,
+  type IndexedCommand,
+  type TypedArgs,
+} from './apps/commands';
+import { newNonce, sendInteraction } from './apps/interactions';
+import { useAppCommands } from './apps/useAppCommands';
+import { useReportOutcome } from './apps/useReportOutcome';
 import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
 import { UploadTray } from './msg/UploadTray';
@@ -215,6 +231,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [sending, setSending] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
+  // Slash commands of installed apps (DEV-BOT-008).
+  const appIndex = useAppCommands(channelId, !!guildId);
+  const appCommands = useMemo(() => indexedCommands(appIndex, 1), [appIndex]);
+  const reportOutcome = useReportOutcome();
+  const [appForm, setAppForm] = useState<{ entry: IndexedCommand; prefill: TypedArgs } | null>(
+    null,
+  );
   const [ping, setPing] = useState(true);
   const [hasSel, setHasSel] = useState(false);
   const [caret, setCaret] = useState(0);
@@ -386,6 +409,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       });
   };
 
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const showSendButton = useSavedPrefs().showSendButton;
   const send = () => {
     if (sending || cooldownLeft > 0) return;
@@ -409,9 +433,36 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       } else if (r.kind !== 'none') {
         runAction(r);
         return;
+      } else if (guildId) {
+        const typed = matchTyped(content, appCommands);
+        if (typed) {
+          runAppCommand(typed.entry, parseTypedArgs(typed.entry.command, typed.rest));
+          return;
+        }
       }
     }
     expandForSend(content, (c) => submit(c, undefined, { tts }));
+  };
+
+  /** An app command typed in the box: commands without options run at once, the rest open the option form. */
+  const runAppCommand = (entry: IndexedCommand, prefill: TypedArgs) => {
+    drafts.delete(channelId);
+    setText('');
+    setCaret(0);
+    tokens.current.clear();
+    if (!guildId) return;
+    if (!runsImmediately(entry.command)) {
+      setAppForm({ entry, prefill });
+      return;
+    }
+    void sendInteraction({
+      type: 2,
+      application_id: entry.command.application_id,
+      channel_id: channelId,
+      guild_id: guildId,
+      nonce: newNonce(),
+      data: { id: entry.command.id, options: [] },
+    }).then(reportOutcome);
   };
 
   /** Commands that do something other than post their text. The box is cleared once they are accepted. */
@@ -473,25 +524,19 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         return;
       case 'remind': {
         const at = new Date(Date.now() + r.ms);
-        const stamp = Date.now();
-        useSaved.getState().addReminder(
-          {
-            message_id: `remind-${stamp}`,
-            channel_id: channelId,
-            guild_id: guildId ?? null,
-            preview: r.text,
-            author: 'You',
-            saved_at: new Date(stamp).toISOString(),
-          },
-          at,
-        );
-        toast.show({
-          title: t('lounge.composer.remindAt', {
-            time: formatTime(at, { hour: 'numeric', minute: '2-digit' }),
-          }),
-          variant: 'success',
-          duration: 3000,
-        });
+        useSaved
+          .getState()
+          .addReminder({ note: r.text, remindAt: at })
+          .then(() =>
+            toast.show({
+              title: t('lounge.composer.remindAt', {
+                time: formatTime(at, { hour: 'numeric', minute: '2-digit' }),
+              }),
+              variant: 'success',
+              duration: 3000,
+            }),
+          )
+          .catch(() => fail(t('lounge.composer.remindFailed')));
         done();
         return;
       }
@@ -501,6 +546,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const sendSticker = (s: GuildSticker) => {
     actions.sendMessage(channelId, '', replyTo?.id ?? null, {
       stickerIds: [s.id],
+      ...(replyTo && !ping ? { mentionRepliedUser: false } : {}),
+    });
+    onCancelReply();
+    if (slowmodeSeconds && !bypassSlowmode) {
+      setCooldownEnd(Date.now() + slowmodeSeconds * 1000);
+      setNow(Date.now());
+    }
+  };
+
+  const sendGif = (g: { url: string }) => {
+    actions.sendMessage(channelId, g.url, replyTo?.id ?? null, {
       ...(replyTo && !ping ? { mentionRepliedUser: false } : {}),
     });
     onCancelReply();
@@ -587,7 +643,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     );
     acTitle = t('lounge.composer.acEmoji');
   } else if (trigger?.kind === '/') {
-    suggestions = commandSuggestions(trigger.query, slashCtx);
+    suggestions = [
+      ...commandSuggestions(trigger.query, slashCtx),
+      ...searchCommands(appCommands, trigger.query).map(({ command, app }) => ({
+        key: `app:${command.id}`,
+        label: `/${command.name}`,
+        hint: command.description
+          ? t('lounge.apps.picker.hint', { app: app.name, description: command.description })
+          : t('lounge.apps.picker.hintNoDescription', { app: app.name }),
+        insert: `/${command.name} `,
+      })),
+    ];
     acTitle = t('lounge.composer.acCommands');
   }
   const acOpen = suggestions.length > 0;
@@ -890,6 +956,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   ref.current?.focus();
                 }}
                 onSticker={sendSticker}
+                onGif={sendGif}
+                onCustomEmoji={(custom) => {
+                  const { s, e } = sel();
+                  apply(insertAt(text, s, e, customEmojiText(custom)));
+                  ref.current?.focus();
+                }}
               />
             </Popover>
             <Popover
@@ -914,10 +986,27 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   ref.current?.focus();
                 }}
                 onSticker={sendSticker}
+                onGif={sendGif}
+                onCustomEmoji={(custom) => {
+                  const { s, e } = sel();
+                  apply(insertAt(text, s, e, customEmojiText(custom)));
+                  ref.current?.focus();
+                }}
               />
             </Popover>
           </>
         )}
+        <Tooltip content={t('lounge.composer.schedule')}>
+          <button
+            type="button"
+            className="lng-icon-btn"
+            aria-label={t('lounge.composer.schedule')}
+            disabled={!hasContent || text.trim().startsWith('/')}
+            onClick={() => setScheduleOpen(true)}
+          >
+            <Icon name="clock" size={20} />
+          </button>
+        </Tooltip>
         <Popover
           label={t('lounge.composer.emojiPicker')}
           placement="top-end"
@@ -932,9 +1021,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           }
         >
           <EmojiPicker
+            guildId={guildId}
             onPick={(emoji) => {
               const { s, e } = sel();
               apply(insertAt(text, s, e, emoji));
+              ref.current?.focus();
+            }}
+            onPickCustom={(custom) => {
+              const { s, e } = sel();
+              apply(insertAt(text, s, e, customEmojiText(custom)));
               ref.current?.focus();
             }}
           />
@@ -978,6 +1073,25 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           </>
         )}
       </div>
+      <ScheduleDialog
+        open={scheduleOpen}
+        channelId={channelId}
+        content={resolveTokens(text.trim(), tokens.current)}
+        onClose={() => setScheduleOpen(false)}
+        onScheduled={() => {
+          setScheduleOpen(false);
+          finishSend();
+        }}
+      />
+      {appForm && guildId && (
+        <CommandForm
+          entry={appForm.entry}
+          prefill={appForm.prefill}
+          channelId={channelId}
+          guildId={guildId}
+          onClose={() => setAppForm(null)}
+        />
+      )}
       <PollModal
         open={pollOpen}
         onClose={() => setPollOpen(false)}

@@ -53,6 +53,9 @@ pub enum Command {
     /// Object storage administration.
     #[command(subcommand)]
     Storage(StorageCmd),
+    /// Theme packages: check one locally before submitting it (needs no server or database).
+    #[command(subcommand)]
+    Package(PackageCmd),
     /// Insert development data. Refuses non-local instances without --force.
     Seed {
         /// Password for all seeded accounts.
@@ -60,6 +63,19 @@ pub enum Command {
         password: String,
         #[arg(long)]
         force: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PackageCmd {
+    /// Validate a theme folder (theme.json, tokens.json, assets/, fonts/) with the same rules the server
+    /// applies on upload. Exit code 1 when it has errors.
+    Validate {
+        /// The theme folder.
+        dir: PathBuf,
+        /// Print the report as JSON.
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -196,6 +212,13 @@ mod tests {
             Command::Storage(StorageCmd::EnsureCors { ref origins }) if origins.len() == 1
         ));
         assert!(Cli::try_parse_from(["sr-cli", "storage", "ensure-cors"]).is_ok());
+        let c =
+            Cli::try_parse_from(["sr-cli", "package", "validate", "my-theme", "--json"]).unwrap();
+        assert!(matches!(
+            c.command,
+            Command::Package(PackageCmd::Validate { json: true, .. })
+        ));
+        assert!(Cli::try_parse_from(["sr-cli", "package", "validate"]).is_err());
         assert!(Cli::try_parse_from(["sr-cli", "bootstrap"]).is_err());
     }
 }

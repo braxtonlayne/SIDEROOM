@@ -273,6 +273,13 @@ impl Env {
 fn member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
     vec![
         (Method::GET, "/submissions/kinds", None),
+        (Method::GET, "/submissions/quota", None),
+        (
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "cinema", "names": ["a.mkv"] })),
+        ),
+        (Method::GET, "/submissions/7/credits", None),
         (Method::GET, "/submissions", None),
         (
             Method::POST,
@@ -303,6 +310,12 @@ fn member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         (Method::PUT, "/requests/7/vote", None),
         (Method::DELETE, "/requests/7/vote", None),
         (
+            Method::PUT,
+            "/requests/7/claim",
+            Some(json!({ "note": "mine" })),
+        ),
+        (Method::DELETE, "/requests/7/claim", None),
+        (
             Method::POST,
             "/requests/7/fulfil",
             Some(json!({ "submission_id": "7" })),
@@ -315,6 +328,12 @@ fn reviewer_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         (Method::GET, "/admin/review/queue", None),
         (Method::GET, "/admin/review/submissions/7", None),
         (Method::GET, "/admin/review/submissions/7/preview", None),
+        (Method::GET, "/admin/review/submissions/7/credits", None),
+        (
+            Method::POST,
+            "/admin/review/submissions/7/revoke-credits",
+            Some(json!({ "reason": "x" })),
+        ),
         (Method::POST, "/admin/review/submissions/7/claim", None),
         (Method::POST, "/admin/review/submissions/7/release", None),
         (
@@ -588,6 +607,42 @@ async fn the_whole_review_runs_over_http() {
     assert_eq!(b["submission"]["state"], "published");
     assert_eq!(b["items"][0]["state"], "published");
 
+    // The new item earned the submitter a credit; the allowance endpoint answers.
+    let (st, c) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            &format!("/submissions/{id}/credits"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{c}");
+    assert_eq!(c.as_array().unwrap().len(), 1, "{c}");
+    let (st, q) = e
+        .call(Some(MEMBER), Method::GET, "/submissions/quota", None)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{q}");
+    assert_eq!(q["limit_bytes"], 50_000_000_000_i64);
+    // Another member sees nothing of it; a plain reviewer cannot revoke.
+    let (st, _) = e
+        .call(
+            Some(OTHER),
+            Method::GET,
+            &format!("/submissions/{id}/credits"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    let (st, _) = e
+        .call(
+            Some(REVIEWER),
+            Method::POST,
+            &format!("{base}/revoke-credits"),
+            Some(json!({ "reason": "spam" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+
     // The access log has the decision trail.
     let actions = e.actions();
     for want in [
@@ -743,6 +798,42 @@ async fn requests_board_over_http() {
         )
         .await;
     assert_eq!(v["vote_count"], 1);
+    // "I'll upload this": one member at a time.
+    let (st, c) = e
+        .call(
+            Some(OTHER),
+            Method::PUT,
+            &format!("/requests/{rid}/claim"),
+            Some(json!({ "note": "scanning vol 1" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{c}");
+    assert_eq!(c["claim_note"], "scanning vol 1");
+    assert_eq!(c["claimed_by_me"], true);
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            &format!("/requests/{rid}/claim"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    let (_, l) = e
+        .call(Some(MEMBER), Method::GET, "/requests?status=open", None)
+        .await;
+    assert_eq!(l["items"][0]["claimed_by_me"], false);
+    assert!(l["items"][0]["claimed_by"].is_string());
+    let (st, c) = e
+        .call(
+            Some(OTHER),
+            Method::DELETE,
+            &format!("/requests/{rid}/claim"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{c}");
+    assert!(c["claimed_by"].is_null());
     // Declining is for reviewers only, and is logged.
     let (st, _) = e
         .call(
@@ -786,6 +877,11 @@ fn openapi_lists_the_review_paths() {
         "/submissions/{submission_id}/library/chapters/{chapter_id}/uploads",
         "/requests/{request_id}/vote",
         "/admin/review/queue",
+        "/submissions/quota",
+        "/submissions/naming/parse",
+        "/submissions/{submission_id}/credits",
+        "/admin/review/submissions/{submission_id}/credits",
+        "/admin/review/submissions/{submission_id}/revoke-credits",
         "/admin/review/submissions/{submission_id}/approve",
         "/admin/review/submissions/{submission_id}/items/{item_id}",
     ] {
@@ -800,4 +896,51 @@ fn openapi_lists_the_review_paths() {
     ] {
         assert!(schemas.contains_key(s), "{s}");
     }
+}
+
+#[tokio::test]
+async fn the_naming_tester_parses_both_sections() {
+    let e = env().await;
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "cinema", "names": ["Show - s01e02 - Pilot.mkv"] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["items"][0]["cinema"]["season"], 1);
+    assert_eq!(b["items"][0]["cinema"]["episodes"][0], 2);
+    assert!(b["items"][0]["library"].is_null());
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "library", "names": ["Series v02 c013 [Grp].cbz"] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["items"][0]["library"]["chapter"], 13.0);
+    assert_eq!(b["items"][0]["library"]["group"], "Grp");
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "tv", "names": [] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    let many: Vec<String> = (0..201).map(|i| format!("{i}.mkv")).collect();
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/submissions/naming/parse",
+            Some(json!({ "section": "cinema", "names": many })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
 }

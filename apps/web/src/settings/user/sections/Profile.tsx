@@ -28,6 +28,7 @@ import {
 import { ImageCropDialog } from '../ImageCropDialog';
 import { imageProblem, readAsDataUri } from '../imageCrop';
 import { Card, Loaded, SectionTitle, Unavailable } from '../parts';
+import { ServerTagCard } from './ServerTagCard';
 
 export const BIO_MAX = 190;
 export const PRONOUNS_MAX = 40;
@@ -462,7 +463,10 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
             ]}
           />
           {tab === 'servers' ? (
-            <ServerProfiles userId={form.profile?.user.id} />
+            <>
+              <ServerProfiles userId={form.profile?.user.id} />
+              <ServerTagCard />
+            </>
           ) : (
             <div className="us-split">
               <div>

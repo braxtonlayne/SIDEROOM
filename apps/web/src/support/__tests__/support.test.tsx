@@ -436,3 +436,44 @@ describe('Invoice dialog live status', () => {
     expect(screen.queryByRole('button', { name: 'Cancel invoice' })).toBeNull();
   });
 });
+
+describe('Support: perks table, contributions, explorer links (LNG-USET-031..033)', () => {
+  it('compares free and Patron perks row by row', async () => {
+    supportApi();
+    openSupport();
+    const table = await screen.findByRole('table', { name: 'Free compared with Patron' });
+    const row = (name: string) => within(table).getByRole('row', { name: new RegExp(name) });
+    expect(row('Upload size per file')).toHaveTextContent('30 MB');
+    expect(row('Upload size per file')).toHaveTextContent('500 MB');
+    expect(row('Video and screen share')).toHaveTextContent('720p30');
+    expect(row('Video and screen share')).toHaveTextContent('1080p60');
+    // Patron has no value of its own here: the free one still applies.
+    expect(row('Viewers per stream')).toHaveTextContent('Same as free');
+    expect(row('Cinema downloads')).toHaveTextContent('Not included');
+    expect(row('Cinema downloads')).toHaveTextContent('20 a day');
+  });
+
+  it('lists only paid server contributions and links a transaction to the explorer', async () => {
+    useStore.setState({ guilds: { '55': { id: '55', name: 'Book Club' } }, guildOrder: ['55'] });
+    supportApi({
+      invoices: [
+        invoice({
+          id: '1',
+          purpose: 'server_level',
+          guild_id: '55',
+          state: 'confirmed',
+          usd_cents: 1000,
+          explorer_url: 'https://explorer.example/tx/abc',
+        }),
+        invoice({ id: '2', purpose: 'server_level', guild_id: '55', state: 'open' }),
+        invoice({ id: '3', purpose: 'donate', state: 'confirmed' }),
+      ],
+    });
+    openSupport();
+    const card = await screen.findByRole('region', { name: 'Server contributions' });
+    expect(await within(card).findByText(/Book Club, \$10\.00/)).toBeInTheDocument();
+    expect(within(card).getAllByRole('listitem')).toHaveLength(1);
+    const links = screen.getAllByRole('link', { name: /View transaction/ });
+    expect(links[0]).toHaveAttribute('href', 'https://explorer.example/tx/abc');
+  });
+});

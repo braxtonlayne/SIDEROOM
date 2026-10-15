@@ -66,6 +66,7 @@ struct State {
     tokens: Vec<OAuthToken>,
     interactions: Vec<InteractionRow>,
     imsgs: Vec<InteractionMessage>,
+    interactions_cfg: HashMap<i64, InteractionsConfig>,
 }
 
 /// RAM-backed repository.
@@ -376,6 +377,38 @@ impl AppsRepository for MemoryAppsRepo {
         }
         s.audit.push(audit);
         Ok(out)
+    }
+
+    async fn interactions_config(&self, app: i64) -> AppsResult<InteractionsConfig> {
+        let s = self.st();
+        if !s.apps.contains_key(&app) {
+            return Err(AppsError::NotFound("application"));
+        }
+        Ok(s.interactions_cfg.get(&app).cloned().unwrap_or_default())
+    }
+
+    async fn set_interactions_config(
+        &self,
+        app: i64,
+        endpoint_url: Option<Option<String>>,
+        seed_if_absent: Option<crate::signing::SigningSeed>,
+        audit: Option<AuditRow>,
+    ) -> AppsResult<()> {
+        let mut s = self.st();
+        if !s.apps.contains_key(&app) {
+            return Err(AppsError::NotFound("application"));
+        }
+        let cfg = s.interactions_cfg.entry(app).or_default();
+        if let Some(u) = endpoint_url {
+            cfg.endpoint_url = u;
+        }
+        if cfg.seed.is_none() {
+            cfg.seed = seed_if_absent;
+        }
+        if let Some(a) = audit {
+            s.audit.push(a);
+        }
+        Ok(())
     }
 
     async fn set_bot_name(&self, app: i64, name: &str, audit: AuditRow) -> AppsResult<()> {
@@ -761,6 +794,16 @@ impl AppsRepository for MemoryAppsRepo {
             .installs
             .iter()
             .filter(|i| i.application_id == app)
+            .cloned()
+            .collect())
+    }
+
+    async fn guild_installs(&self, guild: i64) -> AppsResult<Vec<Install>> {
+        Ok(self
+            .st()
+            .installs
+            .iter()
+            .filter(|i| i.guild_id == guild)
             .cloned()
             .collect())
     }

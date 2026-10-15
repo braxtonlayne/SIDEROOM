@@ -24,6 +24,17 @@ pub const LEASE_MS: i64 = 30 * 60 * 1000;
 pub const MAX_OPEN_PER_MEMBER: i64 = 5;
 /// Open requests a member may have at once.
 pub const MAX_OPEN_REQUESTS: i64 = 10;
+/// Bytes a member may reserve for upload per UTC day (spec section 3: 50 GB); staff exempt.
+pub const MAX_UPLOAD_BYTES_PER_DAY: i64 = 50_000_000_000;
+const DAY_MS: i64 = 86_400_000;
+/// Idle days before a draft owner is warned, then before the draft is abandoned.
+pub const STALE_WARN_DAYS: i64 = 23;
+pub const ABANDON_DAYS: i64 = 30;
+/// Days a warning must have stood before its draft is abandoned.
+pub const ABANDON_GRACE_DAYS: i64 = 3;
+/// Days after a rejection before the files are purged.
+pub const PURGE_DAYS: i64 = 14;
+const SWEEP_BATCH: u32 = 200;
 const MAX_REASON: usize = 4000;
 
 /// Delivers `SR_SUBMISSION_UPDATE` to the sessions of some accounts (implemented over the
@@ -391,6 +402,7 @@ impl ReviewService {
         self.repo
             .move_items(id, ItemState::Approved, ItemState::Published)
             .await?;
+        self.grant_credits(&s, kind.as_ref(), &approved).await;
         let ev = self.event(
             "published",
             c.user_id,
@@ -773,6 +785,7 @@ impl ReviewService {
         self.repo
             .move_items(s.id, ItemState::Approved, ItemState::Published)
             .await?;
+        self.grant_credits(&s, kind.as_ref(), &approved).await;
         let ev = self.event("published", c.user_id, None, false, json!({}));
         let t = Transition {
             from: machine::sources(Action::Publish).to_vec(),
@@ -1001,6 +1014,301 @@ impl ReviewService {
             .close_request(id, RequestStatus::Declined, None, c.user_id)
             .await?
             .ok_or_else(|| ReviewError::Conflict("the request is already closed".into()))
+    }
+
+    /// "I'll upload this": say you are working on an open request, with a short note. One
+    /// member holds it at a time; claiming again updates the note.
+    pub async fn claim_request(
+        &self,
+        user: i64,
+        id: i64,
+        input: ClaimRequestInput,
+    ) -> ReviewResult<ContentRequest> {
+        let note = input.note.trim();
+        if note.chars().count() > 500 {
+            return Err(ReviewError::Invalid(
+                "the note is limited to 500 characters".into(),
+            ));
+        }
+        self.repo
+            .claim_request(id, user, note, self.now())
+            .await?
+            .ok_or_else(|| {
+                ReviewError::Conflict(
+                    "the request is unknown, closed or somebody else is already on it".into(),
+                )
+            })
+    }
+
+    /// Give a claim up. The holder may; so may reviewers of the section.
+    pub async fn release_request(&self, c: Caller, id: i64) -> ReviewResult<ContentRequest> {
+        let req = self
+            .repo
+            .get_request(id, c.user_id)
+            .await?
+            .ok_or(ReviewError::NotFound("request"))?;
+        let force = self
+            .kinds
+            .for_section(&req.section)
+            .is_some_and(|k| c.permissions.has(k.review_permission()));
+        self.repo
+            .release_request(id, c.user_id, force)
+            .await?
+            .ok_or_else(|| {
+                ReviewError::Conflict("nobody you may release is on this request".into())
+            })
+    }
+
+    // ---- contribution credits (REV-CORE-006) ---------------------------
+
+    /// Credit the submitter for the new items just published (D-074). Best effort: the
+    /// content is already live, so a failure is recorded on the timeline for reviewers and
+    /// does not undo the publish.
+    async fn grant_credits(
+        &self,
+        s: &Submission,
+        kind: &dyn SubmissionKind,
+        published: &[SubmissionItem],
+    ) {
+        let Some(user) = s.submitter_id else { return };
+        let section = kind
+            .section()
+            .unwrap_or_else(|| s.kind.split('.').next().unwrap_or(""));
+        let result = async {
+            let refs = kind.credit_refs(s, published).await?;
+            let credits: Vec<NewCredit> = published
+                .iter()
+                .filter(|i| refs.contains(&i.ref_id))
+                .map(|i| NewCredit {
+                    id: (self.ids)(),
+                    ref_id: i.ref_id,
+                    label: i.label.clone(),
+                })
+                .collect();
+            if credits.is_empty() {
+                return Ok(0);
+            }
+            self.repo.grant_credits(section, user, s.id, &credits).await
+        }
+        .await;
+        match result {
+            Ok(_) => {}
+            Err(e) => {
+                let ev = self.system_event("credit_failed", Some(e.to_string()), true, json!({}));
+                let _ = self.repo.add_event(s.id, &ev).await;
+            }
+        }
+    }
+
+    fn system_event(
+        &self,
+        kind: &str,
+        body: Option<String>,
+        internal: bool,
+        data: Value,
+    ) -> NewEvent {
+        NewEvent {
+            id: (self.ids)(),
+            kind: kind.to_owned(),
+            actor_id: None,
+            body,
+            internal,
+            data,
+        }
+    }
+
+    /// The credits earned by a submission (reviewers, or the submitter for their own).
+    pub async fn credits(&self, c: Caller, id: i64) -> ReviewResult<Vec<Credit>> {
+        let s = self.load(id).await?;
+        if s.submitter_id != Some(c.user_id) {
+            let kind = self.kinds.get(&s.kind)?;
+            need(c, kind.review_permission())?;
+        }
+        self.repo.credits_for(id).await
+    }
+
+    /// Number of live credits of a member.
+    pub async fn credit_total(&self, user: i64) -> ReviewResult<i64> {
+        self.repo.credit_total(user).await
+    }
+
+    /// Unpublishing for cause: revoke the credits of a submission (all, or the listed items).
+    /// Needs the kind's publish permission and a reason. The credit rows stay, so publishing
+    /// the same item again cannot earn a second credit.
+    pub async fn revoke_credits(
+        &self,
+        c: Caller,
+        id: i64,
+        refs: Option<Vec<i64>>,
+        reason: &str,
+    ) -> ReviewResult<u64> {
+        let s = self.load(id).await?;
+        let kind = self.kinds.get(&s.kind)?.clone();
+        need(c, kind.publish_permission())?;
+        let reason = reason_text(Some(reason), true, "revoking credits")?.unwrap_or_default();
+        let n = self
+            .repo
+            .revoke_credits(id, refs.as_deref(), &reason, self.now())
+            .await?;
+        let ev = self.event(
+            "credits_revoked",
+            c.user_id,
+            Some(reason),
+            true,
+            json!({ "count": n }),
+        );
+        self.repo.add_event(id, &ev).await?;
+        Ok(n)
+    }
+
+    // ---- upload allowance (REV-CORE-008) -------------------------------
+
+    fn day_number(&self) -> i64 {
+        self.now().div_euclid(DAY_MS)
+    }
+
+    /// Reserve `bytes` of the caller's daily upload allowance (50 GB per UTC day). Staff are
+    /// exempt (D-082). Called before a presigned upload URL is handed out.
+    pub async fn charge_upload(&self, c: Caller, bytes: u64) -> ReviewResult<()> {
+        if c.is_staff() {
+            return Ok(());
+        }
+        let bytes = i64::try_from(bytes).unwrap_or(i64::MAX);
+        match self
+            .repo
+            .add_upload_bytes(
+                c.user_id,
+                self.day_number(),
+                bytes,
+                MAX_UPLOAD_BYTES_PER_DAY,
+            )
+            .await?
+        {
+            Some(_) => Ok(()),
+            None => Err(ReviewError::Conflict(format!(
+                "the daily upload limit of {} GB is reached; try again tomorrow (UTC)",
+                MAX_UPLOAD_BYTES_PER_DAY / 1_000_000_000
+            ))),
+        }
+    }
+
+    /// What the caller has left of today's upload allowance.
+    pub async fn upload_allowance(&self, c: Caller) -> ReviewResult<UploadAllowance> {
+        if c.is_staff() {
+            return Ok(UploadAllowance {
+                limit_bytes: None,
+                used_bytes: 0,
+                remaining_bytes: None,
+            });
+        }
+        let used = self.repo.upload_bytes(c.user_id, self.day_number()).await?;
+        Ok(UploadAllowance {
+            limit_bytes: Some(MAX_UPLOAD_BYTES_PER_DAY),
+            used_bytes: used,
+            remaining_bytes: Some((MAX_UPLOAD_BYTES_PER_DAY - used).max(0)),
+        })
+    }
+
+    // ---- housekeeping (REV-CORE-009) -----------------------------------
+
+    /// One pass of the housekeeping job: warn members whose draft has been idle for
+    /// [`STALE_WARN_DAYS`], abandon drafts idle for [`ABANDON_DAYS`] (only after a warning at
+    /// least [`ABANDON_GRACE_DAYS`] old), and purge the content of submissions rejected more
+    /// than [`PURGE_DAYS`] ago. Every step is idempotent, so a crashed run is simply repeated.
+    pub async fn housekeeping(&self) -> ReviewResult<SweepReport> {
+        let now = self.now();
+        let mut report = SweepReport::default();
+        for s in self
+            .repo
+            .idle_drafts(now - ABANDON_DAYS * DAY_MS, SWEEP_BATCH)
+            .await?
+        {
+            let warned = self.repo.last_event_ms(s.id, "stale_warning").await?;
+            match warned {
+                Some(w) if now - w >= ABANDON_GRACE_DAYS * DAY_MS => match self.abandon(&s).await {
+                    Ok(true) => report.abandoned += 1,
+                    Ok(false) => {}
+                    Err(e) => {
+                        tracing::warn!(submission = s.id, error = %e, "abandoning a stale draft failed");
+                        report.failed += 1;
+                    }
+                },
+                Some(_) => {}
+                None => {
+                    self.warn_stale(&s).await?;
+                    report.warned += 1;
+                }
+            }
+        }
+        for s in self
+            .repo
+            .idle_drafts(now - STALE_WARN_DAYS * DAY_MS, SWEEP_BATCH)
+            .await?
+        {
+            if self
+                .repo
+                .last_event_ms(s.id, "stale_warning")
+                .await?
+                .is_none()
+            {
+                self.warn_stale(&s).await?;
+                report.warned += 1;
+            }
+        }
+        for s in self
+            .repo
+            .rejected_unpurged(now - PURGE_DAYS * DAY_MS, SWEEP_BATCH)
+            .await?
+        {
+            match self.purge(&s).await {
+                Ok(()) => report.purged += 1,
+                Err(e) => {
+                    tracing::warn!(submission = s.id, error = %e, "purging a rejected submission failed");
+                    report.failed += 1;
+                }
+            }
+        }
+        Ok(report)
+    }
+
+    async fn warn_stale(&self, s: &Submission) -> ReviewResult<()> {
+        let at = self.now() + (ABANDON_DAYS - STALE_WARN_DAYS) * DAY_MS;
+        let ev = self.system_event("stale_warning", None, false, json!({ "abandon_at_ms": at }));
+        self.repo.add_event(s.id, &ev).await?;
+        self.notify(s, "stale_warning", json!({ "abandon_at_ms": at }))
+            .await;
+        Ok(())
+    }
+
+    /// Withdraw an abandoned draft and purge its content. `false` when the draft moved on
+    /// meanwhile (the guarded write matched nothing).
+    async fn abandon(&self, s: &Submission) -> ReviewResult<bool> {
+        let ev = self.system_event("abandoned", None, false, json!({}));
+        let t = Transition {
+            from: vec![SubmissionState::Draft],
+            to: SubmissionState::Withdrawn,
+            claim: ClaimPatch::Clear,
+            lease: LeaseGuard::None,
+            stamp_submitted: false,
+            decision: None,
+            stamp_published: false,
+            now_ms: self.now(),
+        };
+        let Some(done) = self.repo.transition(s.id, &t, &ev).await? else {
+            return Ok(false);
+        };
+        self.notify(&done, "abandoned", json!({})).await;
+        self.purge(&done).await?;
+        Ok(true)
+    }
+
+    async fn purge(&self, s: &Submission) -> ReviewResult<()> {
+        let kind = self.kinds.get(&s.kind)?.clone();
+        let items = self.repo.items(s.id).await?;
+        kind.purge(s, &items).await?;
+        let ev = self.system_event("purged", None, true, json!({}));
+        self.repo.add_event(s.id, &ev).await?;
+        Ok(())
     }
 }
 

@@ -9,13 +9,13 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use serde_json::{Value, json};
-use sr_chat::social::presence::{Status, merge_sessions};
 use sr_core::{ChannelId, GuildId, Permissions, UserId};
 use sr_events::{DomainEvent, EventBus, Topic};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
+use crate::presence::{Report, merge as presence_merge, sanitize_activities};
 use crate::protocol::{PresenceUpdate, intents};
 use crate::session::{Out, Session};
 use crate::traits::{AuthedUser, Authenticator, GuildDirectory, OpHandler};
@@ -96,8 +96,15 @@ pub(crate) struct State {
     guild_tasks: HashMap<GuildId, JoinHandle<()>>,
     /// One `Topic::User` subscription per connected user (DM and self events).
     user_tasks: HashMap<UserId, JoinHandle<()>>,
-    /// The user's chosen status (op 3 / IDENTIFY). Visible only while online.
+    /// The user's chosen status and custom status (from `PATCH /users/@me/presence`).
+    /// Visible only while online.
     presence: HashMap<UserId, PresenceUpdate>,
+    /// What each session last reported over op 3 / IDENTIFY, by session id (LNG-PRF-015).
+    session_presence: HashMap<String, SessionPresence>,
+    /// Orders session reports: larger is newer.
+    presence_seq: u64,
+    /// The last presence broadcast per user, so a closing session only announces a change.
+    last_presence: HashMap<UserId, PresenceUpdate>,
     /// Users with at least one attached socket.
     online: HashSet<UserId>,
     typing: HashMap<(ChannelId, UserId), Instant>,
@@ -109,6 +116,13 @@ pub(crate) struct State {
     pub(crate) list_dirty: HashMap<GuildId, bool>,
     pub(crate) vx: crate::voice::VoiceExtra,
     background: Vec<JoinHandle<()>>,
+}
+
+/// One session's last presence report and its client platform.
+pub(crate) struct SessionPresence {
+    pub platform: &'static str,
+    pub update: Option<PresenceUpdate>,
+    pub order: u64,
 }
 
 pub(crate) struct Inner {
@@ -596,9 +610,14 @@ impl Gateway {
         intents: u64,
         conn_id: u64,
         tx: mpsc::Sender<Out>,
+        shard: Option<(u32, u32)>,
     ) -> Arc<Session> {
         let cfg = &self.inner.cfg;
-        let guilds = self.inner.dir.guilds_for_user(user.user_id).await;
+        let mut guilds = self.inner.dir.guilds_for_user(user.user_id).await;
+        // A shard is only told about the servers it owns (DEV-BOT-002).
+        if let Some((id, n)) = shard {
+            guilds.retain(|g| (g.get() >> 22) % u64::from(n.max(1)) == u64::from(id));
+        }
         let mut syncs = Vec::new();
         let mut payloads = Vec::with_capacity(guilds.len());
         for g in &guilds {
@@ -606,7 +625,7 @@ impl Gateway {
             syncs.push(self.inner.dir.thread_list_sync(user.user_id, *g).await);
         }
         let extras = self.inner.dir.ready_extras(user.user_id).await;
-        let session = Arc::new(Session::new(
+        let mut fresh = Session::new(
             Self::new_session_id(),
             user.user_id,
             intents,
@@ -614,7 +633,9 @@ impl Gateway {
             cfg.resume_buffer,
             conn_id,
             tx,
-        ));
+        );
+        fresh.shard = shard;
+        let session = Arc::new(fresh);
         let mut sessions: Vec<Value> = self
             .user_sessions(user.user_id)
             .iter()
@@ -626,6 +647,7 @@ impl Gateway {
             "user": user.user,
             "guilds": guilds.iter().map(|g| json!({"id": g, "unavailable": true})).collect::<Vec<_>>(),
             "session_id": session.id,
+            "shard": shard.map(|(i, n)| json!([i, n])),
             "sessions": sessions,
             "resume_gateway_url": cfg.resume_gateway_url,
         });
@@ -843,6 +865,7 @@ impl Gateway {
                 }
                 Self::drop_guild_if_empty(&mut st, g);
             }
+            st.session_presence.remove(&s.id);
             if !st.sessions.values().any(|o| o.user == s.user) {
                 st.presence.remove(&s.user);
                 if let Some(h) = st.user_tasks.remove(&s.user) {
@@ -934,7 +957,7 @@ impl Gateway {
     /// Deliver to every session of `user` (DM and self events; no guild check).
     pub(crate) async fn dispatch_user(&self, user: UserId, name: &str, data: Value) {
         for s in self.user_sessions(user) {
-            if s.wants(name) {
+            if s.wants(name) && s.owns_user_event(&data) {
                 deliver_to(&s, name, &data);
             }
         }
@@ -973,7 +996,7 @@ impl Gateway {
         let sync = self.inner.dir.thread_list_sync(user, guild).await;
         let mut st = self.st();
         for s in sessions {
-            if s.add_guild(guild) {
+            if s.owns_guild(guild) && s.add_guild(guild) {
                 s.deliver("GUILD_CREATE", payload.clone());
                 if let Some(sy) = &sync
                     && s.wants("THREAD_LIST_SYNC")
@@ -1026,10 +1049,47 @@ impl Gateway {
         Self::effective(&self.st(), user)
     }
 
-    /// Op 3 / API entry point: store the chosen status and broadcast it while online.
-    pub async fn set_presence(&self, user: UserId, update: PresenceUpdate) {
+    /// API entry point (`PATCH /users/@me/presence`): store the user's chosen status and
+    /// custom status and broadcast the merged presence while online.
+    pub async fn set_presence(&self, user: UserId, mut update: PresenceUpdate) {
+        update.activities = sanitize_activities(&update.activities);
         self.st().presence.insert(user, update);
         self.refresh_presence(user, true).await;
+    }
+
+    /// Op 3 / IDENTIFY: record what one session reports (status, `afk`, activities) and
+    /// broadcast the presence merged over all of the user's sessions.
+    pub(crate) async fn set_session_presence(&self, session: &Session, mut update: PresenceUpdate) {
+        update.activities = sanitize_activities(&update.activities);
+        {
+            let mut st = self.st();
+            st.presence_seq += 1;
+            let order = st.presence_seq;
+            let entry = st
+                .session_presence
+                .entry(session.id.clone())
+                .or_insert(SessionPresence {
+                    platform: "web",
+                    update: None,
+                    order,
+                });
+            entry.update = Some(update);
+            entry.order = order;
+        }
+        self.refresh_presence(session.user, true).await;
+    }
+
+    /// Note the client platform of a new session (from IDENTIFY `properties`).
+    pub(crate) fn set_session_platform(&self, session: &Session, platform: &'static str) {
+        let mut st = self.st();
+        st.session_presence
+            .entry(session.id.clone())
+            .or_insert(SessionPresence {
+                platform,
+                update: None,
+                order: 0,
+            })
+            .platform = platform;
     }
 
     pub(crate) fn effective(st: &State, user: UserId) -> Option<PresenceUpdate> {
@@ -1037,19 +1097,29 @@ impl Gateway {
             return None;
         }
         Some(if st.online.contains(&user) {
-            let mut chosen = st.presence.get(&user).cloned().unwrap_or_default();
-            // Every attached socket reports the chosen status; the merge rule
-            // (open question 119) decides what the user shows across them.
-            let sockets = st
+            // The merge rules (open question 119, LNG-PRF-015) are in `presence::merge`.
+            let reports: Vec<Report<'_>> = st
                 .sessions
                 .values()
                 .filter(|s| s.user == user && s.is_attached())
-                .count();
-            if let Some(status) = parse_status(&chosen.status) {
-                let live = vec![Status::Online; sockets];
-                chosen.status = merge_sessions(status, &live).as_str().to_owned();
+                .map(|s| match st.session_presence.get(&s.id) {
+                    Some(sp) => Report {
+                        platform: sp.platform,
+                        update: sp.update.as_ref(),
+                        order: sp.order,
+                    },
+                    None => Report {
+                        platform: "web",
+                        update: None,
+                        order: 0,
+                    },
+                })
+                .collect();
+            if reports.is_empty() {
+                PresenceUpdate::offline()
+            } else {
+                presence_merge(st.presence.get(&user), &reports)
             }
-            chosen
         } else {
             PresenceUpdate::offline()
         })
@@ -1061,6 +1131,15 @@ impl Gateway {
     pub(crate) async fn refresh_presence(&self, user: UserId, force: bool) {
         let (changed, update, guilds, online) = {
             let mut st = self.st();
+            // A forced refresh is also an announcement: remember what was sent.
+            let announce = |st: &mut State, u: Option<&PresenceUpdate>| match u {
+                Some(u) => {
+                    st.last_presence.insert(user, u.clone());
+                }
+                None => {
+                    st.last_presence.remove(&user);
+                }
+            };
             let online = st
                 .sessions
                 .values()
@@ -1077,7 +1156,21 @@ impl Gateway {
                 .filter(|s| s.user == user)
                 .flat_map(|s| s.guilds())
                 .collect();
-            (online != was, Self::effective(&st, user), guilds, online)
+            let update = Self::effective(&st, user);
+            // Another session closing or changing can alter the merged presence without
+            // changing whether the user is online: announce when it differs.
+            let differs = st.last_presence.get(&user) != update.as_ref();
+            if online && !force && differs {
+                announce(&mut st, update.as_ref());
+                (true, update, guilds, online)
+            } else {
+                if online && (force || online != was) {
+                    announce(&mut st, update.as_ref());
+                } else if !online {
+                    announce(&mut st, None);
+                }
+                (online != was, update, guilds, online)
+            }
         };
         let went_offline = changed && !online;
         let Some(update) = update else {
@@ -1168,27 +1261,28 @@ fn session_entry(s: &Session) -> Value {
     })
 }
 
-fn parse_status(s: &str) -> Option<Status> {
-    Some(match s {
-        "online" => Status::Online,
-        "idle" => Status::Idle,
-        "dnd" => Status::Dnd,
-        "invisible" => Status::Invisible,
-        _ => return None,
-    })
-}
-
 /// `PRESENCE_UPDATE` body for friends, who see it outside any guild.
 fn friend_presence_body(user: UserId, p: &PresenceUpdate) -> Value {
     json!({
         "user": { "id": user },
         "status": p.visible_status(), "activities": p.activities,
+        "client_status": client_status_of(p),
     })
+}
+
+/// `client_status` as other users see it: invisible users show no platform at all.
+fn client_status_of(p: &PresenceUpdate) -> Value {
+    if p.visible_status() == "offline" || p.client_status.is_null() {
+        json!({})
+    } else {
+        p.client_status.clone()
+    }
 }
 
 fn presence_body(user: UserId, guild: GuildId, p: &PresenceUpdate) -> Value {
     json!({
         "user": { "id": user }, "guild_id": guild,
         "status": p.visible_status(), "activities": p.activities,
+        "client_status": client_status_of(p),
     })
 }

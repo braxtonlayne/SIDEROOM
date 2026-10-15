@@ -1,11 +1,12 @@
 //! User profiles and the caller's own profile edit (LNG-PRF-*, Q118).
 
 use super::deps::SocialDeps;
+use super::error::invalid;
 use super::error::{ApiJson, MsgResult};
 use super::events::SocialEvent;
 use super::model::{
-    ConnectionObject, CustomStatusObject, EditSelfBody, MutualGuildObject, ProfileObject,
-    SelfObject, UserObject, UserProfileFields,
+    ConnectionObject, CustomStatusObject, EditSelfBody, GuildMemberProfileObject,
+    MutualGuildObject, ProfileObject, SelfObject, UserObject, UserProfileFields,
 };
 use super::util::{actor, custom_status, user_id};
 use crate::routes::MaybeExt;
@@ -31,7 +32,8 @@ use sr_storage::media::MediaKind;
     path = "/users/{user_id}/profile",
     params(
         ("user_id" = String, Path, description = "User snowflake"),
-        ("with_mutual_guilds" = Option<bool>, Query, description = "Include mutual guilds (default true)")
+        ("with_mutual_guilds" = Option<bool>, Query, description = "Include mutual guilds (default true)"),
+        ("guild_id" = Option<String>, Query, description = "Also return the user's profile in this server (viewer must be a member)")
     ),
     responses((status = 200, body = ProfileObject), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
@@ -43,11 +45,24 @@ pub async fn get_profile(
     Query(q): Query<ProfileQuery>,
 ) -> MsgResult<Json<ProfileObject>> {
     let me = actor(&p)?;
+    let guild = q
+        .guild_id
+        .as_deref()
+        .map(|g| g.parse::<u64>().map(sr_core::GuildId::new))
+        .transpose()
+        .map_err(|_| {
+            invalid(
+                "guild_id",
+                "SNOWFLAKE_TYPE_INVALID",
+                "Not a valid snowflake.",
+            )
+        })?;
     render_profile(
         &deps,
         me,
         user_id(&target)?,
         q.with_mutual_guilds.unwrap_or(true),
+        guild,
     )
     .await
 }
@@ -56,6 +71,7 @@ pub async fn get_profile(
 #[derive(Debug, Default, Deserialize)]
 pub struct ProfileQuery {
     pub with_mutual_guilds: Option<bool>,
+    pub guild_id: Option<String>,
 }
 
 /// The caller's own profile.
@@ -70,7 +86,7 @@ pub async fn get_own_profile(
     Ext(deps): Ext<SocialDeps>,
 ) -> MsgResult<Json<ProfileObject>> {
     let me = actor(&p)?;
-    render_profile(&deps, me, me, false).await
+    render_profile(&deps, me, me, false, None).await
 }
 
 async fn render_profile(
@@ -78,9 +94,21 @@ async fn render_profile(
     viewer: UserId,
     user: UserId,
     with_mutual_guilds: bool,
+    guild: Option<sr_core::GuildId>,
 ) -> MsgResult<Json<ProfileObject>> {
     let profile = deps.service.get_profile(viewer, user).await?;
+    let mut guild_member_profile = None;
     let (mutual_friends, mutual_friends_count, mutual_guilds, friends_since) = if viewer == user {
+        if let Some(g) = guild {
+            // Own profile in a server: the viewer's own membership.
+            guild_member_profile = deps
+                .service
+                .own_guild_memberships(viewer)
+                .await?
+                .into_iter()
+                .find(|m| m.guild == g)
+                .map(|m| guild_profile_object(&m));
+        }
         (None, None, None, None)
     } else {
         let extras = deps.service.profile_extras(viewer, user).await?;
@@ -93,6 +121,14 @@ async fn render_profile(
             .map(|f| UserObject::new(*f, &users))
             .collect();
         let count = friends.len();
+        // Only a server both share exposes the member's server profile.
+        if let Some(g) = guild {
+            guild_member_profile = extras
+                .mutual_guilds
+                .iter()
+                .find(|m| m.guild == g)
+                .map(guild_profile_object);
+        }
         let guilds = with_mutual_guilds.then(|| {
             extras
                 .mutual_guilds
@@ -112,6 +148,9 @@ async fn render_profile(
         )
     };
     Ok(Json(ProfileObject {
+        badges: profile.badges.clone(),
+        member_since: iso(profile.created_ms),
+        guild_member_profile,
         mutual_friends,
         mutual_friends_count,
         mutual_guilds,
@@ -128,6 +167,17 @@ async fn render_profile(
             .map(ConnectionObject::from)
             .collect(),
     }))
+}
+
+fn guild_profile_object(m: &sr_chat::social::repo::GuildMembership) -> GuildMemberProfileObject {
+    GuildMemberProfileObject {
+        guild_id: m.guild.to_string(),
+        nick: m.nick.clone(),
+        avatar: m.avatar_key.clone(),
+        banner: m.banner_key.clone(),
+        bio: m.bio.clone(),
+        joined_at: iso(m.joined_at_ms),
+    }
 }
 
 /// Edit the caller's profile: `avatar` and `banner` (image data URIs, stored by the
@@ -224,6 +274,9 @@ pub async fn edit_self(
         bio: body.bio,
         pronouns: body.pronouns,
         display_name: body.global_name,
+        avatar_decoration: body.avatar_decoration,
+        profile_effect: body.profile_effect,
+        theme_colors: body.theme_colors,
     };
     let profile = match deps.service.edit_profile(me, &edit).await {
         Ok(p) => p,
@@ -287,6 +340,9 @@ async fn self_object(
         pronouns: profile.pronouns.clone(),
         banner: profile.banner_key.clone(),
         accent_color: profile.accent_color,
+        avatar_decoration: profile.avatar_decoration.clone(),
+        profile_effect: profile.profile_effect.clone(),
+        theme_colors: profile.theme_colors,
         custom_status: CustomStatusObject::new(&prefs.custom),
     })
 }

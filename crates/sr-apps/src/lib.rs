@@ -19,6 +19,7 @@ pub mod model;
 pub mod perms;
 pub mod repo;
 pub mod service;
+pub mod signing;
 
 #[cfg(test)]
 mod tests;

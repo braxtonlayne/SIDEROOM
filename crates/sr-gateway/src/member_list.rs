@@ -153,7 +153,11 @@ pub fn build(members: &[ListMember], presence: &dyn Fn(UserId) -> PresenceUpdate
                         "user": { "id": m.user.to_string() },
                         "status": p.visible_status(),
                         "activities": p.activities,
-                        "client_status": {},
+                        "client_status": if p.client_status.is_null() || p.visible_status() == "offline" {
+                            json!({})
+                        } else {
+                            p.client_status.clone()
+                        },
                     }),
                 );
             }

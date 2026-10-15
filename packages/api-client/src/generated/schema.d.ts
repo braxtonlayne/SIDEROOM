@@ -1683,6 +1683,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/library/lists/{list_id}/feature": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Feature or unfeature a public reading list on the Library home (`PUBLISH_READING`). */
+        post: operations["admin_library_feature_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/library/series": {
         parameters: {
             query?: never;
@@ -2133,6 +2150,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/review/submissions/{submission_id}/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The credits of a submission, revoked ones included (reviewers of the kind). */
+        get: operations["admin_review_credits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/review/submissions/{submission_id}/items/{item_id}": {
         parameters: {
             query?: never;
@@ -2266,6 +2300,27 @@ export interface paths {
         put?: never;
         /** Send the submission back to the submitter; `reason` is required and visible to them. */
         post: operations["admin_review_request_changes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/review/submissions/{submission_id}/revoke-credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unpublishing for cause: withdraw the contribution credits of a submission (D-074). Needs
+         *     the kind's publish permission and a reason; the rows stay so the same item cannot earn a
+         *     second credit. Written to the staff access log.
+         */
+        post: operations["admin_review_revoke_credits"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3108,6 +3163,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/applications/{application_id}/interactions-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create the application's interactions signing key when it has none (older applications)
+         *     and return the public key. Idempotent; the key is never rotated here.
+         */
+        post: operations["ensure_interactions_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications/{application_id}/reset-secret": {
         parameters: {
             query?: never;
@@ -3177,6 +3252,27 @@ export interface paths {
         head?: never;
         /** Modify a guild channel. Needs `MANAGE_CHANNELS`. */
         patch: operations["modify_channel"];
+        trace?: never;
+    };
+    "/channels/{channel_id}/application-commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everything the command picker needs in one channel: the applications installed in its
+         *     server and the commands the caller may use there. Needs a session; not part of Discord's
+         *     public bot API (the web client's own index).
+         */
+        get: operations["command_index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/channels/{channel_id}/attachments": {
@@ -3422,6 +3518,23 @@ export interface paths {
          *     message and `mention_count` is restored.
          */
         post: operations["ack_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/{message_id}/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Bookmark a message, or change the note of an existing bookmark. */
+        put: operations["save"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3677,6 +3790,26 @@ export interface paths {
         post?: never;
         /** Remove a member from a group DM (owner), or leave it (yourself). */
         delete: operations["remove_recipient"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/scheduled-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Schedule a message for a channel. Needs permission to send there now; it is checked again when the message
+         *     goes out.
+         */
+        post: operations["create"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5056,8 +5189,79 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Gateway URL and session limits for a bot. There is no sharding: `shards` is always 1. */
+        /**
+         * Gateway URL and session limits for a bot. `shards` is the recommended shard count: one
+         *     per [`GUILDS_PER_SHARD`] servers the application is installed in, at least 1.
+         */
         get: operations["gateway_bot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Featured categories for the picker's start page. */
+        get: operations["categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the GIF picker has a provider. */
+        get: operations["config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search GIFs. */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/trending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trending GIFs. */
+        get: operations["trending"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5259,6 +5463,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/birthdays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The next birthdays of members who share theirs (months and days, never the year). Members only. */
+        get: operations["birthdays"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/bulk-ban": {
         parameters: {
             query?: never;
@@ -5403,6 +5624,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/leveling/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's leaderboard, highest XP first. */
+        get: operations["leaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/leveling/rank/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A member's rank card: XP, level, progress and position. `user_id` may be `@me`. */
+        get: operations["rank"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/member-verification": {
         parameters: {
             query?: never;
@@ -5538,6 +5793,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Which feature modules are switched on in a server. */
+        get: operations["modules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/onboarding": {
         parameters: {
             query?: never;
@@ -5579,6 +5851,42 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/poll-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's poll templates. Members only. */
+        get: operations["list_poll_templates"];
+        put?: never;
+        /** Save a poll setup (`MANAGE_GUILD`). */
+        post: operations["create_poll_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/poll-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a template (`MANAGE_GUILD`). */
+        delete: operations["delete_poll_template"];
+        options?: never;
+        head?: never;
+        /** Replace a template (`MANAGE_GUILD`). */
+        patch: operations["update_poll_template"];
         trace?: never;
     };
     "/guilds/{guild_id}/prune": {
@@ -5677,6 +5985,45 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/rss-feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's RSS and Atom feeds (`MANAGE_GUILD`). */
+        get: operations["list_feeds"];
+        put?: never;
+        /**
+         * Follow a feed into a channel (`MANAGE_GUILD`). The address is checked against the SSRF policy; the first
+         *     fetch only records what is already in the feed.
+         */
+        post: operations["add_feed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/rss-feeds/{feed_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stop following a feed (`MANAGE_GUILD`). */
+        delete: operations["delete_feed"];
+        options?: never;
+        head?: never;
+        /** Change a feed's channel, filters, interval or on/off state (`MANAGE_GUILD`). */
+        patch: operations["patch_feed"];
         trace?: never;
     };
     "/guilds/{guild_id}/soundboard-sounds": {
@@ -5834,6 +6181,40 @@ export interface paths {
         patch: operations["modify_community"];
         trace?: never;
     };
+    "/guilds/{guild_id}/sr/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's feature modules (`MANAGE_GUILD`). */
+        get: operations["list_features"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/sr/features/{feature_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Enable, disable or configure one module in this server (`MANAGE_GUILD`). */
+        patch: operations["patch_feature"];
+        trace?: never;
+    };
     "/guilds/{guild_id}/sr/guide": {
         parameters: {
             query?: never;
@@ -5867,6 +6248,44 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/sr/temp-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Active temporary role grants (`MANAGE_ROLES`). */
+        get: operations["list_temp_roles"];
+        put?: never;
+        /**
+         * Give a member a role for a limited time (`MANAGE_ROLES`, role hierarchy applies). A
+         *     second grant of the same role replaces the expiry.
+         */
+        post: operations["grant_temp_role"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** End a temporary grant now and take the role away (`MANAGE_ROLES`). */
+        delete: operations["revoke_temp_role"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5941,6 +6360,45 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's suggestions, newest first. Members only. */
+        get: operations["list_suggestions"];
+        put?: never;
+        /** Post a suggestion to the server's suggestions channel. */
+        post: operations["submit_suggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/suggestions/{suggestion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a suggestion (its author, or someone who may answer them). The card stays in the channel; moderators
+         *     delete it there.
+         */
+        delete: operations["delete_suggestion"];
+        options?: never;
+        head?: never;
+        /** Set a suggestion's status and staff response (`MANAGE_GUILD` or the staff role). The card is edited to match. */
+        patch: operations["respond_suggestion"];
         trace?: never;
     };
     "/guilds/{guild_id}/support": {
@@ -6028,6 +6486,41 @@ export interface paths {
         get: operations["list_active"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's tickets, or every ticket of the server for staff. */
+        get: operations["list"];
+        put?: never;
+        /** Open a ticket: starts a private thread with the staff role in it. */
+        post: operations["open"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/tickets/{ticket_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close a ticket (its opener or staff): archives and locks the thread. */
+        post: operations["close"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6259,6 +6752,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/chapters/{chapter_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's rating of a chapter and its average. */
+        get: operations["library_chapter_rating"];
+        /** Rate a chapter 1 to 10. */
+        put: operations["library_rate_chapter"];
+        post?: never;
+        /** Remove the caller's rating of a chapter. */
+        delete: operations["library_unrate_chapter"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/chapters/{chapter_id}/read": {
         parameters: {
             query?: never;
@@ -6270,6 +6782,94 @@ export interface paths {
         put?: never;
         /** Mark a chapter read or unread, and with `up_to` every earlier chapter of its edition. */
         post: operations["library_mark_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a reading list. */
+        post: operations["library_create_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/lists/featured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists staff featured. */
+        get: operations["library_featured_lists"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/lists/{list_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A list with its series in order. */
+        get: operations["library_get_list"];
+        put?: never;
+        post?: never;
+        /** Delete a list. */
+        delete: operations["library_delete_list"];
+        options?: never;
+        head?: never;
+        /** Rename a list, change its description or visibility. */
+        patch: operations["library_update_list"];
+        trace?: never;
+    };
+    "/library/lists/{list_id}/items/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add a series at the end of a list (or change its note). */
+        put: operations["library_list_add_item"];
+        post?: never;
+        /** Remove a series from a list. */
+        delete: operations["library_list_remove_item"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/lists/{list_id}/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder a list: `series_ids` names every series of the list exactly once. */
+        put: operations["library_list_reorder"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6310,6 +6910,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/me/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's reading lists. */
+        get: operations["library_my_lists"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/me/progress": {
         parameters: {
             query?: never;
@@ -6322,6 +6939,58 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/me/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unread published chapters of every series the caller follows (My library). */
+        get: operations["library_unread_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/rankings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Most read series for a period (global; an anonymous aggregate). */
+        get: operations["library_rankings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/reviews/{review_id}/helpful": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark a review helpful (idempotent; not on one's own review). */
+        put: operations["library_review_helpful"];
+        post?: never;
+        /** Take back a helpful mark. */
+        delete: operations["library_review_unhelpful"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6413,6 +7082,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/series/{series_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rate a series 1 to 10 (a restricted series needs the 18+ answer). */
+        put: operations["library_rate_series"];
+        post?: never;
+        /** Remove the caller's rating of a series. */
+        delete: operations["library_unrate_series"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's rating of a series and the average per scope (everyone, friends, people you know),
+         *     with the distribution of scores.
+         */
+        get: operations["library_series_ratings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Write or replace the caller's review of a series (one per account). A `rating` also sets the score. */
+        put: operations["library_put_review"];
+        post?: never;
+        /** Delete the caller's review of a series. */
+        delete: operations["library_delete_review"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reviews of a series. */
+        get: operations["library_reviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/updates": {
         parameters: {
             query?: never;
@@ -6422,6 +7164,23 @@ export interface paths {
         };
         /** Latest published chapters, newest first. */
         get: operations["library_updates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/users/{user_id}/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists of another member that the caller may see. */
+        get: operations["library_user_lists"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6553,6 +7312,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/push/vapid-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The VAPID public key browsers subscribe against. */
+        get: operations["vapid_key"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/read-states/ack-bulk": {
         parameters: {
             query?: never;
@@ -6583,6 +7359,27 @@ export interface paths {
         /** Ask for a title. You vote for your own request; 10 open requests at a time. */
         post: operations["requests_create"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/requests/{request_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * "I'll upload this": tell the others you are working on an open request, with a short note.
+         *     One member at a time; claiming again updates the note.
+         */
+        put: operations["requests_claim"];
+        post?: never;
+        /** Give up my claim (reviewers of the section may release anybody's). */
+        delete: operations["requests_release"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6655,6 +7452,32 @@ export interface paths {
         get: operations["default_sound_audio"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/account/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/account/delete {password, username, mfa?}`: delete the signed-in
+         *     account (LNG-USET-007, D-029). Needs the password, the typed username and, with
+         *     two-factor on, a second factor. The account can never sign in again; messages stay
+         *     and show "Deleted User". Sessions, friendships, blocks, server and group memberships
+         *     are removed, open platform invites are revoked, unspent invite credits are forfeited
+         *     and the username is held for 30 days. Refused with a `guilds` field error while the
+         *     account still owns a server (transfer or delete it first). Friends and shared servers
+         *     are told through `RELATIONSHIP_REMOVE` and `GUILD_MEMBER_REMOVE`.
+         */
+        post: operations["delete_account"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7047,6 +7870,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/submissions/naming/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The naming tester: paste names, see how the importer reads them (docs/specs/ingest-naming-conventions.md).
+         *     Pure parsing, nothing is stored.
+         */
+        post: operations["submissions_naming_parse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What I have left of today's upload allowance (50 GB per UTC day for members; staff have no
+         *     limit and get `null` limits).
+         */
+        get: operations["submissions_quota"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/submissions/{submission_id}": {
         parameters: {
             query?: never;
@@ -7076,6 +7939,26 @@ export interface paths {
         put?: never;
         /** Add a note the reviewers can read. */
         post: operations["submissions_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The contribution credits one of my submissions earned (one per new published item;
+         *     replacements earn none). Revoked credits stay listed with their reason.
+         */
+        get: operations["submissions_credits"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7453,6 +8336,60 @@ export interface paths {
         patch: operations["edit_self"];
         trace?: never;
     };
+    "/users/@me/birthday": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's birthday. */
+        get: operations["get_birthday"];
+        /** Set the caller's birthday. `visibility: hidden` keeps it private (nothing is announced). */
+        put: operations["set_birthday"];
+        post?: never;
+        /** Forget the caller's birthday. */
+        delete: operations["clear_birthday"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/bookmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's bookmarks, newest message first, with the messages. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/bookmarks/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a bookmark (removing one that is not there is fine). */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        /** Change a bookmark's note. */
+        patch: operations["edit"];
+        trace?: never;
+    };
     "/users/@me/channels": {
         parameters: {
             query?: never;
@@ -7509,6 +8446,136 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's connections (hidden ones included) and the providers that can be added. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/connections/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add (or update) an unverified link. It shows on the profile without a check mark. */
+        put: operations["put_link"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/connections/{provider}/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start linking `provider`. Error codes on the way back: `denied`, `state`, `exchange`,
+         *     `profile`, `taken` (the account belongs to someone else), `limit`, `signed_out`, `failed`.
+         */
+        post: operations["authorize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/connections/{provider}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a connection. */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        /** Change how a connection shows on the profile. */
+        patch: operations["patch"];
+        trace?: never;
+    };
+    "/users/@me/connections/{provider}/{id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-read the stats now (GitHub and Reddit; others keep what was read when linking).
+         *     At most once a minute per account.
+         */
+        post: operations["refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/data-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The newest request of the caller. */
+        get: operations["status"];
+        put?: never;
+        /**
+         * Ask for a package of the caller's data. Built in the background; poll
+         *     `GET /users/@me/data-export`.
+         */
+        post: operations["request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/data-export/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the finished package (a zip). 404 once it expired or when it is not ready. */
+        get: operations["download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/guilds": {
         parameters: {
             query?: never;
@@ -7538,6 +8605,23 @@ export interface paths {
         post?: never;
         /** Leave a guild. The owner must transfer ownership first. */
         delete: operations["leave_guild"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/guilds/{guild_id}/leveling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Opt in or out of leveling in a server. */
+        put: operations["set_leveling"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -7615,6 +8699,23 @@ export interface paths {
         post?: never;
         /** Stop ignoring a user. */
         delete: operations["unignore"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/mentions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Messages from the last seven days that mention the caller, newest first. */
+        get: operations["recent_mentions"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -7744,6 +8845,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/push-subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register (or refresh) this browser's push subscription. Re-registering the same
+         *     endpoint replaces it; a user keeps at most 10 devices, the oldest is dropped.
+         */
+        post: operations["subscribe"];
+        /** Remove this browser's push subscription (idempotent). */
+        delete: operations["unsubscribe"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/read-states": {
         parameters: {
             query?: never;
@@ -7804,6 +8926,76 @@ export interface paths {
         head?: never;
         /** Set or clear a friend's private nickname (max 32 characters). */
         patch: operations["set_nickname"];
+        trace?: never;
+    };
+    "/users/@me/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's reminders, soonest first. */
+        get: operations["list"];
+        put?: never;
+        /** Create a reminder. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/reminders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel a reminder. */
+        delete: operations["cancel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/scheduled-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's scheduled messages, soonest first. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/scheduled-messages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel a scheduled message. */
+        delete: operations["cancel"];
+        options?: never;
+        head?: never;
+        /** Change the text or time of a message that has not been sent. */
+        patch: operations["edit"];
         trace?: never;
     };
     "/users/@me/settings": {
@@ -8554,6 +9746,11 @@ export interface components {
             /** @description Staff Server role ids to start with. */
             role_ids: string[];
         };
+        /**
+         * @description Which artwork file.
+         * @enum {string}
+         */
+        ArtworkKind: "poster" | "backdrop" | "logo" | "season_poster" | "episode_thumb";
         ArtworkRequest: {
             /** @description `image/webp`, `image/jpeg` or `image/png`. */
             content_type: string;
@@ -8748,6 +9945,13 @@ export interface components {
             state?: string | null;
             user: components["schemas"]["OwnerObject"];
         };
+        AuthorizeResponse: {
+            /**
+             * @description Send the browser here; the provider returns it to the callback, which ends in a redirect to
+             *     `/settings/user/connections?connected=<provider>` or `?error=<code>`.
+             */
+            url: string;
+        };
         AuthorizeResult: {
             /** @description The bot was already in the guild (only for bot installs). */
             already_installed?: boolean | null;
@@ -8824,6 +10028,34 @@ export interface components {
              */
             options: unknown;
         };
+        Birthday: {
+            /** Format: int32 */
+            day: number;
+            /** Format: int32 */
+            month: number;
+            visibility: string;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        BirthdayInput: {
+            /**
+             * Format: int32
+             * @description 1 to 31, valid for the month.
+             */
+            day: number;
+            /**
+             * Format: int32
+             * @description 1 to 12.
+             */
+            month: number;
+            /** @description `servers` (default) lets servers that run the module show it; `hidden` keeps it private. */
+            visibility?: string | null;
+            /**
+             * Format: int32
+             * @description Optional birth year (1900 to 2100); shared only as an age in announcements.
+             */
+            year?: number | null;
+        };
         BoardItem: {
             anonymous: boolean;
             avatar?: string | null;
@@ -8856,6 +10088,10 @@ export interface components {
             /** Format: int32 */
             page_index: number;
             series_id: string;
+        };
+        BookmarkBody: {
+            /** @description A private note (up to 500 characters). */
+            note?: string | null;
         };
         /** @description A bookmark with the titles the "my bookmarks" list shows. */
         BookmarkEntry: {
@@ -9116,6 +10352,14 @@ export interface components {
              * @description When this progress was last saved; send it back as `base_updated_at_ms` when saving.
              */
             updated_at_ms: number;
+        };
+        ChapterRating: {
+            /** Format: double */
+            average?: number | null;
+            /** Format: int64 */
+            count: number;
+            /** Format: int32 */
+            mine?: number | null;
         };
         /** @description Everything the player needs to start an asset. */
         CinemaAssetPlayback: {
@@ -9553,6 +10797,10 @@ export interface components {
              */
             takeover?: boolean;
         };
+        /** @description Body of `PUT /requests/{id}/claim`. */
+        ClaimRequestInput: {
+            note?: string;
+        };
         Collection: {
             blurb?: string | null;
             display: components["schemas"]["CollectionDisplay"];
@@ -9599,6 +10847,19 @@ export interface components {
         CollectionList: {
             items: components["schemas"]["Collection"][];
         };
+        /** @description `GET /channels/{id}/application-commands`. */
+        CommandIndex: {
+            /** @description Discord command objects the caller may use here. */
+            application_commands: Record<string, never>[];
+            applications: components["schemas"]["CommandIndexApp"][];
+        };
+        /** @description An application in the command picker. */
+        CommandIndexApp: {
+            bot_id: string;
+            icon?: string | null;
+            id: string;
+            name: string;
+        };
         /** @description A note on the timeline. */
         CommentInput: {
             body: string;
@@ -9639,11 +10900,28 @@ export interface components {
         ConnectionObject: {
             id: string;
             name: string;
+            /** @description Whether the owner shows stats / activity of this connection. */
+            show_activity: boolean;
+            /** @description Public stats (`{"followers": 12}`); empty unless `show_activity`. */
+            stats: Record<string, never>;
             type: string;
+            /** @description Link to the account's public page, when known. */
+            url?: string | null;
             verified: boolean;
+            /** @description Hidden connections are only listed to their owner. */
+            visible: boolean;
+        };
+        ConnectionsResponse: {
+            connections: components["schemas"]["ConnectionObject"][];
+            providers: components["schemas"]["ProviderObject"][];
         };
         /** @description A content request (Library or Cinema board). */
         ContentRequest: {
+            claim_note?: string | null;
+            /** @description A member who said "I'll upload this" (while the request is open). */
+            claimed_by?: string | null;
+            /** @description The caller is the one who claimed it. */
+            claimed_by_me: boolean;
             /** Format: int64 */
             created_at_ms: number;
             creator?: string | null;
@@ -9733,7 +11011,8 @@ export interface components {
             template?: string | null;
         };
         CreateInteractionBody: {
-            application_id: string;
+            /** @description Optional for components: the message author's application is used when omitted. */
+            application_id?: string;
             channel_id: string;
             data: Record<string, never>;
             guild_id?: string | null;
@@ -9910,6 +11189,22 @@ export interface components {
             secret: string;
             token: components["schemas"]["WorkerToken"];
         };
+        /** @description A contribution credit (D-074): one per new published item, credited to the submitter. */
+        Credit: {
+            /** Format: int64 */
+            granted_at_ms: number;
+            id: string;
+            label: string;
+            /** @description The published item (chapter, episode, movie). */
+            ref_id: string;
+            revoke_reason?: string | null;
+            /** Format: int64 */
+            revoked_at_ms?: number | null;
+            /** @description `library` or `cinema`. */
+            section: string;
+            submission_id?: string | null;
+            user_id?: string | null;
+        };
         CreditLedger: {
             /** Format: int64 */
             balance: number;
@@ -10016,6 +11311,14 @@ export interface components {
             /** @description `PlatformPermissions` ceiling as a decimal string. */
             max_permissions: string;
             reason: string;
+            username: string;
+        };
+        /** @description Body for `POST /sr/auth/account/delete`. */
+        DeleteAccountBody: {
+            mfa?: null | components["schemas"]["MfaProof"];
+            /** @description Current password. */
+            password: string;
+            /** @description The account's username, typed to confirm (case-insensitive). */
             username: string;
         };
         DeleteRequest: {
@@ -10171,6 +11474,10 @@ export interface components {
             /** Format: int32 */
             flags?: number | null;
         };
+        EditScheduledBody: {
+            content?: string | null;
+            send_at?: string | null;
+        };
         EditSelfBody: {
             /** Format: int32 */
             accent_color?: number | null;
@@ -10179,6 +11486,11 @@ export interface components {
              *     most; cropped to a centred square, EXIF stripped); `null` removes it.
              */
             avatar?: string | null;
+            /**
+             * @description Slug of an approved avatar decoration (lowercase letters, digits, `-`, 48 at most);
+             *     `null` removes it.
+             */
+            avatar_decoration?: string | null;
             /**
              * @description New profile banner as an image data URI (aspect ratio kept, at most
              *     1920x1080); `null` removes it.
@@ -10191,7 +11503,11 @@ export interface components {
              *     the username shows. The username itself changes through `PUT /sr/auth/username`.
              */
             global_name?: string | null;
+            /** @description Slug of an approved profile effect; `null` removes it. */
+            profile_effect?: string | null;
             pronouns?: string | null;
+            /** @description The profile theme as two 0xRRGGBB colours `[primary, accent]`; `null` clears it. */
+            theme_colors?: number[] | null;
         };
         Edition: {
             id: string;
@@ -10287,6 +11603,21 @@ export interface components {
             /** @description Accepted; see the module docs (TODO(webhook-author)). */
             username?: string | null;
         };
+        /** @description An export request. */
+        ExportObject: {
+            /** @description Relative API path of the zip, present while `ready`. */
+            download_url?: string | null;
+            /** @description The download link works until this time (7 days after it was built). */
+            expires_at?: string | null;
+            /** @description Absent when the account never asked. */
+            id?: string | null;
+            ready_at?: string | null;
+            requested_at?: string | null;
+            /** Format: int64 */
+            size_bytes?: number | null;
+            /** @description `none`, `pending`, `building`, `ready`, `failed` or `expired`. */
+            state: string;
+        };
         FacetCount: {
             /** Format: int64 */
             count: number;
@@ -10305,6 +11636,9 @@ export interface components {
             year_max?: number | null;
             /** Format: int32 */
             year_min?: number | null;
+        };
+        FeatureBody: {
+            featured: boolean;
         };
         FeatureView: {
             default_enabled: boolean;
@@ -10428,6 +11762,40 @@ export interface components {
         GatewayInfo: {
             url: string;
         };
+        /** @description The featured categories. */
+        GifCategoriesObject: {
+            categories: components["schemas"]["GifCategoryObject"][];
+        };
+        /** @description A featured search term. */
+        GifCategoryObject: {
+            image_url: string;
+            name: string;
+            /** @description Search with this term when the tile is chosen. */
+            search_term: string;
+        };
+        /** @description Whether the GIF picker is available on this installation. */
+        GifConfigObject: {
+            enabled: boolean;
+        };
+        /** @description One GIF in the picker. */
+        GifObject: {
+            /** Format: int32 */
+            height: number;
+            id: string;
+            /** @description Same-origin path of the proxied preview. */
+            preview_url: string;
+            title: string;
+            /** @description The original GIF URL; post this as the message content. */
+            url: string;
+            /** Format: int32 */
+            width: number;
+        };
+        /** @description A page of results. */
+        GifPageObject: {
+            /** @description Pass as `pos` for the next page; absent on the last page. */
+            next?: string | null;
+            results: components["schemas"]["GifObject"][];
+        };
         GrantBody: {
             /**
              * Format: int64
@@ -10450,6 +11818,15 @@ export interface components {
         GrantPage: {
             items: components["schemas"]["GrantView"][];
             next_before?: string | null;
+        };
+        GrantTempRoleBody: {
+            /**
+             * Format: int64
+             * @description How long the member keeps the role, in seconds.
+             */
+            duration_seconds: number;
+            role_id: string;
+            user_id: string;
         };
         GrantView: {
             /** Format: int64 */
@@ -10504,12 +11881,42 @@ export interface components {
             /** @description Why not: `missing_permission`, `app_not_released`, `bot_not_public`, `suspended`. */
             reason?: string | null;
         };
+        GuildFeatureObject: {
+            /** @description Whether it starts on in a server that never chose. */
+            default_enabled: boolean;
+            description: string;
+            /** @description Whether the module is on in this server. */
+            enabled: boolean;
+            id: string;
+            name: string;
+            /** Format: int32 */
+            phase: number;
+            /**
+             * @description The platform operator switched it off everywhere; the server's choice is kept
+             *     but has no effect.
+             */
+            platform_disabled: boolean;
+            /** @description Settings schema for the auto-rendered form. */
+            schema: Record<string, never>;
+            section: string;
+            /** @description Effective settings in this server (schema defaults plus the server's overrides). */
+            settings: Record<string, never>;
+        };
         /** @description Body of `POST /guilds/templates/{code}`. */
         GuildFromTemplateBody: {
             /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
             icon?: string | null;
             /** @description 2-100 characters. */
             name: string;
+        };
+        /** @description The member's per-server profile (`GET /users/{id}/profile?guild_id=`). */
+        GuildMemberProfileObject: {
+            avatar?: string | null;
+            banner?: string | null;
+            bio?: string | null;
+            guild_id: string;
+            joined_at: string;
+            nick?: string | null;
         };
         GuildObject: {
             /** @description Voice channel idle members are moved to. */
@@ -10692,6 +12099,11 @@ export interface components {
         IntentsObject: {
             approved: string[];
             requested: string[];
+        };
+        /** @description Public key that verifies the platform's signed interaction requests. */
+        InteractionsKeyObject: {
+            /** @description Ed25519 public key, lower-case hex. */
+            verify_key: string;
         };
         IntrospectionBody: {
             active: boolean;
@@ -10938,6 +12350,18 @@ export interface components {
             id: string;
             label: string;
         };
+        LeaderboardEntry: {
+            avatar_key?: string | null;
+            display_name?: string | null;
+            /** Format: int64 */
+            level: number;
+            /** Format: int64 */
+            rank: number;
+            user_id: string;
+            username: string;
+            /** Format: int64 */
+            xp: number;
+        };
         LedgerEntry: {
             /** Format: int64 */
             created_at_ms: number;
@@ -10954,6 +12378,83 @@ export interface components {
             /** Format: int32 */
             threshold_cents: number;
         };
+        LevelingOptBody: {
+            /** @description `false` opts the caller out of XP in this server and deletes their XP. */
+            enabled: boolean;
+        };
+        /** @description A count after a vote. */
+        LibraryCountBody: {
+            /** Format: int32 */
+            count: number;
+        };
+        LibraryListDetail: {
+            items: components["schemas"]["ListItemView"][];
+            list: components["schemas"]["ListCard"];
+        };
+        LibraryListInput: {
+            description?: string | null;
+            name: string;
+            visibility?: null | components["schemas"]["LibraryVisibility"];
+        };
+        LibraryListItemInput: {
+            note?: string | null;
+        };
+        LibraryListOrderInput: {
+            series_ids: string[];
+        };
+        LibraryListPatch: {
+            description?: string | null;
+            name?: string | null;
+            visibility?: null | components["schemas"]["LibraryVisibility"];
+        };
+        LibraryRatingAggregate: {
+            /**
+             * Format: double
+             * @description One decimal; absent without ratings.
+             */
+            average?: number | null;
+            /** Format: int64 */
+            count: number;
+        };
+        LibraryReview: {
+            author_id: string;
+            author_name: string;
+            body: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int32 */
+            helpful_count: number;
+            id: string;
+            mine: boolean;
+            /**
+             * Format: int32
+             * @description The author's 1 to 10 score for the series, when they rated it.
+             */
+            rating?: number | null;
+            series_id: string;
+            spoiler: boolean;
+            /** Format: int64 */
+            updated_at_ms: number;
+            /** @description The caller marked it helpful. */
+            voted: boolean;
+        };
+        LibraryReviewInput: {
+            body: string;
+            /**
+             * Format: int32
+             * @description Also sets the caller's rating of the series.
+             */
+            rating?: number | null;
+            spoiler?: boolean | null;
+        };
+        LibraryReviewPage: {
+            items: components["schemas"]["LibraryReview"][];
+            next_before?: string | null;
+        };
+        /** @enum {string} */
+        LibraryReviewSort: "helpful" | "recent";
+        /** @enum {string} */
+        LibraryVisibility: "private" | "friends" | "public";
         LinkBody: {
             /** @description The episode the asset is the video of. With an episode, the episode is linked. */
             episode_id?: string | null;
@@ -10964,6 +12465,27 @@ export interface components {
             set_playable?: boolean | null;
             /** @description The title the asset belongs to (a film, or the series for bookkeeping). */
             title_id?: string | null;
+        };
+        /** @description A reading list with signed cover URLs for its first series (the fanned stack). */
+        ListCard: components["schemas"]["ReadingList"] & {
+            /** @description Cover URLs of the `preview` series, same order; series without a cover are skipped. */
+            covers: string[];
+        };
+        ListEntry: {
+            /** Format: int64 */
+            added_at_ms: number;
+            note: string;
+            /** Format: int64 */
+            position: number;
+            series_id: string;
+        };
+        ListItemView: {
+            /** Format: int64 */
+            added_at_ms: number;
+            note: string;
+            /** Format: int64 */
+            position: number;
+            series: components["schemas"]["Series"];
         };
         /** @description Body of `PUT /guilds/{id}/directory`. */
         ListingBody: {
@@ -10984,6 +12506,9 @@ export interface components {
             requested_at: string;
             /** @description `pending`, `approved`, `rejected` or `removed`. */
             status: string;
+        };
+        ListsBody: {
+            items: components["schemas"]["ListCard"][];
         };
         /** @description Body for `POST /sr/auth/passkeys/login/begin`. */
         LoginBeginBody: {
@@ -11050,6 +12575,11 @@ export interface components {
             patron: components["schemas"]["PatronView"];
             preferences: components["schemas"]["PrefsView"];
         };
+        /**
+         * @description Movie or episode (for a video or the video a subtitle belongs to).
+         * @enum {string}
+         */
+        Media: "movie" | "episode" | "unknown";
         MemberObject: {
             avatar?: string | null;
             /** @description Per-server banner hash (LNG-GLD-012). */
@@ -11331,6 +12861,13 @@ export interface components {
             enabled?: boolean | null;
             welcome_channels?: components["schemas"]["WelcomeChannelDto"][] | null;
         };
+        /** @description The modules of this crate and whether each is on in the server, so menus show only what works. Members only. */
+        ModuleFlags: {
+            /** @description Feature id -> on in this server. */
+            modules: {
+                [key: string]: boolean;
+            };
+        };
         /** @description Mute window of a change that sets `muted: true`. */
         MuteConfigIn: {
             /**
@@ -11360,6 +12897,22 @@ export interface components {
             cents: number;
             /** Format: int32 */
             rank: number;
+        };
+        /** @description Body of `POST /submissions/naming/parse`. */
+        NamingParseBody: {
+            /** @description Up to 200 file names or relative paths. */
+            names: string[];
+            /** @description `cinema` (movies, episodes, subtitles, artwork) or `library` (chapters, pages). */
+            section: string;
+        };
+        /** @description One parsed name; exactly one of `cinema` and `library` is set, by the requested section. */
+        NamingParseItem: {
+            cinema?: null | components["schemas"]["ParsedVideoName"];
+            library?: null | components["schemas"]["ParsedReaderName"];
+            name: string;
+        };
+        NamingParseResult: {
+            items: components["schemas"]["NamingParseItem"][];
         };
         NicknameBody: {
             /** @description Empty or null clears the nickname (max 32 characters). */
@@ -11468,8 +13021,20 @@ export interface components {
             id: string;
             username?: string | null;
         };
+        /** @description Pixels of the full-size page to cut off on each side. */
+        PageCrop: {
+            /** Format: int32 */
+            bottom: number;
+            /** Format: int32 */
+            left: number;
+            /** Format: int32 */
+            right: number;
+            /** Format: int32 */
+            top: number;
+        };
         PageEntry: {
             blurhash?: string | null;
+            crop?: null | components["schemas"]["PageCrop"];
             /** Format: int32 */
             height: number;
             /** Format: int32 */
@@ -11485,6 +13050,7 @@ export interface components {
         /** @description Replacement page list entry (admin). */
         PageInput: {
             blurhash?: string | null;
+            crop?: null | components["schemas"]["PageCrop"];
             /** Format: int32 */
             height: number;
             is_double_spread?: boolean;
@@ -11515,6 +13081,49 @@ export interface components {
             url: string;
             /** Format: int32 */
             width: number;
+        };
+        ParsedReaderName: {
+            /** Format: double */
+            chapter?: number | null;
+            extension: string;
+            group?: string | null;
+            /** Format: int32 */
+            page?: number | null;
+            role: components["schemas"]["ReaderRole"];
+            series?: string | null;
+            /** @description `_spread` suffix on a page name. */
+            spread: boolean;
+            title?: string | null;
+            /** Format: double */
+            volume?: number | null;
+            warnings: string[];
+        };
+        ParsedVideoName: {
+            /** @description Numbered `Show - 05` without a season (anime absolute order); season is then 1. */
+            absolute: boolean;
+            artwork?: null | components["schemas"]["ArtworkKind"];
+            episode_title?: string | null;
+            /** @description More than one for a multi-episode file (`s01e01-e02`). */
+            episodes: number[];
+            extension: string;
+            forced: boolean;
+            /** @description Subtitle language tag as written (`en`, `pt-BR`). */
+            language?: string | null;
+            media: components["schemas"]["Media"];
+            role: components["schemas"]["Role"];
+            sdh: boolean;
+            /** Format: int32 */
+            season?: number | null;
+            /** @description Season 0 / a `Specials` folder. */
+            special: boolean;
+            /** @description Bracket and parenthesis tags and quality words, in order. */
+            tags: string[];
+            title: string;
+            /** @description Alternate cut of a movie: `Director's Cut`. */
+            variant?: string | null;
+            warnings: string[];
+            /** Format: int32 */
+            year?: number | null;
         };
         PartDone: {
             etag: string;
@@ -11560,12 +13169,26 @@ export interface components {
             /** @description Image data URI, or `null` to remove. */
             icon?: string | null;
             install_params?: Record<string, never> | null;
+            /**
+             * @description `https` URL that receives signed interactions instead of the gateway (`null` removes
+             *     it). The URL is verified with a signed PING before it is saved.
+             */
+            interactions_endpoint_url?: string | null;
             name?: string | null;
             privacy_policy_url?: string | null;
             privileged_intents?: string[] | null;
             redirect_uris?: string[] | null;
             tags?: string[] | null;
             terms_of_service_url?: string | null;
+        };
+        /** @description Body of `PATCH /users/@me/connections/{provider}/{id}`. */
+        PatchBody: {
+            /** @description New display name; only for unverified links. */
+            name?: string | null;
+            /** @description Show the stats line (follower counts and the like). */
+            show_activity?: boolean | null;
+            /** @description Show the connection on the profile. */
+            visible?: boolean | null;
         };
         PatchBotBody: {
             username: string;
@@ -11582,6 +13205,12 @@ export interface components {
             /** @description Drop the explicit platform flag so the feature default applies again. */
             reset_enabled?: boolean;
             /** @description Replace the platform-scope setting overrides (validated against the feature schema). */
+            settings?: Record<string, never> | null;
+        };
+        PatchGuildFeatureBody: {
+            /** @description Turn the module on or off in this server. */
+            enabled?: boolean | null;
+            /** @description Replace this server's setting overrides (validated against the schema). */
             settings?: Record<string, never> | null;
         };
         /** @description Body of `PATCH /users/@me/notification-defaults`. */
@@ -11677,6 +13306,29 @@ export interface components {
             title: string;
             title_id: string;
             variant_id?: string | null;
+        };
+        PollTemplate: {
+            allow_multiselect: boolean;
+            answers: string[];
+            created_at: string;
+            created_by?: string | null;
+            /** Format: int32 */
+            duration_hours: number;
+            id: string;
+            name: string;
+            question: string;
+        };
+        PollTemplateInput: {
+            allow_multiselect?: boolean;
+            answers: string[];
+            /**
+             * Format: int32
+             * @description How long the poll runs, 1 to 768 hours. Defaults to 24.
+             */
+            duration_hours?: number | null;
+            /** @description What the template is called in the picker (unique in the server). */
+            name: string;
+            question: string;
         };
         /** @description Users who picked one answer. */
         PollVoters: {
@@ -11819,9 +13471,17 @@ export interface components {
             ok: boolean;
         };
         ProfileObject: {
+            /**
+             * @description Public badges: `owner`, `staff`, `patron`, `contributor`, `early_member`,
+             *     `bug_hunter`, `honorary`, `app_developer`, `bot`.
+             */
+            badges: string[];
             connected_accounts: components["schemas"]["ConnectionObject"][];
             /** @description When the viewer and the owner became friends. */
             friends_since?: string | null;
+            guild_member_profile?: null | components["schemas"]["GuildMemberProfileObject"];
+            /** @description When the account was created ("Member since"). */
+            member_since: string;
             /**
              * @description Friends of both the viewer and the profile owner (omitted on the viewer's own
              *     profile).
@@ -11908,6 +13568,20 @@ export interface components {
             single_select?: boolean;
             title: string;
         };
+        /** @description A provider on offer. */
+        ProviderObject: {
+            /**
+             * @description `false` when the operator has not set the provider up. Link-only providers are
+             *     always available.
+             */
+            available: boolean;
+            id: string;
+            name: string;
+            /** @description Link-only providers: the member must give a URL (websites). */
+            requires_url: boolean;
+            /** @description `true` when linking proves the account (OAuth / OpenID); `false` for a typed link. */
+            verified: boolean;
+        };
         PruneBody: {
             /**
              * Format: int32
@@ -11920,6 +13594,23 @@ export interface components {
         PruneResult: {
             /** @description Members that would be (preview) or were (execute) removed. */
             pruned: number;
+        };
+        /** @description The `keys` of a browser `PushSubscription`. */
+        PushKeys: {
+            auth: string;
+            p256dh: string;
+        };
+        /** @description A browser push subscription to register for the caller. */
+        PushSubscriptionBody: {
+            /** @description Free-text device label (at most 100 characters). */
+            device_name?: string;
+            /** @description The push service URL (https). */
+            endpoint: string;
+            keys: components["schemas"]["PushKeys"];
+        };
+        /** @description Which subscription to remove. */
+        PushUnsubscribeBody: {
+            endpoint: string;
         };
         PutFormBody: {
             description?: string | null;
@@ -11969,6 +13660,53 @@ export interface components {
             running: number;
             /** Format: int32 */
             succeeded_last_day: number;
+        };
+        RankCard: {
+            display_name?: string | null;
+            /** Format: int64 */
+            level: number;
+            /**
+             * Format: int64
+             * @description XP the current level spans (progress is `level_xp / level_span`).
+             */
+            level_span: number;
+            /**
+             * Format: int64
+             * @description XP earned inside the current level.
+             */
+            level_xp: number;
+            /** Format: int64 */
+            messages: number;
+            /** @description Whether the member opted out of leveling in this server. */
+            opted_out: boolean;
+            /**
+             * Format: int64
+             * @description 1 for the member with the most XP; absent for a member with no XP yet.
+             */
+            rank?: number | null;
+            user_id: string;
+            username: string;
+            /** Format: int64 */
+            xp: number;
+        };
+        RankingEntry: {
+            /** Format: int32 */
+            rank: number;
+            /** Format: double */
+            rating_average?: number | null;
+            /** Format: int64 */
+            rating_count: number;
+            /** Format: int64 */
+            readers: number;
+            /** Format: double */
+            score: number;
+            series: components["schemas"]["Series"];
+        };
+        /** @enum {string} */
+        RankingPeriod: "week" | "month" | "all";
+        RankingsBody: {
+            items: components["schemas"]["RankingEntry"][];
+            period: components["schemas"]["RankingPeriod"];
         };
         RateSourceView: {
             /** Format: int64 */
@@ -12025,11 +13763,34 @@ export interface components {
         ReadStatesResponse: {
             entries: components["schemas"]["ReadStateObject"][];
         };
+        /** @enum {string} */
+        ReaderRole: "page" | "archive" | "document" | "series_json" | "comic_info" | "folder" | "unknown";
         /**
          * @description Default reading mode of a series.
          * @enum {string}
          */
         ReadingDirection: "rtl" | "ltr" | "vertical";
+        ReadingList: {
+            /** @description With `?series=` on the member's own lists: whether that series is on this list. */
+            contains?: boolean | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            description: string;
+            featured: boolean;
+            id: string;
+            /** Format: int64 */
+            item_count: number;
+            /** @description The caller owns the list. */
+            mine: boolean;
+            name: string;
+            owner_id: string;
+            owner_name: string;
+            /** @description The first series of the list, for the fanned cover stack (at most four). */
+            preview: string[];
+            /** Format: int64 */
+            updated_at_ms: number;
+            visibility: components["schemas"]["LibraryVisibility"];
+        };
         /** @description Body of actions that only need a reason. */
         ReasonBody: {
             /**
@@ -12108,6 +13869,32 @@ export interface components {
              */
             type: number;
             user: components["schemas"]["UserObject"];
+        };
+        Reminder: {
+            channel_id?: string | null;
+            created_at: string;
+            guild_id?: string | null;
+            id: string;
+            message_id?: string | null;
+            note: string;
+            /** @description ISO 8601 time the reminder is due. */
+            remind_at: string;
+            /** @description `pending`, `sent`, `failed` or `cancelled`. */
+            status: string;
+        };
+        ReminderBody: {
+            /** @description With `message_id`: the message to be reminded about. */
+            channel_id?: string | null;
+            /**
+             * Format: int64
+             * @description Seconds from now.
+             */
+            in_seconds?: number | null;
+            message_id?: string | null;
+            /** @description What to be reminded of (up to 1000 characters). */
+            note?: string | null;
+            /** @description ISO 8601 time, 5 seconds to a year from now. Give this or `in_seconds`. */
+            remind_at?: string | null;
         };
         RenameBody: {
             /** @description New display name; `null` or empty clears it. Leave out to keep it. */
@@ -12206,6 +13993,23 @@ export interface components {
             asset_id: string;
             reason: string;
         };
+        /** @description Body of `POST /admin/review/submissions/{id}/revoke-credits`. */
+        RevokeCreditsBody: {
+            /** @description Only these published items (item snowflakes); omitted: every credit of the submission. */
+            items?: string[] | null;
+            /** @description Why the content is unpublished or the credit withdrawn (required). */
+            reason: string;
+        };
+        /** @description Result of a credit revocation. */
+        RevokedCredits: {
+            /** Format: int64 */
+            revoked: number;
+        };
+        /**
+         * @description What the file is for.
+         * @enum {string}
+         */
+        Role: "video" | "subtitle" | "artwork" | "unknown";
         RoleObject: {
             /** Format: int32 */
             color: number;
@@ -12257,6 +14061,43 @@ export interface components {
          * @enum {string}
          */
         RowKind: "curated" | "generated" | "provided";
+        RssFeed: {
+            channel_id: string;
+            created_at: string;
+            enabled: boolean;
+            exclude_keywords: string[];
+            /** Format: int32 */
+            failures: number;
+            id: string;
+            include_keywords: string[];
+            last_checked_at?: string | null;
+            /** @description `pending`, `ok` or the last error. */
+            last_status: string;
+            /** Format: int32 */
+            poll_interval_secs: number;
+            title: string;
+            url: string;
+        };
+        RssFeedInput: {
+            /** @description Channel snowflake the entries are posted to. */
+            channel_id: string;
+            exclude_keywords?: string[];
+            include_keywords?: string[];
+            /**
+             * Format: int32
+             * @description Seconds between checks (300 to 86400). Defaults to 1800.
+             */
+            poll_interval_secs?: number | null;
+            url: string;
+        };
+        RssFeedPatch: {
+            channel_id?: string | null;
+            enabled?: boolean | null;
+            exclude_keywords?: string[] | null;
+            include_keywords?: string[] | null;
+            /** Format: int32 */
+            poll_interval_secs?: number | null;
+        };
         /**
          * @description Body of create (all of `name`, `event_type`, `trigger_type`, `actions` required)
          *     and modify (every field optional; `trigger_type` cannot change).
@@ -12291,9 +14132,37 @@ export interface components {
             /** Format: int32 */
             trigger_type: number;
         };
+        ScheduleBody: {
+            /** @description The message text (up to 2000 characters). */
+            content: string;
+            /** @description ISO 8601 time to send, between a minute and a year from now. */
+            send_at: string;
+        };
+        ScheduledMessage: {
+            channel_id: string;
+            content: string;
+            created_at: string;
+            /** @description Why it failed, for a failed row. */
+            failure?: string | null;
+            guild_id?: string | null;
+            id: string;
+            /** @description The sent message, for a sent row. */
+            message_id?: string | null;
+            /** @description ISO 8601 time the message goes out. */
+            send_at: string;
+            /** @description `pending`, `sent`, `failed` or `cancelled`. */
+            status: string;
+        };
         ScopeObject: {
             description: string;
             name: string;
+        };
+        ScoreInput: {
+            /**
+             * Format: int32
+             * @description 1 to 10.
+             */
+            score: number;
         };
         /**
          * @description Discord search response: each result is a one-message group (no context
@@ -12339,10 +14208,13 @@ export interface components {
         SelfObject: {
             /** Format: int32 */
             accent_color?: number | null;
+            avatar_decoration?: string | null;
             banner?: string | null;
             bio?: string | null;
             custom_status?: null | components["schemas"]["CustomStatusObject"];
+            profile_effect?: string | null;
             pronouns?: string | null;
+            theme_colors?: number[] | null;
             user: components["schemas"]["UserObject"];
         };
         SendSoundBody: {
@@ -12423,6 +14295,19 @@ export interface components {
             offset: number;
             /** Format: int64 */
             total: number;
+        };
+        /**
+         * @description A series' ratings per scope (D-089): everyone, friends, and "people you know" (friends plus
+         *     people sharing a server), the caller's own score, and the global distribution.
+         */
+        SeriesRatings: {
+            /** @description Counts of scores 1 to 10 across everyone (index 0 is score 1). */
+            distribution: number[];
+            friends: components["schemas"]["LibraryRatingAggregate"];
+            global: components["schemas"]["LibraryRatingAggregate"];
+            known: components["schemas"]["LibraryRatingAggregate"];
+            /** Format: int32 */
+            mine?: number | null;
         };
         /**
          * @description `reading_series.status`.
@@ -12723,6 +14608,27 @@ export interface components {
         SubmitVersionBody: {
             note?: string | null;
         };
+        Suggestion: {
+            author_id: string;
+            channel_id: string;
+            content: string;
+            created_at: string;
+            id: string;
+            /** @description The card message in the suggestions channel. */
+            message_id: string;
+            responder_id?: string | null;
+            response: string;
+            /** @description `open`, `considering`, `approved`, `denied` or `implemented`. */
+            status: string;
+            updated_at: string;
+        };
+        SuggestionInput: {
+            content: string;
+        };
+        SuggestionResponse: {
+            response?: string | null;
+            status: string;
+        };
         /**
          * @description A page a collection can be placed on.
          * @enum {string}
@@ -12829,6 +14735,15 @@ export interface components {
             moderated?: boolean;
             name: string;
         };
+        TempRoleObject: {
+            /**
+             * Format: int64
+             * @description Unix milliseconds at which the role is taken away.
+             */
+            expires_at: number;
+            role_id: string;
+            user_id: string;
+        };
         TemplateObject: {
             code: string;
             created_at: string;
@@ -12881,6 +14796,21 @@ export interface components {
         /** @description A thread channel object; for forum posts also the starter `message`. */
         ThreadResponse: components["schemas"]["ChannelObject"] & {
             message?: null | components["schemas"]["MessageObject"];
+        };
+        Ticket: {
+            closed_at?: string | null;
+            closed_by?: string | null;
+            created_at: string;
+            id: string;
+            opener_id: string;
+            /** @description `open` or `closed`. */
+            status: string;
+            subject: string;
+            /** @description The private thread, a channel snowflake. */
+            thread_id: string;
+        };
+        TicketInput: {
+            subject: string;
         };
         /** @description A title as the API shows it. */
         Title: {
@@ -13354,6 +15284,33 @@ export interface components {
             /** Format: int64 */
             accounts_reactivated: number;
         };
+        /** @description Unread published chapters of one followed series. */
+        UnreadCount: {
+            /**
+             * Format: int64
+             * @description Number of the highest chapter published, for "sort by progress".
+             */
+            chapter_count: number;
+            /**
+             * Format: int64
+             * @description Last time the member read something in this series.
+             */
+            last_read_at_ms?: number | null;
+            series_id: string;
+            /** Format: int64 */
+            unread: number;
+        };
+        UnreadCounts: {
+            items: components["schemas"]["UnreadCount"][];
+        };
+        /** @description A member's birthday as other members of a server see it (never the year). */
+        UpcomingBirthday: {
+            /** Format: int32 */
+            day: number;
+            /** Format: int32 */
+            month: number;
+            user_id: string;
+        };
         /** @description One entry of the latest-updates feed. */
         UpdateItem: {
             age_restricted: boolean;
@@ -13407,6 +15364,15 @@ export interface components {
             updated_at_ms: number;
             /** @description Ignored files and unreadable metadata. */
             warnings: string[];
+        };
+        /** @description What a member has left of today's upload allowance (`None` limits for staff). */
+        UploadAllowance: {
+            /** Format: int64 */
+            limit_bytes?: number | null;
+            /** Format: int64 */
+            remaining_bytes?: number | null;
+            /** Format: int64 */
+            used_bytes: number;
         };
         /**
          * @description What an uploaded file is expected to be (from the chapter's format).
@@ -13490,9 +15456,15 @@ export interface components {
         UserProfileFields: {
             /** Format: int32 */
             accent_color?: number | null;
+            /** @description Slug of the avatar decoration, if one is set. */
+            avatar_decoration?: string | null;
             banner?: string | null;
             bio?: string | null;
+            /** @description Slug of the profile effect, if one is set. */
+            profile_effect?: string | null;
             pronouns?: string | null;
+            /** @description The two profile theme colours (0xRRGGBB), primary first. */
+            theme_colors?: number[] | null;
         };
         /**
          * @description User object embedded in messages (author, mentions). Fields come from the user
@@ -13530,6 +15502,11 @@ export interface components {
              * @description Members who joined through it.
              */
             uses: number;
+        };
+        /** @description The server's VAPID application-server key. */
+        VapidKeyObject: {
+            /** @description Base64url, uncompressed P-256 point; pass it to `pushManager.subscribe`. */
+            public_key: string;
         };
         Variant: {
             asset_id?: string | null;
@@ -19803,6 +21780,62 @@ export interface operations {
             };
         };
     };
+    admin_library_feature_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_library_list: {
         parameters: {
             query?: {
@@ -21366,6 +23399,52 @@ export interface operations {
             };
         };
     };
+    admin_review_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Credit"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_review_decide_item: {
         parameters: {
             query?: never;
@@ -21821,6 +23900,64 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_review_revoke_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeCreditsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedCredits"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -24632,6 +26769,36 @@ export interface operations {
             };
         };
     };
+    ensure_interactions_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionsKeyObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     reset_secret: {
         parameters: {
             query?: never;
@@ -24876,6 +27043,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    command_index: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandIndex"];
                 };
             };
             404: {
@@ -25680,6 +27877,67 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    save: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bookmark"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Bookmark limit reached */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -26572,6 +28830,65 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledMessage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many pending messages */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -30896,6 +33213,132 @@ export interface operations {
             };
         };
     };
+    categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifCategoriesObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifConfigObject"];
+                };
+            };
+        };
+    };
+    search: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Search text, 1 to 100 characters. */
+                q: string;
+                limit: number | null;
+                pos: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifPageObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    trending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Results per page, 1 to 50 (default 24). */
+                limit: number | null;
+                /** @description Continuation token from the previous page. */
+                pos: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifPageObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     create_guild: {
         parameters: {
             query?: never;
@@ -31642,6 +34085,39 @@ export interface operations {
             };
         };
     };
+    birthdays: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 25 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpcomingBirthday"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     bulk_ban: {
         parameters: {
             query?: never;
@@ -32267,6 +34743,81 @@ export interface operations {
             };
         };
     };
+    leaderboard: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 25 */
+                limit?: number;
+                /** @description Rows to skip */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaderboardEntry"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rank: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake or `@me` */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankCard"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_member_verification: {
         parameters: {
             query?: never;
@@ -32737,6 +35288,36 @@ export interface operations {
             };
         };
     };
+    modules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleFlags"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_onboarding: {
         parameters: {
             query?: never;
@@ -32866,6 +35447,185 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_poll_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollTemplate"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_poll_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PollTemplateInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollTemplate"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_poll_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Template snowflake */
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_poll_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Template snowflake */
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PollTemplateInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollTemplate"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -33289,6 +36049,177 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_feeds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RssFeed"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RssFeedInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RssFeed"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Feed snowflake */
+                feed_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Feed snowflake */
+                feed_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RssFeedPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RssFeed"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             403: {
@@ -33927,6 +36858,96 @@ export interface operations {
             };
         };
     };
+    list_features: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildFeatureObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Feature id, e.g. lounge.starboard */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchGuildFeatureBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildFeatureObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_guide: {
         parameters: {
             query?: never;
@@ -34039,6 +37060,135 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["InsightsObject"];
                 };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_temp_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TempRoleObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    grant_temp_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantTempRoleBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TempRoleObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_temp_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+                /** @description Role snowflake */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             403: {
                 headers: {
@@ -34332,6 +37482,184 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignedUrlObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_suggestions: {
+        parameters: {
+            query?: {
+                /** @description open, considering, approved, denied or implemented */
+                status?: string;
+                /** @description Suggestion id to page from */
+                before?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submit_suggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_suggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Suggestion snowflake */
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    respond_suggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Suggestion snowflake */
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionResponse"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"];
                 };
             };
             400: {
@@ -34816,6 +38144,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ThreadList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description open or closed */
+                status?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ticket"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    open: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ticket"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many open tickets or no ticket channel */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Ticket snowflake */
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ticket"];
                 };
             };
             403: {
@@ -35651,6 +39105,144 @@ export interface operations {
             };
         };
     };
+    library_chapter_rating: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterRating"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_rate_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScoreInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_unrate_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_mark_read: {
         parameters: {
             query?: never;
@@ -35684,6 +39276,357 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_create_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryListInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_featured_lists: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListsBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_get_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryListDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_delete_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_update_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryListPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_list_add_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryListItemInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_list_remove_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_list_reorder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryListOrderInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -35773,6 +39716,36 @@ export interface operations {
             };
         };
     };
+    library_my_lists: {
+        parameters: {
+            query?: {
+                /** @description When given, each list says whether it holds this series (`contains`). */
+                series?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListsBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_my_progress: {
         parameters: {
             query?: {
@@ -35806,6 +39779,151 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_unread_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCounts"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_rankings: {
+        parameters: {
+            query?: {
+                /** @description `week` (default), `month` or `all`. */
+                period?: components["schemas"]["RankingPeriod"];
+                /** @description Limit to one kind (`manga`, `manhwa`, ...). */
+                kind?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingsBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_review_helpful: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review snowflake */
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCountBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_review_unhelpful: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review snowflake */
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCountBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -36075,6 +40193,285 @@ export interface operations {
             };
         };
     };
+    library_rate_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScoreInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_unrate_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_series_ratings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesRatings"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_put_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryReviewInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryReview"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_delete_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_reviews: {
+        parameters: {
+            query?: {
+                /** @description `helpful` (default) or `recent`. */
+                sort?: components["schemas"]["LibraryReviewSort"];
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryReviewPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_updates: {
         parameters: {
             query?: {
@@ -36105,6 +40502,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_user_lists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListsBody"];
                 };
             };
             401: {
@@ -36366,6 +40793,33 @@ export interface operations {
             };
         };
     };
+    vapid_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VapidKeyObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     ack_bulk: {
         parameters: {
             query?: never;
@@ -36479,6 +40933,110 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    requests_claim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimRequestInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    requests_release: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -36695,6 +41253,52 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteAccountBody"];
+            };
+        };
+        responses: {
+            /** @description Account deleted; the session cookie is cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -37690,6 +42294,72 @@ export interface operations {
             };
         };
     };
+    submissions_naming_parse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NamingParseBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamingParseResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_quota: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadAllowance"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     submissions_get: {
         parameters: {
             query?: never;
@@ -37835,6 +42505,44 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Credit"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -38910,6 +43618,179 @@ export interface operations {
             };
         };
     };
+    get_birthday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Birthday"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_birthday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BirthdayInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Birthday"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_birthday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Message id to page from */
+                before?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+                /** @description false to leave the messages out */
+                messages?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkEntry"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    edit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bookmark"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: never;
@@ -39120,6 +44001,288 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionsResponse"];
+                };
+            };
+        };
+    };
+    put_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    authorize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description github, discord, spotify, twitch, youtube, reddit or steam */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizeResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider */
+                provider: string;
+                /** @description Account id at the provider */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider */
+                provider: string;
+                /** @description Account id at the provider */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider */
+                provider: string;
+                /** @description Account id at the provider */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportObject"];
+                };
+            };
+        };
+    };
+    request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportObject"];
+                };
+            };
+            /** @description A package is already being built */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Asked less than 24 hours ago */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Export request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The zip package */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_my_guilds: {
         parameters: {
             query?: never;
@@ -39183,6 +44346,39 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_leveling: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LevelingOptBody"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -39392,6 +44588,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    recent_mentions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 1 to 50, default 25. */
+                limit: number | null;
+                /** @description Message snowflake: return mentions older than this. */
+                before: string | null;
+                /** @description Include messages that mention one of your roles (default true). */
+                roles: boolean | null;
+                /** @description Include `@everyone` and `@here` (default true). */
+                everyone: boolean | null;
+                /** @description Restrict to one server. */
+                guild_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"][];
+                };
             };
             400: {
                 headers: {
@@ -39701,6 +44935,82 @@ export interface operations {
             };
         };
     };
+    subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionBody"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushUnsubscribeBody"];
+            };
+        };
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: never;
@@ -39935,6 +45245,224 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Include recently delivered reminders */
+                all?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Reminder"][];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReminderBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Reminder"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many pending reminders */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Reminder snowflake */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Include recently settled messages */
+                all?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledMessage"][];
+                };
+            };
+        };
+    };
+    cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Scheduled message snowflake */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Already sent */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Scheduled message snowflake */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditScheduledBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledMessage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Already sent or cancelled */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_settings: {
         parameters: {
             query?: never;
@@ -39990,6 +45518,8 @@ export interface operations {
             query?: {
                 /** @description Include mutual guilds (default true) */
                 with_mutual_guilds?: boolean;
+                /** @description Also return the user's profile in this server (viewer must be a member) */
+                guild_id?: string;
             };
             header?: never;
             path: {

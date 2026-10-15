@@ -140,6 +140,19 @@ pub trait AppsRepository: Send + Sync {
     ) -> AppsResult<Application>;
     /// Rename the bot account's display name.
     async fn set_bot_name(&self, app: i64, name: &str, audit: AuditRow) -> AppsResult<()>;
+
+    /// Interactions endpoint URL and signing seed of an application.
+    async fn interactions_config(&self, app: i64) -> AppsResult<InteractionsConfig>;
+
+    /// Set the endpoint URL (`Some(None)` clears) and/or store a signing seed. An existing
+    /// seed is never replaced by `seed_if_absent`.
+    async fn set_interactions_config(
+        &self,
+        app: i64,
+        endpoint_url: Option<Option<String>>,
+        seed_if_absent: Option<crate::signing::SigningSeed>,
+        audit: Option<AuditRow>,
+    ) -> AppsResult<()>;
     /// Replace the client secret.
     async fn rotate_secret(
         &self,
@@ -231,6 +244,8 @@ pub trait AppsRepository: Send + Sync {
     async fn install(&self, req: InstallWrite) -> AppsResult<InstallOutcome>;
     /// Installs of an application.
     async fn installs(&self, app: i64) -> AppsResult<Vec<Install>>;
+    /// Installs in one guild.
+    async fn guild_installs(&self, guild: i64) -> AppsResult<Vec<Install>>;
     /// Is the application installed (and its bot still a member when it needs to be)?
     async fn is_installed(&self, app: i64, guild: i64) -> AppsResult<bool>;
 

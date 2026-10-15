@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react';
 import { useT } from '../i18n';
 import { browseSeries, getChapters, getUpdates, keys } from './api';
 import { progressApi, progressLine } from './progress';
+import { getFeaturedLists, socialKeys } from './social';
 import type { Series } from './types';
 import {
   AgeBadge,
@@ -232,7 +233,7 @@ function Trending() {
             { value: 'global', label: t('library.home.trending.global') },
           ]}
         />
-        <ArrowLink href="/library/browse?sort=followers" arrow="→">
+        <ArrowLink href="/library/rankings" arrow="→">
           {t('library.home.trending.rankings')}
         </ArrowLink>
       </div>
@@ -389,7 +390,18 @@ function Inspiration() {
     queryKey: keys.browse({ sort: 'newest', limit: 3 }),
     queryFn: () => browseSeries({ sort: 'newest', limit: 3 }),
   });
-  const covers = (q.data?.items ?? []).filter((s) => s.cover_url).slice(0, 3);
+  // A list staff featured wins; until there is one the card shows the newest covers.
+  const featured = useQuery({
+    queryKey: socialKeys.featured(),
+    queryFn: () => getFeaturedLists(1),
+  });
+  const list = featured.data?.items[0];
+  const covers = list
+    ? list.covers.slice(0, 3)
+    : (q.data?.items ?? [])
+        .filter((s) => s.cover_url)
+        .slice(0, 3)
+        .map((s) => s.cover_url!);
   return (
     <section className="lib-section" aria-labelledby="lib-inspo">
       <div className="lib-section-head">
@@ -402,11 +414,23 @@ function Inspiration() {
       </div>
       <div className="lib-list-card">
         <Eyebrow>{t('library.home.inspiration.eyebrow')}</Eyebrow>
-        <h3 className="lib-list-title">{t('library.home.inspiration.listTitle')}</h3>
-        <p className="lib-muted">{t('library.home.inspiration.listBody')}</p>
+        <h3 className="lib-list-title">
+          {list ? (
+            <Link to="/library/lists/$listId" params={{ listId: list.id }}>
+              {list.name}
+            </Link>
+          ) : (
+            t('library.home.inspiration.listTitle')
+          )}
+        </h3>
+        <p className="lib-muted">
+          {list
+            ? list.description || t('library.home.inspiration.listBody')
+            : t('library.home.inspiration.listBody')}
+        </p>
         <div className="lib-fan" aria-hidden="true">
-          {covers.map((s, i) => (
-            <img key={s.id} src={s.cover_url!} alt="" style={{ ['--i' as string]: i }} />
+          {covers.map((src, i) => (
+            <img key={src + i} src={src} alt="" style={{ ['--i' as string]: i }} />
           ))}
         </div>
       </div>

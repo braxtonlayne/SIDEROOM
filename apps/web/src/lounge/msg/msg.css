@@ -1117,3 +1117,122 @@
   border-radius: inherit;
   pointer-events: none;
 }
+.lng-gif-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.lng-gif-fav-toggle[aria-pressed='true'] {
+  font-weight: 600;
+}
+.lng-gif-cats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-block-end: 8px;
+}
+.lng-gif-cat {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  block-size: 64px;
+  cursor: pointer;
+}
+.lng-gif-cat img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.lng-gif-cat span {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  padding: 2px 6px;
+  color: #fff;
+  background: rgb(0 0 0 / 55%);
+  text-align: start;
+}
+.lng-gif-grid {
+  column-count: 2;
+  column-gap: 6px;
+}
+.lng-gif-cell {
+  position: relative;
+  margin-block-end: 6px;
+  break-inside: avoid;
+}
+.lng-gif-pick {
+  display: block;
+  inline-size: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.lng-gif-pick img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+}
+.lng-gif-star {
+  position: absolute;
+  inset-block-start: 4px;
+  inset-inline-end: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  cursor: pointer;
+}
+.lng-gif-more {
+  display: block;
+  margin: 8px auto;
+}
+.lng-inbox {
+  inline-size: min(420px, 90vw);
+  max-block-size: 70vh;
+  overflow-y: auto;
+}
+.lng-inbox-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-block: 6px;
+}
+.lng-inbox-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-inbox-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.lng-inbox-item {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+.lng-inbox-item:hover,
+.lng-inbox-item:focus-visible {
+  background: var(--ui-bg-hover);
+}
+.lng-inbox-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lng-inbox-markall {
+  margin-block-start: 8px;
+}

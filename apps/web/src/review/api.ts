@@ -3,6 +3,7 @@
 import { apiFetch } from '../api/client';
 import type {
   ContentRequest,
+  NamingItem,
   CreateSubmission,
   DraftChapter,
   DraftChapterList,
@@ -83,6 +84,9 @@ export async function putFile(slot: UploadSlot, file: Blob): Promise<void> {
   if (!res.ok) throw new Error(`The upload was refused (${res.status}).`);
 }
 
+export const parseNames = (section: string, names: string[]) =>
+  post<{ items: NamingItem[] }>('/submissions/naming/parse', { section, names });
+
 // ---- requests ----
 
 export const listRequests = (
@@ -100,6 +104,11 @@ export const voteRequest = (id: string, vote: boolean) =>
   vote
     ? put<ContentRequest>(`/requests/${enc(id)}/vote`, {})
     : apiFetch<ContentRequest>(`/requests/${enc(id)}/vote`, { method: 'DELETE', retries: 0 });
+
+export const claimRequest = (id: string, note: string) =>
+  put<ContentRequest>(`/requests/${enc(id)}/claim`, { note });
+export const releaseRequest = (id: string) =>
+  apiFetch<ContentRequest>(`/requests/${enc(id)}/claim`, { method: 'DELETE', retries: 0 });
 
 // ---- reviewer ----
 

@@ -25,8 +25,10 @@ sr-apps = { path = "../sr-apps" }
 sr-auth = { path = "../sr-auth", features = ["webauthn"] }
 sr-features = { path = "../sr-features" }
 sr-library = { path = "../sr-library" }
+sr-library-social = { path = "../sr-library-social" }
 sr-cinema = { path = "../sr-cinema" }
 sr-media = { path = "../sr-media" }
+sr-reader = { path = "../sr-reader" }
 sr-tv = { path = "../sr-tv" }
 sr-cinema-social = { path = "../sr-cinema-social" }
 sr-watchparty = { path = "../sr-watchparty" }
@@ -36,8 +38,11 @@ sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-events = { path = "../sr-events" }
 sr-markdown = { path = "../sr-markdown" }
+sr-push = { path = "../sr-push" }
+sr-net = { path = "../sr-net" }
 sr-search = { path = "../sr-search" }
 sr-unfurl = { path = "../sr-unfurl" }
+sr-userfeat = { path = "../sr-userfeat" }
 sr-storage = { path = "../sr-storage" }
 subtle = "2"
 thiserror.workspace = true

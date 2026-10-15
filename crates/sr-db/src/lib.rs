@@ -5,6 +5,7 @@
 //! crate builds without a live database. DB-backed tests are `#[ignore]` and read
 //! `SR_TEST_DATABASE_URL`.
 
+pub mod account_deletion;
 pub mod accounts;
 pub mod admin_repo;
 mod admin_repo_ext;
@@ -13,6 +14,7 @@ pub mod auth_repo;
 pub mod auth_store;
 pub mod chat_repo;
 pub mod cinema_repo;
+pub mod data_export;
 pub mod directory_repo;
 mod error;
 mod guild_admin_repo;

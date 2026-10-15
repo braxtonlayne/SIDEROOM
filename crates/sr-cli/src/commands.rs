@@ -19,7 +19,7 @@ use sr_db::{
     auth_store::PgAuthStore,
 };
 
-use crate::{Cli, Command, InviteCmd, StaffCmd, StorageCmd, UserCmd, guilds};
+use crate::{Cli, Command, InviteCmd, PackageCmd, StaffCmd, StorageCmd, UserCmd, guilds};
 use sr_admin::{AdminService, Caller, SYSTEM_USER_ID as ADMIN_SYSTEM_USER};
 use sr_db::admin_repo::PgAdminRepo;
 
@@ -31,6 +31,10 @@ const LOGIN_LINK_TTL_SECS: i64 = 3600;
 const MIN_PASSWORD_LEN: usize = 10;
 
 pub async fn run(cli: Cli) -> Result<()> {
+    // Checking a theme folder is an author tool: no configuration, no server.
+    if let Command::Package(PackageCmd::Validate { dir, json }) = &cli.command {
+        return package_validate(dir, *json);
+    }
     let cfg = Config::load(cli.config.as_deref()).context("loading configuration")?;
     // Storage administration talks to the bucket only; no database needed.
     if let Command::Storage(StorageCmd::EnsureCors { origins }) = &cli.command {
@@ -73,7 +77,7 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::RotateSecretKey => rotate_secret_key(&pool, &cfg, ids).await?,
         Command::Seed { password, force } => seed(&pool, &cfg, ids, &password, force).await?,
         // Handled before the database connection above.
-        Command::Storage(_) => {}
+        Command::Storage(_) | Command::Package(_) => {}
     }
     Ok(())
 }
@@ -581,6 +585,103 @@ async fn seed(
         "seeded {created} new dev account(s) ({} already existed); {dev_guild}; library samples are not seeded (schema not yet defined)",
         SEED_USERS.len() - created
     );
+    Ok(())
+}
+
+/// Largest single file read from a theme folder (the platform caps assets at 2 MB; this leaves room to report it).
+const PACKAGE_FILE_READ_CAP: u64 = 16 * 1024 * 1024;
+
+fn read_package_files(
+    root: &std::path::Path,
+) -> Result<std::collections::BTreeMap<String, Vec<u8>>> {
+    fn walk(
+        root: &std::path::Path,
+        dir: &std::path::Path,
+        out: &mut std::collections::BTreeMap<String, Vec<u8>>,
+    ) -> Result<()> {
+        for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
+            let entry = entry?;
+            let path = entry.path();
+            let meta = entry.metadata()?;
+            // Links are not followed: a package is plain files.
+            if meta.file_type().is_symlink() {
+                continue;
+            }
+            if meta.is_dir() {
+                walk(root, &path, out)?;
+            } else if meta.is_file() {
+                let rel = path
+                    .strip_prefix(root)
+                    .context("path outside the package")?
+                    .components()
+                    .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                if meta.len() > PACKAGE_FILE_READ_CAP {
+                    bail!("{rel} is larger than 16 MB");
+                }
+                let bytes = std::fs::read(&path).with_context(|| format!("reading {rel}"))?;
+                out.insert(rel, bytes);
+            }
+        }
+        Ok(())
+    }
+    let mut out = std::collections::BTreeMap::new();
+    walk(root, root, &mut out)?;
+    Ok(out)
+}
+
+/// `sr-cli package validate <dir>`: the upload-time checks of `sr-theme` on a local folder.
+fn package_validate(dir: &std::path::Path, json: bool) -> Result<()> {
+    let files = read_package_files(dir)?;
+    let pkg = match sr_theme::package_from_files(&files) {
+        Ok(p) => p,
+        Err(problems) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"valid": false, "readable": false, "problems": problems})
+                );
+            } else {
+                for p in &problems {
+                    println!("error  {p}");
+                }
+            }
+            bail!("the folder is not a readable theme package");
+        }
+    };
+    let mut issues = sr_theme::validate(&pkg).issues;
+    issues.extend(sr_theme::validate_files(&pkg, &files).issues);
+    let unused = sr_theme::unused_files(&files, &pkg);
+    let errors = issues
+        .iter()
+        .filter(|i| i.severity == sr_theme::Severity::Error)
+        .count();
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({"valid": errors == 0, "readable": true, "issues": issues, "unusedFiles": unused})
+        );
+    } else {
+        for i in &issues {
+            let level = match i.severity {
+                sr_theme::Severity::Error => "error ",
+                sr_theme::Severity::Warning => "warn  ",
+            };
+            println!("{level} {}  {}: {}", i.code, i.path, i.message);
+        }
+        for f in &unused {
+            println!("warn   unused-file  {f}: not used by the package");
+        }
+        let warnings = issues.len() - errors;
+        println!(
+            "{}: {errors} error(s), {warnings} warning(s)",
+            pkg.manifest.id
+        );
+    }
+    if errors > 0 {
+        bail!("{errors} error(s) in the theme package");
+    }
     Ok(())
 }
 

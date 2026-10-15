@@ -259,16 +259,21 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         id_src.clone(),
     ));
     let apps_auth = Arc::new(sr_apps::auth::AppsAuth::new(apps_service.clone()));
-    let dev_deps = Arc::new(routes::developer::DevDeps::new(
-        (*apps_service).clone(),
-        Arc::new(PgChatRepo::new(pool.clone())),
-        bus.clone(),
-        Arc::new(routes::developer::AuthPasswordConfirm::new(
-            auth_service.clone(),
+    let dev_deps = Arc::new(
+        routes::developer::DevDeps::new(
+            (*apps_service).clone(),
+            Arc::new(PgChatRepo::new(pool.clone())),
+            bus.clone(),
+            Arc::new(routes::developer::AuthPasswordConfirm::new(
+                auth_service.clone(),
+            )),
+            clock.clone(),
+            &cfg.server.public_url,
+        )
+        .with_endpoint_client(Arc::new(
+            crate::endpoint_client::SafeEndpointClient::production(),
         )),
-        clock.clone(),
-        &cfg.server.public_url,
-    ));
+    );
 
     let s = &cfg.storage;
     let storage: Arc<dyn ObjectStorage> = Arc::new(
@@ -284,14 +289,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // Feature crates register into the registry before it is shared (none
     // exist yet). Their routes are mounted below from `Feature::routes()`.
-    let mut registry = FeatureRegistry::new();
-    registry
-        .register(crate::rich_jobs::UnfurlFeature)
-        .context("registering the unfurl feature")?;
-    registry
-        .register(sr_features::ModerationReportsFeature)
-        .context("registering the moderation.reports feature")?;
-    let registry = Arc::new(registry);
+    let registry = Arc::new(feature_registry()?);
     let features = FeatureService::new(
         registry.clone(),
         Arc::new(PgSettingsStore::new(pool.clone(), ids.clone())),
@@ -375,10 +373,19 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .with_audit(audit_sink.clone()),
     );
+    // The feature modules: leveling hears every stored message; the poster they speak through is filled in
+    // once the message stack below exists.
+    let user_features =
+        sr_userfeat::UserFeatures::new(pool.clone(), features.clone(), id_src.clone());
+    let feature_poster: crate::userfeat::PosterCell = Arc::default();
     let message_hooks: Arc<dyn sr_chat::message_hooks::MessageHooks> =
         Arc::new(sr_chat::threads::hooks::HookChain(vec![
             social,
             threads_deps.activity_hook(),
+            Arc::new(crate::userfeat::LevelingHook {
+                uf: user_features.clone(),
+                poster: feature_poster.clone(),
+            }),
         ]));
     let cdn_signer =
         sr_storage::cdn::CdnSigner::new(secret_key(cfg.server.secret_key.expose())?.to_vec());
@@ -413,6 +420,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
         ..sr_unfurl::Policy::default()
     };
+    let unfurl_policy_for_feeds = unfurl_policy.clone();
     let unfurler = Arc::new(sr_unfurl::production(
         unfurl_policy.clone(),
         cfg.unfurl.per_host_per_minute.max(1),
@@ -521,7 +529,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
             .with_prefs(Arc::new(crate::settings_pg::PgLibraryPrefs::new(
                 pool.clone(),
-            ))),
+            )))
+            .with_social(
+                sr_library_social::LibrarySocial::new(pool.clone(), id_src.clone()).with_events(
+                    Arc::new(routes::library::BusLibraryEvents::new(bus.clone())),
+                ),
+            ),
     );
 
     // The Cinema catalog (CIN-DATA-*): Postgres repository, signed artwork URLs (the same CDN
@@ -709,7 +722,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 PgChatRepo::new(pool.clone()),
                 clock.clone(),
             )))
-            .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())));
+            .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())))
+            .with_chat(Arc::new(crate::userfeat::PartyAnnouncer {
+                uf: user_features.clone(),
+                poster: feature_poster.clone(),
+            }));
     watchparty_service.spawn_timers();
     let watchparty_deps = Arc::new(routes::watchparty::WatchPartyDeps::new(
         watchparty_service.clone(),
@@ -813,8 +830,120 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // The first message of a DM (or the first after Close DM) announces the channel to
     // each recipient before the message itself.
     let social_api = Arc::new(social_api);
+    // Account connections (LNG-USET-024) and the data export (LNG-USET-020). Every request to
+    // a provider goes through the SSRF-safe client; providers without an OAuth application
+    // in `[connections]` are simply not offered.
+    let provider_client = sr_net::SafeClient::production(
+        sr_net::Policy::default(),
+        &format!(
+            "SIDEROOM/1.0 (+{})",
+            cfg.server.public_url.trim_end_matches('/')
+        ),
+    );
+    let connections_deps = Arc::new(routes::userset::connections::ConnectionsDeps::new(
+        &cfg.server.public_url,
+        &cfg.connections,
+        (
+            cfg.discord.client_id.as_str(),
+            cfg.discord.client_secret.expose(),
+        ),
+        provider_client.clone(),
+        clock.clone(),
+    ));
+    let export_deps = Arc::new(routes::userset::data_export::DataExportDeps {
+        store: Arc::new(crate::userset_jobs::PgExportStore::new(
+            pool.clone(),
+            id_src.clone(),
+        )),
+        storage: storage.clone(),
+        clock: clock.clone(),
+    });
     let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
+
+    // Web Push (LNG-NTF-003): the VAPID key lives in the database sealed with the server
+    // secret; without a configured secret it is per-boot (nothing could open it later).
+    let push_store: Arc<dyn sr_push::PushStore> =
+        Arc::new(crate::push_pg::PgPushStore::new(pool.clone()));
+    let vapid = if cfg.server.secret_key.expose().is_empty() {
+        sr_push::VapidKey::generate().map_err(|e| anyhow::anyhow!("{e}"))?
+    } else {
+        sr_push::load_or_create_vapid(push_store.as_ref(), &master_key)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?
+    };
+    let push_deps = Arc::new(routes::push::PushDeps::new(
+        push_store.clone(),
+        vapid.public_key(),
+        {
+            let ids = ids.clone();
+            Arc::new(move || ids.generate().get())
+        },
+    ));
+
+    // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
+    let gif_source: Option<Arc<dyn routes::gifs::GifSource>> = if cfg.gif.enabled() {
+        Some(Arc::new(routes::gifs::TenorSource::new(
+            cfg.gif.api_key.expose(),
+            &cfg.gif.client_key,
+            &cfg.gif.country,
+            &cfg.gif.locale,
+        )))
+    } else {
+        if !cfg.gif.provider.is_empty() {
+            tracing::warn!(
+                "gif.provider is set but unsupported or missing gif.api_key; the GIF picker stays off"
+            );
+        }
+        None
+    };
+    let gif_deps = Arc::new(routes::gifs::GifDeps::new(
+        gif_source,
+        Some(cdn_signer.clone()),
+    ));
+    let push_subject = if cfg.server.public_url.starts_with("https://") {
+        cfg.server.public_url.trim_end_matches('/').to_owned()
+    } else {
+        "mailto:admin@localhost.invalid".to_owned()
+    };
+    let push_consumer = crate::push_notify::spawn(
+        lag_bus.tap(),
+        Arc::new(crate::push_notify::PushNotifier {
+            messages: messages.clone(),
+            social: social_api.clone(),
+            store: push_store,
+            sender: Arc::new(sr_push::WebPushClient::new(
+                vapid,
+                push_subject,
+                sr_net::Policy::default(),
+            )),
+            pool: pool.clone(),
+        }),
+    );
     call_recorder.bind(messages.clone());
+
+    // The feature modules speak as the system user (and send scheduled messages as their authors) through the
+    // message stack; the scheduler job dispatches what is due.
+    let system_poster: Arc<dyn sr_userfeat::Poster> = Arc::new(crate::userfeat::SystemPoster::new(
+        pool.clone(),
+        messages.clone(),
+        guilds.0.clone(),
+        Some(settings_deps.clone()),
+        &cfg.server.public_url,
+    ));
+    if feature_poster.set(system_poster.clone()).is_err() {
+        tracing::warn!("the feature poster was already set");
+    }
+    let feed_policy = unfurl_policy_for_feeds.clone();
+    let ticker = Arc::new(sr_userfeat::tick::Ticker::new(
+        user_features.clone(),
+        system_poster.clone(),
+        Some(crate::userfeat::feed_client(feed_policy.clone())),
+    ));
+    let user_feature_deps = Arc::new(routes::userfeat::UserFeatDeps {
+        uf: user_features.clone(),
+        poster: system_poster,
+        net_policy: feed_policy,
+    });
 
     // Platform admin API: permissions are resolved per request from the Staff Server; every
     // action is written to the hash-chained access log. Feature toggles go through the shared
@@ -841,6 +970,23 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         bus: bus.clone(),
         throttle: crate::staff_feed::MailThrottle::default(),
     }));
+    // Built-in feature modules (docs/inventory/09-feature-modules.md): they read the event
+    // firehose and act through the system user and the guild backend.
+    let feature_ctx = sr_features::FeatureCtx {
+        bus: bus.clone(),
+        settings: features.clone(),
+        clock: clock.clone(),
+        actions: Arc::new(crate::feature_actions::PgFeatureActions::new(
+            pool.clone(),
+            messages.clone(),
+            threads_deps.clone(),
+            guilds.0.clone(),
+            &cfg.server.public_url,
+        )),
+        state: Arc::new(crate::features_store::PgFeatureState::new(pool.clone())),
+    };
+    let feature_runtime = sr_features::FeatureRuntime::new(feature_ctx.clone());
+    let feature_tasks = feature_runtime.spawn(bus.clone(), sr_features::runtime::TICK_INTERVAL);
     // Sensitive admin actions (private content, account email and password, staff changes,
     // announcements) need a second factor checked in the last 15 minutes (ADM-STF-009).
     // `SR_ADMIN_REQUIRE_REAUTH=0` switches that off, for development and end-to-end tests.
@@ -881,9 +1027,20 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             ),
         ))))
         .extension(Arc::new(guilds.clone()))
+        .extension(Arc::new(routes::settings::features::GuildFeatures {
+            ctx: feature_ctx,
+            roles: Arc::new(routes::settings::features::BackendRoles(guilds.0.clone())),
+        }))
         .extension(messages.clone())
         .extension(threads_deps.clone())
-        .extension(social_api)
+        .extension(social_api.clone())
+        .extension(connections_deps)
+        .extension(export_deps)
+        .extension(push_deps)
+        .extension(gif_deps)
+        .extension(Arc::new(routes::inbox::InboxDeps::new(Arc::new(
+            crate::inbox_pg::PgMentionSource::new(pool.clone()),
+        ))))
         .extension(settings_deps.clone())
         .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
             sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
@@ -896,10 +1053,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(media_deps)
         .extension(cinema_social_deps)
         .extension(watchparty_deps)
+        .extension(user_feature_deps)
         .extension(Arc::new(routes::donations::DonationsDeps::new(
             payments.service.clone(),
         )))
-        .extension(review_deps)
+        .extension(review_deps.clone())
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
             routes::cdn::CdnDeps::new(storage.clone(), cdn_signer).with_playlists(playback_deps),
@@ -976,6 +1134,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::jobs::register(
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
         &pool,
+        storage.clone(),
+        messages.clone(),
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
@@ -987,7 +1147,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
+    let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
+    let runner = crate::userfeat::register(runner, &pool, ticker);
     let runner = crate::media_jobs::register(
         runner,
         &pool,
@@ -996,6 +1158,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         download_service,
     );
     let runner = crate::payments_jobs::register(runner, &pool, payments.service.clone());
+    let runner = crate::userset_jobs::register(
+        runner,
+        &pool,
+        storage.clone(),
+        social_api.clone(),
+        provider_client.clone(),
+    );
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_insights(&pool).await?;
@@ -1006,8 +1175,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::external_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
+    crate::review_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
+    crate::userfeat::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
+    crate::userset_jobs::schedule(&pool).await?;
     crate::payments_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
@@ -1095,7 +1267,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     apps_gc_task.abort();
     metrics_task.abort();
     search_consumer.abort();
+    push_consumer.abort();
     if let Some(h) = features_listener {
+        h.abort();
+    }
+    for h in feature_tasks {
         h.abort();
     }
     if tokio::time::timeout(grace, jobs_task).await.is_err() {
@@ -1106,9 +1282,46 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     result
 }
 
+/// Every built-in feature module: the framework modules of `sr-features` (p11 featmod) and the
+/// user/community modules of `sr-userfeat` (p11 featmod-b). Both sets are listed by
+/// `GET /guilds/{id}/sr/features`.
+pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
+    let mut registry = FeatureRegistry::new();
+    registry
+        .register(crate::rich_jobs::UnfurlFeature)
+        .context("registering the unfurl feature")?;
+    registry
+        .register(sr_features::ModerationReportsFeature)
+        .context("registering the moderation.reports feature")?;
+    sr_features::modules::register_all(&mut registry)
+        .context("registering the built-in feature modules")?;
+    // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,
+    // library feed, watch party announcer, poll templates, suggestions, tickets (docs/inventory/09).
+    sr_userfeat::register_all(&mut registry).context("registering the user feature modules")?;
+    Ok(registry)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn both_feature_module_sets_register_for_guilds() {
+        let registry = feature_registry().unwrap();
+        let guild_ids: Vec<&str> = registry
+            .iter()
+            .filter(|f| f.scopes().contains(&sr_features::Scope::Guild))
+            .map(|f| f.id())
+            .collect();
+        for id in [
+            sr_features::modules::starboard::STARBOARD_ID,
+            sr_features::modules::welcome::WELCOME_ID,
+            sr_userfeat::features::REMINDERS_ID,
+            sr_userfeat::features::TICKETS_ID,
+        ] {
+            assert!(guild_ids.contains(&id), "{id} missing from {guild_ids:?}");
+        }
+    }
     use axum::routing::get;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 

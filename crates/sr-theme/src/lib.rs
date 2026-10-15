@@ -7,6 +7,7 @@
 //! [`json_schema`] emits the JSON Schema that TypeScript types are generated from.
 
 mod compile;
+mod dir;
 mod emit;
 mod model;
 mod registry;
@@ -14,6 +15,7 @@ mod sniff;
 mod validate;
 
 pub use compile::{CompileError, compile_css};
+pub use dir::{package_from_files, unused_files};
 pub use emit::{TS_OUTPUT_PATH, typescript};
 pub use model::{AssetRef, FontRef, ThemeManifest, ThemePackage, ThemeScheme};
 pub use registry::{TOKENS, TokenKind, TokenSpec, token_spec};

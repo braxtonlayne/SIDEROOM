@@ -5,6 +5,8 @@
 import { AddServerDialog } from './AddServerDialog';
 import { CreateChannelDialog } from './CreateChannelDialog';
 import { InviteDialog } from './InviteDialog';
+import { GuildProfileDialog } from './shell/GuildProfileDialog';
+import { DirectoryDialog } from './shell/DirectoryDialog';
 import { CreateDmDialog } from './shell/CreateDmDialog';
 import { CustomStatusDialog } from './shell/CustomStatusDialog';
 import { DeleteChannelDialog } from './shell/DeleteChannelDialog';
@@ -26,6 +28,10 @@ export function LoungeDialogs() {
   switch (dialog.kind) {
     case 'addServer':
       return <AddServerDialog onClose={close} />;
+    case 'guildProfile':
+      return <GuildProfileDialog guildId={dialog.guildId} onClose={close} />;
+    case 'directory':
+      return <DirectoryDialog onClose={close} />;
     case 'createChannel':
       return (
         <CreateChannelDialog
@@ -64,6 +70,8 @@ export function LoungeDialogs() {
       return <NicknameDialog guildId={dialog.guildId} userId={dialog.userId} onClose={close} />;
     case 'customStatus':
       return <CustomStatusDialog onClose={close} />;
+    case 'addToDm':
+      return <CreateDmDialog onClose={close} addTo={dialog.channelId} />;
     case 'createDm':
       return <CreateDmDialog onClose={close} />;
     case 'folder':

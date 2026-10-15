@@ -92,6 +92,10 @@ async function openServerMenu(name = /Alpha Guild/) {
 }
 
 describe('server menu: mute, notifications, leave', () => {
+  // The shell is a lazy route; load it once so a cold transform does not eat the first test's budget.
+  beforeAll(async () => {
+    await import('../LoungeShell');
+  }, 90_000);
   beforeEach(() => {
     quiet();
   });
@@ -171,6 +175,37 @@ describe('server menu: mute, notifications, leave', () => {
     await waitFor(() =>
       expect(body).toEqual({ channel_overrides: { c2: { message_notifications: 2 } } }),
     );
+  });
+
+  it('offers highlight and mobile push toggles and lists channel overrides with a reset', async () => {
+    seed('2');
+    const patches: Record<string, unknown>[] = [];
+    server.use(
+      http.get('*/api/v1/users/@me/guilds/g1/settings', () =>
+        HttpResponse.json(
+          settingsBody({
+            mobile_push: true,
+            channel_overrides: [{ channel_id: 'c2', muted: false, message_notifications: 2 }],
+          }),
+        ),
+      ),
+      http.patch('*/api/v1/users/@me/guilds/g1/settings', async ({ request }) => {
+        patches.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(settingsBody({ mobile_push: true, suppress_highlights: true }));
+      }),
+    );
+    at('/channels/g1/c1');
+    await openServerMenu();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Notification Settings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Notification Settings' });
+    await userEvent.click(
+      await within(dialog).findByRole('switch', { name: 'Suppress highlights' }),
+    );
+    await waitFor(() => expect(patches[0]).toEqual({ suppress_highlights: true }));
+    await userEvent.click(
+      within(dialog).getByRole('switch', { name: 'Mobile push notifications' }),
+    );
+    await waitFor(() => expect(patches[1]).toEqual({ mobile_push: false }));
   });
 
   it('leaving asks for confirmation, calls the API and goes Home', async () => {

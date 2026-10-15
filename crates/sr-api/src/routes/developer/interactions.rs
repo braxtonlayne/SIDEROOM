@@ -2,7 +2,10 @@
 //! gateway session receives `INTERACTION_CREATE`, and the bot answers through the token
 //! routes (callback, follow-ups, edits).
 
-use super::{CallbackBody, CreateInteractionBody, DevDeps, app_err, invalid, iso, parse_id};
+use super::{
+    CallbackBody, CommandIndex, CommandIndexApp, CreateInteractionBody, DevDeps, app_err, invalid,
+    iso, parse_id,
+};
 use crate::{
     auth::SessionOnly,
     openapi::ErrorBody,
@@ -92,12 +95,40 @@ pub async fn create(
         .ok()
         .filter(|k| matches!(*k, itype::APPLICATION_COMMAND..=itype::MODAL_SUBMIT))
         .ok_or_else(|| invalid("type", "BASE_TYPE_CHOICES", "Must be one of (2, 3, 4, 5)."))?;
-    let app_id = parse_id(&body.application_id, ErrorCode::UnknownApplication)?;
     let channel_id = parse_id(&body.channel_id, ErrorCode::UnknownChannel)?;
     let (acc, channel, perms) = deps
         .channel_access(p.user_id, channel_id)
         .await?
         .ok_or(MsgError::Api(ApiError::new(ErrorCode::UnknownChannel)))?;
+    let app_id = if body.application_id.is_empty() && kind == itype::MESSAGE_COMPONENT {
+        // A component names its message; the application is the one whose bot wrote it.
+        let mid = body
+            .message_id
+            .as_deref()
+            .map(|s| parse_id(s, ErrorCode::UnknownMessage))
+            .transpose()?
+            .ok_or_else(|| invalid("message_id", "BASE_TYPE_REQUIRED", "This field is required"))?;
+        let msg = messages
+            .visible_message(
+                ChannelId::new(channel_id as u64),
+                MessageId::new(mid as u64),
+            )
+            .await?;
+        deps.apps
+            .application_of_bot(msg.author_id.get() as i64)
+            .await
+            .map_err(app_err)?
+            .ok_or_else(|| {
+                invalid(
+                    "message_id",
+                    "BASE_TYPE_CHOICES",
+                    "That message does not belong to an application.",
+                )
+            })?
+            .id
+    } else {
+        parse_id(&body.application_id, ErrorCode::UnknownApplication)?
+    };
     let guild = acc.guild.id.get() as i64;
     if let Some(g) = &body.guild_id
         && parse_id(g, ErrorCode::UnknownGuild)? != guild
@@ -352,7 +383,14 @@ pub async fn create(
     if let Some(m) = message_obj {
         payload["message"] = m;
     }
-    to_user(&deps, app.bot_user_id, "INTERACTION_CREATE", payload).await;
+    // An application with an HTTP interactions endpoint gets the signed POST instead of the
+    // gateway event (DEV-BOT-005).
+    match deps.apps.endpoint_target(app_id).await.map_err(app_err)? {
+        Some(target) if deps.endpoints_available() => {
+            deps.deliver_to_endpoint(messages.clone(), target, row.clone(), payload);
+        }
+        _ => to_user(&deps, app.bot_user_id, "INTERACTION_CREATE", payload).await,
+    }
 
     // The 3 second window: tell the invoker when nobody answered.
     let (d, user, id, nonce) = (deps.clone(), p.user_id, row.id, row.nonce.clone());
@@ -697,7 +735,18 @@ pub async fn callback(
         .interaction_by_token(id, &token)
         .await
         .map_err(app_err)?;
-    let bot = bot_of(&deps, &row).await?;
+    apply_callback(&deps, &messages, row, body).await
+}
+
+/// Apply a response to an interaction: the callback route and the HTTP endpoint reply both
+/// end here.
+pub(super) async fn apply_callback(
+    deps: &DevDeps,
+    messages: &MessagesDeps,
+    row: InteractionRow,
+    body: CallbackBody,
+) -> MsgResult<StatusCode> {
+    let bot = bot_of(deps, &row).await?;
     let ty = i16::try_from(body.kind)
         .ok()
         .filter(|t| callback_allowed(row.kind, *t))
@@ -726,15 +775,15 @@ pub async fn callback(
                 .map_err(app_err)?;
             let result = if d.ephemeral() {
                 let mid = messages.next_id().get() as i64;
-                let obj = ephemeral_object(&deps, &row, bot, mid, &d, false).await?;
+                let obj = ephemeral_object(deps, &row, bot, mid, &d, false).await?;
                 deps.apps
                     .attach_message(&row, mid, true, true, Some(obj.clone()))
                     .await
                     .map_err(app_err)?;
-                to_user(&deps, row.user_id, "MESSAGE_CREATE", obj).await;
+                to_user(deps, row.user_id, "MESSAGE_CREATE", obj).await;
                 Ok(())
             } else {
-                match post_real(&deps, &messages, &row, bot, &d).await {
+                match post_real(deps, messages, &row, bot, &d).await {
                     Ok((msg, _)) => deps
                         .apps
                         .attach_message(&row, msg.id.get() as i64, false, true, None)
@@ -745,17 +794,11 @@ pub async fn callback(
             };
             match result {
                 Ok(()) => {
-                    to_user(
-                        &deps,
-                        row.user_id,
-                        "INTERACTION_SUCCESS",
-                        success(json!({})),
-                    )
-                    .await
+                    to_user(deps, row.user_id, "INTERACTION_SUCCESS", success(json!({}))).await
                 }
                 Err(e) => {
                     to_user(
-                        &deps,
+                        deps,
                         row.user_id,
                         "INTERACTION_FAILURE",
                         success(json!({"reason_code": 2})),
@@ -774,7 +817,7 @@ pub async fn callback(
                 .await
                 .map_err(app_err)?;
             to_user(
-                &deps,
+                deps,
                 row.user_id,
                 "INTERACTION_SUCCESS",
                 success(json!({"deferred": true, "ephemeral": eph, "update": ty == ctype::DEFERRED_UPDATE_MESSAGE})),
@@ -802,14 +845,8 @@ pub async fn callback(
                 .acknowledge(&row, "responded", ty, false)
                 .await
                 .map_err(app_err)?;
-            edit_real(&deps, &messages, &row, bot, mid, &d).await?;
-            to_user(
-                &deps,
-                row.user_id,
-                "INTERACTION_SUCCESS",
-                success(json!({})),
-            )
-            .await;
+            edit_real(deps, messages, &row, bot, mid, &d).await?;
+            to_user(deps, row.user_id, "INTERACTION_SUCCESS", success(json!({}))).await;
         }
         ctype::AUTOCOMPLETE_RESULT => {
             let choices = parse_choices(&data).map_err(|p| app_err(AppsError::Invalid(p)))?;
@@ -818,7 +855,7 @@ pub async fn callback(
                 .await
                 .map_err(app_err)?;
             to_user(
-                &deps,
+                deps,
                 row.user_id,
                 "SR_INTERACTION_AUTOCOMPLETE",
                 json!({"id": row.id.to_string(), "nonce": row.nonce, "choices": choices}),
@@ -841,7 +878,7 @@ pub async fn callback(
             if let (Some(o), Some(m)) = (payload.as_object_mut(), modal.as_object()) {
                 o.extend(m.clone());
             }
-            to_user(&deps, row.user_id, "INTERACTION_MODAL_CREATE", payload).await;
+            to_user(deps, row.user_id, "INTERACTION_MODAL_CREATE", payload).await;
         }
         _ => {
             return Err(invalid(
@@ -1151,3 +1188,71 @@ pub async fn delete_message(
 
 #[allow(dead_code)]
 fn _keep(_: Arc<DevDeps>, _: HashMap<(), ()>, _: Duration, _: &dyn MessageRepository) {}
+
+// ---------------------------------------------------------------- command picker index
+
+/// Everything the command picker needs in one channel: the applications installed in its
+/// server and the commands the caller may use there. Needs a session; not part of Discord's
+/// public bot API (the web client's own index).
+#[utoipa::path(
+    get, path = "/channels/{channel_id}/application-commands", tag = "bot",
+    params(("channel_id" = String, Path, description = "Channel snowflake")),
+    responses((status = 200, body = CommandIndex), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn command_index(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<DevDeps>,
+    Path(channel): Path<String>,
+) -> MsgResult<Json<CommandIndex>> {
+    let channel_id = parse_id(&channel, ErrorCode::UnknownChannel)?;
+    let (acc, _channel, perms) = deps
+        .channel_access(p.user_id, channel_id)
+        .await?
+        .ok_or(MsgError::Api(ApiError::new(ErrorCode::UnknownChannel)))?;
+    let guild = acc.guild.id.get() as i64;
+    let roles: Vec<i64> = acc.member.role_ids.iter().map(|r| r.get() as i64).collect();
+    let invoker = Invoker {
+        user_id: p.user_id,
+        guild_id: guild,
+        channel_id,
+        roles: &roles,
+        permissions: perms,
+    };
+    let mut applications = Vec::new();
+    let mut commands = Vec::new();
+    for entry in deps.apps.command_index(guild).await.map_err(app_err)? {
+        let mut usable = Vec::new();
+        for cmd in entry.commands {
+            let (own, defaults) = deps
+                .apps
+                .invocation_permissions(entry.application.id, guild, cmd.id)
+                .await
+                .map_err(app_err)?;
+            if can_invoke(invoker, &own, &defaults, cmd.default_member_permissions) {
+                usable.push(cmd);
+            }
+        }
+        if usable.is_empty() {
+            continue;
+        }
+        applications.push(CommandIndexApp {
+            id: entry.application.id.to_string(),
+            name: entry.application.name.clone(),
+            icon: entry.application.icon_key.clone(),
+            bot_id: entry.application.bot_user_id.to_string(),
+        });
+        commands.extend(
+            usable
+                .iter()
+                .map(|c| sr_apps::commands::command_json(c, false)),
+        );
+        if commands.len() >= 2000 {
+            break;
+        }
+    }
+    Ok(Json(CommandIndex {
+        applications,
+        application_commands: commands,
+    }))
+}

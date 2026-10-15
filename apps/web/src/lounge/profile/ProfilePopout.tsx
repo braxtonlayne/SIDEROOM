@@ -1,86 +1,19 @@
-import { Avatar, DropdownMenu, Icon, Modal, usePortalTarget, useFloating } from '@sideroom/ui';
+import { DropdownMenu, Icon, usePortalTarget, useFloating } from '@sideroom/ui';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { apiFetch } from '../../api/client';
 import { formatDate, useT } from '../../i18n';
 import { useViewer } from '../../settings/server/hooks';
-import {
-  useCurrentUser,
-  useGuilds,
-  useLoungeActions,
-  useMembers,
-  usePresence,
-  useRoles,
-  useUsers,
-} from '../data';
+import { useCurrentUser, useLoungeActions, useMembers, useRoles, useUsers } from '../data';
+import { Md } from '../msg/Md';
 import { useOpenDm } from '../shell/dm';
 import { setMemberRole } from './memberRoles';
 import { usePopout, type ProfileTarget } from './popoutStore';
-import { accentCss, avatarUrlOf, bannerUrlOf, useProfile, type Profile } from './useProfile';
+import { Badges } from './Badges';
+import { FullProfile } from './FullProfile';
+import { NoteField, ProfileAvatar, ProfileBanner, StatusBubble, Themed } from './parts';
+import { useProfileView } from './profileView';
 import './profile.css';
-
-const NOTE_MAX = 256;
-
-function Banner({ profile }: { profile: Profile | null }) {
-  const url = profile ? bannerUrlOf(profile) : null;
-  const accent = accentCss(profile?.user_profile.accent_color);
-  return (
-    <div
-      className="lng-pop-banner"
-      style={{
-        ...(accent ? { background: accent } : {}),
-        ...(url ? { backgroundImage: `url(${url})` } : {}),
-      }}
-    />
-  );
-}
-
-/** Private note about the person, saved when the box loses focus (`GET/PUT /users/@me/notes/{id}`). */
-function NoteField({ userId }: { userId: string }) {
-  const t = useT();
-  const [note, setNote] = useState('');
-  const saved = useRef('');
-  useEffect(() => {
-    let live = true;
-    apiFetch<{ note: string }>(`/users/@me/notes/${encodeURIComponent(userId)}`, { retries: 0 })
-      .then((n) => {
-        if (!live) return;
-        saved.current = n.note;
-        setNote(n.note);
-      })
-      .catch(() => undefined); // 404: no note yet
-    return () => {
-      live = false;
-    };
-  }, [userId]);
-  const save = () => {
-    const next = note.trim();
-    if (next === saved.current) return;
-    saved.current = next;
-    apiFetch<void>(`/users/@me/notes/${encodeURIComponent(userId)}`, {
-      method: 'PUT',
-      json: { note: next || null },
-      retries: 0,
-    }).catch(() => undefined);
-  };
-  return (
-    <section aria-labelledby="pop-note-h">
-      <h3 id="pop-note-h" className="lng-pop-h">
-        {t('lounge.profilePopout.note')}
-      </h3>
-      <input
-        className="lng-pop-input"
-        aria-label={t('lounge.profilePopout.noteLabel')}
-        placeholder={t('lounge.profilePopout.notePlaceholder')}
-        maxLength={NOTE_MAX}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-      />
-    </section>
-  );
-}
+import './profile-p11.css';
 
 /** The role chips of a member, with remove and add for people who may manage those roles. */
 function RoleChips({ target }: { target: ProfileTarget }) {
@@ -214,45 +147,41 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
   const me = useCurrentUser();
   const users = useUsers();
   const user = users[target.userId];
-  const member = useMembers(target.guildId).find((m) => m.user.id === target.userId);
-  const presence = usePresence(target.userId);
-  const state = useProfile(target.userId);
+  const view = useProfileView(target.userId, target.guildId);
   const openFull = usePopout((s) => s.openFull);
-  const profile = state.kind === 'ready' ? state.profile : null;
-  const name =
-    member?.nick ??
-    user?.displayName ??
-    profile?.user.global_name ??
-    t('lounge.profilePopout.unknown');
-  const handle = user?.username ?? profile?.user.username ?? '';
+  const { profile, presence } = view;
   const isSelf = target.userId === me.id;
-  const avatar = profile ? avatarUrlOf(profile.user) : (user?.avatarUrl ?? null);
   const since = profile?.mutual_guilds?.find((g) => g.id === target.guildId)?.member_since;
+  const doing = presence.activities?.[0];
 
   return (
-    <>
-      <Banner profile={profile} />
+    <Themed view={view} className="prf-pop-inner">
+      <ProfileBanner view={view} />
       <div className="lng-pop-head">
-        <Avatar name={name} src={avatar} size={80} status={presence.status} />
+        <ProfileAvatar view={view} />
       </div>
       <div className="lng-pop-body">
-        <h2 className="lng-pop-name">{name}</h2>
+        <h2 className="lng-pop-name">{view.name}</h2>
         <p className="lng-pop-handle">
-          {handle}
-          {profile?.user_profile.pronouns ? ` · ${profile.user_profile.pronouns}` : ''}
+          {view.handle}
+          {view.pronouns ? ` • ${view.pronouns}` : ''}
         </p>
-        {presence.activity && <p className="lng-pop-activity">{presence.activity.text}</p>}
-        {state.kind === 'loading' && (
+        <Badges badges={view.badges} />
+        <StatusBubble activity={presence.custom} />
+        {doing && <p className="lng-pop-activity">{doing.text}</p>}
+        {view.loading && (
           <p className="lng-muted" role="status">
             {t('lounge.profilePopout.loading')}
           </p>
         )}
-        {profile?.user_profile.bio && (
+        {view.bio && (
           <section aria-labelledby="pop-about-h">
             <h3 id="pop-about-h" className="lng-pop-h">
               {t('lounge.profilePopout.aboutMe')}
             </h3>
-            <p className="lng-pop-bio">{profile.user_profile.bio}</p>
+            <div className="lng-pop-bio">
+              <Md text={view.bio} />
+            </div>
           </section>
         )}
         {since && (
@@ -265,7 +194,7 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
         )}
         {target.guildId && <RoleChips target={target} />}
         {!isSelf && <NoteField userId={target.userId} />}
-        {!isSelf && !user?.bot && <MessageBox userId={target.userId} name={name} />}
+        {!isSelf && !user?.bot && <MessageBox userId={target.userId} name={view.name} />}
         <button
           type="button"
           className="lng-link-btn lng-pop-full"
@@ -274,7 +203,7 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
           {t('lounge.profilePopout.viewFull')}
         </button>
       </div>
-    </>
+    </Themed>
   );
 }
 
@@ -332,99 +261,6 @@ function PopoutFrame({ target, anchor }: { target: ProfileTarget; anchor: HTMLEl
       <ProfileCard target={target} />
     </div>,
     portal,
-  );
-}
-
-/** Mutual servers, friends and connections (View Full Profile). */
-function FullProfile({ target, onClose }: { target: ProfileTarget; onClose: () => void }) {
-  const t = useT();
-  const users = useUsers();
-  const guilds = useGuilds();
-  const state = useProfile(target.userId);
-  const profile = state.kind === 'ready' ? state.profile : null;
-  const user = users[target.userId];
-  const name =
-    user?.displayName ??
-    profile?.user.global_name ??
-    profile?.user.username ??
-    t('lounge.profilePopout.profileFallback');
-  const nameOf = (g: string) =>
-    guilds.find((x) => x.id === g)?.name ?? t('lounge.profilePopout.aServer');
-  return (
-    <Modal open onClose={onClose} title={name} size="md">
-      <Banner profile={profile} />
-      <div className="lng-full">
-        {state.kind === 'loading' && <p role="status">{t('lounge.profilePopout.loading')}</p>}
-        {state.kind === 'error' && <p role="alert">{t('lounge.profilePopout.loadError')}</p>}
-        {profile && (
-          <>
-            <p className="lng-pop-handle">
-              {profile.user.username}
-              {profile.user_profile.pronouns ? ` · ${profile.user_profile.pronouns}` : ''}
-            </p>
-            {profile.user_profile.bio && (
-              <section>
-                <h3 className="lng-pop-h">{t('lounge.profilePopout.aboutMe')}</h3>
-                <p className="lng-pop-bio">{profile.user_profile.bio}</p>
-              </section>
-            )}
-            {profile.friends_since && (
-              <p>
-                {t('lounge.profilePopout.friendsSince', {
-                  date: formatDate(new Date(profile.friends_since), { dateStyle: 'medium' }),
-                })}
-              </p>
-            )}
-            <section>
-              <h3 className="lng-pop-h">
-                {t('lounge.profilePopout.mutualServers', {
-                  count: profile.mutual_guilds?.length ?? 0,
-                })}
-              </h3>
-              <ul className="lng-pop-list">
-                {(profile.mutual_guilds ?? []).map((g) => (
-                  <li key={g.id}>
-                    <strong>{nameOf(g.id)}</strong>
-                    {g.nick ? (
-                      <span className="lng-muted">
-                        {t('lounge.profilePopout.asNick', { nick: g.nick })}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
-            <section>
-              <h3 className="lng-pop-h">
-                {t('lounge.profilePopout.mutualFriends', {
-                  count: profile.mutual_friends_count ?? profile.mutual_friends?.length ?? 0,
-                })}
-              </h3>
-              <ul className="lng-pop-list">
-                {(profile.mutual_friends ?? []).map((f) => (
-                  <li key={f.id}>{f.global_name || f.username}</li>
-                ))}
-              </ul>
-            </section>
-            {profile.connected_accounts.length > 0 && (
-              <section>
-                <h3 className="lng-pop-h">{t('lounge.profilePopout.connections')}</h3>
-                <ul className="lng-pop-list">
-                  {profile.connected_accounts.map((c) => (
-                    <li key={c.id}>
-                      {c.name} <span className="lng-muted">({c.type})</span>
-                      {c.verified && (
-                        <Icon name="check" size={16} label={t('lounge.profilePopout.verified')} />
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-          </>
-        )}
-      </div>
-    </Modal>
   );
 }
 

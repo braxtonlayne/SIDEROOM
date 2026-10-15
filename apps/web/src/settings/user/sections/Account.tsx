@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '../../../api/client';
 import { useT } from '../../../i18n';
 import { cdnUrl } from '../../../store';
+import { useStreamer } from '../prefs';
 import {
   changePassword,
   errorText,
@@ -462,7 +463,10 @@ function PasswordCard({ me }: { me: Me }) {
 
 function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
   const t = useT();
-  const [reveal, setReveal] = useState(false);
+  const [revealed, setReveal] = useState(false);
+  // Streamer Mode (hide personal info) keeps the email masked and takes the Reveal button away.
+  const streamerHides = useStreamer().personal;
+  const reveal = revealed && !streamerHides;
   const [editName, setEditName] = useState(false);
   const [editUser, setEditUser] = useState(false);
   const [changing, setChanging] = useState(false);
@@ -517,14 +521,16 @@ function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
         </Field>
         <Field label={t('settings.account.email')}>
           <span>{reveal ? email : masked}</span>{' '}
-          <Button
-            variant="link"
-            size="sm"
-            aria-pressed={reveal}
-            onClick={() => setReveal((r) => !r)}
-          >
-            {reveal ? t('settings.account.hide') : t('settings.account.reveal')}
-          </Button>{' '}
+          {!streamerHides && (
+            <Button
+              variant="link"
+              size="sm"
+              aria-pressed={reveal}
+              onClick={() => setReveal((r) => !r)}
+            >
+              {reveal ? t('settings.account.hide') : t('settings.account.reveal')}
+            </Button>
+          )}{' '}
           <Button variant="link" size="sm" onClick={() => setChanging(true)}>
             {t('settings.account.changeEmail')}
           </Button>

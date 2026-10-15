@@ -8,11 +8,12 @@ import {
   useToast,
 } from '@sideroom/ui';
 import { useState } from 'react';
-import { useT } from '../../../i18n';
+import { LOCALES as UI_LOCALES, setLocale, useLocale, useT } from '../../../i18n';
+import pkg from '../../../../package.json';
 import { useLoungeUi } from '../../../lounge/store';
 import { rest, useStore } from '../../../store';
 import { errorText } from '../api';
-import { Card, SectionTitle } from '../parts';
+import { Card, Field, SectionTitle } from '../parts';
 import type { TimeFormat } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
 
@@ -45,9 +46,31 @@ export function LanguageSection({ prefs, setPrefs }: PrefsFormProps) {
   const sample = new Date(2026, 0, 31, 15, 5);
   const locale = prefs.locale === 'auto' ? undefined : prefs.locale;
   const hour12 = prefs.timeFormat === 'auto' ? undefined : prefs.timeFormat === '12h';
+  const { locale: uiLocale } = useLocale();
+  // The pseudo-languages are for testing the layout; they show only in app test mode (or a dev build).
+  const uiOptions = UI_LOCALES.filter(
+    (l) => !l.pseudo || prefs.appTestMode || import.meta.env.DEV,
+  ).map((l) => ({ value: l.code, label: l.label }));
   return (
     <>
       <SectionTitle>{t('settings.app.languageTitle')}</SectionTitle>
+      <Card
+        id="us-ui-lang"
+        title={t('settings.app.uiLanguage')}
+        description={t('settings.app.uiLanguageDesc')}
+      >
+        <div className="us-stack">
+          <label className="us-muted" id="us-ui-lang-label">
+            {t('settings.app.uiLanguageLabel')}
+          </label>
+          <Select
+            aria-labelledby="us-ui-lang-label"
+            options={uiOptions}
+            value={uiLocale}
+            onValueChange={(v) => void setLocale(v)}
+          />
+        </div>
+      </Card>
       <Card id="us-lang" title={t('settings.app.languageRegion')}>
         <div className="us-stack">
           <label className="us-muted" id="us-lang-label">
@@ -172,6 +195,28 @@ function ResetCard() {
   );
 }
 
+/** What to paste into a bug report: build, language, browser and the state of the connection. */
+function Diagnostics() {
+  const t = useT();
+  const { locale } = useLocale();
+  const rows: [string, string][] = [
+    [t('settings.app.diagVersion'), pkg.version],
+    [t('settings.app.diagLocale'), locale],
+    [t('settings.app.diagOnline'), navigator.onLine ? t('settings.app.yes') : t('settings.app.no')],
+    [t('settings.app.diagViewport'), `${window.innerWidth} x ${window.innerHeight}`],
+    [t('settings.app.diagAgent'), navigator.userAgent],
+  ];
+  return (
+    <dl className="us-gap" aria-label={t('settings.app.diagTitle')}>
+      {rows.map(([k, v]) => (
+        <Field key={k} label={k}>
+          <code>{v}</code>
+        </Field>
+      ))}
+    </dl>
+  );
+}
+
 export function AdvancedSection({ prefs, setPrefs }: PrefsFormProps) {
   const t = useT();
   return (
@@ -184,6 +229,18 @@ export function AdvancedSection({ prefs, setPrefs }: PrefsFormProps) {
           checked={prefs.developerMode}
           onChange={(e) => setPrefs({ developerMode: e.target.checked })}
         />
+      </Card>
+      <Card
+        id="us-test-mode"
+        title={t('settings.app.testMode')}
+        description={t('settings.app.testModeDesc')}
+      >
+        <Switch
+          label={t('settings.app.testMode')}
+          checked={prefs.appTestMode}
+          onChange={(e) => setPrefs({ appTestMode: e.target.checked })}
+        />
+        {prefs.appTestMode && <Diagnostics />}
       </Card>
       <ResetCard />
     </>

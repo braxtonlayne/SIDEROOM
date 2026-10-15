@@ -1,0 +1,58 @@
+/* Command form, interaction modal and ephemeral notice (DEV-BOT-008/010/011). Logical properties only. */
+.lng-appform {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sr-space-3, 12px);
+}
+.lng-appform-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lng-appform-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.lng-appform-hint {
+  color: var(--sr-text-muted, #8a8f98);
+  font-size: 0.8125rem;
+}
+.lng-appform-select {
+  min-block-size: 36px;
+  padding-inline: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--sr-border, #3a3f47);
+  background: var(--sr-surface-2, transparent);
+  color: inherit;
+  font: inherit;
+}
+.lng-appform-error {
+  color: var(--sr-danger, #e5484d);
+  font-size: 0.8125rem;
+}
+.lng-appform-note {
+  margin: 0;
+  padding: 8px 12px;
+  border-inline-start: 3px solid var(--sr-warning, #f5a524);
+  background: var(--sr-surface-2, transparent);
+  font-size: 0.875rem;
+}
+
+.lng-ephemeral {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 4px;
+  color: var(--sr-text-muted, #8a8f98);
+  font-size: 0.8125rem;
+}
+.lng-ephemeral-dismiss {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sr-link, #5aa9ff);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}

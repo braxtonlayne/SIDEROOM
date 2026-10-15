@@ -11,7 +11,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-SHL-006** [FE] Quick Switcher (Ctrl/⌘+K): fuzzy search of DMs, channels, servers, users; prefixes `@ # ! *`; recent list
 - [x] **LNG-SHL-007** [FE] Keyboard shortcut system + shortcut sheet modal (Ctrl+/)
 - [x] **LNG-SHL-008** [FE] Connection state banner ("Connecting…", "Reconnecting…", offline mode)
-- [ ] **LNG-SHL-009** [FE] App-level notices bar (verify email, update available, platform announcements)
+- [x] **LNG-SHL-009** [FE] App-level notices bar (verify email, update available, platform announcements) *(`shell/Banners.tsx` NoticesBar: verify email, PWA update waiting, `GET /announcements/active` with per-browser dismissal; test `p11ShellNotices.test.tsx`)*
 - [x] **LNG-SHL-010** [FE] Mobile layout: swipeable panes (list ↔ chat ↔ members), bottom tab bar (Home, Notifications, You)
 - [x] **LNG-SHL-011** [FE] Drag-and-drop file overlay on the chat column
 - [x] **LNG-SHL-012** [FE] Global modals host + context-menu host + popout host (profile popouts)
@@ -27,17 +27,17 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-RAIL-008** [FE] Folders: create by drag-onto, expand/collapse, name, color, folder unread aggregation, folder settings modal *(folders sync as `guild_folders` in the user settings blob, D-179)*
 - [x] **LNG-RAIL-009** [FE] Staff Server special frame/badge
 - [x] **LNG-RAIL-010** [FE] "+" Add a Server button → Create Server modal
-- [ ] **LNG-RAIL-011** [FE] Discover (compass) button → Server Directory
-- [ ] **LNG-RAIL-012** [FE] Guild context menu: Mark As Read, Invite People, Mute Server ▸ (durations), Notification Settings ▸, Hide Muted Channels, Server Settings ▸ (shortcuts), Privacy Settings, Edit Per-server Profile, Create Channel/Category/Event, Leave Server, Copy Server ID
+- [x] **LNG-RAIL-011** [FE] Discover (compass) button → Server Directory *(`lounge/shell/DirectoryDialog.tsx` over `GET /directory`, `POST /directory/{id}/join`; a modal, not a routed page; test `p11ShellDirectory.test.tsx`)*
+- [x] **LNG-RAIL-012** [FE] Guild context menu: Mark As Read, Invite People, Mute Server ▸ (durations), Notification Settings ▸, Hide Muted Channels, Server Settings ▸ (shortcuts), Privacy Settings, Edit Per-server Profile, Create Channel/Category/Event, Leave Server, Copy Server ID *(`useGuildMenu.ts`, `GuildProfileDialog.tsx`; Create Event stays disabled: no scheduled-events API; Privacy Settings opens the user Privacy section; test `p11ShellRail.test.tsx`)*
 - [x] **LNG-RAIL-013** [FE] Voice-connected indicator on guild icon (speaker glyph) and live indicator
 - [x] **LNG-RAIL-014** [FE] "NEW" badge on recently joined servers
-- [ ] **LNG-RAIL-015** [FE] PWA install prompt replacing "Download apps" button
+- [x] **LNG-RAIL-015** [FE] PWA install prompt replacing "Download apps" button *(`shell/InstallButton.tsx` in the rail: browser install prompt, iOS Add to Home Screen steps; test `p11ShellInstall.test.tsx`)*
 
 ## LNG-HOME — Home sidebar & user panel
 - [x] **LNG-HOME-001** [FE] "Find or start a conversation" button → Quick Switcher
 - [x] **LNG-HOME-002** [FE] Friends nav item (pending-count badge)
 - [x] **LNG-HOME-003** [FE] Message Requests nav item (count)
-- [ ] **LNG-HOME-004** [FE] Optional "Support SIDE ROOM" nav item (operator toggle). **No Nitro / Shop / Quests**
+- [x] **LNG-HOME-004** [FE] Optional "Support SIDE ROOM" nav item (operator toggle). **No Nitro / Shop / Quests** *(`HomeSidebar.tsx` shows it when `GET /donations/config` says `enabled`; opens User Settings > Support; test `p11ShellHome.test.tsx`)*
 - [x] **LNG-HOME-005** [FE] "Direct Messages" header + "+" Create DM picker (friend search, multi-select ≤ 9 others, "Create DM/Group DM", copy group invite link) *(group invite link not built; needs a backend route)*
 - [x] **LNG-HOME-006** [FE] DM row: avatar + status, name, server-tag chip, activity subline (custom status, game, watching/reading, "Glooping…"), close "×" on hover
 - [x] **LNG-HOME-007** [FE] Group DM row (icon or avatar collage, member count subline)
@@ -45,8 +45,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-HOME-009** [FE] DM list ordering by last message, virtualized
 - [x] **LNG-HOME-010** [FE] User panel: avatar w/ status (click → status picker & account switcher popout), name, custom status line *(no account switcher yet)*
 - [x] **LNG-HOME-011** [FE] Status picker popout: Online, Idle, Do Not Disturb (with durations), Invisible; Set custom status (emoji + text + clear-after) *(custom status has text and clear-after, no emoji yet)*
-- [ ] **LNG-HOME-012** [FE] Mic toggle + dropdown (input devices, input volume, "Voice settings")
-- [ ] **LNG-HOME-013** [FE] Headphone toggle + dropdown (output devices, output volume)
+- [x] **LNG-HOME-012** [FE] Mic toggle + dropdown (input devices, input volume, "Voice settings") *(`shell/DevicePopover.tsx` arrow beside the mic in `UserPanel.tsx`; test `p11ShellDevices.test.tsx`)*
+- [x] **LNG-HOME-013** [FE] Headphone toggle + dropdown (output devices, output volume) *(same popover for output; device switch needs `setSinkId`, the popover says so otherwise)*
 - [x] **LNG-HOME-014** [FE] Settings gear → User Settings
 - [x] **LNG-HOME-015** [FE] Copy username on name click (toast "Copied!")
 
@@ -63,33 +63,34 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-FRD-010** [FE] Pending tab: incoming (accept ✓ / ignore ✕), outgoing (cancel)
 - [x] **LNG-FRD-011** [FE] Add Friend tab: input, submit, success/error states, empty-state art *(icon empty states, no custom art)*
 - [x] **LNG-FRD-012** [FE] Empty states per tab (original illustrations) *(icon empty states, no custom illustrations)*
-- [ ] **LNG-FRD-013** [FE] Active Now column: voice-channel card (members avatars, "+N", server), stream card (thumbnail, LIVE, "Sharing their screen"), game card (platform icon), watching/reading card, party card (Join)
+- [x] **LNG-FRD-013** [FE] Active Now column: voice-channel card (members avatars, "+N", server), stream card (thumbnail, LIVE, "Sharing their screen"), game card (platform icon), watching/reading card, party card (Join) *(`shell/ActiveNow.tsx` + `activeNowModel.ts`; voice and stream cards from voice states, watching/reading/game cards from rich activities, party card from `activity.party.id`; `SR_ACTIVITY_UPDATE` folded into presence; no stream thumbnail yet; test `p11ShellActiveNow.test.tsx`)*
 - [x] **LNG-FRD-014** [FE] Active Now empty state ("It's quiet for now…")
 
 ## LNG-DM — Direct & group messages
 - [x] **LNG-DM-001** [BE] Create/open DM (`POST /users/@me/channels`), group DM create/add/remove recipient/rename/icon/leave/transfer owner
 - [x] **LNG-DM-002** [BE] DM permission rules (blocked users, "allow DMs from server members" setting, message requests)
 - [x] **LNG-DM-003** [BE] Message Requests inbox (accept, ignore, block, spam folder)
-- [ ] **LNG-DM-004** [FE] DM header: avatar + name (click → profile), call, video, pins, add friends to DM, profile panel toggle, search "Search <username>"
-- [ ] **LNG-DM-005** [FE] DM welcome header ("This is the beginning of your direct message history with @x", mutual servers, Remove Friend/Block buttons)
-- [ ] **LNG-DM-006** [FE] DM right profile panel (banner, avatar, name, username • pronouns, badges, add-friend & ⋯ buttons, bio, Member Since, mutual friends/servers summary row, View Full Profile)
-- [ ] **LNG-DM-007** [FE] Group DM member list panel + invite link (owner) + group settings (name, icon)
+- [x] **LNG-DM-004** [FE] DM header: avatar + name (click → profile), call, video, pins, add friends to DM, profile panel toggle, search "Search <username>" *(ChannelHeader `dm` actions, `shell/dmCall.ts`, add-friends via CreateDmDialog `addTo`; test p11ShellDm.test.tsx)*
+- [x] **LNG-DM-005** [FE] DM welcome header ("This is the beginning of your direct message history with @x", mutual servers, Remove Friend/Block buttons) *(`shell/DmWelcome.tsx`)*
+- [x] **LNG-DM-006** [FE] DM right profile panel (banner, avatar, name, username • pronouns, badges, add-friend & ⋯ buttons, bio, Member Since, mutual friends/servers summary row, View Full Profile) *(`shell/DmPanels.tsx` UserProfilePanel)*
+- [x] **LNG-DM-007** [FE] Group DM member list panel + invite link (owner) + group settings (name, icon) *(`shell/DmPanels.tsx` GroupPanel; the invite link calls `POST /channels/{id}/invites` on the group, a contract the backend does not serve yet, so the panel says links are not available; group icon uses `/cdn/icons/{channel}/{hash}`)*
 - [x] **LNG-DM-008** [FE] Message Requests page (list, preview, accept/ignore/block, spam tab) *(no message preview and no spam tab: the API has no spam listing)*
-- [ ] **LNG-DM-009** [FE] Blocked-user message collapse ("1 blocked message — Show")
+- [x] **LNG-DM-009** [FE] Blocked-user message collapse ("1 blocked message — Show") *(already built as the hidden-run row, LNG-MSGUI-032; DM test in p11ShellDm.test.tsx)*
 
 ## LNG-PRF — Profiles
-- [ ] **LNG-PRF-001** [DB] Profile fields (avatar, banner, accent colors, bio, pronouns, decoration, effect, per-guild overrides)
-- [ ] **LNG-PRF-002** [BE] `GET /users/{id}/profile` (mutuals, connections, badges, member since, friends since, guild member profile)
-- [ ] **LNG-PRF-003** [FE] Profile popout (mini): banner, avatar/status, name, username, pronouns, badges, custom status bubble, roles (guild), note, "Message @x" input, View Full Profile
-- [ ] **LNG-PRF-004** [FE] Full profile modal: banner, avatar, name, `username • pronouns`, badges row, Message button, add-friend/friends icon, ⋯ menu
-- [ ] **LNG-PRF-005** [FE] Full profile left column: bio (markdown), Member Since, Friends Since, Connections list (icon, account name, ↗, optional stats line), Note
-- [ ] **LNG-PRF-006** [FE] Full profile right tabs: Activity (empty-state "So mysterious! ask them to tell you a secret" + Message), N Mutual Friends, N Mutual Servers, Watching & Reading, Reviews
-- [ ] **LNG-PRF-007** [FE] Profile ⋯ menu: Copy Username, Invite to Server ▸, Add Note, Remove Friend, Ignore, Block, Report (disabled flag), Copy User ID
-- [ ] **LNG-PRF-008** [FE] Badges system (Staff, Owner, Patron, Contributor tiers, Early Member, App Developer, Server Tag) + tooltips
-- [ ] **LNG-PRF-009** [FE] Avatar decorations & profile effects (free, from approved packs)
-- [ ] **LNG-PRF-010** [FE] Profile theme colors (two-color gradient) applied to popout/modal
-- [ ] **LNG-PRF-011** [FE] Per-server profile rendering in guild context
+- [x] **LNG-PRF-001** [DB] Profile fields (avatar, banner, accent colors, bio, pronouns, decoration, effect, per-guild overrides) *(accounts.avatar_decoration, profile_effect, theme_*; per-server fields already on guild_members; migration 0660; tests profile_be.rs)*
+- [x] **LNG-PRF-002** [BE] `GET /users/{id}/profile` (mutuals, connections, badges, member since, friends since, guild member profile) *(GET /users/{id}/profile adds badges, member_since, guild_member_profile via ?guild_id=; social tests)*
+- [x] **LNG-PRF-003** [FE] Profile popout (mini): banner, avatar/status, name, username, pronouns, badges, custom status bubble, roles (guild), note, "Message @x" input, View Full Profile *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-004** [FE] Full profile modal: banner, avatar, name, `username • pronouns`, badges row, Message button, add-friend/friends icon, ⋯ menu *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-005** [FE] Full profile left column: bio (markdown), Member Since, Friends Since, Connections list (icon, account name, ↗, optional stats line), Note *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-006** [FE] Full profile right tabs: Activity (empty-state "So mysterious! ask them to tell you a secret" + Message), N Mutual Friends, N Mutual Servers, Watching & Reading, Reviews *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-007** [FE] Profile ⋯ menu: Copy Username, Invite to Server ▸, Add Note, Remove Friend, Ignore, Block, Report (disabled flag), Copy User ID *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-008** [FE] Badges system (Staff, Owner, Patron, Contributor tiers, Early Member, App Developer, Server Tag) + tooltips *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-009** [FE] Avatar decorations & profile effects (free, from approved packs) *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-010** [FE] Profile theme colors (two-color gradient) applied to popout/modal *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-011** [FE] Per-server profile rendering in guild context *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
 - [x] **LNG-PRF-012** [BE] User notes CRUD (private)
 - [ ] **LNG-PRF-013** [BE][FE] Presence: status, custom status, activities (game, watching, reading, listening), client platform icons (web/mobile)
-- [ ] **LNG-PRF-014** [GW] `PRESENCE_UPDATE` fan-out (friends + shared guilds, intent-filtered)
-- [ ] **LNG-PRF-015** [BE] Idle detection (client reports AFK after 10 min) + multi-session presence merging
+   - Backend done (sanitised activities incl. type 6 Reading, client_status per platform, custom status); the FE half belongs to the shell agent.
+- [x] **LNG-PRF-014** [GW] `PRESENCE_UPDATE` fan-out (friends + shared guilds, intent-filtered) *(fan-out to friends and shared guilds already existed; now carries client_status and the merged sessions; gateway tests)*
+- [x] **LNG-PRF-015** [BE] Idle detection (client reports AFK after 10 min) + multi-session presence merging *(sr-gateway presence.rs: per-session afk/idle merge; gateway tests)*

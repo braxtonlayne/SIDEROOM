@@ -12,6 +12,7 @@
 //! is not decoded (D-169) and is reported by [`is_avif`]. Input is bounded by
 //! [`PageLimits`] before pixels are decoded.
 
+use super::crop::{PageCrop, detect_border};
 use ::image::{RgbaImage, imageops::FilterType};
 use sr_storage::img::{self, Decoded, ImgError, ImgFormat, Limits};
 
@@ -65,6 +66,8 @@ pub struct ProcessedPage {
     pub variants: Vec<VariantImage>,
     pub blurhash: String,
     pub is_double_spread: bool,
+    /// Uniform borders found on the page, when there are any worth cropping (LIB-ING-007).
+    pub crop: Option<PageCrop>,
     /// Format of the source file.
     pub source: ImgFormat,
 }
@@ -193,6 +196,7 @@ pub fn process_page_sized(
         variants,
         blurhash: blurhash_of(&rgba)?,
         is_double_spread: is_spread(width, height),
+        crop: detect_border(&rgba),
         source: probe.format,
     })
 }

@@ -348,12 +348,15 @@ pub fn router() -> Router<AppState> {
     Router::new()
         // Members.
         .route("/submissions/kinds", get(member::kinds))
+        .route("/submissions/quota", get(member::quota))
+        .route("/submissions/naming/parse", post(member::naming_parse))
         .route("/submissions", get(member::list).post(member::create))
         .route(
             "/submissions/{submission_id}",
             get(member::get).patch(member::update),
         )
         .route("/submissions/{submission_id}/preview", get(member::preview))
+        .route("/submissions/{submission_id}/credits", get(member::credits))
         .route("/submissions/{submission_id}/submit", post(member::submit))
         .route(
             "/submissions/{submission_id}/withdraw",
@@ -399,6 +402,10 @@ pub fn router() -> Router<AppState> {
             put(requests::vote).delete(requests::unvote),
         )
         .route("/requests/{request_id}/fulfil", post(requests::fulfil))
+        .route(
+            "/requests/{request_id}/claim",
+            put(requests::claim).delete(requests::release),
+        )
         // Reviewers.
         .route("/admin/review/queue", get(reviewer::queue))
         .route(
@@ -450,6 +457,14 @@ pub fn router() -> Router<AppState> {
             post(reviewer::publish_now),
         )
         .route(
+            "/admin/review/submissions/{submission_id}/credits",
+            get(reviewer::credits),
+        )
+        .route(
+            "/admin/review/submissions/{submission_id}/revoke-credits",
+            post(reviewer::revoke_credits),
+        )
+        .route(
             "/admin/review/requests/{request_id}/decline",
             post(requests::decline),
         )
@@ -468,6 +483,9 @@ pub fn router() -> Router<AppState> {
         member::submit,
         member::withdraw,
         member::comment,
+        member::quota,
+        member::naming_parse,
+        member::credits,
         library::update_series,
         library::chapters,
         library::create_chapter,
@@ -484,6 +502,8 @@ pub fn router() -> Router<AppState> {
         requests::vote,
         requests::unvote,
         requests::fulfil,
+        requests::claim,
+        requests::release,
         requests::decline,
         reviewer::queue,
         reviewer::get,
@@ -497,13 +517,28 @@ pub fn router() -> Router<AppState> {
         reviewer::approve,
         reviewer::publish,
         reviewer::publish_now,
+        reviewer::credits,
+        reviewer::revoke_credits,
     ),
     components(schemas(
         ErrorBody,
         member::PreviewBody,
+        member::NamingParseBody,
+        member::NamingParseItem,
+        member::NamingParseResult,
+        sr_media::naming::ParsedVideoName,
+        sr_media::naming::Role,
+        sr_media::naming::Media,
+        sr_media::naming::ArtworkKind,
+        sr_reader::naming::ParsedReaderName,
+        sr_reader::naming::ReaderRole,
         requests::CreateRequestBody,
         requests::FulfilBody,
         reviewer::ClaimBody,
+        reviewer::RevokeCreditsBody,
+        reviewer::RevokedCredits,
+        sr_review::model::Credit,
+        sr_review::model::UploadAllowance,
         sr_review::model::SubmissionState,
         sr_review::model::ItemState,
         sr_review::model::Submission,
@@ -520,6 +555,7 @@ pub fn router() -> Router<AppState> {
         sr_review::model::RequestStatus,
         sr_review::model::ContentRequest,
         sr_review::model::RequestPage,
+        sr_review::model::ClaimRequestInput,
         sr_library::model::SeriesInput,
         sr_library::model::Series,
         sr_library::model::ChapterInput,

@@ -539,6 +539,30 @@ export function reduceDispatch(
       return { users: addUser(s.users, d) };
     case 'PRESENCE_UPDATE':
       return { presences: putPresences(s, [d]) };
+    case 'SR_ACTIVITY_UPDATE': {
+      // "Watching" presence for friends (docs/05 6.3): fold the activity into the person's presence, replacing any
+      // earlier Watching one; `stopped` removes it. A missed `stopped` is covered by `expires_at_ms`.
+      const userId = str(d.user_id);
+      if (!userId) return {};
+      const prev = s.presences[userId] ?? {
+        user_id: userId,
+        status: 'online' as PresenceStatus,
+        activities: [],
+      };
+      const others = (prev.activities as Obj[]).filter((a) => a.type !== 3);
+      const activity = d.type === 'watching' ? (d.activity as Obj | undefined) : undefined;
+      const merged = activity
+        ? [
+            ...others,
+            {
+              ...activity,
+              type: 3,
+              ...(d.expires_at_ms ? { expires_at_ms: d.expires_at_ms } : {}),
+            },
+          ]
+        : others;
+      return { presences: { ...s.presences, [userId]: { ...prev, activities: merged } } };
+    }
     case 'TYPING_START': {
       const channelId = str(d.channel_id);
       const userId = str(d.user_id);

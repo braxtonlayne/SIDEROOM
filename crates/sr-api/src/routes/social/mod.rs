@@ -206,3 +206,41 @@ pub struct SocialApi;
 pub fn openapi() -> utoipa::openapi::OpenApi {
     SocialApi::openapi()
 }
+
+/// Tell everyone who knew the account that it is gone (LNG-USET-007): friends get
+/// `RELATIONSHIP_REMOVE`, every server it was in gets the member leave, and the account's
+/// own open sessions get `SR_ACCOUNT_DELETED` so other tabs sign out. Best effort.
+pub async fn announce_account_deleted(
+    deps: &SocialDeps,
+    account: i64,
+    done: &sr_auth::store::DeletedAccount,
+) {
+    use sr_core::{GuildId, UserId};
+    let to_user = |raw: i64| u64::try_from(raw).ok().map(UserId::new);
+    let Some(me) = to_user(account) else { return };
+    for friend in done.friends.iter().filter_map(|f| to_user(*f)) {
+        deps.emit(events::SocialEvent::new(
+            "RELATIONSHIP_REMOVE",
+            vec![friend],
+            serde_json::json!({ "id": me.to_string(), "type": 1, "nickname": null }),
+        ))
+        .await;
+    }
+    for guild in done
+        .guilds_left
+        .iter()
+        .filter_map(|g| u64::try_from(*g).ok())
+    {
+        deps.emit_domain(sr_events::DomainEvent::MemberLeft {
+            guild: GuildId::new(guild),
+            user: me,
+        })
+        .await;
+    }
+    deps.emit(events::SocialEvent::new(
+        "SR_ACCOUNT_DELETED",
+        vec![me],
+        serde_json::json!({ "user_id": me.to_string() }),
+    ))
+    .await;
+}

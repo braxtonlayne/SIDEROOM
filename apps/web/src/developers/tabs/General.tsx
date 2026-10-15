@@ -8,6 +8,7 @@ import { useDeleteApp, usePatchApp } from '../hooks';
 import { policyUrlError } from '../oauth';
 import type { DevApp } from '../types';
 import { PasswordConfirm } from '../ui';
+import { InteractionsEndpointCard } from './InteractionsEndpoint';
 
 const MAX_ICON_BYTES = 2 * 1024 * 1024;
 
@@ -195,6 +196,8 @@ export function GeneralTab({ app }: { app: DevApp }) {
           }
         />
       </section>
+
+      <InteractionsEndpointCard app={app} />
 
       <section className="dev-card dev-danger" aria-labelledby="dev-delete-h">
         <h2 id="dev-delete-h" className="dev-card-title">

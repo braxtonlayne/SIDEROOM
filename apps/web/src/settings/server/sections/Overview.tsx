@@ -263,7 +263,6 @@ function OverviewForm({
       <section className="ss-card" aria-labelledby="ss-not-backed">
         <h2 id="ss-not-backed">{t('settings.overview.notBackedTitle')}</h2>
         <NotAvailable>{t('settings.overview.vanity')}</NotAvailable>
-        <NotAvailable>{t('settings.overview.tag')}</NotAvailable>
         <NotAvailable>{t('settings.overview.traits')}</NotAvailable>
       </section>
     </div>

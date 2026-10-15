@@ -1,55 +1,22 @@
-import { useToast } from '@sideroom/ui';
 import { useContext, useEffect } from 'react';
-import { useT } from '../../i18n';
 import { LoungeDataContext } from '../data';
-import { useLoungeGoto } from '../nav';
-import { dueReminders, useSaved, useSavedSync } from './savedMessages';
+import { useSaved } from './savedMessages';
 
-export const REMINDER_CHECK_MS = 15_000;
+/** How often the lists are refreshed while the Lounge is open (reminders delivered and messages sent drop off). */
+export const SAVED_REFRESH_MS = 60_000;
 
 /**
- * Shows reminders when they come due (LNG-MSGUI-026 Remind Me). Mounted once in the shell: it also keeps the
- * saved maps in step with the settings blob. Reminders that fell due while the app was closed show on load.
+ * Keeps the bookmarks, reminders and scheduled messages loaded (FTR-BKM-001, FTR-REM-001, FTR-SCH-001). Mounted
+ * once in the shell. Reminders are delivered by the server as a direct message, so nothing fires here any more.
  */
 export function ReminderTicker() {
-  const t = useT();
   const mock = useContext(LoungeDataContext);
-  const toast = useToast();
-  const goto = useLoungeGoto();
-  useSavedSync(!mock);
-  // Re-check whenever the list changes (the settings blob loads after mount; a new reminder may be due).
-  const reminders = useSaved((s) => s.reminders);
-
   useEffect(() => {
     if (mock) return;
-    const check = () => {
-      const { reminders, dismissReminder } = useSaved.getState();
-      for (const r of dueReminders(reminders)) {
-        dismissReminder(r.message_id);
-        toast.show({
-          title: t('lounge.reminderTicker.title'),
-          description: (
-            <>
-              <strong>{r.author}</strong>: {r.preview}{' '}
-              <a
-                href={`/channels/${r.guild_id ?? '@me'}/${r.channel_id}/${r.message_id}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  goto(r.guild_id ?? '@me', r.channel_id);
-                }}
-              >
-                {t('lounge.reminderTicker.goToMessage')}
-              </a>
-            </>
-          ),
-          variant: 'info',
-          duration: 0,
-        });
-      }
-    };
-    check();
-    const timer = setInterval(check, REMINDER_CHECK_MS);
+    const load = () => void useSaved.getState().load();
+    load();
+    const timer = setInterval(load, SAVED_REFRESH_MS);
     return () => clearInterval(timer);
-  }, [mock, toast, goto, reminders, t]);
+  }, [mock]);
   return null;
 }

@@ -26,6 +26,7 @@ futures = "0.3"
 sr-storage = { path = "../sr-storage" }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "fs", "io-util"] }
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "perf"] }
 tracing = "0.1"
 utoipa = "5"
 

@@ -9,12 +9,13 @@ import {
   SegmentedControl,
   Skeleton,
 } from '@sideroom/ui';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useT, type MessageKey } from '../i18n';
 import { getFollows, getUpdates } from './api';
 import { progressApi, progressLine } from './progress';
+import { getUnread, socialKeys } from './social';
 import type { Shelf } from './types';
 import { AgeBadge, SeriesCard, timeAgo, updateLine } from './ui';
 
@@ -134,18 +135,55 @@ const SHELVES: { value: Shelf; labelKey: MessageKey }[] = [
   { value: 'dropped', labelKey: 'library.pages.shelf.dropped' },
 ];
 
-/** My library: the followed series by shelf (LIB-SOC-008 will add unread counts and sorting). */
+type LibrarySort = 'followed' | 'updated' | 'title' | 'unread' | 'read';
+
+/** My library: the followed series by shelf, with unread counts and sorting (LIB-SOC-008). */
 export function MyLibraryPage() {
   const t = useT();
   const [shelf, setShelf] = useState<Shelf | null>(null);
+  const [sort, setSort] = useState<LibrarySort>('followed');
   const q = useQuery({
     queryKey: ['library', 'follows', shelf, 'page'],
     queryFn: () => getFollows({ shelf: shelf ?? undefined, limit: 60 }),
   });
+  const unread = useQuery({ queryKey: socialKeys.unread(), queryFn: getUnread });
+  const counts = useMemo(
+    () => new Map((unread.data?.items ?? []).map((u) => [u.series_id, u])),
+    [unread.data],
+  );
+  const items = useMemo(() => {
+    const list = [...(q.data?.items ?? [])];
+    const un = (id: string) => counts.get(id)?.unread ?? 0;
+    const read = (id: string) => counts.get(id)?.last_read_at_ms ?? 0;
+    switch (sort) {
+      case 'title':
+        return list.sort((a, b) => a.series.title.localeCompare(b.series.title));
+      case 'updated':
+        return list.sort(
+          (a, b) => (b.series.last_chapter_at_ms ?? 0) - (a.series.last_chapter_at_ms ?? 0),
+        );
+      case 'unread':
+        return list.sort((a, b) => un(b.series.id) - un(a.series.id));
+      case 'read':
+        return list.sort((a, b) => read(b.series.id) - read(a.series.id));
+      default:
+        return list.sort((a, b) => b.follow.created_at_ms - a.follow.created_at_ms);
+    }
+  }, [q.data, sort, counts]);
   return (
     <div className="lib-mylib">
       <div className="lib-page-head">
         <h1 className="lib-h1">{t('library.pages.myLibrary.title')}</h1>
+        <label className="lib-select">
+          <span>{t('library.pages.myLibrary.sort')}</span>
+          <select value={sort} onChange={(e) => setSort(e.target.value as LibrarySort)}>
+            <option value="followed">{t('library.pages.myLibrary.sortFollowed')}</option>
+            <option value="read">{t('library.pages.myLibrary.sortRead')}</option>
+            <option value="updated">{t('library.pages.myLibrary.sortUpdated')}</option>
+            <option value="unread">{t('library.pages.myLibrary.sortUnread')}</option>
+            <option value="title">{t('library.pages.myLibrary.sortTitle')}</option>
+          </select>
+        </label>
       </div>
       <FilterChips
         label={t('library.pages.myLibrary.shelf')}
@@ -169,9 +207,16 @@ export function MyLibraryPage() {
         />
       ) : (
         <div className="lib-grid">
-          {q.data.items.map((f) => (
-            <SeriesCard key={f.series.id} series={f.series} />
-          ))}
+          {items.map((f) => {
+            const n = counts.get(f.series.id)?.unread ?? 0;
+            return (
+              <SeriesCard
+                key={f.series.id}
+                series={f.series}
+                tag={n > 0 ? t('library.pages.myLibrary.unread', { n }) : undefined}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -181,9 +226,17 @@ export function MyLibraryPage() {
 /** Reading history: everything this device (or, once wired, the account) has opened, newest first. */
 export function HistoryPage() {
   const t = useT();
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ['library', 'recent', 'all'],
     queryFn: () => progressApi.recent(50),
+  });
+  const remove = useMutation({
+    mutationFn: (chapterId: string) => progressApi.remove(chapterId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['library', 'recent'] });
+      void qc.invalidateQueries({ queryKey: ['library', 'unread'] });
+    },
   });
   return (
     <div className="lib-history">
@@ -231,6 +284,15 @@ export function HistoryPage() {
               >
                 {t('library.pages.history.continue')}
               </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={remove.isPending}
+                aria-label={t('library.pages.history.removeItem', { title: i.seriesTitle })}
+                onClick={() => remove.mutate(i.chapterId)}
+              >
+                <Icon name="close" size={16} />
+              </Button>
             </li>
           ))}
         </ul>

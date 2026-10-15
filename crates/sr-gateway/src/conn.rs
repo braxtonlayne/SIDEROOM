@@ -226,8 +226,8 @@ impl Conn {
             op::PRESENCE_UPDATE => {
                 let upd: PresenceUpdate = serde_json::from_value(p.d)
                     .map_err(|_| Stop::Close(close::DECODE_ERROR, "bad presence"))?;
-                if let Some(s) = &self.session {
-                    self.gw.set_presence(s.user, upd).await;
+                if let Some(s) = self.session.clone() {
+                    self.gw.set_session_presence(&s, upd).await;
                 }
                 Ok(())
             }
@@ -298,10 +298,16 @@ impl Conn {
             .authenticate(&id.token)
             .await
             .map_err(|_| Stop::Close(close::AUTHENTICATION_FAILED, "authentication failed"))?;
-        // There is no sharding: a bot may name shard [0, 1] (what libraries send by default).
-        if user.bot && id.shard.as_deref().is_some_and(|s| s != [0, 1].as_slice()) {
-            return Err(Stop::Close(close::INVALID_SHARD, "invalid shard"));
-        }
+        // A bot may name `[shard_id, shard_count]`; user clients never shard.
+        let shard = match (user.bot, id.shard.as_deref()) {
+            (true, Some(&[i, n])) if (1..=crate::protocol::MAX_SHARDS).contains(&n) && i < n => {
+                Some((i, n))
+            }
+            (true, Some(_)) => {
+                return Err(Stop::Close(close::INVALID_SHARD, "invalid shard"));
+            }
+            (_, _) => None,
+        };
         // User clients send no intents and receive everything.
         let wanted = if user.bot {
             if id.intents & !intents::ALL_KNOWN != 0 {
@@ -318,11 +324,16 @@ impl Conn {
             .session_tx
             .take()
             .ok_or(Stop::Close(close::UNKNOWN_ERROR, "no session channel"))?;
-        let session = self.gw.create_session(&user, wanted, self.id, tx).await;
-        self.session = Some(session);
+        let session = self
+            .gw
+            .create_session(&user, wanted, self.id, tx, shard)
+            .await;
+        self.gw
+            .set_session_platform(&session, crate::presence::platform_of(&id.properties));
+        self.session = Some(session.clone());
         self.touch_seen();
         if let Some(p) = id.presence {
-            self.gw.set_presence(user.user_id, p).await;
+            self.gw.set_session_presence(&session, p).await;
         }
         Ok(())
     }

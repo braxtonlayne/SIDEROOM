@@ -181,6 +181,7 @@ where
                 height: p.height,
                 is_double_spread: p.is_double_spread || name_marks_spread(&name),
                 blurhash: Some(p.blurhash),
+                crop: p.crop,
             })
         }
         .await;

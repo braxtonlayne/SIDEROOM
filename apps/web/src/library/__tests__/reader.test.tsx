@@ -65,6 +65,29 @@ describe('reader', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/library/r/c2'));
   });
 
+  it('rates the chapter from the end card', async () => {
+    useLibraryApi();
+    serveChapter(manifest(1, { reading_direction: 'ltr' }));
+    let sent: unknown = null;
+    server.use(
+      http.get('*/api/v1/library/chapters/c1/rating', () =>
+        HttpResponse.json({ mine: null, average: 8.5, count: 2 }),
+      ),
+      http.put('*/api/v1/library/chapters/c1/rating', async ({ request }) => {
+        sent = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/library/r/c1');
+    await screen.findByTestId('reader-status');
+    await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}');
+    const end = await screen.findByRole('region', { name: 'End of chapter' });
+    expect(await within(end).findByText('Average 8.5 from 2 ratings')).toBeInTheDocument();
+    await user.selectOptions(within(end).getByLabelText('Rate this chapter'), '9');
+    await waitFor(() => expect(sent).toEqual({ score: 9 }));
+  });
+
   it('opens at the page in the URL, else at the saved page', async () => {
     useLibraryApi();
     serveChapter(manifest(1));
@@ -100,6 +123,7 @@ describe('reader', () => {
       bookmarks: () => Promise.resolve([]),
       addBookmark: vi.fn(),
       removeBookmark: vi.fn(),
+      remove: vi.fn(),
     };
     setProgressApi(fake);
     const user = userEvent.setup();

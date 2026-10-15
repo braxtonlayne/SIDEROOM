@@ -67,7 +67,8 @@ impl Actor {
         }
     }
 
-    pub(crate) fn publish(self) -> LibraryResult<()> {
+    /// Whether the actor holds `PUBLISH_READING`.
+    pub fn publish(self) -> LibraryResult<()> {
         self.need(P::PUBLISH_READING, "PUBLISH_READING")
     }
 
@@ -338,6 +339,7 @@ impl LibraryService {
                     height: p.height,
                     is_double_spread: p.is_double_spread,
                     blurhash: p.blurhash,
+                    crop: p.crop,
                     url: self.url(&p.key, exp),
                     variants: p
                         .variants
@@ -362,6 +364,16 @@ impl LibraryService {
     pub async fn page_manifest(&self, v: Viewer, chapter: i64) -> LibraryResult<PageManifest> {
         self.manifest(chapter, Some(v.user_id), v.scope(), v.adult)
             .await
+    }
+
+    /// Series cards for `ids`, in the order given. Series the viewer may not see are dropped.
+    pub async fn cards(&self, v: Viewer, ids: &[i64]) -> LibraryResult<Vec<Series>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = self.repo.series_by_ids(ids, v.scope()).await?;
+        let exp = self.expires_at();
+        Ok(rows.into_iter().map(|r| self.series(r, exp)).collect())
     }
 
     /// Instant search for the top-bar dropdown: series plus matching authors,

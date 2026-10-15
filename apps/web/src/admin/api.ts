@@ -1,12 +1,17 @@
 // REST helpers for the Admin pages: /api/v1/admin/*. Shapes mirror crates/sr-admin (utoipa schemas).
 // Ids are snowflake strings. Mutations never retry on 429 so the staff member sees the error.
 import { apiFetch } from '../api/client';
+import { withReauth } from './reauth';
 
 export { errorText } from '../settings/server/api';
 
+// Every admin call goes through withReauth: guarded actions answer 403 900004 until the staff member has
+// proved a second factor (ADM-STF-009), and the retry happens after the re-auth dialog.
 const send = <T>(path: string, method: string, json?: unknown) =>
-  apiFetch<T>(path, { method, retries: 0, ...(json !== undefined ? { json } : {}) });
-const get = <T>(path: string) => apiFetch<T>(path, { retries: 0 });
+  withReauth(() =>
+    apiFetch<T>(path, { method, retries: 0, ...(json !== undefined ? { json } : {}) }),
+  );
+const get = <T>(path: string) => withReauth(() => apiFetch<T>(path, { retries: 0 }));
 
 const qs = (p: Record<string, string | number | boolean | null | undefined>) => {
   const q = new URLSearchParams();
@@ -462,3 +467,63 @@ export const hideCinemaContent = (
     hidden,
     reason: reason || null,
   });
+
+// ---- second factor window (ADM-STF-009) ----
+
+export interface ReauthStatus {
+  fresh: boolean;
+  enrolled: boolean;
+  window_secs: number;
+  required: boolean;
+}
+/** Not wrapped in withReauth: this is the call the dialog itself makes. */
+export const getReauthStatus = () => apiFetch<ReauthStatus>('/admin/reauth', { retries: 0 });
+export const submitReauth = (method: 'totp' | 'recovery' | 'passkey', code: string) =>
+  apiFetch<ReauthStatus>('/admin/reauth', { method: 'POST', retries: 0, json: { method, code } });
+
+// ---- private content viewer (ADM-COM-003) ----
+
+export interface PrivateChannelRef {
+  id: string;
+  guild_id?: string | null;
+  kind: number;
+  name?: string | null;
+  private: boolean;
+  recipients: AccountRef[];
+}
+export interface PrivateEdit {
+  edited_at_ms: number;
+  previous_content: string;
+}
+export interface PrivateMessage {
+  id: string;
+  author_id: string;
+  author_name: string;
+  content: string;
+  attachment_count: number;
+  created_at_ms: number;
+  edited_at_ms?: number | null;
+  deleted_at_ms?: number | null;
+  edits: PrivateEdit[];
+  /** `visible`, `user_deleted` or `staff_removed`. */
+  visibility: string;
+}
+export interface PrivateMessagePage {
+  channel: PrivateChannelRef;
+  deleted_retention_days: number;
+  items: PrivateMessage[];
+  next_before?: string | null;
+}
+export const readPrivateMessages = (
+  channelId: string,
+  reason: string,
+  before?: string | null,
+  limit = 50,
+) =>
+  get<PrivateMessagePage>(
+    `/admin/private/channels/${channelId}/messages${qs({ reason, before, limit })}`,
+  );
+export const listPrivateDms = (accountId: string, reason: string) =>
+  get<PrivateChannelRef[]>(`/admin/private/accounts/${accountId}/dms${qs({ reason })}`);
+export const listPrivateGuildChannels = (guildId: string, reason: string) =>
+  get<PrivateChannelRef[]>(`/admin/private/guilds/${guildId}/channels${qs({ reason })}`);

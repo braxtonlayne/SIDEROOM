@@ -268,6 +268,43 @@ impl Default for UnfurlConfig {
     }
 }
 
+/// `[gif]`: the GIF picker's provider (LNG-EXP-005). Empty `provider` switches the
+/// feature off; the picker then says no provider is connected. The server proxies every
+/// request and every preview, so members' browsers never contact the provider.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GifConfig {
+    /// `"tenor"` or empty (off).
+    pub provider: String,
+    /// The provider API key. Treat as a secret (`SR_GIF__API_KEY_FILE` works).
+    pub api_key: Secret,
+    /// Tenor `client_key`: names this installation in the provider's dashboard.
+    pub client_key: String,
+    /// ISO 3166-1 alpha-2 region for results, e.g. `US`.
+    pub country: String,
+    /// Locale for results, e.g. `en_US`.
+    pub locale: String,
+}
+
+impl Default for GifConfig {
+    fn default() -> Self {
+        Self {
+            provider: String::new(),
+            api_key: Secret::default(),
+            client_key: "sideroom".to_owned(),
+            country: "US".to_owned(),
+            locale: "en_US".to_owned(),
+        }
+    }
+}
+
+impl GifConfig {
+    /// Whether the picker has a usable provider.
+    pub fn enabled(&self) -> bool {
+        self.provider.eq_ignore_ascii_case("tenor") && !self.api_key.expose().is_empty()
+    }
+}
+
 /// `[search]`: the message search index (open questions 131-138).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -339,9 +376,11 @@ pub struct Config {
     pub log: LogConfig,
     pub smtp: SmtpConfig,
     pub discord: DiscordConfig,
+    pub connections: ConnectionsConfig,
     pub gateway: GatewayLimits,
     pub search: SearchConfig,
     pub unfurl: UnfurlConfig,
+    pub gif: GifConfig,
     pub voice: VoiceConfig,
 }
 
@@ -353,6 +392,35 @@ pub struct Config {
 pub struct DiscordConfig {
     pub client_id: String,
     pub client_secret: Secret,
+}
+
+/// One provider of `[connections.<provider>]` (LNG-USET-024): the OAuth application the
+/// operator registered with it. The redirect URI to register is
+/// `<public_url>/api/v1/connections/<provider>/callback`. A provider without a `client_id`
+/// is off (Steam, which needs no secret, is on unless `enabled = false`); `enabled = false`
+/// switches a configured provider off.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConnectionProviderConfig {
+    pub client_id: String,
+    pub client_secret: Secret,
+    pub enabled: Option<bool>,
+}
+
+/// `[connections]`: account connections shown on profiles. Each provider is optional; the
+/// operator keeps the client secrets (`SR_CONNECTIONS__GITHUB__CLIENT_SECRET` or
+/// `SR_CONNECTIONS__GITHUB__CLIENT_SECRET_FILE`). For Steam, `client_secret` is an optional
+/// Steam Web API key (it adds the display name and profile stats).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConnectionsConfig {
+    pub github: ConnectionProviderConfig,
+    pub discord: ConnectionProviderConfig,
+    pub spotify: ConnectionProviderConfig,
+    pub twitch: ConnectionProviderConfig,
+    pub youtube: ConnectionProviderConfig,
+    pub reddit: ConnectionProviderConfig,
+    pub steam: ConnectionProviderConfig,
 }
 
 /// Host part of an absolute URL (`[::1]` keeps its brackets).
@@ -390,6 +458,14 @@ pub const SECRET_FILE_KEYS: &[&str] = &[
     "storage.access_key",
     "storage.secret_key",
     "discord.client_secret",
+    "connections.github.client_secret",
+    "connections.discord.client_secret",
+    "connections.spotify.client_secret",
+    "connections.twitch.client_secret",
+    "connections.youtube.client_secret",
+    "connections.reddit.client_secret",
+    "connections.steam.client_secret",
+    "gif.api_key",
 ];
 
 /// The list-valued key that reads one entry per line from `SR_<KEY>_FILE`.

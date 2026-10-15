@@ -227,8 +227,16 @@ pub async fn begin_upload(
     Json(b): Json<UploadRequest>,
 ) -> ApiResult<(StatusCode, Json<UploadSlot>)> {
     let s = editable(&ctx, &submission_id).await?;
+    let size = b.size_bytes;
     let slot = ops(&ctx)?
         .begin_upload(&s, ctx.user(), id(&chapter_id, "chapter")?, b)
+        .await
+        .map_err(map_err)?;
+    // The file passed the Library checks; now count it against the daily allowance (50 GB
+    // for members, staff exempt). Refused here, the slot is never handed out and its
+    // reservation lapses with the upload expiry.
+    ctx.svc()
+        .charge_upload(ctx.caller, size)
         .await
         .map_err(map_err)?;
     Ok((StatusCode::CREATED, Json(slot)))

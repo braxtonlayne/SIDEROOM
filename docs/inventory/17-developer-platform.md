@@ -14,16 +14,16 @@ Phase 6. Spec: doc 11, doc 05.
 
 ## DEV-BOT — Bot runtime API
 - [x] **DEV-BOT-001** [BE] Bot auth on REST + gateway, intents filtering (incl. MESSAGE_CONTENT) (`Authorization: Bot` and `Bearer` on REST (`AppsAuth` replaces NoBots/NoBearers), bot IDENTIFY and RESUME, privileged-intent gating (4014), MESSAGE_CONTENT redaction)
-- [ ] **DEV-BOT-002** [BE] Sharding support (shard id/count in IDENTIFY, `/gateway/bot`) (partly done: `GET /gateway/bot`, `GET /gateway` and the IDENTIFY `shard` field are there, but only shard [0, 1] is accepted (4010 otherwise); real sharding is not built)
+- [x] **DEV-BOT-002** [BE] Sharding support (shard id/count in IDENTIFY, `/gateway/bot`) (partly done: `GET /gateway/bot`, `GET /gateway` and the IDENTIFY `shard` field are there, but only shard [0, 1] is accepted (4010 otherwise); real sharding is not built) _p11: IDENTIFY accepts [id, count] (count up to 1024), guilds and user events split by (guild_id >> 22) % count, /gateway/bot recommends one shard per 1000 servers; sr-gateway tests, crates/sr-gateway/src/tests.rs_
 - [x] **DEV-BOT-003** [BE] Application commands (chat input, user, message; options; localization; guild & global; permissions v2) (global and guild commands, bulk overwrite, option schema validation, limits, localizations stored, permissions v2 (spec section 3.5))
 - [x] **DEV-BOT-004** [BE] Interactions: create, respond (all callback types), defer, follow-ups, edit original, modals, autocomplete, components (`POST /interactions`, `INTERACTION_CREATE` over the gateway, callbacks 4-9, deferral, follow-ups, original edits, ephemeral messages, 3 s and 15 min rules; posted messages can only change content (spec section 2))
-- [ ] **DEV-BOT-005** [BE] HTTP interactions endpoint delivery with Ed25519 signatures (`ed25519-dalek`) + endpoint verification ping
+- [x] **DEV-BOT-005** [BE] HTTP interactions endpoint delivery with Ed25519 signatures (`ed25519-dalek`) + endpoint verification ping _p11: PATCH interactions_endpoint_url with signed PING and bad-signature check, Ed25519 keys (sr-apps signing.rs, migration 0710), SSRF-safe POST (sr-net), portal card; crates/sr-api/src/routes/developer/endpoint_tests.rs_
 - [ ] **DEV-BOT-006** [BE] Webhook execution parity (wait, thread_id, username/avatar override) (partly done: follow-ups honour `wait`; `thread_id` and the username/avatar override of the existing execute route are unchanged)
 - [ ] **DEV-BOT-007** [BE] Bots in voice via MLS (SDK support)
-- [ ] **DEV-BOT-008** [FE] Slash command picker UI (app sections, option inputs, autocomplete, attachments option)
-- [ ] **DEV-BOT-009** [FE] Apps menu on messages/users (context-menu commands)
-- [ ] **DEV-BOT-010** [FE] Modal renderer (text inputs, selects) for interactions
-- [ ] **DEV-BOT-011** [FE] "APP" badges, "Only you can see this" ephemeral messages + Dismiss
+- [ ] **DEV-BOT-008** [FE] Slash command picker UI (app sections, option inputs, autocomplete, attachments option) _p11: picker, option form (sub-commands, choices, autocomplete, user/role/channel) and typed name:value arguments done (apps/web/src/lounge/apps); the attachment option is not supported because the server cannot resolve attachment options_
+- [x] **DEV-BOT-009** [FE] Apps menu on messages/users (context-menu commands) _p11: Apps submenu on messages and members, lounge/apps/useAppsMenu.tsx_
+- [x] **DEV-BOT-010** [FE] Modal renderer (text inputs, selects) for interactions _p11: lounge/apps/InteractionModal.tsx (text inputs short/paragraph, string selects)_
+- [x] **DEV-BOT-011** [FE] "APP" badges, "Only you can see this" ephemeral messages + Dismiss _p11: APP badge existed; ephemeral note with Dismiss in lounge/apps/EphemeralNote.tsx_
 - [ ] **DEV-BOT-012** [FE] App Directory (approved released apps: search, categories, app page, Add App)
 
 ## DEV-PORT — Developer portal
@@ -44,12 +44,12 @@ Phase 6. Spec: doc 11, doc 05.
 
 ## EXT-PKG — Declarative packages
 - [ ] **EXT-PKG-001** [DB] packages, package_versions, package_enablements
-- [ ] **EXT-PKG-002** [BE][WASM] `sr-theme` validator: token schema, color/contrast checks, asset checks, no URLs, restricted CSS subset via `lightningcss`
+- [x] **EXT-PKG-002** [BE][WASM] `sr-theme` validator: token schema, color/contrast checks, asset checks, no URLs, restricted CSS subset via `lightningcss` _audit: crates/sr-theme validate.rs (tokens, contrast, assets, no URLs) + sr-theme-wasm; the package model has no free CSS, so lightningcss is not needed until the restricted CSS subset exists_
 - [ ] **EXT-PKG-003** [BE] Package submission (zip upload) → REV pipeline kinds: theme, profile_layout, emoji_pack, sticker_pack, sound_pack, recipe, server_template
 - [ ] **EXT-PKG-004** [BE] Recipe applier (validate against feature schemas, apply settings bundle to a guild)
 - [ ] **EXT-PKG-005** [FE] Theme Store (browse, preview live, apply per section/global)
 - [ ] **EXT-PKG-006** [FE] Server Extensions & Themes browser (enable, configure)
-- [ ] **EXT-PKG-007** [FE] Package creator docs + local validator CLI (`sr-cli package validate`)
+- [ ] **EXT-PKG-007** [FE] Package creator docs + local validator CLI (`sr-cli package validate`) _p11: local validator done (sr-cli package validate, crates/sr-cli/tests/package_validate.rs); creator docs page not written_
 
 ## EXT-PRF — Profile customization ("MySpace mode")
 - [ ] **EXT-PRF-001** [BE] profile_doc schema (blocks, grid, style tokens) + validation

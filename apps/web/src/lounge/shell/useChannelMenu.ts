@@ -149,11 +149,16 @@ export function useChannelMenu(
     muteEntry,
     notifications,
     { type: 'separator' },
-    {
-      label: 'Invite People',
-      disabled: !(channel.permissions?.createInvite ?? guild.permissions.createInvite),
-      onSelect: () => openDialog({ kind: 'invite', guildId: guild.id, channelId: channel.id }),
-    },
+    ...(guild.isStaff
+      ? []
+      : [
+          {
+            label: 'Invite People',
+            disabled: !(channel.permissions?.createInvite ?? guild.permissions.createInvite),
+            onSelect: () =>
+              openDialog({ kind: 'invite', guildId: guild.id, channelId: channel.id }),
+          } as MenuEntry,
+        ]),
     edit,
     {
       label: 'Duplicate Channel',

@@ -1,6 +1,7 @@
 import { Button, Modal } from '@sideroom/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../api/client';
+import { useStreamer } from '../settings/user/prefs';
 import { useT } from '../i18n';
 import { rest } from '../store';
 import { isTextLike } from './channels';
@@ -32,6 +33,7 @@ export function InviteDialog({
   onClose: () => void;
 }) {
   const t = useT();
+  const hideLinks = useStreamer().invites;
   const guild = useGuild(guildId);
   const channels = useChannels(guildId);
   const route = useLoungeRoute();
@@ -195,6 +197,7 @@ export function InviteDialog({
           <div className="lng-invite-link">
             <input
               readOnly
+              type={hideLinks ? 'password' : 'text'}
               aria-label={t('lounge.inviteDialog.inviteLink')}
               value={inviteUrl(created.code)}
               onFocus={(e) => e.currentTarget.select()}
@@ -228,7 +231,7 @@ export function InviteDialog({
               {invites.map((inv) => (
                 <li key={inv.code}>
                   <div>
-                    <code>{inv.code}</code>
+                    <code>{hideLinks ? '••••••' : inv.code}</code>
                     <small>
                       {inv.max_uses
                         ? t('lounge.inviteDialog.usesOf', { uses: inv.uses, max: inv.max_uses })
