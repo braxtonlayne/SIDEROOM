@@ -122,7 +122,9 @@ function MessageBody({
   useMarkdownReady();
   const t = useT();
   const { linkPreviews, showEmbeds, spoilers } = useSavedPrefs();
-  const hideSuspicious = useStore((s) => (guildId ? s.guilds[guildId]?.hide_suspicious_links : false));
+  const hideSuspicious = useStore((s) =>
+    guildId ? s.guilds[guildId]?.hide_suspicious_links : false,
+  );
   const parsed = parseMarkdown(m.content);
   const nodes = useMemo(
     () =>

@@ -95,9 +95,13 @@ export const deleteMessage = (channelId: string, messageId: string) =>
   );
 
 export const pinMessage = (channelId: string, messageId: string) =>
-  withReauth(() => apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'PUT', retries: 0 }));
+  withReauth(() =>
+    apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'PUT', retries: 0 }),
+  );
 export const unpinMessage = (channelId: string, messageId: string) =>
-  withReauth(() => apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'DELETE', retries: 0 }));
+  withReauth(() =>
+    apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'DELETE', retries: 0 }),
+  );
 
 const pollPath = (channelId: string, messageId: string) =>
   `/channels/${channelId}/polls/${messageId}`;

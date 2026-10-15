@@ -45,7 +45,8 @@ async fn world() -> (Env, String) {
     e.backend.data().guilds.get_mut(&e.guild).unwrap().mfa_level = 1;
     let (id, bot, token, _) = e.new_app().await;
     e.configure(&id).await;
-    e.install(&id, &bot, 0).await;
+    e.install(&id, &bot, (1 << 13) | (1 << 10) | (1 << 16) | (1 << 51))
+        .await;
     let rid = RoleId::new(777);
     let bot_id = UserId::new(bot.parse().unwrap());
     {
@@ -58,6 +59,7 @@ async fn world() -> (Env, String) {
             hoist: false,
             position: 1,
             permissions: Permissions::MANAGE_MESSAGES
+                | Permissions::PIN_MESSAGES
                 | Permissions::VIEW_CHANNEL
                 | Permissions::READ_MESSAGE_HISTORY,
             mentionable: false,
@@ -81,11 +83,15 @@ async fn elevated_message_actions_need_a_second_factor_on_a_2fa_server() {
     let (e, token) = world().await;
     let ch = e.ch;
     let theirs = say(&e, "one").await;
-    let pin = |who: Who<'_>| (who, format!("/channels/{ch}/pins/{theirs}"));
 
     // Bots first: the application owner has no second factor -> 900123.
-    let (who, path) = pin(Who::Bot(&token));
-    let (s, v) = e.put(who, &path, json!({})).await;
+    let (s, v) = e
+        .put(
+            Who::Bot(&token),
+            &format!("/channels/{ch}/pins/{theirs}"),
+            json!({}),
+        )
+        .await;
     assert_eq!(refusal(s, &v), (403, 900123), "{v}");
     let (s, v) = e
         .delete(
@@ -144,8 +150,13 @@ async fn elevated_message_actions_need_a_second_factor_on_a_2fa_server() {
         )
         .await;
     assert_eq!(refusal(s, &v), (403, 900004), "{v}");
-    let (who, path) = pin(Who::Bot(&token));
-    let (s, v) = e.put(who, &path, json!({})).await;
+    let (s, v) = e
+        .put(
+            Who::Bot(&token),
+            &format!("/channels/{ch}/pins/{theirs}"),
+            json!({}),
+        )
+        .await;
     assert_eq!(s, StatusCode::NO_CONTENT, "{v}");
     let (s, v) = e
         .delete(

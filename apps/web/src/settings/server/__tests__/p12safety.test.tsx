@@ -221,6 +221,8 @@ describe('Two-factor enrolment prompt (G-97, D-223)', () => {
       await screen.findByRole('switch', { name: 'Filter spam in direct messages from members' }),
     );
     await screen.findByRole('dialog', { name: 'Confirm it is you' });
-    expect(screen.queryByRole('dialog', { name: 'This server requires two-factor authentication' })).toBeNull();
+    expect(
+      screen.queryByRole('dialog', { name: 'This server requires two-factor authentication' }),
+    ).toBeNull();
   });
 });

@@ -12,15 +12,24 @@ const masked = (label: string, url: string): Extract<MdNode, { type: 'link' }> =
 
 describe('suspicious links (G-95, D-224)', () => {
   it('flags a masked link whose text names another host', () => {
-    expect(suspiciousTarget(masked('paypal.com', 'https://evil.example/login'))).toBe('evil.example');
-    expect(suspiciousTarget(masked('https://www.bank.com/x', 'https://phish.test/'))).toBe('phish.test');
+    expect(suspiciousTarget(masked('paypal.com', 'https://evil.example/login'))).toBe(
+      'evil.example',
+    );
+    expect(suspiciousTarget(masked('https://www.bank.com/x', 'https://phish.test/'))).toBe(
+      'phish.test',
+    );
   });
 
   it('leaves honest and plain-worded links alone', () => {
     expect(suspiciousTarget(masked('docs.example.com', 'https://docs.example.com/a'))).toBeNull();
     expect(suspiciousTarget(masked('www.example.com', 'https://example.com/a'))).toBeNull();
     expect(suspiciousTarget(masked('click here', 'https://evil.example/'))).toBeNull();
-    const auto: MdNode = { type: 'link', url: 'https://a.test', kind: 'auto', children: [text('b.test')] };
+    const auto: MdNode = {
+      type: 'link',
+      url: 'https://a.test',
+      kind: 'auto',
+      children: [text('b.test')],
+    };
     expect(suspiciousTarget(auto as Extract<MdNode, { type: 'link' }>)).toBeNull();
   });
 

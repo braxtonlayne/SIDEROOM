@@ -23,11 +23,11 @@ use sr_api::{
     build_router,
     routes::{
         admin::{self, AdminDeps},
-        directory::{self, DirectoryDeps},
         auth::{
             AccountRecord, AccountState as AuthAccountState, AuthService, AuthStore,
             mail::MemoryMailer, memory::MemoryAuthStore,
         },
+        directory::{self, DirectoryDeps},
         guilds, settings,
         social::{self, DynRepo as SocialDynRepo, SocialDeps},
     },
@@ -196,7 +196,12 @@ async fn world() -> World {
 
     // Accounts and the auth service, for the server 2FA requirement (G-94).
     let auth_store = Arc::new(MemoryAuthStore::new(sessions.clone()));
-    for (uid, name) in [(OWNER, "owner"), (BOB, "bob"), (CAROL, "carol"), (DAVE, "dave")] {
+    for (uid, name) in [
+        (OWNER, "owner"),
+        (BOB, "bob"),
+        (CAROL, "carol"),
+        (DAVE, "dave"),
+    ] {
         auth_store.add_account(AccountRecord {
             id: uid,
             person_id: uid,
@@ -1950,7 +1955,11 @@ async fn elevated_routes_need_a_second_factor_on_a_2fa_server() {
     let code = inv["code"].as_str().unwrap().to_owned();
 
     let routes: Vec<(Method, String, Option<Value>)> = vec![
-        (Method::DELETE, format!("/guilds/{gid}/members/{DAVE}"), None),
+        (
+            Method::DELETE,
+            format!("/guilds/{gid}/members/{DAVE}"),
+            None,
+        ),
         (
             Method::PATCH,
             format!("/guilds/{gid}/members/{BOB}"),
@@ -1968,8 +1977,16 @@ async fn elevated_routes_need_a_second_factor_on_a_2fa_server() {
         ),
         (Method::DELETE, format!("/guilds/{gid}/emojis/1"), None),
         (Method::DELETE, format!("/guilds/{gid}/stickers/1"), None),
-        (Method::DELETE, format!("/guilds/{gid}/soundboard-sounds/1"), None),
-        (Method::DELETE, format!("/guilds/{gid}/auto-moderation/rules/1"), None),
+        (
+            Method::DELETE,
+            format!("/guilds/{gid}/soundboard-sounds/1"),
+            None,
+        ),
+        (
+            Method::DELETE,
+            format!("/guilds/{gid}/auto-moderation/rules/1"),
+            None,
+        ),
         (
             Method::PATCH,
             format!("/guilds/{gid}/sr/community"),
@@ -2015,7 +2032,11 @@ async fn elevated_routes_need_a_second_factor_on_a_2fa_server() {
 
     // Webhook edit and delete are gated too once the window closes.
     let (s, hook) = w
-        .post(OWNER, &format!("/channels/{general}/webhooks"), json!({ "name": "again" }))
+        .post(
+            OWNER,
+            &format!("/channels/{general}/webhooks"),
+            json!({ "name": "again" }),
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{hook}");
     let hid = hook["id"].as_str().unwrap().to_owned();

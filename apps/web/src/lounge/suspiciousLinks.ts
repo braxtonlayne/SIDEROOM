@@ -28,7 +28,9 @@ const hostOf = (url: string): string | null => {
 export function suspiciousTarget(node: Extract<MdNode, { type: 'link' }>): string | null {
   if (node.kind !== 'masked') return null;
   const real = hostOf(node.url);
-  const claimed = HOST_IN_TEXT.exec(plain(node.children))?.[1]?.toLowerCase().replace(/^www\./, '');
+  const claimed = HOST_IN_TEXT.exec(plain(node.children))?.[1]
+    ?.toLowerCase()
+    .replace(/^www\./, '');
   if (!real || !claimed || claimed === real) return null;
   return real;
 }
