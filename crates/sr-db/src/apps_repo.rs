@@ -1024,6 +1024,61 @@ impl AppsRepository for PgAppsRepo {
         tester_row(&r)
     }
 
+    async fn decline_tester(
+        &self,
+        app: i64,
+        account: i64,
+        now_ms: i64,
+        audit: AuditRow,
+    ) -> AppsResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let n =
+            sqlx::query("DELETE FROM app_testers WHERE application_id = $1 AND account_id = $2")
+                .bind(app)
+                .bind(account)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?
+                .rows_affected();
+        if n > 0 {
+            sqlx::query(
+                "INSERT INTO app_tester_declines (application_id, account_id, declined_at)                  VALUES ($1, $2, to_timestamp($3::double precision / 1000.0))                  ON CONFLICT (application_id, account_id) DO UPDATE SET declined_at = EXCLUDED.declined_at",
+            )
+            .bind(app)
+            .bind(account)
+            .bind(now_ms)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+            audit_in(&mut tx, &audit).await?;
+        }
+        tx.commit().await.map_err(db)?;
+        Ok(n > 0)
+    }
+
+    async fn declined_since(&self, app: i64, account: i64, since_ms: i64) -> AppsResult<bool> {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM app_tester_declines              WHERE application_id = $1 AND account_id = $2                AND declined_at >= to_timestamp($3::double precision / 1000.0))",
+        )
+        .bind(app)
+        .bind(account)
+        .bind(since_ms)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn purge_tester_declines(&self, before_ms: i64) -> AppsResult<u64> {
+        Ok(sqlx::query(
+            "DELETE FROM app_tester_declines              WHERE declined_at < to_timestamp($1::double precision / 1000.0)",
+        )
+        .bind(before_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?
+        .rows_affected())
+    }
+
     async fn remove_tester(&self, app: i64, account: i64, audit: AuditRow) -> AppsResult<bool> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         let n =

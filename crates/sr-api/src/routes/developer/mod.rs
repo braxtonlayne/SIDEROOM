@@ -362,6 +362,7 @@ pub(crate) fn app_err(e: AppsError) -> MsgError {
         AppsError::Conflict(m) => ApiError::with_message(C::SrConflict, m),
         AppsError::NotReleased => ApiError::new(C::SrAppNotReleased),
         AppsError::Suspended => ApiError::new(C::SrAppSuspended),
+        AppsError::TesterRecentlyDeclined => ApiError::new(C::SrTesterRecentlyDeclined),
         AppsError::UnknownInteraction => ApiError::new(C::UnknownInteraction),
         AppsError::AlreadyAcknowledged => ApiError::new(C::InteractionAlreadyAcknowledged),
         AppsError::InvalidToken => ApiError::new(C::InvalidWebhookToken),

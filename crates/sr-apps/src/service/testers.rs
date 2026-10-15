@@ -8,6 +8,9 @@ use crate::{
 };
 use serde_json::json;
 
+/// How long a decline blocks a new invitation (G-84).
+pub const TESTER_COOLDOWN_MS: i64 = 24 * 60 * 60 * 1000;
+
 /// Who to invite: by account id or by username.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TesterTarget {
@@ -48,6 +51,11 @@ impl AppsService {
                 "TESTER_SELF",
                 "You own this application already.",
             ));
+        }
+        // G-84: someone who declined stays out of reach for a day.
+        let since = self.now_ms() - TESTER_COOLDOWN_MS;
+        if self.repo.declined_since(app.id, account.id, since).await? {
+            return Err(AppsError::TesterRecentlyDeclined);
         }
         let t = Tester {
             id: self.next_id(),
@@ -124,7 +132,7 @@ impl AppsService {
         } else {
             let audit = self.audit(t.application_id, user, "app.tester_declined", details);
             self.repo
-                .remove_tester(t.application_id, user, audit)
+                .decline_tester(t.application_id, user, self.now_ms(), audit)
                 .await?;
         }
         Ok(TesterAnswer {
@@ -140,6 +148,13 @@ impl AppsService {
             .tester_of(app, account)
             .await?
             .is_some_and(|t| t.state == TesterState::Accepted))
+    }
+
+    /// Forget declines older than the cooldown (the `apps.housekeeping` job).
+    pub async fn purge_tester_declines(&self) -> AppsResult<u64> {
+        self.repo
+            .purge_tester_declines(self.now_ms() - TESTER_COOLDOWN_MS)
+            .await
     }
 
     /// Testers one application may have.
