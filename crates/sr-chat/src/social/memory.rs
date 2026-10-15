@@ -1,7 +1,7 @@
 //! In-memory implementation of the social repository traits, for tests of this
 //! crate and of consumers that need a database-free fake.
 
-use super::dm::{DmChannel, DmKind, GroupInvite, RequestState};
+use super::dm::{DmChannel, DmKind, GroupInvite, RequestReason, RequestState, SharedProtection};
 use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
@@ -39,6 +39,10 @@ pub struct Store {
     pub notes: HashMap<(UserId, UserId), String>,
     /// Message Request state per `(recipient, channel)`; absent means accepted.
     pub requests: HashMap<(UserId, ChannelId), RequestState>,
+    /// Why a pending request is in Message Requests (a server setting), per `(recipient, channel)`.
+    pub request_reasons: HashMap<(UserId, ChannelId), RequestReason>,
+    /// Protection settings of the servers an (ordered) pair shares; set by tests.
+    pub protection: HashMap<(UserId, UserId), SharedProtection>,
     /// Group DM invites by code (G-47).
     pub group_invites: HashMap<String, GroupInvite>,
     pub user_settings: HashMap<UserId, super::user_settings::UserSettings>,
@@ -472,6 +476,37 @@ impl DmRepository for MemoryRepo {
     ) -> RepoResult<()> {
         self.lock()?.requests.insert((user, id), state);
         Ok(())
+    }
+
+    async fn get_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+    ) -> RepoResult<Option<RequestReason>> {
+        Ok(self.lock()?.request_reasons.get(&(user, id)).copied())
+    }
+
+    async fn set_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+        reason: Option<RequestReason>,
+    ) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        match reason {
+            Some(r) => s.request_reasons.insert((user, id), r),
+            None => s.request_reasons.remove(&(user, id)),
+        };
+        Ok(())
+    }
+
+    async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection> {
+        Ok(self
+            .lock()?
+            .protection
+            .get(&pair(a, b))
+            .copied()
+            .unwrap_or_default())
     }
 
     async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()> {

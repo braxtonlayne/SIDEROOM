@@ -296,3 +296,21 @@ mod tests {
         assert_eq!(percent_decode("%F0%9F%91%8D"), "\u{1F44D}");
     }
 }
+
+impl GuildAccess {
+    /// Second-factor requirement of the server (D-223): when the caller holds `needs` here
+    /// and the server's `mfa_level` is 1, a browser session must have proved a second factor
+    /// in the last 15 minutes (`900004`, or `900123` without any), and a bot's application
+    /// owner must have one. Callers without the permission pass through to the usual 403.
+    pub async fn require_mfa(
+        &self,
+        gate: &crate::routes::guilds::safety::MfaGate,
+        user: UserId,
+        needs: Permissions,
+    ) -> ApiResult<()> {
+        if self.perms.has(needs) {
+            gate.check_level(user, self.guild.mfa_level).await?;
+        }
+        Ok(())
+    }
+}

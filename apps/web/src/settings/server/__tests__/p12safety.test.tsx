@@ -179,3 +179,48 @@ describe('Protection (Moderation)', () => {
     expect(useStore.getState().currentUserId).toBe('1');
   });
 });
+
+describe('Two-factor enrolment prompt (G-97, D-223)', () => {
+  const refuse = (code: number) =>
+    http.patch('*/api/v1/guilds/g1/sr/community', () =>
+      HttpResponse.json({ code, message: 'refused' }, { status: 403 }),
+    );
+
+  it('900123 points to My Account instead of the re-auth dialog', async () => {
+    seed({ perms: [MANAGE.guild] });
+    server.use(
+      http.get('*/api/v1/guilds/g1/auto-moderation/rules', () => HttpResponse.json([])),
+      http.get('*/api/v1/guilds/g1', () => HttpResponse.json(guildObj({ mfa_level: 1 }))),
+      http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community())),
+      refuse(900123),
+    );
+    await openSettings('moderation');
+    await userEvent.click(
+      await screen.findByRole('switch', { name: 'Filter spam in direct messages from members' }),
+    );
+    const dialog = await screen.findByRole('dialog', {
+      name: 'This server requires two-factor authentication',
+    });
+    expect(within(dialog).getByRole('button', { name: 'Open My Account' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Confirm it is you' })).toBeNull();
+  });
+
+  it('900004 keeps the re-auth dialog', async () => {
+    seed({ perms: [MANAGE.guild] });
+    server.use(
+      http.get('*/api/v1/guilds/g1/auto-moderation/rules', () => HttpResponse.json([])),
+      http.get('*/api/v1/guilds/g1', () => HttpResponse.json(guildObj({ mfa_level: 1 }))),
+      http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community())),
+      http.get('*/api/v1/sr/auth/reauth', () =>
+        HttpResponse.json({ fresh: false, enrolled: true, window_secs: 900 }),
+      ),
+      refuse(900004),
+    );
+    await openSettings('moderation');
+    await userEvent.click(
+      await screen.findByRole('switch', { name: 'Filter spam in direct messages from members' }),
+    );
+    await screen.findByRole('dialog', { name: 'Confirm it is you' });
+    expect(screen.queryByRole('dialog', { name: 'This server requires two-factor authentication' })).toBeNull();
+  });
+});

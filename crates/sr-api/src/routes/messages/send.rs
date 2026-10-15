@@ -8,6 +8,7 @@ use super::model::{
 };
 use super::render::{actor, event_payload, render_one};
 use super::store::UploadState;
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::settings::{AutoModGateHandle, MessageCheck, alert_execution_payload};
 use crate::routes::{Ext, MaybeExt};
 use crate::{Principal, openapi::ErrorBody};
@@ -346,6 +347,7 @@ pub async fn edit_message(
 )]
 pub async fn delete_message(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel_id, message_id)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
@@ -362,6 +364,10 @@ pub async fn delete_message(
         .get_message(channel_id, message_id)
         .await?
         .map(|m| m.author_id);
+    if author.is_some_and(|a| a != user) {
+        // Removing someone else's message needs `MANAGE_MESSAGES` (D-223).
+        deps.require_mfa(&gate, user, guild).await?;
+    }
     deps.delete(user, channel_id, message_id).await?;
     deps.publish(DomainEvent::MessageDeleted {
         guild,
@@ -399,6 +405,7 @@ pub async fn delete_message(
 )]
 pub async fn bulk_delete(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<MessagesDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<BulkDeleteBody>,
@@ -422,6 +429,7 @@ pub async fn bulk_delete(
         .get_channel(channel_id)
         .await?
         .and_then(|c| c.guild_id);
+    deps.require_mfa(&gate, user, guild).await?;
     let plans = deps.bulk_delete(user, channel_id, &ids).await?;
     let message_ids: Vec<u64> = plans.iter().map(|d| d.message_id.get()).collect();
     let deleted = message_ids.len();

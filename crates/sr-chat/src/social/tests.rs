@@ -1535,3 +1535,135 @@ async fn group_invites_respect_the_group_size_cap() {
         Err(SocialError::MaxGroupSize)
     ));
 }
+
+// ---- Server Protection (G-95, D-224) ----
+
+#[test]
+fn protection_only_tightens_and_names_the_reason() {
+    use super::dm::{RequestReason, SharedProtection, dm_access_protected};
+    let strangers = PairState::default();
+    let friends = PairState {
+        mine: Some(K::Friend),
+        theirs: Some(K::Friend),
+        ..PairState::default()
+    };
+    let open = DmPrivacy {
+        message_requests: false,
+        ..DmPrivacy::default()
+    };
+    let none = SharedProtection::default();
+    let filter = SharedProtection {
+        shared: 2,
+        spam_filter_all: true,
+        ..none
+    };
+    let young = SharedProtection {
+        shared: 1,
+        warn_new_account_days: 14,
+        ..none
+    };
+    // No setting: the recipient's own choice stands.
+    assert_eq!(
+        dm_access_protected(strangers, &open, true, &none, 3),
+        (DmAccess::Allowed, None)
+    );
+    // Every shared server filters: a stranger lands in requests even when the recipient is open.
+    assert_eq!(
+        dm_access_protected(strangers, &open, true, &filter, 400),
+        (DmAccess::Request, Some(RequestReason::ServerFilter))
+    );
+    // A young sender is marked new_account, and wins over the filter.
+    assert_eq!(
+        dm_access_protected(strangers, &open, true, &young, 3),
+        (DmAccess::Request, Some(RequestReason::NewAccount))
+    );
+    assert_eq!(
+        dm_access_protected(
+            strangers,
+            &open,
+            true,
+            &SharedProtection {
+                warn_new_account_days: 14,
+                ..filter
+            },
+            3
+        ),
+        (DmAccess::Request, Some(RequestReason::NewAccount))
+    );
+    // An old enough account is not affected.
+    assert_eq!(
+        dm_access_protected(strangers, &open, true, &young, 14),
+        (DmAccess::Allowed, None)
+    );
+    // Friends are never routed; settings never open a closed door.
+    assert_eq!(
+        dm_access_protected(friends, &open, true, &filter, 0),
+        (DmAccess::Allowed, None)
+    );
+    assert_eq!(
+        dm_access_protected(strangers, &open, false, &filter, 0),
+        (DmAccess::Denied, None)
+    );
+}
+
+#[tokio::test]
+async fn open_dm_routes_by_protection_and_spoilers_follow_the_media_filter() {
+    use super::dm::{RequestReason, SharedProtection};
+    let f = fx();
+    let repo = f.svc_repo();
+    // 2 is open to DMs from members; 1 and 2 share a server that filters DMs.
+    repo.store
+        .lock()
+        .unwrap()
+        .shared_guilds
+        .insert((u(1), u(2)));
+    f.svc
+        .update_privacy(
+            u(2),
+            super::user_settings::PrivacyUpdate {
+                message_requests: Some(false),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let plain = f.svc.open_dm(u(1), u(2)).await.unwrap();
+    assert_eq!(plain.access, DmAccess::Allowed);
+    assert!(
+        !f.svc
+            .spoiler_attachments(u(1), plain.channel.id)
+            .await
+            .unwrap()
+    );
+    repo.store.lock().unwrap().dms.clear();
+
+    repo.store.lock().unwrap().protection.insert(
+        (u(1), u(2)),
+        SharedProtection {
+            shared: 1,
+            spam_filter_all: true,
+            explicit_media_any: true,
+            warn_new_account_days: 0,
+        },
+    );
+    let opened = f.svc.open_dm(u(1), u(2)).await.unwrap();
+    assert_eq!(opened.access, DmAccess::Request);
+    assert_eq!(opened.reason, Some(RequestReason::ServerFilter));
+    let id = opened.channel.id;
+    assert_eq!(
+        f.svc.request_state(u(2), id).await.unwrap(),
+        Some(super::dm::RequestState::Pending)
+    );
+    assert_eq!(
+        f.svc.request_reason(u(2), id).await.unwrap(),
+        Some(RequestReason::ServerFilter)
+    );
+    // Attachments the stranger sends carry the spoiler flag while the request is pending...
+    assert!(f.svc.spoiler_attachments(u(1), id).await.unwrap());
+    // ...and no longer once the recipient accepted.
+    f.svc
+        .respond_to_request(u(2), id, super::dm::RequestState::Accepted)
+        .await
+        .unwrap();
+    assert!(!f.svc.spoiler_attachments(u(1), id).await.unwrap());
+}

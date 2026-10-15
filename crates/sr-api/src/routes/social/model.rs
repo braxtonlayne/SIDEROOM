@@ -172,6 +172,10 @@ pub struct DmChannelObject {
     /// Set only on a conversation sitting in the viewer's Message Requests.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_message_request: Option<bool>,
+    /// With `is_message_request`: `server_filter` or `new_account` when a server's Protection
+    /// settings sent the conversation there (D-224). SIDE ROOM extension.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_request_reason: Option<String>,
 }
 
 impl DmChannelObject {
@@ -190,6 +194,7 @@ impl DmChannelObject {
             name: dm.name.clone(),
             icon: dm.icon_key.clone(),
             is_message_request: None,
+            sr_request_reason: None,
         }
     }
 }

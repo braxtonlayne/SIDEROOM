@@ -7,6 +7,7 @@
 
 use super::deps::{SettingsDeps, actor, id, se};
 use crate::routes::Ext;
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::messages::error::ApiJson;
 use crate::routes::social::model::PrimaryGuildObject;
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
@@ -102,6 +103,7 @@ pub async fn get_tag(
 )]
 pub async fn put_tag(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<PutGuildTagBody>,
@@ -109,6 +111,8 @@ pub async fn put_tag(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, sr_core::permissions::Permissions::MANAGE_GUILD)
+        .await?;
     let saved = deps
         .service
         .save_guild_tag(
@@ -140,12 +144,15 @@ pub async fn put_tag(
 )]
 pub async fn delete_tag(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, sr_core::permissions::Permissions::MANAGE_GUILD)
+        .await?;
     deps.service
         .clear_guild_tag(acc.perms, user, gid)
         .await

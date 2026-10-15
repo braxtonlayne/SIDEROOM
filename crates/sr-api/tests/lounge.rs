@@ -24,6 +24,10 @@ use sr_api::{
     routes::{
         admin::{self, AdminDeps},
         directory::{self, DirectoryDeps},
+        auth::{
+            AccountRecord, AccountState as AuthAccountState, AuthService, AuthStore,
+            mail::MemoryMailer, memory::MemoryAuthStore,
+        },
         guilds, settings,
         social::{self, DynRepo as SocialDynRepo, SocialDeps},
     },
@@ -73,6 +77,7 @@ struct World {
     settings_deps: Arc<settings::SettingsDeps>,
     clock: Arc<ManualClock>,
     tokens: HashMap<i64, String>,
+    auth: Arc<MemoryAuthStore>,
 }
 
 async fn world() -> World {
@@ -189,6 +194,30 @@ async fn world() -> World {
         tokens.insert(uid, t.expose().to_owned());
     }
 
+    // Accounts and the auth service, for the server 2FA requirement (G-94).
+    let auth_store = Arc::new(MemoryAuthStore::new(sessions.clone()));
+    for (uid, name) in [(OWNER, "owner"), (BOB, "bob"), (CAROL, "carol"), (DAVE, "dave")] {
+        auth_store.add_account(AccountRecord {
+            id: uid,
+            person_id: uid,
+            username: name.to_owned(),
+            display_name: None,
+            email: format!("{name}@x.test"),
+            email_verified: true,
+            password_hash: "unused".into(),
+            state: AuthAccountState::Active,
+            age_confirmed: None,
+            locale: "en-US".into(),
+            flags: 0,
+        });
+    }
+    let auth_ids = Arc::new(AtomicU64::new(50_000));
+    let auth_service = AuthService::new(
+        auth_store.clone(),
+        Arc::new(MemoryMailer::new()),
+        Arc::new(move || i64::try_from(auth_ids.fetch_add(1, Ordering::SeqCst)).unwrap()),
+    );
+
     // Direct messages: group DM invites (G-47) and icons (G-50).
     let social_repo = Arc::new(sr_chat::social::memory::MemoryRepo::default());
     for uid in [OWNER, BOB, CAROL, DAVE] {
@@ -223,6 +252,7 @@ async fn world() -> World {
         .bots(Arc::new(MemoryBots::new()))
         .clock(dyn_clock)
         .extension(Arc::new(guild_api))
+        .extension(Arc::new(auth_service))
         .extension(settings_deps.clone())
         .extension(social_deps.clone())
         .extension(Arc::new(
@@ -254,6 +284,7 @@ async fn world() -> World {
         settings_deps,
         clock,
         tokens,
+        auth: auth_store,
     }
 }
 
@@ -337,6 +368,21 @@ impl World {
             bio: None,
             extras: Default::default(),
         });
+    }
+
+    /// Give `user` a confirmed authenticator (a second factor on the account).
+    async fn enrol(&self, user: i64) {
+        self.auth.totp_put_pending(user, &[7u8; 20]).await.unwrap();
+        self.auth.totp_confirm(user, 0).await.unwrap();
+    }
+
+    /// `user` proves the second factor on their session now (sessions are numbered from 100).
+    async fn prove(&self, session: i64) {
+        let now = self.clock.now_unix_ms() / 1000;
+        self.auth
+            .session_mark_mfa_verified(session, now)
+            .await
+            .unwrap();
     }
 
     fn is_member(&self, gid: &str, user: i64) -> bool {
@@ -1539,6 +1585,12 @@ async fn server_safety_fields_widget_and_mfa_level() {
             .0,
         StatusCode::BAD_REQUEST
     );
+    // Switching it on needs the owner to have a second factor of their own.
+    let (s, m) = w
+        .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{m}");
+    w.enrol(OWNER).await;
     let (s, m) = w
         .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
         .await;
@@ -1871,4 +1923,107 @@ async fn scheduled_events_start_and_end_by_the_clock_and_are_audited() {
         .filter_map(|e| e["action_type"].as_u64())
         .collect();
     assert!(actions.contains(&100), "{log}");
+}
+
+/// Both error codes of the server 2FA requirement, as `(status, code)`.
+fn mfa_code(r: &(StatusCode, Value)) -> (u16, i64) {
+    (r.0.as_u16(), r.1["code"].as_i64().unwrap_or(-1))
+}
+
+#[tokio::test]
+async fn elevated_routes_need_a_second_factor_on_a_2fa_server() {
+    let w = world().await;
+    let (gid, general) = w.guild("Strict Club").await;
+    w.add_member(&gid, DAVE);
+    // Make the requirement apply (the owner enrols first, as the route demands).
+    w.enrol(OWNER).await;
+    let (s, m) = w
+        .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    w.clock.advance_ms(16 * 60 * 1000);
+    // Remove the owner's authenticator again for the "not enrolled" half.
+    w.auth.totp_delete(OWNER).await.unwrap();
+    let (_, inv) = w
+        .post(OWNER, &format!("/channels/{general}/invites"), json!({}))
+        .await;
+    let code = inv["code"].as_str().unwrap().to_owned();
+
+    let routes: Vec<(Method, String, Option<Value>)> = vec![
+        (Method::DELETE, format!("/guilds/{gid}/members/{DAVE}"), None),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}/members/{BOB}"),
+            Some(json!({ "communication_disabled_until": "2099-01-01T00:00:00.000000+00:00" })),
+        ),
+        (
+            Method::POST,
+            format!("/channels/{general}/webhooks"),
+            Some(json!({ "name": "hook" })),
+        ),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/emojis"),
+            Some(json!({ "name": "blob", "image": PNG })),
+        ),
+        (Method::DELETE, format!("/guilds/{gid}/emojis/1"), None),
+        (Method::DELETE, format!("/guilds/{gid}/stickers/1"), None),
+        (Method::DELETE, format!("/guilds/{gid}/soundboard-sounds/1"), None),
+        (Method::DELETE, format!("/guilds/{gid}/auto-moderation/rules/1"), None),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}/sr/community"),
+            Some(json!({ "dm_spam_filter": true })),
+        ),
+        (Method::DELETE, format!("/invites/{code}"), None),
+    ];
+
+    // No second factor on the account: 900123 everywhere.
+    for (m, p, b) in &routes {
+        let r = w.call(OWNER, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 900123), "{m} {p}: {}", r.1);
+    }
+    // Members without the permission still get the plain permission error where the route
+    // checks the permission first.
+    let r = w
+        .call(
+            BOB,
+            Method::PATCH,
+            &format!("/guilds/{gid}/sr/community"),
+            Some(json!({ "dm_spam_filter": true })),
+        )
+        .await;
+    assert_eq!(mfa_code(&r).1, 50013, "{}", r.1);
+
+    // Enrolled but not proved on this session: 900004.
+    w.enrol(OWNER).await;
+    for (m, p, b) in &routes {
+        let r = w.call(OWNER, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 900004), "{m} {p}: {}", r.1);
+    }
+
+    // Proved: none of them is refused for the second factor any more.
+    w.prove(100).await;
+    for (m, p, b) in &routes {
+        let r = w.call(OWNER, m.clone(), p, b.clone()).await;
+        assert!(
+            !matches!(mfa_code(&r).1, 900004 | 900123),
+            "{m} {p}: {}",
+            r.1
+        );
+    }
+
+    // Webhook edit and delete are gated too once the window closes.
+    let (s, hook) = w
+        .post(OWNER, &format!("/channels/{general}/webhooks"), json!({ "name": "again" }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{hook}");
+    let hid = hook["id"].as_str().unwrap().to_owned();
+    w.clock.advance_ms(16 * 60 * 1000);
+    let r = w
+        .patch(OWNER, &format!("/webhooks/{hid}"), json!({ "name": "x" }))
+        .await;
+    assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
+    let r = w.delete(OWNER, &format!("/webhooks/{hid}")).await;
+    assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
 }

@@ -114,6 +114,7 @@ error_codes! {
     SrAppNotReleased = 900120, 403, "App not released";
     SrAppSuspended = 900121, 403, "This application is suspended";
     SrTesterRecentlyDeclined = 900122, 409, "This person declined recently; wait 24 hours before inviting them again";
+    SrMfaEnrollmentRequired = 900123, 403, "This server requires two-factor authentication";
     SrIgnoreListFull = 900101, 400, "Your ignore list is full";
     SrInternal = 900500, 500, "Internal server error";
 }
@@ -259,6 +260,7 @@ mod tests {
         assert_eq!(ErrorCode::AutoModBlocked.code(), 200000);
         assert_eq!(ErrorCode::AutoModBlocked.http_status(), 400);
         assert_eq!(ErrorCode::SrIgnoreListFull.code(), 900101);
+        assert_eq!(ErrorCode::SrMfaEnrollmentRequired.code(), 900123);
         assert_eq!(
             ErrorCode::SlowmodeRateLimit.message(),
             "This action cannot be performed due to slowmode rate limit"

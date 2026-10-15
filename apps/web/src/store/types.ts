@@ -31,6 +31,8 @@ export interface Guild {
   rules_channel_id?: string | null;
   public_updates_channel_id?: string | null;
   safety_alerts_channel_id?: string | null;
+  /** Server Protection (D-224): links whose text names another host show their raw target and a warning. */
+  hide_suspicious_links?: boolean;
 }
 
 export interface Channel {

@@ -41,6 +41,11 @@ pub async fn list(
         let mut obj = DmChannelObject::new(dm, me, &users);
         if deps.service.request_state(me, dm.id).await? == Some(RequestState::Pending) {
             obj.is_message_request = Some(true);
+            obj.sr_request_reason = deps
+                .service
+                .request_reason(me, dm.id)
+                .await?
+                .map(|r| r.as_str().to_owned());
         }
         out.push(obj);
     }

@@ -143,6 +143,9 @@ pub struct Guild {
     pub rules_channel_id: Option<ChannelId>,
     pub public_updates_channel_id: Option<ChannelId>,
     pub safety_alerts_channel_id: Option<ChannelId>,
+    /// Server Protection (D-224): links whose text names another host show their raw target
+    /// and a warning. Read from `guild_community`; visible to every member.
+    pub hide_suspicious_links: bool,
     /// 0 none, 1 elevated: moderator actions need a recent second factor (G-36).
     pub mfa_level: u8,
     /// Discord `system_channel_flags` bit field (see [`system_flags`]).

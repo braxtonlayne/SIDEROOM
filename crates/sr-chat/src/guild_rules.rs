@@ -85,6 +85,7 @@ pub fn plan_new_guild(
         rules_channel_id: None,
         public_updates_channel_id: None,
         safety_alerts_channel_id: None,
+        hide_suspicious_links: false,
         owner_id: owner,
         is_staff_guild: false,
         system_channel_id: Some(general),

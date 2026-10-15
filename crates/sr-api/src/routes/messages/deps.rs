@@ -496,3 +496,23 @@ impl MessagesDeps {
         self.chat.unpin(u, c, m).await
     }
 }
+
+impl MessagesDeps {
+    /// Second-factor requirement of the server (D-223) for an elevated action in `guild`
+    /// (`MANAGE_MESSAGES`: deleting another member's message, bulk delete, pins). Direct
+    /// messages have no server and pass.
+    pub(super) async fn require_mfa(
+        &self,
+        gate: &crate::routes::guilds::safety::MfaGate,
+        user: UserId,
+        guild: Option<sr_core::GuildId>,
+    ) -> super::error::MsgResult<()> {
+        let (true, Some(guild)) = (gate.applies(), guild) else {
+            return Ok(());
+        };
+        if let Some(g) = self.repo.get_guild(guild).await? {
+            gate.check_level(user, g.mfa_level).await?;
+        }
+        Ok(())
+    }
+}

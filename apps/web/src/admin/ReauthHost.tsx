@@ -7,7 +7,8 @@ import { useT } from '../i18n';
 import { passkeyVerifyBegin } from '../api/passkeys';
 import { getPasskey, isCancelled, passkeysSupported } from '../lib/webauthn';
 import * as api from './api';
-import { registerReauthPrompt } from './reauth';
+import { onEnrollmentRequired, registerReauthPrompt } from './reauth';
+import { useOpenUserSettings } from '../settings/user/nav';
 
 type Method = 'totp' | 'recovery';
 
@@ -20,6 +21,9 @@ export function ReauthHost() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const resolver = useRef<((ok: boolean) => void) | null>(null);
+  const [enrol, setEnrol] = useState(false);
+  const openSettings = useOpenUserSettings();
+  useEffect(() => onEnrollmentRequired(() => setEnrol(true)), []);
 
   const finish = useCallback((ok: boolean) => {
     resolver.current?.(ok);
@@ -85,7 +89,34 @@ export function ReauthHost() {
   const minutes = Math.round((status?.window_secs ?? 900) / 60);
   const blocked = status !== null && !status.enrolled;
   return (
-    <Modal
+    <>
+      <Modal
+        open={enrol}
+        onClose={() => setEnrol(false)}
+        title={t('admin.reauth.enrolTitle')}
+        description={t('admin.reauth.enrolDescription')}
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEnrol(false)}>
+              {t('admin.ui.cancel')}
+            </Button>
+            <Button
+              onClick={() => {
+                setEnrol(false);
+                openSettings('account');
+              }}
+            >
+              {t('admin.reauth.enrolOpen')}
+            </Button>
+          </>
+        }
+      >
+        <Notice variant="warning" role="alert">
+          {t('admin.reauth.enrolNotice')}
+        </Notice>
+      </Modal>
+      <Modal
       open={open}
       onClose={() => (busy ? undefined : finish(false))}
       title={t('admin.reauth.title')}
@@ -155,5 +186,6 @@ export function ReauthHost() {
         </form>
       )}
     </Modal>
+    </>
   );
 }

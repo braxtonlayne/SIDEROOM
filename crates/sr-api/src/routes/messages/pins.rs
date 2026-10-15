@@ -5,6 +5,7 @@ use super::error::{MsgResult, parse_id};
 use super::model::{MessageObject, PinEntry, PinsPage, iso};
 use super::render::{actor, event_payload, render_many};
 use crate::routes::Ext;
+use crate::routes::guilds::safety::MfaGate;
 use crate::{Principal, openapi::ErrorBody};
 use axum::{Json, extract::Path, http::StatusCode};
 use sr_chat::settings::audit::AuditAction;
@@ -94,6 +95,7 @@ fn gid(c: &sr_chat::Channel) -> Option<sr_events::GuildId> {
 )]
 pub async fn pin(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel, message)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
@@ -105,6 +107,12 @@ pub async fn pin(
         .get_message(channel_id, message_id)
         .await?
         .map(|m| m.author_id);
+    let guild = deps
+        .repo
+        .get_channel(channel_id)
+        .await?
+        .and_then(|c| c.guild_id);
+    deps.require_mfa(&gate, user, guild).await?;
     deps.pin(user, channel_id, message_id).await?;
     let now = deps.now_ms();
     let ch = deps.access(user, channel_id).await?.channel;
@@ -179,6 +187,7 @@ pub async fn pin(
 )]
 pub async fn unpin(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel, message)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
@@ -190,6 +199,12 @@ pub async fn unpin(
         .get_message(channel_id, message_id)
         .await?
         .map(|m| m.author_id);
+    let guild = deps
+        .repo
+        .get_channel(channel_id)
+        .await?
+        .and_then(|c| c.guild_id);
+    deps.require_mfa(&gate, user, guild).await?;
     deps.unpin(user, channel_id, message_id).await?;
     let ch = deps.access(user, channel_id).await?.channel;
     let last = deps

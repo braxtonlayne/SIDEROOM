@@ -9,6 +9,8 @@ use super::model::{AttachmentObject, UploadSlot, UploadSlotsBody, UploadSlotsRes
 use super::render::actor;
 use super::store::{Attachment, UploadState};
 use crate::routes::Ext;
+use crate::routes::MaybeExt;
+use crate::routes::social::SocialDeps;
 use crate::{Principal, openapi::ErrorBody};
 use axum::{Json, extract::Path};
 use sr_chat::ChatError;
@@ -79,6 +81,7 @@ pub fn upload_filename(a: &Attachment) -> String {
 pub async fn request_slots(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
+    MaybeExt(social): MaybeExt<SocialDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<UploadSlotsBody>,
 ) -> MsgResult<Json<UploadSlotsResponse>> {
@@ -129,13 +132,24 @@ pub async fn request_slots(
         }
     }
 
+    // A conversation in someone's Message Requests under `explicit_media_filter_dms` delivers
+    // every attachment with the spoiler flag; nothing is scanned (D-224).
+    let force_spoiler = match (&social, acc.channel.guild_id) {
+        (Some(s), None) => s
+            .service
+            .spoiler_attachments(user, channel_id)
+            .await
+            .unwrap_or(false),
+        _ => false,
+    };
     let mut slots = Vec::with_capacity(body.files.len());
     for (f, d) in body.files.iter().zip(decisions) {
         let id = deps.next_attachment_id();
         // Discord's convention: a `SPOILER_` name is a spoiler, and `spoiler: true`
         // adds the prefix (D-177), so `AttachmentObject.filename` carries it.
         let name = sanitize_filename(&f.filename);
-        let spoiler = f.spoiler.unwrap_or(false) || name.starts_with(SPOILER_PREFIX);
+        let spoiler =
+            force_spoiler || f.spoiler.unwrap_or(false) || name.starts_with(SPOILER_PREFIX);
         let filename = if spoiler {
             spoiler_filename(&name)
         } else {

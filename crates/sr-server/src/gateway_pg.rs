@@ -328,6 +328,11 @@ impl PgGuildDirectory {
             let mut obj = DmChannelObject::new(d, user, &users);
             if self.social.get_request_state(user, d.id).await? == Some(RequestState::Pending) {
                 obj.is_message_request = Some(true);
+                obj.sr_request_reason = self
+                    .social
+                    .get_request_reason(user, d.id)
+                    .await?
+                    .map(|r| r.as_str().to_owned());
             }
             private_channels.push(json!(obj));
         }

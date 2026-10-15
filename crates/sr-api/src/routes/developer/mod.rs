@@ -69,6 +69,8 @@ mod endpoint_tests;
 #[cfg(test)]
 mod flow_tests;
 #[cfg(test)]
+mod mfa_tests;
+#[cfg(test)]
 mod tester_tests;
 #[cfg(test)]
 mod tests;
