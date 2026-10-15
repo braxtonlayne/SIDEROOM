@@ -1,5 +1,6 @@
 // Library catalog editor (ADM-CNT-003): series list, series form, editions, chapters, publish and merge.
-// Page reorder and replace need the upload pipeline and are not part of this screen yet.
+// P13: per-chapter page editor (reorder, spreads, remove, re-convert), contributor credit revocation and the
+// comment report queue sit under the series table.
 import {
   Badge,
   Button,
@@ -25,6 +26,8 @@ import {
   useResource,
 } from '../ui';
 import * as api from './api';
+import { CommentReportsCard, CreditsCard } from './CreditsCard';
+import { PagesDialog } from './PagesDialog';
 
 const PAGE = 50;
 const list = (s: string) =>
@@ -160,6 +163,8 @@ export function LibraryCatalogSection() {
           </form>
         }
       />
+      <CreditsCard />
+      <CommentReportsCard />
       {editing && (
         <SeriesDrawer
           id={editing}
@@ -484,6 +489,7 @@ function Chapters({ seriesId, onChanged }: { seriesId: string; onChanged: () => 
   const [addEdition, setAddEdition] = useState(false);
   const [addChapterTo, setAddChapterTo] = useState<api.Edition | null>(null);
   const [del, setDel] = useState<api.Chapter | null>(null);
+  const [pagesOf, setPagesOf] = useState<api.Chapter | null>(null);
   const [lang, setLang] = useState('en');
   const [label, setLabel] = useState('');
   const [num, setNum] = useState('');
@@ -556,6 +562,16 @@ function Chapters({ seriesId, onChanged }: { seriesId: string; onChanged: () => 
                         >
                           {c.published ? t('admin.library.unpublish') : t('admin.library.publish')}
                         </Button>
+                        {c.format === 'images' && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            aria-label={t('admin.library.pagesAria', { n: c.number })}
+                            onClick={() => setPagesOf(c)}
+                          >
+                            {t('admin.library.pages')}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="danger"
@@ -651,6 +667,16 @@ function Chapters({ seriesId, onChanged }: { seriesId: string; onChanged: () => 
                 onChange={(e) => setGroup(e.target.value)}
               />
             </FormDialog>
+            {pagesOf && (
+              <PagesDialog
+                chapter={pagesOf}
+                onClose={() => setPagesOf(null)}
+                onChanged={() => {
+                  void res.reload();
+                  onChanged();
+                }}
+              />
+            )}
             <ConfirmDialog
               open={!!del}
               danger
