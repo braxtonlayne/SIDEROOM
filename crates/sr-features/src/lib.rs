@@ -1,16 +1,27 @@
 //! sr-features: feature registry, settings schemas, scoped settings and
 //! feature flags. See docs/11-extensibility-and-developer-platform.md section 1.
+//!
+//! Built-in modules (docs/inventory/09-feature-modules.md) live in [`modules`]; the
+//! [`runtime`] feeds them platform events and ticks, and they act on the platform
+//! only through the [`actions::FeatureActions`] port.
 
+pub mod actions;
 pub mod feature;
 pub mod moderation;
+pub mod modules;
+pub mod runtime;
 pub mod schema;
 pub mod service;
+pub mod state;
 pub mod store;
+pub mod template;
+pub mod testing;
 
 pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
 pub use moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
+pub use runtime::FeatureRuntime;
 pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};
 pub use service::FeatureService;
 pub use store::{InMemorySettingsStore, SettingsRecord, SettingsStore};

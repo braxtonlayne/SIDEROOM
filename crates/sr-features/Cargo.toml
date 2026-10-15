@@ -14,7 +14,8 @@ serde_json.workspace = true
 sr-core = { path = "../sr-core", default-features = false }
 sr-events = { path = "../sr-events" }
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt", "sync"] }
+tracing = "0.1"
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

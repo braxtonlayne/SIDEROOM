@@ -90,6 +90,20 @@ impl FeatureService {
         Ok(value)
     }
 
+    /// Guilds in which `id` is enabled, for ticking modules. Only guilds with a
+    /// stored record are considered, then each is checked with [`Self::is_enabled`]
+    /// (so the platform kill switch and defaults apply).
+    pub async fn enabled_guilds(&self, id: &str) -> Result<Vec<sr_events::GuildId>, FeatureError> {
+        self.feature(id)?;
+        let mut out = Vec::new();
+        for (guild, _) in self.inner.store.list_guilds(id).await? {
+            if self.is_enabled(id, &ScopeRef::Guild { guild }).await? {
+                out.push(guild);
+            }
+        }
+        Ok(out)
+    }
+
     /// Set (or with `None`, clear) the enabled flag at `scope`.
     pub async fn set_enabled(
         &self,
