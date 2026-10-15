@@ -339,6 +339,7 @@ impl LibraryService {
                     height: p.height,
                     is_double_spread: p.is_double_spread,
                     blurhash: p.blurhash,
+                    crop: p.crop,
                     url: self.url(&p.key, exp),
                     variants: p
                         .variants

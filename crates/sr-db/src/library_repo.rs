@@ -578,7 +578,7 @@ impl LibraryRepository for PgLibraryRepo {
 
     async fn list_pages(&self, chapter_id: i64) -> LibraryResult<Vec<PageRecord>> {
         let rows = sqlx::query(
-            "SELECT idx, key, variants, width, height, is_double_spread, blurhash \
+            "SELECT idx, key, variants, width, height, is_double_spread, blurhash, crop \
              FROM reading_pages WHERE chapter_id = $1 ORDER BY idx",
         )
         .bind(chapter_id)
@@ -605,6 +605,10 @@ impl LibraryRepository for PgLibraryRepo {
                     height: r.try_get("height").map_err(db)?,
                     is_double_spread: r.try_get("is_double_spread").map_err(db)?,
                     blurhash: r.try_get("blurhash").map_err(db)?,
+                    crop: r
+                        .try_get::<Option<serde_json::Value>, _>("crop")
+                        .map_err(db)?
+                        .and_then(|v| serde_json::from_value(v).ok()),
                 })
             })
             .collect()
@@ -1351,11 +1355,15 @@ impl LibraryRepository for PgLibraryRepo {
             let heights: Vec<i32> = pages.iter().map(|p| p.height).collect();
             let spreads: Vec<bool> = pages.iter().map(|p| p.is_double_spread).collect();
             let hashes: Vec<Option<String>> = pages.iter().map(|p| p.blurhash.clone()).collect();
+            let crops: Vec<Option<String>> = pages
+                .iter()
+                .map(|p| p.crop.and_then(|c| serde_json::to_string(&c).ok()))
+                .collect();
             sqlx::query(
-                "INSERT INTO reading_pages (chapter_id, idx, key, variants, width, height, is_double_spread, blurhash) \
-                 SELECT $1, t.idx, t.key, t.variants::jsonb, t.width, t.height, t.spread, t.blurhash \
-                 FROM UNNEST($2::int[], $3::text[], $4::text[], $5::int[], $6::int[], $7::bool[], $8::text[]) \
-                   AS t(idx, key, variants, width, height, spread, blurhash)",
+                "INSERT INTO reading_pages (chapter_id, idx, key, variants, width, height, is_double_spread, blurhash, crop) \
+                 SELECT $1, t.idx, t.key, t.variants::jsonb, t.width, t.height, t.spread, t.blurhash, t.crop::jsonb \
+                 FROM UNNEST($2::int[], $3::text[], $4::text[], $5::int[], $6::int[], $7::bool[], $8::text[], $9::text[]) \
+                   AS t(idx, key, variants, width, height, spread, blurhash, crop)",
             )
             .bind(chapter)
             .bind(idx)
@@ -1365,6 +1373,7 @@ impl LibraryRepository for PgLibraryRepo {
             .bind(heights)
             .bind(spreads)
             .bind(hashes)
+            .bind(crops)
             .execute(&mut *tx)
             .await
             .map_err(db)?;

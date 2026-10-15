@@ -55355,6 +55355,38 @@
           }
         }
       },
+      "PageCrop": {
+        "type": "object",
+        "description": "Pixels of the full-size page to cut off on each side.",
+        "required": [
+          "left",
+          "top",
+          "right",
+          "bottom"
+        ],
+        "properties": {
+          "bottom": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "left": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "right": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "top": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "PageEntry": {
         "type": "object",
         "required": [
@@ -55370,6 +55402,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "crop": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PageCrop",
+                "description": "Uniform borders the reader can crop (pixels of the full-size image), when detected."
+              }
             ]
           },
           "height": {
@@ -55413,6 +55456,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "crop": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PageCrop",
+                "description": "Borders the reader may cut off (pixels of the full-size page); see `ingest::crop`."
+              }
             ]
           },
           "height": {

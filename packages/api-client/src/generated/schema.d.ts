@@ -11859,8 +11859,20 @@ export interface components {
             id: string;
             username?: string | null;
         };
+        /** @description Pixels of the full-size page to cut off on each side. */
+        PageCrop: {
+            /** Format: int32 */
+            bottom: number;
+            /** Format: int32 */
+            left: number;
+            /** Format: int32 */
+            right: number;
+            /** Format: int32 */
+            top: number;
+        };
         PageEntry: {
             blurhash?: string | null;
+            crop?: null | components["schemas"]["PageCrop"];
             /** Format: int32 */
             height: number;
             /** Format: int32 */
@@ -11876,6 +11888,7 @@ export interface components {
         /** @description Replacement page list entry (admin). */
         PageInput: {
             blurhash?: string | null;
+            crop?: null | components["schemas"]["PageCrop"];
             /** Format: int32 */
             height: number;
             is_double_spread?: boolean;
