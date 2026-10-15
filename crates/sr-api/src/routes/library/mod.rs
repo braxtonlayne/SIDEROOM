@@ -26,6 +26,7 @@
 mod admin;
 mod member;
 mod reading;
+mod social;
 mod uploads;
 
 #[cfg(test)]
@@ -76,6 +77,8 @@ pub struct LibraryDeps {
     pub service: LibraryService,
     age: Arc<dyn AgeGate>,
     prefs: Arc<dyn LibraryPrefs>,
+    /// Ratings, reviews, lists, rankings (`sr-library-social`); the routes answer 500 without it.
+    pub social: Option<sr_library_social::LibrarySocial>,
 }
 
 impl LibraryDeps {
@@ -84,7 +87,14 @@ impl LibraryDeps {
             service,
             age: Arc::new(NoAgeConfirmed),
             prefs: Arc::new(NoLibraryPrefs),
+            social: None,
         }
+    }
+
+    /// The social backend (LIB-SOC-001/003/006, LIB-BRW-002).
+    pub fn with_social(mut self, social: sr_library_social::LibrarySocial) -> Self {
+        self.social = Some(social);
+        self
     }
 
     /// Source of the per-user preferences (`library.hide_age_restricted`).
@@ -286,9 +296,54 @@ pub fn router() -> Router<AppState> {
             "/library/bookmarks/{bookmark_id}",
             delete(reading::delete_bookmark),
         )
+        // Social: ratings, reviews, lists, rankings, unread counts.
+        .route(
+            "/library/series/{series_id}/ratings",
+            get(social::series_ratings),
+        )
+        .route(
+            "/library/series/{series_id}/rating",
+            put(social::rate_series).delete(social::unrate_series),
+        )
+        .route(
+            "/library/chapters/{chapter_id}/rating",
+            get(social::chapter_rating)
+                .put(social::rate_chapter)
+                .delete(social::unrate_chapter),
+        )
+        .route("/library/series/{series_id}/reviews", get(social::reviews))
+        .route(
+            "/library/series/{series_id}/review",
+            put(social::put_review).delete(social::delete_review),
+        )
+        .route(
+            "/library/reviews/{review_id}/helpful",
+            put(social::helpful).delete(social::unhelpful),
+        )
+        .route("/library/me/lists", get(social::my_lists))
+        .route("/library/lists", post(social::create_list))
+        .route("/library/lists/featured", get(social::featured_lists))
+        .route(
+            "/library/lists/{list_id}",
+            get(social::get_list)
+                .patch(social::update_list)
+                .delete(social::delete_list),
+        )
+        .route(
+            "/library/lists/{list_id}/items/{series_id}",
+            put(social::add_item).delete(social::remove_item),
+        )
+        .route("/library/lists/{list_id}/order", put(social::reorder))
+        .route("/library/users/{user_id}/lists", get(social::user_lists))
+        .route("/library/rankings", get(social::rankings))
+        .route("/library/me/unread", get(social::unread_counts))
         .route("/library/me/progress", get(reading::history))
         .route("/library/me/bookmarks", get(reading::my_bookmarks))
         // Publishers.
+        .route(
+            "/admin/library/lists/{list_id}/feature",
+            post(social::feature_list),
+        )
         .route(
             "/admin/library/series",
             get(admin::list).post(admin::create_series),
@@ -384,6 +439,30 @@ pub fn router() -> Router<AppState> {
         reading::put_bookmark,
         reading::delete_bookmark,
         reading::my_bookmarks,
+        social::series_ratings,
+        social::rate_series,
+        social::unrate_series,
+        social::chapter_rating,
+        social::rate_chapter,
+        social::unrate_chapter,
+        social::reviews,
+        social::put_review,
+        social::delete_review,
+        social::helpful,
+        social::unhelpful,
+        social::my_lists,
+        social::create_list,
+        social::featured_lists,
+        social::get_list,
+        social::update_list,
+        social::delete_list,
+        social::add_item,
+        social::remove_item,
+        social::reorder,
+        social::user_lists,
+        social::rankings,
+        social::unread_counts,
+        social::feature_list,
         admin::list,
         admin::create_series,
         admin::series,
@@ -461,6 +540,32 @@ pub fn router() -> Router<AppState> {
         sr_library::reading::BookmarkList,
         sr_library::reading::BookmarkEntry,
         sr_library::reading::BookmarkPage,
+        social::CountBody,
+        social::ListCard,
+        social::ListsBody,
+        social::ListItemView,
+        social::ListDetail,
+        social::FeatureBody,
+        social::RankingEntry,
+        social::RankingsBody,
+        sr_library_social::model::RatingAggregate,
+        sr_library_social::model::SeriesRatings,
+        sr_library_social::model::ChapterRating,
+        sr_library_social::model::ScoreInput,
+        sr_library_social::model::Review,
+        sr_library_social::model::ReviewPage,
+        sr_library_social::model::ReviewInput,
+        sr_library_social::model::ReviewSort,
+        sr_library_social::model::Visibility,
+        sr_library_social::model::ReadingList,
+        sr_library_social::model::ListEntry,
+        sr_library_social::model::ListInput,
+        sr_library_social::model::ListPatch,
+        sr_library_social::model::ListItemInput,
+        sr_library_social::model::ListOrderInput,
+        sr_library_social::model::RankingPeriod,
+        sr_library_social::model::UnreadCount,
+        sr_library_social::model::UnreadCounts,
     ))
 )]
 pub struct LibraryApiDoc;

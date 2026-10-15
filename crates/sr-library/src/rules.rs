@@ -233,6 +233,11 @@ pub fn pages(series: i64, chapter: i64, input: &[PageInput]) -> LibraryResult<Ve
         {
             return invalid(format!("page {i}: bad blurhash"));
         }
+        if let Some(c) = &p.crop
+            && (c.is_empty() || !c.fits(p.width, p.height))
+        {
+            return invalid(format!("page {i}: bad crop"));
+        }
         let mut variants = Vec::new();
         for (w, k) in &p.variants {
             let width: u32 = w
@@ -255,6 +260,7 @@ pub fn pages(series: i64, chapter: i64, input: &[PageInput]) -> LibraryResult<Ve
             height: p.height as i32,
             is_double_spread: p.is_double_spread,
             blurhash: p.blurhash.clone(),
+            crop: p.crop,
         });
     }
     Ok(out)
@@ -468,6 +474,7 @@ mod tests {
             height: 1200,
             is_double_spread: false,
             blurhash: Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into()),
+            crop: None,
         };
         let ok = pages(
             1,

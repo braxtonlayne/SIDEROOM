@@ -17,7 +17,7 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [ ] **LIB-ING-004** [BE] PDF: keep original + rasterize pages (pdfium) for image mode *(partial: `ingest::pdf::validate` accepts or refuses the original; rasterization is not implemented, see open-questions 2; the HTTP upload and job keep the original as the chapter source since phase 4)*
 - [x] **LIB-ING-005** [BE] EPUB: validate, extract metadata/cover, keep as-is (`ingest::epub::inspect`)
 - [x] **LIB-ING-006** [BE] series.json parser
-- [ ] **LIB-ING-007** [BE] Auto-crop border detection data (optional per page)
+- [x] **LIB-ING-007** [BE] Auto-crop border detection data (optional per page) *(phase 11: `ingest::crop`, stored in `reading_pages.crop` (0691) and in the page manifest; the reader does not apply it yet)*
 - [x] **LIB-ING-008** [BE] Library `SubmissionKind` impls (series, items) with publish actions *(phase 5: `sr-library::submissions`, `library.series` and `library.items`; members build drafts and upload through the existing presigned-PUT + `library.ingest` path scoped to their submission, a curator with `REVIEW_READING` approves and the Library service publishes; see submissions-and-review spec section 9)*
 - [ ] **LIB-ING-009** [WASM] Client-side pre-checks (image validity, sizes) before upload
 
@@ -41,11 +41,11 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 
 ## LIB-BRW — Browse, rankings, updates
 - [ ] **LIB-BRW-001** [FE] Browse page: kind tabs, filter drawer (genres include/exclude, tags, status, language/edition, year, rating, age-restricted), sort, grid/list, virtualized infinite grid *(partial: kind tabs, filter drawer, sort, grid/list and infinite loading work; no virtualized grid, genre and tag filters are free text)*
-- [ ] **LIB-BRW-002** [FE] Rankings page (scopes, periods: week/month/all-time)
+- [x] **LIB-BRW-002** [FE] Rankings page (scopes, periods: week/month/all-time) *(phase 11: `/library/rankings`, global scope only; Friends and People you know wait for a reading-privacy setting)*
 - [x] **LIB-BRW-003** [FE] Latest updates page (all / following toggle)
 
 ## LIB-SER — Series page
-- [ ] **LIB-SER-001** [FE] Header: backdrop, cover, title, alt titles, authors/artists, status, year, rating with distribution + scope switch, genres/tags, synopsis expand *(partial: no rating or distribution yet)*
+- [x] **LIB-SER-001** [FE] Header: backdrop, cover, title, alt titles, authors/artists, status, year, rating with distribution + scope switch, genres/tags, synopsis expand *(partial: no rating or distribution yet)* *(phase 11: ratings with scope switch and distribution, `SeriesSocial.tsx`)*
 - [ ] **LIB-SER-002** [FE] Actions: Start/Continue reading, Follow (bell), Add to list ▾, Rate, Share to Lounge, Download (Patron) *(partial: Start/Continue and Follow only)*
 - [x] **LIB-SER-003** [FE] Edition selector
 - [ ] **LIB-SER-004** [FE] Chapter list (volume groups, sort, read marks, group, date, mark read up to here, per-chapter download for Patrons) *(partial: volume groups, sort and read marks; no mark-read-up-to-here or downloads)*
@@ -71,17 +71,17 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [ ] **LIB-RDR-017** [BE] "Reading" presence activity emission (privacy-aware)
 
 ## LIB-SOC — Social & discovery
-- [ ] **LIB-SOC-001** [BE] Ratings (1–10) per series/chapter + aggregates per scope (global, known, friends) with caching
+- [x] **LIB-SOC-001** [BE] Ratings (1–10) per series/chapter + aggregates per scope (global, known, friends) with caching *(phase 11: `sr-library-social`, series and chapter ratings, aggregates computed live (no cache))*
 - [ ] **LIB-SOC-002** [BE] "People you know" set computation + cache invalidation on membership changes
 - [ ] **LIB-SOC-003** [BE] Reviews (text, spoiler flag, rating link, helpful votes) + comments (threaded)
 - [ ] **LIB-SOC-004** [BE] Trending score job (global hourly) + on-demand scoped trending (10-min per-user cache)
 - [ ] **LIB-SOC-005** [BE] Recommendations ("Because you read X": tag similarity + co-reading among known)
-- [ ] **LIB-SOC-006** [BE] Lists (CRUD, order, visibility, share) + featured lists
+- [x] **LIB-SOC-006** [BE] Lists (CRUD, order, visibility, share) + featured lists *(phase 11: lists CRUD, order, visibility, staff feature endpoint)*
 - [ ] **LIB-SOC-007** [BE] Follow + new-chapter notifications (in-app, push, Lounge feed module) *(partial, phase 4: publishing a chapter dispatches `SR_LIBRARY_UPDATE` `chapter_published` to followers with the bell on, and follow changes sync across devices; no stored notification list, push or Lounge feed yet)*
-- [ ] **LIB-SOC-008** [FE] My library page (status shelves: Reading, Plan to read, Completed, On hold, Dropped; unread counts; sort)
+- [x] **LIB-SOC-008** [FE] My library page (status shelves: Reading, Plan to read, Completed, On hold, Dropped; unread counts; sort) *(phase 11: unread counts and sort)*
 - [ ] **LIB-SOC-009** [FE] Reading history page (timeline, remove, pause)
-- [ ] **LIB-SOC-010** [FE] Reading lists pages (mine, featured, list detail, editor)
-- [ ] **LIB-SOC-011** [FE] Reviews tab UI (write/edit review modal, sort, helpful)
+- [x] **LIB-SOC-010** [FE] Reading lists pages (mine, featured, list detail, editor) *(phase 11: `Lists.tsx`; no staff UI for featuring yet)*
+- [x] **LIB-SOC-011** [FE] Reviews tab UI (write/edit review modal, sort, helpful) *(phase 11: `ReviewsTab`)*
 
 ## LIB-ADM — Admin
 - [ ] **LIB-ADM-001** [FE] Library catalog editor (series form, editions, chapters table, page reorder/replace/delete, re-convert, merge series)

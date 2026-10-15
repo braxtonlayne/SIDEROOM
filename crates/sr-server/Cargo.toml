@@ -39,6 +39,7 @@ sr-gateway = { path = "../sr-gateway" }
 sr-library = { path = "../sr-library" }
 sr-net = { path = "../sr-net" }
 sr-push = { path = "../sr-push" }
+sr-library-social = { path = "../sr-library-social" }
 sr-cinema = { path = "../sr-cinema" }
 sr-media = { path = "../sr-media" }
 sr-payments = { path = "../sr-payments" }

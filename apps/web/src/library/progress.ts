@@ -58,6 +58,8 @@ export interface ProgressApi {
   bookmarks(chapterId: string): Promise<Bookmark[]>;
   addBookmark(chapterId: string, pageIndex: number, note?: string): Promise<Bookmark>;
   removeBookmark(chapterId: string, id: string): Promise<void>;
+  /** Forget the saved position of one chapter (removes it from the reading history). */
+  remove(chapterId: string): Promise<void>;
 }
 
 /* ------------------------------------------------------------------ http */
@@ -134,6 +136,12 @@ export const httpProgress: ProgressApi = {
   },
   async removeBookmark(_chapterId, id) {
     await apiFetch(`/library/bookmarks/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      retries: 0,
+    });
+  },
+  async remove(chapterId) {
+    await apiFetch(`/library/chapters/${encodeURIComponent(chapterId)}/progress`, {
       method: 'DELETE',
       retries: 0,
     });
@@ -217,6 +225,12 @@ export const localProgress: ProgressApi = {
     );
     return Promise.resolve();
   },
+  remove(chapterId) {
+    const all = readJson<Record<string, RecentItem>>(PROGRESS_KEY, {});
+    delete all[chapterId];
+    writeJson(PROGRESS_KEY, all);
+    return Promise.resolve();
+  },
 };
 
 /* --------------------------------------------------------------- switch */
@@ -232,6 +246,7 @@ export const progressApi: ProgressApi = {
   bookmarks: (c) => current.bookmarks(c),
   addBookmark: (c, i, n) => current.addBookmark(c, i, n),
   removeBookmark: (c, i) => current.removeBookmark(c, i),
+  remove: (c) => current.remove(c),
 };
 
 export function setProgressApi(api: ProgressApi | null) {

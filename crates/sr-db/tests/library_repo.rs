@@ -206,6 +206,12 @@ fn pages(series: i64, chapter: i64, n: usize) -> Vec<PageInput> {
             height: 2400,
             is_double_spread: i == 1,
             blurhash: Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into()),
+            crop: (i == 1).then_some(sr_library::ingest::crop::PageCrop {
+                left: 10,
+                top: 20,
+                right: 30,
+                bottom: 40,
+            }),
         })
         .collect()
 }
@@ -324,6 +330,12 @@ async fn catalog_lifecycle_and_page_manifest() {
     assert_eq!(m.pages.len(), 3);
     assert_eq!(m.reading_direction, ReadingDirection::Rtl);
     assert!(m.pages[1].is_double_spread);
+    // Detected borders round-trip through the page table (LIB-ING-007).
+    assert_eq!(m.pages[0].crop, None);
+    assert_eq!(
+        m.pages[1].crop.map(|c| (c.left, c.top, c.right, c.bottom)),
+        Some((10, 20, 30, 40))
+    );
     assert_eq!(
         m.pages[0]
             .variants

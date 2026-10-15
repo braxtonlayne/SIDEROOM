@@ -536,7 +536,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
             .with_prefs(Arc::new(crate::settings_pg::PgLibraryPrefs::new(
                 pool.clone(),
-            ))),
+            )))
+            .with_social(
+                sr_library_social::LibrarySocial::new(pool.clone(), id_src.clone()).with_events(
+                    Arc::new(routes::library::BusLibraryEvents::new(bus.clone())),
+                ),
+            ),
     );
 
     // The Cinema catalog (CIN-DATA-*): Postgres repository, signed artwork URLs (the same CDN

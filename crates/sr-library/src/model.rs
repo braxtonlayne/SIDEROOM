@@ -2,6 +2,7 @@
 //! decimal strings in JSON, like every other SIDE ROOM API. Timestamps are Unix
 //! milliseconds.
 
+use crate::ingest::crop::PageCrop;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -397,6 +398,7 @@ pub struct PageRecord {
     pub height: i32,
     pub is_double_spread: bool,
     pub blurhash: Option<String>,
+    pub crop: Option<PageCrop>,
 }
 
 /// Replacement page list entry (admin).
@@ -412,6 +414,9 @@ pub struct PageInput {
     #[serde(default)]
     pub is_double_spread: bool,
     pub blurhash: Option<String>,
+    /// Borders the reader may cut off (pixels of the full-size page); see `ingest::crop`.
+    #[serde(default)]
+    pub crop: Option<PageCrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
@@ -427,6 +432,8 @@ pub struct PageEntry {
     pub height: i32,
     pub is_double_spread: bool,
     pub blurhash: Option<String>,
+    /// Uniform borders the reader can crop (pixels of the full-size image), when detected.
+    pub crop: Option<PageCrop>,
     /// Full-size signed URL.
     pub url: String,
     /// Smaller signed variants; pick by viewport width times device pixel ratio.

@@ -288,6 +288,12 @@ fn pages(series: i64, chapter: i64, n: usize) -> Vec<PageInput> {
             height: 2400,
             is_double_spread: false,
             blurhash: Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into()),
+            crop: (i == 1).then_some(sr_library::ingest::crop::PageCrop {
+                left: 10,
+                top: 20,
+                right: 30,
+                bottom: 40,
+            }),
         })
         .collect()
 }

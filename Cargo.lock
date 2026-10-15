@@ -5107,6 +5107,7 @@ dependencies = [
  "sr-events",
  "sr-features",
  "sr-library",
+ "sr-library-social",
  "sr-markdown",
  "sr-media",
  "sr-net",
@@ -5372,6 +5373,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-library-social"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "sr-db",
+ "sr-library",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
 name = "sr-markdown"
 version = "0.0.0"
 dependencies = [
@@ -5534,6 +5551,7 @@ dependencies = [
  "sr-features",
  "sr-gateway",
  "sr-library",
+ "sr-library-social",
  "sr-media",
  "sr-net",
  "sr-payments",
