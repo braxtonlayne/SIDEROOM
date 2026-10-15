@@ -160,6 +160,34 @@ fn q(sql: String) -> sqlx::query::Query<'static, Postgres, sqlx::postgres::PgArg
     sqlx::query(sqlx::AssertSqlSafe(sql))
 }
 
+const APP_EMOJI_COLS: &str = "id, application_id, name, animated, media_key, size_bytes, \
+    (extract(epoch FROM created_at) * 1000)::bigint AS created_ms";
+const APP_ASSET_COLS: &str = "id, application_id, name, kind, media_key, \
+    (extract(epoch FROM created_at) * 1000)::bigint AS created_ms";
+
+fn app_emoji_row(r: &PgRow) -> AppsResult<AppEmoji> {
+    Ok(AppEmoji {
+        id: r.try_get("id").map_err(db)?,
+        application_id: r.try_get("application_id").map_err(db)?,
+        name: r.try_get("name").map_err(db)?,
+        animated: r.try_get("animated").map_err(db)?,
+        media_key: r.try_get("media_key").map_err(db)?,
+        size_bytes: r.try_get("size_bytes").map_err(db)?,
+        created_at_ms: r.try_get("created_ms").map_err(db)?,
+    })
+}
+
+fn app_asset_row(r: &PgRow) -> AppsResult<AppAsset> {
+    Ok(AppAsset {
+        id: r.try_get("id").map_err(db)?,
+        application_id: r.try_get("application_id").map_err(db)?,
+        name: r.try_get("name").map_err(db)?,
+        kind: r.try_get("kind").map_err(db)?,
+        media_key: r.try_get("media_key").map_err(db)?,
+        created_at_ms: r.try_get("created_ms").map_err(db)?,
+    })
+}
+
 fn tester_row(r: &PgRow) -> AppsResult<Tester> {
     let state: String = r.try_get("state").map_err(db)?;
     Ok(Tester {
@@ -1094,6 +1122,227 @@ impl AppsRepository for PgAppsRepo {
         }
         tx.commit().await.map_err(db)?;
         Ok(n > 0)
+    }
+
+    async fn app_emojis(&self, app: i64) -> AppsResult<Vec<AppEmoji>> {
+        q(format!(
+            "SELECT {APP_EMOJI_COLS} FROM application_emojis WHERE application_id = $1 ORDER BY id"
+        ))
+        .bind(app)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?
+        .iter()
+        .map(app_emoji_row)
+        .collect()
+    }
+
+    async fn app_emoji(&self, app: i64, id: i64) -> AppsResult<Option<AppEmoji>> {
+        q(format!(
+            "SELECT {APP_EMOJI_COLS} FROM application_emojis WHERE application_id = $1 AND id = $2"
+        ))
+        .bind(app)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?
+        .as_ref()
+        .map(app_emoji_row)
+        .transpose()
+    }
+
+    async fn insert_app_emoji(&self, e: &AppEmoji, audit: AuditRow) -> AppsResult<AppEmoji> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        // The application row serialises concurrent inserts so the cap holds.
+        sqlx::query("SELECT 1 FROM applications WHERE id = $1 FOR UPDATE")
+            .bind(e.application_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db)?
+            .ok_or(AppsError::NotFound("application"))?;
+        let n: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM application_emojis WHERE application_id = $1")
+                .bind(e.application_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(db)?;
+        if n >= MAX_APP_EMOJIS {
+            return Err(AppsError::Conflict(format!(
+                "An application can have at most {MAX_APP_EMOJIS} emoji."
+            )));
+        }
+        let r = sqlx::query(
+            "INSERT INTO application_emojis \
+             (id, application_id, name, animated, media_key, size_bytes, created_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7::double precision / 1000.0))",
+        )
+        .bind(e.id)
+        .bind(e.application_id)
+        .bind(&e.name)
+        .bind(e.animated)
+        .bind(&e.media_key)
+        .bind(e.size_bytes)
+        .bind(e.created_at_ms)
+        .execute(&mut *tx)
+        .await;
+        match r {
+            Ok(_) => {}
+            Err(err) if is_unique(&err) => {
+                return Err(AppsError::Conflict("That emoji name is taken.".into()));
+            }
+            Err(err) => return Err(db(err)),
+        }
+        audit_in(&mut tx, &audit).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(e.clone())
+    }
+
+    async fn rename_app_emoji(
+        &self,
+        app: i64,
+        id: i64,
+        name: &str,
+        audit: AuditRow,
+    ) -> AppsResult<AppEmoji> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let r = q(format!(
+            "UPDATE application_emojis SET name = $3 WHERE application_id = $1 AND id = $2 \
+             RETURNING {APP_EMOJI_COLS}"
+        ))
+        .bind(app)
+        .bind(id)
+        .bind(name)
+        .fetch_optional(&mut *tx)
+        .await;
+        let row = match r {
+            Ok(Some(row)) => row,
+            Ok(None) => return Err(AppsError::NotFound("emoji")),
+            Err(err) if is_unique(&err) => {
+                return Err(AppsError::Conflict("That emoji name is taken.".into()));
+            }
+            Err(err) => return Err(db(err)),
+        };
+        audit_in(&mut tx, &audit).await?;
+        tx.commit().await.map_err(db)?;
+        app_emoji_row(&row)
+    }
+
+    async fn delete_app_emoji(
+        &self,
+        app: i64,
+        id: i64,
+        audit: AuditRow,
+    ) -> AppsResult<Option<AppEmoji>> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let row = q(format!(
+            "DELETE FROM application_emojis WHERE application_id = $1 AND id = $2 \
+             RETURNING {APP_EMOJI_COLS}"
+        ))
+        .bind(app)
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        audit_in(&mut tx, &audit).await?;
+        tx.commit().await.map_err(db)?;
+        app_emoji_row(&row).map(Some)
+    }
+
+    async fn app_assets(&self, app: i64) -> AppsResult<Vec<AppAsset>> {
+        q(format!(
+            "SELECT {APP_ASSET_COLS} FROM application_assets WHERE application_id = $1 ORDER BY id"
+        ))
+        .bind(app)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?
+        .iter()
+        .map(app_asset_row)
+        .collect()
+    }
+
+    async fn app_asset(&self, app: i64, id: i64) -> AppsResult<Option<AppAsset>> {
+        q(format!(
+            "SELECT {APP_ASSET_COLS} FROM application_assets WHERE application_id = $1 AND id = $2"
+        ))
+        .bind(app)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?
+        .as_ref()
+        .map(app_asset_row)
+        .transpose()
+    }
+
+    async fn insert_app_asset(&self, a: &AppAsset, audit: AuditRow) -> AppsResult<AppAsset> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        sqlx::query("SELECT 1 FROM applications WHERE id = $1 FOR UPDATE")
+            .bind(a.application_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db)?
+            .ok_or(AppsError::NotFound("application"))?;
+        let n: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM application_assets WHERE application_id = $1")
+                .bind(a.application_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(db)?;
+        if n >= MAX_APP_ASSETS {
+            return Err(AppsError::Conflict(format!(
+                "An application can have at most {MAX_APP_ASSETS} assets."
+            )));
+        }
+        let r = sqlx::query(
+            "INSERT INTO application_assets (id, application_id, name, kind, media_key, created_at) \
+             VALUES ($1, $2, $3, $4, $5, to_timestamp($6::double precision / 1000.0))",
+        )
+        .bind(a.id)
+        .bind(a.application_id)
+        .bind(&a.name)
+        .bind(a.kind)
+        .bind(&a.media_key)
+        .bind(a.created_at_ms)
+        .execute(&mut *tx)
+        .await;
+        match r {
+            Ok(_) => {}
+            Err(err) if is_unique(&err) => {
+                return Err(AppsError::Conflict("That asset name is taken.".into()));
+            }
+            Err(err) => return Err(db(err)),
+        }
+        audit_in(&mut tx, &audit).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(a.clone())
+    }
+
+    async fn delete_app_asset(
+        &self,
+        app: i64,
+        id: i64,
+        audit: AuditRow,
+    ) -> AppsResult<Option<AppAsset>> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let row = q(format!(
+            "DELETE FROM application_assets WHERE application_id = $1 AND id = $2 \
+             RETURNING {APP_ASSET_COLS}"
+        ))
+        .bind(app)
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        audit_in(&mut tx, &audit).await?;
+        tx.commit().await.map_err(db)?;
+        app_asset_row(&row).map(Some)
     }
 
     async fn set_bot_name(&self, app: i64, name: &str, audit: AuditRow) -> AppsResult<()> {

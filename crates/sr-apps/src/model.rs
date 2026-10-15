@@ -625,3 +625,44 @@ pub struct Tester {
     /// When invited.
     pub created_at_ms: i64,
 }
+
+/// Application emoji one application may own (Discord: 2000).
+pub const MAX_APP_EMOJIS: i64 = 2000;
+/// Rich Presence art assets one application may own.
+pub const MAX_APP_ASSETS: i64 = 300;
+
+/// An emoji owned by an application, not by a server (DEV-PORT-003, Emojis tab).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppEmoji {
+    /// Emoji id.
+    pub id: i64,
+    /// Owner application.
+    pub application_id: i64,
+    /// 2 to 32 letters, digits and underscores; unique per application, case-insensitively.
+    pub name: String,
+    /// Animated GIF or WebP.
+    pub animated: bool,
+    /// Object storage key (`emoji/app/{application}/{id}.{ext}`).
+    pub media_key: String,
+    /// Size of the original upload.
+    pub size_bytes: i64,
+    /// Created.
+    pub created_at_ms: i64,
+}
+
+/// A Rich Presence art asset: an image an activity can name (DEV-PORT-003).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppAsset {
+    /// Asset id.
+    pub id: i64,
+    /// Owner application.
+    pub application_id: i64,
+    /// 1 to 32 characters of `a-z 0-9 _ -`; unique per application.
+    pub name: String,
+    /// Discord asset type: 1 large image, 2 small image.
+    pub kind: i16,
+    /// Object storage key (`emoji/app-assets/{application}/{id}.{ext}`).
+    pub media_key: String,
+    /// Created.
+    pub created_at_ms: i64,
+}

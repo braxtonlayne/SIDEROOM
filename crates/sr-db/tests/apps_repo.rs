@@ -1279,3 +1279,96 @@ async fn a_declined_invitation_blocks_a_new_one_for_a_day() {
         .await
         .unwrap();
 }
+
+// ---------------------------------------------------- DEV-PORT-003: emoji and assets
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn application_emoji_and_assets_keep_names_unique_and_cascade() {
+    let f = fx().await;
+    let c = f.app().await;
+    let id = c.application.id;
+    let eid = f.svc.new_media_id();
+    let e = f
+        .svc
+        .add_app_emoji(
+            f.owner,
+            id,
+            eid,
+            "Party",
+            false,
+            10,
+            format!("emoji/app/{id}/{eid}.png"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(e.name, "Party");
+    // case-insensitive uniqueness, also on rename
+    assert!(matches!(
+        f.svc
+            .add_app_emoji(
+                f.owner,
+                id,
+                f.svc.new_media_id(),
+                "party",
+                false,
+                1,
+                "k".into()
+            )
+            .await,
+        Err(AppsError::Conflict(_))
+    ));
+    let other = f.svc.new_media_id();
+    f.svc
+        .add_app_emoji(f.owner, id, other, "second", true, 1, "k2".into())
+        .await
+        .unwrap();
+    assert!(matches!(
+        f.svc.rename_app_emoji(f.owner, id, other, "PARTY").await,
+        Err(AppsError::Conflict(_))
+    ));
+    assert_eq!(
+        f.svc
+            .rename_app_emoji(f.owner, id, other, "third")
+            .await
+            .unwrap()
+            .name,
+        "third"
+    );
+    assert_eq!(f.svc.list_app_emojis(f.owner, id).await.unwrap().len(), 2);
+    // a stranger sees nothing
+    assert!(f.svc.list_app_emojis(f.other, id).await.is_err());
+
+    let aid = f.svc.new_media_id();
+    f.svc
+        .add_app_asset(
+            f.owner,
+            id,
+            aid,
+            "logo",
+            1,
+            format!("emoji/app-assets/{id}/{aid}.png"),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        f.svc
+            .add_app_asset(f.owner, id, f.svc.new_media_id(), "logo", 2, "k".into())
+            .await,
+        Err(AppsError::Conflict(_))
+    ));
+    assert!(f.svc.delete_app_emoji(f.owner, id, other).await.is_ok());
+    assert!(f.svc.delete_app_emoji(f.owner, id, other).await.is_err());
+
+    // deleting the application removes both tables' rows
+    f.svc.delete_application(f.owner, id).await.unwrap();
+    let left: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM application_emojis WHERE application_id = $1) \
+              + (SELECT count(*) FROM application_assets WHERE application_id = $1)",
+    )
+    .bind(id)
+    .fetch_one(f.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(left, 0);
+}

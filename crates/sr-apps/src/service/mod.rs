@@ -4,12 +4,14 @@
 mod commands;
 mod endpoint;
 mod interactions;
+mod media;
 mod oauth;
 mod testers;
 
 pub use commands::*;
 pub use endpoint::*;
 pub use interactions::*;
+pub use media::*;
 pub use oauth::*;
 pub use testers::*;
 

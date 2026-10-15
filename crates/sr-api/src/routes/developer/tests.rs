@@ -287,6 +287,10 @@ pub(super) async fn env_full(
         .settings(settings)
         .extension(Arc::new(dev))
         .extension(Arc::new(messages))
+        .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
+            storage.clone(),
+            sr_storage::cdn::CdnSigner::new(b"app-media-test-secret-0123456789".to_vec()),
+        )))
         .extension(Arc::new(AdminDeps::new(admin)))
         .build();
     // Stands in for the settings module's `POST /webhooks/{id}/{token}`, which asks the

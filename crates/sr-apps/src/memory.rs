@@ -69,6 +69,8 @@ struct State {
     interactions_cfg: HashMap<i64, InteractionsConfig>,
     testers: Vec<Tester>,
     declines: std::collections::HashMap<(i64, i64), i64>,
+    app_emojis: Vec<AppEmoji>,
+    app_assets: Vec<AppAsset>,
 }
 
 /// RAM-backed repository.
@@ -556,6 +558,145 @@ impl AppsRepository for MemoryAppsRepo {
             s.audit.push(audit);
         }
         Ok(removed)
+    }
+
+    async fn app_emojis(&self, app: i64) -> AppsResult<Vec<AppEmoji>> {
+        Ok(self
+            .st()
+            .app_emojis
+            .iter()
+            .filter(|e| e.application_id == app)
+            .cloned()
+            .collect())
+    }
+
+    async fn app_emoji(&self, app: i64, id: i64) -> AppsResult<Option<AppEmoji>> {
+        Ok(self
+            .st()
+            .app_emojis
+            .iter()
+            .find(|e| e.application_id == app && e.id == id)
+            .cloned())
+    }
+
+    async fn insert_app_emoji(&self, e: &AppEmoji, audit: AuditRow) -> AppsResult<AppEmoji> {
+        let mut s = self.st();
+        let mine = s
+            .app_emojis
+            .iter()
+            .filter(|x| x.application_id == e.application_id);
+        if mine.clone().count() as i64 >= MAX_APP_EMOJIS {
+            return Err(AppsError::Conflict(format!(
+                "An application can have at most {MAX_APP_EMOJIS} emoji."
+            )));
+        }
+        if mine.clone().any(|x| x.name.eq_ignore_ascii_case(&e.name)) {
+            return Err(AppsError::Conflict("That emoji name is taken.".into()));
+        }
+        s.app_emojis.push(e.clone());
+        s.audit.push(audit);
+        Ok(e.clone())
+    }
+
+    async fn rename_app_emoji(
+        &self,
+        app: i64,
+        id: i64,
+        name: &str,
+        audit: AuditRow,
+    ) -> AppsResult<AppEmoji> {
+        let mut s = self.st();
+        if s.app_emojis
+            .iter()
+            .any(|x| x.application_id == app && x.id != id && x.name.eq_ignore_ascii_case(name))
+        {
+            return Err(AppsError::Conflict("That emoji name is taken.".into()));
+        }
+        let e = s
+            .app_emojis
+            .iter_mut()
+            .find(|x| x.application_id == app && x.id == id)
+            .ok_or(AppsError::NotFound("emoji"))?;
+        e.name = name.to_owned();
+        let out = e.clone();
+        s.audit.push(audit);
+        Ok(out)
+    }
+
+    async fn delete_app_emoji(
+        &self,
+        app: i64,
+        id: i64,
+        audit: AuditRow,
+    ) -> AppsResult<Option<AppEmoji>> {
+        let mut s = self.st();
+        let Some(i) = s
+            .app_emojis
+            .iter()
+            .position(|x| x.application_id == app && x.id == id)
+        else {
+            return Ok(None);
+        };
+        let e = s.app_emojis.remove(i);
+        s.audit.push(audit);
+        Ok(Some(e))
+    }
+
+    async fn app_assets(&self, app: i64) -> AppsResult<Vec<AppAsset>> {
+        Ok(self
+            .st()
+            .app_assets
+            .iter()
+            .filter(|a| a.application_id == app)
+            .cloned()
+            .collect())
+    }
+
+    async fn app_asset(&self, app: i64, id: i64) -> AppsResult<Option<AppAsset>> {
+        Ok(self
+            .st()
+            .app_assets
+            .iter()
+            .find(|a| a.application_id == app && a.id == id)
+            .cloned())
+    }
+
+    async fn insert_app_asset(&self, a: &AppAsset, audit: AuditRow) -> AppsResult<AppAsset> {
+        let mut s = self.st();
+        let mine = s
+            .app_assets
+            .iter()
+            .filter(|x| x.application_id == a.application_id);
+        if mine.clone().count() as i64 >= MAX_APP_ASSETS {
+            return Err(AppsError::Conflict(format!(
+                "An application can have at most {MAX_APP_ASSETS} assets."
+            )));
+        }
+        if mine.clone().any(|x| x.name == a.name) {
+            return Err(AppsError::Conflict("That asset name is taken.".into()));
+        }
+        s.app_assets.push(a.clone());
+        s.audit.push(audit);
+        Ok(a.clone())
+    }
+
+    async fn delete_app_asset(
+        &self,
+        app: i64,
+        id: i64,
+        audit: AuditRow,
+    ) -> AppsResult<Option<AppAsset>> {
+        let mut s = self.st();
+        let Some(i) = s
+            .app_assets
+            .iter()
+            .position(|x| x.application_id == app && x.id == id)
+        else {
+            return Ok(None);
+        };
+        let a = s.app_assets.remove(i);
+        s.audit.push(audit);
+        Ok(Some(a))
     }
 
     async fn set_bot_name(&self, app: i64, name: &str, audit: AuditRow) -> AppsResult<()> {
