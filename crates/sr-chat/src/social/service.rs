@@ -783,6 +783,14 @@ impl<R: SocialRepository> SocialService<R> {
         })
     }
 
+    /// The guilds `user` belongs to, with their per-server profile fields.
+    pub async fn own_guild_memberships(
+        &self,
+        user: UserId,
+    ) -> SocialResult<Vec<super::repo::GuildMembership>> {
+        Ok(self.repo.list_guild_memberships(user).await?)
+    }
+
     /// Who should hear about a change to `user`'s profile or presence: friends and
     /// the guilds they belong to.
     pub async fn audience(&self, user: UserId) -> SocialResult<Audience> {

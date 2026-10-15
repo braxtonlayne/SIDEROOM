@@ -1863,3 +1863,77 @@ async fn display_name_edits_through_global_name() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(stored(ALICE), None);
 }
+
+#[tokio::test]
+async fn profile_decoration_effect_and_theme_edit_and_view() {
+    let e = env().await;
+    let (s, v) = e
+        .patch(
+            "/users/@me",
+            ALICE,
+            json!({
+                "avatar_decoration": "neon-halo",
+                "profile_effect": "snow",
+                "theme_colors": [0x00ff_0000u32, 0x0000_00ffu32]
+            }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["avatar_decoration"], "neon-halo");
+    assert_eq!(v["theme_colors"], json!([0x00ff_0000u32, 0x0000_00ffu32]));
+
+    let (_, v) = e.get("/users/1/profile", BOB).await;
+    assert_eq!(v["user_profile"]["avatar_decoration"], "neon-halo");
+    assert_eq!(v["user_profile"]["profile_effect"], "snow");
+    assert_eq!(
+        v["user_profile"]["theme_colors"],
+        json!([0x00ff_0000u32, 0x0000_00ffu32])
+    );
+    assert!(v["badges"].as_array().unwrap().is_empty());
+    assert!(v["member_since"].is_string());
+
+    // Bad slugs and wide colours are refused and change nothing.
+    for body in [
+        json!({"avatar_decoration": "Not A Slug"}),
+        json!({"theme_colors": [0x0100_0000u32, 0]}),
+    ] {
+        let (s, _) = e.patch("/users/@me", ALICE, body).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+    // null clears.
+    let (_, v) = e
+        .patch(
+            "/users/@me",
+            ALICE,
+            json!({"avatar_decoration": null, "profile_effect": null, "theme_colors": null}),
+        )
+        .await;
+    assert!(v["avatar_decoration"].is_null() && v["theme_colors"].is_null());
+}
+
+#[tokio::test]
+async fn profile_returns_the_server_profile_only_for_a_shared_server() {
+    let e = env().await;
+    let g = e.guild;
+    e.repo
+        .add_member(g, UserId::new(ALICE), Some("Boss"), T0 - 5_000);
+    e.repo
+        .add_member(g, UserId::new(BOB), Some("Bobby"), T0 - 1_000);
+    let (s, v) = e
+        .get(&format!("/users/2/profile?guild_id={g}"), ALICE)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["guild_member_profile"]["nick"], "Bobby");
+    assert_eq!(
+        v["guild_member_profile"]["guild_id"],
+        g.to_string().as_str()
+    );
+    // Dave is not in the server: nothing about it leaks.
+    let (_, v) = e.get(&format!("/users/2/profile?guild_id={g}"), DAVE).await;
+    assert!(v.get("guild_member_profile").is_none());
+    // Without guild_id there is no server profile either.
+    let (_, v) = e.get("/users/2/profile", ALICE).await;
+    assert!(v.get("guild_member_profile").is_none());
+    let (s, _) = e.get("/users/2/profile?guild_id=nope", ALICE).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}

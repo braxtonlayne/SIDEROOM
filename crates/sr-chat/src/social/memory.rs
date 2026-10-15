@@ -208,6 +208,7 @@ impl RelationshipRepository for MemoryRepo {
                 guild: *g,
                 nick: nick.clone(),
                 joined_at_ms: *at,
+                ..GuildMembership::default()
             })
             .collect();
         out.sort_by_key(|m| m.guild);

@@ -18,11 +18,16 @@ pub type RepoResult<T> = Result<T, RepoError>;
 
 /// One guild membership of a user, as the social layer needs it (mutual guilds,
 /// guild-wide acknowledgement, presence fan-out).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct GuildMembership {
     pub guild: GuildId,
     pub nick: Option<String>,
     pub joined_at_ms: i64,
+    /// Per-server profile overrides (LNG-PRF-001): avatar and banner content hashes and
+    /// the about me the member set for this server only.
+    pub avatar_key: Option<String>,
+    pub banner_key: Option<String>,
+    pub bio: Option<String>,
 }
 
 /// Per-user privacy preferences relevant to relationships and DMs.

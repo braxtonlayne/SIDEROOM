@@ -11,9 +11,7 @@ ALTER TABLE accounts
     ADD COLUMN theme_primary      INTEGER CHECK (theme_primary BETWEEN 0 AND 16777215),
     ADD COLUMN theme_accent       INTEGER CHECK (theme_accent BETWEEN 0 AND 16777215);
 
--- Per-server profile pronouns (guild_members already has nick, avatar_key, banner_key, bio).
-ALTER TABLE guild_members
-    ADD COLUMN pronouns TEXT CHECK (char_length(pronouns) <= 40);
+-- Per-server overrides (nick, avatar_key, banner_key, bio) already live on guild_members.
 
 -- ---- LNG-USET-007: account deletion (D-029, doc 09) -------------------------------------
 -- The account row stays (D-124); the visible fields are scrubbed to "Deleted User". The

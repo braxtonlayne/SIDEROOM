@@ -419,6 +419,16 @@ pub struct ConnectionObject {
     pub id: String,
     pub name: String,
     pub verified: bool,
+    /// Link to the account's public page, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// Whether the owner shows stats / activity of this connection.
+    pub show_activity: bool,
+    /// Public stats (`{"followers": 12}`); empty unless `show_activity`.
+    #[schema(value_type = Object)]
+    pub stats: serde_json::Value,
+    /// Hidden connections are only listed to their owner.
+    pub visible: bool,
 }
 
 impl From<&Connection> for ConnectionObject {
@@ -428,6 +438,14 @@ impl From<&Connection> for ConnectionObject {
             id: c.external_id.clone(),
             name: c.display_name.clone(),
             verified: c.verified,
+            url: c.url.clone(),
+            show_activity: c.show_activity,
+            stats: if c.show_activity {
+                c.stats.clone()
+            } else {
+                serde_json::json!({})
+            },
+            visible: c.visible,
         }
     }
 }
@@ -438,6 +456,12 @@ pub struct UserProfileFields {
     pub pronouns: Option<String>,
     pub banner: Option<String>,
     pub accent_color: Option<u32>,
+    /// Slug of the avatar decoration, if one is set.
+    pub avatar_decoration: Option<String>,
+    /// Slug of the profile effect, if one is set.
+    pub profile_effect: Option<String>,
+    /// The two profile theme colours (0xRRGGBB), primary first.
+    pub theme_colors: Option<[u32; 2]>,
 }
 
 impl From<&Profile> for UserProfileFields {
@@ -447,8 +471,22 @@ impl From<&Profile> for UserProfileFields {
             pronouns: p.pronouns.clone(),
             banner: p.banner_key.clone(),
             accent_color: p.accent_color,
+            avatar_decoration: p.avatar_decoration.clone(),
+            profile_effect: p.profile_effect.clone(),
+            theme_colors: p.theme_colors,
         }
     }
+}
+
+/// The member's per-server profile (`GET /users/{id}/profile?guild_id=`).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct GuildMemberProfileObject {
+    pub guild_id: String,
+    pub nick: Option<String>,
+    pub avatar: Option<String>,
+    pub banner: Option<String>,
+    pub bio: Option<String>,
+    pub joined_at: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -470,6 +508,14 @@ pub struct ProfileObject {
     /// When the viewer and the owner became friends.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub friends_since: Option<String>,
+    /// Public badges: `owner`, `staff`, `patron`, `contributor`, `early_member`,
+    /// `bug_hunter`, `honorary`, `app_developer`, `bot`.
+    pub badges: Vec<String>,
+    /// When the account was created ("Member since").
+    pub member_since: String,
+    /// The owner's profile in `guild_id` (only when the viewer shares that server).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guild_member_profile: Option<GuildMemberProfileObject>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -516,6 +562,19 @@ pub struct EditSelfBody {
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<u32>)]
     pub accent_color: Option<Option<u32>>,
+    /// Slug of an approved avatar decoration (lowercase letters, digits, `-`, 48 at most);
+    /// `null` removes it.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub avatar_decoration: Option<Option<String>>,
+    /// Slug of an approved profile effect; `null` removes it.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub profile_effect: Option<Option<String>>,
+    /// The profile theme as two 0xRRGGBB colours `[primary, accent]`; `null` clears it.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<Vec<u32>>)]
+    pub theme_colors: Option<Option<[u32; 2]>>,
     /// `null` clears the custom status.
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<CustomStatusBody>)]
@@ -529,6 +588,9 @@ pub struct SelfObject {
     pub pronouns: Option<String>,
     pub banner: Option<String>,
     pub accent_color: Option<u32>,
+    pub avatar_decoration: Option<String>,
+    pub profile_effect: Option<String>,
+    pub theme_colors: Option<[u32; 2]>,
     pub custom_status: Option<CustomStatusObject>,
 }
 

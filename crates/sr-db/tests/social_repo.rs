@@ -304,6 +304,9 @@ async fn profile_and_presence() {
             verified: false,
             visible,
             created_ms: 0,
+            url: None,
+            show_activity: true,
+            stats: serde_json::Value::Null,
         })
         .await
         .unwrap();
