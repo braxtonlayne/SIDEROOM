@@ -1905,3 +1905,186 @@ Status: `NO-CODE`.
 ### Still with the owner from earlier rounds
 
 Unchanged: the UnRAR licence confirmation (D-170) and the eight NEEDS-OWNER items of the Phase 8 to 11 round listed in [open-questions.md](open-questions.md); this round adds none.
+
+## Phase 12 and 13 remaining questions (answered 2026-10-15)
+
+Every owner question, "still open" judgement call and deviation left in the handoffs that the two Phase 12 rounds did not reach, plus the Phase 13 handoffs written so far: on `main`, `docs/dev/handoff/feat-p12-tv-wp-be.md`, `feat-p12-g68-be.md` and `feat-p12-integration.md` (the other five Phase 12 handoffs were answered as P12-AUI to P12-LGB and raise nothing new); on their branches, `feat-p13-web-fe.md`, `feat-p13-mfa-protect.md`, `feat-p13-events.md` and `feat-p13-library.md`. Also the two items of [open-questions.md](open-questions.md) "Human actions" 4 that are decisions rather than actions (the Content-Security-Policy origins and the entrance muted-text colour); everything else listed there is legal, money, artwork, an external account or a human action and stays. Same rules as the earlier rounds: [01-decisions-log.md](01-decisions-log.md) wins; Discord parity by default; privacy and safety per docs 09 and 15; Rust first per doc 03; conservative security defaults; one Owner running a friend-group instance on one node (doc 02 section 5).
+
+Two of these were decided by the owner in chat today and are recorded as given: `foliate-js` is approved for the EPUB reader (P13-LIB-1) and "Share to Lounge" posts a card into a channel the person picks (P13-LIB-2). Status key as before: `ADOPTED` = a product decision, recorded as D-225 onward; `DEFAULT` = engineering default, implement without the owner; `NEEDS-OWNER` = needs the human, with the default that applies meanwhile; `NO-CODE` = informational or already resolved. Follow-ups are H-01 onward in [dev/answers-followups-p13.md](dev/answers-followups-p13.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED | 9 |
+| DEFAULT | 15 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 13 |
+
+37 questions in all. Nothing in this round needs the owner: no legal, money, artwork or external-account question was raised, and the two owner decisions given today are recorded, not re-decided. The eight NEEDS-OWNER items of the Phase 8 to 11 round and the UnRAR confirmation stand unchanged in [open-questions.md](open-questions.md).
+
+### Live TV, watch parties, donations backend (P12-TVW, handoff `feat-p12-tv-wp-be.md`)
+
+**P12-TVW-1. Should TV reminders have a user setting for the lead time and a "my reminders" list? Today: per-request lead only, and the popover cannot show an already-set reminder after a reload.**
+Decision: both, small. A settings-blob key `tv.reminder_lead_minutes` (0 to 120, default 5) is the lead used when `PUT /tv/reminders/{block_id}` is called without `?lead_minutes=`; the Live TV settings card renders it. `GET /tv/reminders` (session only, bots denied like the other two) lists the caller's pending reminders as `[{block_id, channel_id, title, starts_at, remind_at, lead_minutes}]`; the guide popover reads it so "Remind me" shows as set after a reload and offers "Remove reminder", and the Live TV page gets a small "My reminders" list over the same route. No new delivery path: the reminder stays the system-user DM that P8-TV-2 and the handoff describe.
+Status: `DEFAULT`. Follow-up: H-01.
+
+**P12-TVW-2. Should a Watch party room be able to start empty (no title), so the room can exist before anyone picks something? That needs a nullable media on `watch_parties`.**
+Decision: yes. A voice channel exists before anyone talks in it, and a room preset that demands a title at creation (with the creator leaving the party again so the next joiner hosts) is a workaround for a schema rule, not a feature. A persistent party bound to a voice channel may have no media: the preset no longer asks for a title, the party row is created with `title_id`, `episode_id` and `asset_id` null and state `idle`, and `WATCH_PARTY_UPDATE` and `GET /watch-parties/{id}` carry `media: null`. The first person to join an idle room becomes host and the client opens the title picker (the existing change-media dialog); choosing media moves the party to the usual paused state. When the last participant leaves, a persistent room keeps whatever media it had (as today). Ad-hoc parties (not bound to a channel) still need media at creation, enforced by a check constraint, so nothing changes for `POST /watch-parties`. The play gate, limits and the age rule run when media is chosen, as they do on change-media today.
+Status: `ADOPTED` (D-227). Follow-up: H-02.
+
+**P12-TVW-3. Live party media identifies the channel by `title_id` and `asset_id` rather than a new column, so clients must read `media.live` first; a restricted programme that starts after the party began is gated at tune time, not at party level.**
+Decision: accepted as built. A column that is null for every non-live party buys nothing over the `live` flag, and ported clients that ignore `live` would not know what to do with a channel id in a new column either. Tune-time gating is the right place for a programme that becomes restricted mid-party: the party state machine does not know the schedule, the tune route does, and the person who is refused sees the same age-gate answer as outside a party. The watch-party spec says both things in one sentence.
+Status: `DEFAULT`. Follow-up: H-26 (doc rows only).
+
+**P12-TVW-4. G-07: the `SR_DOWNLOADS_LEGACY_FALLBACK` flag and the `cinema_download_grants` table are still there; removing them is "next phase's job".**
+Decision: this is that phase. The flag has defaulted to off since Phase 12 and the entitlement path is the only one exercised; remove the flag and the fallback code, and drop the table with a guarded migration (it raises if any grant row is newer than the entitlements backfill, so an instance that never ran Phase 12 is told to do so first). The `deploy/RUNBOOK.md` note changes from "check Admin → Entitlements first" to the upgrade order.
+Status: `DEFAULT`. Follow-up: H-03.
+
+**P12-TVW-5. WP-FE-008's "message card" entry point: the in-chat party card does not exist, so the box stays open.**
+Decision: the entry point now exists elsewhere. `feat/p13-web-fe` built the Cinema and Library rich cards in chat (LNG-MSGUI-018) with a "Watch together" button, which is the message-card entry point WP-FE-008 names; once that branch merges the box is ticked with a note. A separate "party in progress, join" card posted into a channel is not built: a running party already appears as the host's `party.id` activity, which the member list and profile show with a Join button, and the channel-bound room is visible in the channel list.
+Status: `NO-CODE`. Follow-up: H-26 (inventory note).
+
+**P12-TVW-6. `0781` was the agent's pick for the leaderboard migration and must not collide with other branches.**
+Decision: resolved at integration; the merged tree lists 0781 once (`feat-p12-integration.md`). This round assigns `0870` to `0879`, so nothing new can collide with the Phase 12 and 13 numbers already taken (0810 and 0811 on `main`, 0820 on `feat/p13-events`, 0825 on `feat/p13-mfa-protect`, 0830 to 0832 on `feat/p13-library`).
+Status: `NO-CODE`.
+
+### Phase 12 follow-ups backend (P12-G68, handoff `feat-p12-g68-be.md`)
+
+**P12-G68-1. Should Approve from the `#review-queue` card need a fresh second factor? `POST /admin/review/.../approve` asks for none today, so the card asks for none either.**
+Decision: no fresh factor, on the card or the route; they must agree, and the route is right. A staff session exists only for an account with an enrolled second factor (D-198), the admin re-auth window already covers the pages that reach account data and private content (D-125, doc 07 section 5), and approving a submission publishes a reviewed item to members, which is reversible (unpublish, `DELETE_CONTENT`) and leaves a `review.approve` staff-log row naming the presser. A second factor on every approve would train staff to type codes reflexively, which is the opposite of what re-auth is for. Reject keeps going through the review page because a reason is required (D-082), not for security.
+Status: `DEFAULT`. No follow-up.
+
+**P12-G68-2. Is `900122` the right number for the tester re-invite cooldown, and should it be 409 or 403?**
+Decision: both right. Integration gave `MFA_ENROLLMENT_REQUIRED` the next number (`900123`), so `900122 TESTER_RECENTLY_DECLINED` stands. 409 is the right status: the caller is allowed to invite and the request is well formed; it is the state of the pair (a decline less than 24 hours old) that refuses it, which is what 409 says, and 403 would make a client treat a cooldown as a permission problem. Doc 05 lists the code with its status.
+Status: `NO-CODE`.
+
+**P12-G68-3. Should the review card show thumbnails and a Request changes button (REV-RV-005 asks for them)? Today: title, kind, submitter, item count, Approve, Reject and a link.**
+Decision: yes to both, small. One thumbnail: the submission's cover (Library) or poster (Cinema) as the card embed's image through a signed CDN URL minted for the Staff Server message, or no image when the submission has none; not a page strip, which would put unreviewed content into a chat channel. A third button `sr:review-changes:<submission id>` that, like Reject, changes nothing on the card and answers a link to `/admin/review?submission=<id>&changes=1`, which opens the review page's request-changes dialog (`sr-review` already has the `changes_requested` state and a reason is required there too). The card rewrites to its outcome for this transition as for the others.
+Status: `DEFAULT`. Follow-up: H-04.
+
+**P12-G68-4. Deviations to check: `POST /library/submissions/{id}/cover` keeps a literal path unlike the other `/submissions/{id}/library/*` member routes and takes a JSON data URI; `member_capabilities` is a sibling map on `GET /guilds/{id}/modules`; the announcement patch accepts `message` and `ends_at` as aliases; `SR_FEATURE_UPDATE` is published from every write path; the card shows an item count, not bytes.**
+Decision: all accepted as merged. The cover route is published in the OpenAPI document and the client; renaming it now costs a breaking change for a cosmetic alignment, and the data-URI body is Discord's own convention for images. The sibling map keeps the `modules: {id: bool}` contract that ported code reads. Aliases cost nothing and the canonical names (`body`, `ends_at_ms`) are the ones documented. Publishing from the service is the correct seam (a flag written by the CLI must reach clients too). The item count is what exists; a byte size per submission can join the card when the review model records one.
+Status: `NO-CODE`.
+
+### Phase 12 integration (P12-INT, handoff `feat-p12-integration.md`)
+
+**P12-INT-1. Not verified at integration: Playwright (shared ports), the whole vitest suite after the i18n key move, `cargo deny` after the last merge.**
+Decision: these are what the first green CI run is for ([open-questions.md](open-questions.md), human action 3): `e2e.yml` runs Playwright, `ci.yml` runs the whole vitest suite and `cargo deny` on the merged tree. No agent should try to run Playwright on the shared machine. Nothing to decide.
+Status: `NO-CODE`.
+
+### Web front-end (P13-WFE, branch `feat/p13-web-fe`)
+
+**P13-WFE-1. Should the welcome dialog also cover accounts created before this release? Currently no: only accounts younger than 14 days.**
+Decision: no. The dialog's three steps (theme, picture, second-factor nudge) are first-run choices; a member who has used the place for a year has made them, or has decided not to, and a modal on their next visit is noise with a "we changed something" feel that nothing else justifies. The second-factor nudge for older accounts is the one step with value, and it has a better home: the notices bar already carries security notices (the update notice, D-192's announcements), so a one-time dismissable "Protect your account with a second factor" notice for accounts without TOTP or a passkey covers it without a modal; that is a line in the existing bar, not a dialog. The 14-day window stays and is measured from the platform snowflake epoch, which the branch does correctly (see P13-MFA-5 for the other epoch).
+Status: `DEFAULT`. Follow-up: H-21 (the notice line).
+
+**P13-WFE-2. Should oversize files be blocked client-side once the effective per-channel limit is exposed by the API? Today the tray only warns, from `GET /donations/me`, because server boosts can raise the limit inside a server.**
+Decision: yes, block, and expose the limit where the client already looks. Discord refuses an oversize file in the tray before a byte is sent; uploading 300 MiB to be told 413 is the worst version of the same answer. The effective limit is a per-caller number on the objects the client holds: `sr_max_upload_bytes` on the guild object (`GET /guilds/{id}`, `GUILD_CREATE`, `GUILD_UPDATE`; the larger of the member's own perk and the server's entitlement level) and on DM and group channels in `GET /users/@me/channels` and READY `private_channels` (the perk alone). The tray blocks a file over the limit with the existing Patron hint and the amount, keeps the 413 handling for the race where an entitlement lapses mid-upload, and stops reading `/donations/me` for this. `SR_ENTITLEMENT_UPDATE` already reaches the sessions whose limit changed; the client refetches the guild on it.
+Status: `ADOPTED` (D-233). Follow-ups: H-05 (backend), H-22 (web).
+
+**P13-WFE-3. Backend contract 1: user-level safety settings (LNG-USET-012, 013, 015): `sensitive_media {friends, others, servers: show|blur|block}`, a DM spam filter, per-server DM overrides, and `GET|DELETE /users/@me/age-confirmation`. Today only the per-server `explicit_media_filter_dms` and `dm_spam_filter` exist.**
+Decision: build them on `PATCH /users/@me/privacy` with Discord's shapes, and be explicit about what they act on, because nothing scans (D-224). (a) `sensitive_media: {friends, others, servers}` with `show | blur | block`, defaults `show | blur | show` (Discord's defaults). Without a classifier the signal is what the platform knows: for `others`, every image and video attachment in a DM from someone who is not the viewer's friend; for `servers`, every image and video attachment in an age-restricted channel; `friends` has no signal today and the setting says so under the switch ("applies when a media scanner is configured"), so it is stored and honoured the day the LNG-SSET-054 scanner hook exists. `blur` is delivered to that viewer as the spoiler flag; `block` is delivered as the attachment with `sr_filtered: true` and no `url` or `proxy_url`, so the viewer sees a "Blocked by your sensitive media settings" chip and can relax the setting, and nothing is deleted for anyone else. Both are per-viewer presentation, computed where the message object is built for a session (the age gate of D-199 already does per-session work there). (b) `dm_spam_filter: "off" | "non_friends" | "all"` (Discord's three), default `non_friends`: `non_friends` sends a first DM from a non-friend to Message Requests, which is the existing D-181 and D-224 routing and is why the key is a level and not a boolean; `all` sends every first DM there, friends included; `off` only applies where no shared server forces the filter (D-224: a server setting can tighten, never loosen). (c) `server_dm_overrides: {<guild_id>: bool}` is Discord's per-server "allow direct messages from server members" next to the existing default; a `false` for a server means a member known only through that server cannot open a DM (`50007`, as Discord), and the server member list's DM button greys out. (d) `GET /users/@me/age-confirmation` returns `{confirmed_at, method}` and `DELETE` clears `age_confirmed_at` (behind re-auth, since it is what unlocks age-restricted content; `SR_USER_UPDATE` follows so the gateway cache of D-199 drops), which is the "re-confirm" flow LNG-USET-015 wants. All four live on `user_privacy` (columns, not the blob: the server enforces them).
+Status: `ADOPTED` (D-230). Follow-ups: H-06 (backend), H-23 (web).
+
+**P13-WFE-4. Backend contract 2: burst reactions (LNG-EXP-012): `PUT .../reactions/{emoji}/@me?type=1`, `burst` and `count_details` on the reaction object, an allowance, gateway events carrying `burst`.**
+Decision: not built; a parity shim only. Super reactions are a Nitro upsell with a per-week allowance and animation packs; making Discord's paid features free here (the server tag, doc 05 section 4) is a rule about not charging for what we build, not an obligation to build every paid cosmetic, and this one adds a second counter to every reaction row, a new field on four gateway events, an allowance table and animation assets (artwork) for a burst of sparkles a friend group will not miss. What ported bots need is the object shape: the reaction object carries `burst: false`, `me_burst: false`, `count_details: {normal: <count>, burst: 0}` and `burst_colors: []`, `?type=1` on add and remove is accepted and treated as `0`, and `GET .../reactions/{emoji}?type=1` answers an empty list. LNG-EXP-012 is re-scoped to the shim and ticked when it lands; the picker variant and animations are closed, not deferred.
+Status: `ADOPTED` (D-231). Follow-up: H-07.
+
+**P13-WFE-5. Backend contract 3: the emoji popout's "Join server" (LNG-EXP-011) needs `GET /emojis/{id}` for non-members with the source server, and a signed image URL for emoji of servers the viewer is not in; today cross-server emoji stay `:name:` text.**
+Decision: yes to both, with one privacy line. An emoji in a message is content the author chose to show everyone who can read the message, so its image is drawable by every signed-in member wherever it appears, as on Discord: `GET /sr/emojis/{emoji_id}/url?size=&format=` mints the same one-hour signed variant URL as the guild route for any session (the emoji id alone does not say which server it came from). The source server is a different matter: `GET /sr/emojis/{emoji_id}` answers `{id, name, animated, guild: {id, name, icon, listing}}` with `guild` filled only when the viewer is a member or the server is listed in the Server Directory (`listing` carries the directory entry id, which the popout turns into "Join server" through the directory's own join route); otherwise `guild: null` and the popout shows name and image only. A private server's name is not revealed by one of its emoji travelling into a DM. The web's `customEmoji` resolver takes over every custom emoji node, not only the message's own server, and the `:name:` fallback stays for an emoji that no longer exists.
+Status: `ADOPTED` (D-232). Follow-ups: H-08 (backend), H-24 (web).
+
+**P13-WFE-6. Backend contract 4: operator copy (ENT-UI-010, ENT-UI-025): public `GET /sr/entrance/copy` for `no-invitation`, `house-notes` and landing strings, and `PUT /admin/entrance/copy/{key}` with defaults served by the client.**
+Decision: build it, with a fixed key list and no new table. Keys: `no-invitation`, `house-notes`, `landing-note` (the one optional operator paragraph on the landing page; the landing's other strings stay in the catalogue, since translated copy and operator copy do not mix well). `GET /sr/entrance/copy` is public, cacheable (`ETag`, one minute) and rate limited like the invite check, and answers `{key: markdown}` for keys the operator set; the client renders its shipped defaults for the rest, so a fresh install needs nothing. `PUT /admin/entrance/copy/{key}` (`MANAGE_FEATURES`, re-auth, audited as `entrance.copy`) stores markdown of at most 16 KiB in `platform_settings` under `entrance.copy.<key>`, validated by `sr-markdown` with the entrance profile (no mentions, no custom emoji, links allowed), and `DELETE` restores the default. Admin → Entrance renders the three editors with a preview.
+Status: `DEFAULT`. Follow-ups: H-09 (backend), H-25 (web).
+
+**P13-WFE-7. OpenAPI naming collision: `PUT /users/@me/connections/link` references schema `LinkBody`, which resolves to the Cinema staff `LinkBody`; the web client uses the real fields.**
+Decision: a bug, fix it in the generator's favour: the connections struct gets `#[schema(as = ConnectionLinkBody)]`, the OpenAPI document and client are regenerated, and the OpenAPI test gains a check that no two Rust types register the same schema name, so the next collision fails `cargo test` instead of reaching the client silently.
+Status: `DEFAULT`. Follow-up: H-10.
+
+**P13-WFE-8. Decisions taken on the branch: custom emoji resolve only through the message's own server; the upload size check only warns and reads `/donations/me` lazily; the welcome dialog uses the platform epoch; `dmToasts`, `welcomeDone` and `ttsRate` are new synced prefs with the key-order rule in `sanitizePrefs`.**
+Decision: confirmed, except where P13-WFE-2 and P13-WFE-5 change them (the check blocks once the limit is on the guild object, and the resolver covers every server once the url route exists). The three prefs are client presentation and belong in the synced prefs blob, not in server-enforced settings.
+Status: `NO-CODE`.
+
+### Server 2FA scope and Protection settings (P13-MFA, branch `feat/p13-mfa-protect`)
+
+**P13-MFA-1. Gating runs before the permission check on the older guild routes (kick, ban, roles, channels, server edit), so a member without the permission and without a second factor sees `900123`; the `settings/*` routes check the permission first.**
+Decision: align the older routes to permission first, everywhere. Discord answers the missing permission (`50013`) before the two-factor requirement, and so should we: a member who may not kick is told they may not kick, and `900123` is reserved for people who could act once enrolled, which is what its enrolment prompt (G-97) assumes. The order also keeps the gate from reading `mfa_level` and the enrolment state for callers who were never going to pass. Same `MfaGate`, called after `require_permission`.
+Status: `DEFAULT`. Follow-up: H-11.
+
+**P13-MFA-2. Member nickname edits (`MANAGE_NICKNAMES`, `CHANGE_NICKNAME`) are not gated; role assignment and timeouts on the same route are.**
+Decision: confirmed. Neither nickname bit is on Discord's elevated list and D-223 names the list; `PATCH /guilds/{id}/members/{id}` is gated by the fields it carries (`roles`, `communication_disabled_until`), which is the right granularity.
+Status: `NO-CODE`.
+
+**P13-MFA-3. `900123` for a session with no second factor at all replaces the old `900004` there.**
+Decision: confirmed; that is the D-223 text, and the web splits on it (enrolment modal versus re-auth dialog).
+Status: `NO-CODE`.
+
+**P13-MFA-4. The sender's `CHANNEL_CREATE` does not carry `sr_request_reason`, and the recipient only learns of a pending request through `GET /users/@me/channels` and READY.**
+Decision: the first half is by design, the second is a gap. The sender is never told that their message landed in Message Requests: not in the channel object, not in `CHANNEL_CREATE`, not by a different `MESSAGE_CREATE`; Discord does not tell them either, and telling them would turn the recipient's safety settings into a signal to the person they are protecting against. The recipient, though, must learn live: a DM that opens into their requests dispatches `CHANNEL_CREATE` to the recipient's sessions with `is_message_request: true` and `sr_request_reason`, and the first `MESSAGE_CREATE` follows as for any DM. The client files both under Requests: no sound, no unread badge on the DM list, no Web Push (the Requests counter is the only indicator, as D-181's Message Requests already behave), and the request card shows the reason text the branch wrote. Accepting the request moves the conversation to the DM list with the ordinary notification rules from then on.
+Status: `DEFAULT`. Follow-up: H-12.
+
+**P13-MFA-5. `lounge/liveMap.ts` `snowflakeTime` uses Discord's epoch (1420070400000) while the server uses `SIDEROOM_EPOCH_MS` (1767225600000); `requestReason.ts` uses the server's. An existing bug, not touched.**
+Decision: a bug, confirmed (every time derived from a snowflake in the Lounge is about eleven years early), and it is being fixed on another branch in this phase; not assigned here. The one rule to record: the platform epoch is `SIDEROOM_EPOCH_MS`, exported once from the Rust snowflake crate through WASM or a generated constant, and no TypeScript file holds its own copy of either epoch. Doc 05 section 3 says so.
+Status: `NO-CODE` (fixed elsewhere). Follow-up: H-26 (doc row).
+
+**P13-MFA-6. No automated test for the thread gate (the thread router is not mounted in the `lounge` or `developer` suites); and the server 2FA list went into doc 07 section 2 (guild permission bits) rather than "section 4" as G-98 said.**
+Decision: section 2 is the right home (section 4 is the Staff Server; the checklist was wrong). The thread gate gets its test by mounting the thread router in the `lounge` suite, which also covers the thread edit, archive and delete rules that have had no route-level test since Phase 10.
+Status: `DEFAULT`. Follow-up: H-13.
+
+### Scheduled events (P13-EVT, branch `feat/p13-events`)
+
+**P13-EVT-1. Should the creator of an event be notified without marking interest? Currently no: start notifications go to members marked interested.**
+Decision: the creator is marked Interested when the event is created, as Discord does, and can un-mark themselves like anyone else; the notification then needs no special path. `user_count` includes them, `GUILD_SCHEDULED_EVENT_USER_ADD` is dispatched for the creator on create, and an event created by a bot marks nobody.
+Status: `ADOPTED` (D-228). Follow-up: H-14.
+
+**P13-EVT-2. Voice occupancy and stage instances live in each gateway node's memory; the tick runs on one node and sees only that node's voice states, so a multi-node deployment could end an event after 15 "empty" minutes while people are connected through another node. Also `reap_stale` (jobs stuck `running` after a crash) is never called in production.**
+Decision: no shared voice-state store now (P10-VBE-2's answer stands: persistence pays off with the multi-node SFU, the same milestone as sharding), but the rule must fail safe rather than end someone's event. `FeatureActions::voice_occupants` learns to say "unknown": it answers `Occupancy::Known(users)` on a node that holds the channel's voice state and `Occupancy::Unknown` when the deployment has more than one gateway node (the bus implementation knows; the `InProcessBus` is always `Known`), and the empty-room rule only ends an event on `Known` and empty. On one node nothing changes; on several the end time and manual End still work and a room is never ended for an emptiness nobody verified. `reap_stale` is called at startup and once an hour by the job runner with a 30-minute threshold, so a job left `running` by a crash is retried instead of lost; the events tick does not depend on it, as the branch says, but other jobs do.
+Status: `DEFAULT`. Follow-up: H-15.
+
+**P13-EVT-3. Stage events started before this change (status `ACTIVE`, no `entity_id`) are not tied to a stage instance; starting a stage event whose channel already has a stage answers 400 `GUILD_SCHEDULED_EVENT_STAGE_BUSY` (from a voice join the event just stays scheduled); the spec says `scheduled_events.image_key` but the table is `guild_scheduled_events`; one migration `0820` holds all three columns and 0821 to 0824 are unused.**
+Decision: all accepted. Old active stage events still end at their end time or after 15 empty minutes (the voice rule applies to stage channels too), so nothing is stuck. 400 for a busy stage matches Discord's 150006 class of answer, and staying scheduled on a join is the conservative choice (a join should not hijack another stage). The checklist and doc 04 use the real table name. Unused numbers stay unused; nothing is ever renumbered into them.
+Status: `NO-CODE`. Follow-up: H-26 (name correction).
+
+**P13-EVT-4. The web treats only `type === 1` as a group invite; the Events dialog's Cover toggle shows the picker to creators and `MANAGE_EVENTS` holders only.**
+Decision: confirmed. An older server that omits `type` is a guild invite (D-221 makes `type` required going forward); the cover picker follows the edit permission the route enforces.
+Status: `NO-CODE`.
+
+### Library (P13-LIB, branch `feat/p13-library`)
+
+**P13-LIB-1. May `foliate-js` (npm, a download) be added for the EPUB reader (LIB-RDR-010)?**
+Decision: approved by the owner (chat, 2026-10-15), recorded here, not re-decided. `foliate-js` is the engine doc 03 section 3 and the reader spec already name; it is MIT, pure browser code, and loads as its own lazy chunk under the library bundle budget. The reader keeps the server out of it: the EPUB is served as the kept file (`sr-library` validates with the `epub` crate at ingest), and progress is the EPUB CFI, stored as a string next to the page index on the chapter-progress route so Continue and the Lounge Reading activity work for books as for chapters. The dependency is pinned, added to the web licence inventory, and `cargo deny` is unaffected (nothing Rust changes).
+Status: `ADOPTED` (D-225, owner decision). Follow-ups: H-16 (backend), H-19 (web).
+
+**P13-LIB-2. Should "Share to Lounge" post a card into a chosen channel (needs a channel picker and a poster port), or is the copied link enough? Today it copies a link, as the Cinema title page does.**
+Decision: the owner decided (chat, 2026-10-15): it posts a card into a channel the person picks. No poster port is needed: the card is the `<library:series_id>` (or `<cinema:title_id>`) mention of the chat spec, which already renders as the rich card with Read or Watch and "Watch together", posted as an ordinary message by the person through `POST /channels/{id}/messages` from their own session, with an optional comment above it. The picker lists the channels (across the person's servers, plus DMs and groups) where they hold `SEND_MESSAGES` and `USE_LIBRARY_EMBEDS` (doc 07 bit 58), remembers the last choice, and "Copy link" stays as a second item for everything else. The same dialog replaces the Cinema title page's copy-link, so both sections behave the same. The message is the person's own: attributed to them, editable and deletable by them, subject to the channel's permissions and slowmode like any message.
+Status: `ADOPTED` (D-226, owner decision). Follow-up: H-20.
+
+**P13-LIB-3. Should reading presence get an "everyone who shares a server" level like the Cinema's `share_watching`? The branch chose friends only.**
+Decision: yes, for symmetry: one rule for both sections is easier to explain than two. `library.share_reading` in the settings blob with `off | friends | everyone`, default `friends`, next to `cinema.share_watching` and under the same master switches (`activity.share_library` off or `activity.paused` sends nothing, D-190); `everyone` means friends and people who share a server, never strangers (doc 09 section 3); age-restricted series stay masked beyond friends as the Cinema masks titles. The Activity Privacy section shows the two levels side by side.
+Status: `ADOPTED` (D-229). Follow-up: H-17.
+
+**P13-LIB-4. No sweeper for old export objects under `library/exports/` (an hourly cleanup of objects older than 7 days is suggested); reading presence rows are not swept by a job (reads ignore expired rows).**
+Decision: both go into the existing hourly `library.gc` job. Export objects older than 7 days since last use are deleted (they are rebuilt on demand and cached by fingerprint, so nothing is lost); expired reading-presence rows are deleted in the same pass, because a row saying who read what, kept after it stopped being shown, is activity data that doc 09 says to keep no longer than needed, and the Cinema sweeps its own.
+Status: `DEFAULT`. Follow-up: H-18.
+
+**P13-LIB-5. Web Push for new chapters goes to every follower with the bell on; there is no separate per-user "push for library" switch; non-UTF-8 ZIP entry names decode as lossy UTF-8 in the browser pre-check but as CP437 on the server.**
+Decision: accepted. The bell is the per-series control and the browser subscription the per-device one, which is Discord's two-level model for server notifications too; a third switch would be one more place to look for why a push did or did not arrive. The entry-name difference only affects labels in the pre-check, never the pages the server extracts.
+Status: `NO-CODE`.
+
+**P13-LIB-6. Implementation notes: exports are built in the request (600 pages, 200 MiB); the known set is computed per query; rankings are cached in memory (global one hour, scoped ten minutes per member) instead of a scheduled job; `LibraryEvents` gained a defaulted `emit_activity`.**
+Decision: fine as built. In-request export within those caps is simpler than a job plus a poll for a Patron-only feature with a 24-hour allowance; an in-process cache matches doc 03 (`moka`, no Redis) and one node.
+Status: `NO-CODE`.
+
+### Items from open-questions.md that were decisions, not actions (OQ-XC)
+
+**OQ-XC-3. Decide the voice and activities origins for the Content-Security-Policy (`apps/web/src/security/csp.ts` and `Caddyfile.prod` must change together; `connect-src` and `frame-src` are `'self'` today).**
+Decision: no separate voice origin, and the activities origin only when activities are on. Voice signalling rides the gateway WebSocket and the embedded SFU is reached by WebRTC, which CSP does not govern (TURN is not a fetch), so `connect-src 'self'` is complete for v1; `extraConnect` stays for an operator who runs the SFU on another host later, fed from `voice.public_url` in the server config. Activities run on `https://*.activities.<host>` (doc 05 section 1, doc 12 step 1) and are never trusted (doc 15 section 3), so `frame-src` gains that pattern only when `activities.enabled` is true, generated from `public_url`; a build with activities off keeps `frame-src 'self'`. The Caddyfile template reads the same two settings, so the two files cannot drift, and the pinned CSP test covers both states.
+Status: `DEFAULT`. Follow-up: H-27.
+
+**OQ-XC-6. Entrance muted text uses a lighter local colour than `--sr-text-3` to pass WCAG AA contrast; confirm the look, or raise `--sr-text-3` itself (a token calibration decision).**
+Decision: keep the local colour; do not touch `--sr-text-3`. The owner confirmed the token calibration (OQ-25 to OQ-28), the token is used across the Lounge where its contrast is fine against the Lounge backgrounds, and the entrance has its own background. The entrance keeps a scoped `--sr-entrance-text-muted` token in `entrance.css` with the comment that names the measured ratio; doc 10 lists it as the one scoped text token.
+Status: `DEFAULT`. Follow-up: H-26 (doc row and the token name).
+
+### Still with the owner from earlier rounds
+
+Unchanged: the UnRAR licence confirmation (D-170) and the eight NEEDS-OWNER items of the Phase 8 to 11 round (P8-DON-4, P11-MSG-1, P11-SHL-3, P11-CLI-1, P11-USB-2, MOD-4, MOD-5, MOD-6); this round adds none, and [open-questions.md](open-questions.md) lists them with their defaults.
