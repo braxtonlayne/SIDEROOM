@@ -321,3 +321,59 @@ export function useResource<T>(load: () => Promise<T>): Resource<T> {
   const reload = useCallback(() => setTick((t) => t + 1), []);
   return { data, error, loading, reload, setData };
 }
+
+// ---- server tag adoption (LNG-SSET-012) ----
+
+export interface PrimaryGuild {
+  identity_guild_id: string;
+  identity_enabled: boolean;
+  tag: string;
+  badge: number;
+  color: number;
+}
+export interface GuildTagChoice {
+  guildId: string;
+  guildName: string;
+  tag: string;
+  badge: number;
+  color: number;
+}
+export const getPrimaryGuild = () =>
+  apiFetch<{ primary_guild?: PrimaryGuild | null }>('/users/@me/primary-guild', {
+    retries: 0,
+  }).then((r) => r.primary_guild ?? null);
+/** \`null\` stops displaying a tag. */
+export const putPrimaryGuild = (guildId: string | null) =>
+  apiFetch<{ primary_guild?: PrimaryGuild | null }>('/users/@me/primary-guild', {
+    method: 'PUT',
+    retries: 0,
+    json: { guild_id: guildId },
+  });
+/** Tags of the signed-in person's servers that members may display. */
+export async function listGuildTags(): Promise<GuildTagChoice[]> {
+  const guilds = await listGuilds();
+  const tags = await Promise.all(
+    guilds.map((g) =>
+      apiFetch<{ tag: string; badge: number; color: number; members_can_display: boolean }>(
+        `/guilds/${g.id}/tag`,
+        { retries: 0 },
+      ).then(
+        (tag) => ({ g, tag }),
+        () => null, // 404: the server has no tag
+      ),
+    ),
+  );
+  return tags.flatMap((r) =>
+    r && r.tag.members_can_display
+      ? [
+          {
+            guildId: r.g.id,
+            guildName: r.g.name,
+            tag: r.tag.tag,
+            badge: r.tag.badge,
+            color: r.tag.color,
+          },
+        ]
+      : [],
+  );
+}

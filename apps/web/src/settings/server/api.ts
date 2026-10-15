@@ -1,6 +1,6 @@
 // REST helpers for the server settings screens. Paths and shapes mirror crates/sr-api/src/routes/{guilds,settings}.
 // Mutations never retry on 429 (retries: 0) so the user sees the error.
-import { apiFetch } from '../../api/client';
+import { ApiError, apiFetch } from '../../api/client';
 
 const send = <T>(path: string, method: string, json?: unknown, headers?: Record<string, string>) =>
   apiFetch<T>(path, {
@@ -561,3 +561,26 @@ export const pruneMembers = (g: string, days: number, includeRoles: string[], re
     { days, include_roles: includeRoles },
     reasonHeader(reason),
   );
+
+// ---- server tag (LNG-SSET-011) ----
+
+export interface GuildTag {
+  tag: string;
+  /** Badge icon id, 0 to 15. */
+  badge: number;
+  /** 24-bit RGB. */
+  color: number;
+  members_can_display: boolean;
+}
+/** `null` while the server has no tag (the API answers 404). */
+export const getGuildTag = async (guildId: string): Promise<GuildTag | null> => {
+  try {
+    return await apiFetch<GuildTag>(`/guilds/${guildId}/tag`, { retries: 0 });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+};
+export const putGuildTag = (guildId: string, body: GuildTag) =>
+  send<GuildTag>(`/guilds/${guildId}/tag`, 'PUT', body);
+export const deleteGuildTag = (guildId: string) => send<void>(`/guilds/${guildId}/tag`, 'DELETE');
