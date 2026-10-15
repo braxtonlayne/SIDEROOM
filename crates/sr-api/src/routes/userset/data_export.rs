@@ -10,10 +10,10 @@
 //! The store behind the routes is [`DataExportStore`] (Postgres in `sr-server`); the zip is
 //! built by the `user.data_export` job and lives in object storage.
 
+use crate::routes::Ext;
 use crate::routes::messages::error::{MsgError, MsgResult};
 use crate::routes::messages::model::iso;
 use crate::routes::social::util::actor;
-use crate::routes::Ext;
 use crate::{auth::UserOnly, openapi::ErrorBody, state::AppState};
 use async_trait::async_trait;
 use axum::{
@@ -102,7 +102,11 @@ impl ExportObject {
         let ready = r.state == "ready" && !lapsed;
         Self {
             id: Some(r.id.to_string()),
-            state: if lapsed { "expired".into() } else { r.state.clone() },
+            state: if lapsed {
+                "expired".into()
+            } else {
+                r.state.clone()
+            },
             requested_at: Some(iso(r.requested_ms)),
             ready_at: r.ready_ms.map(iso),
             expires_at: r.expires_ms.map(iso),
@@ -141,7 +145,10 @@ pub async fn request(
         .await
         .map_err(internal)?
     {
-        Ok(r) => Ok((StatusCode::ACCEPTED, Json(ExportObject::from_record(&r, now)))),
+        Ok(r) => Ok((
+            StatusCode::ACCEPTED,
+            Json(ExportObject::from_record(&r, now)),
+        )),
         Err(Refusal::InProgress(_)) => Err(ApiError::invalid_form()
             .field(
                 "export",
@@ -166,7 +173,10 @@ pub async fn request(
     responses((status = 200, body = ExportObject)),
     security(("authorization" = []), ("session" = []))
 )]
-pub async fn status(UserOnly(p): UserOnly, Ext(deps): Ext<DataExportDeps>) -> MsgResult<Json<ExportObject>> {
+pub async fn status(
+    UserOnly(p): UserOnly,
+    Ext(deps): Ext<DataExportDeps>,
+) -> MsgResult<Json<ExportObject>> {
     let me = actor(&p)?;
     let now = deps.clock.now_unix_ms();
     let latest = deps
@@ -174,9 +184,9 @@ pub async fn status(UserOnly(p): UserOnly, Ext(deps): Ext<DataExportDeps>) -> Ms
         .latest(i64::try_from(me.get()).unwrap_or(0))
         .await
         .map_err(internal)?;
-    Ok(Json(
-        latest.map_or_else(ExportObject::none, |r| ExportObject::from_record(&r, now)),
-    ))
+    Ok(Json(latest.map_or_else(ExportObject::none, |r| {
+        ExportObject::from_record(&r, now)
+    })))
 }
 
 /// Download the finished package (a zip). 404 once it expired or when it is not ready.
@@ -217,12 +227,18 @@ pub async fn download(
     let stream = deps.storage.get_stream(&key, None).await?;
     let mut res = Response::new(Body::from_stream(stream.body));
     let h = res.headers_mut();
-    h.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/zip"));
+    h.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/zip"),
+    );
     h.insert(
         header::CONTENT_DISPOSITION,
         HeaderValue::from_static("attachment; filename=\"sideroom-data-package.zip\""),
     );
-    h.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    h.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
     h.insert(
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
@@ -236,18 +252,11 @@ pub async fn download(
 /// The data export routes (relative to the API version prefix).
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route(
-            "/users/@me/data-export",
-            get(status).post(request),
-        )
+        .route("/users/@me/data-export", get(status).post(request))
         .route("/users/@me/data-export/{id}/download", get(download))
 }
 
 /// OpenAPI fragment.
 #[derive(OpenApi)]
-#[openapi(
-    paths(request, status, download),
-    components(schemas(ExportObject))
-)]
+#[openapi(paths(request, status, download), components(schemas(ExportObject)))]
 pub struct DataExportApiDoc;
-

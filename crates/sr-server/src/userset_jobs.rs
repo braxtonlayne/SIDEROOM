@@ -135,7 +135,10 @@ async fn build_and_store(
             if filled == 0 {
                 break;
             }
-            if let Err(e) = upload.put_part(Bytes::copy_from_slice(&buf[..filled])).await {
+            if let Err(e) = upload
+                .put_part(Bytes::copy_from_slice(&buf[..filled]))
+                .await
+            {
                 let _ = upload.abort().await;
                 return Err(e.into());
             }
@@ -185,9 +188,13 @@ pub(crate) async fn sweep_exports(pool: &PgPool, storage: &dyn ObjectStorage) ->
     let n = lapsed.len();
     for (id, key) in lapsed {
         match storage.delete(&key).await {
-            Ok(()) | Err(sr_storage::StorageError::NotFound(_)) => db::mark_expired(pool, id).await?,
+            Ok(()) | Err(sr_storage::StorageError::NotFound(_)) => {
+                db::mark_expired(pool, id).await?
+            }
             // Try again next hour.
-            Err(e) => tracing::warn!(export = id, error = %e, "could not delete an expired package"),
+            Err(e) => {
+                tracing::warn!(export = id, error = %e, "could not delete an expired package")
+            }
         }
     }
     Ok(n)

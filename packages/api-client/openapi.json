@@ -35766,6 +35766,63 @@
         ]
       }
     },
+    "/sr/auth/account/delete": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/account/delete {password, username, mfa?}`: delete the signed-in\naccount (LNG-USET-007, D-029). Needs the password, the typed username and, with\ntwo-factor on, a second factor. The account can never sign in again; messages stay\nand show \"Deleted User\". Sessions, friendships, blocks, server and group memberships\nare removed, open platform invites are revoked, unspent invite credits are forfeited\nand the username is held for 30 days. Refused with a `guilds` field error while the\naccount still owns a server (transfer or delete it first). Friends and shared servers\nare told through `RELATIONSHIP_REMOVE` and `GUILD_MEMBER_REMOVE`.",
+        "operationId": "delete_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Account deleted; the session cookie is cleared"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/auth/email/cancel": {
       "post": {
         "tags": [],
@@ -39316,6 +39373,421 @@
         ]
       }
     },
+    "/users/@me/connections": {
+      "get": {
+        "tags": [],
+        "summary": "The caller's connections (hidden ones included) and the providers that can be added.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/connections/link": {
+      "put": {
+        "tags": [],
+        "summary": "Add (or update) an unverified link. It shows on the profile without a check mark.",
+        "operationId": "put_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/connections/{provider}/authorize": {
+      "post": {
+        "tags": [],
+        "summary": "Start linking `provider`. Error codes on the way back: `denied`, `state`, `exchange`,\n`profile`, `taken` (the account belongs to someone else), `limit`, `signed_out`, `failed`.",
+        "operationId": "authorize",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "github, discord, spotify, twitch, youtube, reddit or steam",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizeResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/connections/{provider}/{id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Remove a connection.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id at the provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "Change how a connection shows on the profile.",
+        "operationId": "patch",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id at the provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/connections/{provider}/{id}/refresh": {
+      "post": {
+        "tags": [],
+        "summary": "Re-read the stats now (GitHub and Reddit; others keep what was read when linking).\nAt most once a minute per account.",
+        "operationId": "refresh",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id at the provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/data-export": {
+      "get": {
+        "tags": [],
+        "summary": "The newest request of the caller.",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportObject"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "Ask for a package of the caller's data. Built in the background; poll\n`GET /users/@me/data-export`.",
+        "operationId": "request",
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A package is already being built",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Asked less than 24 hours ago",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/data-export/{id}/download": {
+      "get": {
+        "tags": [],
+        "summary": "Download the finished package (a zip). 404 once it expired or when it is not ready.",
+        "operationId": "download",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Export request id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The zip package",
+            "content": {
+              "application/zip": {}
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/guilds": {
       "get": {
         "tags": [
@@ -40650,6 +41122,15 @@
             "required": false,
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "query",
+            "description": "Also return the user's profile in this server (viewer must be a member)",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -44415,6 +44896,18 @@
           }
         }
       },
+      "AuthorizeResponse": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Send the browser here; the provider returns it to the callback, which ends in a redirect to\n`/settings/user/connections?connected=<provider>` or `?error=<code>`."
+          }
+        }
+      },
       "AuthorizeResult": {
         "type": "object",
         "required": [
@@ -47362,7 +47855,10 @@
           "type",
           "id",
           "name",
-          "verified"
+          "verified",
+          "show_activity",
+          "stats",
+          "visible"
         ],
         "properties": {
           "id": {
@@ -47371,11 +47867,51 @@
           "name": {
             "type": "string"
           },
+          "show_activity": {
+            "type": "boolean",
+            "description": "Whether the owner shows stats / activity of this connection."
+          },
+          "stats": {
+            "type": "object",
+            "description": "Public stats (`{\"followers\": 12}`); empty unless `show_activity`."
+          },
           "type": {
             "type": "string"
           },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Link to the account's public page, when known."
+          },
           "verified": {
             "type": "boolean"
+          },
+          "visible": {
+            "type": "boolean",
+            "description": "Hidden connections are only listed to their owner."
+          }
+        }
+      },
+      "ConnectionsResponse": {
+        "type": "object",
+        "required": [
+          "connections",
+          "providers"
+        ],
+        "properties": {
+          "connections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectionObject"
+            }
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderObject"
+            }
           }
         }
       },
@@ -48554,6 +49090,35 @@
           }
         }
       },
+      "DeleteAccountBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/account/delete`.",
+        "required": [
+          "password",
+          "username"
+        ],
+        "properties": {
+          "mfa": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MfaProof",
+                "description": "Second factor. Required when the account has two-factor authentication on,\nunless this session passed a second-factor check in the last 15 minutes."
+              }
+            ]
+          },
+          "password": {
+            "type": "string",
+            "description": "Current password."
+          },
+          "username": {
+            "type": "string",
+            "description": "The account's username, typed to confirm (case-insensitive)."
+          }
+        }
+      },
       "DeleteRequest": {
         "type": "object",
         "required": [
@@ -49102,6 +49667,13 @@
             ],
             "description": "New avatar as a `data:image/{png,jpeg,gif,webp};base64,...` URI (8 MiB at\nmost; cropped to a centred square, EXIF stripped); `null` removes it."
           },
+          "avatar_decoration": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Slug of an approved avatar decoration (lowercase letters, digits, `-`, 48 at most);\n`null` removes it."
+          },
           "banner": {
             "type": [
               "string",
@@ -49133,11 +49705,30 @@
             ],
             "description": "Display name (Discord `global_name`, 32 characters at most); `null` clears it so\nthe username shows. The username itself changes through `PUT /sr/auth/username`."
           },
+          "profile_effect": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Slug of an approved profile effect; `null` removes it."
+          },
           "pronouns": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "theme_colors": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "The profile theme as two 0xRRGGBB colours `[primary, accent]`; `null` clears it."
           }
         }
       },
@@ -49467,6 +50058,59 @@
               "null"
             ],
             "description": "Accepted; see the module docs (TODO(webhook-author))."
+          }
+        }
+      },
+      "ExportObject": {
+        "type": "object",
+        "description": "An export request.",
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Relative API path of the zip, present while `ready`."
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The download link works until this time (7 days after it was built)."
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absent when the account never asked."
+          },
+          "ready_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requested_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "type": "string",
+            "description": "`none`, `pending`, `building`, `ready`, `failed` or `expired`."
           }
         }
       },
@@ -50228,6 +50872,46 @@
           "name": {
             "type": "string",
             "description": "2-100 characters."
+          }
+        }
+      },
+      "GuildMemberProfileObject": {
+        "type": "object",
+        "description": "The member's per-server profile (`GET /users/{id}/profile?guild_id=`).",
+        "required": [
+          "guild_id",
+          "joined_at"
+        ],
+        "properties": {
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "joined_at": {
+            "type": "string"
+          },
+          "nick": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -53785,6 +54469,33 @@
           }
         }
       },
+      "PatchBody": {
+        "type": "object",
+        "description": "Body of `PATCH /users/@me/connections/{provider}/{id}`.",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New display name; only for unverified links."
+          },
+          "show_activity": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Show the stats line (follower counts and the like)."
+          },
+          "visible": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Show the connection on the profile."
+          }
+        }
+      },
       "PatchBotBody": {
         "type": "object",
         "required": [
@@ -54631,9 +55342,18 @@
         "required": [
           "user",
           "user_profile",
-          "connected_accounts"
+          "connected_accounts",
+          "badges",
+          "member_since"
         ],
         "properties": {
+          "badges": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Public badges: `owner`, `staff`, `patron`, `contributor`, `early_member`,\n`bug_hunter`, `honorary`, `app_developer`, `bot`."
+          },
           "connected_accounts": {
             "type": "array",
             "items": {
@@ -54646,6 +55366,21 @@
               "null"
             ],
             "description": "When the viewer and the owner became friends."
+          },
+          "guild_member_profile": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GuildMemberProfileObject",
+                "description": "The owner's profile in `guild_id` (only when the viewer shares that server)."
+              }
+            ]
+          },
+          "member_since": {
+            "type": "string",
+            "description": "When the account was created (\"Member since\")."
           },
           "mutual_friends": {
             "type": [
@@ -54864,6 +55599,37 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "ProviderObject": {
+        "type": "object",
+        "description": "A provider on offer.",
+        "required": [
+          "id",
+          "name",
+          "verified",
+          "available",
+          "requires_url"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "`false` when the operator has not set the provider up. Link-only providers are\nalways available."
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "requires_url": {
+            "type": "boolean",
+            "description": "Link-only providers: the member must give a URL (websites)."
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "`true` when linking proves the account (OAuth / OpenID); `false` for a typed link."
           }
         }
       },
@@ -56232,6 +56998,12 @@
             "format": "int32",
             "minimum": 0
           },
+          "avatar_decoration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "banner": {
             "type": [
               "string",
@@ -56254,11 +57026,28 @@
               }
             ]
           },
+          "profile_effect": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "pronouns": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "theme_colors": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
           },
           "user": {
             "$ref": "#/components/schemas/UserObject"
@@ -60087,6 +60876,13 @@
             "format": "int32",
             "minimum": 0
           },
+          "avatar_decoration": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Slug of the avatar decoration, if one is set."
+          },
           "banner": {
             "type": [
               "string",
@@ -60099,11 +60895,30 @@
               "null"
             ]
           },
+          "profile_effect": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Slug of the profile effect, if one is set."
+          },
           "pronouns": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "theme_colors": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "The two profile theme colours (0xRRGGBB), primary first."
           }
         }
       },

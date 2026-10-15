@@ -890,7 +890,10 @@ impl<R: SocialRepository> SocialService<R> {
         providers: &[&str],
         limit: usize,
     ) -> SocialResult<Vec<Connection>> {
-        Ok(self.repo.stale_connections(before_ms, providers, limit).await?)
+        Ok(self
+            .repo
+            .stale_connections(before_ms, providers, limit)
+            .await?)
     }
 
     /// Store refreshed stats of one connection.

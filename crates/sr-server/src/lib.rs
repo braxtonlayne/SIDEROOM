@@ -56,6 +56,6 @@ mod staff_feed_pg_tests;
 #[cfg(test)]
 mod tv_wiring_pg_tests;
 #[cfg(test)]
-mod watchparty_pg_tests;
-#[cfg(test)]
 mod userset_pg_tests;
+#[cfg(test)]
+mod watchparty_pg_tests;

@@ -155,7 +155,11 @@ fn random_token() -> MsgResult<String> {
 }
 
 fn unknown_provider() -> MsgError {
-    ApiError::with_message(ErrorCode::UnknownApplication, "Unknown connection provider.").into()
+    ApiError::with_message(
+        ErrorCode::UnknownApplication,
+        "Unknown connection provider.",
+    )
+    .into()
 }
 
 fn unknown_connection() -> MsgError {
@@ -263,7 +267,10 @@ pub async fn authorize(
     Path(provider): Path<String>,
 ) -> MsgResult<Json<AuthorizeResponse>> {
     actor(&p)?;
-    let prov = deps.providers.get(provider.as_str()).ok_or_else(unknown_provider)?;
+    let prov = deps
+        .providers
+        .get(provider.as_str())
+        .ok_or_else(unknown_provider)?;
     let now = deps.clock.now_unix_ms();
     let state = random_token()?;
     let redirect_uri = deps.callback_url(prov.spec.id);
@@ -288,8 +295,11 @@ pub async fn authorize(
                     q.append_pair("scope", &scopes.join(" "));
                 }
                 if let Some(v) = &verifier {
-                    q.append_pair("code_challenge", &BASE64URL_NOPAD.encode(&Sha256::digest(v)))
-                        .append_pair("code_challenge_method", "S256");
+                    q.append_pair(
+                        "code_challenge",
+                        &BASE64URL_NOPAD.encode(&Sha256::digest(v)),
+                    )
+                    .append_pair("code_challenge_method", "S256");
                 }
                 for (k, v) in extra {
                     q.append_pair(k, v);
@@ -299,10 +309,13 @@ pub async fn authorize(
         }
         Flow::SteamOpenId => {
             let return_to = format!("{redirect_uri}?state={state}");
-            let mut u =
-                Url::parse(providers::STEAM_OPENID).map_err(|_| MsgError::from(ErrorCode::SrInternal))?;
+            let mut u = Url::parse(providers::STEAM_OPENID)
+                .map_err(|_| MsgError::from(ErrorCode::SrInternal))?;
             u.query_pairs_mut()
-                .extend_pairs(providers::steam_redirect_params(&deps.public_url, &return_to));
+                .extend_pairs(providers::steam_redirect_params(
+                    &deps.public_url,
+                    &return_to,
+                ));
             (u.to_string(), None)
         }
     };
@@ -408,7 +421,8 @@ async fn oauth_identity(
     api.headers
         .push(("Authorization".into(), format!("Bearer {token}")));
     if prov.spec.client_id_header {
-        api.headers.push(("Client-Id".into(), prov.client_id.clone()));
+        api.headers
+            .push(("Client-Id".into(), prov.client_id.clone()));
     }
     let (status, doc) = json_call(&deps.client, api).await.map_err(|()| "profile")?;
     if status != 200 {
@@ -579,7 +593,9 @@ fn clean_https_url(raw: &str) -> Option<String> {
 }
 
 fn bad_field(field: &str, message: &str) -> MsgError {
-    ApiError::invalid_form().field(field, "invalid", message).into()
+    ApiError::invalid_form()
+        .field(field, "invalid", message)
+        .into()
 }
 
 /// Add (or update) an unverified link. It shows on the profile without a check mark.
@@ -600,12 +616,20 @@ pub async fn put_link(
         .ok_or_else(|| bad_field("provider", "This provider cannot be added by hand."))?;
     let url = match body.url.as_deref().filter(|u| !u.trim().is_empty()) {
         Some(u) => Some(clean_https_url(u).ok_or_else(|| {
-            bad_field("url", "Use a full https:// address (300 characters at most).")
+            bad_field(
+                "url",
+                "Use a full https:// address (300 characters at most).",
+            )
         })?),
         None if *needs_url => return Err(bad_field("url", "A website needs an address.")),
         None => None,
     };
-    let name = match body.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
+    let name = match body
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+    {
         Some(n) => n.to_owned(),
         None => url
             .as_deref()
@@ -614,7 +638,10 @@ pub async fn put_link(
             .ok_or_else(|| bad_field("name", "Give the account name."))?,
     };
     if name.chars().count() > 100 || name.chars().any(char::is_control) {
-        return Err(bad_field("name", "1 to 100 characters, no control characters."));
+        return Err(bad_field(
+            "name",
+            "1 to 100 characters, no control characters.",
+        ));
     }
     let connection = Connection {
         user: me,
@@ -653,7 +680,12 @@ pub struct PatchBody {
     pub name: Option<String>,
 }
 
-async fn find(social: &SocialDeps, me: sr_core::UserId, provider: &str, id: &str) -> MsgResult<Connection> {
+async fn find(
+    social: &SocialDeps,
+    me: sr_core::UserId,
+    provider: &str,
+    id: &str,
+) -> MsgResult<Connection> {
     social
         .service
         .own_connections(me)
@@ -688,10 +720,16 @@ pub async fn patch(
     }
     if let Some(name) = body.name.as_deref().map(str::trim) {
         if c.verified {
-            return Err(bad_field("name", "The name of a verified account comes from the provider."));
+            return Err(bad_field(
+                "name",
+                "The name of a verified account comes from the provider.",
+            ));
         }
         if name.is_empty() || name.chars().count() > 100 || name.chars().any(char::is_control) {
-            return Err(bad_field("name", "1 to 100 characters, no control characters."));
+            return Err(bad_field(
+                "name",
+                "1 to 100 characters, no control characters.",
+            ));
         }
         name.clone_into(&mut c.display_name);
     }
@@ -757,7 +795,10 @@ pub async fn refresh(
     let now = deps.clock.now_unix_ms();
     {
         let mut last = deps.last_refresh.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some(at) = last.get(&p.user_id).filter(|at| now - **at < REFRESH_GAP_MS) {
+        if let Some(at) = last
+            .get(&p.user_id)
+            .filter(|at| now - **at < REFRESH_GAP_MS)
+        {
             return Err(MsgError::RetryAfter {
                 api: ApiError::with_message(
                     ErrorCode::TooManyRequests,
@@ -769,12 +810,12 @@ pub async fn refresh(
         last.retain(|_, at| now - *at < REFRESH_GAP_MS);
         last.insert(p.user_id, now);
     }
-    let stats = refresh_stats(&deps.client, &c)
-        .await
-        .ok_or_else(|| MsgError::from(ApiError::with_message(
+    let stats = refresh_stats(&deps.client, &c).await.ok_or_else(|| {
+        MsgError::from(ApiError::with_message(
             ErrorCode::ApiResourceOverloaded,
             "The provider did not answer. Try again later.",
-        )))?;
+        ))
+    })?;
     social.service.refresh_connection_stats(&c, &stats).await?;
     c.stats = stats;
     Ok(Json(owner_object(&c)))
@@ -785,7 +826,10 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/users/@me/connections", get(list))
         .route("/users/@me/connections/link", put(put_link))
-        .route("/users/@me/connections/{provider}/authorize", post(authorize))
+        .route(
+            "/users/@me/connections/{provider}/authorize",
+            post(authorize),
+        )
         .route(
             "/users/@me/connections/{provider}/{id}",
             axum::routing::patch(patch).delete(remove),
@@ -811,4 +855,3 @@ pub fn router() -> Router<AppState> {
     ))
 )]
 pub struct ConnectionsApiDoc;
-

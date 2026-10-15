@@ -325,10 +325,7 @@ pub fn steam_redirect_params(realm: &str, return_to: &str) -> Vec<(String, Strin
         ("openid.mode".into(), "checkid_setup".into()),
         ("openid.return_to".into(), return_to.into()),
         ("openid.realm".into(), realm.into()),
-        (
-            "openid.identity".into(),
-            format!("{ns}/identifier_select"),
-        ),
+        ("openid.identity".into(), format!("{ns}/identifier_select")),
         (
             "openid.claimed_id".into(),
             format!("{ns}/identifier_select"),
@@ -349,12 +346,7 @@ pub fn steam_check(
     params: &[(String, String)],
     expected_return_to: &str,
 ) -> Option<(String, Vec<(String, String)>)> {
-    let get = |k: &str| {
-        params
-            .iter()
-            .find(|(n, _)| n == k)
-            .map(|(_, v)| v.as_str())
-    };
+    let get = |k: &str| params.iter().find(|(n, _)| n == k).map(|(_, v)| v.as_str());
     if get("openid.mode")? != "id_res"
         || get("openid.op_endpoint")? != STEAM_OPENID
         || get("openid.return_to")? != expected_return_to
@@ -364,7 +356,13 @@ pub fn steam_check(
     let id = steam_id(get("openid.claimed_id")?)?;
     // The signed list must cover the fields we rely on.
     let signed: Vec<&str> = get("openid.signed")?.split(',').collect();
-    for needed in ["claimed_id", "identity", "return_to", "op_endpoint", "response_nonce"] {
+    for needed in [
+        "claimed_id",
+        "identity",
+        "return_to",
+        "op_endpoint",
+        "response_nonce",
+    ] {
         if !signed.contains(&needed) {
             return None;
         }
@@ -410,28 +408,48 @@ mod tests {
         assert_eq!(i.external_id, "583231");
         assert_eq!(i.name, "octocat");
         assert_eq!(i.url.as_deref(), Some("https://github.com/octocat"));
-        assert_eq!(i.stats, json!({"public_repos": 8, "followers": 3938, "following": 9}));
+        assert_eq!(
+            i.stats,
+            json!({"public_repos": 8, "followers": 3938, "following": 9})
+        );
     }
 
     #[test]
     fn odd_handles_get_no_link() {
         let i = parse_identity("github", &json!({"id": 1, "login": "a/b?c"})).unwrap();
         assert!(i.url.is_none());
-        assert!(parse_identity("github", &json!({"login": "x"})).is_none(), "no id");
+        assert!(
+            parse_identity("github", &json!({"login": "x"})).is_none(),
+            "no id"
+        );
         assert!(parse_identity("github", &json!({"id": 1, "login": "\u{7}"})).is_none());
     }
 
     #[test]
     fn each_provider_document_is_read() {
-        let d = parse_identity("discord", &json!({"id": "80351110224678912", "username": "nelly", "global_name": "Nelly"})).unwrap();
-        assert_eq!((d.name.as_str(), d.url.as_deref()), ("Nelly", Some("https://discord.com/users/80351110224678912")));
+        let d = parse_identity(
+            "discord",
+            &json!({"id": "80351110224678912", "username": "nelly", "global_name": "Nelly"}),
+        )
+        .unwrap();
+        assert_eq!(
+            (d.name.as_str(), d.url.as_deref()),
+            ("Nelly", Some("https://discord.com/users/80351110224678912"))
+        );
 
-        let s = parse_identity("spotify", &json!({"id": "wizzler", "display_name": null, "followers": {"total": 12}})).unwrap();
+        let s = parse_identity(
+            "spotify",
+            &json!({"id": "wizzler", "display_name": null, "followers": {"total": 12}}),
+        )
+        .unwrap();
         assert_eq!(s.name, "wizzler");
         assert_eq!(s.stats, json!({"followers": 12}));
 
         let t = parse_identity("twitch", &json!({"data": [{"id": "141981764", "login": "twitchdev", "display_name": "TwitchDev"}]})).unwrap();
-        assert_eq!((t.external_id.as_str(), t.name.as_str()), ("141981764", "TwitchDev"));
+        assert_eq!(
+            (t.external_id.as_str(), t.name.as_str()),
+            ("141981764", "TwitchDev")
+        );
         assert_eq!(t.url.as_deref(), Some("https://www.twitch.tv/twitchdev"));
         assert!(parse_identity("twitch", &json!({"data": []})).is_none());
 
@@ -440,9 +458,17 @@ mod tests {
         assert_eq!(y.stats, json!({"subscribers": 1500, "videos": 42}));
         let hidden = parse_identity("youtube", &json!({"items": [{"id": "UC1", "snippet": {"title": "T"},
             "statistics": {"subscriberCount": "5", "videoCount": "1", "hiddenSubscriberCount": true}}]})).unwrap();
-        assert_eq!(hidden.stats, json!({"videos": 1}), "hidden subscriber counts stay hidden");
+        assert_eq!(
+            hidden.stats,
+            json!({"videos": 1}),
+            "hidden subscriber counts stay hidden"
+        );
 
-        let r = parse_identity("reddit", &json!({"id": "abc1", "name": "spez", "total_karma": 100})).unwrap();
+        let r = parse_identity(
+            "reddit",
+            &json!({"id": "abc1", "name": "spez", "total_karma": 100}),
+        )
+        .unwrap();
         assert_eq!(r.url.as_deref(), Some("https://www.reddit.com/user/spez"));
         assert_eq!(r.stats, json!({"karma": 100}));
         assert!(parse_identity("nope", &json!({})).is_none());
@@ -461,8 +487,14 @@ mod tests {
         );
         assert!(refresh_url("reddit", "abc", "a b").is_none());
         assert!(refresh_url("spotify", "x", "y").is_none());
-        assert_eq!(parse_refresh("reddit", &json!({"data": {"total_karma": 7}})), Some(json!({"karma": 7})));
-        assert_eq!(parse_refresh("github", &json!({"id": 1, "login": "a", "followers": 2})), Some(json!({"followers": 2})));
+        assert_eq!(
+            parse_refresh("reddit", &json!({"data": {"total_karma": 7}})),
+            Some(json!({"karma": 7}))
+        );
+        assert_eq!(
+            parse_refresh("github", &json!({"id": 1, "login": "a", "followers": 2})),
+            Some(json!({"followers": 2}))
+        );
     }
 
     fn steam_params(id_url: &str) -> Vec<(String, String)> {
@@ -472,10 +504,16 @@ mod tests {
             ("openid.op_endpoint", STEAM_OPENID),
             ("openid.claimed_id", id_url),
             ("openid.identity", id_url),
-            ("openid.return_to", "https://room.test/api/v1/connections/steam/callback?state=S"),
+            (
+                "openid.return_to",
+                "https://room.test/api/v1/connections/steam/callback?state=S",
+            ),
             ("openid.response_nonce", "2026-10-15T10:00:00Zabc"),
             ("openid.assoc_handle", "1234567890"),
-            ("openid.signed", "signed,op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle"),
+            (
+                "openid.signed",
+                "signed,op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle",
+            ),
             ("openid.sig", "c2ln"),
         ]
         .iter()
@@ -496,10 +534,25 @@ mod tests {
 
         // Another return_to, another provider, a non-Steam identity, unsigned fields: all refused.
         assert!(steam_check(&p, "https://evil.test/cb?state=S").is_none());
-        assert!(steam_check(&steam_params("https://evil.test/openid/id/76561197960435530"), RETURN_TO).is_none());
-        assert!(steam_check(&steam_params("https://steamcommunity.com/openid/id/123"), RETURN_TO).is_none());
+        assert!(
+            steam_check(
+                &steam_params("https://evil.test/openid/id/76561197960435530"),
+                RETURN_TO
+            )
+            .is_none()
+        );
+        assert!(
+            steam_check(
+                &steam_params("https://steamcommunity.com/openid/id/123"),
+                RETURN_TO
+            )
+            .is_none()
+        );
         let mut p2 = p.clone();
-        p2.iter_mut().find(|(k, _)| k == "openid.op_endpoint").unwrap().1 = "https://evil.test/login".into();
+        p2.iter_mut()
+            .find(|(k, _)| k == "openid.op_endpoint")
+            .unwrap()
+            .1 = "https://evil.test/login".into();
         assert!(steam_check(&p2, RETURN_TO).is_none());
         let mut p3 = p.clone();
         p3.iter_mut().find(|(k, _)| k == "openid.signed").unwrap().1 = "signed,return_to".into();
@@ -511,22 +564,41 @@ mod tests {
 
     #[test]
     fn steam_validity_and_summary() {
-        assert!(steam_is_valid("ns:http://specs.openid.net/auth/2.0\nis_valid:true\n"));
-        assert!(!steam_is_valid("ns:http://specs.openid.net/auth/2.0\nis_valid:false\n"));
+        assert!(steam_is_valid(
+            "ns:http://specs.openid.net/auth/2.0\nis_valid:true\n"
+        ));
+        assert!(!steam_is_valid(
+            "ns:http://specs.openid.net/auth/2.0\nis_valid:false\n"
+        ));
         assert!(!steam_is_valid("is_valid:truely"));
-        let i = parse_steam_summary("7656", &json!({"response": {"players": [{"personaname": "Gabe"}]}}));
+        let i = parse_steam_summary(
+            "7656",
+            &json!({"response": {"players": [{"personaname": "Gabe"}]}}),
+        );
         assert_eq!(i.name, "Gabe");
         let anon = parse_steam_summary("7656", &json!({}));
         assert_eq!(anon.name, "7656");
-        assert_eq!(anon.url.as_deref(), Some("https://steamcommunity.com/profiles/7656"));
+        assert_eq!(
+            anon.url.as_deref(),
+            Some("https://steamcommunity.com/profiles/7656")
+        );
     }
 
     #[test]
     fn the_registry_is_consistent() {
         for s in OAUTH {
             assert!(oauth_spec(s.id).is_some());
-            assert!(link_spec(s.id).is_none(), "{} is either verified or link-only", s.id);
-            if let Flow::OAuth2 { auth_url, token_url, .. } = s.flow {
+            assert!(
+                link_spec(s.id).is_none(),
+                "{} is either verified or link-only",
+                s.id
+            );
+            if let Flow::OAuth2 {
+                auth_url,
+                token_url,
+                ..
+            } = s.flow
+            {
                 assert!(auth_url.starts_with("https://") && token_url.starts_with("https://"));
             }
         }

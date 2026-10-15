@@ -70,7 +70,9 @@ async fn the_export_job_builds_stores_and_the_sweep_removes_it() {
             .unwrap();
     assert_eq!(queued, 1);
 
-    run_export(&pool, &storage, &job_for(rec.id, 1)).await.unwrap();
+    run_export(&pool, &storage, &job_for(rec.id, 1))
+        .await
+        .unwrap();
     let done = store.get(1, rec.id).await.unwrap().unwrap();
     assert_eq!(done.state, "ready");
     let key = done.storage_key.clone().unwrap();
@@ -79,11 +81,16 @@ async fn the_export_job_builds_stores_and_the_sweep_removes_it() {
     assert_eq!(done.size_bytes, Some(bytes.len() as i64));
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes.to_vec())).unwrap();
     let mut s = String::new();
-    zip.by_name("account.json").unwrap().read_to_string(&mut s).unwrap();
+    zip.by_name("account.json")
+        .unwrap()
+        .read_to_string(&mut s)
+        .unwrap();
     assert!(s.contains("writer"));
 
     // Running it again (a duplicate job) changes nothing.
-    run_export(&pool, &storage, &job_for(rec.id, 1)).await.unwrap();
+    run_export(&pool, &storage, &job_for(rec.id, 1))
+        .await
+        .unwrap();
 
     // Not lapsed yet: the sweep leaves it alone; after seven days it deletes the file.
     assert_eq!(sweep_exports(&pool, &storage).await.unwrap(), 0);
@@ -114,10 +121,22 @@ async fn a_build_that_keeps_failing_is_marked_failed_after_the_last_attempt() {
         .unwrap();
     let storage = ObjectStoreStorage::in_memory();
     // Early attempts surface the error for a retry and leave the request building.
-    assert!(run_export(&pool, &storage, &job_for(rec.id, 1)).await.is_err());
-    assert_eq!(store.get(1, rec.id).await.unwrap().unwrap().state, "building");
+    assert!(
+        run_export(&pool, &storage, &job_for(rec.id, 1))
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        store.get(1, rec.id).await.unwrap().unwrap().state,
+        "building"
+    );
     // The last attempt gives up and frees the member to ask again.
-    run_export(&pool, &storage, &job_for(rec.id, 5)).await.unwrap();
+    run_export(&pool, &storage, &job_for(rec.id, 5))
+        .await
+        .unwrap();
     assert_eq!(store.get(1, rec.id).await.unwrap().unwrap().state, "failed");
-    assert!(store.request(1).await.unwrap().is_ok(), "a failed build does not use up the day");
+    assert!(
+        store.request(1).await.unwrap().is_ok(),
+        "a failed build does not use up the day"
+    );
 }

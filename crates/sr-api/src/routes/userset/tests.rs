@@ -51,10 +51,11 @@ struct Dns(Mutex<HashMap<String, IpAddr>>);
 impl Resolver for Dns {
     async fn resolve(&self, host: &str, _port: u16) -> Result<Vec<IpAddr>, String> {
         let m = self.0.lock().unwrap();
-        Ok(vec![m
-            .get(host)
-            .copied()
-            .unwrap_or_else(|| "93.184.216.34".parse().unwrap())])
+        Ok(vec![
+            m.get(host)
+                .copied()
+                .unwrap_or_else(|| "93.184.216.34".parse().unwrap()),
+        ])
     }
 }
 
@@ -312,7 +313,9 @@ impl Env {
         session: Option<&str>,
         body: Option<Value>,
     ) -> Resp {
-        let mut b = Request::builder().method(method).uri(format!("/api/v1{path}"));
+        let mut b = Request::builder()
+            .method(method)
+            .uri(format!("/api/v1{path}"));
         if let Some(s) = session {
             b = b
                 .header(header::COOKIE, format!("sr_session={s}"))
@@ -352,7 +355,11 @@ impl Env {
     /// Start a flow and return the `state` parameter of the provider URL.
     async fn start(&self, provider: &str, s: &str) -> (String, url::Url) {
         let r = self
-            .post(&format!("/users/@me/connections/{provider}/authorize"), s, json!({}))
+            .post(
+                &format!("/users/@me/connections/{provider}/authorize"),
+                s,
+                json!({}),
+            )
             .await;
         assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
         let u = url::Url::parse(r.body["url"].as_str().unwrap()).unwrap();
@@ -362,7 +369,11 @@ impl Env {
             .map(|(_, v)| v.into_owned())
             .or_else(|| {
                 // Steam carries the state inside return_to.
-                let rt = u.query_pairs().find(|(k, _)| k == "openid.return_to")?.1.into_owned();
+                let rt = u
+                    .query_pairs()
+                    .find(|(k, _)| k == "openid.return_to")?
+                    .1
+                    .into_owned();
                 url::Url::parse(&rt)
                     .ok()?
                     .query_pairs()
@@ -401,8 +412,11 @@ const GH_TOKEN: &str = "https://github.com/login/oauth/access_token";
 const GH_USER: &str = "https://api.github.com/user";
 
 fn github_ok(env: &Env) {
-    env.provider
-        .on(GH_TOKEN, 200, r#"{"access_token":"tok123","token_type":"bearer"}"#);
+    env.provider.on(
+        GH_TOKEN,
+        200,
+        r#"{"access_token":"tok123","token_type":"bearer"}"#,
+    );
     env.provider.on(
         GH_USER,
         200,
@@ -431,7 +445,11 @@ async fn the_list_offers_configured_providers_and_every_link_only_one() {
     assert_eq!(p("github")["available"], true);
     assert_eq!(p("github")["verified"], true);
     assert_eq!(p("spotify")["available"], true);
-    assert_eq!(p("twitch")["available"], false, "no OAuth application configured");
+    assert_eq!(
+        p("twitch")["available"],
+        false,
+        "no OAuth application configured"
+    );
     assert_eq!(p("youtube")["available"], false);
     assert_eq!(p("steam")["available"], true, "Steam needs no secret");
     assert_eq!(p("roblox")["verified"], false);
@@ -439,7 +457,9 @@ async fn the_list_offers_configured_providers_and_every_link_only_one() {
     assert_eq!(p("website")["requires_url"], true);
     // Needs a session.
     assert_eq!(
-        e.call(Method::GET, "/users/@me/connections", None, None).await.status,
+        e.call(Method::GET, "/users/@me/connections", None, None)
+            .await
+            .status,
         StatusCode::UNAUTHORIZED
     );
 }
@@ -453,16 +473,26 @@ async fn authorize_builds_the_provider_url_for_configured_providers_only() {
     let q: HashMap<String, String> = u.query_pairs().map(|(k, v)| (k.into(), v.into())).collect();
     assert_eq!(q["client_id"], "gh");
     assert_eq!(q["response_type"], "code");
-    assert_eq!(q["redirect_uri"], "https://room.test/api/v1/connections/github/callback");
+    assert_eq!(
+        q["redirect_uri"],
+        "https://room.test/api/v1/connections/github/callback"
+    );
     assert_eq!(q["scope"], "read:user");
     assert_eq!(q["code_challenge_method"], "S256");
     assert_eq!(q["state"], state);
     assert!(state.len() >= 43, "256 bits of state");
-    assert!(!q.values().any(|v| v.contains("gh-secret")), "the secret never leaves the server");
+    assert!(
+        !q.values().any(|v| v.contains("gh-secret")),
+        "the secret never leaves the server"
+    );
 
     for p in ["twitch", "nope", "roblox"] {
         let r = e
-            .post(&format!("/users/@me/connections/{p}/authorize"), &s, json!({}))
+            .post(
+                &format!("/users/@me/connections/{p}/authorize"),
+                &s,
+                json!({}),
+            )
             .await;
         assert_eq!(r.status, StatusCode::NOT_FOUND, "{p}");
     }
@@ -470,7 +500,9 @@ async fn authorize_builds_the_provider_url_for_configured_providers_only() {
     for _ in 0..4 {
         e.start("github", &s).await;
     }
-    let r = e.post("/users/@me/connections/github/authorize", &s, json!({})).await;
+    let r = e
+        .post("/users/@me/connections/github/authorize", &s, json!({}))
+        .await;
     assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS);
 }
 
@@ -503,7 +535,10 @@ async fn a_github_link_end_to_end() {
     assert_eq!(f["code"], "abc");
     assert_eq!(f["grant_type"], "authorization_code");
     assert_eq!(f["client_secret"], "gh-secret");
-    assert_eq!(f["redirect_uri"], "https://room.test/api/v1/connections/github/callback");
+    assert_eq!(
+        f["redirect_uri"],
+        "https://room.test/api/v1/connections/github/callback"
+    );
     use sha2::{Digest, Sha256};
     assert_eq!(
         data_encoding::BASE64URL_NOPAD.encode(&Sha256::digest(f["code_verifier"])),
@@ -511,7 +546,12 @@ async fn a_github_link_end_to_end() {
         "the verifier matches the challenge that was sent"
     );
     let api = e.provider.calls(GH_USER);
-    assert!(api[0].call.headers.contains(&("Authorization".into(), "Bearer tok123".into())));
+    assert!(
+        api[0]
+            .call
+            .headers
+            .contains(&("Authorization".into(), "Bearer tok123".into()))
+    );
 
     let list = e.get("/users/@me/connections", &s).await;
     let c = &list.body["connections"][0];
@@ -520,8 +560,14 @@ async fn a_github_link_end_to_end() {
     assert_eq!(c["name"], "octocat");
     assert_eq!(c["verified"], true);
     assert_eq!(c["url"], "https://github.com/octocat");
-    assert_eq!(c["stats"], json!({"public_repos": 8, "followers": 3938, "following": 9}));
-    assert!(!String::from_utf8_lossy(&list.raw).contains("tok123"), "no token is kept or shown");
+    assert_eq!(
+        c["stats"],
+        json!({"public_repos": 8, "followers": 3938, "following": 9})
+    );
+    assert!(
+        !String::from_utf8_lossy(&list.raw).contains("tok123"),
+        "no token is kept or shown"
+    );
 }
 
 #[tokio::test]
@@ -532,31 +578,63 @@ async fn the_state_is_single_use_and_bound_to_the_account() {
 
     // Bob cannot finish Alice's flow, and the attempt burns the state.
     let (state, _) = e.start("github", &a).await;
-    let to = e.callback("github", &format!("code=abc&state={state}"), Some(&b)).await;
+    let to = e
+        .callback("github", &format!("code=abc&state={state}"), Some(&b))
+        .await;
     assert_eq!(to, "/settings/user/connections?error=state&provider=github");
-    let to = e.callback("github", &format!("code=abc&state={state}"), Some(&a)).await;
+    let to = e
+        .callback("github", &format!("code=abc&state={state}"), Some(&a))
+        .await;
     assert!(to.contains("error=state"), "{to}");
 
     // A state replayed after success is refused.
     let (state, _) = e.start("github", &a).await;
-    assert!(e.callback("github", &format!("code=abc&state={state}"), Some(&a)).await.contains("connected=github"));
-    assert!(e.callback("github", &format!("code=abc&state={state}"), Some(&a)).await.contains("error=state"));
+    assert!(
+        e.callback("github", &format!("code=abc&state={state}"), Some(&a))
+            .await
+            .contains("connected=github")
+    );
+    assert!(
+        e.callback("github", &format!("code=abc&state={state}"), Some(&a))
+            .await
+            .contains("error=state")
+    );
 
     // Another provider's callback does not accept it, and an unknown or missing state fails.
     let (state, _) = e.start("github", &a).await;
-    assert!(e.callback("spotify", &format!("code=abc&state={state}"), Some(&a)).await.contains("error=state"));
-    assert!(e.callback("github", "code=abc&state=guess", Some(&a)).await.contains("error=state"));
-    assert!(e.callback("github", "code=abc", Some(&a)).await.contains("error=state"));
+    assert!(
+        e.callback("spotify", &format!("code=abc&state={state}"), Some(&a))
+            .await
+            .contains("error=state")
+    );
+    assert!(
+        e.callback("github", "code=abc&state=guess", Some(&a))
+            .await
+            .contains("error=state")
+    );
+    assert!(
+        e.callback("github", "code=abc", Some(&a))
+            .await
+            .contains("error=state")
+    );
 
     // No session at all.
     let (state, _) = e.start("github", &a).await;
-    assert!(e.callback("github", &format!("code=abc&state={state}"), None).await.contains("error=signed_out"));
+    assert!(
+        e.callback("github", &format!("code=abc&state={state}"), None)
+            .await
+            .contains("error=signed_out")
+    );
 
     // Expired.
     let (state, _) = e.start("github", &a).await;
     e.clock.advance_ms(11 * 60 * 1000);
     let session = e.login(ALICE).await;
-    assert!(e.callback("github", &format!("code=abc&state={state}"), Some(&session)).await.contains("error=state"));
+    assert!(
+        e.callback("github", &format!("code=abc&state={state}"), Some(&session))
+            .await
+            .contains("error=state")
+    );
 }
 
 #[tokio::test]
@@ -565,25 +643,52 @@ async fn provider_failures_come_back_as_error_codes() {
     let s = e.login(ALICE).await;
 
     let (state, _) = e.start("github", &s).await;
-    let to = e.callback("github", &format!("error=access_denied&state={state}"), Some(&s)).await;
+    let to = e
+        .callback(
+            "github",
+            &format!("error=access_denied&state={state}"),
+            Some(&s),
+        )
+        .await;
     assert!(to.contains("error=denied"), "{to}");
 
     // The token endpoint refuses the code (GitHub answers 200 with an error document).
-    e.provider.on(GH_TOKEN, 200, r#"{"error":"bad_verification_code"}"#);
+    e.provider
+        .on(GH_TOKEN, 200, r#"{"error":"bad_verification_code"}"#);
     let (state, _) = e.start("github", &s).await;
-    assert!(e.callback("github", &format!("code=x&state={state}"), Some(&s)).await.contains("error=exchange"));
+    assert!(
+        e.callback("github", &format!("code=x&state={state}"), Some(&s))
+            .await
+            .contains("error=exchange")
+    );
     e.provider.on(GH_TOKEN, 400, r#"{"error":"invalid_grant"}"#);
     let (state, _) = e.start("github", &s).await;
-    assert!(e.callback("github", &format!("code=x&state={state}"), Some(&s)).await.contains("error=exchange"));
+    assert!(
+        e.callback("github", &format!("code=x&state={state}"), Some(&s))
+            .await
+            .contains("error=exchange")
+    );
     let (state, _) = e.start("github", &s).await;
-    assert!(e.callback("github", &format!("state={state}"), Some(&s)).await.contains("error=exchange"), "no code");
+    assert!(
+        e.callback("github", &format!("state={state}"), Some(&s))
+            .await
+            .contains("error=exchange"),
+        "no code"
+    );
 
     // A token but an unusable profile.
     e.provider.on(GH_TOKEN, 200, r#"{"access_token":"t"}"#);
     e.provider.on(GH_USER, 200, r#"{"message":"nope"}"#);
     let (state, _) = e.start("github", &s).await;
-    assert!(e.callback("github", &format!("code=x&state={state}"), Some(&s)).await.contains("error=profile"));
-    assert_eq!(e.get("/users/@me/connections", &s).await.body["connections"], json!([]));
+    assert!(
+        e.callback("github", &format!("code=x&state={state}"), Some(&s))
+            .await
+            .contains("error=profile")
+    );
+    assert_eq!(
+        e.get("/users/@me/connections", &s).await.body["connections"],
+        json!([])
+    );
 }
 
 #[tokio::test]
@@ -592,11 +697,20 @@ async fn a_provider_identity_belongs_to_one_account() {
     github_ok(&e);
     let (a, b) = (e.login(ALICE).await, e.login(BOB).await);
     let (state, _) = e.start("github", &a).await;
-    assert!(e.callback("github", &format!("code=x&state={state}"), Some(&a)).await.contains("connected=github"));
+    assert!(
+        e.callback("github", &format!("code=x&state={state}"), Some(&a))
+            .await
+            .contains("connected=github")
+    );
     let (state, _) = e.start("github", &b).await;
-    let to = e.callback("github", &format!("code=x&state={state}"), Some(&b)).await;
+    let to = e
+        .callback("github", &format!("code=x&state={state}"), Some(&b))
+        .await;
     assert!(to.contains("error=taken"), "{to}");
-    assert_eq!(e.get("/users/@me/connections", &b).await.body["connections"], json!([]));
+    assert_eq!(
+        e.get("/users/@me/connections", &b).await.body["connections"],
+        json!([])
+    );
 
     // Linking again keeps the member's choices on the card.
     e.call(
@@ -607,7 +721,8 @@ async fn a_provider_identity_belongs_to_one_account() {
     )
     .await;
     let (state, _) = e.start("github", &a).await;
-    e.callback("github", &format!("code=x&state={state}"), Some(&a)).await;
+    e.callback("github", &format!("code=x&state={state}"), Some(&a))
+        .await;
     let c = &e.get("/users/@me/connections", &a).await.body["connections"][0];
     assert_eq!(c["visible"], false);
     assert_eq!(c["show_activity"], false);
@@ -628,10 +743,16 @@ async fn spotify_uses_basic_credentials_without_a_secret_in_the_form() {
     );
     let s = e.login(ALICE).await;
     let (state, _) = e.start("spotify", &s).await;
-    assert!(e.callback("spotify", &format!("code=x&state={state}"), Some(&s)).await.contains("connected=spotify"));
+    assert!(
+        e.callback("spotify", &format!("code=x&state={state}"), Some(&s))
+            .await
+            .contains("connected=spotify")
+    );
     let tok = &e.provider.calls("https://accounts.spotify.com/api/token")[0];
     assert_eq!(tok.call.basic, Some(("sp".into(), "sp-secret".into())));
-    let ApiMethod::PostForm(form) = &tok.call.method else { panic!() };
+    let ApiMethod::PostForm(form) = &tok.call.method else {
+        panic!()
+    };
     assert!(!form.iter().any(|(k, _)| k == "client_secret"));
     let c = &e.get("/users/@me/connections", &s).await.body["connections"][0];
     assert_eq!(c["name"], "Wiz");
@@ -642,12 +763,21 @@ async fn spotify_uses_basic_credentials_without_a_secret_in_the_form() {
 async fn a_provider_host_that_resolves_privately_is_never_contacted() {
     let e = env().await;
     github_ok(&e);
-    e.dns.0.lock().unwrap().insert("github.com".into(), "127.0.0.1".parse().unwrap());
+    e.dns
+        .0
+        .lock()
+        .unwrap()
+        .insert("github.com".into(), "127.0.0.1".parse().unwrap());
     let s = e.login(ALICE).await;
     let (state, _) = e.start("github", &s).await;
-    let to = e.callback("github", &format!("code=x&state={state}"), Some(&s)).await;
+    let to = e
+        .callback("github", &format!("code=x&state={state}"), Some(&s))
+        .await;
     assert!(to.contains("error=exchange"), "{to}");
-    assert!(e.provider.calls(GH_TOKEN).is_empty(), "the pinned-address check ran first");
+    assert!(
+        e.provider.calls(GH_TOKEN).is_empty(),
+        "the pinned-address check ran first"
+    );
 }
 
 #[tokio::test]
@@ -677,28 +807,49 @@ async fn steam_is_verified_with_steam_before_it_is_believed() {
     let steam = "https://steamcommunity.com/openid/login";
 
     // Steam says the signature is not valid: refused.
-    e.provider.on(steam, 200, "ns:http://specs.openid.net/auth/2.0\nis_valid:false\n");
-    assert!(e.callback("steam", &answer(&state, &return_to), Some(&s)).await.contains("error=exchange"));
+    e.provider.on(
+        steam,
+        200,
+        "ns:http://specs.openid.net/auth/2.0\nis_valid:false\n",
+    );
+    assert!(
+        e.callback("steam", &answer(&state, &return_to), Some(&s))
+            .await
+            .contains("error=exchange")
+    );
 
     // A return_to for another site is refused before Steam is even asked.
     let (state2, _) = e.start("steam", &s).await;
     let before = e.provider.calls(steam).len();
     let evil = format!("https://evil.test/cb?state={state2}");
-    assert!(e.callback("steam", &answer(&state2, &evil), Some(&s)).await.contains("error=exchange"));
+    assert!(
+        e.callback("steam", &answer(&state2, &evil), Some(&s))
+            .await
+            .contains("error=exchange")
+    );
     assert_eq!(e.provider.calls(steam).len(), before);
 
     // A valid answer links the Steam id.
-    e.provider.on(steam, 200, "ns:http://specs.openid.net/auth/2.0\nis_valid:true\n");
+    e.provider.on(
+        steam,
+        200,
+        "ns:http://specs.openid.net/auth/2.0\nis_valid:true\n",
+    );
     let (state3, _) = e.start("steam", &s).await;
     let rt3 = format!("https://room.test/api/v1/connections/steam/callback?state={state3}");
     let to = e.callback("steam", &answer(&state3, &rt3), Some(&s)).await;
     assert!(to.contains("connected=steam"), "{to}");
     let sent = e.provider.calls(steam).last().cloned().unwrap();
-    let ApiMethod::PostForm(form) = &sent.call.method else { panic!() };
+    let ApiMethod::PostForm(form) = &sent.call.method else {
+        panic!()
+    };
     assert!(form.contains(&("openid.mode".into(), "check_authentication".into())));
     let c = &e.get("/users/@me/connections", &s).await.body["connections"][0];
     assert_eq!(c["id"], "76561197960435530");
-    assert_eq!(c["url"], "https://steamcommunity.com/profiles/76561197960435530");
+    assert_eq!(
+        c["url"],
+        "https://steamcommunity.com/profiles/76561197960435530"
+    );
     assert_eq!(c["verified"], true);
 }
 
@@ -706,15 +857,46 @@ async fn steam_is_verified_with_steam_before_it_is_believed() {
 async fn unverified_links_are_validated_edited_and_removed() {
     let e = env().await;
     let s = e.login(ALICE).await;
-    let put = |body: Value| e.call(Method::PUT, "/users/@me/connections/link", Some(&s), Some(body));
+    let put = |body: Value| {
+        e.call(
+            Method::PUT,
+            "/users/@me/connections/link",
+            Some(&s),
+            Some(body),
+        )
+    };
 
-    assert_eq!(put(json!({"provider": "github", "name": "x"})).await.status, StatusCode::BAD_REQUEST, "verified providers cannot be typed in");
-    assert_eq!(put(json!({"provider": "nope", "name": "x"})).await.status, StatusCode::BAD_REQUEST);
-    assert_eq!(put(json!({"provider": "website"})).await.status, StatusCode::BAD_REQUEST, "a website needs a URL");
-    for bad in ["http://plain.test", "javascript:alert(1)", "https://user:pw@x.test/", "not a url"] {
-        assert_eq!(put(json!({"provider": "website", "url": bad})).await.status, StatusCode::BAD_REQUEST, "{bad}");
+    assert_eq!(
+        put(json!({"provider": "github", "name": "x"})).await.status,
+        StatusCode::BAD_REQUEST,
+        "verified providers cannot be typed in"
+    );
+    assert_eq!(
+        put(json!({"provider": "nope", "name": "x"})).await.status,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        put(json!({"provider": "website"})).await.status,
+        StatusCode::BAD_REQUEST,
+        "a website needs a URL"
+    );
+    for bad in [
+        "http://plain.test",
+        "javascript:alert(1)",
+        "https://user:pw@x.test/",
+        "not a url",
+    ] {
+        assert_eq!(
+            put(json!({"provider": "website", "url": bad})).await.status,
+            StatusCode::BAD_REQUEST,
+            "{bad}"
+        );
     }
-    assert_eq!(put(json!({"provider": "roblox"})).await.status, StatusCode::BAD_REQUEST, "needs a name");
+    assert_eq!(
+        put(json!({"provider": "roblox"})).await.status,
+        StatusCode::BAD_REQUEST,
+        "needs a name"
+    );
 
     let w = put(json!({"provider": "website", "url": "https://example.com/me"})).await;
     assert_eq!(w.status, StatusCode::OK, "{:?}", w.body);
@@ -725,25 +907,57 @@ async fn unverified_links_are_validated_edited_and_removed() {
 
     // Rename and hide the link; verified names cannot be edited.
     let patch = |path: &'static str, body: Value| e.patch(path, &s, body);
-    let p = patch("/users/@me/connections/roblox/Builder99", json!({"name": "Builder100", "visible": false})).await;
+    let p = patch(
+        "/users/@me/connections/roblox/Builder99",
+        json!({"name": "Builder100", "visible": false}),
+    )
+    .await;
     assert_eq!(p.status, StatusCode::OK, "{:?}", p.body);
     assert_eq!(p.body["name"], "Builder100");
     assert_eq!(p.body["visible"], false);
-    assert_eq!(patch("/users/@me/connections/roblox/nobody", json!({"visible": true})).await.status, StatusCode::NOT_FOUND);
-    assert_eq!(patch("/users/@me/connections/roblox/Builder99", json!({"name": ""})).await.status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        patch(
+            "/users/@me/connections/roblox/nobody",
+            json!({"visible": true})
+        )
+        .await
+        .status,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        patch(
+            "/users/@me/connections/roblox/Builder99",
+            json!({"name": ""})
+        )
+        .await
+        .status,
+        StatusCode::BAD_REQUEST
+    );
 
     github_ok(&e);
     let (state, _) = e.start("github", &s).await;
-    e.callback("github", &format!("code=x&state={state}"), Some(&s)).await;
+    e.callback("github", &format!("code=x&state={state}"), Some(&s))
+        .await;
     assert_eq!(
-        patch("/users/@me/connections/github/583231", json!({"name": "renamed"})).await.status,
+        patch(
+            "/users/@me/connections/github/583231",
+            json!({"name": "renamed"})
+        )
+        .await
+        .status,
         StatusCode::BAD_REQUEST
     );
 
     // Removal.
     let del = |path: &'static str| e.delete(path, &s);
-    assert_eq!(del("/users/@me/connections/roblox/Builder99").await.status, StatusCode::NO_CONTENT);
-    assert_eq!(del("/users/@me/connections/roblox/Builder99").await.status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        del("/users/@me/connections/roblox/Builder99").await.status,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        del("/users/@me/connections/roblox/Builder99").await.status,
+        StatusCode::NOT_FOUND
+    );
     let left = e.get("/users/@me/connections", &s).await.body["connections"]
         .as_array()
         .unwrap()
@@ -757,7 +971,8 @@ async fn others_see_only_visible_connections_and_stats_only_when_shown() {
     github_ok(&e);
     let s = e.login(ALICE).await;
     let (state, _) = e.start("github", &s).await;
-    e.callback("github", &format!("code=x&state={state}"), Some(&s)).await;
+    e.callback("github", &format!("code=x&state={state}"), Some(&s))
+        .await;
     let alice = UserId::new(ALICE as u64);
     let bob = UserId::new(BOB as u64);
 
@@ -765,7 +980,13 @@ async fn others_see_only_visible_connections_and_stats_only_when_shown() {
     let o = crate::routes::social::model::ConnectionObject::from(&seen.connections[0]);
     assert_eq!(o.stats["followers"], 3938);
 
-    e.call(Method::PATCH, "/users/@me/connections/github/583231", Some(&s), Some(json!({"show_activity": false}))).await;
+    e.call(
+        Method::PATCH,
+        "/users/@me/connections/github/583231",
+        Some(&s),
+        Some(json!({"show_activity": false})),
+    )
+    .await;
     let seen = e.social.service.get_profile(bob, alice).await.unwrap();
     let o = crate::routes::social::model::ConnectionObject::from(&seen.connections[0]);
     assert_eq!(o.stats, json!({}), "the stats line is hidden from others");
@@ -773,8 +994,22 @@ async fn others_see_only_visible_connections_and_stats_only_when_shown() {
     let mine = &e.get("/users/@me/connections", &s).await.body["connections"][0];
     assert_eq!(mine["stats"]["followers"], 3938);
 
-    e.call(Method::PATCH, "/users/@me/connections/github/583231", Some(&s), Some(json!({"visible": false}))).await;
-    assert!(e.social.service.get_profile(bob, alice).await.unwrap().connections.is_empty());
+    e.call(
+        Method::PATCH,
+        "/users/@me/connections/github/583231",
+        Some(&s),
+        Some(json!({"visible": false})),
+    )
+    .await;
+    assert!(
+        e.social
+            .service
+            .get_profile(bob, alice)
+            .await
+            .unwrap()
+            .connections
+            .is_empty()
+    );
     let _ = &e.repo;
 }
 
@@ -784,14 +1019,21 @@ async fn stats_refresh_is_token_free_limited_and_github_reddit_only() {
     github_ok(&e);
     let s = e.login(ALICE).await;
     let (state, _) = e.start("github", &s).await;
-    e.callback("github", &format!("code=x&state={state}"), Some(&s)).await;
+    e.callback("github", &format!("code=x&state={state}"), Some(&s))
+        .await;
 
     e.provider.on(
         "https://api.github.com/user/583231",
         200,
         r#"{"id":583231,"login":"octocat","public_repos":9,"followers":4000,"following":9}"#,
     );
-    let r = e.post("/users/@me/connections/github/583231/refresh", &s, json!({})).await;
+    let r = e
+        .post(
+            "/users/@me/connections/github/583231/refresh",
+            &s,
+            json!({}),
+        )
+        .await;
     assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
     assert_eq!(r.body["stats"]["followers"], 4000);
     assert!(
@@ -801,19 +1043,39 @@ async fn stats_refresh_is_token_free_limited_and_github_reddit_only() {
             .is_empty(),
         "no credentials are sent for a public refresh"
     );
-    let r = e.post("/users/@me/connections/github/583231/refresh", &s, json!({})).await;
+    let r = e
+        .post(
+            "/users/@me/connections/github/583231/refresh",
+            &s,
+            json!({}),
+        )
+        .await;
     assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS);
     assert!(r.headers.contains_key(header::RETRY_AFTER));
     e.clock.advance_ms(61_000);
     assert_eq!(
-        e.post("/users/@me/connections/github/583231/refresh", &s, json!({})).await.status,
+        e.post(
+            "/users/@me/connections/github/583231/refresh",
+            &s,
+            json!({})
+        )
+        .await
+        .status,
         StatusCode::OK
     );
     // A typed link cannot be refreshed.
-    e.call(Method::PUT, "/users/@me/connections/link", Some(&s), Some(json!({"provider": "roblox", "name": "b"}))).await;
+    e.call(
+        Method::PUT,
+        "/users/@me/connections/link",
+        Some(&s),
+        Some(json!({"provider": "roblox", "name": "b"})),
+    )
+    .await;
     e.clock.advance_ms(61_000);
     assert_eq!(
-        e.post("/users/@me/connections/roblox/b/refresh", &s, json!({})).await.status,
+        e.post("/users/@me/connections/roblox/b/refresh", &s, json!({}))
+            .await
+            .status,
         StatusCode::BAD_REQUEST
     );
 }
@@ -836,14 +1098,20 @@ async fn an_export_is_requested_once_built_downloaded_and_expires() {
     // One at a time.
     let again = e.post("/users/@me/data-export", &a, json!({})).await;
     assert_eq!(again.status, StatusCode::BAD_REQUEST);
-    assert_eq!(again.body["errors"]["export"]["_errors"][0]["code"], "in_progress");
+    assert_eq!(
+        again.body["errors"]["export"]["_errors"][0]["code"],
+        "in_progress"
+    );
     // Not downloadable before it is built.
     let path = format!("/users/@me/data-export/{id}/download");
     assert_eq!(e.get(&path, &a).await.status, StatusCode::NOT_FOUND);
 
     // The job finishes: the zip is in storage and the record is ready for 7 days.
     e.storage
-        .put("exports/1/zip", bytes::Bytes::from_static(b"PK\x03\x04fake"))
+        .put(
+            "exports/1/zip",
+            bytes::Bytes::from_static(b"PK\x03\x04fake"),
+        )
         .await
         .unwrap();
     {
@@ -864,7 +1132,12 @@ async fn an_export_is_requested_once_built_downloaded_and_expires() {
     assert_eq!(dl.status, StatusCode::OK);
     assert_eq!(dl.raw, b"PK\x03\x04fake");
     assert_eq!(dl.headers[header::CONTENT_TYPE], "application/zip");
-    assert!(dl.headers[header::CONTENT_DISPOSITION].to_str().unwrap().starts_with("attachment"));
+    assert!(
+        dl.headers[header::CONTENT_DISPOSITION]
+            .to_str()
+            .unwrap()
+            .starts_with("attachment")
+    );
     assert_eq!(dl.headers[header::CACHE_CONTROL], "private, no-store");
     // Nobody else can fetch it.
     assert_eq!(e.get(&path, &b).await.status, StatusCode::NOT_FOUND);
@@ -887,5 +1160,10 @@ async fn an_export_is_requested_once_built_downloaded_and_expires() {
     assert_eq!(st.body["state"], "expired");
     assert!(st.body["download_url"].is_null());
     // And a new package can be requested.
-    assert_eq!(e.post("/users/@me/data-export", &a2, json!({})).await.status, StatusCode::ACCEPTED);
+    assert_eq!(
+        e.post("/users/@me/data-export", &a2, json!({}))
+            .await
+            .status,
+        StatusCode::ACCEPTED
+    );
 }

@@ -658,10 +658,17 @@ mod tests {
         bad.status = 400;
         let (c, s) = api_client(&[("https://api.example.com/token", bad)]);
         let (status, body) = c.call(api("https://api.example.com/token")).await.unwrap();
-        assert_eq!(status, 400, "the caller reads the provider's error document");
+        assert_eq!(
+            status, 400,
+            "the caller reads the provider's error document"
+        );
         assert!(String::from_utf8_lossy(&body).contains("invalid_grant"));
         let seen = s.seen.lock().unwrap();
-        assert_eq!(seen[0].addrs[0].ip().to_string(), "93.184.216.34", "pinned address");
+        assert_eq!(
+            seen[0].addrs[0].ip().to_string(),
+            "93.184.216.34",
+            "pinned address"
+        );
         assert_eq!(seen[0].call.headers[0].1, "Bearer t");
     }
 
@@ -672,11 +679,21 @@ mod tests {
             redir("http://169.254.169.254/latest"),
         )]);
         assert_eq!(
-            c.call(api("https://api.example.com/token")).await.unwrap_err(),
+            c.call(api("https://api.example.com/token"))
+                .await
+                .unwrap_err(),
             NetError::BadRedirect
         );
-        assert_eq!(s.seen.lock().unwrap().len(), 1, "the redirect target is not contacted");
-        for u in ["http://127.0.0.1/token", "https://10.0.0.1/token", "ftp://api.example.com/x"] {
+        assert_eq!(
+            s.seen.lock().unwrap().len(),
+            1,
+            "the redirect target is not contacted"
+        );
+        for u in [
+            "http://127.0.0.1/token",
+            "https://10.0.0.1/token",
+            "ftp://api.example.com/x",
+        ] {
             assert!(
                 matches!(c.call(api(u)).await.unwrap_err(), NetError::Blocked(_)),
                 "{u}"
@@ -694,7 +711,12 @@ mod tests {
                 seen: Mutex::default(),
             }),
         );
-        assert!(get_only.call(api("https://api.example.com/token")).await.is_err());
+        assert!(
+            get_only
+                .call(api("https://api.example.com/token"))
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
@@ -706,7 +728,9 @@ mod tests {
         };
         let (c, _) = api_client(&[("https://api.example.com/big", big)]);
         assert_eq!(
-            c.call(api("https://api.example.com/big")).await.unwrap_err(),
+            c.call(api("https://api.example.com/big"))
+                .await
+                .unwrap_err(),
             NetError::TooLarge
         );
     }

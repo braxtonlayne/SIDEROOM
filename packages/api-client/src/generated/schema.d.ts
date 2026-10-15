@@ -6661,6 +6661,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/auth/account/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/account/delete {password, username, mfa?}`: delete the signed-in
+         *     account (LNG-USET-007, D-029). Needs the password, the typed username and, with
+         *     two-factor on, a second factor. The account can never sign in again; messages stay
+         *     and show "Deleted User". Sessions, friendships, blocks, server and group memberships
+         *     are removed, open platform invites are revoked, unspent invite credits are forfeited
+         *     and the username is held for 30 days. Refused with a `guilds` field error while the
+         *     account still owns a server (transfer or delete it first). Friends and shared servers
+         *     are told through `RELATIONSHIP_REMOVE` and `GUILD_MEMBER_REMOVE`.
+         */
+        post: operations["delete_account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/auth/email/cancel": {
         parameters: {
             query?: never;
@@ -7502,6 +7528,136 @@ export interface paths {
         get?: never;
         /** Move a Message Request to `accepted`, `ignored` or `spam`. */
         put: operations["respond_to_request"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's connections (hidden ones included) and the providers that can be added. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/connections/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add (or update) an unverified link. It shows on the profile without a check mark. */
+        put: operations["put_link"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/connections/{provider}/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start linking `provider`. Error codes on the way back: `denied`, `state`, `exchange`,
+         *     `profile`, `taken` (the account belongs to someone else), `limit`, `signed_out`, `failed`.
+         */
+        post: operations["authorize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/connections/{provider}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a connection. */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        /** Change how a connection shows on the profile. */
+        patch: operations["patch"];
+        trace?: never;
+    };
+    "/users/@me/connections/{provider}/{id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-read the stats now (GitHub and Reddit; others keep what was read when linking).
+         *     At most once a minute per account.
+         */
+        post: operations["refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/data-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The newest request of the caller. */
+        get: operations["status"];
+        put?: never;
+        /**
+         * Ask for a package of the caller's data. Built in the background; poll
+         *     `GET /users/@me/data-export`.
+         */
+        post: operations["request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/data-export/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the finished package (a zip). 404 once it expired or when it is not ready. */
+        get: operations["download"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -8748,6 +8904,13 @@ export interface components {
             state?: string | null;
             user: components["schemas"]["OwnerObject"];
         };
+        AuthorizeResponse: {
+            /**
+             * @description Send the browser here; the provider returns it to the callback, which ends in a redirect to
+             *     `/settings/user/connections?connected=<provider>` or `?error=<code>`.
+             */
+            url: string;
+        };
         AuthorizeResult: {
             /** @description The bot was already in the guild (only for bot installs). */
             already_installed?: boolean | null;
@@ -9639,8 +9802,20 @@ export interface components {
         ConnectionObject: {
             id: string;
             name: string;
+            /** @description Whether the owner shows stats / activity of this connection. */
+            show_activity: boolean;
+            /** @description Public stats (`{"followers": 12}`); empty unless `show_activity`. */
+            stats: Record<string, never>;
             type: string;
+            /** @description Link to the account's public page, when known. */
+            url?: string | null;
             verified: boolean;
+            /** @description Hidden connections are only listed to their owner. */
+            visible: boolean;
+        };
+        ConnectionsResponse: {
+            connections: components["schemas"]["ConnectionObject"][];
+            providers: components["schemas"]["ProviderObject"][];
         };
         /** @description A content request (Library or Cinema board). */
         ContentRequest: {
@@ -10018,6 +10193,14 @@ export interface components {
             reason: string;
             username: string;
         };
+        /** @description Body for `POST /sr/auth/account/delete`. */
+        DeleteAccountBody: {
+            mfa?: null | components["schemas"]["MfaProof"];
+            /** @description Current password. */
+            password: string;
+            /** @description The account's username, typed to confirm (case-insensitive). */
+            username: string;
+        };
         DeleteRequest: {
             account_id: string;
             /** Format: int64 */
@@ -10180,6 +10363,11 @@ export interface components {
              */
             avatar?: string | null;
             /**
+             * @description Slug of an approved avatar decoration (lowercase letters, digits, `-`, 48 at most);
+             *     `null` removes it.
+             */
+            avatar_decoration?: string | null;
+            /**
              * @description New profile banner as an image data URI (aspect ratio kept, at most
              *     1920x1080); `null` removes it.
              */
@@ -10191,7 +10379,11 @@ export interface components {
              *     the username shows. The username itself changes through `PUT /sr/auth/username`.
              */
             global_name?: string | null;
+            /** @description Slug of an approved profile effect; `null` removes it. */
+            profile_effect?: string | null;
             pronouns?: string | null;
+            /** @description The profile theme as two 0xRRGGBB colours `[primary, accent]`; `null` clears it. */
+            theme_colors?: number[] | null;
         };
         Edition: {
             id: string;
@@ -10286,6 +10478,21 @@ export interface components {
             tts?: boolean | null;
             /** @description Accepted; see the module docs (TODO(webhook-author)). */
             username?: string | null;
+        };
+        /** @description An export request. */
+        ExportObject: {
+            /** @description Relative API path of the zip, present while `ready`. */
+            download_url?: string | null;
+            /** @description The download link works until this time (7 days after it was built). */
+            expires_at?: string | null;
+            /** @description Absent when the account never asked. */
+            id?: string | null;
+            ready_at?: string | null;
+            requested_at?: string | null;
+            /** Format: int64 */
+            size_bytes?: number | null;
+            /** @description `none`, `pending`, `building`, `ready`, `failed` or `expired`. */
+            state: string;
         };
         FacetCount: {
             /** Format: int64 */
@@ -10510,6 +10717,15 @@ export interface components {
             icon?: string | null;
             /** @description 2-100 characters. */
             name: string;
+        };
+        /** @description The member's per-server profile (`GET /users/{id}/profile?guild_id=`). */
+        GuildMemberProfileObject: {
+            avatar?: string | null;
+            banner?: string | null;
+            bio?: string | null;
+            guild_id: string;
+            joined_at: string;
+            nick?: string | null;
         };
         GuildObject: {
             /** @description Voice channel idle members are moved to. */
@@ -11567,6 +11783,15 @@ export interface components {
             tags?: string[] | null;
             terms_of_service_url?: string | null;
         };
+        /** @description Body of `PATCH /users/@me/connections/{provider}/{id}`. */
+        PatchBody: {
+            /** @description New display name; only for unverified links. */
+            name?: string | null;
+            /** @description Show the stats line (follower counts and the like). */
+            show_activity?: boolean | null;
+            /** @description Show the connection on the profile. */
+            visible?: boolean | null;
+        };
         PatchBotBody: {
             username: string;
         };
@@ -11819,9 +12044,17 @@ export interface components {
             ok: boolean;
         };
         ProfileObject: {
+            /**
+             * @description Public badges: `owner`, `staff`, `patron`, `contributor`, `early_member`,
+             *     `bug_hunter`, `honorary`, `app_developer`, `bot`.
+             */
+            badges: string[];
             connected_accounts: components["schemas"]["ConnectionObject"][];
             /** @description When the viewer and the owner became friends. */
             friends_since?: string | null;
+            guild_member_profile?: null | components["schemas"]["GuildMemberProfileObject"];
+            /** @description When the account was created ("Member since"). */
+            member_since: string;
             /**
              * @description Friends of both the viewer and the profile owner (omitted on the viewer's own
              *     profile).
@@ -11907,6 +12140,20 @@ export interface components {
             required?: boolean;
             single_select?: boolean;
             title: string;
+        };
+        /** @description A provider on offer. */
+        ProviderObject: {
+            /**
+             * @description `false` when the operator has not set the provider up. Link-only providers are
+             *     always available.
+             */
+            available: boolean;
+            id: string;
+            name: string;
+            /** @description Link-only providers: the member must give a URL (websites). */
+            requires_url: boolean;
+            /** @description `true` when linking proves the account (OAuth / OpenID); `false` for a typed link. */
+            verified: boolean;
         };
         PruneBody: {
             /**
@@ -12339,10 +12586,13 @@ export interface components {
         SelfObject: {
             /** Format: int32 */
             accent_color?: number | null;
+            avatar_decoration?: string | null;
             banner?: string | null;
             bio?: string | null;
             custom_status?: null | components["schemas"]["CustomStatusObject"];
+            profile_effect?: string | null;
             pronouns?: string | null;
+            theme_colors?: number[] | null;
             user: components["schemas"]["UserObject"];
         };
         SendSoundBody: {
@@ -13490,9 +13740,15 @@ export interface components {
         UserProfileFields: {
             /** Format: int32 */
             accent_color?: number | null;
+            /** @description Slug of the avatar decoration, if one is set. */
+            avatar_decoration?: string | null;
             banner?: string | null;
             bio?: string | null;
+            /** @description Slug of the profile effect, if one is set. */
+            profile_effect?: string | null;
             pronouns?: string | null;
+            /** @description The two profile theme colours (0xRRGGBB), primary first. */
+            theme_colors?: number[] | null;
         };
         /**
          * @description User object embedded in messages (author, mentions). Fields come from the user
@@ -36704,6 +36960,52 @@ export interface operations {
             };
         };
     };
+    delete_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteAccountBody"];
+            };
+        };
+        responses: {
+            /** @description Account deleted; the session cookie is cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     cancel_change_email: {
         parameters: {
             query?: never;
@@ -39120,6 +39422,288 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionsResponse"];
+                };
+            };
+        };
+    };
+    put_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    authorize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description github, discord, spotify, twitch, youtube, reddit or steam */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizeResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider */
+                provider: string;
+                /** @description Account id at the provider */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider */
+                provider: string;
+                /** @description Account id at the provider */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider */
+                provider: string;
+                /** @description Account id at the provider */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportObject"];
+                };
+            };
+        };
+    };
+    request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportObject"];
+                };
+            };
+            /** @description A package is already being built */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Asked less than 24 hours ago */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Export request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The zip package */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_my_guilds: {
         parameters: {
             query?: never;
@@ -39990,6 +40574,8 @@ export interface operations {
             query?: {
                 /** @description Include mutual guilds (default true) */
                 with_mutual_guilds?: boolean;
+                /** @description Also return the user's profile in this server (viewer must be a member) */
+                guild_id?: string;
             };
             header?: never;
             path: {

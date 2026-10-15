@@ -276,7 +276,11 @@ pub async fn build_package<W: Write + Seek>(
         user,
     )
     .await?;
-    put(&mut zip, "account.json", &account.get(0).cloned().unwrap_or(Value::Null))?;
+    put(
+        &mut zip,
+        "account.json",
+        &account.get(0).cloned().unwrap_or(Value::Null),
+    )?;
 
     let settings = json!({
         "user_settings": rows(pool, "SELECT settings, version, default_notification_level, updated_at FROM user_settings WHERE user_id = $1", user).await?,
@@ -355,8 +359,11 @@ pub async fn build_package<W: Write + Seek>(
     .await?;
     let mut total = 0_u64;
     for channel in channels {
-        zip.start_file(format!("messages/{channel}.json"), SimpleFileOptions::default())
-            .map_err(zip_err)?;
+        zip.start_file(
+            format!("messages/{channel}.json"),
+            SimpleFileOptions::default(),
+        )
+        .map_err(zip_err)?;
         zip.write_all(b"[").map_err(zip_err)?;
         let mut after = 0_i64;
         let mut first = true;
@@ -375,7 +382,9 @@ pub async fn build_package<W: Write + Seek>(
             .bind(MESSAGE_PAGE)
             .fetch_all(pool)
             .await?;
-            let Some(last) = page.last().map(|p| p.0) else { break };
+            let Some(last) = page.last().map(|p| p.0) else {
+                break;
+            };
             for (_, m) in &page {
                 if !first {
                     zip.write_all(b",\n").map_err(zip_err)?;

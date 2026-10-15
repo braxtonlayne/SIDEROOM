@@ -2,8 +2,8 @@
 //! connections (LNG-USET-024). Account deletion is in `auth::identity`.
 
 pub mod connections;
-pub mod providers;
 pub mod data_export;
+pub mod providers;
 
 use crate::state::AppState;
 use axum::Router;
