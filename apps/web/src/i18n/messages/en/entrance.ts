@@ -319,4 +319,8 @@ export default {
   'entrance.template.voicePrefix': 'Voice: ',
   'entrance.template.name': 'Server name',
   'entrance.template.create': 'Create server',
+  // Group DM invites (G-47); the invite page is an entrance route, so these stay in the core fragment.
+  'entrance.invite.groupInvited': "You've been invited to join a group chat",
+  'entrance.invite.groupName': 'a group chat',
+  'entrance.invite.groupMembers': '{count} members',
 } satisfies Record<string, string>;

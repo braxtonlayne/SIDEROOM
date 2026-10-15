@@ -1,8 +1,5 @@
 export default {
   'lounge.inviteCard.group': 'Group chat',
-  'entrance.invite.groupInvited': "You've been invited to join a group chat",
-  'entrance.invite.groupName': 'a group chat',
-  'entrance.invite.groupMembers': '{count} members',
   'settings.overview.systemFlagsLegend': 'Send these messages',
   'settings.overview.systemFlagJoin': 'A welcome message when someone joins',
   'settings.overview.systemFlagBoost': 'A message when someone boosts the server',
