@@ -399,6 +399,36 @@ impl StaffVoice {
     }
 }
 
+/// Developer platform DMs (tester invitations, endpoint warnings) go out as the system user.
+#[async_trait]
+impl sr_api::routes::developer::SystemDm for StaffVoice {
+    async fn dm(&self, to: i64, card: sr_api::routes::developer::SystemCard) -> bool {
+        let embed = (!card.title.is_empty()).then(|| Embed {
+            title: Some(clip(&card.title, 200)),
+            kind: Some("rich".into()),
+            description: Some(clip(&card.description, 1500)),
+            color: BLUE,
+            ..Embed::default()
+        });
+        let buttons = card
+            .buttons
+            .iter()
+            .take(5)
+            .map(|b| button(b.style, &clip(&b.label, 80), b.custom_id.clone()))
+            .collect();
+        self.dm(
+            to,
+            Card {
+                content: clip(&card.content, 1900),
+                embed,
+                buttons,
+            },
+        )
+        .await
+        .is_some()
+    }
+}
+
 #[async_trait]
 impl StaffNotifier for StaffVoice {
     async fn appointment_offer(&self, offer: &StaffOffer) -> Option<(i64, i64)> {

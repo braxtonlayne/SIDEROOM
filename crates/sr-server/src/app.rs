@@ -981,6 +981,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         messages.clone(),
         &cfg.server.public_url,
     ));
+    // Tester invitations and endpoint warnings reach developers as system DMs.
+    dev_deps.set_system_dm(staff_voice.clone());
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
         .with_extras(admin_repo)
         .with_notifier(staff_voice.clone())

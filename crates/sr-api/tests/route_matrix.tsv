@@ -23,6 +23,7 @@ DELETE	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
 DELETE	/applications/{application_id}	authenticated	owner	deny	-
 DELETE	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-
 DELETE	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
+DELETE	/applications/{application_id}/testers/{account_id}	authenticated	owner	deny	-
 DELETE	/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/messages/{message_id}/reactions	authenticated	membership	allow	-
@@ -174,6 +175,7 @@ GET	/applications/{application_id}/guilds/{guild_id}/commands/permissions	authen
 GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
 GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	owner	allow	-
 GET	/applications/{application_id}/installs	authenticated	owner	deny	-
+GET	/applications/{application_id}/testers	authenticated	owner	deny	-
 GET	/applications/{application_id}/versions	authenticated	owner	deny	-
 GET	/channels/{channel_id}	authenticated	membership	allow	-
 GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-
@@ -514,9 +516,11 @@ POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-
 POST	/applications	authenticated	owner	deny	-
 POST	/applications/{application_id}/bot/reset-token	authenticated	owner	deny	-
 POST	/applications/{application_id}/commands	authenticated	owner	allow	-
+POST	/applications/{application_id}/endpoint/verify	authenticated	owner	deny	-
 POST	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
 POST	/applications/{application_id}/interactions-key	authenticated	owner	deny	-
 POST	/applications/{application_id}/reset-secret	authenticated	owner	deny	-
+POST	/applications/{application_id}/testers	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions/{version_id}/withdraw	authenticated	owner	deny	-
 POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-
@@ -546,6 +550,7 @@ POST	/cinema/titles/{title_id}/downloads	authenticated	other	allow	-
 POST	/cinema/titles/{title_id}/episodes/{episode_id}/comments	authenticated	other	allow	-
 POST	/cinema/titles/{title_id}/watched	authenticated	other	allow	-
 POST	/developers/apply	authenticated	owner	deny	-
+POST	/developers/tester-invites/{invite_id}/respond	authenticated	self	deny	-
 POST	/directory/{guild_id}/join	authenticated	membership	deny	-
 POST	/donations/invoices	authenticated	other	allow	-
 POST	/donations/invoices/{invoice_id}/cancel	authenticated	other	allow	-

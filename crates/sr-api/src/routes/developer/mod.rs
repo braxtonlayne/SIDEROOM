@@ -63,9 +63,13 @@ pub trait SystemDm: Send + Sync {
 pub(crate) use interactions::try_followup;
 
 #[cfg(test)]
+mod endpoint_health_tests;
+#[cfg(test)]
 mod endpoint_tests;
 #[cfg(test)]
 mod flow_tests;
+#[cfg(test)]
+mod tester_tests;
 #[cfg(test)]
 mod tests;
 

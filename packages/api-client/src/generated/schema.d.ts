@@ -3069,6 +3069,26 @@ export interface paths {
         patch: operations["patch_global"];
         trace?: never;
     };
+    "/applications/{application_id}/endpoint/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run the PING check against the saved endpoint URL and, when it passes, switch a disabled
+         *     endpoint back on (D-186). The failure counter restarts.
+         */
+        post: operations["verify_endpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications/{application_id}/guilds/{guild_id}/commands": {
         parameters: {
             query?: never;
@@ -3195,6 +3215,41 @@ export interface paths {
         /** Replace the client secret (shown once). */
         post: operations["reset_secret"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/testers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Testers of my application, invited and accepted. */
+        get: operations["list"];
+        put?: never;
+        /** Invite an account to test my application (by username or id). At most 25 testers. */
+        post: operations["invite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/testers/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a tester or withdraw an open invitation. */
+        delete: operations["remove"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4937,6 +4992,26 @@ export interface paths {
         get: operations["status"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/developers/tester-invites/{invite_id}/respond": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer a tester invitation. This is what the Accept and Decline buttons of the system DM
+         *     call. Only the invited account may answer.
+         */
+        post: operations["respond"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11533,6 +11608,13 @@ export interface components {
             roles: string[];
             user: components["schemas"]["UserRef"];
         };
+        /** @description State of an application's HTTP interactions endpoint (D-186). */
+        EndpointStatusObject: {
+            /** @description `enabled`, or `disabled` after 25 consecutive failed deliveries within 10 minutes. */
+            interactions_endpoint_state: string;
+            interactions_endpoint_url?: string | null;
+            verify_key?: string | null;
+        };
         Episode: {
             /** Format: int32 */
             absolute_number?: number | null;
@@ -14767,6 +14849,33 @@ export interface components {
         TestWalletResult: {
             addresses: string[];
             fingerprint: string;
+        };
+        /** @description Body of `POST /applications/{id}/testers`: a username or an account id. */
+        TesterBody: {
+            user_id?: string | null;
+            username?: string | null;
+        };
+        /** @description A tester of an application (D-204). */
+        TesterObject: {
+            created_at: string;
+            global_name?: string | null;
+            /** @description Invitation id. */
+            id: string;
+            /** @description `invited` or `accepted`. */
+            state: string;
+            /** @description The tester's account. */
+            user_id: string;
+            username?: string | null;
+        };
+        /** @description Body of `POST /developers/tester-invites/{id}/respond`. */
+        TesterRespondBody: {
+            accept: boolean;
+        };
+        /** @description The answer to a tester invitation. */
+        TesterRespondResult: {
+            accepted: boolean;
+            application_id: string;
+            name: string;
         };
         /** @description Thread listings: the threads plus the caller's memberships among them. */
         ThreadList: {
@@ -26427,6 +26536,44 @@ export interface operations {
             };
         };
     };
+    verify_endpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndpointStatusObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_guild: {
         parameters: {
             query?: never;
@@ -26824,6 +26971,116 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TesterObject"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TesterBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TesterObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Tester account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -32664,6 +32921,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeveloperStatus"];
+                };
+            };
+        };
+    };
+    respond: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation snowflake */
+                invite_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TesterRespondBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TesterRespondResult"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

@@ -15851,6 +15851,63 @@
         ]
       }
     },
+    "/applications/{application_id}/endpoint/verify": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Run the PING check against the saved endpoint URL and, when it passes, switch a disabled\nendpoint back on (D-186). The failure counter restarts.",
+        "operationId": "verify_endpoint",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointStatusObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/applications/{application_id}/guilds/{guild_id}/commands": {
       "get": {
         "tags": [
@@ -16572,6 +16629,180 @@
             }
           },
           "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/testers": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Testers of my application, invited and accepted.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TesterObject"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Invite an account to test my application (by username or id). At most 25 testers.",
+        "operationId": "invite",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TesterBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TesterObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/testers/{account_id}": {
+      "delete": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Remove a tester or withdraw an open invitation.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Tester account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -25855,6 +26086,73 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeveloperStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/developers/tester-invites/{invite_id}/respond": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Answer a tester invitation. This is what the Accept and Decline buttons of the system DM\ncall. Only the invited account may answer.",
+        "operationId": "respond",
+        "parameters": [
+          {
+            "name": "invite_id",
+            "in": "path",
+            "description": "Invitation snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TesterRespondBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TesterRespondResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -55210,6 +55508,31 @@
           }
         }
       },
+      "EndpointStatusObject": {
+        "type": "object",
+        "description": "State of an application's HTTP interactions endpoint (D-186).",
+        "required": [
+          "interactions_endpoint_state"
+        ],
+        "properties": {
+          "interactions_endpoint_state": {
+            "type": "string",
+            "description": "`enabled`, or `disabled` after 25 consecutive failed deliveries within 10 minutes."
+          },
+          "interactions_endpoint_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verify_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "Episode": {
         "type": "object",
         "required": [
@@ -65831,6 +66154,95 @@
             }
           },
           "fingerprint": {
+            "type": "string"
+          }
+        }
+      },
+      "TesterBody": {
+        "type": "object",
+        "description": "Body of `POST /applications/{id}/testers`: a username or an account id.",
+        "properties": {
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TesterObject": {
+        "type": "object",
+        "description": "A tester of an application (D-204).",
+        "required": [
+          "id",
+          "user_id",
+          "state",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "global_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "Invitation id."
+          },
+          "state": {
+            "type": "string",
+            "description": "`invited` or `accepted`."
+          },
+          "user_id": {
+            "type": "string",
+            "description": "The tester's account."
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TesterRespondBody": {
+        "type": "object",
+        "description": "Body of `POST /developers/tester-invites/{id}/respond`.",
+        "required": [
+          "accept"
+        ],
+        "properties": {
+          "accept": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TesterRespondResult": {
+        "type": "object",
+        "description": "The answer to a tester invitation.",
+        "required": [
+          "application_id",
+          "name",
+          "accepted"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "application_id": {
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           }
         }
