@@ -3,13 +3,14 @@
 use std::collections::{HashMap, HashSet};
 
 use sr_core::permissions::Permissions;
-use sr_core::{GuildId, UserId};
+use sr_core::{ChannelId, GuildId, UserId};
 
 use super::super::audit::{AuditAction, AuditChange};
 use super::super::error::{SettingsError, SettingsResult};
 use super::super::repo::SettingsRepository;
 use super::super::scheduled_events::{
-    self as events, ChannelKind, EventPatch, NewEvent, ScheduledEvent,
+    self as events, ChannelKind, EntityType, EventPatch, EventStatus, EventWorld, NewEvent,
+    ScheduledEvent,
 };
 use super::SettingsService;
 
@@ -57,6 +58,11 @@ fn changes(old: &ScheduledEvent, new: &ScheduledEvent) -> Vec<AuditChange> {
         new.entity_type.code().into(),
     );
     push("status", old.status.code().into(), new.status.code().into());
+    push(
+        "image_hash",
+        old.image_key.clone().into(),
+        new.image_key.clone().into(),
+    );
     out
 }
 
@@ -116,7 +122,9 @@ impl<R: SettingsRepository> SettingsService<R> {
     }
 
     /// Edit, start, end or cancel an event (`MANAGE_EVENTS`, or the creator with
-    /// `CREATE_EVENTS`).
+    /// `CREATE_EVENTS`). Starting a stage event opens its stage instance; ending or
+    /// canceling a running one closes it.
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_event(
         &self,
         perms: Permissions,
@@ -125,13 +133,19 @@ impl<R: SettingsRepository> SettingsService<R> {
         id: u64,
         patch: EventPatch,
         kind: ChannelKind,
+        world: &dyn EventWorld,
     ) -> SettingsResult<ScheduledEvent> {
         let old = self.get_event(guild, id).await?;
         if !events::can_manage(perms, &old, actor) {
             return Err(SettingsError::MissingPermissions);
         }
-        let new = events::plan_update(&old, patch, kind, self.now())?;
+        let mut new = events::plan_update(&old, patch, kind, self.now())?;
         if new != old {
+            if old.status == EventStatus::Scheduled && new.status == EventStatus::Active {
+                open_stage(world, &mut new, actor).await?;
+            } else if old.status == EventStatus::Active && !new.status.is_open() {
+                close_stage(world, &mut new).await;
+            }
             self.repo.update_event(&new).await?;
             self.record_audit(
                 guild,
@@ -146,13 +160,15 @@ impl<R: SettingsRepository> SettingsService<R> {
         Ok(new)
     }
 
-    /// Delete an event for good (same rule as editing).
+    /// Delete an event for good (same rule as editing). A running stage event closes its
+    /// stage instance first.
     pub async fn delete_event(
         &self,
         perms: Permissions,
         actor: UserId,
         guild: GuildId,
         id: u64,
+        world: &dyn EventWorld,
     ) -> SettingsResult<ScheduledEvent> {
         let old = self.get_event(guild, id).await?;
         if !events::can_manage(perms, &old, actor) {
@@ -160,6 +176,9 @@ impl<R: SettingsRepository> SettingsService<R> {
         }
         if !self.repo.delete_event(guild, id).await? {
             return Err(SettingsError::UnknownEvent);
+        }
+        if old.status == EventStatus::Active {
+            world_end_stage(world, &old).await;
         }
         self.record_audit(
             guild,
@@ -218,20 +237,141 @@ impl<R: SettingsRepository> SettingsService<R> {
             .await?)
     }
 
-    /// The clock's turn: start events whose time has come and end the running ones whose
-    /// end time passed. Returns the events as they are afterwards, for announcing.
-    pub async fn advance_events(&self) -> SettingsResult<Vec<ScheduledEvent>> {
-        let now = self.now();
-        let due = self.repo.due_events(now).await?;
+    /// Every interested member of an event (for the start notification).
+    pub async fn all_interested(&self, id: u64) -> SettingsResult<Vec<UserId>> {
         let mut out = Vec::new();
-        for t in events::due_transitions(&due, now) {
-            let Some(mut ev) = due.iter().find(|e| e.id == t.id).cloned() else {
-                continue;
+        let mut after = None;
+        loop {
+            let page = self.repo.list_interested(id, None, after, 100).await?;
+            let Some(last) = page.last().copied() else {
+                break;
             };
-            ev.status = t.to;
-            self.repo.update_event(&ev).await?;
-            out.push(ev);
+            let full = page.len() == 100;
+            out.extend(page);
+            if !full {
+                break;
+            }
+            after = Some(last);
         }
         Ok(out)
+    }
+
+    /// The clock's turn (G-91, G-92): apply [`events::advance`] to every event that may have
+    /// something to do. Every status change is audited as the system and returned for
+    /// announcing; an `empty_since` bookkeeping change is stored silently. Idempotent.
+    pub async fn advance_events(&self, world: &dyn EventWorld) -> SettingsResult<Vec<EventChange>> {
+        let now = self.now();
+        let due = self.repo.due_events(now).await?;
+        let mut channels: Vec<ChannelId> = due.iter().filter_map(|e| e.channel_id).collect();
+        channels.sort();
+        channels.dedup();
+        let view = world.view(&channels).await;
+        let mut out = Vec::new();
+        for old in &due {
+            let Some(mut new) = events::advance(old, now, &view) else {
+                continue;
+            };
+            let moved = new.status != old.status;
+            if moved && !new.status.is_open() {
+                close_stage(world, &mut new).await;
+            }
+            self.repo.update_event(&new).await?;
+            if moved {
+                self.audit_clock(old, &new).await?;
+                out.push(EventChange {
+                    before: old.status,
+                    event: new,
+                });
+            }
+        }
+        Ok(out)
+    }
+
+    /// A member entered `channel`: start the voice or stage event waiting on it when its
+    /// start time has come. `None` when no event starts.
+    pub async fn start_on_voice_join(
+        &self,
+        guild: GuildId,
+        channel: ChannelId,
+        world: &dyn EventWorld,
+    ) -> SettingsResult<Option<EventChange>> {
+        let now = self.now();
+        for old in self.repo.list_open_events(guild).await? {
+            let Some(mut new) = events::start_on_join(&old, channel, now) else {
+                continue;
+            };
+            if open_stage(world, &mut new, old.creator_id).await.is_err() {
+                // A stage is already running there; the event stays scheduled.
+                continue;
+            }
+            self.repo.update_event(&new).await?;
+            self.audit_clock(&old, &new).await?;
+            return Ok(Some(EventChange {
+                before: old.status,
+                event: new,
+            }));
+        }
+        Ok(None)
+    }
+
+    async fn audit_clock(&self, old: &ScheduledEvent, new: &ScheduledEvent) -> SettingsResult<()> {
+        self.record_audit_as_module(
+            new.guild_id,
+            AuditAction::ScheduledEventUpdate,
+            Some(new.id),
+            changes(old, new),
+            None,
+            ("scheduled_events", "Scheduled events"),
+        )
+        .await?;
+        Ok(())
+    }
+}
+
+/// An event that changed status, with the status it had before.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EventChange {
+    pub before: EventStatus,
+    pub event: ScheduledEvent,
+}
+
+impl EventChange {
+    /// The event just went from `SCHEDULED` to `ACTIVE`.
+    pub fn started(&self) -> bool {
+        self.before == EventStatus::Scheduled && self.event.status == EventStatus::Active
+    }
+}
+
+/// A starting event: a stage event opens its stage instance (topic = event name) and keeps
+/// its id as `entity_id`; every start resets the empty-channel countdown.
+async fn open_stage(
+    world: &dyn EventWorld,
+    ev: &mut ScheduledEvent,
+    by: UserId,
+) -> SettingsResult<()> {
+    ev.empty_since_ms = None;
+    if let (EntityType::StageInstance, Some(ch)) = (ev.entity_type, ev.channel_id) {
+        world
+            .start_stage(ev.guild_id, ch, &ev.name, by)
+            .await
+            .map_err(|why| {
+                SettingsError::invalid("status", "GUILD_SCHEDULED_EVENT_STAGE_BUSY", &why)
+            })?;
+        ev.entity_id = Some(ch.get());
+    }
+    Ok(())
+}
+
+/// An ending event: close its stage instance and drop `entity_id`.
+async fn close_stage(world: &dyn EventWorld, ev: &mut ScheduledEvent) {
+    world_end_stage(world, ev).await;
+    ev.entity_id = None;
+}
+
+async fn world_end_stage(world: &dyn EventWorld, ev: &ScheduledEvent) {
+    if let (EntityType::StageInstance, Some(ch), Some(_)) =
+        (ev.entity_type, ev.channel_id, ev.entity_id)
+    {
+        world.end_stage(ch).await;
     }
 }

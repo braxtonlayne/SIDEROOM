@@ -202,8 +202,9 @@ pub trait ScheduledEventRepository: Send + Sync {
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<UserId>>;
-    /// Open events of every guild whose time has come at `now_ms`: scheduled with a start
-    /// time reached, or active with an end time reached.
+    /// Events the clock may have something to do with at `now_ms`, across all guilds: every
+    /// running event, scheduled ones whose start time has come, and open voice or stage events
+    /// whose channel is gone.
     async fn due_events(&self, now_ms: i64) -> RepoResult<Vec<ScheduledEvent>>;
 }
 
