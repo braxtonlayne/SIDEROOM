@@ -5528,6 +5528,7 @@ dependencies = [
  "tokio-stream",
  "tower",
  "tracing",
+ "zip",
 ]
 
 [[package]]
