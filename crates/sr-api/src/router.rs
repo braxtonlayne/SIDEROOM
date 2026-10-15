@@ -48,6 +48,7 @@ pub fn build_router(state: AppState, extra_v1: Router<AppState>) -> Router {
         .route("/healthz", get(health::healthz))
         .route("/readyz", get(health::readyz))
         .route("/developers/docs/api", get(api_docs))
+        .route("/share", axum::routing::post(share_fallback))
         .nest("/api/v1", v1.clone())
         .nest("/api/v10", v1)
         .fallback(not_found);
@@ -95,6 +96,13 @@ pub fn internal_router(state: AppState) -> Router {
     Router::new()
         .route("/internal/metrics", get(health::metrics))
         .with_state(state)
+}
+
+/// A Web Share Target POST that reached the server because no service worker took it (G-77):
+/// the body is never read, and the browser is sent to the share page with a GET, which says to
+/// open SIDE ROOM once and share again.
+async fn share_fallback() -> axum::response::Redirect {
+    axum::response::Redirect::to("/share")
 }
 
 async fn not_found() -> (StatusCode, axum::Json<serde_json::Value>) {
