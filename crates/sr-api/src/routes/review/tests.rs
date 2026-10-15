@@ -305,6 +305,12 @@ fn member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         (Method::PUT, "/requests/7/vote", None),
         (Method::DELETE, "/requests/7/vote", None),
         (
+            Method::PUT,
+            "/requests/7/claim",
+            Some(json!({ "note": "mine" })),
+        ),
+        (Method::DELETE, "/requests/7/claim", None),
+        (
             Method::POST,
             "/requests/7/fulfil",
             Some(json!({ "submission_id": "7" })),
@@ -787,6 +793,42 @@ async fn requests_board_over_http() {
         )
         .await;
     assert_eq!(v["vote_count"], 1);
+    // "I'll upload this": one member at a time.
+    let (st, c) = e
+        .call(
+            Some(OTHER),
+            Method::PUT,
+            &format!("/requests/{rid}/claim"),
+            Some(json!({ "note": "scanning vol 1" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{c}");
+    assert_eq!(c["claim_note"], "scanning vol 1");
+    assert_eq!(c["claimed_by_me"], true);
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            &format!("/requests/{rid}/claim"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    let (_, l) = e
+        .call(Some(MEMBER), Method::GET, "/requests?status=open", None)
+        .await;
+    assert_eq!(l["items"][0]["claimed_by_me"], false);
+    assert!(l["items"][0]["claimed_by"].is_string());
+    let (st, c) = e
+        .call(
+            Some(OTHER),
+            Method::DELETE,
+            &format!("/requests/{rid}/claim"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{c}");
+    assert!(c["claimed_by"].is_null());
     // Declining is for reviewers only, and is logged.
     let (st, _) = e
         .call(

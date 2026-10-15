@@ -340,6 +340,20 @@ pub struct ContentRequest {
     #[schema(value_type = Option<String>)]
     pub submission_id: Option<i64>,
     pub created_at_ms: i64,
+    /// A member who said "I'll upload this" (while the request is open).
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub claimed_by: Option<i64>,
+    pub claim_note: Option<String>,
+    /// The caller is the one who claimed it.
+    pub claimed_by_me: bool,
+}
+
+/// Body of `PUT /requests/{id}/claim`.
+#[derive(Debug, Clone, PartialEq, Deserialize, ToSchema)]
+pub struct ClaimRequestInput {
+    #[serde(default)]
+    pub note: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, ToSchema)]

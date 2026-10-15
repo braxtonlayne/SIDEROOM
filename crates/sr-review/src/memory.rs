@@ -412,6 +412,9 @@ impl SubmissionRepository for MemoryReviewRepo {
             voted: true,
             submission_id: None,
             created_at_ms: g.now_ms,
+            claimed_by: None,
+            claim_note: None,
+            claimed_by_me: false,
         };
         g.requests.insert(id, r.clone());
         g.votes.insert((id, user));
@@ -422,6 +425,7 @@ impl SubmissionRepository for MemoryReviewRepo {
         let g = self.lock();
         Ok(g.requests.get(&id).map(|r| ContentRequest {
             voted: g.votes.contains(&(id, viewer)),
+            claimed_by_me: r.claimed_by == Some(viewer),
             ..r.clone()
         }))
     }
@@ -439,6 +443,7 @@ impl SubmissionRepository for MemoryReviewRepo {
             .filter(|r| q.status.is_none_or(|s| r.status == s))
             .map(|r| ContentRequest {
                 voted: g.votes.contains(&(r.id, viewer)),
+                claimed_by_me: r.claimed_by == Some(viewer),
                 ..r.clone()
             })
             .collect();
@@ -478,7 +483,11 @@ impl SubmissionRepository for MemoryReviewRepo {
             return Ok(None);
         };
         r.vote_count = i32::try_from(n).unwrap_or(i32::MAX);
-        Ok(Some(ContentRequest { voted, ..r.clone() }))
+        Ok(Some(ContentRequest {
+            voted,
+            claimed_by_me: r.claimed_by == Some(user),
+            ..r.clone()
+        }))
     }
 
     async fn open_request_count(&self, user: i64) -> ReviewResult<i64> {
@@ -504,7 +513,62 @@ impl SubmissionRepository for MemoryReviewRepo {
             Some(r) if r.status == RequestStatus::Open => {
                 r.status = status;
                 r.submission_id = submission;
-                Ok(Some(ContentRequest { voted, ..r.clone() }))
+                Ok(Some(ContentRequest {
+                    voted,
+                    claimed_by_me: r.claimed_by == Some(viewer),
+                    ..r.clone()
+                }))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    async fn claim_request(
+        &self,
+        id: i64,
+        user: i64,
+        note: &str,
+        _now_ms: i64,
+    ) -> ReviewResult<Option<ContentRequest>> {
+        let mut g = self.lock();
+        let voted = g.votes.contains(&(id, user));
+        match g.requests.get_mut(&id) {
+            Some(r)
+                if r.status == RequestStatus::Open && r.claimed_by.is_none_or(|c| c == user) =>
+            {
+                r.claimed_by = Some(user);
+                r.claim_note = Some(note.to_owned()).filter(|n| !n.is_empty());
+                Ok(Some(ContentRequest {
+                    voted,
+                    claimed_by_me: true,
+                    ..r.clone()
+                }))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    async fn release_request(
+        &self,
+        id: i64,
+        user: i64,
+        force: bool,
+    ) -> ReviewResult<Option<ContentRequest>> {
+        let mut g = self.lock();
+        let voted = g.votes.contains(&(id, user));
+        match g.requests.get_mut(&id) {
+            Some(r)
+                if r.status == RequestStatus::Open
+                    && r.claimed_by.is_some()
+                    && (force || r.claimed_by == Some(user)) =>
+            {
+                r.claimed_by = None;
+                r.claim_note = None;
+                Ok(Some(ContentRequest {
+                    voted,
+                    claimed_by_me: false,
+                    ..r.clone()
+                }))
             }
             _ => Ok(None),
         }

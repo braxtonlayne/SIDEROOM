@@ -401,6 +401,10 @@ pub fn router() -> Router<AppState> {
             put(requests::vote).delete(requests::unvote),
         )
         .route("/requests/{request_id}/fulfil", post(requests::fulfil))
+        .route(
+            "/requests/{request_id}/claim",
+            put(requests::claim).delete(requests::release),
+        )
         // Reviewers.
         .route("/admin/review/queue", get(reviewer::queue))
         .route(
@@ -496,6 +500,8 @@ pub fn router() -> Router<AppState> {
         requests::vote,
         requests::unvote,
         requests::fulfil,
+        requests::claim,
+        requests::release,
         requests::decline,
         reviewer::queue,
         reviewer::get,
@@ -538,6 +544,7 @@ pub fn router() -> Router<AppState> {
         sr_review::model::RequestStatus,
         sr_review::model::ContentRequest,
         sr_review::model::RequestPage,
+        sr_review::model::ClaimRequestInput,
         sr_library::model::SeriesInput,
         sr_library::model::Series,
         sr_library::model::ChapterInput,

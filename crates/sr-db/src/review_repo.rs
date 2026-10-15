@@ -103,7 +103,7 @@ const ITEM_COLS: &str = "id, submission_id, ref_id, label, position, state, note
 fn request_cols() -> String {
     format!(
         "r.id, r.section, r.requester_id, r.title, r.creator, r.year, r.link, r.note, r.status, \
-         r.vote_count, r.submission_id, {}, \
+         r.vote_count, r.submission_id, r.claimed_by, r.claim_note, {}, \
          EXISTS (SELECT 1 FROM content_request_votes v WHERE v.request_id = r.id AND v.user_id = ",
         ms("r.created_at", "created_ms"),
     )
@@ -113,7 +113,9 @@ fn request_cols() -> String {
 fn request_select(qb: &mut QueryBuilder<Postgres>, viewer: i64) {
     qb.push(request_cols());
     qb.push_bind(viewer);
-    qb.push(") AS voted");
+    qb.push(") AS voted, COALESCE(r.claimed_by = ");
+    qb.push_bind(viewer);
+    qb.push(", false) AS claimed_by_me");
 }
 
 fn request_from(r: &PgRow) -> ReviewResult<ContentRequest> {
@@ -133,6 +135,9 @@ fn request_from(r: &PgRow) -> ReviewResult<ContentRequest> {
         voted: r.try_get("voted").map_err(db)?,
         submission_id: r.try_get("submission_id").map_err(db)?,
         created_at_ms: r.try_get("created_ms").map_err(db)?,
+        claimed_by: r.try_get("claimed_by").map_err(db)?,
+        claim_note: r.try_get("claim_note").map_err(db)?,
+        claimed_by_me: r.try_get("claimed_by_me").map_err(db)?,
     })
 }
 
@@ -663,6 +668,50 @@ impl SubmissionRepository for PgReviewRepo {
             .fetch_all(&self.pool)
             .await
             .map_err(db)
+    }
+
+    async fn claim_request(
+        &self,
+        id: i64,
+        user: i64,
+        note: &str,
+        now_ms: i64,
+    ) -> ReviewResult<Option<ContentRequest>> {
+        let r = sqlx::query(
+            "UPDATE content_requests SET claimed_by = $2, claim_note = NULLIF($3, ''),                claimed_at = to_timestamp($4), updated_at = now()              WHERE id = $1 AND status = 'open' AND (claimed_by IS NULL OR claimed_by = $2)",
+        )
+        .bind(id)
+        .bind(user)
+        .bind(note)
+        .bind(ts(now_ms))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        if r.rows_affected() == 0 {
+            return Ok(None);
+        }
+        self.get_request(id, user).await
+    }
+
+    async fn release_request(
+        &self,
+        id: i64,
+        user: i64,
+        force: bool,
+    ) -> ReviewResult<Option<ContentRequest>> {
+        let r = sqlx::query(
+            "UPDATE content_requests SET claimed_by = NULL, claim_note = NULL, claimed_at = NULL,                updated_at = now()              WHERE id = $1 AND status = 'open' AND claimed_by IS NOT NULL                AND ($3 OR claimed_by = $2)",
+        )
+        .bind(id)
+        .bind(user)
+        .bind(force)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        if r.rows_affected() == 0 {
+            return Ok(None);
+        }
+        self.get_request(id, user).await
     }
 
     async fn grant_credits(

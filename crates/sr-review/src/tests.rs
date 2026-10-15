@@ -1450,3 +1450,118 @@ async fn rejected_submissions_are_purged_after_14_days_once() {
     assert_eq!(*w.kind.purged.lock().unwrap(), vec![id]);
     assert_eq!(w.svc.housekeeping().await.unwrap().purged, 0);
 }
+
+#[tokio::test]
+async fn one_member_at_a_time_says_they_will_upload_a_request() {
+    let w = world();
+    let req = w
+        .svc
+        .create_request(
+            OTHER,
+            "library",
+            RequestInput {
+                title: "Wanted".into(),
+                creator: None,
+                year: None,
+                link: None,
+                note: String::new(),
+            },
+        )
+        .await
+        .unwrap();
+    let claimed = w
+        .svc
+        .claim_request(
+            MEMBER,
+            req.id,
+            ClaimRequestInput {
+                note: " scanning vol 1 ".into(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(claimed.claimed_by, Some(MEMBER));
+    assert_eq!(claimed.claim_note.as_deref(), Some("scanning vol 1"));
+    assert!(claimed.claimed_by_me);
+    // Somebody else sees it as taken; the holder may update the note.
+    assert!(matches!(
+        w.svc
+            .claim_request(
+                OTHER,
+                req.id,
+                ClaimRequestInput {
+                    note: String::new()
+                }
+            )
+            .await,
+        Err(ReviewError::Conflict(_))
+    ));
+    let page = w
+        .svc
+        .list_requests(
+            OTHER,
+            RequestQuery {
+                section: "library".into(),
+                limit: 10,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert!(!page.items[0].claimed_by_me);
+    assert_eq!(page.items[0].claimed_by, Some(MEMBER));
+    assert!(matches!(
+        w.svc
+            .claim_request(
+                MEMBER,
+                req.id,
+                ClaimRequestInput {
+                    note: "x".repeat(501)
+                }
+            )
+            .await,
+        Err(ReviewError::Invalid(_))
+    ));
+    // Only the holder or a reviewer of the section can release.
+    assert!(matches!(
+        w.svc.release_request(Caller::member(OTHER), req.id).await,
+        Err(ReviewError::Conflict(_))
+    ));
+    let freed = w
+        .svc
+        .release_request(reviewer(REVIEWER), req.id)
+        .await
+        .unwrap();
+    assert_eq!(freed.claimed_by, None);
+    w.svc
+        .claim_request(
+            OTHER,
+            req.id,
+            ClaimRequestInput {
+                note: String::new(),
+            },
+        )
+        .await
+        .unwrap();
+    w.svc
+        .release_request(Caller::member(OTHER), req.id)
+        .await
+        .unwrap();
+    // A declined request cannot be claimed.
+    w.svc
+        .decline_request(reviewer(REVIEWER), req.id)
+        .await
+        .unwrap();
+    assert!(matches!(
+        w.svc
+            .claim_request(
+                MEMBER,
+                req.id,
+                ClaimRequestInput {
+                    note: String::new()
+                }
+            )
+            .await,
+        Err(ReviewError::Conflict(_))
+    ));
+}

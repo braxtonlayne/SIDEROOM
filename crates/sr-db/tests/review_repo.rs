@@ -1123,3 +1123,62 @@ async fn credits_quota_and_sweep_queries() {
             .any(|x| x.id == rej.id)
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn request_claims_are_exclusive_and_cleared_by_the_holder() {
+    use sr_review::repo::SubmissionRepository;
+    let w = world().await;
+    let repo = PgReviewRepo::new(w.pool.clone());
+    let req = repo
+        .create_request(
+            uid(),
+            "library",
+            w.other,
+            &rm::RequestInput {
+                title: format!("Claimable {}", uid()),
+                creator: None,
+                year: None,
+                link: None,
+                note: String::new(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(req.claimed_by, None);
+    let c = repo
+        .claim_request(req.id, w.member, "vol 1", 1_000)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(c.claimed_by, Some(w.member));
+    assert_eq!(c.claim_note.as_deref(), Some("vol 1"));
+    assert!(c.claimed_by_me);
+    assert!(
+        repo.claim_request(req.id, w.other, "", 1_000)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let seen = repo.get_request(req.id, w.other).await.unwrap().unwrap();
+    assert_eq!(seen.claimed_by, Some(w.member));
+    assert!(!seen.claimed_by_me);
+    assert!(
+        repo.release_request(req.id, w.other, false)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        repo.release_request(req.id, w.other, true)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    let again = repo
+        .claim_request(req.id, w.other, "", 2_000)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(again.claim_note, None);
+}

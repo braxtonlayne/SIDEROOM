@@ -6626,6 +6626,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/requests/{request_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * "I'll upload this": tell the others you are working on an open request, with a short note.
+         *     One member at a time; claiming again updates the note.
+         */
+        put: operations["requests_claim"];
+        post?: never;
+        /** Give up my claim (reviewers of the section may release anybody's). */
+        delete: operations["requests_release"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/requests/{request_id}/fulfil": {
         parameters: {
             query?: never;
@@ -9631,6 +9652,10 @@ export interface components {
              */
             takeover?: boolean;
         };
+        /** @description Body of `PUT /requests/{id}/claim`. */
+        ClaimRequestInput: {
+            note?: string;
+        };
         Collection: {
             blurb?: string | null;
             display: components["schemas"]["CollectionDisplay"];
@@ -9722,6 +9747,11 @@ export interface components {
         };
         /** @description A content request (Library or Cinema board). */
         ContentRequest: {
+            claim_note?: string | null;
+            /** @description A member who said "I'll upload this" (while the request is open). */
+            claimed_by?: string | null;
+            /** @description The caller is the one who claimed it. */
+            claimed_by_me: boolean;
             /** Format: int64 */
             created_at_ms: number;
             creator?: string | null;
@@ -36698,6 +36728,110 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    requests_claim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimRequestInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    requests_release: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

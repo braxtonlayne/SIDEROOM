@@ -173,6 +173,23 @@ pub trait SubmissionRepository: Send + Sync {
         viewer: i64,
     ) -> ReviewResult<Option<ContentRequest>>;
     async fn request_voters(&self, id: i64) -> ReviewResult<Vec<i64>>;
+    /// Record that `user` will upload an open request. `None` when the request is unknown or
+    /// closed, or somebody else holds it.
+    async fn claim_request(
+        &self,
+        id: i64,
+        user: i64,
+        note: &str,
+        now_ms: i64,
+    ) -> ReviewResult<Option<ContentRequest>>;
+    /// Clear the claim of an open request: the holder's own, or any with `force`. `None`
+    /// when nothing matched.
+    async fn release_request(
+        &self,
+        id: i64,
+        user: i64,
+        force: bool,
+    ) -> ReviewResult<Option<ContentRequest>>;
 
     // ---- credits, quota, sweeps ---------------------------------------
     /// Insert one credit per item unless the item already has one (revoked or not); returns

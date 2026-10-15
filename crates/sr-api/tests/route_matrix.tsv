@@ -64,6 +64,7 @@ DELETE	/library/bookmarks/{bookmark_id}	authenticated	other	allow	-
 DELETE	/library/chapters/{chapter_id}/progress	authenticated	other	allow	-
 DELETE	/library/series/{series_id}/follow	authenticated	other	allow	-
 DELETE	/oauth2/tokens/{grant_id}	authenticated	other	deny	-
+DELETE	/requests/{request_id}/claim	authenticated	other	allow	-
 DELETE	/requests/{request_id}/vote	authenticated	other	allow	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
@@ -605,6 +606,7 @@ PUT	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 PUT	/library/chapters/{chapter_id}/bookmarks	authenticated	other	allow	-
 PUT	/library/chapters/{chapter_id}/progress	authenticated	other	allow	-
 PUT	/library/series/{series_id}/follow	authenticated	other	allow	-
+PUT	/requests/{request_id}/claim	authenticated	other	allow	-
 PUT	/requests/{request_id}/vote	authenticated	other	allow	-
 PUT	/sr/auth/username	authenticated	self	deny	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-

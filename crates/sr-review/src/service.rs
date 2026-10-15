@@ -1016,6 +1016,49 @@ impl ReviewService {
             .ok_or_else(|| ReviewError::Conflict("the request is already closed".into()))
     }
 
+    /// "I'll upload this": say you are working on an open request, with a short note. One
+    /// member holds it at a time; claiming again updates the note.
+    pub async fn claim_request(
+        &self,
+        user: i64,
+        id: i64,
+        input: ClaimRequestInput,
+    ) -> ReviewResult<ContentRequest> {
+        let note = input.note.trim();
+        if note.chars().count() > 500 {
+            return Err(ReviewError::Invalid(
+                "the note is limited to 500 characters".into(),
+            ));
+        }
+        self.repo
+            .claim_request(id, user, note, self.now())
+            .await?
+            .ok_or_else(|| {
+                ReviewError::Conflict(
+                    "the request is unknown, closed or somebody else is already on it".into(),
+                )
+            })
+    }
+
+    /// Give a claim up. The holder may; so may reviewers of the section.
+    pub async fn release_request(&self, c: Caller, id: i64) -> ReviewResult<ContentRequest> {
+        let req = self
+            .repo
+            .get_request(id, c.user_id)
+            .await?
+            .ok_or(ReviewError::NotFound("request"))?;
+        let force = self
+            .kinds
+            .for_section(&req.section)
+            .is_some_and(|k| c.permissions.has(k.review_permission()));
+        self.repo
+            .release_request(id, c.user_id, force)
+            .await?
+            .ok_or_else(|| {
+                ReviewError::Conflict("nobody you may release is on this request".into())
+            })
+    }
+
     // ---- contribution credits (REV-CORE-006) ---------------------------
 
     /// Credit the submitter for the new items just published (D-074). Best effort: the
