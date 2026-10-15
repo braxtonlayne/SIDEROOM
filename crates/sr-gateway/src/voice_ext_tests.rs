@@ -802,6 +802,7 @@ async fn a_call_rings_updates_and_ends_with_a_record() {
     assert_eq!(create["ringing"], json!(["2", "4"]));
     assert_eq!(create["initiator_id"], MEMBER.to_string());
     assert_eq!(create["group"], true);
+    assert_eq!(create["video"], false);
     assert_eq!(create["voice_states"].as_array().unwrap().len(), 1);
     assert_eq!(
         third.event("CALL_CREATE").await["ringing"],
@@ -1283,4 +1284,17 @@ async fn guild_create_carries_stage_instances_and_soundboard_sounds() {
     assert_eq!(gc["stage_instances"][0]["topic"], "Launch");
     assert_eq!(gc["stage_instances"][0]["channel_id"], STAGE.to_string());
     assert_eq!(gc["soundboard_sounds"][0]["name"], "ding");
+}
+
+#[tokio::test]
+async fn call_create_says_whether_the_caller_started_with_video() {
+    let e = env();
+    set_limits(&e, 2, 5);
+    let caller = client(&e, MEMBER).await;
+    let mut friend = client(&e, FRIEND).await;
+    caller
+        .send(json!({"op": 4, "d": {"guild_id": null, "channel_id": "300", "self_video": true}}))
+        .await;
+    assert_eq!(friend.event("CALL_CREATE").await["video"], true);
+    assert_eq!(e.gw.call_state(u(FRIEND), DM).unwrap()["video"], true);
 }

@@ -7,7 +7,7 @@
 //!   first member to join starts it; every other member of the DM is **rung** at that
 //!   moment (`ringing`), for [`RING_TIMEOUT`].
 //! * `CALL_CREATE` goes to every member of the DM with `{channel_id, message_id, region,
-//!   ringing, voice_states}`. It carries the ringing list, so a client shows the incoming
+//!   ringing, video, voice_states}`. It carries the ringing list, so a client shows the incoming
 //!   call overlay when its user is in `ringing`.
 //! * Joining removes the member from `ringing`; declining
 //!   (`POST /channels/{id}/call/stop-ringing`) does the same; a member inside the call can
@@ -188,13 +188,13 @@ impl Gateway {
         };
         match next {
             Next::Created(c) => {
-                let states: Vec<Value> = self
-                    .voice_occupants(channel)
-                    .iter()
-                    .map(|s| s.to_json(false, None))
-                    .collect();
+                let occupants = self.voice_occupants(channel);
+                // A video call: the caller joined with the camera on (op 4 `self_video`).
+                let video = occupants.iter().any(|s| s.self_video);
+                let states: Vec<Value> = occupants.iter().map(|s| s.to_json(false, None)).collect();
                 let mut body = c.update_body();
                 if let Some(o) = body.as_object_mut() {
+                    o.insert("video".into(), json!(video));
                     o.insert("voice_states".into(), Value::Array(states));
                 }
                 self.call_tell(&c.members, "CALL_CREATE", &body).await;
@@ -295,6 +295,14 @@ impl Gateway {
             .collect();
         let mut body = c.update_body();
         if let Some(o) = body.as_object_mut() {
+            o.insert(
+                "video".into(),
+                json!(self.voice_occupants(channel).iter().any(|s| s.self_video)),
+            );
+            o.insert(
+                "video".into(),
+                json!(self.voice_occupants(channel).iter().any(|s| s.self_video)),
+            );
             o.insert("voice_states".into(), Value::Array(states));
         }
         Some(body)
