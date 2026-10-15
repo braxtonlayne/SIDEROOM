@@ -1486,3 +1486,58 @@ async fn publishing_a_chapter_notifies_followers_with_the_bell_on() {
             .contains(&"unfollow".to_owned())
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_chapter_export_is_a_cbz_of_the_pages_cached_by_page_list() {
+    let w = world().await;
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 36.0, 3).await;
+    w.publish_series(s).await;
+    for i in 0..3 {
+        w.storage
+            .put(
+                &format!("library/{s}/{c}/{i:04}.webp"),
+                Bytes::from(vec![i as u8; 10 + i]),
+            )
+            .await
+            .unwrap();
+    }
+    let first = w.svc.export_chapter(w.member, c).await.unwrap();
+    assert_eq!(first.format, "cbz");
+    assert!(first.filename.ends_with("-ch-36.cbz"), "{}", first.filename);
+    assert!(first.url.contains("/cdn/library/exports/"));
+    let key = first
+        .url
+        .split("/cdn/")
+        .nth(1)
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap()
+        .to_owned();
+    let bytes = w.storage.get(&key).await.unwrap();
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes.to_vec())).unwrap();
+    assert_eq!(zip.len(), 3);
+    assert_eq!(zip.by_index(0).unwrap().name().unwrap().to_string(), "001.webp");
+    assert_eq!(first.size_bytes, bytes.len() as u64);
+    // The same page list reuses the stored file.
+    let again = w.svc.export_chapter(w.member, c).await.unwrap();
+    assert_eq!(again.size_bytes, first.size_bytes);
+    // An unpublished chapter and a minor on a restricted series are refused.
+    let (rs, re) = w.series(true).await;
+    let rc = w.chapter(rs, re, 1.0, 1).await;
+    w.publish_series(rs).await;
+    assert!(matches!(
+        w.svc.export_chapter(w.minor, rc).await.unwrap_err(),
+        LibraryError::AgeConfirmationRequired
+    ));
+    w.svc
+        .set_chapter_published(w.publisher, c, false)
+        .await
+        .unwrap();
+    assert!(matches!(
+        w.svc.export_chapter(w.member, c).await.unwrap_err(),
+        LibraryError::NotFound(_)
+    ));
+}
