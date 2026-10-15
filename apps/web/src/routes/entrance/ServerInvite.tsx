@@ -47,6 +47,7 @@ export function ServerInvite() {
             signedIn: false,
             invite: {
               code,
+              type: 0,
               guild: { id: '', name: tr('entrance.serverInvite.someServer'), icon: null },
               approximate_member_count: 0,
               approximate_presence_count: 0,
@@ -67,7 +68,10 @@ export function ServerInvite() {
       // A group DM invite has no server: the group opens under Direct Messages.
       await navigate({
         to: '/channels/$guildId/$channelId',
-        params: { guildId: joined.guild?.id ?? '@me', channelId: joined.channel.id },
+        params: {
+          guildId: joined.type === 0 ? (joined.guild?.id ?? '@me') : '@me',
+          channelId: joined.channel.id,
+        },
       });
     } catch (e) {
       setError(inviteErrorMessage(e));
@@ -76,7 +80,7 @@ export function ServerInvite() {
   };
 
   const counts = (inv: ServerInvitePreview) =>
-    !inv.guild && inv.approximate_member_count ? (
+    inv.type === 1 && inv.approximate_member_count ? (
       <p>
         {t('entrance.invite.groupMembers', { count: formatNumber(inv.approximate_member_count) })}
       </p>
@@ -90,8 +94,10 @@ export function ServerInvite() {
     ) : null;
 
   const inv = state.kind === 'ready' ? state.invite : null;
-  const isGroup = !!inv && !inv.guild;
-  const shownName = inv?.guild?.name ?? inv?.channel?.name ?? t('entrance.invite.groupName');
+  const isGroup = inv?.type === 1;
+  const shownName = isGroup
+    ? (inv?.channel?.name ?? t('entrance.invite.groupName'))
+    : (inv?.guild?.name ?? t('entrance.invite.groupName'));
   const iconUrl = inv?.guild?.icon
     ? `/cdn/icons/${inv.guild.id}/${inv.guild.icon}.png`
     : inv?.channel?.icon

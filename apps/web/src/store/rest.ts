@@ -173,9 +173,10 @@ export const postTyping = (channelId: string) =>
 
 export interface Invite {
   code: string;
-  /** 0 = server invite, 1 = group DM invite (no `guild`). */
-  type?: number;
-  guild?: { id: string; name: string; icon?: string | null };
+  /** 0 = server invite, 1 = group DM invite. Switch on this, never on `guild` (D-221). */
+  type: 0 | 1;
+  /** `null` on a group DM invite. */
+  guild: { id: string; name: string; icon?: string | null } | null;
   /** Group invites carry the group's icon hash (`/cdn/channel-icons/{id}/{hash}`). */
   channel: { id: string; name?: string | null; type: number; icon?: string | null };
   inviter?: { id: string; username?: string; global_name?: string | null };

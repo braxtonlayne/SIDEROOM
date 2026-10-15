@@ -34,7 +34,7 @@ export function InviteCard({ code }: { code: string }) {
   const navigate = useNavigate();
   const joined = useStore((s) =>
     state.kind === 'ready'
-      ? state.invite.guild
+      ? state.invite.type === 0 && state.invite.guild
         ? s.guilds[state.invite.guild.id] !== undefined
         : s.channels[state.invite.channel.id] !== undefined
       : false,
@@ -63,11 +63,17 @@ export function InviteCard({ code }: { code: string }) {
     );
   }
   const { invite } = state;
-  const name = invite.guild?.name ?? invite.channel.name ?? t('lounge.inviteCard.group');
+  const name =
+    invite.type === 0
+      ? (invite.guild?.name ?? t('lounge.inviteCard.invite'))
+      : (invite.channel.name ?? t('lounge.inviteCard.group'));
   const open = () =>
     void navigate({
       to: '/channels/$guildId/$channelId',
-      params: { guildId: invite.guild?.id ?? '@me', channelId: invite.channel.id },
+      params: {
+        guildId: invite.type === 0 ? (invite.guild?.id ?? '@me') : '@me',
+        channelId: invite.channel.id,
+      },
     });
   return (
     <section

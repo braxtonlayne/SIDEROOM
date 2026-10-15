@@ -116,6 +116,7 @@ const event = (over: Record<string, unknown> = {}) => ({
 describe('group DM invites', () => {
   const group = {
     type: 1,
+    guild: null,
     code: 'grp12345',
     channel: { id: 'dm1', name: 'The crew', type: 3 },
     inviter: { id: '2', username: 'bob' },
