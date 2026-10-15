@@ -109,9 +109,6 @@ pub(crate) fn invite_from(r: &PgRow) -> RepoResult<GuildInvite> {
         uses: u32::try_from(get::<i32>(r, "uses")?).map_err(|_| bad("uses"))?,
         temporary: get(r, "temporary")?,
         created_at_ms: get(r, "created_ms")?,
-        entity_id: get::<Option<i64>>(r, "entity_id")?.map(u),
-        image_key: get(r, "image_key")?,
-        empty_since_ms: get(r, "empty_ms")?,
         revoked_at_ms: get(r, "revoked_ms")?,
     })
 }
@@ -1704,6 +1701,9 @@ fn event_from(r: &PgRow) -> RepoResult<ScheduledEvent> {
             .ok_or_else(|| bad("entity_type"))?,
         location: get(r, "location")?,
         created_at_ms: get(r, "created_ms")?,
+        entity_id: get::<Option<i64>>(r, "entity_id")?.map(u),
+        image_key: get(r, "image_key")?,
+        empty_since_ms: get(r, "empty_ms")?,
     })
 }
 

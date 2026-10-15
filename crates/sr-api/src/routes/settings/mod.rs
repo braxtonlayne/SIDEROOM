@@ -27,6 +27,7 @@ pub mod automod;
 pub mod automod_gate;
 pub mod community;
 pub mod deps;
+pub mod event_world;
 pub mod events;
 pub mod expressions;
 pub mod features;
@@ -51,6 +52,7 @@ pub use automod_gate::{
     AutoModGate, AutoModGateHandle, AutoModVerdict, MessageCheck, alert_execution_payload,
 };
 pub use deps::{Entropy, SettingsDeps};
+pub use event_world::{EventStartNotifier, EventWorld, NoNotifier, NoWorld};
 pub use events::{SettingsEvent, SettingsEvents};
 pub use join::{InviteMemberJoiner, MemberJoiner, UnwiredMemberJoiner};
 pub use presence::PresenceCounter;

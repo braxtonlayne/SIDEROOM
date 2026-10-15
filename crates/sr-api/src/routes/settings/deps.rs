@@ -1,6 +1,7 @@
 //! Collaborators of the settings endpoints. Registered on the composition root as
 //! an [`AppState`](crate::AppState) extension and read with [`crate::routes::Ext`].
 
+use super::event_world::{EventStartNotifier, EventWorld, NoNotifier, NoWorld};
 use super::events::{NoopSettingsEvents, SettingsEvent, SettingsEvents};
 use super::join::{MemberJoiner, UnwiredMemberJoiner};
 use super::presence::PresenceCounter;
@@ -34,6 +35,8 @@ pub struct SettingsDeps {
     joiner: Arc<dyn MemberJoiner>,
     timeouter: Arc<dyn MemberTimeouter>,
     presence: Option<Arc<dyn PresenceCounter>>,
+    event_world: Arc<dyn EventWorld>,
+    event_notifier: Arc<dyn EventStartNotifier>,
 }
 
 /// A guild resolved for one acting user.
@@ -75,6 +78,8 @@ impl SettingsDeps {
             joiner: Arc::new(UnwiredMemberJoiner),
             timeouter: Arc::new(UnwiredMemberTimeouter),
             presence: None,
+            event_world: Arc::new(NoWorld),
+            event_notifier: Arc::new(NoNotifier),
         })
     }
 
@@ -107,6 +112,26 @@ impl SettingsDeps {
     pub fn with_presence(mut self, presence: Arc<dyn PresenceCounter>) -> Self {
         self.presence = Some(presence);
         self
+    }
+
+    /// The voice side the event clock reads and the stage instances it opens (G-91, G-93).
+    pub fn with_event_world(mut self, world: Arc<dyn EventWorld>) -> Self {
+        self.event_world = world;
+        self
+    }
+
+    /// Who tells interested members that an event started (G-93).
+    pub fn with_event_notifier(mut self, notifier: Arc<dyn EventStartNotifier>) -> Self {
+        self.event_notifier = notifier;
+        self
+    }
+
+    pub fn event_world(&self) -> &dyn EventWorld {
+        &*self.event_world
+    }
+
+    pub fn event_notifier(&self) -> &dyn EventStartNotifier {
+        &*self.event_notifier
     }
 
     pub(crate) fn presence(&self) -> Option<&dyn PresenceCounter> {
