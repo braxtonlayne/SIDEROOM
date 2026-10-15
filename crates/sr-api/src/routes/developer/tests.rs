@@ -153,6 +153,7 @@ pub(super) async fn env_full(
         avatar_key: None,
         banner_key: None,
         bio: None,
+        extras: Default::default(),
     });
     for (id, name) in [
         (OWNER, "owner"),
@@ -451,6 +452,7 @@ impl Env {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
     }
 

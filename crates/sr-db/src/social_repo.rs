@@ -258,7 +258,7 @@ impl RelationshipRepository for PgSocialRepo {
 
     async fn list_guild_memberships(&self, user: UserId) -> RepoResult<Vec<GuildMembership>> {
         let sql = format!(
-            "SELECT guild_id, nick, avatar_key, banner_key, bio, {} AS joined_ms \
+            "SELECT guild_id, nick, avatar_key, banner_key, bio, pronouns, theme_primary, theme_accent, profile_effect, avatar_decoration, {} AS joined_ms \
              FROM guild_members WHERE user_id = $1 ORDER BY guild_id",
             ms("joined_at")
         );
@@ -276,6 +276,7 @@ impl RelationshipRepository for PgSocialRepo {
                     avatar_key: r.try_get("avatar_key").map_err(db)?,
                     banner_key: r.try_get("banner_key").map_err(db)?,
                     bio: r.try_get("bio").map_err(db)?,
+                    extras: crate::chat_repo::extras_from(r).map_err(db)?,
                 })
             })
             .collect()

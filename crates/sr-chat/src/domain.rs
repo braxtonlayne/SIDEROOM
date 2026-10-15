@@ -180,6 +180,19 @@ pub struct Member {
     pub banner_key: Option<String>,
     /// Per-server bio.
     pub bio: Option<String>,
+    /// Per-server pronouns, theme, effect and decoration (G-52).
+    pub extras: MemberExtras,
+}
+
+/// Per-server profile extras (D-044: free for everyone). `None` falls back to the account's
+/// own value.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MemberExtras {
+    pub pronouns: Option<String>,
+    /// The two profile theme colours (0xRRGGBB), primary first; both or neither.
+    pub theme_colors: Option<[u32; 2]>,
+    pub profile_effect: Option<String>,
+    pub avatar_decoration: Option<String>,
 }
 
 impl Member {

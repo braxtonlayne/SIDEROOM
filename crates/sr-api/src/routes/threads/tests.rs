@@ -57,6 +57,7 @@ fn member(guild: GuildId, user: u64) -> Member {
         avatar_key: None,
         banner_key: None,
         bio: None,
+        extras: Default::default(),
     }
 }
 

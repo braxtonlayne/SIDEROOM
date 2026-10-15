@@ -79,6 +79,7 @@ async fn env() -> Env {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
     }
 

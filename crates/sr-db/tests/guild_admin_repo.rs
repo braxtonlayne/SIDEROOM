@@ -583,3 +583,33 @@ async fn the_system_user_is_not_a_visible_member() {
     assert_eq!(removed, vec![bob]);
     assert!(repo.get_member(gid, system).await.unwrap().is_some());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn per_server_profile_extras_round_trip() {
+    use sr_chat::admin_repo::GuildAdminRepository;
+    use sr_chat::repo::GuildRepository;
+
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let [owner, bob] = [account(&pool, &ids).await, account(&pool, &ids).await];
+    let bp = svc.create_guild(owner, "Extras Test").await.unwrap();
+    let gid = bp.guild.id;
+    join(&pool, gid, bob).await;
+    let repo = PgChatRepo::new(pool.clone());
+    let mut m = repo.get_member(gid, bob).await.unwrap().unwrap();
+    assert_eq!(m.extras, Default::default());
+    m.extras.pronouns = Some("they/them".into());
+    m.extras.theme_colors = Some([0x00AA_BBCC, 0x0011_2233]);
+    m.extras.profile_effect = Some("aurora".into());
+    m.extras.avatar_decoration = Some("halo-1".into());
+    repo.update_member(&m).await.unwrap();
+    let back = repo.get_member(gid, bob).await.unwrap().unwrap();
+    assert_eq!(back.extras, m.extras);
+    let listed = repo.page_members(gid, None, 10).await.unwrap();
+    assert!(
+        listed
+            .iter()
+            .any(|x| x.user_id == bob && x.extras == m.extras)
+    );
+}

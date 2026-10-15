@@ -33,7 +33,8 @@ fn like_pattern(text: &str) -> String {
 }
 
 const MEMBER_SELECT: &str = "SELECT gm.guild_id, gm.user_id, gm.nick, gm.pending, \
-    gm.avatar_key, gm.banner_key, gm.bio, \
+    gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
+    gm.profile_effect, gm.avatar_decoration, \
     (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
     (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
     COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -56,6 +57,7 @@ fn member_from(r: &PgRow) -> Result<Member, sqlx::Error> {
         avatar_key: r.try_get("avatar_key")?,
         banner_key: r.try_get("banner_key")?,
         bio: r.try_get("bio")?,
+        extras: crate::chat_repo::extras_from(r)?,
     })
 }
 
@@ -277,7 +279,8 @@ impl GuildAdminRepository for PgChatRepo {
             "UPDATE guild_members SET nick = $3, \
              communication_disabled_until = to_timestamp($4::bigint::double precision / 1000.0), \
              pending = $5, avatar_key = $6, banner_key = $7, bio = $8, \
-             updated_at = now() WHERE guild_id = $1 AND user_id = $2",
+             pronouns = $9, theme_primary = $10, theme_accent = $11, profile_effect = $12, \
+             avatar_decoration = $13, updated_at = now() WHERE guild_id = $1 AND user_id = $2",
         )
         .bind(i(m.guild_id.get()))
         .bind(i(m.user_id.get()))
@@ -287,6 +290,11 @@ impl GuildAdminRepository for PgChatRepo {
         .bind(m.avatar_key.as_deref())
         .bind(m.banner_key.as_deref())
         .bind(m.bio.as_deref())
+        .bind(m.extras.pronouns.as_deref())
+        .bind(m.extras.theme_colors.map(|c| c[0] as i32))
+        .bind(m.extras.theme_colors.map(|c| c[1] as i32))
+        .bind(m.extras.profile_effect.as_deref())
+        .bind(m.extras.avatar_decoration.as_deref())
         .execute(&mut *tx)
         .await
         .map_err(db)?;

@@ -787,6 +787,7 @@ impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
                     avatar_key: None,
                     banner_key: None,
                     bio: None,
+                    extras: Default::default(),
                 };
                 members.push(member.clone());
                 if inv.temporary {
@@ -843,6 +844,7 @@ impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
                     avatar_key: None,
                     banner_key: None,
                     bio: None,
+                    extras: Default::default(),
                 };
                 members.push(member.clone());
                 Ok(Some(member))

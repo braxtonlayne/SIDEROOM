@@ -41,6 +41,18 @@ pub(crate) fn db(e: sqlx::Error) -> RepoError {
     RepoError(e.to_string())
 }
 
+/// The per-server profile extras of a `guild_members` row (G-52).
+pub(crate) fn extras_from(r: &PgRow) -> Result<sr_chat::domain::MemberExtras, sqlx::Error> {
+    let primary: Option<i32> = r.try_get("theme_primary")?;
+    let accent: Option<i32> = r.try_get("theme_accent")?;
+    Ok(sr_chat::domain::MemberExtras {
+        pronouns: r.try_get("pronouns")?,
+        theme_colors: primary.zip(accent).map(|(p, a)| [p as u32, a as u32]),
+        profile_effect: r.try_get("profile_effect")?,
+        avatar_decoration: r.try_get("avatar_decoration")?,
+    })
+}
+
 fn bad(what: &str) -> RepoError {
     RepoError(format!("unexpected value in column {what}"))
 }
@@ -471,10 +483,10 @@ impl GuildRepository for PgChatRepo {
             "SELECT count(*) FROM guild_members gm WHERE gm.guild_id = $1 AND {}",
             crate::accounts::NOT_SYSTEM_MEMBER
         )))
-            .bind(i(guild.get()))
-            .fetch_one(&self.pool)
-            .await
-            .map_err(db)?;
+        .bind(i(guild.get()))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)?;
         Ok(u64::try_from(n).unwrap_or(0))
     }
 
@@ -485,7 +497,8 @@ impl GuildRepository for PgChatRepo {
         limit: usize,
     ) -> RepoResult<Vec<Member>> {
         let rows = sqlx::query(
-            "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, \
+            "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
+    gm.profile_effect, gm.avatar_decoration, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -519,6 +532,7 @@ impl GuildRepository for PgChatRepo {
                     avatar_key: r.try_get("avatar_key").map_err(db)?,
                     banner_key: r.try_get("banner_key").map_err(db)?,
                     bio: r.try_get("bio").map_err(db)?,
+                    extras: crate::chat_repo::extras_from(r).map_err(db)?,
                 })
             })
             .collect()
@@ -526,7 +540,8 @@ impl GuildRepository for PgChatRepo {
 
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>> {
         let row = sqlx::query(
-            "SELECT gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, \
+            "SELECT gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
+    gm.profile_effect, gm.avatar_decoration, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -555,6 +570,7 @@ impl GuildRepository for PgChatRepo {
             avatar_key: r.try_get("avatar_key").map_err(db)?,
             banner_key: r.try_get("banner_key").map_err(db)?,
             bio: r.try_get("bio").map_err(db)?,
+            extras: crate::chat_repo::extras_from(&r).map_err(db)?,
         }))
     }
 

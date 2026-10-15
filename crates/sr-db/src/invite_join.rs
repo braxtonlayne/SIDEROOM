@@ -245,6 +245,7 @@ impl InviteJoinRepository for PgInviteJoinRepo {
                 avatar_key: None,
                 banner_key: None,
                 bio: None,
+                extras: Default::default(),
             },
         })
     }
@@ -318,6 +319,7 @@ impl InviteJoinRepository for PgInviteJoinRepo {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         }))
     }
 

@@ -486,6 +486,11 @@ pub struct GuildMemberProfileObject {
     pub avatar: Option<String>,
     pub banner: Option<String>,
     pub bio: Option<String>,
+    /// Per-server pronouns, theme, effect and decoration (G-52); `null` means the account's own.
+    pub pronouns: Option<String>,
+    pub theme_colors: Option<[u32; 2]>,
+    pub profile_effect: Option<String>,
+    pub avatar_decoration: Option<String>,
     pub joined_at: String,
 }
 

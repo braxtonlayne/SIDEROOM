@@ -199,6 +199,7 @@ impl PgFeatureActions {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         };
         sr_chat::threads::access::guild_channel_permissions(
             &**repo,

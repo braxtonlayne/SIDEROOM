@@ -176,6 +176,10 @@ fn guild_profile_object(m: &sr_chat::social::repo::GuildMembership) -> GuildMemb
         avatar: m.avatar_key.clone(),
         banner: m.banner_key.clone(),
         bio: m.bio.clone(),
+        pronouns: m.extras.pronouns.clone(),
+        theme_colors: m.extras.theme_colors,
+        profile_effect: m.extras.profile_effect.clone(),
+        avatar_decoration: m.extras.avatar_decoration.clone(),
         joined_at: iso(m.joined_at_ms),
     }
 }

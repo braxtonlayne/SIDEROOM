@@ -96,6 +96,7 @@ async fn env_with(opts: Opts) -> Env {
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
     }
     let mod_role = RoleId::new(gen_ids.generate().get());
@@ -2174,6 +2175,7 @@ async fn admin_timeouter_sets_the_deadline_and_announces_the_member() {
         avatar_key: None,
         banner_key: None,
         bio: None,
+        extras: Default::default(),
     });
     let bus = Arc::new(InProcessBus::new());
     let mut events = bus.subscribe(Topic::Guild(guild));

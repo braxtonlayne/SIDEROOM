@@ -61,6 +61,7 @@ async fn env(confirmed: &[u64]) -> Env {
         avatar_key: None,
         banner_key: None,
         bio: None,
+        extras: Default::default(),
     });
 
     let bots = Arc::new(MemoryBots::new());

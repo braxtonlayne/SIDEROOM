@@ -112,6 +112,7 @@ pub fn plan_new_guild(
         avatar_key: None,
         banner_key: None,
         bio: None,
+        extras: Default::default(),
     };
     Ok(GuildBlueprint {
         guild,

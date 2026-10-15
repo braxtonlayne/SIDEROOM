@@ -48,6 +48,7 @@ async fn fx() -> Fx {
                 avatar_key: None,
                 banner_key: None,
                 bio: None,
+                extras: Default::default(),
             });
     }
     Fx {
@@ -410,6 +411,7 @@ fn push_member(f: &Fx, user: UserId, nick: Option<&str>, joined: i64, roles: Vec
             avatar_key: None,
             banner_key: None,
             bio: None,
+            extras: Default::default(),
         });
 }
 
