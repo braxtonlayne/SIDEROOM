@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { precacheFromHtml } from '../../vite/pwa';
 import { PwaHost } from './PwaHost';
-import { __resetPwaState, isIosSafari, setUpdateReady } from './state';
+import { __resetPwaState, isIosSafari, setNoticesBarMounted, setUpdateReady } from './state';
 
 const PUBLIC = resolve(__dirname, '../../public');
 
@@ -148,6 +148,15 @@ describe('PwaHost', () => {
     expect(screen.getByText('A new version is ready')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Reload' }));
     expect(apply).toHaveBeenCalledOnce();
+  });
+
+  it('G-49 shows no toast while the Lounge notices bar is mounted', () => {
+    render(<PwaHost now={0} />);
+    act(() => setNoticesBarMounted(true));
+    act(() => setUpdateReady(vi.fn()));
+    expect(screen.queryByText('A new version is ready')).toBeNull();
+    act(() => setNoticesBarMounted(false));
+    expect(screen.getByText('A new version is ready')).toBeInTheDocument();
   });
 
   it('holds back the install nudge until the browser offers one', async () => {
