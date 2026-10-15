@@ -80,15 +80,15 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 ## LNG-PRF — Profiles
 - [ ] **LNG-PRF-001** [DB] Profile fields (avatar, banner, accent colors, bio, pronouns, decoration, effect, per-guild overrides)
 - [ ] **LNG-PRF-002** [BE] `GET /users/{id}/profile` (mutuals, connections, badges, member since, friends since, guild member profile)
-- [ ] **LNG-PRF-003** [FE] Profile popout (mini): banner, avatar/status, name, username, pronouns, badges, custom status bubble, roles (guild), note, "Message @x" input, View Full Profile
-- [ ] **LNG-PRF-004** [FE] Full profile modal: banner, avatar, name, `username • pronouns`, badges row, Message button, add-friend/friends icon, ⋯ menu
-- [ ] **LNG-PRF-005** [FE] Full profile left column: bio (markdown), Member Since, Friends Since, Connections list (icon, account name, ↗, optional stats line), Note
-- [ ] **LNG-PRF-006** [FE] Full profile right tabs: Activity (empty-state "So mysterious! ask them to tell you a secret" + Message), N Mutual Friends, N Mutual Servers, Watching & Reading, Reviews
-- [ ] **LNG-PRF-007** [FE] Profile ⋯ menu: Copy Username, Invite to Server ▸, Add Note, Remove Friend, Ignore, Block, Report (disabled flag), Copy User ID
-- [ ] **LNG-PRF-008** [FE] Badges system (Staff, Owner, Patron, Contributor tiers, Early Member, App Developer, Server Tag) + tooltips
-- [ ] **LNG-PRF-009** [FE] Avatar decorations & profile effects (free, from approved packs)
-- [ ] **LNG-PRF-010** [FE] Profile theme colors (two-color gradient) applied to popout/modal
-- [ ] **LNG-PRF-011** [FE] Per-server profile rendering in guild context
+- [x] **LNG-PRF-003** [FE] Profile popout (mini): banner, avatar/status, name, username, pronouns, badges, custom status bubble, roles (guild), note, "Message @x" input, View Full Profile *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-004** [FE] Full profile modal: banner, avatar, name, `username • pronouns`, badges row, Message button, add-friend/friends icon, ⋯ menu *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-005** [FE] Full profile left column: bio (markdown), Member Since, Friends Since, Connections list (icon, account name, ↗, optional stats line), Note *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-006** [FE] Full profile right tabs: Activity (empty-state "So mysterious! ask them to tell you a secret" + Message), N Mutual Friends, N Mutual Servers, Watching & Reading, Reviews *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-007** [FE] Profile ⋯ menu: Copy Username, Invite to Server ▸, Add Note, Remove Friend, Ignore, Block, Report (disabled flag), Copy User ID *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-008** [FE] Badges system (Staff, Owner, Patron, Contributor tiers, Early Member, App Developer, Server Tag) + tooltips *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-009** [FE] Avatar decorations & profile effects (free, from approved packs) *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-010** [FE] Profile theme colors (two-color gradient) applied to popout/modal *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
+- [x] **LNG-PRF-011** [FE] Per-server profile rendering in guild context *(profile/ProfilePopout, FullProfile, parts, badgeModel, decoration, theme, profileView; fields beyond today's backend are optional contract fields in useProfile.ts; test p11ShellProfile.test.tsx)*
 - [x] **LNG-PRF-012** [BE] User notes CRUD (private)
 - [ ] **LNG-PRF-013** [BE][FE] Presence: status, custom status, activities (game, watching, reading, listening), client platform icons (web/mobile)
 - [ ] **LNG-PRF-014** [GW] `PRESENCE_UPDATE` fan-out (friends + shared guilds, intent-filtered)

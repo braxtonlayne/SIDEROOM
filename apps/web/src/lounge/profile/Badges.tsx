@@ -1,6 +1,6 @@
 import { Icon, Tooltip } from '@sideroom/ui';
 import { useT } from '../../i18n';
-import type { BadgeView } from './badges';
+import type { BadgeView } from './badgeModel';
 
 /** The badge row of a profile; each badge has a tooltip and an accessible name. */
 export function Badges({ badges }: { badges: BadgeView[] }) {

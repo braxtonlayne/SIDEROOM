@@ -54,11 +54,14 @@ export interface Profile {
     stats?: string | null;
   }[];
   friends_since?: string | null;
-  mutual_friends?: { id: string; username: string | null; global_name?: string | null; avatar?: string | null }[] | null;
+  mutual_friends?:
+    | { id: string; username: string | null; global_name?: string | null; avatar?: string | null }[]
+    | null;
   mutual_friends_count?: number | null;
   mutual_guilds?: { id: string; nick?: string | null; member_since: string }[] | null;
   /** Contract: the person's profile inside `guild_id` (only when that query parameter is sent). */
-  guild_member_profile?: (WireProfileFields & { guild_id: string; nick?: string | null; avatar?: string | null }) | null;
+  guild_member_profile?:
+    (WireProfileFields & { guild_id: string; nick?: string | null; avatar?: string | null }) | null;
 }
 
 type State = { kind: 'loading' } | { kind: 'ready'; profile: Profile } | { kind: 'error' };
