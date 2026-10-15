@@ -20,6 +20,7 @@ import { hasAny, parsePerms } from './permissions';
 import { ReauthHost } from './ReauthHost';
 import { useStaffRevoked } from './useStaffRevoked';
 import { AccessLogSection } from './sections/AccessLog';
+import { AnnouncementsSection } from './sections/Announcements';
 import { AuditLogSection } from './sections/AuditLog';
 import { CatalogSection } from './cinema/CatalogSection';
 import { LibraryCatalogSection } from './library/LibraryCatalogSection';
@@ -194,6 +195,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.platform',
     visible: (v) => v.can('MANAGE_FEATURES'),
     component: LimitsSection,
+  },
+  {
+    id: 'announcements',
+    label: 'admin.adminApp.section.announcements',
+    group: 'admin.adminApp.group.platform',
+    visible: (v) => v.can('MANAGE_FEATURES'),
+    component: AnnouncementsSection,
   },
   {
     id: 'system',

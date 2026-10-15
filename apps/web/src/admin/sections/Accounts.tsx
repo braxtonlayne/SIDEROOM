@@ -1,4 +1,4 @@
-import { Button, Drawer, Notice, Select, TextInput } from '@sideroom/ui';
+import { Button, Checkbox, Drawer, Notice, Select, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import * as api from '../api';
 import * as donations from '../donations/api';
@@ -154,11 +154,27 @@ export function AccountsSection() {
   );
 }
 
+const BADGE_KEY: Record<string, MessageKey> = {
+  early_member: 'admin.accounts.badgeEarlyMember',
+  contributor: 'admin.accounts.badgeContributor',
+  bug_hunter: 'admin.accounts.badgeBugHunter',
+  honorary: 'admin.accounts.badgeHonorary',
+};
+/** Staff-grantable badges set in `accounts.flags` (bits 8 to 11). */
+const heldBadges = (flags: number) =>
+  api.STAFF_BADGES.filter((b) => Math.floor(flags / 2 ** b.bit) % 2 === 1).map(
+    (b) => b.name as string,
+  );
+
 type Pending =
   | { kind: 'suspend' }
   | { kind: 'unsuspend' }
   | { kind: 'logout' }
   | { kind: 'reset2fa' }
+  | { kind: 'rename' }
+  | { kind: 'email' }
+  | { kind: 'badges' }
+  | { kind: 'forcePassword' }
   | { kind: 'ban'; category: api.BanCategory }
   | { kind: 'credits' }
   | null;
@@ -190,6 +206,10 @@ function AccountDrawer({
   const [personOpen, setPersonOpen] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const [delta, setDelta] = useState('1');
+  const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [badgeSet, setBadgeSet] = useState<string[]>([]);
   const d = res.data;
 
   const [notice, setNotice] = useState<string | null>(null);
@@ -252,7 +272,13 @@ function AccountDrawer({
                   })}
                 </dd>
                 <dt>{t('admin.accounts.dtFlags')}</dt>
-                <dd>{a.flags}</dd>
+                <dd>
+                  {a.flags}
+                  {heldBadges(a.flags).length > 0 &&
+                    ` (${heldBadges(a.flags)
+                      .map((b) => t(BADGE_KEY[b]!))
+                      .join(', ')})`}
+                </dd>
                 <dt>{t('admin.accounts.dtSuspicion')}</dt>
                 <dd>{det.suspicion_level}</dd>
                 <dt>{t('admin.accounts.dtInviteCredits')}</dt>
@@ -280,6 +306,37 @@ function AccountDrawer({
                   </Button>
                   <Button variant="secondary" onClick={() => setPending({ kind: 'reset2fa' })}>
                     {t('admin.accounts.resetTwoFactor')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setUsername(a.username);
+                      setDisplayName(a.display_name ?? '');
+                      setPending({ kind: 'rename' });
+                    }}
+                  >
+                    {t('admin.accounts.rename')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setEmail(a.email);
+                      setPending({ kind: 'email' });
+                    }}
+                  >
+                    {t('admin.accounts.changeEmail')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setBadgeSet(heldBadges(a.flags));
+                      setPending({ kind: 'badges' });
+                    }}
+                  >
+                    {t('admin.accounts.badges')}
+                  </Button>
+                  <Button variant="danger" onClick={() => setPending({ kind: 'forcePassword' })}>
+                    {t('admin.accounts.forcePasswordReset')}
                   </Button>
                 </div>
               )}
@@ -470,6 +527,113 @@ function AccountDrawer({
                 onConfirm={async (reason) => {
                   await api.reset2fa(id, reason);
                   await finish(t('admin.accounts.reset2faDone'));
+                }}
+              />
+              <ReasonDialog
+                open={pending?.kind === 'rename'}
+                title={t('admin.accounts.renameTitle', { username: a.username })}
+                description={t('admin.accounts.renameDescription')}
+                confirmLabel={t('admin.accounts.rename')}
+                valid={
+                  username.trim().length > 0 &&
+                  (username.trim() !== a.username || displayName.trim() !== (a.display_name ?? ''))
+                }
+                onCancel={() => setPending(null)}
+                onConfirm={async (reason) => {
+                  await api.renameAccount(
+                    id,
+                    {
+                      ...(username.trim() !== a.username ? { username: username.trim() } : {}),
+                      ...(displayName.trim() !== (a.display_name ?? '')
+                        ? { display_name: displayName.trim() }
+                        : {}),
+                    },
+                    reason,
+                  );
+                  await finish(t('admin.accounts.renamed'));
+                }}
+              >
+                <TextInput
+                  label={t('admin.accounts.newUsername')}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+                <TextInput
+                  label={t('admin.accounts.newDisplayName')}
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                />
+              </ReasonDialog>
+              <ReasonDialog
+                open={pending?.kind === 'email'}
+                title={t('admin.accounts.emailTitle', { username: a.username })}
+                description={t('admin.accounts.emailDescription')}
+                confirmLabel={t('admin.accounts.changeEmail')}
+                danger
+                valid={/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && email.trim() !== a.email}
+                onCancel={() => setPending(null)}
+                onConfirm={async (reason) => {
+                  await api.changeAccountEmail(id, email.trim(), reason);
+                  await finish(t('admin.accounts.emailChanged'));
+                }}
+              >
+                <TextInput
+                  label={t('admin.accounts.newEmail')}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </ReasonDialog>
+              <ReasonDialog
+                open={pending?.kind === 'badges'}
+                title={t('admin.accounts.badgesTitle', { username: a.username })}
+                description={t('admin.accounts.badgesDescription')}
+                confirmLabel={t('admin.accounts.saveBadges')}
+                valid={api.STAFF_BADGES.some(
+                  (b) => badgeSet.includes(b.name) !== heldBadges(a.flags).includes(b.name),
+                )}
+                onCancel={() => setPending(null)}
+                onConfirm={async (reason) => {
+                  const held = heldBadges(a.flags);
+                  await api.setAccountBadges(
+                    id,
+                    badgeSet.filter((b) => !held.includes(b)),
+                    held.filter((b) => !badgeSet.includes(b)),
+                    reason,
+                  );
+                  await finish(t('admin.accounts.badgesSaved'));
+                }}
+              >
+                <fieldset className="adm-check-row" style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend className="ss-sub">{t('admin.accounts.badgesLegend')}</legend>
+                  {api.STAFF_BADGES.map((b) => (
+                    <Checkbox
+                      key={b.name}
+                      label={t(BADGE_KEY[b.name]!)}
+                      checked={badgeSet.includes(b.name)}
+                      onChange={(e) =>
+                        setBadgeSet(
+                          e.target.checked
+                            ? [...badgeSet, b.name]
+                            : badgeSet.filter((x) => x !== b.name),
+                        )
+                      }
+                    />
+                  ))}
+                </fieldset>
+              </ReasonDialog>
+              <ReasonDialog
+                open={pending?.kind === 'forcePassword'}
+                title={t('admin.accounts.forcePasswordTitle', { username: a.username })}
+                description={t('admin.accounts.forcePasswordDescription')}
+                confirmLabel={t('admin.accounts.forcePasswordReset')}
+                danger
+                onCancel={() => setPending(null)}
+                onConfirm={async (reason) => {
+                  const r = await api.forcePasswordReset(id, reason);
+                  await finish(
+                    t('admin.accounts.forcePasswordDone', { count: r.sessions_revoked }),
+                  );
                 }}
               />
               <ReasonDialog
