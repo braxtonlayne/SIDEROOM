@@ -588,26 +588,6 @@ async fn seed(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn local_detection() {
-        assert!(is_local("http://localhost:8080"));
-        assert!(is_local("http://127.0.0.1:8080/x"));
-        assert!(is_local("http://app.localhost"));
-        assert!(!is_local("https://sideroom.example"));
-        assert!(!is_local("https://localhost.evil.example"));
-    }
-
-    #[test]
-    fn password_length_enforced() {
-        assert!(read_password(Some("short".into())).is_err());
-        assert!(read_password(Some("long-enough-password".into())).is_ok());
-    }
-}
-
 /// Largest single file read from a theme folder (the platform caps assets at 2 MB; this leaves room to report it).
 const PACKAGE_FILE_READ_CAP: u64 = 16 * 1024 * 1024;
 
@@ -703,4 +683,24 @@ fn package_validate(dir: &std::path::Path, json: bool) -> Result<()> {
         bail!("{errors} error(s) in the theme package");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_detection() {
+        assert!(is_local("http://localhost:8080"));
+        assert!(is_local("http://127.0.0.1:8080/x"));
+        assert!(is_local("http://app.localhost"));
+        assert!(!is_local("https://sideroom.example"));
+        assert!(!is_local("https://localhost.evil.example"));
+    }
+
+    #[test]
+    fn password_length_enforced() {
+        assert!(read_password(Some("short".into())).is_err());
+        assert!(read_password(Some("long-enough-password".into())).is_ok());
+    }
 }
