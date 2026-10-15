@@ -156,6 +156,10 @@ export interface DmChannel {
   /** Recipient ids (excluding the viewer); more than one means a group DM. */
   recipientIds: Snowflake[];
   name?: string | null;
+  /** Group DM owner. */
+  ownerId?: Snowflake | null;
+  /** Group DM icon URL. */
+  iconUrl?: string | null;
   lastMessageAt: string;
   unread: boolean;
   mentionCount: number;

@@ -24,6 +24,9 @@ import { WatchPartyStrip } from '../watchparty/WatchPartyStrip';
 import { useLoungeGoto } from './nav';
 import { useMyTimeout } from './timeout';
 import { useLoungeUi } from './store';
+import { openProfilePopout } from './profile/popoutStore';
+import { startDmCall } from './shell/dmCall';
+import { useVoiceSession } from '../voice/session';
 
 export interface ChannelViewProps {
   guildId: string;
@@ -52,6 +55,8 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const dm = dms.find((d) => d.id === channelId);
   const dmFirst = dm ? users[dm.recipientIds[0] ?? ''] : undefined;
   const presence = usePresence(dmFirst?.id ?? '');
+  const openDialog = useLoungeUi((s) => s.openDialog);
+  const inCallHere = useVoiceSession((s) => s.channelId === channelId && s.status !== 'idle');
 
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
@@ -110,6 +115,21 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   return (
     <section className="lng-channel-view" aria-label={target} {...drag}>
       <ChannelHeader
+        dm={
+          isDm && dm
+            ? {
+                group: dm.recipientIds.length > 1,
+                callDisabled: inCallHere,
+                onIdentity: (anchor) => {
+                  if (dm.recipientIds.length > 1 || !dmFirst) setMembersOpen(true);
+                  else openProfilePopout({ userId: dmFirst.id }, anchor);
+                },
+                onCall: () => startDmCall(channelId, title, false),
+                onVideo: () => startDmCall(channelId, title, true),
+                onAddFriends: () => openDialog({ kind: 'addToDm', channelId }),
+              }
+            : undefined
+        }
         icon={channel ? CHANNEL_ICON[channel.type] : 'user'}
         title={title}
         isDm={isDm}

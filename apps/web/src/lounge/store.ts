@@ -43,6 +43,7 @@ export type LoungeDialog =
   | { kind: 'leaveServer'; guildId: string }
   | { kind: 'folder'; folderId: string }
   | { kind: 'createDm' }
+  | { kind: 'addToDm'; channelId: string }
   | { kind: 'customStatus' }
   | { kind: 'note'; userId: string; name: string }
   | { kind: 'nickname'; guildId: string; userId: string }

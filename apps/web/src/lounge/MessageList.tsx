@@ -27,6 +27,7 @@ import { ReactorsModal } from './msg/Reactors';
 import { cmpId } from '../store/reducer';
 import { buildRows, estimateRow } from './messageRows';
 import { openProfilePopout } from './profile/popoutStore';
+import { DmWelcome } from './shell/DmWelcome';
 import { useHiddenAuthors } from './shell/hiddenAuthors';
 import { toSaved, useSaved } from './shell/savedMessages';
 import { useLoungeUi } from './store';
@@ -560,14 +561,13 @@ export function MessageList({
                 className="lng-row"
                 style={{ transform: `translateY(${item.start}px)` }}
               >
-                {row.kind === 'welcome' && (
+                {row.kind === 'welcome' && isDm && (
+                  <DmWelcome channelId={channelId} title={title} />
+                )}
+                {row.kind === 'welcome' && !isDm && (
                   <div className="lng-welcome">
-                    <h2>{isDm ? title : t('lounge.messageList.welcomeChannel', { title })}</h2>
-                    <p>
-                      {isDm
-                        ? t('lounge.messageList.dmStart', { title })
-                        : t('lounge.messageList.channelStart', { title })}
-                    </p>
+                    <h2>{t('lounge.messageList.welcomeChannel', { title })}</h2>
+                    <p>{t('lounge.messageList.channelStart', { title })}</p>
                     {canEditChannel && guildId && (
                       <div className="lng-welcome-actions">
                         <button

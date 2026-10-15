@@ -70,12 +70,12 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-DM-001** [BE] Create/open DM (`POST /users/@me/channels`), group DM create/add/remove recipient/rename/icon/leave/transfer owner
 - [x] **LNG-DM-002** [BE] DM permission rules (blocked users, "allow DMs from server members" setting, message requests)
 - [x] **LNG-DM-003** [BE] Message Requests inbox (accept, ignore, block, spam folder)
-- [ ] **LNG-DM-004** [FE] DM header: avatar + name (click → profile), call, video, pins, add friends to DM, profile panel toggle, search "Search <username>"
-- [ ] **LNG-DM-005** [FE] DM welcome header ("This is the beginning of your direct message history with @x", mutual servers, Remove Friend/Block buttons)
-- [ ] **LNG-DM-006** [FE] DM right profile panel (banner, avatar, name, username • pronouns, badges, add-friend & ⋯ buttons, bio, Member Since, mutual friends/servers summary row, View Full Profile)
-- [ ] **LNG-DM-007** [FE] Group DM member list panel + invite link (owner) + group settings (name, icon)
+- [x] **LNG-DM-004** [FE] DM header: avatar + name (click → profile), call, video, pins, add friends to DM, profile panel toggle, search "Search <username>" *(ChannelHeader `dm` actions, `shell/dmCall.ts`, add-friends via CreateDmDialog `addTo`; test p11ShellDm.test.tsx)*
+- [x] **LNG-DM-005** [FE] DM welcome header ("This is the beginning of your direct message history with @x", mutual servers, Remove Friend/Block buttons) *(`shell/DmWelcome.tsx`)*
+- [x] **LNG-DM-006** [FE] DM right profile panel (banner, avatar, name, username • pronouns, badges, add-friend & ⋯ buttons, bio, Member Since, mutual friends/servers summary row, View Full Profile) *(`shell/DmPanels.tsx` UserProfilePanel)*
+- [x] **LNG-DM-007** [FE] Group DM member list panel + invite link (owner) + group settings (name, icon) *(`shell/DmPanels.tsx` GroupPanel; the invite link calls `POST /channels/{id}/invites` on the group, a contract the backend does not serve yet, so the panel says links are not available; group icon uses `/cdn/icons/{channel}/{hash}`)*
 - [x] **LNG-DM-008** [FE] Message Requests page (list, preview, accept/ignore/block, spam tab) *(no message preview and no spam tab: the API has no spam listing)*
-- [ ] **LNG-DM-009** [FE] Blocked-user message collapse ("1 blocked message — Show")
+- [x] **LNG-DM-009** [FE] Blocked-user message collapse ("1 blocked message — Show") *(already built as the hidden-run row, LNG-MSGUI-032; DM test in p11ShellDm.test.tsx)*
 
 ## LNG-PRF — Profiles
 - [ ] **LNG-PRF-001** [DB] Profile fields (avatar, banner, accent colors, bio, pronouns, decoration, effect, per-guild overrides)

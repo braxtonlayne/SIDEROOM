@@ -1,6 +1,7 @@
 export default {
   'lounge.directory.title': 'Server Directory',
-  'lounge.directory.subtitle': 'Find a community to join. Only servers that asked to be listed appear here.',
+  'lounge.directory.subtitle':
+    'Find a community to join. Only servers that asked to be listed appear here.',
   'lounge.directory.searchLabel': 'Search servers',
   'lounge.directory.searchPlaceholder': 'Search by name or description',
   'lounge.directory.categories': 'Categories',

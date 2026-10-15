@@ -212,3 +212,71 @@
     animation: none;
   }
 }
+
+/* DM panels (LNG-DM-006, LNG-DM-007) */
+.prf-dm-actions,
+.prf-group-actions,
+.prf-invite,
+.prf-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.prf-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.prf-member {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.prf-member-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.prf-member-main:hover {
+  background: color-mix(in srgb, var(--text-normal) 10%, transparent);
+}
+.prf-member-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lng-dm-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.lng-dm-identity:hover {
+  background: var(--ui-bg-hover);
+}
+.lng-dm-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.lng-dm-welcome-handle {
+  margin: 0;
+  color: var(--text-muted);
+}

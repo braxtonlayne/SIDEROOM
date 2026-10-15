@@ -70,6 +70,8 @@ export function LoungeDialogs() {
       return <NicknameDialog guildId={dialog.guildId} userId={dialog.userId} onClose={close} />;
     case 'customStatus':
       return <CustomStatusDialog onClose={close} />;
+    case 'addToDm':
+      return <CreateDmDialog onClose={close} addTo={dialog.channelId} />;
     case 'createDm':
       return <CreateDmDialog onClose={close} />;
     case 'folder':

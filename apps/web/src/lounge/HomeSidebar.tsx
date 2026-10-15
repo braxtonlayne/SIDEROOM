@@ -22,6 +22,7 @@ import {
 } from './data';
 import { useLoungeRoute } from './nav';
 import { closeDm } from './shell/api';
+import { startDmCall } from './shell/dmCall';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './shell/notifSettings';
 import { useSupportEnabled } from './shell/useSupportEnabled';
 import { useUserMenuEntries } from './shell/userMenu';
@@ -64,7 +65,10 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           params: { guildId: HOME, channelId: dm.id },
         }),
     },
-    { label: t('lounge.homeSidebar.call'), disabled: true },
+    {
+      label: t('lounge.homeSidebar.call'),
+      onSelect: () => startDmCall(dm.id, title, false),
+    },
     ...(group || !userEntries.note
       ? [{ label: t('lounge.homeSidebar.addNote'), disabled: true } as MenuEntry]
       : [userEntries.note]),

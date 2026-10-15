@@ -19,6 +19,7 @@ import type {
   Role,
   Snowflake,
 } from './data';
+import { cdnUrl } from '../store/cdn';
 import { cmpId } from '../store/reducer';
 import { canOpenSettingsFromBits } from '../settings/server/permissions';
 import type * as S from '../store/types';
@@ -221,6 +222,8 @@ export function toDmChannel(c: S.Channel, rs: S.ReadState | undefined): DmChanne
     id: c.id,
     recipientIds: (c.recipients ?? []).map((u) => u.id),
     name: c.name ?? null,
+    ...(c.owner_id ? { ownerId: c.owner_id } : {}),
+    ...(c.icon ? { iconUrl: cdnUrl('icons', c.id, c.icon, { size: 128 }) } : {}),
     lastMessageAt: snowflakeTime(c.last_message_id),
     unread: isUnread(c, rs),
     mentionCount: rs?.mention_count ?? 0,
