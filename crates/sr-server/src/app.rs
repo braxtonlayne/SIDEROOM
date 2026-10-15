@@ -199,8 +199,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| anyhow::anyhow!("server.secret_key_previous: {e}"))?;
     let master_key = secret_key(cfg.server.secret_key.expose())?;
-    let auth_repo =
-        PgAuthRepo::new(pool.clone(), id_src.clone(), master_key).with_previous_keys(previous_keys);
+    let auth_repo = PgAuthRepo::new(pool.clone(), id_src.clone(), master_key)
+        .with_previous_keys(previous_keys.clone());
 
     // The wrapper lets the search indexer notice when it lagged behind the bus.
     let lag_bus = Arc::new(crate::lag_bus::LagTapBus::new(
@@ -253,8 +253,30 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // The developer platform: applications, bot tokens, OAuth2, commands, interactions. Bot
     // and bearer credentials authenticate against its stores (open question 56).
+    let apps_repo = Arc::new(sr_db::apps_repo::PgAppsRepo::new(
+        pool.clone(),
+        sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys),
+    ));
+    // Job apps.seal_seeds (D-185): encrypt interactions signing seeds still stored in the
+    // plaintext column of migration 0710. Refuses to run without a configured secret: an
+    // ephemeral key would make the sealed seeds unreadable after the next restart.
+    let legacy_seeds = apps_repo
+        .legacy_seed_count()
+        .await
+        .map_err(|e| anyhow::anyhow!("apps.seal_seeds: {e}"))?;
+    if legacy_seeds > 0 {
+        anyhow::ensure!(
+            !cfg.server.secret_key.expose().is_empty(),
+            "apps.seal_seeds: {legacy_seeds} interactions signing seeds need sealing; set server.secret_key first"
+        );
+        let sealed = apps_repo
+            .seal_legacy_seeds()
+            .await
+            .map_err(|e| anyhow::anyhow!("apps.seal_seeds: {e}"))?;
+        tracing::info!(sealed, "apps.seal_seeds: interactions signing seeds sealed");
+    }
     let apps_service = Arc::new(sr_apps::AppsService::new(
-        Arc::new(sr_db::apps_repo::PgAppsRepo::new(pool.clone())),
+        apps_repo,
         clock.clone(),
         id_src.clone(),
     ));
@@ -962,6 +984,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         messages.clone(),
         &cfg.server.public_url,
     ));
+    // Tester invitations and endpoint warnings reach developers as system DMs.
+    dev_deps.set_system_dm(staff_voice.clone());
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
         .with_extras(admin_repo)
         .with_notifier(staff_voice.clone())

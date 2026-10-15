@@ -18,9 +18,15 @@ const PLAINTEXT_OK: &[(&str, &str)] = &[
     ("0480_watch_parties.sql", "invite_code"),
     // The VAPID private key, sealed with the server secret by the caller (sr-push `load_or_create_vapid`).
     ("0670_web_push.sql", "secret"),
+    // The interactions signing seed of 0710 is plaintext until the startup job apps.seal_seeds
+    // (D-185) seals it into `interactions_signing_seed_sealed` (0771) and clears this column.
+    (
+        "0710_interactions_endpoint.sql",
+        "interactions_signing_seed",
+    ),
 ];
 
-const SAFE_SUFFIXES: &[&str] = &["_hash", "_sha256", "_phc", "_enc", "_hint"];
+const SAFE_SUFFIXES: &[&str] = &["_hash", "_sha256", "_phc", "_enc", "_hint", "_sealed"];
 const TYPES: &[&str] = &["TEXT", "BYTEA", "CITEXT", "VARCHAR"];
 
 fn suspicious(name: &str) -> bool {
@@ -29,6 +35,7 @@ fn suspicious(name: &str) -> bool {
         || [
             "token",
             "secret",
+            "seed",
             "password",
             "passphrase",
             "api_key",

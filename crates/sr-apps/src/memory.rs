@@ -67,6 +67,7 @@ struct State {
     interactions: Vec<InteractionRow>,
     imsgs: Vec<InteractionMessage>,
     interactions_cfg: HashMap<i64, InteractionsConfig>,
+    testers: Vec<Tester>,
 }
 
 /// RAM-backed repository.
@@ -400,6 +401,12 @@ impl AppsRepository for MemoryAppsRepo {
         }
         let cfg = s.interactions_cfg.entry(app).or_default();
         if let Some(u) = endpoint_url {
+            // A newly saved URL passed the PING check: start healthy.
+            if u.is_some() {
+                cfg.state = EndpointState::Enabled;
+                cfg.failures = 0;
+                cfg.failure_window_start_ms = None;
+            }
             cfg.endpoint_url = u;
         }
         if cfg.seed.is_none() {
@@ -409,6 +416,116 @@ impl AppsRepository for MemoryAppsRepo {
             s.audit.push(a);
         }
         Ok(())
+    }
+
+    async fn record_endpoint_outcome(&self, app: i64, ok: bool, now_ms: i64) -> AppsResult<bool> {
+        let mut s = self.st();
+        if !s.apps.contains_key(&app) {
+            return Err(AppsError::NotFound("application"));
+        }
+        let cfg = s.interactions_cfg.entry(app).or_default();
+        Ok(crate::service::endpoint_health_step(cfg, ok, now_ms))
+    }
+
+    async fn set_endpoint_state(
+        &self,
+        app: i64,
+        state: EndpointState,
+        audit: AuditRow,
+    ) -> AppsResult<()> {
+        let mut s = self.st();
+        if !s.apps.contains_key(&app) {
+            return Err(AppsError::NotFound("application"));
+        }
+        let cfg = s.interactions_cfg.entry(app).or_default();
+        cfg.state = state;
+        cfg.failures = 0;
+        cfg.failure_window_start_ms = None;
+        s.audit.push(audit);
+        Ok(())
+    }
+
+    async fn account_by_username(&self, username: &str) -> AppsResult<Option<AccountBrief>> {
+        Ok(self
+            .st()
+            .accounts
+            .iter()
+            .find(|(_, a)| a.active && !a.is_bot && a.username.eq_ignore_ascii_case(username))
+            .map(|(id, a)| brief(*id, a)))
+    }
+
+    async fn invite_tester(&self, t: &Tester, audit: AuditRow) -> AppsResult<Tester> {
+        let mut s = self.st();
+        let n = s
+            .testers
+            .iter()
+            .filter(|x| x.application_id == t.application_id)
+            .count() as i64;
+        if s.testers
+            .iter()
+            .any(|x| x.application_id == t.application_id && x.account_id == t.account_id)
+        {
+            return Err(AppsError::Conflict("Already invited.".into()));
+        }
+        if n >= MAX_TESTERS {
+            return Err(AppsError::Conflict(format!(
+                "An application can have at most {MAX_TESTERS} testers."
+            )));
+        }
+        s.testers.push(t.clone());
+        s.audit.push(audit);
+        Ok(t.clone())
+    }
+
+    async fn testers(&self, app: i64) -> AppsResult<Vec<Tester>> {
+        Ok(self
+            .st()
+            .testers
+            .iter()
+            .filter(|t| t.application_id == app)
+            .cloned()
+            .collect())
+    }
+
+    async fn tester_by_id(&self, id: i64) -> AppsResult<Option<Tester>> {
+        Ok(self.st().testers.iter().find(|t| t.id == id).cloned())
+    }
+
+    async fn tester_of(&self, app: i64, account: i64) -> AppsResult<Option<Tester>> {
+        Ok(self
+            .st()
+            .testers
+            .iter()
+            .find(|t| t.application_id == app && t.account_id == account)
+            .cloned())
+    }
+
+    async fn accept_tester(&self, id: i64, audit: AuditRow) -> AppsResult<Tester> {
+        let mut s = self.st();
+        let t = s
+            .testers
+            .iter_mut()
+            .find(|t| t.id == id)
+            .ok_or(AppsError::NotFound("invitation"))?;
+        if t.state != TesterState::Invited {
+            return Err(AppsError::Conflict("Already answered.".into()));
+        }
+        t.state = TesterState::Accepted;
+        let out = t.clone();
+        s.audit.push(audit);
+        Ok(out)
+    }
+
+    async fn remove_tester(&self, app: i64, account: i64, audit: AuditRow) -> AppsResult<bool> {
+        let mut s = self.st();
+        let before = s.testers.len();
+        s.testers
+            .retain(|t| !(t.application_id == app && t.account_id == account));
+        let removed = s.testers.len() != before;
+        if removed {
+            s.audit.push(audit);
+        }
+        Ok(removed)
     }
 
     async fn set_bot_name(&self, app: i64, name: &str, audit: AuditRow) -> AppsResult<()> {

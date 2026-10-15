@@ -14,13 +14,14 @@ pub const TEST_SERVER_MAX_MEMBERS: i64 = 25;
 ///
 /// * the application must not be suspended;
 /// * the installer needs `MANAGE_GUILD` (the guild owner and `ADMINISTRATOR` count);
-/// * a non-public bot can only be added by its owner;
-/// * a development-state application can only be added by its owner, to a guild of at most
-///   25 members (900120 otherwise).
+/// * a non-public bot can only be added by its owner (or, in development, an accepted tester);
+/// * a development-state application can only be added by its owner or an accepted tester
+///   (`installer_is_tester`, D-204), to a guild of at most 25 members (900120 otherwise).
 pub fn check_install(
     app: &Application,
     installer: i64,
     installer_perms: Permissions,
+    installer_is_tester: bool,
     guild: GuildStats,
 ) -> AppsResult<()> {
     if app.release_state == ReleaseState::Suspended {
@@ -32,12 +33,15 @@ pub fn check_install(
     if !manages {
         return Err(AppsError::MissingPermissions);
     }
+    // Accepted testers count only while the application is in development.
+    let trusted = installer == app.owner_id
+        || (installer_is_tester && app.release_state == ReleaseState::Development);
     if app.release_state != ReleaseState::Released
-        && (installer != app.owner_id || guild.member_count > TEST_SERVER_MAX_MEMBERS)
+        && (!trusted || guild.member_count > TEST_SERVER_MAX_MEMBERS)
     {
         return Err(AppsError::NotReleased);
     }
-    if !app.bot_public && installer != app.owner_id {
+    if !app.bot_public && !trusted {
         return Err(AppsError::Forbidden(
             "This bot is private and can only be added by its owner.".into(),
         ));
@@ -185,56 +189,87 @@ mod tests {
     fn install_needs_manage_guild() {
         let a = app(ReleaseState::Released, true);
         assert_eq!(
-            check_install(&a, 2, Permissions::SEND_MESSAGES, GUILD),
+            check_install(&a, 2, Permissions::SEND_MESSAGES, false, GUILD),
             Err(AppsError::MissingPermissions)
         );
-        assert!(check_install(&a, 2, Permissions::MANAGE_GUILD, GUILD).is_ok());
-        assert!(check_install(&a, 2, Permissions::ADMINISTRATOR, GUILD).is_ok());
+        assert!(check_install(&a, 2, Permissions::MANAGE_GUILD, false, GUILD).is_ok());
+        assert!(check_install(&a, 2, Permissions::ADMINISTRATOR, false, GUILD).is_ok());
         // the guild owner needs no permission bits
-        assert!(check_install(&a, 1, Permissions::empty(), GUILD).is_ok());
+        assert!(check_install(&a, 1, Permissions::empty(), false, GUILD).is_ok());
     }
 
     #[test]
     fn private_bots_are_owner_only() {
         let a = app(ReleaseState::Released, false);
         assert!(matches!(
-            check_install(&a, 2, Permissions::MANAGE_GUILD, GUILD),
+            check_install(&a, 2, Permissions::MANAGE_GUILD, false, GUILD),
             Err(AppsError::Forbidden(_))
         ));
-        assert!(check_install(&a, 1, Permissions::MANAGE_GUILD, GUILD).is_ok());
+        assert!(check_install(&a, 1, Permissions::MANAGE_GUILD, false, GUILD).is_ok());
     }
 
     #[test]
     fn development_apps_stay_in_test_servers_of_their_owner() {
         let a = app(ReleaseState::Development, true);
-        assert!(check_install(&a, 1, Permissions::MANAGE_GUILD, GUILD).is_ok());
+        assert!(check_install(&a, 1, Permissions::MANAGE_GUILD, false, GUILD).is_ok());
         let big = GuildStats {
             owner_id: 2,
             member_count: 26,
         };
         assert_eq!(
-            check_install(&a, 1, Permissions::MANAGE_GUILD, big),
+            check_install(&a, 1, Permissions::MANAGE_GUILD, false, big),
             Err(AppsError::NotReleased)
         );
         let edge = GuildStats {
             owner_id: 2,
             member_count: 25,
         };
-        assert!(check_install(&a, 1, Permissions::MANAGE_GUILD, edge).is_ok());
+        assert!(check_install(&a, 1, Permissions::MANAGE_GUILD, false, edge).is_ok());
         // someone else cannot add a development app even to a small guild
         assert_eq!(
-            check_install(&a, 2, Permissions::MANAGE_GUILD, GUILD),
+            check_install(&a, 2, Permissions::MANAGE_GUILD, false, GUILD),
             Err(AppsError::NotReleased)
         );
         let review = app(ReleaseState::InReview, true);
         assert_eq!(
-            check_install(&review, 2, Permissions::MANAGE_GUILD, GUILD),
+            check_install(&review, 2, Permissions::MANAGE_GUILD, false, GUILD),
             Err(AppsError::NotReleased)
         );
         let s = app(ReleaseState::Suspended, true);
         assert_eq!(
-            check_install(&s, 1, Permissions::MANAGE_GUILD, GUILD),
+            check_install(&s, 1, Permissions::MANAGE_GUILD, false, GUILD),
             Err(AppsError::Suspended)
+        );
+    }
+
+    #[test]
+    fn accepted_testers_install_development_apps_in_small_guilds() {
+        let dev = app(ReleaseState::Development, true);
+        // a tester with MANAGE_GUILD in a small guild they do not own
+        assert!(check_install(&dev, 2, Permissions::MANAGE_GUILD, true, GUILD).is_ok());
+        // still needs MANAGE_GUILD
+        assert_eq!(
+            check_install(&dev, 2, Permissions::SEND_MESSAGES, true, GUILD),
+            Err(AppsError::MissingPermissions)
+        );
+        // still capped at 25 members (900120)
+        let big = GuildStats {
+            owner_id: 2,
+            member_count: 26,
+        };
+        assert_eq!(
+            check_install(&dev, 2, Permissions::MANAGE_GUILD, true, big),
+            Err(AppsError::NotReleased)
+        );
+        // a private development bot may be used by its testers but not by others
+        let private = app(ReleaseState::Development, false);
+        assert!(check_install(&private, 2, Permissions::MANAGE_GUILD, true, GUILD).is_ok());
+        assert!(check_install(&private, 3, Permissions::MANAGE_GUILD, false, GUILD).is_err());
+        // testers do not help once the application is in review
+        let review = app(ReleaseState::InReview, true);
+        assert_eq!(
+            check_install(&review, 2, Permissions::MANAGE_GUILD, true, GUILD),
+            Err(AppsError::NotReleased)
         );
     }
 

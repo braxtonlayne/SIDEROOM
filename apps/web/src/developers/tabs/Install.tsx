@@ -6,6 +6,7 @@ import type { DevApp } from '../types';
 import { fmtDate } from '../format';
 import { LoadError, Loading } from '../ui';
 import { UrlGenerator } from './OAuth2';
+import { TestersCard } from './Testers';
 
 function Installs({ app }: { app: DevApp }) {
   const t = useT();
@@ -60,6 +61,7 @@ export function InstallTab({ app }: { app: DevApp }) {
         </Notice>
       )}
       <UrlGenerator app={app} installOnly />
+      <TestersCard app={app} />
       <Installs app={app} />
     </div>
   );

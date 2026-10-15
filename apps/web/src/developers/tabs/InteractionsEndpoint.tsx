@@ -1,8 +1,8 @@
-import { Button, TextInput, useToast } from '@sideroom/ui';
+import { Button, Notice, TextInput, useToast } from '@sideroom/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useT } from '../../i18n';
-import { createInteractionsKey, errorText, keys } from '../api';
+import { createInteractionsKey, errorText, keys, verifyEndpoint } from '../api';
 import { usePatchApp } from '../hooks';
 import type { DevApp } from '../types';
 import { CopyButton } from '../ui';
@@ -42,6 +42,18 @@ export function InteractionsEndpointCard({ app }: { app: DevApp }) {
     onError: (e) => setError(errorText(e, t('developers.endpoint.keyFailed'))),
   });
 
+  const reenable = useMutation({
+    mutationFn: () => verifyEndpoint(app.id),
+    onSuccess: ({ interactions_endpoint_state }) => {
+      setError(null);
+      qc.setQueryData<DevApp>(keys.app(app.id), (cur) =>
+        cur ? { ...cur, interactions_endpoint_state } : cur,
+      );
+      toast.show({ title: t('developers.endpoint.reenabled'), variant: 'success' });
+    },
+    onError: (e) => setError(errorText(e, t('developers.endpoint.reenableFailed'))),
+  });
+
   const save = (next: string | null) => {
     setError(null);
     patch.mutate(
@@ -66,6 +78,22 @@ export function InteractionsEndpointCard({ app }: { app: DevApp }) {
         {t('developers.endpoint.heading')}
       </h2>
       <p className="dev-muted">{t('developers.endpoint.intro')}</p>
+      {current && app.interactions_endpoint_state === 'disabled' && (
+        <Notice variant="warning" title={t('developers.endpoint.disabledTitle')}>
+          {t('developers.endpoint.disabledBody')}{' '}
+          <Button
+            variant="link"
+            size="sm"
+            loading={reenable.isPending}
+            onClick={() => reenable.mutate()}
+          >
+            {t('developers.endpoint.reenable')}
+          </Button>
+        </Notice>
+      )}
+      {current && app.interactions_endpoint_state === 'enabled' && (
+        <p className="dev-muted">{t('developers.endpoint.active')}</p>
+      )}
       <div className="dev-field">
         <TextInput
           label={t('developers.endpoint.publicKey')}

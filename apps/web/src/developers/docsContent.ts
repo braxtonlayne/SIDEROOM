@@ -32,7 +32,7 @@ export const DOC_PAGES: DocPage[] = [
         items: [
           'Open Applications and choose New application. Give it a name.',
           'Copy the client secret and bot token when they are shown: you see them once. Every application comes with its own bot user.',
-          'In the Installation tab, build an invite link and open it to add the bot to a server you manage. Use it as the owner: until the app is released only you can add it.',
+          'In the Installation tab, build an invite link and open it to add the bot to a server you manage. Use it as the owner: until the app is released only you and your accepted testers can add it.',
         ],
       },
       {

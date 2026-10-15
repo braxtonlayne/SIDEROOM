@@ -60,8 +60,17 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/push/")
         || p.starts_with("/gifs/")
         || p.starts_with("/users/@me/mentions")
+        // User-scope feature routes (D-189): a bot has no reminders, bookmarks or birthday.
+        || p.starts_with("/users/@me/reminders")
+        || p.starts_with("/users/@me/scheduled-messages")
+        || p.starts_with("/users/@me/bookmarks")
+        || p.starts_with("/users/@me/birthday")
         || p.starts_with("/users/@me/primary-guild")
     {
+        return true;
+    }
+    // Scheduling a message is a user feature (D-189); a bot posts directly.
+    if p.starts_with("/channels/") && p.ends_with("/scheduled-messages") {
         return true;
     }
     // Creating guilds and accepting invites is for people.
@@ -147,6 +156,16 @@ mod tests {
             (Method::GET, "/users/@me/relationships"),
             (Method::PUT, "/users/@me/relationships/{user_id}"),
             (Method::PATCH, "/users/@me/settings"),
+            (Method::GET, "/users/@me/reminders"),
+            (Method::POST, "/users/@me/reminders"),
+            (Method::DELETE, "/users/@me/reminders/{id}"),
+            (Method::GET, "/users/@me/scheduled-messages"),
+            (Method::PATCH, "/users/@me/scheduled-messages/{id}"),
+            (Method::POST, "/channels/{channel_id}/scheduled-messages"),
+            (Method::GET, "/users/@me/bookmarks"),
+            (Method::PATCH, "/users/@me/bookmarks/{message_id}"),
+            (Method::PUT, "/users/@me/birthday"),
+            (Method::DELETE, "/users/@me/birthday"),
             (Method::POST, "/applications"),
             (Method::GET, "/applications"),
             (Method::PATCH, "/applications/{application_id}"),

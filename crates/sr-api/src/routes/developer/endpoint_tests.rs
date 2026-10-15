@@ -13,13 +13,15 @@ use std::{
 
 /// A developer's server: checks signatures with the public key it was given, answers PINGs
 /// and answers interactions with a canned callback body.
-struct Dev {
-    key: Mutex<Option<String>>,
+pub(super) struct Dev {
+    pub(super) key: Mutex<Option<String>>,
     /// Reply to a verified, non-PING request.
     reply: Mutex<Value>,
     check_signature: bool,
     pong: bool,
-    seen: Mutex<Vec<Value>>,
+    /// Answer every verified non-PING request with a 500.
+    pub(super) fail: std::sync::atomic::AtomicBool,
+    pub(super) seen: Mutex<Vec<Value>>,
 }
 
 impl Dev {
@@ -29,6 +31,7 @@ impl Dev {
             reply: Mutex::new(json!({"type": 4, "data": {"content": "pong from http"}})),
             check_signature,
             pong,
+            fail: std::sync::atomic::AtomicBool::new(false),
             seen: Mutex::default(),
         })
     }
@@ -68,6 +71,12 @@ impl EndpointClient for Dev {
         }
         let v: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
         self.seen.lock().unwrap().push(v.clone());
+        if v["type"] != 1 && self.fail.load(std::sync::atomic::Ordering::SeqCst) {
+            return Ok(EndpointReply {
+                status: 500,
+                body: Vec::new(),
+            });
+        }
         let out = if v["type"] == 1 {
             if self.pong {
                 json!({"type": 1})
@@ -84,12 +93,16 @@ impl EndpointClient for Dev {
     }
 }
 
-struct Setup {
-    e: Env,
-    app: String,
-    bot: String,
-    dev: Arc<Dev>,
-    cmd: String,
+pub(super) struct Setup {
+    pub(super) e: Env,
+    pub(super) app: String,
+    pub(super) bot: String,
+    pub(super) dev: Arc<Dev>,
+    pub(super) cmd: String,
+}
+
+pub(super) async fn setup_default() -> Setup {
+    setup(Dev::new()).await
 }
 
 async fn setup(dev: Arc<Dev>) -> Setup {
@@ -120,10 +133,10 @@ async fn setup(dev: Arc<Dev>) -> Setup {
     }
 }
 
-const URL: &str = "https://bot.example.com/interactions";
+pub(super) const URL: &str = "https://bot.example.com/interactions";
 
 impl Setup {
-    async fn key(&self) -> String {
+    pub(super) async fn key(&self) -> String {
         let (s, v) = self
             .e
             .post(
@@ -139,7 +152,7 @@ impl Setup {
         k
     }
 
-    async fn set_url(&self, url: Value) -> (StatusCode, Value) {
+    pub(super) async fn set_url(&self, url: Value) -> (StatusCode, Value) {
         self.e
             .patch(
                 Who::Session(OWNER),
@@ -149,14 +162,14 @@ impl Setup {
             .await
     }
 
-    async fn app_json(&self) -> Value {
+    pub(super) async fn app_json(&self) -> Value {
         self.e
             .get(Who::Session(OWNER), &format!("/applications/{}", self.app))
             .await
             .1
     }
 
-    async fn invoke(&self) -> (StatusCode, Value) {
+    pub(super) async fn invoke(&self) -> (StatusCode, Value) {
         self.e
             .post(
                 Who::Session(BOB),

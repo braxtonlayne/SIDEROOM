@@ -3,6 +3,7 @@
 use super::AppsService;
 use crate::{
     error::{AppsError, AppsResult, FieldProblem},
+    model::{EndpointState, InteractionsConfig},
     signing::SigningSeed,
 };
 use serde_json::json;
@@ -14,6 +15,40 @@ pub struct EndpointInfo {
     pub url: Option<String>,
     /// Public key (hex) once a key exists.
     pub verify_key: Option<String>,
+    /// `disabled` after repeated delivery failures (D-186).
+    pub state: EndpointState,
+}
+
+/// Consecutive failed deliveries that disable an endpoint (D-186).
+pub const ENDPOINT_FAILURE_LIMIT: i32 = 25;
+/// The failures must fall within this window (10 minutes).
+pub const ENDPOINT_FAILURE_WINDOW_MS: i64 = 10 * 60 * 1000;
+
+/// Fold one delivery outcome into the health counters of an endpoint. A success resets the
+/// streak; a failure extends it, or starts a new one when the last streak began more than
+/// ten minutes ago. Returns `true` when this failure was the 25th of a streak and flipped the
+/// endpoint to `disabled`. A disabled endpoint is left alone.
+pub fn endpoint_health_step(cfg: &mut InteractionsConfig, ok: bool, now_ms: i64) -> bool {
+    if cfg.state == EndpointState::Disabled {
+        return false;
+    }
+    if ok {
+        cfg.failures = 0;
+        cfg.failure_window_start_ms = None;
+        return false;
+    }
+    match cfg.failure_window_start_ms {
+        Some(start) if now_ms - start <= ENDPOINT_FAILURE_WINDOW_MS => cfg.failures += 1,
+        _ => {
+            cfg.failures = 1;
+            cfg.failure_window_start_ms = Some(now_ms);
+        }
+    }
+    if cfg.failures >= ENDPOINT_FAILURE_LIMIT {
+        cfg.state = EndpointState::Disabled;
+        return true;
+    }
+    false
 }
 
 /// What the delivery code needs: URL and key, only when both exist.
@@ -54,6 +89,7 @@ impl AppsService {
         Ok(EndpointInfo {
             url: c.endpoint_url,
             verify_key: c.seed.as_ref().map(SigningSeed::verify_key_hex),
+            state: c.state,
         })
     }
 
@@ -124,10 +160,43 @@ impl AppsService {
             .ok_or(AppsError::NotFound("signing key"))
     }
 
+    /// Fold one delivery to the HTTP endpoint into its health counters (D-186). `true` when
+    /// this failure disabled the endpoint: the caller then tells the owner.
+    pub async fn record_delivery(&self, app: i64, ok: bool) -> AppsResult<bool> {
+        let flipped = self
+            .repo
+            .record_endpoint_outcome(app, ok, self.now_ms())
+            .await?;
+        if flipped {
+            // Same transaction would be nicer; the audit row is informational.
+            let audit = self.audit(
+                app,
+                1,
+                "app.interactions_endpoint_disabled",
+                json!({"failures": ENDPOINT_FAILURE_LIMIT}),
+            );
+            self.repo.record_audit(audit).await?;
+        }
+        Ok(flipped)
+    }
+
+    /// Mark a disabled endpoint enabled again after the owner's PING check passed. Owner only.
+    pub async fn reenable_endpoint(&self, owner: i64, id: i64) -> AppsResult<EndpointInfo> {
+        self.owned(owner, id).await?;
+        let audit = self.audit(id, owner, "app.interactions_endpoint_reenabled", json!({}));
+        self.repo
+            .set_endpoint_state(id, EndpointState::Enabled, audit)
+            .await?;
+        self.endpoint_info(id).await
+    }
+
     /// URL and key for delivering an interaction, `None` when the application uses the
-    /// gateway (no URL, or no key).
+    /// gateway (no URL, no key, or the endpoint was disabled after repeated failures).
     pub async fn endpoint_target(&self, app: i64) -> AppsResult<Option<EndpointTarget>> {
         let c = self.repo.interactions_config(app).await?;
+        if c.state == EndpointState::Disabled {
+            return Ok(None);
+        }
         Ok(match (c.endpoint_url, c.seed) {
             (Some(url), Some(seed)) => Some(EndpointTarget { url, seed }),
             _ => None,

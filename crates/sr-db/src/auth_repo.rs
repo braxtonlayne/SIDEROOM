@@ -8,9 +8,7 @@
 
 use std::sync::Arc;
 
-use aes_gcm::aead::{Aead, KeyInit, Payload};
-use aes_gcm::{Aes256Gcm, Nonce};
-use sha2::{Digest, Sha256};
+use crate::sealed::SecretBox;
 use sqlx::{PgPool, Row, postgres::PgRow};
 use sr_auth::{
     email_token::EmailTokenPurpose,
@@ -21,8 +19,6 @@ use sr_auth::{
     },
     session::TokenHash,
 };
-
-const NONCE_LEN: usize = 12;
 
 /// Errors from the Postgres auth repositories.
 #[derive(Debug, thiserror::Error)]
@@ -51,19 +47,8 @@ pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
 pub struct PgAuthRepo {
     pool: PgPool,
     ids: IdSource,
-    key: [u8; 32],
-    /// Decrypt-only keys from before the last rotation (`server.secret_key_previous`).
-    previous: Vec<[u8; 32]>,
-}
-
-/// Key version byte stored in front of every ciphertext: the first byte of a
-/// domain-separated SHA-256 of the key. It is a fingerprint, not a secret, so
-/// the decryptor can try the keys that match before the others (open question 40).
-fn key_version(key: &[u8; 32]) -> u8 {
-    let mut h = Sha256::new();
-    h.update(b"sideroom/secret-key-version/v1");
-    h.update(key);
-    h.finalize()[0]
+    /// `server.secret_key` plus the decrypt-only keys from before the last rotation.
+    secrets: SecretBox,
 }
 
 /// Parse `server.secret_key` (64 hex characters).
@@ -91,14 +76,13 @@ impl PgAuthRepo {
         Self {
             pool,
             ids,
-            key: secret_key,
-            previous: Vec::new(),
+            secrets: SecretBox::new(secret_key),
         }
     }
 
     /// Add the decrypt-only keys from `server.secret_key_previous`.
     pub fn with_previous_keys(mut self, keys: Vec<[u8; 32]>) -> Self {
-        self.previous = keys;
+        self.secrets = self.secrets.with_previous_keys(keys);
         self
     }
 
@@ -108,45 +92,15 @@ impl PgAuthRepo {
 
     /// Layout: `version(1) || nonce(12) || ciphertext+tag`, AAD = account id.
     fn seal(&self, user_id: i64, plain: &[u8]) -> Result<Vec<u8>, AuthRepoError> {
-        let nonce = sr_auth::random::bytes::<NONCE_LEN>().map_err(|_| AuthRepoError::Corrupt)?;
-        let cipher = Aes256Gcm::new((&self.key).into());
-        let aad = user_id.to_be_bytes();
-        let ct = cipher
-            .encrypt(
-                &Nonce::from(nonce),
-                Payload {
-                    msg: plain,
-                    aad: &aad,
-                },
-            )
-            .map_err(|_| AuthRepoError::Corrupt)?;
-        let mut out = Vec::with_capacity(1 + NONCE_LEN + ct.len());
-        out.push(key_version(&self.key));
-        out.extend_from_slice(&nonce);
-        out.extend(ct);
-        Ok(out)
+        self.secrets
+            .seal(&user_id.to_be_bytes(), plain)
+            .map_err(|_| AuthRepoError::Corrupt)
     }
 
     fn open(&self, user_id: i64, blob: &[u8]) -> Result<Vec<u8>, AuthRepoError> {
-        let (&version, rest) = blob.split_first().ok_or(AuthRepoError::Corrupt)?;
-        if rest.len() <= NONCE_LEN {
-            return Err(AuthRepoError::Corrupt);
-        }
-        let (nonce, ct) = rest.split_at(NONCE_LEN);
-        let nonce: [u8; NONCE_LEN] = nonce.try_into().map_err(|_| AuthRepoError::Corrupt)?;
-        let aad = user_id.to_be_bytes();
-        // Keys whose fingerprint matches the stored version are tried first;
-        // the others follow in case of a fingerprint collision.
-        let keys = std::iter::once(&self.key).chain(self.previous.iter());
-        let (matching, others): (Vec<&[u8; 32]>, Vec<&[u8; 32]>) =
-            keys.partition(|k| key_version(k) == version);
-        for key in matching.into_iter().chain(others) {
-            let cipher = Aes256Gcm::new(key.into());
-            if let Ok(plain) = cipher.decrypt(&Nonce::from(nonce), Payload { msg: ct, aad: &aad }) {
-                return Ok(plain);
-            }
-        }
-        Err(AuthRepoError::Corrupt)
+        self.secrets
+            .open(&user_id.to_be_bytes(), blob)
+            .map_err(|_| AuthRepoError::Corrupt)
     }
 
     /// Re-encrypt every TOTP secret under the current key, in one transaction
@@ -577,6 +531,7 @@ impl EmailTokenRepository for PgAuthRepo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sealed::key_version;
 
     /// A pool that never connects: these tests exercise only the envelope.
     fn repo(key: [u8; 32]) -> PgAuthRepo {

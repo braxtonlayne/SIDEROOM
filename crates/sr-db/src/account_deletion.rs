@@ -197,6 +197,10 @@ pub async fn delete_account(
     .bind(id)
     .execute(&mut *tx)
     .await?;
+    sqlx::query("DELETE FROM app_testers WHERE account_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM oauth2_grants WHERE user_id = $1")
         .bind(id)
         .execute(&mut *tx)
