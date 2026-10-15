@@ -57,3 +57,37 @@ pub async fn schedule(pool: &PgPool) -> DbResult<()> {
     .await?;
     Ok(())
 }
+
+/// The daily submission upload allowance from the platform setting
+/// `submissions.daily_upload_bytes` (D-196; Admin -> Limits). Falls back to the default when the
+/// setting is unset or unreadable; `0` means unlimited.
+pub struct PlatformAllowance {
+    pool: sqlx::PgPool,
+}
+
+impl PlatformAllowance {
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait::async_trait]
+impl sr_review::service::AllowanceSource for PlatformAllowance {
+    async fn daily_upload_bytes(&self) -> i64 {
+        let stored: Result<Option<serde_json::Value>, _> =
+            sqlx::query_scalar("SELECT value FROM platform_settings WHERE key = $1")
+                .bind("submissions.daily_upload_bytes")
+                .fetch_optional(&self.pool)
+                .await;
+        match stored {
+            Ok(Some(v)) => v
+                .as_i64()
+                .unwrap_or(sr_review::service::MAX_UPLOAD_BYTES_PER_DAY),
+            Ok(None) => sr_review::service::MAX_UPLOAD_BYTES_PER_DAY,
+            Err(e) => {
+                tracing::warn!(error = %e, "reading submissions.daily_upload_bytes failed");
+                sr_review::service::MAX_UPLOAD_BYTES_PER_DAY
+            }
+        }
+    }
+}

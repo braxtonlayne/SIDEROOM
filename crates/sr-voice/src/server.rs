@@ -143,6 +143,7 @@ pub struct SfuEvent {
 #[derive(Clone)]
 pub struct SfuHandle {
     pub(crate) tx: mpsc::Sender<Cmd>,
+    live: Arc<LiveStats>,
     signer: TokenSigner,
     cfg: Arc<SfuConfig>,
     conn_ids: Arc<AtomicU64>,
@@ -151,7 +152,31 @@ pub struct SfuHandle {
     events: tokio::sync::broadcast::Sender<SfuEvent>,
 }
 
+/// Counts the admin dashboard reads without asking the SFU thread: refreshed once a second.
+#[derive(Debug, Default)]
+pub struct LiveStats {
+    rooms: AtomicU64,
+    egress_bytes: AtomicU64,
+}
+
+impl LiveStats {
+    /// Voice rooms with at least one participant right now.
+    pub fn rooms(&self) -> u64 {
+        self.rooms.load(Ordering::Relaxed)
+    }
+
+    /// Bytes sent to participants since the SFU started (the egress rate integrated per second).
+    pub fn egress_bytes(&self) -> u64 {
+        self.egress_bytes.load(Ordering::Relaxed)
+    }
+}
+
 impl SfuHandle {
+    /// Counts for the admin dashboard; cheap to read from any thread.
+    pub fn live_stats(&self) -> Arc<LiveStats> {
+        self.live.clone()
+    }
+
     /// Subscribe to [`SfuEvent`]s.
     pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<SfuEvent> {
         self.events.subscribe()
@@ -257,8 +282,10 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
 
     let cfg = Arc::new(cfg);
     let (events, _) = tokio::sync::broadcast::channel(256);
+    let live = Arc::new(LiveStats::default());
     let handle = SfuHandle {
         tx: cmd_tx,
+        live: live.clone(),
         signer: TokenSigner::new(cfg.token_secret.clone()),
         cfg: cfg.clone(),
         conn_ids: Arc::new(AtomicU64::new(1)),
@@ -285,6 +312,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         last_counts: (0, 0, 0),
         pending_flags: HashMap::new(),
         events,
+        live,
     };
     tokio::spawn(actor.run(cmd_rx, pkt_rx));
     Ok(handle)
@@ -405,6 +433,7 @@ struct Actor {
     /// the token lifetime.
     pending_flags: HashMap<(ChannelId, UserId), (Flags, Instant)>,
     events: tokio::sync::broadcast::Sender<SfuEvent>,
+    live: Arc<LiveStats>,
 }
 
 fn random_hex() -> String {
@@ -490,6 +519,11 @@ impl Actor {
         };
         self.last_counts = counts;
         metrics::publish(&snap, deltas);
+        self.live.rooms.store(snap.rooms as u64, Ordering::Relaxed);
+        // One tick a second: the egress rate in bits per second is bytes per tick divided by 8.
+        self.live
+            .egress_bytes
+            .fetch_add((snap.egress_bps.max(0.0) / 8.0) as u64, Ordering::Relaxed);
         self.pending_flags
             .retain(|_, (_, at)| now.saturating_duration_since(*at) <= PENDING_FLAGS_TTL);
         // Participants whose WebSocket stayed away past the resume window are dropped.

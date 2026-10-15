@@ -37,6 +37,9 @@ impl Feature for ModerationReportsFeature {
     fn scopes(&self) -> &[Scope] {
         &[Scope::Platform]
     }
+    fn client_visible(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

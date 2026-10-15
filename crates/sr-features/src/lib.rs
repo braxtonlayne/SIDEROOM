@@ -21,7 +21,7 @@ pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
 pub use moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
-pub use runtime::FeatureRuntime;
+pub use runtime::{FeatureRuntime, current_module, scope_module};
 pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};
 pub use service::FeatureService;
 pub use store::{InMemorySettingsStore, SettingsRecord, SettingsStore};

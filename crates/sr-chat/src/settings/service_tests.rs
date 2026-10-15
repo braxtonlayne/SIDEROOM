@@ -637,3 +637,26 @@ async fn soundboard_uploads_are_checked_and_limited() {
             .is_ok()
     );
 }
+
+#[tokio::test]
+async fn module_audit_entries_name_the_system_user_and_module() {
+    let (svc, _clock) = setup();
+    svc.record_audit_as_module(
+        G,
+        AuditAction::RoleUpdate,
+        Some(7),
+        vec![],
+        None,
+        ("lounge.auto_roles", "Auto roles"),
+    )
+    .await
+    .unwrap();
+    let all = svc
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(G))
+        .await
+        .unwrap();
+    assert_eq!(all[0].actor_id, UserId::new(1));
+    let opts = all[0].options.as_ref().unwrap();
+    assert_eq!(opts["module"], "Auto roles");
+    assert_eq!(opts["module_id"], "lounge.auto_roles");
+}

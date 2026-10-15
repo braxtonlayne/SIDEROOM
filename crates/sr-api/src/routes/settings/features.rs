@@ -77,6 +77,7 @@ pub struct GuildFeatures {
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/sr/features/flags", get(client_flags))
         .route("/guilds/{guild_id}/sr/features", get(list_features))
         .route(
             "/guilds/{guild_id}/sr/features/{feature_id}",
@@ -90,6 +91,41 @@ pub fn routes() -> Router<AppState> {
             "/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}",
             delete(revoke_temp_role),
         )
+}
+
+/// Platform flags a client may read (D-216).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ClientFlagsObject {
+    /// Feature id to on/off, for platform-scope modules that declare themselves client-visible.
+    pub flags: std::collections::BTreeMap<String, bool>,
+}
+
+/// The platform flags clients read at boot, e.g. `moderation.reports` (any signed-in human; bots
+/// are refused).
+#[utoipa::path(
+    get,
+    path = "/sr/features/flags",
+    responses((status = 200, body = ClientFlagsObject), (status = 401, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn client_flags(
+    _p: crate::auth::UserOnly,
+    Ext(gf): Ext<GuildFeatures>,
+) -> ApiResult<Json<ClientFlagsObject>> {
+    let mut flags = std::collections::BTreeMap::new();
+    for f in gf.ctx.settings.registry().iter() {
+        if !f.client_visible() || !f.scopes().contains(&Scope::Platform) {
+            continue;
+        }
+        let on = gf
+            .ctx
+            .settings
+            .is_enabled(f.id(), &ScopeRef::Platform)
+            .await
+            .map_err(feature_err)?;
+        flags.insert(f.id().to_owned(), on);
+    }
+    Ok(Json(ClientFlagsObject { flags }))
 }
 
 #[derive(Debug, Serialize, ToSchema)]

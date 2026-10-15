@@ -700,6 +700,35 @@ impl AuthStore for PgAuthStore {
         Ok(r.rows_affected() > 0)
     }
 
+    async fn member_invites(
+        &self,
+        account: i64,
+        now: i64,
+    ) -> StoreResult<sr_auth::store::MemberInvites> {
+        crate::member_invites::overview(&self.pool, account, now)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn create_member_invite(
+        &self,
+        account: i64,
+        invite_id: i64,
+        code: &InviteCode,
+        note: &str,
+        now: i64,
+    ) -> StoreResult<Result<(), sr_auth::store::InviteBlock>> {
+        crate::member_invites::create(&self.pool, account, invite_id, code.canonical(), note, now)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn revoke_member_invite(&self, account: i64, code: &InviteCode) -> StoreResult<bool> {
+        crate::member_invites::revoke(&self.pool, account, code.canonical())
+            .await
+            .map_err(store_err)
+    }
+
     async fn delete_account(
         &self,
         id: i64,
@@ -722,6 +751,8 @@ impl AuthStore for PgAuthStore {
             Err(crate::account_deletion::Blocked::OwnsGuilds(g)) => {
                 Err(DeleteRefusal::OwnsGuilds(g))
             }
+            Err(crate::account_deletion::Blocked::Staff) => Err(DeleteRefusal::Staff),
+            Err(crate::account_deletion::Blocked::Owner) => Err(DeleteRefusal::Owner),
         })
     }
 

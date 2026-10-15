@@ -838,4 +838,24 @@ impl sr_cinema::submissions::AssetLookup for PgMediaRepo {
             uploaded_by: row.try_get("uploaded_by").map_err(|e| e.to_string())?,
         }))
     }
+
+    async fn discard(&self, ids: &[i64]) -> Result<(), String> {
+        // Transcode output of unpublished assets goes to the collection queue; the original and
+        // the proxy follow through the retention sweep once the state is `removed`.
+        sqlx::query(
+            "INSERT INTO cinema_media_gc (prefix, asset_id)              SELECT hls_prefix, id FROM video_assets              WHERE id = ANY($1) AND hls_prefix IS NOT NULL AND state <> 'published'              ON CONFLICT DO NOTHING",
+        )
+        .bind(ids)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "UPDATE video_assets SET state = 'removed', ended_at = COALESCE(ended_at, now()),              updated_at = now() WHERE id = ANY($1) AND state <> 'published'",
+        )
+        .bind(ids)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
 }

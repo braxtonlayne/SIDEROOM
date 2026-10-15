@@ -240,10 +240,18 @@ impl<R: SettingsRepository + 'static> AuditSink for SettingsService<R> {
         reason: Option<&str>,
     ) {
         // The change is already committed; a failed audit write is logged, not surfaced.
-        if let Err(e) = self
-            .record_audit(guild, actor, action, target_id, changes, reason)
-            .await
-        {
+        // D-187: inside a built-in module's handler the entry names the system user and the module.
+        let written = match sr_features::current_module() {
+            Some((id, name)) => {
+                self.record_audit_as_module(guild, action, target_id, changes, reason, (&id, &name))
+                    .await
+            }
+            None => {
+                self.record_audit(guild, actor, action, target_id, changes, reason)
+                    .await
+            }
+        };
+        if let Err(e) = written {
             tracing::warn!(error = %e, ?action, "failed to record audit entry");
         }
     }
@@ -254,8 +262,17 @@ impl<R: SettingsRepository + 'static> AuditSink for SettingsService<R> {
         actor: UserId,
         action: AuditAction,
         target_id: Option<u64>,
-        options: serde_json::Value,
+        mut options: serde_json::Value,
     ) {
+        let mut actor = actor;
+        if let Some((id, name)) = sr_features::current_module() {
+            // D-187: module writes act as the system user and name the module.
+            actor = UserId::new(sr_chat::settings::audit::SYSTEM_USER_ID);
+            if let Some(o) = options.as_object_mut() {
+                o.insert("module".into(), name.into());
+                o.insert("module_id".into(), id.into());
+            }
+        }
         if let Err(e) = self
             .record_audit_with_options(guild, actor, action, target_id, options)
             .await

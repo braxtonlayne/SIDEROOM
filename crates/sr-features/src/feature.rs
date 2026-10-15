@@ -138,6 +138,11 @@ pub trait Feature: Send + Sync + 'static {
     /// Stable id, e.g. "lounge.slowmode_plus".
     fn id(&self) -> &'static str;
     fn meta(&self) -> FeatureMeta;
+    /// Whether the platform-scope flag is exposed to signed-in clients through
+    /// `GET /sr/features/flags` (D-216). Off unless the module says so.
+    fn client_visible(&self) -> bool {
+        false
+    }
     fn settings_schema(&self) -> SettingsSchema;
     fn scopes(&self) -> &[Scope];
     fn on_event<'a>(
