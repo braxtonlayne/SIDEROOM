@@ -646,11 +646,13 @@ async fn contributor_boards_count_live_credits_by_kind_and_honour_opt_outs() {
     let (f1, f2, series, season) = (next_id(), next_id(), next_id(), next_id());
     film(f1).execute(&r.pool).await.unwrap();
     film(f2).execute(&r.pool).await.unwrap();
-    sqlx::query("INSERT INTO video_titles (id, kind, title, sort_title) VALUES ($1, 'series', 'S', 's')")
-        .bind(series)
-        .execute(&r.pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO video_titles (id, kind, title, sort_title) VALUES ($1, 'series', 'S', 's')",
+    )
+    .bind(series)
+    .execute(&r.pool)
+    .await
+    .unwrap();
     sqlx::query("INSERT INTO video_seasons (id, title_id, number) VALUES ($1, $2, 1)")
         .bind(season)
         .bind(series)
@@ -687,22 +689,43 @@ async fn contributor_boards_count_live_credits_by_kind_and_honour_opt_outs() {
     credit("cinema", eps[0], b).execute(&r.pool).await.unwrap();
     credit("cinema", eps[1], c).execute(&r.pool).await.unwrap();
     for _ in 0..3 {
-        credit("library", next_id(), c).execute(&r.pool).await.unwrap();
+        credit("library", next_id(), c)
+            .execute(&r.pool)
+            .await
+            .unwrap();
     }
 
-    let movies = r.repo.leaderboard_contributors(K::Movies, 10).await.unwrap();
+    let movies = r
+        .repo
+        .leaderboard_contributors(K::Movies, 10)
+        .await
+        .unwrap();
     let got: Vec<_> = movies.iter().map(|x| (x.user_id, x.count)).collect();
     // A counts 2 films; B's credit on the series title is also a title row, so it counts as one.
     assert_eq!(got, vec![(a, 2), (b, 1)]);
-    let eps_board = r.repo.leaderboard_contributors(K::Episodes, 10).await.unwrap();
+    let eps_board = r
+        .repo
+        .leaderboard_contributors(K::Episodes, 10)
+        .await
+        .unwrap();
     let want = vec![(b, 1), (c, 1)];
     assert_eq!(
-        eps_board.iter().map(|x| (x.user_id, x.count)).collect::<Vec<_>>(),
+        eps_board
+            .iter()
+            .map(|x| (x.user_id, x.count))
+            .collect::<Vec<_>>(),
         want
     );
-    let ch = r.repo.leaderboard_contributors(K::Chapters, 10).await.unwrap();
+    let ch = r
+        .repo
+        .leaderboard_contributors(K::Chapters, 10)
+        .await
+        .unwrap();
     assert_eq!((ch[0].user_id, ch[0].count), (c, 3));
-    assert_eq!(r.repo.contributor_rank(a, K::Movies).await.unwrap(), Some((1, 2)));
+    assert_eq!(
+        r.repo.contributor_rank(a, K::Movies).await.unwrap(),
+        Some((1, 2))
+    );
     assert_eq!(r.repo.contributor_rank(c, K::Movies).await.unwrap(), None);
 
     // A revoked credit stops counting; an opt-out and a staff hide remove the account.
@@ -711,7 +734,10 @@ async fn contributor_boards_count_live_credits_by_kind_and_honour_opt_outs() {
         .execute(&r.pool)
         .await
         .unwrap();
-    assert_eq!(r.repo.contributor_rank(a, K::Movies).await.unwrap(), Some((1, 1)));
+    assert_eq!(
+        r.repo.contributor_rank(a, K::Movies).await.unwrap(),
+        Some((1, 1))
+    );
     let mut prefs = r.repo.donor_prefs(a).await.unwrap();
     assert!(!prefs.hide_contributions);
     prefs.hide_contributions = true;

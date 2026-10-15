@@ -605,9 +605,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             sr_tv::TvService::new(
                 Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
                 Arc::new(
-                    crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(Arc::new(
-                        crate::tv_catalog::PgAssetDurations::new(pool.clone()),
-                    )),
+                    crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(
+                        Arc::new(crate::tv_catalog::PgAssetDurations::new(pool.clone())),
+                    ),
                 ),
                 clock.clone(),
                 id_src.clone(),

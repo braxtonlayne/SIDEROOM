@@ -9,10 +9,10 @@ Phase 5. Spec: [watch-parties](../specs/watch-parties.md).
 - [x] **WP-BE-004** [GW] Op 100 WATCH_PARTY_SYNC (clock ping/pong, state, control requests), `SR_PARTY_STATE` dispatch (built as HTTP clock and heartbeat endpoints plus WATCH_PARTY_UPDATE and WATCH_PARTY_PLAYBACK dispatches; gateway op 100 stays reserved, see the spec section 7)
 - [x] **WP-BE-005** [BE] Buffering aggregation → auto-pause / continue-after-timeout
 - [x] **WP-BE-006** [BE] Queue (add, reorder, remove, auto-advance)
-- [x] **WP-BE-007** [BE] Limits by server level; age-restriction checks for all members (age checks for every member are done; the party limit is a constant 2 until server levels exist)
+- [x] **WP-BE-007** [BE] Limits by server level; age-restriction checks for all members _(p12: the party limit follows the server level, 2/4/8/16, `EntitlementLimits` over `Entitlements`; Postgres test with a Level 2 server)_
 - [ ] **WP-BE-008** [BE] System message with live-updating party card in the bound channel (partial: the ChatHook port exists but there is no chat message type for the card yet; channels show a live card through the gateway instead)
-- [ ] **WP-BE-009** [BE] Watch Party channel type behavior (persistent theatre, idle end after 5 min empty) (partial: a bound voice channel party can be persistent and otherwise ends 5 minutes after it empties; there is no separate channel type)
-- [ ] **WP-BE-010** [BE] Live TV parties (no seek; follow live edge)
+- [x] **WP-BE-009** [BE] Watch Party channel type behavior (persistent theatre, idle end after 5 min empty) _(D-208: no channel type; the "Watch party room" preset (`sr_watch_party_room` on channel create, create-channel dialog) makes a voice channel with a persistent bound party; a non-persistent bound party ends 5 minutes after it empties)_
+- [x] **WP-BE-010** [BE] Live TV parties (no seek; follow live edge) _(p12: `tv_channel_id` on create and change media, `PlayGate::resolve_live` answered by `sr-tv`; tests in `sr-watchparty` db.rs and `sr-tv` service_tests)_
 
 ## WP-FE — Frontend
 - [x] **WP-FE-001** [FE] Clock-offset estimator + drift correction (rate nudging 0.95/1.05, hard seek > 2s) (apps/web/src/watchparty/sync.ts; the ignore band is 100 ms, not 250 ms, see the handoff)
@@ -22,7 +22,7 @@ Phase 5. Spec: [watch-parties](../specs/watch-parties.md).
 - [x] **WP-FE-005** [FE] People panel (host badge, buffering indicators, kick for host)
 - [x] **WP-FE-006** [FE] Reactions overlay (floating emoji, rate-limited)
 - [x] **WP-FE-007** [FE] Ready check modal
-- [ ] **WP-FE-008** [FE] "Watch together" entry points (title page, Live TV, voice call bar "Start Watch Party", message card) (partial: the title page and the voice call bar are in; Live TV and the message card are not)
+- [ ] **WP-FE-008** [FE] "Watch together" entry points (title page, Live TV, voice call bar "Start Watch Party", message card) (partial: the title page, the voice call bar and Live TV (guide now panel, live player) are in; the message card is not)
 - [x] **WP-FE-009** [FE] Destination picker modal (channels you can post in, DMs, private link)
 - [ ] **WP-FE-010** [FE] Party card in chat (now playing, viewers, Join) (partial: a strip at the top of the channel shows the live party; there is no in-message card)
 - [x] **WP-FE-011** [FE] Mini player + voice continuity when navigating sections

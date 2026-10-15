@@ -370,9 +370,16 @@ async fn block_length_comes_from_the_asset_when_it_is_shorter_than_the_runtime()
     ));
     let pool = cat.pool(&PoolFilter::default(), false, 10).await.unwrap();
     let short = pool.iter().find(|i| i.title_id == film.id).unwrap();
-    assert_eq!(short.duration_ms, 4_830_000, "the asset wins over runtime_min");
+    assert_eq!(
+        short.duration_ms, 4_830_000,
+        "the asset wins over runtime_min"
+    );
     let unprobed = pool.iter().find(|i| i.title_id == other.id).unwrap();
-    assert_eq!(unprobed.duration_ms, 60 * 60_000, "no asset row: runtime_min");
+    assert_eq!(
+        unprobed.duration_ms,
+        60 * 60_000,
+        "no asset row: runtime_min"
+    );
     assert_eq!(
         cat.item(film.id, None).await.unwrap().unwrap().duration_ms,
         4_830_000
@@ -413,6 +420,11 @@ async fn reminders_are_stored_replaced_taken_once_and_follow_the_account() {
         .execute(db.pool())
         .await
         .unwrap();
-    assert!(repo.take_due_reminders(i64::MAX, 10).await.unwrap().is_empty());
+    assert!(
+        repo.take_due_reminders(i64::MAX, 10)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     db.cleanup().await.unwrap();
 }

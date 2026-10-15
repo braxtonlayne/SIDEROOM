@@ -19,7 +19,7 @@ Phase 3. Spec: doc 08, ADR-0006.
 - [x] **DON-ENT-003** [BE] Invite credit purchase → ledger +1
 - [x] **DON-ENT-004** [BE] `effective_limits(user, context)` single source of truth + moka cache + invalidation
 - [x] **DON-ENT-005** [GW] `SR_ENTITLEMENT_UPDATE`
-- [ ] **DON-ENT-006** [BE] Wire limits into: upload slots, voice sender/viewer caps, stream quality caps, audio bitrate, watch party counts, download endpoints *(phase 8: download endpoints are wired through `EntitlementDownloads`; the other call sites read `Entitlements::limits` and are owned by their crates)*
+- [ ] **DON-ENT-006** [BE] Wire limits into: upload slots, voice sender/viewer caps, stream quality caps, audio bitrate, watch party counts, download endpoints *(phase 8: download endpoints are wired through `EntitlementDownloads`; watch party counts follow the server level since p12; the other call sites read `Entitlements::limits` and are owned by their crates)*
 - [x] **DON-ENT-007** [JOB] Expiry/grace job + reminder notifications ("Your Patron perks end in 3 days") *(reminders are `SR_ENTITLEMENT_UPDATE` reason `expiring`; no notification-centre item yet)*
 
 ## DON-UI — Interfaces
@@ -31,9 +31,9 @@ Phase 3. Spec: doc 08, ADR-0006.
 - [ ] **DON-UI-006** [FE] Upgrade hints in limit-hit toasts (upload, camera, stream quality, downloads)
 
 ## DON-LB — Leaderboards
-- [ ] **DON-LB-001** [BE] Leaderboard queries (donors lifetime/30d, servers 30d, contributors movies/episodes/chapters) with privacy flags, cached hourly *(phase 8: donors and servers boards, hourly cache, privacy flags; contributor boards wait for `contribution_credits`, REV-CORE-006)*
-- [ ] **DON-LB-002** [FE] `/support/leaderboards` page (tabs, rank, avatar/name or "Anonymous patron", amount or hidden, your rank) *(phase 8: `/support/leaderboards` has the donors and servers tabs; no avatars yet)*
-- [ ] **DON-LB-003** [FE] Contributor leaderboard links from Cinema & Library footers
+- [x] **DON-LB-001** [BE] Leaderboard queries (donors lifetime/30d, servers 30d, contributors movies/episodes/chapters) with privacy flags, cached hourly *(phase 8: donors and servers boards; p12: `GET /donations/leaderboards/contributors/{kind}` over `contribution_credits`, opt-out `hide_contributions` (0781), staff hide honoured; tests in `sr-api` donations, `sr-db` payments_repo)*
+- [ ] **DON-LB-002** [FE] `/support/leaderboards` page (tabs, rank, avatar/name or "Anonymous patron", amount or hidden, your rank) *(phase 8: `/support/leaderboards` has the donors and servers tabs; p12: movie, episode and chapter contributor tabs; no avatars yet)*
+- [x] **DON-LB-003** [FE] Contributor leaderboard links from Cinema & Library footers *(p12: both footers link to `/support/leaderboards?tab=movies|chapters`)*
 
 ## DON-ADM — Admin
 - [x] **DON-ADM-001** [FE] Wallet config (descriptor, network, Esplora URL, confirmations, test derivation)

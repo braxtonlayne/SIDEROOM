@@ -1178,7 +1178,9 @@ impl TvService {
         self.public_channel(block.channel_id).await?;
         let now = self.clock_ms();
         if block.kind != BlockKind::Program {
-            return Err(TvError::Invalid("Only programmes can have a reminder".into()));
+            return Err(TvError::Invalid(
+                "Only programmes can have a reminder".into(),
+            ));
         }
         if block.start_ms <= now {
             return Err(TvError::Invalid(

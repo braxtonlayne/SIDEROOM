@@ -26,7 +26,8 @@ use sr_db::jobs::{self, Job};
 use sr_db::runner::{HandlerError, JobRunner};
 use sr_payments::Entitlements;
 use sr_watchparty::{
-    ChannelAccess, ChannelKind, ChannelPerms, GateError, GuildLimits, PartyService, PlayGate, Resolved,
+    ChannelAccess, ChannelKind, ChannelPerms, GateError, GuildLimits, PartyService, PlayGate,
+    Resolved,
 };
 
 /// The catalog play check for parties.

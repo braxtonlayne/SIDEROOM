@@ -237,6 +237,7 @@ GET	/directory/{guild_id}	authenticated	other	deny	-
 GET	/donations/config	authenticated	other	allow	-
 GET	/donations/invoices	authenticated	other	allow	-
 GET	/donations/invoices/{invoice_id}	authenticated	other	allow	-
+GET	/donations/leaderboards/contributors/{kind}	authenticated	other	allow	-
 GET	/donations/leaderboards/{board}	authenticated	other	allow	-
 GET	/donations/me	authenticated	other	allow	-
 GET	/gateway	public	none	allow	-

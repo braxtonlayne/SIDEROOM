@@ -1476,21 +1476,26 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
     ));
     // A restricted programme needs the age confirmation.
     assert_eq!(
-        e.svc
-            .create(e.v(minor).await, live(78))
-            .await
-            .unwrap_err(),
+        e.svc.create(e.v(minor).await, live(78)).await.unwrap_err(),
         PartyError::AgeConfirmationRequired
     );
 
     let party = e.svc.create(v, live(77)).await.unwrap();
     assert!(party.media.live && party.playback.live);
     assert_eq!(party.media.title_id, 77);
-    assert!(party.playback.playing, "a live party starts on the live edge");
+    assert!(
+        party.playback.playing,
+        "a live party starts on the live edge"
+    );
     assert_eq!(party.playback.duration_ms, None);
     // Seeking and pausing are refused for everybody.
     assert!(e.svc.command(v, party.id, seek(10_000)).await.is_err());
-    assert!(e.svc.command(v, party.id, cmd(Action::Pause)).await.is_err());
+    assert!(
+        e.svc
+            .command(v, party.id, cmd(Action::Pause))
+            .await
+            .is_err()
+    );
     // Switching to a film and back works for the host.
     let film = e
         .svc

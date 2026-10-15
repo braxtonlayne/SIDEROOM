@@ -541,7 +541,11 @@ pub async fn contributor_leaderboard(
 ) -> ApiResult<Json<ContributorBoardView>> {
     let Some(which) = ContributionKind::parse(&kind) else {
         return Err(ApiError::invalid_form()
-            .field("kind", "ENUM_TYPE_INVALID", "Use movies, episodes or chapters.")
+            .field(
+                "kind",
+                "ENUM_TYPE_INVALID",
+                "Use movies, episodes or chapters.",
+            )
             .into());
     };
     let repo = ctx.svc().repo();
@@ -569,7 +573,10 @@ pub async fn contributor_leaderboard(
                 })
                 .collect();
             let entry = Arc::new((now_ms(), items));
-            ctx.deps.contributors.insert(kind.clone(), entry.clone()).await;
+            ctx.deps
+                .contributors
+                .insert(kind.clone(), entry.clone())
+                .await;
             entry
         }
     };

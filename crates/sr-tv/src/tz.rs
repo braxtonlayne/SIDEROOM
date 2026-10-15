@@ -185,7 +185,10 @@ mod tests {
         assert!(Zone::parse("").is_none());
         assert!(Zone::parse("EST5EDT,M3.2.0,M11.1.0").is_none());
         for n in &names {
-            assert_eq!(Zone::parse(n).unwrap().name().to_lowercase(), n.to_lowercase());
+            assert_eq!(
+                Zone::parse(n).unwrap().name().to_lowercase(),
+                n.to_lowercase()
+            );
         }
     }
 

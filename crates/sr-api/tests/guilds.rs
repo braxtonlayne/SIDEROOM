@@ -1562,7 +1562,10 @@ async fn the_watch_party_room_preset_is_validated_before_anything_is_created() {
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
-    assert!(body["errors"]["sr_watch_party_title_id"].is_object(), "{body}");
+    assert!(
+        body["errors"]["sr_watch_party_title_id"].is_object(),
+        "{body}"
+    );
 
     // The preset is for people (this fixture's callers are bots), and it is refused before anything is made.
     let (s, body) = post(

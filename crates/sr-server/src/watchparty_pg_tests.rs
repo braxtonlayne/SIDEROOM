@@ -425,7 +425,10 @@ async fn a_watch_party_room_is_a_persistent_party_that_outlives_its_creator() {
         .join(v(other).await, party.id, JoinInput::default())
         .await
         .unwrap();
-    assert_eq!(joined.host_id, other, "the first person into an empty room hosts");
+    assert_eq!(
+        joined.host_id, other,
+        "the first person into an empty room hosts"
+    );
     r.db.cleanup().await.unwrap();
 }
 

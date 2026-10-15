@@ -686,7 +686,11 @@ async fn a_reminder_can_be_cancelled_and_a_lead_can_be_chosen() {
     e.svc.clear_reminder(ADULT, block).await.unwrap();
     e.svc.clear_reminder(ADULT, block).await.unwrap();
     e.clock.advance_ms(20 * MIN);
-    assert_eq!(e.svc.fire_reminders(&sink).await.unwrap(), 1, "10 minutes before 20:30");
+    assert_eq!(
+        e.svc.fire_reminders(&sink).await.unwrap(),
+        1,
+        "10 minutes before 20:30"
+    );
     assert!(matches!(
         sink.seen.lock().unwrap()[0],
         crate::service::ReminderNotice::Starting { account_id: 5, .. }
@@ -769,9 +773,15 @@ async fn the_watch_party_gate_resolves_live_channels_only() {
         e.svc.resolve(true, 7, None, None).await,
         Err(GateError::NotFound)
     );
-    assert_eq!(e.svc.resolve_live(true, 4242).await, Err(GateError::NotFound));
+    assert_eq!(
+        e.svc.resolve_live(true, 4242).await,
+        Err(GateError::NotFound)
+    );
     let empty = channel(&e, 200, ChannelRules::default()).await;
-    assert_eq!(e.svc.resolve_live(true, empty).await, Err(GateError::NotFound));
+    assert_eq!(
+        e.svc.resolve_live(true, empty).await,
+        Err(GateError::NotFound)
+    );
     let mut off = input(101, marathon());
     off.enabled = false;
     e.svc.update_channel(e.staff, id, off).await.unwrap();

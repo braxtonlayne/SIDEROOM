@@ -10,9 +10,9 @@ Synchronized playback of Cinema content (VOD or a Live TV channel) for a group, 
 |---|---|
 | Title page → **Watch together** | Choose: a Lounge text/voice channel you can post in, a DM/group DM, or "Private party" (shareable link to friends) |
 | Lounge voice channel → **Start Watch Party** (call bar button) | Party bound to that voice channel. Voice continues as normal (E2EE call) |
-| **Watch Party channel** type (server) | A voice channel variant whose main view is the theatre. The party persists while anyone is in it |
+| **Watch party room** preset (create-channel dialog, D-208) | There is no channel type of its own: `POST /guilds/{id}/channels {type: 2, sr_watch_party_room: true, sr_watch_party_title_id, sr_watch_party_episode_id?}` creates the voice channel and a persistent party bound to it in one request (the new channel is removed again when the party cannot start). The creator is not left in the party; the first person to join the empty room becomes host |
 | Lounge message `<cinema:…>` card → **Watch together** | Starts a party in that channel |
-| Live TV → **Watch together** | Party on a live channel (no seeking; everyone on the live edge) |
+| Live TV → **Watch together** (guide now panel, live player) | Party on a live channel: `POST /watch-parties {tv_channel_id}` (instead of `title_id`). The media has `live: true`, `title_id` and `asset_id` carry the TV channel id, there is no duration, nobody seeks or pauses, and every participant tunes the channel themselves (`GET /tv/channels/{id}/tune`, age check included). `PUT /watch-parties/{id}/media {tv_channel_id}` switches a party to a channel; a live channel cannot be queued. `sr-tv` answers the `PlayGate::resolve_live` check |
 
 A system message in the channel ("@host started a watch party: *Akira* ▶ Join") updates live (viewers count, now playing).
 
@@ -100,4 +100,4 @@ session, and use snowflakes as decimal strings. Times are unix milliseconds on t
 Events are hints for latency; the heartbeat answer and `GET /watch-parties/{id}` are the repair path.
 
 ### 7.4 Not in this build
-A dedicated "Watch Party" channel *type* (a bound voice channel with `persistent` covers the behaviour), the live-updating chat card (the `ChatHook` port exists; no chat message type for it yet), Live TV parties (the `live` flag and rules exist; the Live TV catalog supplies the gate when it lands), and per-server limits by level (a constant 2 until server levels exist).
+A dedicated "Watch Party" channel *type* (D-208: the "Watch party room" preset covers it) and the live-updating chat card (the `ChatHook` port exists; no chat message type for it yet). Concurrent parties per server follow the server level (2, 4, 8, 16 for Level 0 to 3, `sr_server::watchparty::EntitlementLimits` over `Entitlements`, refreshed on `SR_ENTITLEMENT_UPDATE`).

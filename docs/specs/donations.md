@@ -121,9 +121,10 @@ installation has no wallet or `enabled` is false: 403 `SR_FEATURE_DISABLED` on c
 | `POST /donations/invoices/{id}/check` | | the "I've paid" button: polls this invoice now (at most once per 10 s per invoice), returns `Invoice` |
 | `POST /donations/invoices/{id}/cancel` | | 200 `Invoice`; only `open` with nothing received (409 otherwise) |
 | `GET /donations/me` | | `{patron:{active,in_grace,permanent,until_ms,started_ms}, limits, preferences}` |
-| `PATCH /donations/me/preferences` | `{hide_name?, hide_amount?, hide_badge?}` | preferences |
+| `PATCH /donations/me/preferences` | `{hide_name?, hide_amount?, hide_badge?, hide_contributions?}` | preferences (`hide_contributions` keeps the account off the contributor boards) |
 | `GET /guilds/{id}/support` | | `{level, pool_cents, next_threshold_cents, grace_until_ms, perks, top_contributors:[{user_id?, name?, cents?}], hidden_from_leaderboard}` (members only) |
 | `PATCH /guilds/{id}/support` | `{hidden_from_leaderboard}` | guild owner only (403 for other members, 404 for non-members) |
+| `GET /donations/leaderboards/contributors/{kind}` | kind `movies` \| `episodes` (Cinema) \| `chapters` (Library); `limit` (<= 100) | `{kind, items:[{rank, user_id, name, avatar?, count}], me:{rank, count}\|null, generated_at_ms}` over `contribution_credits` (credits that were not revoked; a Cinema credit counts as a movie when its item is a title and as an episode when it is an episode). Accounts that opted out or were hidden by staff are left out; cached 1 h, dropped at once when someone opts out |
 | `GET /donations/leaderboards/{board}` | board `donors` \| `servers`; `window` `30d`\|`lifetime`; `limit` (<= 100) | `{board, window, items:[{rank, user_id?, guild_id?, name, avatar?, cents?, anonymous}], me:{rank, cents?}\|null, generated_at_ms}` cached 1 h. Hidden names read "Anonymous patron", hidden amounts are omitted |
 
 `Invoice`: `{id, purpose, state, usd_cents, sats, btc, address, bip21, network, guild_id, months, credits, anonymous,

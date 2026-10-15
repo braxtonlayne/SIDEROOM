@@ -266,7 +266,11 @@ async fn every_route_needs_a_session_and_admin_routes_need_the_permission() {
             Some(json!({"hidden_from_leaderboard": true})),
         ),
         (Method::GET, "/donations/leaderboards/donors", None),
-        (Method::GET, "/donations/leaderboards/contributors/movies", None),
+        (
+            Method::GET,
+            "/donations/leaderboards/contributors/movies",
+            None,
+        ),
     ];
     for (m, p, b) in &member {
         let (s, _) = e.call(None, m.clone(), p, b.clone()).await;
@@ -647,11 +651,18 @@ async fn contributor_boards_rank_cache_and_honour_the_opt_out() {
         .iter()
         .map(|i| (i["name"].as_str().unwrap(), i["count"].as_i64().unwrap()))
         .collect();
-    assert_eq!(names, [("Bob", 5), ("Carol", 5), ("Alice", 3)], "ties by account id");
+    assert_eq!(
+        names,
+        [("Bob", 5), ("Carol", 5), ("Alice", 3)],
+        "ties by account id"
+    );
     assert_eq!(b["me"]["rank"], 3);
     assert_eq!(b["kind"], "movies");
     let (_, ch) = e
-        .get(ALICE, "/donations/leaderboards/contributors/chapters?limit=1")
+        .get(
+            ALICE,
+            "/donations/leaderboards/contributors/chapters?limit=1",
+        )
         .await;
     assert_eq!(ch["items"][0]["count"], 40);
     assert_eq!(ch["me"]["rank"], 1);
@@ -685,7 +696,9 @@ async fn contributor_boards_rank_cache_and_honour_the_opt_out() {
             .all(|i| i["name"] != "Bob")
     );
     assert_eq!(
-        e.get(ALICE, "/donations/leaderboards/contributors/nope").await.0,
+        e.get(ALICE, "/donations/leaderboards/contributors/nope")
+            .await
+            .0,
         StatusCode::BAD_REQUEST
     );
 }
