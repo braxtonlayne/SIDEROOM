@@ -7,6 +7,7 @@ use crate::{
     error::{AdminError, AdminResult},
     ext::{
         Announcement, AnnouncementInput, AnnouncementPatch, AnnouncementSeverity, Delegation,
+        ENTRANCE_COPY_KEYS, ENTRANCE_COPY_MAX_CHARS,
         NewAnnouncement, NewOffer, OFFER_TTL_MS, OfferState, PrivateChannel, PrivateMessagePage,
         StaffAlertRow, StaffExtrasRepository, StaffOffer,
     },
@@ -974,6 +975,49 @@ impl AdminService {
             Some(x) => x.active_announcements(self.now_ms()).await,
             None => Ok(Vec::new()),
         }
+    }
+
+    // ===== entrance copy ===================================================
+
+    /// Copy blocks the operator overrode; anything missing uses the client's default. Public.
+    pub async fn entrance_copy(&self) -> AdminResult<std::collections::BTreeMap<String, String>> {
+        match &self.extras {
+            Some(x) => x.entrance_copy().await,
+            None => Ok(Default::default()),
+        }
+    }
+
+    /// Set (or with an empty `markdown` reset) one Entrance copy block (`MANAGE_FEATURES`). Audited
+    /// with the key and length, not the text.
+    pub async fn set_entrance_copy(
+        &self,
+        c: &Caller,
+        key: &str,
+        markdown: Option<&str>,
+        reason: Option<&str>,
+    ) -> AdminResult<()> {
+        self.require(c, P::MANAGE_FEATURES, "entrance.copy").await?;
+        if !ENTRANCE_COPY_KEYS.contains(&key) {
+            return Err(AdminError::NotFound("copy block"));
+        }
+        let markdown = markdown.map(str::trim).filter(|m| !m.is_empty());
+        if markdown.is_some_and(|m| m.chars().count() > ENTRANCE_COPY_MAX_CHARS) {
+            return Err(AdminError::Invalid(format!(
+                "at most {ENTRANCE_COPY_MAX_CHARS} characters"
+            )));
+        }
+        let reason = Self::optional_reason(reason)?;
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "entrance.copy",
+            None,
+            &reason,
+            json!({ "key": key, "chars": markdown.map(|m| m.chars().count()), "reset": markdown.is_none() }),
+        );
+        self.extras()?
+            .set_entrance_copy(key, markdown, c.user_id, &audit)
+            .await
     }
 
     // ===== alerts ==========================================================

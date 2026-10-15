@@ -344,6 +344,18 @@ pub trait StaffExtrasRepository: Send + Sync {
     /// Announcements showing at `now_ms`.
     async fn active_announcements(&self, now_ms: i64) -> AdminResult<Vec<Announcement>>;
 
+    // ---- entrance copy (ENT-UI-025)
+    /// Every overridden copy block, key to markdown.
+    async fn entrance_copy(&self) -> AdminResult<std::collections::BTreeMap<String, String>>;
+    /// Store `markdown` for `key`, or drop the override with `None` (back to the default).
+    async fn set_entrance_copy(
+        &self,
+        key: &str,
+        markdown: Option<&str>,
+        by: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<()>;
+
     // ---- alerts
     async fn record_alert(&self, kind: &str, detail: &str) -> AdminResult<StaffAlertRow>;
     async fn recent_alerts(&self, limit: i64) -> AdminResult<Vec<StaffAlertRow>>;
@@ -378,3 +390,16 @@ pub trait StaffNotifier: Send + Sync {
     /// background; the implementation must not block the caller.
     fn broadcast_announcement(&self, a: &Announcement);
 }
+
+/// The Entrance copy blocks an operator may override (ENT-UI-025). The client serves its own
+/// default for any block that has no override.
+pub const ENTRANCE_COPY_KEYS: &[&str] = &[
+    "no-invitation",
+    "house-notes",
+    "landing-headline",
+    "landing-subhead",
+    "login-notice",
+];
+
+/// Longest copy block, in characters.
+pub const ENTRANCE_COPY_MAX_CHARS: usize = 20_000;

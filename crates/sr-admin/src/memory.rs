@@ -66,6 +66,7 @@ struct State {
     delegations: Vec<Delegation>,
     offers: Vec<StaffOffer>,
     announcements: Vec<Announcement>,
+    entrance_copy: std::collections::BTreeMap<String, String>,
     alerts: Vec<StaffAlertRow>,
     private_channels: Vec<PrivateChannel>,
     private_messages: Vec<(i64, PrivateMessage)>,
@@ -1446,6 +1447,31 @@ impl StaffExtrasRepository for MemoryAdminRepo {
         let out = a.clone();
         audit_in(&mut s, now, audit);
         Ok(out)
+    }
+
+    async fn entrance_copy(&self) -> AdminResult<std::collections::BTreeMap<String, String>> {
+        Ok(self.s().entrance_copy.clone())
+    }
+
+    async fn set_entrance_copy(
+        &self,
+        key: &str,
+        markdown: Option<&str>,
+        _by: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<()> {
+        let now = self.now();
+        let mut s = self.s();
+        match markdown {
+            Some(m) => {
+                s.entrance_copy.insert(key.to_owned(), m.to_owned());
+            }
+            None => {
+                s.entrance_copy.remove(key);
+            }
+        }
+        audit_in(&mut s, now, audit);
+        Ok(())
     }
 
     async fn get_announcement(&self, id: i64) -> AdminResult<Announcement> {

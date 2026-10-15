@@ -15,7 +15,7 @@ use serde_json::json;
 use sr_api::routes::messages::MessagesDeps;
 use sr_api::routes::social::SocialDeps;
 use sr_chat::social::notifications::{
-    MentionKind, NotificationLevel, NotifyDecision, NotifyInput, NotifyReason,
+    MentionKind, NotificationLevel, matches_keyword, NotifyDecision, NotifyInput, NotifyReason,
 };
 use sr_chat::{Message, MessageType};
 use sr_core::{GuildId, MessageId, UserId};
@@ -240,11 +240,17 @@ impl PushNotifier {
                     .unwrap_or_default(),
                 None => Vec::new(),
             };
+            let keywords = self
+                .social
+                .service
+                .notification_keywords(user)
+                .await
+                .unwrap_or_default();
             let input = NotifyInput {
                 kind: mention_kind(&msg, user, &roles, reply_author),
                 is_dm: guild.is_none(),
                 followed_thread: followers.contains(&raw),
-                keyword_hit: false,
+                keyword_hit: matches_keyword(&msg.content, &keywords),
             };
             let decision = self
                 .social

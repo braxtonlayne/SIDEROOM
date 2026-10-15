@@ -20,6 +20,7 @@ mod accounts_ext;
 mod announce;
 pub use announce::press_review_button;
 mod ctx;
+mod entrance;
 mod invites;
 mod private;
 mod staff;
@@ -179,6 +180,11 @@ pub fn router() -> Router<AppState> {
             axum::routing::delete(announce::end).patch(announce::edit),
         )
         .route("/announcements/active", get(announce::active))
+        .route("/sr/entrance/copy", get(entrance::get_copy))
+        .route(
+            "/admin/entrance/copy/{key}",
+            axum::routing::put(entrance::put_copy),
+        )
         .route("/admin/alerts", get(announce::alerts))
         .route("/admin/alerts/{alert_id}/ack", post(announce::ack))
         .route("/admin/card-actions", post(announce::card_action))
@@ -216,6 +222,8 @@ pub fn router() -> Router<AppState> {
         announce::end,
         announce::edit,
         announce::active,
+        entrance::get_copy,
+        entrance::put_copy,
         announce::alerts,
         announce::ack,
         announce::card_action,
@@ -268,6 +276,7 @@ pub fn router() -> Router<AppState> {
         private::ReauthBody,
         announce::AnnounceBody,
         announce::EditAnnouncementBody,
+        entrance::EntranceCopyBody,
         announce::CardActionBody,
         sr_admin::StaffOffer,
         sr_admin::OfferState,

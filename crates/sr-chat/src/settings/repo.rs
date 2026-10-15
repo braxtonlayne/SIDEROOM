@@ -56,6 +56,8 @@ pub trait AuditRepository: Send + Sync {
 pub trait ExpressionRepository: Send + Sync {
     async fn list_emoji(&self, guild: GuildId) -> RepoResult<Vec<Emoji>>;
     async fn get_emoji(&self, guild: GuildId, id: EmojiId) -> RepoResult<Option<Emoji>>;
+    /// An emoji by id alone, whichever server owns it (the emoji popout for non-members).
+    async fn find_emoji(&self, id: EmojiId) -> RepoResult<Option<Emoji>>;
     async fn insert_emoji(&self, emoji: &Emoji) -> RepoResult<()>;
     async fn update_emoji(&self, emoji: &Emoji) -> RepoResult<()>;
     async fn delete_emoji(&self, guild: GuildId, id: EmojiId) -> RepoResult<bool>;

@@ -105,8 +105,22 @@ pub struct PartialEmoji {
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ReactionObject {
     pub emoji: PartialEmoji,
+    /// Normal and burst reactions together (Discord parity).
     pub count: u32,
+    pub count_details: ReactionCountDetails,
+    /// The viewer reacted normally.
     pub me: bool,
+    /// The viewer reacted with a burst.
+    pub me_burst: bool,
+    /// Always empty; bursts have no colour effect yet.
+    pub burst_colors: Vec<String>,
+}
+
+/// Normal vs burst reaction counts.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ReactionCountDetails {
+    pub burst: u32,
+    pub normal: u32,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -211,8 +225,14 @@ impl MessageObject {
                         id: r.emoji.id.map(|i| i.to_string()),
                         name: r.emoji.name.clone(),
                     },
-                    count: r.count,
+                    count: r.count.saturating_add(r.burst_count),
+                    count_details: ReactionCountDetails {
+                        burst: r.burst_count,
+                        normal: r.count,
+                    },
                     me: r.me,
+                    me_burst: r.me_burst,
+                    burst_colors: Vec::new(),
                 })
                 .collect(),
             nonce,
@@ -375,6 +395,17 @@ pub struct ListMessagesQuery {
 pub struct ReactionUsersQuery {
     pub limit: Option<u32>,
     pub after: Option<String>,
+    /// 0 normal (default) or 1 burst.
+    #[serde(rename = "type")]
+    pub kind: Option<u8>,
+}
+
+/// Query of the add and remove reaction routes.
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+pub struct ReactionTypeQuery {
+    /// 0 normal (default) or 1 burst.
+    #[serde(rename = "type")]
+    pub kind: Option<u8>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]

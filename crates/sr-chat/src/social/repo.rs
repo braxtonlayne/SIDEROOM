@@ -232,6 +232,9 @@ pub trait UserSettingsRepository: Send + Sync {
         user: UserId,
         level: Option<NotificationLevel>,
     ) -> RepoResult<()>;
+    /// The user's keyword highlights.
+    async fn get_notification_keywords(&self, user: UserId) -> RepoResult<Vec<String>>;
+    async fn put_notification_keywords(&self, user: UserId, keywords: &[String]) -> RepoResult<()>;
 }
 
 /// Everything the service needs.

@@ -2,7 +2,7 @@
 
 use super::deps::{Access, MessagesDeps};
 use super::error::{ApiQuery, MsgError, MsgResult, invalid, parse_id};
-use super::model::{ReactionUsersQuery, UserListEntry};
+use super::model::{ReactionTypeQuery, ReactionUsersQuery, UserListEntry};
 use super::render::actor;
 use super::store::EmojiKey;
 use crate::routes::Ext;
@@ -57,6 +57,7 @@ fn guild_of(t: &Target) -> Option<sr_events::GuildId> {
         ("channel_id" = String, Path, description = "Channel snowflake"),
         ("message_id" = String, Path, description = "Message snowflake"),
         ("emoji" = String, Path, description = "Unicode emoji, or `name:id` for custom emoji (URL-encoded)"),
+        ("type" = Option<u8>, Query, description = "0 normal (default) or 1 burst; a member may hold both for one emoji"),
     ),
     responses(
         (status = 204),
@@ -70,7 +71,9 @@ pub async fn add_own(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji)): Path<(String, String, String)>,
+    ApiQuery(q): ApiQuery<ReactionTypeQuery>,
 ) -> MsgResult<StatusCode> {
+    let burst = is_burst(q.kind)?;
     let t = target(&deps, &p, &channel, &message).await?;
     let emoji = emoji(&raw_emoji)?;
     let existing = deps
@@ -87,9 +90,23 @@ pub async fn add_own(
         existing.len(),
         &deps.limits,
     )?;
+    if burst && existing.iter().filter(|r| r.me_burst).count() >= MAX_BURST_PER_MEMBER {
+        return Err(invalid(
+            "type",
+            "BASE_TYPE_MAX_LENGTH",
+            "At most 3 burst reactions per member on one message.",
+        ));
+    }
     let added = deps
         .store
-        .add_reaction(t.channel, t.message.id, t.user, &emoji, deps.now_ms())
+        .add_reaction(
+            t.channel,
+            t.message.id,
+            t.user,
+            &emoji,
+            burst,
+            deps.now_ms(),
+        )
         .await?;
     if added {
         deps.publish(DomainEvent::ReactionAdded {
@@ -98,10 +115,27 @@ pub async fn add_own(
             message_id: t.message.id.get(),
             user: t.user,
             emoji: emoji.json(),
+            burst,
         })
         .await;
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Most burst reactions one member may keep on a message. Owner decision pending on a
+/// Patron allowance; this is the conservative default for everyone.
+const MAX_BURST_PER_MEMBER: usize = 3;
+
+fn is_burst(kind: Option<u8>) -> MsgResult<bool> {
+    match kind {
+        None | Some(0) => Ok(false),
+        Some(1) => Ok(true),
+        Some(_) => Err(invalid(
+            "type",
+            "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+            "Must be 0 (normal) or 1 (burst).",
+        )),
+    }
 }
 
 async fn remove_for(
@@ -109,11 +143,12 @@ async fn remove_for(
     t: &Target,
     owner: UserId,
     emoji: &EmojiKey,
+    burst: bool,
 ) -> MsgResult<StatusCode> {
     validate_remove_reaction(t.user, owner, t.acc.perms)?;
     if !deps
         .store
-        .remove_reaction(t.message.id, owner, emoji)
+        .remove_reaction(t.message.id, owner, emoji, burst)
         .await?
     {
         return Err(ErrorCode::UnknownEmoji.into());
@@ -124,6 +159,7 @@ async fn remove_for(
         message_id: t.message.id.get(),
         user: owner,
         emoji: emoji.json(),
+        burst,
     })
     .await;
     Ok(StatusCode::NO_CONTENT)
@@ -137,6 +173,7 @@ async fn remove_for(
         ("channel_id" = String, Path, description = "Channel snowflake"),
         ("message_id" = String, Path, description = "Message snowflake"),
         ("emoji" = String, Path, description = "Unicode emoji, or `name:id`"),
+        ("type" = Option<u8>, Query, description = "0 normal (default) or 1 burst"),
     ),
     responses((status = 204), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
@@ -145,10 +182,12 @@ pub async fn remove_own(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji)): Path<(String, String, String)>,
+    ApiQuery(q): ApiQuery<ReactionTypeQuery>,
 ) -> MsgResult<StatusCode> {
+    let burst = is_burst(q.kind)?;
     let t = target(&deps, &p, &channel, &message).await?;
     let emoji = emoji(&raw_emoji)?;
-    remove_for(&deps, &t, t.user, &emoji).await
+    remove_for(&deps, &t, t.user, &emoji, burst).await
 }
 
 /// Remove another user's reaction (MANAGE_MESSAGES).
@@ -160,6 +199,7 @@ pub async fn remove_own(
         ("message_id" = String, Path, description = "Message snowflake"),
         ("emoji" = String, Path, description = "Unicode emoji, or `name:id`"),
         ("user_id" = String, Path, description = "User snowflake"),
+        ("type" = Option<u8>, Query, description = "0 normal (default) or 1 burst"),
     ),
     responses((status = 204), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
@@ -168,11 +208,13 @@ pub async fn remove_user(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji, user)): Path<(String, String, String, String)>,
+    ApiQuery(q): ApiQuery<ReactionTypeQuery>,
 ) -> MsgResult<StatusCode> {
+    let burst = is_burst(q.kind)?;
     let t = target(&deps, &p, &channel, &message).await?;
     let emoji = emoji(&raw_emoji)?;
     let owner: UserId = parse_id(&user, ErrorCode::UnknownUser)?;
-    remove_for(&deps, &t, owner, &emoji).await
+    remove_for(&deps, &t, owner, &emoji, burst).await
 }
 
 /// List the users who reacted with an emoji.
@@ -185,6 +227,7 @@ pub async fn remove_user(
         ("emoji" = String, Path, description = "Unicode emoji, or `name:id`"),
         ("limit" = Option<u32>, Query, description = "1-100, default 25"),
         ("after" = Option<String>, Query, description = "User id to start after"),
+        ("type" = Option<u8>, Query, description = "0 normal (default) or 1 burst"),
     ),
     responses((status = 200, body = Vec<UserListEntry>), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
@@ -219,7 +262,7 @@ pub async fn list_users(
         .map_err(|_| invalid("after", "NUMBER_TYPE_COERCE", "Value is not snowflake."))?;
     let users = deps
         .store
-        .reaction_users(t.message.id, &emoji, after, limit)
+        .reaction_users(t.message.id, &emoji, is_burst(q.kind)?, after, limit)
         .await?;
     Ok(Json(
         users

@@ -451,6 +451,18 @@ impl ExpressionRepository for PgSettingsRepo {
             .transpose()
     }
 
+    async fn find_emoji(&self, id: EmojiId) -> RepoResult<Option<Emoji>> {
+        let sql = format!("SELECT {} FROM emojis WHERE id = $1", emoji_cols());
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(i(id.get()))
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?
+            .as_ref()
+            .map(emoji_from)
+            .transpose()
+    }
+
     async fn insert_emoji(&self, e: &Emoji) -> RepoResult<()> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         sqlx::query(

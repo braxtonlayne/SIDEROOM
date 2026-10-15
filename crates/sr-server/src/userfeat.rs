@@ -343,7 +343,14 @@ impl Poster for SystemPoster {
         match self
             .messages
             .store
-            .add_reaction(channel, message, system(), &key, self.messages.now_ms())
+            .add_reaction(
+                channel,
+                message,
+                system(),
+                &key,
+                false,
+                self.messages.now_ms(),
+            )
             .await
         {
             Ok(true) => {
@@ -354,6 +361,7 @@ impl Poster for SystemPoster {
                         message_id: message.get(),
                         user: system(),
                         emoji: key.json(),
+                        burst: false,
                     })
                     .await;
             }

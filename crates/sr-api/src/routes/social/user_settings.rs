@@ -340,3 +340,58 @@ pub async fn patch_privacy(
     .await;
     Ok(Json(out))
 }
+
+/// The caller's highlight keywords.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct NotificationKeywordsObject {
+    /// Words or phrases (at most 50, 100 characters each). A message containing one as a whole
+    /// word (any case) notifies like a mention, unless the server or channel suppresses highlights.
+    pub keywords: Vec<String>,
+}
+
+/// The caller's keyword highlight list (empty by default).
+#[utoipa::path(
+    get,
+    path = "/users/@me/notification-keywords",
+    responses((status = 200, body = NotificationKeywordsObject)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_notification_keywords(
+    p: Principal,
+    Ext(deps): Ext<SocialDeps>,
+) -> MsgResult<Json<NotificationKeywordsObject>> {
+    let me = actor(&p)?;
+    Ok(Json(NotificationKeywordsObject {
+        keywords: deps.service.notification_keywords(me).await?,
+    }))
+}
+
+/// Replace the keyword list. Entries are trimmed; blanks and duplicates (any case) are dropped.
+/// Publishes `SR_NOTIFICATION_KEYWORDS_UPDATE` to the caller's sessions.
+#[utoipa::path(
+    put,
+    path = "/users/@me/notification-keywords",
+    request_body = NotificationKeywordsObject,
+    responses((status = 200, body = NotificationKeywordsObject), (status = 400, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn put_notification_keywords(
+    p: Principal,
+    Ext(deps): Ext<SocialDeps>,
+    ApiJson(body): ApiJson<NotificationKeywordsObject>,
+) -> MsgResult<Json<NotificationKeywordsObject>> {
+    let me = actor(&p)?;
+    let out = NotificationKeywordsObject {
+        keywords: deps
+            .service
+            .set_notification_keywords(me, &body.keywords)
+            .await?,
+    };
+    deps.emit(SocialEvent::new(
+        "SR_NOTIFICATION_KEYWORDS_UPDATE",
+        vec![me],
+        serde_json::to_value(&out).unwrap_or(Value::Null),
+    ))
+    .await;
+    Ok(Json(out))
+}

@@ -51,6 +51,8 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/users/@me/settings")
         || p.starts_with("/users/@me/notification-defaults")
         || p.starts_with("/users/@me/privacy")
+        || p.starts_with("/users/@me/notification-keywords")
+        || p.starts_with("/users/@me/age-confirmation")
         || p.starts_with("/users/@me/notes")
         || p.starts_with("/users/@me/ignores")
         || p.starts_with("/users/@me/connections")

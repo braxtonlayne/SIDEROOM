@@ -1839,6 +1839,86 @@ async fn privacy_settings_round_trip_and_gate_friend_requests() {
     assert_eq!(s, StatusCode::NO_CONTENT);
 }
 
+
+#[tokio::test]
+async fn safety_settings_round_trip_and_validate() {
+    let e = env().await;
+    let (_, v) = e.get("/users/@me/privacy", DAVE).await;
+    assert_eq!(
+        v["sensitive_media"],
+        json!({"friends": "show", "others": "blur", "servers": "show"})
+    );
+    assert_eq!(v["dm_spam_filter"], false);
+    assert_eq!(v["server_dm_overrides"], json!({}));
+
+    let (s, v) = e
+        .patch(
+            "/users/@me/privacy",
+            DAVE,
+            json!({"sensitive_media": {"others": "block"}, "dm_spam_filter": true,
+                   "server_dm_overrides": {"70": false, "71": true}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["sensitive_media"]["others"], "block");
+    assert_eq!(v["sensitive_media"]["friends"], "show", "untouched");
+    assert_eq!(v["server_dm_overrides"], json!({"70": false, "71": true}));
+    assert_eq!(v["message_requests"], true);
+
+    // null removes one override.
+    let (_, v) = e
+        .patch(
+            "/users/@me/privacy",
+            DAVE,
+            json!({"server_dm_overrides": {"71": null}}),
+        )
+        .await;
+    assert_eq!(v["server_dm_overrides"], json!({"70": false}));
+    assert_eq!(e.get("/users/@me/privacy", DAVE).await.1, v);
+
+    for bad in [
+        json!({"sensitive_media": {"friends": "hide"}}),
+        json!({"server_dm_overrides": {"abc": true}}),
+        json!({"server_dm_overrides": {"0": true}}),
+    ] {
+        let (s, _) = e.patch("/users/@me/privacy", DAVE, bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+}
+
+#[tokio::test]
+async fn notification_keywords_are_cleaned_and_capped() {
+    let e = env().await;
+    let (s, v) = e.get("/users/@me/notification-keywords", ALICE).await;
+    assert_eq!((s, &v["keywords"]), (StatusCode::OK, &json!([])));
+
+    let (s, v) = e
+        .put(
+            "/users/@me/notification-keywords",
+            ALICE,
+            Some(json!({"keywords": ["  Deploy  ", "deploy", "red   alert", "", "  "]})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["keywords"], json!(["Deploy", "red alert"]));
+    assert_eq!(e.get("/users/@me/notification-keywords", ALICE).await.1, v);
+    // Per user.
+    assert_eq!(
+        e.get("/users/@me/notification-keywords", DAVE).await.1["keywords"],
+        json!([])
+    );
+    for bad in [
+        json!({"keywords": ["!!!"]}),
+        json!({"keywords": ["x".repeat(101)]}),
+        json!({"keywords": (0..51).map(|i| format!("word{i}")).collect::<Vec<_>>()}),
+    ] {
+        let (s, _) = e
+            .put("/users/@me/notification-keywords", ALICE, Some(bad))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+}
+
 #[tokio::test]
 async fn display_name_edits_through_global_name() {
     let e = env().await;

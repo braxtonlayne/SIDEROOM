@@ -89,6 +89,9 @@ impl ExpressionRepository for DynRepo {
     async fn get_emoji(&self, guild: GuildId, id: EmojiId) -> RepoResult<Option<Emoji>> {
         self.0.get_emoji(guild, id).await
     }
+    async fn find_emoji(&self, id: EmojiId) -> RepoResult<Option<Emoji>> {
+        self.0.find_emoji(id).await
+    }
     async fn insert_emoji(&self, emoji: &Emoji) -> RepoResult<()> {
         self.0.insert_emoji(emoji).await
     }

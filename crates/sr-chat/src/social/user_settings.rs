@@ -135,6 +135,38 @@ pub struct PrivacyUpdate {
     pub server_dm_overrides: Option<BTreeMap<u64, Option<bool>>>,
 }
 
+/// Most highlight keywords per user.
+pub const MAX_KEYWORDS: usize = 50;
+/// Longest keyword or phrase, in characters.
+pub const MAX_KEYWORD_CHARS: usize = 100;
+
+/// Clean up a keyword list; see [`SocialService::set_notification_keywords`].
+pub fn normalize_keywords(raw: &[String]) -> SocialResult<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    for k in raw {
+        let k = k.split_whitespace().collect::<Vec<_>>().join(" ");
+        if k.is_empty() || out.iter().any(|o| o.to_lowercase() == k.to_lowercase()) {
+            continue;
+        }
+        if k.chars().count() > MAX_KEYWORD_CHARS || !k.chars().any(char::is_alphanumeric) {
+            return Err(SocialError::invalid(
+                "keywords",
+                "BASE_TYPE_BAD_LENGTH",
+                format!("each keyword needs a letter or digit and at most {MAX_KEYWORD_CHARS} characters"),
+            ));
+        }
+        out.push(k);
+    }
+    if out.len() > MAX_KEYWORDS {
+        return Err(SocialError::invalid(
+            "keywords",
+            "BASE_TYPE_MAX_LENGTH",
+            format!("at most {MAX_KEYWORDS} keywords"),
+        ));
+    }
+    Ok(out)
+}
+
 impl<R: SocialRepository> SocialService<R> {
     /// The synced settings blob (empty, version 0, when never saved).
     pub async fn user_settings(&self, user: UserId) -> SocialResult<UserSettings> {
@@ -186,6 +218,23 @@ impl<R: SocialRepository> SocialService<R> {
             .repo()
             .put_default_notification_level(user, level)
             .await?)
+    }
+
+    /// The user's highlight keywords (empty by default).
+    pub async fn notification_keywords(&self, user: UserId) -> SocialResult<Vec<String>> {
+        Ok(self.repo().get_notification_keywords(user).await?)
+    }
+
+    /// Replace the keyword list: trimmed, whitespace collapsed, blank and duplicate (any case)
+    /// entries dropped. Returns what was stored.
+    pub async fn set_notification_keywords(
+        &self,
+        user: UserId,
+        raw: &[String],
+    ) -> SocialResult<Vec<String>> {
+        let clean = normalize_keywords(raw)?;
+        self.repo().put_notification_keywords(user, &clean).await?;
+        Ok(clean)
     }
 
     /// Who may send friend requests and DMs.

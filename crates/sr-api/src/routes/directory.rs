@@ -20,7 +20,7 @@ use crate::routes::{Ext, MaybeExt};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
-    extract::Path,
+    extract::{Path, State},
     http::StatusCode,
     routing::{get, post},
 };
@@ -73,6 +73,7 @@ impl DirectoryDeps {
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/emojis/{emoji_id}", get(get_emoji_info))
         .route("/directory/categories", get(list_categories))
         .route("/directory", get(search))
         .route("/directory/{guild_id}", get(get_listed))
@@ -223,6 +224,112 @@ fn unknown_listing() -> HttpError {
         ErrorCode::UnknownGuild,
         "This server is not listed in the directory.",
     ))
+}
+
+
+// ------------------------------------------------------------------ emoji popout
+
+/// What the emoji popout shows for an emoji the viewer may not be able to use.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EmojiInfoObject {
+    pub id: String,
+    pub name: String,
+    pub animated: bool,
+    /// Short-lived signed image URL (`/cdn/...`), valid for an hour.
+    pub url: String,
+    /// The owning server, only while it is listed in the Directory (or the viewer is a member).
+    /// Otherwise `null`: the popout then says only that the emoji is from a private server.
+    pub guild: Option<EmojiGuildObject>,
+}
+
+/// The server an emoji belongs to.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EmojiGuildObject {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
+    /// The viewer is a member.
+    pub joined: bool,
+    /// `POST /directory/{guild_id}/join` works for it (it is Directory-listed).
+    pub joinable: bool,
+}
+
+/// An emoji by id, for members of any server (the popout on a cross-server custom emoji).
+/// Unavailable emoji are hidden from non-members.
+#[utoipa::path(
+    get,
+    path = "/emojis/{emoji_id}",
+    params(("emoji_id" = String, Path, description = "Emoji snowflake")),
+    responses((status = 200, body = EmojiInfoObject), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_emoji_info(
+    p: Principal,
+    State(state): State<AppState>,
+    Ext(dir): Ext<DirectoryDeps>,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
+    Path(emoji_id): Path<String>,
+) -> ApiResult<Json<EmojiInfoObject>> {
+    use sr_chat::settings::repo::ExpressionRepository;
+    let user = actor(&p)?;
+    let eid: sr_core::EmojiId = id("emoji_id", &emoji_id)?;
+    let emoji = deps
+        .service
+        .repo()
+        .find_emoji(eid)
+        .await
+        .map_err(re)?
+        .ok_or(ErrorCode::UnknownEmoji)?;
+    let joined = deps
+        .chat
+        .get_member(emoji.guild_id, user)
+        .await
+        .map_err(re)?
+        .is_some();
+    if !emoji.available && !joined {
+        return Err(ErrorCode::UnknownEmoji.into());
+    }
+    let listed = match dir.repo.get_listing(emoji.guild_id).await.map_err(re)? {
+        Some(entry) if !dir.hidden_categories().await.contains(&entry.category) => {
+            let community = deps
+                .service
+                .repo()
+                .get_community(entry.guild_id)
+                .await
+                .map_err(re)?;
+            directory::is_visible(&entry, community.community_enabled)
+        }
+        _ => false,
+    };
+    let guild = if joined || listed {
+        deps.chat
+            .get_guild(emoji.guild_id)
+            .await
+            .map_err(re)?
+            .map(|g| EmojiGuildObject {
+                id: g.id.to_string(),
+                name: g.name.clone(),
+                icon: g.icon_key.clone(),
+                joined,
+                joinable: listed && !joined,
+            })
+    } else {
+        None
+    };
+    let signed = crate::routes::settings::expressions::signed_media_url(
+        &state,
+        &cdn,
+        &emoji.media_key,
+        &crate::routes::settings::expressions::UrlQuery::default(),
+    )?;
+    Ok(Json(EmojiInfoObject {
+        id: emoji.id.to_string(),
+        name: emoji.name,
+        animated: emoji.animated,
+        url: signed.url,
+        guild,
+    }))
 }
 
 // ------------------------------------------------------------------ member side
@@ -694,6 +801,7 @@ pub async fn admin_decide(
         list_categories,
         search,
         get_listed,
+        get_emoji_info,
         join,
         get_own_listing,
         request_listing,
@@ -703,6 +811,8 @@ pub async fn admin_decide(
     ),
     components(schemas(
         DirectoryGuildObject,
+        EmojiInfoObject,
+        EmojiGuildObject,
         ListingObject,
         AdminListingObject,
         ListingBody,

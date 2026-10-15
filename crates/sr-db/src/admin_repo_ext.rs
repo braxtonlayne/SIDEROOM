@@ -344,6 +344,47 @@ impl StaffExtrasRepository for PgAdminRepo {
         announcement_from(&r).map_err(db)
     }
 
+    async fn entrance_copy(&self) -> AdminResult<std::collections::BTreeMap<String, String>> {
+        let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, markdown FROM entrance_copy")
+            .fetch_all(self.pool())
+            .await
+            .map_err(db)?;
+        Ok(rows.into_iter().collect())
+    }
+
+    async fn set_entrance_copy(
+        &self,
+        key: &str,
+        markdown: Option<&str>,
+        by: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<()> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        match markdown {
+            Some(m) => {
+                sqlx::query(
+                    "INSERT INTO entrance_copy (key, markdown, updated_by) VALUES ($1, $2, $3) \n                     ON CONFLICT (key) DO UPDATE SET markdown = $2, updated_by = $3, updated_at = now()",
+                )
+                .bind(key)
+                .bind(m)
+                .bind(by)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+            }
+            None => {
+                sqlx::query("DELETE FROM entrance_copy WHERE key = $1")
+                    .bind(key)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db)?;
+            }
+        }
+        self.audit_in(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(())
+    }
+
     async fn get_announcement(&self, id: i64) -> AdminResult<Announcement> {
         let r = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {} FROM platform_announcements WHERE id = $1",

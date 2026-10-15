@@ -2070,3 +2070,67 @@ async fn accepting_an_appointment_needs_a_second_factor() {
         .await;
     assert_eq!((s, b["state"].as_str()), (StatusCode::OK, Some("declined")));
 }
+
+#[tokio::test]
+async fn entrance_copy_is_public_to_read_and_staff_to_write() {
+    let e = env().await;
+    let (s, v) = e.call(None, Method::GET, "/sr/entrance/copy", None).await;
+    assert_eq!((s, v), (StatusCode::OK, json!({})));
+
+    let put = |who: Option<i64>, key: &str, body: Value| {
+        let path = format!("/admin/entrance/copy/{key}");
+        let e = &e;
+        async move { e.call(who, Method::PUT, &path, Some(body)).await }
+    };
+    // Needs staff with MANAGE_FEATURES.
+    assert_eq!(
+        put(None, "house-notes", json!({"markdown": "x"})).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        put(Some(MODER), "house-notes", json!({"markdown": "x"}))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    // Unknown keys and oversize text are refused.
+    assert_eq!(
+        put(Some(OWNER), "nope", json!({"markdown": "x"})).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        put(
+            Some(OWNER),
+            "house-notes",
+            json!({"markdown": "x".repeat(20_001)})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+
+    assert_eq!(
+        put(
+            Some(OWNER),
+            "no-invitation",
+            json!({"markdown": "  # Ask a friend\n\nInvites are personal.  "})
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, v) = e.call(None, Method::GET, "/sr/entrance/copy", None).await;
+    assert_eq!(
+        v,
+        json!({"no-invitation": "# Ask a friend\n\nInvites are personal."})
+    );
+    // Blank resets to the default (the key disappears).
+    assert_eq!(
+        put(Some(OWNER), "no-invitation", json!({"markdown": "  "}))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, v) = e.call(None, Method::GET, "/sr/entrance/copy", None).await;
+    assert_eq!(v, json!({}));
+}

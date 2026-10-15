@@ -56,7 +56,8 @@ struct Env {
     guild: GuildId,
     ch: ChannelId,
     voice: ChannelId,
-    /// What the feature modules act on (with `Opts::features`).
+    /// The Server Directory listings behind `GET /emojis/{id}`.
+    directory: Arc<sr_chat::settings::directory::MemoryDirectory>,
     actions: Arc<sr_features::testing::FakeActions>,
 }
 
@@ -208,6 +209,7 @@ async fn env_with(opts: Opts) -> Env {
         1,
     )
     .unwrap();
+    let directory = Arc::new(sr_chat::settings::directory::MemoryDirectory::default());
     let mut builder = AppState::builder()
         .bots(bots)
         .sessions(sessions.clone())
@@ -222,6 +224,9 @@ async fn env_with(opts: Opts) -> Env {
         .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
             storage.clone(),
             sr_storage::cdn::CdnSigner::new(b"emoji-url-test-secret-0123456789".to_vec()),
+        )))
+        .extension(Arc::new(crate::routes::directory::DirectoryDeps::new(
+            directory.clone(),
         )));
     if let Some(v) = opts.voice {
         builder = builder.extension(Arc::new(crate::routes::voice::VoiceApi(v)));
@@ -241,7 +246,12 @@ async fn env_with(opts: Opts) -> Env {
         builder = builder.extension(Arc::new(gf));
     }
     let state = builder.build();
-    let app = build_router(state, router().merge(messages::router()));
+    let app = build_router(
+        state,
+        router()
+            .merge(messages::router())
+            .merge(crate::routes::directory::router()),
+    );
     Env {
         app,
         backend,
@@ -255,6 +265,7 @@ async fn env_with(opts: Opts) -> Env {
         guild,
         ch,
         voice,
+        directory,
         actions,
     }
 }
@@ -2968,3 +2979,62 @@ async fn nobody_creates_or_redeems_invites_to_the_staff_server() {
 
 #[path = "features_tests.rs"]
 mod features_tests;
+
+#[tokio::test]
+async fn emoji_popout_works_for_non_members_and_names_only_listed_servers() {
+    use sr_chat::settings::directory::{DirectoryEntry, DirectoryRepository, DirectoryStatus};
+    use sr_chat::settings::repo::CommunityRepository;
+    let e = env().await;
+    let (_, emoji) = e
+        .post(
+            &e.g("/emojis"),
+            "mod",
+            json!({"name": "party", "image": png_uri(8)}),
+        )
+        .await;
+    let id = emoji["id"].as_str().unwrap().to_owned();
+    let path = format!("/emojis/{id}");
+
+    // Anyone signed in gets the image; a private server stays unnamed to outsiders.
+    let (s, v) = e.get(&path, "carol").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["name"], "party");
+    assert_eq!(v["animated"], false);
+    assert!(v["url"].as_str().unwrap().starts_with("/cdn/emoji/"));
+    assert!(v["guild"].is_null(), "{v}");
+
+    // Members see the server.
+    let (_, v) = e.get(&path, "bob").await;
+    assert_eq!(v["guild"]["id"], e.guild.to_string());
+    assert_eq!((v["guild"]["joined"].as_bool(), v["guild"]["joinable"].as_bool()), (Some(true), Some(false)));
+
+    // An approved Directory listing of a Community server names it and offers Join.
+    let mut c = e.repo.get_community(e.guild).await.unwrap();
+    c.community_enabled = true;
+    e.repo.put_community(&c).await.unwrap();
+    e.directory
+        .put_listing(&DirectoryEntry {
+            guild_id: e.guild,
+            status: DirectoryStatus::Approved,
+            category: "gaming".into(),
+            description: String::new(),
+            featured: false,
+            requested_by: UserId::new(OWNER),
+            requested_at_ms: T0,
+            decided_by: None,
+            decided_at_ms: None,
+            decision_note: None,
+        })
+        .await
+        .unwrap();
+    let (_, v) = e.get(&path, "carol").await;
+    assert_eq!(v["guild"]["id"], e.guild.to_string(), "{v}");
+    assert_eq!(
+        (v["guild"]["joined"].as_bool(), v["guild"]["joinable"].as_bool()),
+        (Some(false), Some(true))
+    );
+
+    // Unknown ids are 404, and unavailable emoji are hidden from outsiders.
+    assert_eq!(e.get("/emojis/12345", "bob").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(e.get("/emojis/abc", "bob").await.0, StatusCode::BAD_REQUEST);
+}

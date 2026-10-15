@@ -237,9 +237,14 @@ pub struct Page {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReactionSummary {
     pub emoji: EmojiKey,
+    /// Normal reactions.
     pub count: u32,
-    /// Whether the viewer reacted.
+    /// Burst reactions (LNG-EXP-012).
+    pub burst_count: u32,
+    /// Whether the viewer reacted normally.
     pub me: bool,
+    /// Whether the viewer reacted with a burst.
+    pub me_burst: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -329,14 +334,16 @@ pub trait MessageStore: Send + Sync {
         message: MessageId,
         user: UserId,
         emoji: &EmojiKey,
+        burst: bool,
         now_ms: i64,
     ) -> StoreResult<bool>;
-    /// Returns true when a reaction was removed.
+    /// Returns true when a reaction (of the given kind) was removed.
     async fn remove_reaction(
         &self,
         message: MessageId,
         user: UserId,
         emoji: &EmojiKey,
+        burst: bool,
     ) -> StoreResult<bool>;
     async fn clear_reactions(&self, message: MessageId) -> StoreResult<()>;
     /// Returns true when the emoji had reactions.
@@ -351,6 +358,7 @@ pub trait MessageStore: Send + Sync {
         &self,
         message: MessageId,
         emoji: &EmojiKey,
+        burst: bool,
         after: Option<UserId>,
         limit: usize,
     ) -> StoreResult<Vec<UserId>>;

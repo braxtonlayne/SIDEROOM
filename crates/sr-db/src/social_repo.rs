@@ -1424,4 +1424,27 @@ impl UserSettingsRepository for PgSocialRepo {
         .map_err(db)?;
         Ok(())
     }
+
+    async fn get_notification_keywords(&self, user: UserId) -> RepoResult<Vec<String>> {
+        let v: Option<Vec<String>> = sqlx::query_scalar(
+            "SELECT notification_keywords FROM user_settings WHERE user_id = $1",
+        )
+        .bind(i(user.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(v.unwrap_or_default())
+    }
+
+    async fn put_notification_keywords(&self, user: UserId, keywords: &[String]) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO user_settings (user_id, notification_keywords) VALUES ($1, $2) \n             ON CONFLICT (user_id) DO UPDATE SET notification_keywords = $2, updated_at = now()",
+        )
+        .bind(i(user.get()))
+        .bind(keywords)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
 }

@@ -161,8 +161,10 @@ describe('buildLiveSnapshot', () => {
     );
     expect(snap.dms.map((d) => d.id)).toEqual(['1000000000000000000', '2000000000000000000']);
     expect(snap.dms[0]).toMatchObject({ recipientIds: ['2'], unread: true });
-    // 1000000000000000000 encodes 2022-07 (snowflake epoch 2015-01-01).
-    expect(snap.dms[0]!.lastMessageAt).toMatch(/^2022-/);
+    // 1000000000000000000 >> 22 is 238418579101 ms after the SIDEROOM epoch (2026-01-01), not Discord's 2015.
+    expect(snap.dms[0]!.lastMessageAt).toBe(
+      new Date(1_767_225_600_000 + 238_418_579_101).toISOString(),
+    );
     expect(snap.dms[1]!.lastMessageAt).toBe('');
   });
 });
