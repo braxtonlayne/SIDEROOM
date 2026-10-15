@@ -298,6 +298,8 @@ export interface Message {
   forwarded?: ForwardSnapshot | null;
   /** Voice message (flag 1 << 13). */
   voice?: boolean;
+  /** Ephemeral app reply (flag 1 << 6): only this viewer sees it and it is never stored. */
+  ephemeral?: boolean;
   suppressEmbeds?: boolean;
   /** Buttons and selects on app messages. */
   components?: import('../store/types').RawComponent[];

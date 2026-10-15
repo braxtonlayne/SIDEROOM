@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import type { RawComponent } from '../../store/types';
 import { useChannels, useMembers, useRoles, type Snowflake } from '../data';
+import { newNonce, sendInteraction } from '../apps/interactions';
+import { useReportOutcome } from '../apps/useReportOutcome';
 import { isHttpUrl } from './format';
 
 export type { RawComponent };
@@ -15,21 +17,32 @@ export const interactionConfig = { timeoutMs: 3000 };
 /** Select menu kinds (Discord component types): string, user, role, mentionable, channel. */
 const SELECT_TYPES = [3, 5, 6, 7, 8];
 
+/** Where the components sit; with it, presses are real interactions (`POST /interactions`, type 3). */
+export interface ComponentContext {
+  channelId: Snowflake;
+  messageId: Snowflake;
+}
+
 /**
- * Buttons and select menus on app messages (LNG-MSGUI-022). Link buttons open their URL; everything else
- * shows a loading state and then "This interaction failed" because the interaction endpoint is not part of
- * the server yet. User, role, mentionable and channel selects list the server's own members, roles and
- * channels (every non-category channel for the channel select).
+ * Buttons and select menus on app messages (LNG-MSGUI-022). Link buttons open their URL. Everything else
+ * shows a loading state while the app answers the interaction (DEV-BOT-004), then the app's reply arrives
+ * as a normal message update; if the app stays silent or the server refuses, "This interaction failed".
+ * Without a `context` (no message to point at) a press only shows that waiting state and the failure.
+ * User, role, mentionable and channel selects list the server's own members, roles and channels (every
+ * non-category channel for the channel select).
  */
 export function ComponentRows({
   rows,
   guildId,
+  context,
 }: {
   rows: RawComponent[];
   guildId?: Snowflake | undefined;
+  context?: ComponentContext | undefined;
 }) {
   const t = useT();
   const toast = useToast();
+  const report = useReportOutcome();
   const members = useMembers(guildId);
   const roles = useRoles(guildId);
   const channels = useChannels(guildId);
@@ -37,10 +50,31 @@ export function ComponentRows({
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  /** Starts an interaction: the control shows a spinner until the (never arriving) answer times out. */
-  const interact = (key: string) => {
+  /** Starts an interaction and keeps the control busy until the app answered or the wait ran out. */
+  const interact = (key: string, c: RawComponent, values?: string[]) => {
     setBusy(key);
     clearTimeout(timer.current);
+    if (context && guildId && c.custom_id) {
+      void sendInteraction(
+        {
+          type: 3,
+          channel_id: context.channelId,
+          guild_id: guildId,
+          message_id: context.messageId,
+          nonce: newNonce(),
+          data: {
+            custom_id: c.custom_id,
+            component_type: c.type,
+            ...(values ? { values } : {}),
+          },
+        },
+        interactionConfig.timeoutMs,
+      ).then((o) => {
+        setBusy((cur) => (cur === key ? null : cur));
+        report(o);
+      });
+      return;
+    }
     timer.current = setTimeout(() => {
       setBusy(null);
       toast.show({
@@ -112,7 +146,7 @@ export function ComponentRows({
                     data-style={style}
                     disabled={c.disabled || busy === key}
                     aria-busy={busy === key || undefined}
-                    onClick={() => interact(key)}
+                    onClick={() => interact(key, c)}
                   >
                     {busy === key && <Spinner label={t('lounge.components.waitingForApp')} />}
                     {c.label ?? t('lounge.components.buttonDefault')}
@@ -130,7 +164,7 @@ export function ComponentRows({
                       disabled={c.disabled || busy === key}
                       aria-busy={busy === key || undefined}
                       value=""
-                      onChange={() => interact(key)}
+                      onChange={(e) => interact(key, c, [e.target.value])}
                     >
                       <option value="" disabled>
                         {label}

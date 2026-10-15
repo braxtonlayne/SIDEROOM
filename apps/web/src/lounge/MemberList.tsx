@@ -2,6 +2,7 @@ import { Avatar, ContextMenu, Icon, VirtualList, type MenuEntry } from '@sideroo
 import { useMemo, useRef } from 'react';
 import { useT } from '../i18n';
 import { useViewer, type Viewer } from '../settings/server/hooks';
+import { useAppsMenu } from './apps/useAppsMenu';
 import { useCurrentUser, useGuild, useMembers, usePresenceMap, useRoles } from './data';
 import { buildMemberRows, type MemberEntry } from './memberGroups';
 import { openProfilePopout } from './profile/popoutStore';
@@ -16,11 +17,13 @@ const OFFLINE_HIDE_THRESHOLD = 1000;
 function MemberRowView({
   entry,
   guildId,
+  channelId,
   ownerId,
   viewer,
 }: {
   entry: MemberEntry;
   guildId: string;
+  channelId: string | undefined;
   ownerId: string | undefined;
   viewer: Viewer;
 }) {
@@ -38,6 +41,7 @@ function MemberRowView({
   // Only people connected to a voice channel get these (volume, mute, and for moderators server mute / move).
   const voiceEntries = useVoiceMenuEntries(guildId, { id: u.id, name });
   const isOwner = ownerId === u.id;
+  const appsMenu = useAppsMenu(2, { guildId, channelId }, u.id);
   // The server enforces the hierarchy; these only hide what would certainly be refused.
   const targetTop = Math.max(
     -1,
@@ -126,6 +130,7 @@ function MemberRowView({
           } as MenuEntry,
         ]
       : []),
+    ...(appsMenu.length > 0 ? [{ type: 'separator' } as MenuEntry, ...appsMenu] : []),
     { type: 'separator' },
     {
       label: t('lounge.memberList.copyUserId'),
@@ -168,7 +173,13 @@ function MemberRowView({
   );
 }
 
-export function MemberList({ guildId }: { guildId: string }) {
+export function MemberList({
+  guildId,
+  channelId,
+}: {
+  guildId: string;
+  channelId?: string | undefined;
+}) {
   const t = useT();
   const guild = useGuild(guildId);
   const members = useMembers(guildId);
@@ -201,6 +212,7 @@ export function MemberList({ guildId }: { guildId: string }) {
           <MemberRowView
             entry={r.entry}
             guildId={guildId}
+            channelId={channelId}
             ownerId={guild?.ownerId}
             viewer={viewer}
           />
