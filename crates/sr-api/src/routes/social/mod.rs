@@ -17,6 +17,7 @@ pub mod dms;
 pub mod dynrepo;
 pub mod error;
 pub mod events;
+pub mod group_invites;
 pub mod model;
 pub mod notes;
 pub mod notifications;
@@ -48,6 +49,7 @@ pub fn router() -> Router<AppState> {
             axum::routing::patch(profile::edit_self).layer(crate::routes::media::body_limit()),
         )
         .route("/users/@me/profile", get(profile::get_own_profile))
+        .route("/sr/profile-catalog", get(profile::get_catalog))
         .route("/users/{user_id}/profile", get(profile::get_profile))
         .route(
             "/users/@me/presence",
@@ -122,6 +124,7 @@ pub fn router() -> Router<AppState> {
     paths(
         profile::edit_self,
         profile::get_own_profile,
+        profile::get_catalog,
         profile::get_profile,
         presence::get_presence,
         presence::patch_presence,
@@ -160,6 +163,8 @@ pub fn router() -> Router<AppState> {
     components(schemas(
         ErrorBody,
         model::UserObject,
+        profile::CatalogEntryObject,
+        profile::ProfileCatalogObject,
         user_settings::UserSettingsObject,
         user_settings::PatchUserSettingsBody,
         user_settings::NotificationDefaultsObject,

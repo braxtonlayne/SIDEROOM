@@ -100,9 +100,19 @@ pub fn apply_edit(
     }
     if let Some(slug) = &edit.avatar_decoration {
         current.avatar_decoration = clean_slug("avatar_decoration", slug.as_deref())?;
+        if let Some(s) = &current.avatar_decoration
+            && !crate::profile::catalog::is_decoration(s)
+        {
+            return Err(unknown_entry("avatar_decoration"));
+        }
     }
     if let Some(slug) = &edit.profile_effect {
         current.profile_effect = clean_slug("profile_effect", slug.as_deref())?;
+        if let Some(s) = &current.profile_effect
+            && !crate::profile::catalog::is_effect(s)
+        {
+            return Err(unknown_entry("profile_effect"));
+        }
     }
     if let Some(colors) = edit.theme_colors {
         if colors.is_some_and(|c| c.iter().any(|v| *v > 0x00FF_FFFF)) {
@@ -165,6 +175,14 @@ pub fn visible_connections(profile: &Profile, viewer: UserId) -> Vec<Connection>
 }
 
 /// A decoration or effect slug: lowercase letters, digits and `-`, 1 to 48 characters.
+fn unknown_entry(field: &str) -> SocialError {
+    SocialError::invalid(
+        field,
+        "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+        "not in the profile catalogue (GET /sr/profile-catalog)",
+    )
+}
+
 fn clean_slug(field: &str, slug: Option<&str>) -> SocialResult<Option<String>> {
     let Some(s) = slug else { return Ok(None) };
     let ok = !s.is_empty()

@@ -10,7 +10,7 @@ use sqlx::postgres::PgRow;
 use sqlx::{PgPool, Row};
 
 use sr_chat::error::RepoError;
-use sr_chat::social::dm::{DmChannel, DmKind, DmPrivacy, RequestState};
+use sr_chat::social::dm::{DmChannel, DmKind, DmPrivacy, GroupInvite, RequestState};
 use sr_chat::social::notifications::{ChannelOverride, Mute, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::{CustomStatus, PresencePrefs, Status};
 use sr_chat::social::profile::{Connection, Profile};
@@ -692,6 +692,73 @@ impl DmRepository for PgSocialRepo {
         .map_err(db)?;
         Ok(())
     }
+
+    async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO group_dm_invites (code, channel_id, inviter_id, created_at, expires_at) \
+             VALUES ($1, $2, $3, to_timestamp($4::bigint / 1000.0), to_timestamp($5::bigint / 1000.0))",
+        )
+        .bind(&invite.code)
+        .bind(i(invite.channel_id.get()))
+        .bind(i(invite.inviter_id.get()))
+        .bind(invite.created_at_ms)
+        .bind(invite.expires_at_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn get_group_invite(&self, code: &str) -> RepoResult<Option<GroupInvite>> {
+        let row = sqlx::query(GROUP_INVITE_SELECT_ONE)
+            .bind(code)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?;
+        row.as_ref().map(group_invite_from).transpose()
+    }
+
+    async fn revoke_group_invite(&self, code: &str) -> RepoResult<bool> {
+        let r = sqlx::query(
+            "UPDATE group_dm_invites SET revoked_at = now() WHERE code = $1 AND revoked_at IS NULL",
+        )
+        .bind(code)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn list_group_invites(&self, channel: ChannelId) -> RepoResult<Vec<GroupInvite>> {
+        let rows = sqlx::query(GROUP_INVITE_SELECT_CHANNEL)
+            .bind(i(channel.get()))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?;
+        rows.iter().map(group_invite_from).collect()
+    }
+}
+
+const GROUP_INVITE_SELECT_ONE: &str = "SELECT code, channel_id, inviter_id, \
+    (EXTRACT(EPOCH FROM created_at) * 1000)::bigint AS created_ms, \
+    (EXTRACT(EPOCH FROM expires_at) * 1000)::bigint AS expires_ms, \
+    revoked_at IS NOT NULL AS revoked FROM group_dm_invites WHERE code = $1";
+
+const GROUP_INVITE_SELECT_CHANNEL: &str = "SELECT code, channel_id, inviter_id, \
+    (EXTRACT(EPOCH FROM created_at) * 1000)::bigint AS created_ms, \
+    (EXTRACT(EPOCH FROM expires_at) * 1000)::bigint AS expires_ms, \
+    revoked_at IS NOT NULL AS revoked FROM group_dm_invites WHERE channel_id = $1 \
+    ORDER BY created_at DESC";
+
+fn group_invite_from(r: &PgRow) -> RepoResult<GroupInvite> {
+    Ok(GroupInvite {
+        code: r.try_get("code").map_err(db)?,
+        channel_id: ChannelId::new(r.try_get::<i64, _>("channel_id").map_err(db)? as u64),
+        inviter_id: uid(r.try_get("inviter_id").map_err(db)?),
+        created_at_ms: r.try_get("created_ms").map_err(db)?,
+        expires_at_ms: r.try_get("expires_ms").map_err(db)?,
+        revoked: r.try_get("revoked").map_err(db)?,
+    })
 }
 
 // ---- read states ----

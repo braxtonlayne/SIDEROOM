@@ -1345,18 +1345,31 @@ async fn profile_decoration_effect_and_theme_are_validated() {
         .edit_profile(
             u(1),
             &ProfileEdit {
-                avatar_decoration: Some(Some("neon-halo".into())),
-                profile_effect: Some(Some("snow-2".into())),
+                profile_effect: Some(Some("aurora".into())),
                 theme_colors: Some(Some([0x00AB_CDEF, 0x0012_3456])),
                 ..ProfileEdit::default()
             },
         )
         .await
         .unwrap();
-    assert_eq!(p.avatar_decoration.as_deref(), Some("neon-halo"));
-    assert_eq!(p.profile_effect.as_deref(), Some("snow-2"));
+    assert_eq!(p.profile_effect.as_deref(), Some("aurora"));
     assert_eq!(p.theme_colors, Some([0x00AB_CDEF, 0x0012_3456]));
 
+    // The catalogue ships no decorations, and unknown effects are refused (G-48).
+    for (field_deco, bad) in [(true, "neon-halo"), (false, "snow-2")] {
+        let edit = if field_deco {
+            ProfileEdit {
+                avatar_decoration: Some(Some(bad.to_owned())),
+                ..ProfileEdit::default()
+            }
+        } else {
+            ProfileEdit {
+                profile_effect: Some(Some(bad.to_owned())),
+                ..ProfileEdit::default()
+            }
+        };
+        assert!(f.svc.edit_profile(u(1), &edit).await.is_err(), "{bad}");
+    }
     for bad in ["Neon Halo", "", "x/y", &"a".repeat(49)] {
         let err = f
             .svc
@@ -1401,4 +1414,111 @@ async fn profile_decoration_effect_and_theme_are_validated() {
             && cleared.profile_effect.is_none()
             && cleared.theme_colors.is_none()
     );
+}
+
+// ---- group DM invites (G-47) ----
+
+#[tokio::test]
+async fn group_invites_are_owner_only_expire_and_add_the_joiner() {
+    let f = fx();
+    befriend(&f, 1, 2).await;
+    befriend(&f, 1, 3).await;
+    let group = f
+        .svc
+        .create_group_dm(u(1), &[u(2), u(3)], Some("crew"))
+        .await
+        .unwrap();
+    // A 1:1 DM has no invites; the owner makes one, members cannot.
+    let dm = f.svc.open_dm(u(1), u(2)).await.unwrap().channel;
+    assert!(matches!(
+        f.svc.find_group(u(1), dm.id).await,
+        Err(SocialError::NotGroupDm)
+    ));
+    assert!(
+        f.svc
+            .find_group(u(1), ChannelId::new(999_999))
+            .await
+            .unwrap()
+            .is_none(),
+        "not a DM channel at all"
+    );
+    assert!(matches!(
+        f.svc
+            .create_group_invite(u(2), group.id, "memberc0".into())
+            .await,
+        Err(SocialError::NotOwner)
+    ));
+    assert!(matches!(
+        f.svc
+            .create_group_invite(u(9), group.id, "outsider".into())
+            .await,
+        Err(SocialError::NotParticipant)
+    ));
+    let inv = f
+        .svc
+        .create_group_invite(u(1), group.id, "abcd1234".into())
+        .await
+        .unwrap();
+    assert_eq!(inv.expires_at_ms - inv.created_at_ms, 24 * 60 * 60 * 1000);
+    assert_eq!(f.svc.list_group_invites(u(1), group.id).await.unwrap().len(), 1);
+
+    // A stranger joins; joining twice changes nothing and burns nothing.
+    let (joined, added) = f.svc.join_group_invite(u(8), "abcd1234").await.unwrap();
+    assert!(added && joined.has(u(8)) && joined.recipients.len() == 4);
+    let (_, again) = f.svc.join_group_invite(u(8), "abcd1234").await.unwrap();
+    assert!(!again);
+    assert!(f.svc.join_group_invite(u(9), "abcd1234").await.is_ok());
+
+    // Revoking stops new joins; only the owner may.
+    assert!(matches!(
+        f.svc.revoke_group_invite(u(2), "abcd1234").await,
+        Err(SocialError::NotOwner)
+    ));
+    f.svc.revoke_group_invite(u(1), "abcd1234").await.unwrap();
+    assert!(matches!(
+        f.svc.join_group_invite(u(10), "abcd1234").await,
+        Err(SocialError::UnknownInvite)
+    ));
+    assert!(f.svc.list_group_invites(u(1), group.id).await.unwrap().is_empty());
+
+    // Expiry after 24 hours; an unknown code is just unknown.
+    let inv = f
+        .svc
+        .create_group_invite(u(1), group.id, "expiring1".into())
+        .await
+        .unwrap();
+    assert!(f.svc.group_invite(&inv.code).await.is_ok());
+    f.clock.advance_ms(24 * 60 * 60 * 1000 + 1);
+    assert!(matches!(
+        f.svc.group_invite(&inv.code).await,
+        Err(SocialError::UnknownInvite)
+    ));
+    assert!(matches!(
+        f.svc.group_invite("nosuchcode").await,
+        Err(SocialError::UnknownInvite)
+    ));
+}
+
+#[tokio::test]
+async fn group_invites_respect_the_group_size_cap() {
+    let f = fx_with(SocialLimits {
+        max_group_size: 4,
+        ..SocialLimits::default()
+    });
+    befriend(&f, 1, 2).await;
+    befriend(&f, 1, 3).await;
+    let group = f
+        .svc
+        .create_group_dm(u(1), &[u(2), u(3)], None)
+        .await
+        .unwrap();
+    f.svc
+        .create_group_invite(u(1), group.id, "capcode1".into())
+        .await
+        .unwrap();
+    assert!(f.svc.join_group_invite(u(5), "capcode1").await.is_ok());
+    assert!(matches!(
+        f.svc.join_group_invite(u(6), "capcode1").await,
+        Err(SocialError::MaxGroupSize)
+    ));
 }

@@ -25,6 +25,7 @@ use sr_api::{
         admin::{self, AdminDeps},
         directory::{self, DirectoryDeps},
         guilds, settings,
+        social::{self, DynRepo as SocialDynRepo, SocialDeps},
     },
 };
 use sr_auth::{
@@ -68,6 +69,7 @@ struct World {
     bus: Arc<InProcessBus>,
     storage: Arc<ObjectStoreStorage>,
     features: sr_features::FeatureService,
+    social: Arc<SocialDeps>,
     tokens: HashMap<i64, String>,
 }
 
@@ -182,6 +184,23 @@ async fn world() -> World {
         tokens.insert(uid, t.expose().to_owned());
     }
 
+    // Direct messages: group DM invites (G-47) and icons (G-50).
+    let social_repo = Arc::new(sr_chat::social::memory::MemoryRepo::default());
+    for uid in [OWNER, BOB, CAROL, DAVE] {
+        social_repo.add_user(UserId::new(uid as u64));
+    }
+    let social_deps = Arc::new(
+        SocialDeps::new(
+            SocialDynRepo(social_repo.clone() as Arc<dyn sr_chat::social::repo::SocialRepository>),
+            Arc::new(repo.clone()),
+            bus.clone(),
+            dyn_clock.clone(),
+            sr_chat::social::SocialLimits::default(),
+            1,
+            7,
+        )
+        .unwrap(),
+    );
     let mut feature_registry = sr_features::FeatureRegistry::new();
     feature_registry
         .register(sr_features::DirectoryHiddenCategoriesFeature)
@@ -200,6 +219,7 @@ async fn world() -> World {
         .clock(dyn_clock)
         .extension(Arc::new(guild_api))
         .extension(settings_deps)
+        .extension(social_deps.clone())
         .extension(Arc::new(
             DirectoryDeps::new(Arc::new(MemoryDirectory::default()))
                 .with_features(features.clone()),
@@ -213,6 +233,7 @@ async fn world() -> World {
         state,
         guilds::router()
             .merge(settings::router())
+            .merge(social::router())
             .merge(directory::router())
             .merge(admin::router()),
     );
@@ -224,6 +245,7 @@ async fn world() -> World {
         bus,
         storage,
         features,
+        social: social_deps,
         tokens,
     }
 }
@@ -1219,4 +1241,295 @@ async fn hidden_directory_categories_are_not_offered_or_accepted() {
             .0,
         StatusCode::NOT_FOUND
     );
+}
+
+/// Owner, Bob and Carol in one group DM; returns its id.
+async fn group_dm(w: &World) -> String {
+    for other in [BOB, CAROL] {
+        let (a, b) = (UserId::new(OWNER as u64), UserId::new(other as u64));
+        w.social.service.send_friend_request(a, b).await.unwrap();
+        w.social.service.accept_friend_request(b, a).await.unwrap();
+    }
+    let (s, g) = w
+        .post(
+            OWNER,
+            "/users/@me/channels",
+            json!({ "recipients": [BOB.to_string(), CAROL.to_string()], "name": "crew" }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    g["id"].as_str().unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn group_dm_invites_create_resolve_join_and_revoke() {
+    let w = world().await;
+    let dm = group_dm(&w).await;
+    let mut dave_events = w.bus.subscribe(Topic::User(UserId::new(DAVE as u64)));
+
+    // Only the group owner makes links.
+    let (s, _) = w
+        .post(BOB, &format!("/channels/{dm}/invites"), json!({}))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, inv) = w
+        .post(OWNER, &format!("/channels/{dm}/invites"), json!({}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{inv}");
+    assert_eq!(inv["type"], 1);
+    assert!(inv.get("guild").is_none(), "no server behind a group link");
+    assert_eq!(inv["channel"]["id"], dm.as_str());
+    assert_eq!(inv["channel"]["type"], 3);
+    assert_eq!(inv["max_age"], 86_400);
+    assert_eq!(inv["max_uses"], 0);
+    assert_eq!(inv["approximate_member_count"], 3);
+    let code = inv["code"].as_str().unwrap().to_owned();
+
+    // The owner lists live links; a stranger resolves one, then joins, then joins again.
+    let (_, list) = w.get(OWNER, &format!("/channels/{dm}/invites")).await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    let (s, seen) = w
+        .get(DAVE, &format!("/invites/{code}?with_counts=true"))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{seen}");
+    assert_eq!(seen["channel"]["name"], "crew");
+    let (s, joined) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{joined}");
+    assert_eq!(joined["approximate_member_count"], 4);
+    let (s, again) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{again}");
+    assert_eq!(again["approximate_member_count"], 4, "no second seat");
+    // Dave heard about the group, and sees it in his list.
+    let mut names = Vec::new();
+    while let Ok(Some(ev)) = tokio::time::timeout(Duration::from_millis(50), dave_events.next()).await
+    {
+        if let DomainEvent::UserScoped { name, .. } = ev {
+            names.push(name);
+        }
+    }
+    assert!(names.contains(&"CHANNEL_CREATE".to_owned()), "{names:?}");
+    let (_, mine) = w.get(DAVE, "/users/@me/channels").await;
+    assert!(
+        mine.as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == dm.as_str()),
+        "{mine}"
+    );
+
+    // Revoking is the owner's call; afterwards the link is gone for everybody.
+    assert_eq!(
+        w.delete(BOB, &format!("/invites/{code}")).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (s, gone) = w.delete(OWNER, &format!("/invites/{code}")).await;
+    assert_eq!(s, StatusCode::OK, "{gone}");
+    assert_eq!(
+        w.get(CAROL, &format!("/invites/{code}")).await.0,
+        StatusCode::NOT_FOUND
+    );
+    let (_, list) = w.get(OWNER, &format!("/channels/{dm}/invites")).await;
+    assert_eq!(list, json!([]));
+    assert_eq!(
+        w.post(CAROL, "/invites/zzzzzzzz", json!({})).await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn group_dm_icon_is_stored_through_the_media_pipeline() {
+    let w = world().await;
+    let dm = group_dm(&w).await;
+    let (s, g) = w
+        .patch(
+            BOB,
+            &format!("/users/@me/channels/{dm}"),
+            json!({ "icon": PNG }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    let hash = g["icon"].as_str().unwrap().to_owned();
+    assert_eq!(hash.len(), 32, "a content hash, not the upload");
+    let key = format!("channel-icons/{dm}/{hash}");
+    assert!(w.storage.get(&key).await.is_ok(), "stored under {key}");
+
+    // Anything that is not an image data URI is refused, and nothing changes.
+    for bad in [json!("not-a-uri"), json!("data:text/plain;base64,aGk=")] {
+        let (s, _) = w
+            .patch(
+                BOB,
+                &format!("/users/@me/channels/{dm}"),
+                json!({ "icon": bad }),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+    let (_, back) = w.get(BOB, "/users/@me/channels").await;
+    let me = back
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == dm.as_str())
+        .unwrap();
+    assert_eq!(me["icon"], hash.as_str());
+
+    // null removes the icon and deletes the stored object.
+    let (s, g3) = w
+        .patch(
+            OWNER,
+            &format!("/users/@me/channels/{dm}"),
+            json!({ "icon": null }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{g3}");
+    assert!(g3["icon"].is_null());
+    assert!(
+        w.storage.get(&key).await.is_err(),
+        "the old icon was removed"
+    );
+}
+
+#[tokio::test]
+async fn server_safety_fields_widget_and_mfa_level() {
+    let w = world().await;
+    let (gid, general) = w.guild("Safe Club").await;
+    // The new fields are on the server object and default to off.
+    let (_, g) = w.get(OWNER, &format!("/guilds/{gid}")).await;
+    assert_eq!(
+        (
+            g["mfa_level"].as_u64(),
+            g["system_channel_flags"].as_u64(),
+            g["widget_enabled"].as_bool()
+        ),
+        (Some(0), Some(0), Some(false))
+    );
+
+    // system_channel_flags: PATCH with a manager; undefined bits are refused.
+    let (s, g) = w
+        .patch(
+            OWNER,
+            &format!("/guilds/{gid}"),
+            json!({ "system_channel_flags": 5 }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_eq!(g["system_channel_flags"], 5);
+    assert_eq!(
+        w.patch(
+            OWNER,
+            &format!("/guilds/{gid}"),
+            json!({ "system_channel_flags": 64 })
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        w.patch(
+            BOB,
+            &format!("/guilds/{gid}"),
+            json!({ "system_channel_flags": 1 })
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Widget settings: any member reads, a manager writes, the channel must be the server's.
+    let (s, wd) = w.get(BOB, &format!("/guilds/{gid}/widget")).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(wd, json!({ "enabled": false, "channel_id": null }));
+    let (s, wd) = w
+        .patch(
+            OWNER,
+            &format!("/guilds/{gid}/widget"),
+            json!({ "enabled": true, "channel_id": general }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{wd}");
+    assert_eq!(wd, json!({ "enabled": true, "channel_id": general }));
+    assert_eq!(
+        w.patch(
+            OWNER,
+            &format!("/guilds/{gid}/widget"),
+            json!({ "channel_id": "424242" })
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        w.patch(
+            BOB,
+            &format!("/guilds/{gid}/widget"),
+            json!({ "enabled": false })
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    // The 2FA requirement is the owner's alone.
+    assert_eq!(
+        w.post(BOB, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        w.post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 2 }))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+    let (s, m) = w
+        .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m, json!({ "level": 1 }));
+    let (_, g) = w.get(OWNER, &format!("/guilds/{gid}")).await;
+    assert_eq!(g["mfa_level"], 1);
+}
+
+#[tokio::test]
+async fn community_dm_and_spam_protection_fields_are_patchable() {
+    let w = world().await;
+    let (gid, _) = w.guild("Spam Club").await;
+    let (s, c) = w
+        .patch(
+            OWNER,
+            &format!("/guilds/{gid}/sr/community"),
+            json!({ "dm_spam_filter": true, "explicit_media_filter_dms": true, "hide_suspicious_links": true, "warn_new_account_days": 7 }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(
+        (
+            c["dm_spam_filter"].as_bool(),
+            c["warn_new_account_days"].as_u64()
+        ),
+        (Some(true), Some(7))
+    );
+    assert_eq!(
+        w.patch(
+            OWNER,
+            &format!("/guilds/{gid}/sr/community"),
+            json!({ "warn_new_account_days": 366 })
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        w.patch(
+            BOB,
+            &format!("/guilds/{gid}/sr/community"),
+            json!({ "dm_spam_filter": false })
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (_, c) = w.get(OWNER, &format!("/guilds/{gid}/sr/community")).await;
+    assert_eq!(c["hide_suspicious_links"], true);
 }

@@ -18,7 +18,8 @@ use axum::{
     Json,
     extract::{Path, Query},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use serde_json::Value;
 use sr_chat::social::profile::ProfileEdit;
 use sr_core::ErrorCode;
@@ -374,4 +375,50 @@ pub async fn broadcast_self_update(deps: &SocialDeps, user_id: i64) {
     if result.is_err() {
         tracing::warn!("could not broadcast USER_UPDATE after an account change");
     }
+}
+
+/// One approved effect or decoration.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CatalogEntryObject {
+    pub slug: String,
+    /// Image file stem under `/cdn/avatar-decorations/` (decorations only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset: Option<String>,
+    /// Web i18n key of the display name.
+    pub label_key: String,
+}
+
+/// What a profile may use (G-48).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ProfileCatalogObject {
+    /// Animated profile effects (built-in CSS).
+    pub effects: Vec<CatalogEntryObject>,
+    /// Avatar decorations; empty until artwork is approved.
+    pub decorations: Vec<CatalogEntryObject>,
+}
+
+/// The approved profile effects and avatar decorations. `PATCH /users/@me` only accepts
+/// slugs listed here.
+#[utoipa::path(
+    get,
+    path = "/sr/profile-catalog",
+    responses((status = 200, body = ProfileCatalogObject), (status = 401, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_catalog(p: Principal) -> MsgResult<Json<ProfileCatalogObject>> {
+    actor(&p)?;
+    use sr_chat::profile::catalog::{Kind, of_kind};
+    let list = |k: Kind| {
+        of_kind(k)
+            .map(|e| CatalogEntryObject {
+                slug: e.slug.to_owned(),
+                asset: e.asset.map(str::to_owned),
+                label_key: e.label_key.to_owned(),
+            })
+            .collect()
+    };
+    Ok(Json(ProfileCatalogObject {
+        effects: list(Kind::Effect),
+        decorations: list(Kind::Decoration),
+    }))
 }

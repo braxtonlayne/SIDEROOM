@@ -223,7 +223,7 @@ export function toDmChannel(c: S.Channel, rs: S.ReadState | undefined): DmChanne
     recipientIds: (c.recipients ?? []).map((u) => u.id),
     name: c.name ?? null,
     ...(c.owner_id ? { ownerId: c.owner_id } : {}),
-    ...(c.icon ? { iconUrl: cdnUrl('icons', c.id, c.icon, { size: 128 }) } : {}),
+    ...(c.icon ? { iconUrl: cdnUrl('channel-icons', c.id, c.icon, { size: 128 }) } : {}),
     lastMessageAt: snowflakeTime(c.last_message_id),
     unread: isUnread(c, rs),
     mentionCount: rs?.mention_count ?? 0,

@@ -1,4 +1,4 @@
-import { Radio, RadioGroup, TextArea, TextInput } from '@sideroom/ui';
+import { Button, Checkbox, Radio, RadioGroup, Switch, TextArea, TextInput } from '@sideroom/ui';
 import { useCallback, useMemo } from 'react';
 import { formatDate, type MessageKey, useT } from '../../../i18n';
 import { snowflakeTime } from '../../../lounge/liveMap';
@@ -17,6 +17,7 @@ interface Fields {
   afk_channel_id: string;
   afk_timeout: number;
   default_message_notifications: number;
+  system_channel_flags: number;
   /** Stored hash, a data URI picked this session, or null. */
   icon: string | null;
   banner: string | null;
@@ -30,6 +31,7 @@ const toFields = (g: api.GuildObject): Fields => ({
   afk_channel_id: g.afk_channel_id ?? '',
   afk_timeout: g.afk_timeout ?? 300,
   default_message_notifications: g.default_message_notifications,
+  system_channel_flags: g.system_channel_flags ?? 0,
   icon: g.icon,
   banner: g.banner ?? null,
   splash: g.splash ?? null,
@@ -42,6 +44,14 @@ const COMMUNITY_FLAGS: [keyof api.CommunityObject, MessageKey][] = [
   ['guide_enabled', 'settings.overview.flagGuide'],
   ['invites_paused', 'settings.overview.flagInvitesPaused'],
   ['age_restricted', 'settings.overview.flagAgeRestricted'],
+];
+
+/** A set `system_channel_flags` bit turns that message off, so the switch shows the inverse. */
+const SYSTEM_FLAG_ROWS: [number, MessageKey][] = [
+  [api.SYSTEM_FLAGS.suppressJoin, 'settings.overview.systemFlagJoin'],
+  [api.SYSTEM_FLAGS.suppressBoost, 'settings.overview.systemFlagBoost'],
+  [api.SYSTEM_FLAGS.suppressSetupTips, 'settings.overview.systemFlagTips'],
+  [api.SYSTEM_FLAGS.suppressJoinReplies, 'settings.overview.systemFlagReplies'],
 ];
 
 export function OverviewSection({ guildId }: SectionProps) {
@@ -95,6 +105,7 @@ function OverviewForm({
     if (c.afk_timeout !== undefined) body.afk_timeout = c.afk_timeout;
     if (c.default_message_notifications !== undefined)
       body.default_message_notifications = c.default_message_notifications;
+    if (c.system_channel_flags !== undefined) body.system_channel_flags = c.system_channel_flags;
     if (c.icon !== undefined) body.icon = c.icon;
     if (c.banner !== undefined) body.banner = c.banner;
     if (c.splash !== undefined) body.splash = c.splash;
@@ -187,8 +198,27 @@ function OverviewForm({
             ))}
           </select>
         </div>
-        <NotAvailable>{t('settings.overview.systemNotAvailable')}</NotAvailable>
+        <fieldset className="ss-flags" disabled={!draft.value.system_channel_id}>
+          <legend className="ss-field-label">{t('settings.overview.systemFlagsLegend')}</legend>
+          {SYSTEM_FLAG_ROWS.map(([bit, label]) => (
+            <Checkbox
+              key={bit}
+              label={t(label)}
+              checked={(draft.value.system_channel_flags & bit) === 0}
+              onChange={(e) =>
+                draft.set(
+                  'system_channel_flags',
+                  e.target.checked
+                    ? draft.value.system_channel_flags & ~bit
+                    : draft.value.system_channel_flags | bit,
+                )
+              }
+            />
+          ))}
+        </fieldset>
       </section>
+
+      <WidgetCard guildId={guildId} channels={allChannels.filter((c) => c.type !== 4)} />
 
       <section className="ss-card" aria-labelledby="ss-afk">
         <h2 id="ss-afk">{t('settings.overview.afkTitle')}</h2>
@@ -266,6 +296,68 @@ function OverviewForm({
         <NotAvailable>{t('settings.overview.traits')}</NotAvailable>
       </section>
     </div>
+  );
+}
+
+/** Server widget (G-36): on or off, and the channel its invite leads to. Saved on its own. */
+function WidgetCard({
+  guildId,
+  channels,
+}: {
+  guildId: string;
+  channels: { id: string; name?: string | null; type: number }[];
+}) {
+  const t = useT();
+  const widget = useResource(`widget:${guildId}`, () => api.getWidget(guildId));
+  const action = useAction();
+  const save = async (body: { enabled?: boolean; channel_id?: string | null }) => {
+    const next = await action.run(
+      () => api.modifyWidget(guildId, body),
+      t('settings.overview.widgetSaved'),
+    );
+    if (next) widget.set(next);
+  };
+  return (
+    <section className="ss-card" aria-labelledby="ss-widget">
+      <h2 id="ss-widget">{t('settings.overview.widgetTitle')}</h2>
+      <p className="ss-sub">{t('settings.overview.widgetDescription')}</p>
+      <ActionStatus error={action.error} done={action.done} />
+      {widget.data ? (
+        <>
+          <Switch
+            label={t('settings.overview.widgetEnable')}
+            checked={widget.data.enabled}
+            disabled={action.busy}
+            onChange={(e) => void save({ enabled: e.target.checked })}
+          />
+          <div>
+            <label className="ss-field-label" htmlFor="ss-widget-channel">
+              {t('settings.overview.widgetChannel')}
+            </label>
+            <select
+              id="ss-widget-channel"
+              className="ss-select"
+              value={widget.data.channel_id ?? ''}
+              disabled={action.busy}
+              onChange={(e) => void save({ channel_id: e.target.value || null })}
+            >
+              <option value="">{t('settings.overview.widgetNoChannel')}</option>
+              {channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.type === 2 ? (c.name ?? c.id) : `#${c.name ?? c.id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      ) : widget.error ? (
+        <Button size="sm" variant="secondary" onClick={() => void widget.reload()}>
+          {t('settings.ui.tryAgain')}
+        </Button>
+      ) : (
+        <p className="ss-na">{t('settings.overview.loadingShort')}</p>
+      )}
+    </section>
   );
 }
 

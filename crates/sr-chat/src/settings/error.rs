@@ -33,6 +33,8 @@ pub enum SettingsError {
     UnknownTemplate,
     #[error("unknown or already decided application")]
     UnknownApplication,
+    #[error("unknown scheduled event")]
+    UnknownEvent,
     #[error("a server limit was reached: {0}")]
     LimitReached(&'static str),
     #[error("missing permissions")]
@@ -76,6 +78,7 @@ impl SettingsError {
             Self::UnknownWebhook => ApiError::new(ErrorCode::UnknownWebhook),
             Self::UnknownRule | Self::UnknownTemplate => ApiError::new(ErrorCode::General),
             Self::UnknownApplication => ApiError::new(ErrorCode::SrNotFound),
+            Self::UnknownEvent => ApiError::new(ErrorCode::UnknownScheduledEvent),
             Self::LimitReached(what) => match *what {
                 "static emoji" | "animated emoji" => ApiError::new(ErrorCode::MaxEmojis),
                 "stickers" => ApiError::new(ErrorCode::MaxStickers),

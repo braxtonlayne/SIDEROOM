@@ -28,6 +28,10 @@ async fn try_post_user_join(deps: &MessagesDeps, guild: GuildId, user: UserId) -
     let Some(channel_id) = g.system_channel_id else {
         return Ok(());
     };
+    // "Send a random welcome message" is off (G-36 system_channel_flags bit 0).
+    if g.system_channel_flags & sr_chat::domain::system_flags::SUPPRESS_JOIN_NOTIFICATIONS != 0 {
+        return Ok(());
+    }
     let Some(ch) = deps.repo.get_channel(channel_id).await? else {
         return Ok(());
     };

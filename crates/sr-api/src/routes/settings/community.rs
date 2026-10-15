@@ -173,6 +173,14 @@ pub struct CommunityObject {
     pub invites_paused: bool,
     /// Alert when more than this many members join per minute; 0 = off.
     pub raid_alert_joins_per_minute: u32,
+    /// DM and spam protection: flag spam in direct messages between members.
+    pub dm_spam_filter: bool,
+    /// Blur explicit media in direct messages between members.
+    pub explicit_media_filter_dms: bool,
+    /// Hide the preview of suspicious links.
+    pub hide_suspicious_links: bool,
+    /// Warn moderators about accounts younger than this many days (0 = off, at most 365).
+    pub warn_new_account_days: u32,
     pub age_restricted: bool,
     /// Membership screening is on: new members stay pending until they agree to the rules
     /// (LNG-GLD-008).
@@ -197,6 +205,10 @@ impl CommunityObject {
             guide_enabled: s.guide_enabled,
             invites_paused: s.invites_paused,
             raid_alert_joins_per_minute: s.raid_alert_joins_per_minute,
+            dm_spam_filter: s.dm_spam_filter,
+            explicit_media_filter_dms: s.explicit_media_filter_dms,
+            hide_suspicious_links: s.hide_suspicious_links,
+            warn_new_account_days: s.warn_new_account_days,
             age_restricted: s.age_restricted,
             screening_enabled: s.screening_enabled,
             screening_description: s.screening_description.clone(),
@@ -226,6 +238,10 @@ pub struct ModifyCommunityBody {
     pub guide_enabled: Option<bool>,
     pub invites_paused: Option<bool>,
     pub raid_alert_joins_per_minute: Option<u32>,
+    pub dm_spam_filter: Option<bool>,
+    pub explicit_media_filter_dms: Option<bool>,
+    pub hide_suspicious_links: Option<bool>,
+    pub warn_new_account_days: Option<u32>,
     pub age_restricted: Option<bool>,
     pub screening_enabled: Option<bool>,
     #[serde(default, deserialize_with = "double_option")]
@@ -307,6 +323,25 @@ pub async fn modify_community(
     }
     if let Some(v) = body.raid_alert_joins_per_minute {
         s.raid_alert_joins_per_minute = v;
+    }
+    if let Some(v) = body.dm_spam_filter {
+        s.dm_spam_filter = v;
+    }
+    if let Some(v) = body.explicit_media_filter_dms {
+        s.explicit_media_filter_dms = v;
+    }
+    if let Some(v) = body.hide_suspicious_links {
+        s.hide_suspicious_links = v;
+    }
+    if let Some(v) = body.warn_new_account_days {
+        if v > sr_chat::settings::community::MAX_NEW_ACCOUNT_DAYS {
+            return Err(invalid(
+                "warn_new_account_days",
+                "NUMBER_TYPE_MAX",
+                "Must be 365 or less.",
+            ));
+        }
+        s.warn_new_account_days = v;
     }
     if let Some(v) = body.age_restricted {
         s.age_restricted = v;

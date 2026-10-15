@@ -185,10 +185,12 @@ pub async fn modify_member(
 pub async fn kick_member(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path((guild_id, user_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, actor, gid).await?;
     let uid: UserId = id("user_id", &user_id)?;
     api.kick_member(actor, gid, uid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)

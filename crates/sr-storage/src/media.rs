@@ -40,6 +40,8 @@ pub enum MediaKind {
     MemberAvatar,
     /// Per-server banner of a member; same layout as [`Self::MemberAvatar`].
     MemberBanner,
+    /// Icon of a group DM (G-50); the owner is the channel (`channel-icons/<channel_id>/<hash>`).
+    ChannelIcon,
 }
 
 impl MediaKind {
@@ -49,7 +51,7 @@ impl MediaKind {
             Self::UserAvatar | Self::GuildIcon | Self::WebhookAvatar | Self::MemberAvatar => {
                 Fit::Square { max: 1024 }
             }
-            Self::RoleIcon => Fit::Square { max: 256 },
+            Self::RoleIcon | Self::ChannelIcon => Fit::Square { max: 256 },
             Self::UserBanner | Self::GuildBanner | Self::GuildSplash | Self::MemberBanner => {
                 Fit::Bound { w: 1920, h: 1080 }
             }
@@ -67,6 +69,7 @@ impl MediaKind {
             Self::RoleIcon => "role-icon",
             Self::MemberAvatar => "member-avatar",
             Self::MemberBanner => "member-banner",
+            Self::ChannelIcon => "channel-icon",
         }
     }
 
@@ -79,6 +82,7 @@ impl MediaKind {
             | Self::MemberAvatar
             | Self::MemberBanner => "avatars",
             Self::GuildIcon | Self::GuildBanner | Self::GuildSplash | Self::RoleIcon => "icons",
+            Self::ChannelIcon => "channel-icons",
         }
     }
 
@@ -90,6 +94,7 @@ impl MediaKind {
             | Self::WebhookAvatar
             | Self::RoleIcon
             | Self::MemberAvatar => "icon_or_avatar",
+            Self::ChannelIcon => "icon",
             Self::UserBanner | Self::GuildBanner | Self::MemberBanner => "banner",
             Self::GuildSplash => "splash",
         }

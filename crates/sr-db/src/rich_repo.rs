@@ -7,7 +7,9 @@ use sqlx::{PgPool, Row};
 use sr_chat::message::{Embed, Poll};
 use sr_chat::poll_rules;
 use sr_chat::repo::{StoreError, StoreResult};
-use sr_chat::rich_repo::{PollTally, RetractResult, RichStore, StickerRecord, VoteResult};
+use sr_chat::rich_repo::{
+    PackSticker, PollTally, RetractResult, RichStore, StickerPack, StickerRecord, VoteResult,
+};
 use sr_core::{ChannelId, GuildId, MessageId, UserId};
 use std::collections::HashMap;
 
@@ -294,5 +296,62 @@ impl RichStore for PgRichStore {
                 })
             })
             .collect()
+    }
+
+    async fn sticker_packs(&self) -> StoreResult<Vec<StickerPack>> {
+        let packs = sqlx::query(
+            "SELECT id, name, description, cover_sticker_id FROM sticker_packs WHERE published ORDER BY sort_order, id",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sdb)?;
+        let rows = sqlx::query(
+            "SELECT s.id, s.pack_id, s.name, s.description, s.tags, s.format_type, s.available, s.media_key FROM stickers s JOIN sticker_packs p ON p.id = s.pack_id WHERE p.published ORDER BY s.created_at, s.id",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sdb)?;
+        let mut out = Vec::with_capacity(packs.len());
+        for p in &packs {
+            let id: i64 = p.try_get("id").map_err(sdb)?;
+            let mut stickers = Vec::new();
+            for r in &rows {
+                if r.try_get::<i64, _>("pack_id").map_err(sdb)? != id {
+                    continue;
+                }
+                stickers.push(PackSticker {
+                    id: u(r.try_get("id").map_err(sdb)?),
+                    name: r.try_get("name").map_err(sdb)?,
+                    description: r.try_get("description").map_err(sdb)?,
+                    tags: r.try_get("tags").map_err(sdb)?,
+                    format_type: r.try_get("format_type").map_err(sdb)?,
+                    available: r.try_get("available").map_err(sdb)?,
+                    media_key: r.try_get("media_key").map_err(sdb)?,
+                });
+            }
+            let cover = p
+                .try_get::<Option<i64>, _>("cover_sticker_id")
+                .map_err(sdb)?
+                .map(u)
+                .or_else(|| stickers.first().map(|s| s.id));
+            out.push(StickerPack {
+                id: u(id),
+                name: p.try_get("name").map_err(sdb)?,
+                description: p.try_get("description").map_err(sdb)?,
+                cover_sticker_id: cover,
+                stickers,
+            });
+        }
+        Ok(out)
+    }
+
+    async fn pack_sticker_media(&self, id: u64) -> StoreResult<Option<String>> {
+        sqlx::query_scalar(
+            "SELECT s.media_key FROM stickers s JOIN sticker_packs p ON p.id = s.pack_id WHERE s.id = $1 AND p.published",
+        )
+        .bind(i(id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sdb)
     }
 }

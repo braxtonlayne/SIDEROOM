@@ -139,6 +139,25 @@ pub struct Guild {
     pub preferred_locale: String,
     /// Vanity invite code (`/invite/<code>`), free of charge (LNG-INV-004).
     pub vanity_code: Option<String>,
+    /// 0 none, 1 elevated: moderator actions need a recent second factor (G-36).
+    pub mfa_level: u8,
+    /// Discord `system_channel_flags` bit field (see [`system_flags`]).
+    pub system_channel_flags: u32,
+    pub widget_enabled: bool,
+    /// The channel the widget invites to.
+    pub widget_channel_id: Option<ChannelId>,
+}
+
+/// Bits of [`Guild::system_channel_flags`] (Discord values).
+pub mod system_flags {
+    pub const SUPPRESS_JOIN_NOTIFICATIONS: u32 = 1;
+    pub const SUPPRESS_PREMIUM_SUBSCRIPTIONS: u32 = 1 << 1;
+    pub const SUPPRESS_GUILD_REMINDER_NOTIFICATIONS: u32 = 1 << 2;
+    pub const SUPPRESS_JOIN_NOTIFICATION_REPLIES: u32 = 1 << 3;
+    pub const SUPPRESS_ROLE_SUBSCRIPTION_PURCHASE_NOTIFICATIONS: u32 = 1 << 4;
+    pub const SUPPRESS_ROLE_SUBSCRIPTION_PURCHASE_NOTIFICATION_REPLIES: u32 = 1 << 5;
+    /// Every defined bit.
+    pub const ALL: u32 = 0b11_1111;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

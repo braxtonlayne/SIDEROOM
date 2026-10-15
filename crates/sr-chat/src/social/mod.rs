@@ -101,6 +101,8 @@ pub enum SocialError {
     NotOwner,
     #[error("action only valid in a group DM")]
     NotGroupDm,
+    #[error("unknown invite")]
+    UnknownInvite,
     #[error("your settings changed in another session; try again")]
     Conflict,
     #[error("invalid {field}: {message}")]
@@ -128,6 +130,7 @@ impl SocialError {
         match self {
             Self::UnknownUser => ApiError::new(ErrorCode::UnknownUser),
             Self::UnknownChannel => ApiError::new(ErrorCode::UnknownChannel),
+            Self::UnknownInvite => ApiError::new(ErrorCode::UnknownInvite),
             Self::DmNotAllowed | Self::BlockedByYou | Self::BlockedByThem => {
                 ApiError::new(ErrorCode::CannotSendMessagesToUser)
             }

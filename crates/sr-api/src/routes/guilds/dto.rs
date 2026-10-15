@@ -396,6 +396,14 @@ pub struct GuildObject {
     pub verification_level: u8,
     pub default_message_notifications: u8,
     pub explicit_content_filter: u8,
+    /// 0 none, 1 elevated: moderator actions need a recent second factor
+    /// (`POST /guilds/{id}/mfa`).
+    pub mfa_level: u8,
+    /// Discord `system_channel_flags` bits (1 suppress join messages, 2 boost messages,
+    /// 4 setup tips, 8 sticker reply buttons, 16 role subscription messages, 32 their replies).
+    pub system_channel_flags: u32,
+    pub widget_enabled: bool,
+    pub widget_channel_id: Option<String>,
     pub preferred_locale: String,
     pub features: Vec<String>,
     /// Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
@@ -427,6 +435,10 @@ impl GuildObject {
             verification_level: g.verification_level,
             default_message_notifications: g.default_message_notifications,
             explicit_content_filter: g.explicit_content_filter,
+            mfa_level: g.mfa_level,
+            system_channel_flags: g.system_channel_flags,
+            widget_enabled: g.widget_enabled,
+            widget_channel_id: g.widget_channel_id.map(|c| c.to_string()),
             preferred_locale: g.preferred_locale.clone(),
             features: Vec::new(),
             is_staff_guild: g.is_staff_guild,
@@ -544,6 +556,8 @@ pub struct ModifyGuildBody {
     pub verification_level: Option<u8>,
     pub default_message_notifications: Option<u8>,
     pub explicit_content_filter: Option<u8>,
+    /// Discord `system_channel_flags` bits (see the server object).
+    pub system_channel_flags: Option<u32>,
     pub preferred_locale: Option<String>,
     /// Transfers ownership (owner only).
     pub owner_id: Option<String>,

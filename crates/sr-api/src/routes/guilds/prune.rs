@@ -113,11 +113,13 @@ pub async fn prune_count(
 pub async fn prune(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path(guild_id): Path<String>,
     Json(body): Json<PruneBody>,
 ) -> ApiResult<Json<PruneResult>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let include = roles(body.include_roles)?;
     let pruned = api
         .prune(user, gid, body.days.unwrap_or(DEFAULT_DAYS), include)

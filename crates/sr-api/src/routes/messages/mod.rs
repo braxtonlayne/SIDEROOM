@@ -29,6 +29,7 @@ pub mod rich_create;
 pub mod rich_jobs;
 pub mod rich_model;
 pub mod send;
+pub mod sticker_packs;
 pub mod store;
 pub mod system;
 pub mod typing;
@@ -114,6 +115,7 @@ pub fn router() -> Router<AppState> {
             "/channels/{channel_id}/attachments/{upload_id}/complete",
             post(attachments::complete_upload),
         )
+        .merge(sticker_packs::routes())
 }
 
 /// OpenAPI fragment for these routes; merge into [`crate::openapi::base`].
@@ -144,6 +146,8 @@ pub fn router() -> Router<AppState> {
         polls::expire,
         attachments::request_slots,
         attachments::complete_upload,
+        sticker_packs::list_packs,
+        sticker_packs::sticker_url,
     ),
     components(schemas(
         ErrorBody,
@@ -166,6 +170,9 @@ pub fn router() -> Router<AppState> {
         model::PinEntry,
         model::PinsPage,
         polls::PollVoters,
+        sticker_packs::PackStickerObject,
+        sticker_packs::StickerPackObject,
+        sticker_packs::StickerPacksObject,
     ))
 )]
 pub struct MessagesApi;

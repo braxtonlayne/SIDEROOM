@@ -16,9 +16,10 @@ use super::expressions::{Emoji, Sticker};
 use super::invites::{GuildInvite, InviteStatus};
 use super::repo::{
     ApplicationRepository, AuditRepository, AutoModRepository, CommunityRepository,
-    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository, TagRepository,
-    TemplateRepository, WebhookRepository,
+    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository,
+    ScheduledEventRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
+use super::scheduled_events::{EventStatus, ScheduledEvent};
 use super::soundboard::Sound;
 use super::tags::GuildTag;
 use super::templates::GuildTemplate;
@@ -46,6 +47,9 @@ pub struct Store {
     pub primary_guilds: HashMap<UserId, GuildId>,
     pub insights: HashMap<GuildId, super::insights::Insights>,
     pub guides: HashMap<GuildId, super::guide::Guide>,
+    pub events: Vec<ScheduledEvent>,
+    /// `(event, user, created_ms)`.
+    pub event_interest: Vec<(u64, UserId, i64)>,
     pub app_forms: HashMap<GuildId, ApplicationForm>,
     pub applications: Vec<Application>,
 }
@@ -877,5 +881,146 @@ impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
             });
         });
         Ok(gone)
+    }
+}
+
+#[async_trait]
+impl ScheduledEventRepository for MemorySettingsRepo {
+    async fn insert_event(&self, event: &ScheduledEvent) -> RepoResult<()> {
+        self.with(|s| s.events.push(event.clone()));
+        Ok(())
+    }
+
+    async fn get_event(&self, guild: GuildId, id: u64) -> RepoResult<Option<ScheduledEvent>> {
+        Ok(self.with(|s| {
+            s.events
+                .iter()
+                .find(|e| e.guild_id == guild && e.id == id)
+                .cloned()
+        }))
+    }
+
+    async fn list_open_events(&self, guild: GuildId) -> RepoResult<Vec<ScheduledEvent>> {
+        Ok(self.with(|s| {
+            let mut v: Vec<_> = s
+                .events
+                .iter()
+                .filter(|e| e.guild_id == guild && e.status.is_open())
+                .cloned()
+                .collect();
+            v.sort_by_key(|e| (e.start_ms, e.id));
+            v
+        }))
+    }
+
+    async fn count_open_events(&self, guild: GuildId) -> RepoResult<usize> {
+        Ok(self.with(|s| {
+            s.events
+                .iter()
+                .filter(|e| e.guild_id == guild && e.status.is_open())
+                .count()
+        }))
+    }
+
+    async fn update_event(&self, event: &ScheduledEvent) -> RepoResult<()> {
+        self.with(|s| {
+            if let Some(e) = s.events.iter_mut().find(|e| e.id == event.id) {
+                *e = event.clone();
+            }
+        });
+        Ok(())
+    }
+
+    async fn delete_event(&self, guild: GuildId, id: u64) -> RepoResult<bool> {
+        Ok(self.with(|s| {
+            let before = s.events.len();
+            s.events.retain(|e| !(e.guild_id == guild && e.id == id));
+            s.event_interest.retain(|(e, _, _)| *e != id);
+            s.events.len() != before
+        }))
+    }
+
+    async fn add_interest(&self, event: u64, user: UserId, now_ms: i64) -> RepoResult<bool> {
+        Ok(self.with(|s| {
+            let dup = s
+                .event_interest
+                .iter()
+                .any(|(e, u, _)| *e == event && *u == user);
+            if !dup {
+                s.event_interest.push((event, user, now_ms));
+            }
+            !dup
+        }))
+    }
+
+    async fn remove_interest(&self, event: u64, user: UserId) -> RepoResult<bool> {
+        Ok(self.with(|s| {
+            let before = s.event_interest.len();
+            s.event_interest
+                .retain(|(e, u, _)| !(*e == event && *u == user));
+            s.event_interest.len() != before
+        }))
+    }
+
+    async fn interest_counts(&self, events: &[u64]) -> RepoResult<HashMap<u64, u32>> {
+        Ok(self.with(|s| {
+            let mut out = HashMap::new();
+            for (e, _, _) in &s.event_interest {
+                if events.contains(e) {
+                    *out.entry(*e).or_insert(0) += 1;
+                }
+            }
+            out
+        }))
+    }
+
+    async fn interested_in(&self, user: UserId, events: &[u64]) -> RepoResult<HashSet<u64>> {
+        Ok(self.with(|s| {
+            s.event_interest
+                .iter()
+                .filter(|(e, u, _)| *u == user && events.contains(e))
+                .map(|(e, _, _)| *e)
+                .collect()
+        }))
+    }
+
+    async fn list_interested(
+        &self,
+        event: u64,
+        before: Option<UserId>,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<UserId>> {
+        Ok(self.with(|s| {
+            let mut v: Vec<UserId> = s
+                .event_interest
+                .iter()
+                .filter(|(e, _, _)| *e == event)
+                .map(|(_, u, _)| *u)
+                .filter(|u| after.is_none_or(|a| *u > a) && before.is_none_or(|b| *u < b))
+                .collect();
+            v.sort();
+            if before.is_some() && after.is_none() {
+                let skip = v.len().saturating_sub(limit);
+                v.drain(..skip);
+            } else {
+                v.truncate(limit);
+            }
+            v
+        }))
+    }
+
+    async fn due_events(&self, now_ms: i64) -> RepoResult<Vec<ScheduledEvent>> {
+        Ok(self.with(|s| {
+            s.events
+                .iter()
+                .filter(|e| match e.status {
+                    EventStatus::Scheduled => e.start_ms <= now_ms,
+                    EventStatus::Active => e.end_ms.is_some_and(|end| end <= now_ms),
+                    _ => false,
+                })
+                .cloned()
+                .collect()
+        }))
     }
 }

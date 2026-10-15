@@ -59,6 +59,30 @@ pub struct StickerRecord {
     pub available: bool,
 }
 
+/// A sticker of a pack (G-44).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackSticker {
+    pub id: u64,
+    pub name: String,
+    pub description: Option<String>,
+    pub tags: String,
+    /// Discord `format_type`: 1 png, 2 apng, 3 lottie, 4 gif.
+    pub format_type: i16,
+    pub available: bool,
+    /// Object key under `sticker/` (see `GET /stickers/{id}/url`).
+    pub media_key: String,
+}
+
+/// A published sticker pack with its stickers in picker order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StickerPack {
+    pub id: u64,
+    pub name: String,
+    pub description: Option<String>,
+    pub cover_sticker_id: Option<u64>,
+    pub stickers: Vec<PackSticker>,
+}
+
 #[async_trait]
 pub trait RichStore: Send + Sync {
     /// Replace the embeds of a message (link previews arriving after the send).
@@ -114,4 +138,10 @@ pub trait RichStore: Send + Sync {
 
     /// Sticker rows among `ids` (unknown ids are omitted).
     async fn stickers(&self, ids: &[u64]) -> StoreResult<Vec<StickerRecord>>;
+
+    /// Published sticker packs, in picker order (G-44). Empty until a pack is installed.
+    async fn sticker_packs(&self) -> StoreResult<Vec<StickerPack>>;
+
+    /// The media key of a sticker that belongs to a published pack.
+    async fn pack_sticker_media(&self, id: u64) -> StoreResult<Option<String>>;
 }

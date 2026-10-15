@@ -1,0 +1,37 @@
+export default {
+  'lounge.inviteCard.group': 'Group chat',
+  'entrance.invite.groupInvited': "You've been invited to join a group chat",
+  'entrance.invite.groupName': 'a group chat',
+  'entrance.invite.groupMembers': '{count} members',
+  'settings.overview.systemFlagsLegend': 'Send these messages',
+  'settings.overview.systemFlagJoin': 'A welcome message when someone joins',
+  'settings.overview.systemFlagBoost': 'A message when someone boosts the server',
+  'settings.overview.systemFlagTips': 'Helpful tips for setting up the server',
+  'settings.overview.systemFlagReplies': 'A Wave to say hi reply button on welcome messages',
+  'settings.overview.widgetTitle': 'Server widget',
+  'settings.overview.widgetDescription':
+    'Let other sites show who is online and invite people to a channel.',
+  'settings.overview.widgetEnable': 'Enable the server widget',
+  'settings.overview.widgetChannel': 'Invite channel',
+  'settings.overview.widgetNoChannel': 'No invite channel',
+  'settings.overview.widgetSaved': 'Widget settings saved.',
+  'settings.protection.loading': 'Loading protection settings',
+  'settings.protection.mfaTitle': 'Two-factor authentication for moderation',
+  'settings.protection.mfaDescription':
+    'Moderators and admins must confirm a second factor before they kick, ban, prune or change roles, channels and server settings.',
+  'settings.protection.mfaSwitch': 'Require 2FA for moderator actions',
+  'settings.protection.mfaOwnerOnly': 'Only the server owner can change this.',
+  'settings.protection.mfaSaved': 'Two-factor requirement saved.',
+  'settings.protection.dmTitle': 'DM and spam protection',
+  'settings.protection.dmDescription':
+    'Choices for direct messages between members of this server and for new accounts.',
+  'settings.protection.dmSpam': 'Filter spam in direct messages from members',
+  'settings.protection.explicitMedia': 'Blur explicit media in direct messages between members',
+  'settings.protection.suspiciousLinks': 'Hide previews of suspicious links',
+  'settings.protection.newAccountDays': 'Warn about new accounts',
+  'settings.protection.newAccountHint':
+    'Moderators get a warning when an account younger than this many days joins. 0 turns it off.',
+  'settings.protection.newAccountError': 'Enter a whole number of days from 0 to 365.',
+  'settings.protection.save': 'Save',
+  'settings.protection.saved': 'Protection settings saved.',
+} satisfies Record<string, string>;
