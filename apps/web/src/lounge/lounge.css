@@ -1766,3 +1766,22 @@
   line-height: 12px;
   white-space: nowrap;
 }
+.lng-emoji-top {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.lng-emoji-footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-block-size: 32px;
+  padding-block-start: 6px;
+  border-block-start: 1px solid var(--ui-border);
+}
+.lng-emoji-preview {
+  font-size: 24px;
+}
+.lng-emoji-btn[data-favorite] {
+  background: var(--ui-bg-hover);
+}

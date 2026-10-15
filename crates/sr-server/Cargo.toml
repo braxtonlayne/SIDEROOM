@@ -37,6 +37,8 @@ sr-events = { path = "../sr-events" }
 sr-features = { path = "../sr-features" }
 sr-gateway = { path = "../sr-gateway" }
 sr-library = { path = "../sr-library" }
+sr-net = { path = "../sr-net" }
+sr-push = { path = "../sr-push" }
 sr-cinema = { path = "../sr-cinema" }
 sr-media = { path = "../sr-media" }
 sr-payments = { path = "../sr-payments" }
@@ -57,6 +59,7 @@ tracing = "0.1"
 
 [dev-dependencies]
 zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }
+bytes = "1"
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
 sr-chat = { path = "../sr-chat", features = ["memory"] }

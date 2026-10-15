@@ -72,6 +72,7 @@ DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
 DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-
+DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 DELETE	/watch-parties/{party_id}	authenticated	other	allow	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	other	allow	-
@@ -222,6 +223,10 @@ GET	/donations/leaderboards/{board}	authenticated	other	allow	-
 GET	/donations/me	authenticated	other	allow	-
 GET	/gateway	public	none	allow	-
 GET	/gateway/bot	authenticated	other	allow	-
+GET	/gifs/categories	authenticated	self	deny	-
+GET	/gifs/config	authenticated	self	deny	-
+GET	/gifs/search	authenticated	self	deny	-
+GET	/gifs/trending	authenticated	self	deny	-
 GET	/guilds/templates/builtin	authenticated	membership	allow	-
 GET	/guilds/templates/{code}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}	authenticated	membership	allow	-
@@ -280,6 +285,7 @@ GET	/library/updates	authenticated	other	allow	-
 GET	/oauth2/@me	authenticated	other	allow	any
 GET	/oauth2/authorize	authenticated	other	deny	-
 GET	/oauth2/tokens	authenticated	other	deny	-
+GET	/push/vapid-key	authenticated	self	deny	-
 GET	/requests	authenticated	other	allow	-
 GET	/soundboard-default-sounds	authenticated	other	allow	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	other	allow	-
@@ -314,6 +320,7 @@ GET	/users/@me/guilds	authenticated	self	allow	guilds
 GET	/users/@me/guilds/{guild_id}/member	authenticated	membership	allow	-
 GET	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-
 GET	/users/@me/ignores	authenticated	self	deny	-
+GET	/users/@me/mentions	authenticated	self	deny	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
 GET	/users/@me/notification-defaults	authenticated	self	deny	-
 GET	/users/@me/presence	authenticated	self	allow	-
@@ -539,6 +546,7 @@ POST	/users/@me/channels	authenticated	self	allow	-
 POST	/users/@me/connections/{provider}/authorize	authenticated	self	deny	-
 POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-
 POST	/users/@me/data-export	authenticated	self	deny	-
+POST	/users/@me/push-subscriptions	authenticated	self	deny	-
 POST	/users/@me/relationships	authenticated	self	deny	-
 POST	/watch-parties	authenticated	other	allow	-
 POST	/watch-parties/{party_id}/heartbeat	authenticated	other	allow	-

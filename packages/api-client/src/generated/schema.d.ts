@@ -5066,6 +5066,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gifs/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Featured categories for the picker's start page. */
+        get: operations["categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the GIF picker has a provider. */
+        get: operations["config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search GIFs. */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifs/trending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trending GIFs. */
+        get: operations["trending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds": {
         parameters: {
             query?: never;
@@ -6553,6 +6621,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/push/vapid-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The VAPID public key browsers subscribe against. */
+        get: operations["vapid_key"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/read-states/ack-bulk": {
         parameters: {
             query?: never;
@@ -7776,6 +7861,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/mentions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Messages from the last seven days that mention the caller, newest first. */
+        get: operations["recent_mentions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/notes/{user_id}": {
         parameters: {
             query?: never;
@@ -7895,6 +7997,27 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/push-subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register (or refresh) this browser's push subscription. Re-registering the same
+         *     endpoint replaces it; a user keeps at most 10 devices, the oldest is dropped.
+         */
+        post: operations["subscribe"];
+        /** Remove this browser's push subscription (idempotent). */
+        delete: operations["unsubscribe"];
         options?: never;
         head?: never;
         patch?: never;
@@ -10635,6 +10758,40 @@ export interface components {
         GatewayInfo: {
             url: string;
         };
+        /** @description The featured categories. */
+        GifCategoriesObject: {
+            categories: components["schemas"]["GifCategoryObject"][];
+        };
+        /** @description A featured search term. */
+        GifCategoryObject: {
+            image_url: string;
+            name: string;
+            /** @description Search with this term when the tile is chosen. */
+            search_term: string;
+        };
+        /** @description Whether the GIF picker is available on this installation. */
+        GifConfigObject: {
+            enabled: boolean;
+        };
+        /** @description One GIF in the picker. */
+        GifObject: {
+            /** Format: int32 */
+            height: number;
+            id: string;
+            /** @description Same-origin path of the proxied preview. */
+            preview_url: string;
+            title: string;
+            /** @description The original GIF URL; post this as the message content. */
+            url: string;
+            /** Format: int32 */
+            width: number;
+        };
+        /** @description A page of results. */
+        GifPageObject: {
+            /** @description Pass as `pos` for the next page; absent on the last page. */
+            next?: string | null;
+            results: components["schemas"]["GifObject"][];
+        };
         GrantBody: {
             /**
              * Format: int64
@@ -12167,6 +12324,23 @@ export interface components {
         PruneResult: {
             /** @description Members that would be (preview) or were (execute) removed. */
             pruned: number;
+        };
+        /** @description The `keys` of a browser `PushSubscription`. */
+        PushKeys: {
+            auth: string;
+            p256dh: string;
+        };
+        /** @description A browser push subscription to register for the caller. */
+        PushSubscriptionBody: {
+            /** @description Free-text device label (at most 100 characters). */
+            device_name?: string;
+            /** @description The push service URL (https). */
+            endpoint: string;
+            keys: components["schemas"]["PushKeys"];
+        };
+        /** @description Which subscription to remove. */
+        PushUnsubscribeBody: {
+            endpoint: string;
         };
         PutFormBody: {
             description?: string | null;
@@ -13786,6 +13960,11 @@ export interface components {
              * @description Members who joined through it.
              */
             uses: number;
+        };
+        /** @description The server's VAPID application-server key. */
+        VapidKeyObject: {
+            /** @description Base64url, uncompressed P-256 point; pass it to `pushManager.subscribe`. */
+            public_key: string;
         };
         Variant: {
             asset_id?: string | null;
@@ -31152,6 +31331,132 @@ export interface operations {
             };
         };
     };
+    categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifCategoriesObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifConfigObject"];
+                };
+            };
+        };
+    };
+    search: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Search text, 1 to 100 characters. */
+                q: string;
+                limit: number | null;
+                pos: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifPageObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    trending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Results per page, 1 to 50 (default 24). */
+                limit: number | null;
+                /** @description Continuation token from the previous page. */
+                pos: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GifPageObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     create_guild: {
         parameters: {
             query?: never;
@@ -36622,6 +36927,33 @@ export interface operations {
             };
         };
     };
+    vapid_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VapidKeyObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     ack_bulk: {
         parameters: {
             query?: never;
@@ -39987,6 +40319,44 @@ export interface operations {
             };
         };
     };
+    recent_mentions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 1 to 50, default 25. */
+                limit: number | null;
+                /** @description Message snowflake: return mentions older than this. */
+                before: string | null;
+                /** @description Include messages that mention one of your roles (default true). */
+                roles: boolean | null;
+                /** @description Include `@everyone` and `@here` (default true). */
+                everyone: boolean | null;
+                /** @description Restrict to one server. */
+                guild_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_note: {
         parameters: {
             query?: never;
@@ -40281,6 +40651,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileObject"];
+                };
+            };
+        };
+    };
+    subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionBody"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushUnsubscribeBody"];
+            };
+        };
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

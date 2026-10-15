@@ -2,7 +2,7 @@ import { Button, Modal, Notice, RadioGroup, Radio, Spinner, Switch } from '@side
 import { useEffect, useState } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import { useChannels, useGuild } from '../data';
-import { isMuted, MUTE_DURATIONS, useNotifSettings } from './notifSettings';
+import { isMuted, MUTE_DURATIONS, useNotifSettings, type GuildNotif } from './notifSettings';
 
 const LEVELS: { value: string; labelKey: MessageKey }[] = [
   { value: '0', labelKey: 'lounge.notificationDialog.levelAll' },
@@ -142,10 +142,84 @@ export function NotificationDialog({
                 checked={notif.suppressRoles}
                 onChange={(e) => void run(patchGuild(guildId, { suppressRoles: e.target.checked }))}
               />
+              <Switch
+                label={t('lounge.notificationDialog.suppressHighlights')}
+                checked={notif.suppressHighlights}
+                onChange={(e) =>
+                  void run(patchGuild(guildId, { suppressHighlights: e.target.checked }))
+                }
+              />
+              <Switch
+                label={t('lounge.notificationDialog.mobilePush')}
+                checked={notif.mobilePush}
+                onChange={(e) => void run(patchGuild(guildId, { mobilePush: e.target.checked }))}
+              />
+              <Overrides
+                guildId={guildId}
+                notif={notif}
+                onError={() => setError(t('lounge.notificationDialog.saveError'))}
+              />
             </>
           )}
         </div>
       )}
     </Modal>
+  );
+}
+
+const LEVEL_KEYS: Record<number, MessageKey> = {
+  0: 'lounge.notificationDialog.levelAll',
+  1: 'lounge.notificationDialog.levelMentions',
+  2: 'lounge.notificationDialog.levelNothing',
+};
+
+/** Channels with their own setting, each with a reset (LNG-NTF-004). */
+function Overrides({
+  guildId,
+  notif,
+  onError,
+}: {
+  guildId: string;
+  notif: GuildNotif;
+  onError: () => void;
+}) {
+  const t = useT();
+  const channels = useChannels(guildId);
+  const patchChannel = useNotifSettings((s) => s.patchChannel);
+  const rows = Object.entries(notif.channels).filter(([, c]) => c.level !== null || isMuted(c));
+  return (
+    <fieldset className="lng-field">
+      <legend className="lng-field-label">{t('lounge.notificationDialog.overrides')}</legend>
+      {rows.length === 0 ? (
+        <p className="lng-muted">{t('lounge.notificationDialog.noOverrides')}</p>
+      ) : (
+        <ul className="lng-notif-overrides">
+          {rows.map(([id, c]) => {
+            const name = channels.find((ch) => ch.id === id)?.name ?? id;
+            return (
+              <li key={id}>
+                <span>
+                  #{name}
+                  {': '}
+                  {c.level !== null && LEVEL_KEYS[c.level] ? t(LEVEL_KEYS[c.level]!) : null}
+                  {isMuted(c) ? ` ${t('lounge.notificationDialog.overrideMuted')}` : null}
+                </span>
+                <Button
+                  variant="ghost"
+                  aria-label={t('lounge.notificationDialog.resetOverride', { name })}
+                  onClick={() =>
+                    void patchChannel(guildId, id, { level: null, mute: { muted: false } }).catch(
+                      onError,
+                    )
+                  }
+                >
+                  {t('lounge.notificationDialog.reset')}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </fieldset>
   );
 }

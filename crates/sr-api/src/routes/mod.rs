@@ -42,10 +42,13 @@ pub mod cinema_social;
 pub mod developer;
 pub mod directory;
 pub mod donations;
+pub mod gifs;
 pub mod guilds;
+pub mod inbox;
 pub mod library;
 pub mod media;
 pub mod messages;
+pub mod push;
 pub mod review;
 pub mod search;
 pub mod settings;
@@ -121,6 +124,9 @@ pub fn all() -> Router<AppState> {
         .merge(directory::router())
         .merge(donations::router())
         .merge(userset::router())
+        .merge(push::router())
+        .merge(gifs::router())
+        .merge(inbox::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -157,6 +163,9 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(developer::openapi());
     doc.merge(donations::openapi());
     doc.merge(userset::openapi());
+    doc.merge(push::openapi());
+    doc.merge(gifs::openapi());
+    doc.merge(inbox::openapi());
     doc
 }
 

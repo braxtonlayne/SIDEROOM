@@ -207,3 +207,247 @@ pub fn should_notify(
         NotificationLevel::Nothing => false,
     }
 }
+
+/// Why a message notifies, strongest reason first (LNG-NTF-002). The client uses it to
+/// choose the push title and the inbox tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NotifyReason {
+    /// The recipient is mentioned by name.
+    Mention,
+    /// A reply to the recipient's message.
+    Reply,
+    /// `@everyone` / `@here`.
+    Everyone,
+    /// One of the recipient's roles is mentioned.
+    Role,
+    /// A message in a thread the recipient follows.
+    ThreadFollow,
+    /// The message contains one of the recipient's highlight keywords.
+    Keyword,
+    /// A message in a DM or group DM that notifies for every message.
+    DirectMessage,
+    /// The level is "all messages" and nothing more specific applied.
+    AllMessages,
+}
+
+/// Facts about one message for one recipient, beyond [`MentionKind`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct NotifyInput {
+    pub kind: MentionKind,
+    /// The channel is a DM or group DM.
+    pub is_dm: bool,
+    /// The recipient follows the thread the message was posted in.
+    pub followed_thread: bool,
+    /// The content matches one of the recipient's keywords.
+    pub keyword_hit: bool,
+}
+
+/// The engine's verdict for one recipient.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotifyDecision {
+    /// Show an in-app/desktop notification.
+    pub notify: bool,
+    /// Also send it to the recipient's push subscriptions (mobile push on).
+    pub push: bool,
+    pub reason: Option<NotifyReason>,
+}
+
+impl NotifyDecision {
+    const NONE: Self = Self {
+        notify: false,
+        push: false,
+        reason: None,
+    };
+}
+
+fn words_of(s: &str) -> Vec<String> {
+    s.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric() && c != '\u{27}')
+        .filter(|w| !w.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Case-insensitive whole-word (or whole-phrase) match of any of `keywords` in `content`.
+pub fn matches_keyword(content: &str, keywords: &[String]) -> bool {
+    if keywords.is_empty() {
+        return false;
+    }
+    let words = words_of(content);
+    keywords.iter().any(|k| {
+        let parts = words_of(k);
+        !parts.is_empty() && words.windows(parts.len()).any(|w| w == parts.as_slice())
+    })
+}
+
+/// The notification decision engine: level, mute, suppression toggles, mentions, replies,
+/// DMs, thread follows and keyword highlights combine into one verdict.
+///
+/// * A muted scope or a level of "nothing" never notifies.
+/// * "All messages" notifies for everything; the reason is the strongest applicable one.
+/// * "Only @mentions" notifies for direct mentions and replies, `@everyone`/role mentions
+///   unless suppressed, followed threads, and keyword hits unless highlights are suppressed.
+/// * `push` additionally requires the scope's `mobile_push` (on by default).
+pub fn decide(
+    level: NotificationLevel,
+    muted: bool,
+    scope: Option<&ScopeSettings>,
+    input: NotifyInput,
+) -> NotifyDecision {
+    if muted || level == NotificationLevel::Nothing {
+        return NotifyDecision::NONE;
+    }
+    let (suppress_everyone, suppress_roles, suppress_highlights, mobile_push) =
+        scope.map_or((false, false, false, true), |s| {
+            (
+                s.suppress_everyone,
+                s.suppress_roles,
+                s.suppress_highlights,
+                s.mobile_push,
+            )
+        });
+    let k = input.kind;
+    let mut reasons: Vec<NotifyReason> = Vec::new();
+    if k.direct {
+        reasons.push(NotifyReason::Mention);
+    }
+    if k.reply {
+        reasons.push(NotifyReason::Reply);
+    }
+    if k.everyone && !suppress_everyone {
+        reasons.push(NotifyReason::Everyone);
+    }
+    if k.role && !suppress_roles {
+        reasons.push(NotifyReason::Role);
+    }
+    if input.followed_thread {
+        reasons.push(NotifyReason::ThreadFollow);
+    }
+    if input.keyword_hit && !suppress_highlights {
+        reasons.push(NotifyReason::Keyword);
+    }
+    if level == NotificationLevel::All {
+        reasons.push(if input.is_dm {
+            NotifyReason::DirectMessage
+        } else {
+            NotifyReason::AllMessages
+        });
+    }
+    let reason = reasons.iter().min().copied();
+    NotifyDecision {
+        notify: reason.is_some(),
+        push: reason.is_some() && mobile_push,
+        reason,
+    }
+}
+
+#[cfg(test)]
+mod engine_tests {
+    use super::*;
+
+    fn mention() -> NotifyInput {
+        NotifyInput {
+            kind: MentionKind {
+                direct: true,
+                ..MentionKind::default()
+            },
+            ..NotifyInput::default()
+        }
+    }
+
+    #[test]
+    fn mute_and_nothing_silence_everything() {
+        assert!(!decide(NotificationLevel::All, true, None, mention()).notify);
+        assert!(!decide(NotificationLevel::Nothing, false, None, mention()).notify);
+    }
+
+    #[test]
+    fn all_messages_notifies_with_the_strongest_reason() {
+        let plain = decide(NotificationLevel::All, false, None, NotifyInput::default());
+        assert_eq!(plain.reason, Some(NotifyReason::AllMessages));
+        assert!(plain.push);
+        let dm = decide(
+            NotificationLevel::All,
+            false,
+            None,
+            NotifyInput {
+                is_dm: true,
+                ..NotifyInput::default()
+            },
+        );
+        assert_eq!(dm.reason, Some(NotifyReason::DirectMessage));
+        let both = decide(NotificationLevel::All, false, None, mention());
+        assert_eq!(both.reason, Some(NotifyReason::Mention));
+    }
+
+    #[test]
+    fn only_mentions_needs_a_reason() {
+        let l = NotificationLevel::OnlyMentions;
+        assert!(!decide(l, false, None, NotifyInput::default()).notify);
+        assert!(
+            !decide(
+                l,
+                false,
+                None,
+                NotifyInput {
+                    is_dm: true,
+                    ..NotifyInput::default()
+                }
+            )
+            .notify
+        );
+        assert!(decide(l, false, None, mention()).notify);
+        let reply = NotifyInput {
+            kind: MentionKind {
+                reply: true,
+                ..MentionKind::default()
+            },
+            ..NotifyInput::default()
+        };
+        assert_eq!(
+            decide(l, false, None, reply).reason,
+            Some(NotifyReason::Reply)
+        );
+        let thread = NotifyInput {
+            followed_thread: true,
+            ..NotifyInput::default()
+        };
+        assert_eq!(
+            decide(l, false, None, thread).reason,
+            Some(NotifyReason::ThreadFollow)
+        );
+    }
+
+    #[test]
+    fn suppress_toggles_and_mobile_push_apply() {
+        let l = NotificationLevel::OnlyMentions;
+        let mut scope = ScopeSettings::new(UserId::new(1), None);
+        let everyone = NotifyInput {
+            kind: MentionKind {
+                everyone: true,
+                role: true,
+                ..MentionKind::default()
+            },
+            keyword_hit: true,
+            ..NotifyInput::default()
+        };
+        assert!(decide(l, false, Some(&scope), everyone).notify);
+        scope.suppress_everyone = true;
+        scope.suppress_roles = true;
+        scope.suppress_highlights = true;
+        assert!(!decide(l, false, Some(&scope), everyone).notify);
+        scope.mobile_push = false;
+        let d = decide(l, false, Some(&scope), mention());
+        assert!(d.notify && !d.push, "in-app yes, push no");
+    }
+
+    #[test]
+    fn keywords_match_whole_words_case_insensitively() {
+        let k = vec!["Deploy".to_owned(), "red alert".to_owned(), String::new()];
+        assert!(matches_keyword("we should DEPLOY now", &k));
+        assert!(matches_keyword("It is a Red  Alert!", &k));
+        assert!(!matches_keyword("redeployment", &k));
+        assert!(!matches_keyword("red then alert", &k));
+        assert!(!matches_keyword("anything", &[]));
+    }
+}

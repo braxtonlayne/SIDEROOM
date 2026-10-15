@@ -1,7 +1,7 @@
 import { ApiError, apiFetch } from '../api/client';
 
 /**
- * Web Push client (XC-PWA-004). The backend has no push routes yet, so this is a typed client for the
+ * Web Push client (XC-PWA-004). The server side is crates/sr-push and routes/push.rs (LNG-NTF-003); this is a typed client for the
  * contract the UI needs, behind a graceful "unsupported" state:
  *   GET    /api/v1/push/vapid-key                     -> { public_key }
  *   POST   /api/v1/users/@me/push-subscriptions       <- PushSubscriptionBody

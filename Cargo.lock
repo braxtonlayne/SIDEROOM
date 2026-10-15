@@ -5111,6 +5111,7 @@ dependencies = [
  "sr-media",
  "sr-net",
  "sr-payments",
+ "sr-push",
  "sr-review",
  "sr-search",
  "sr-storage",
@@ -5450,6 +5451,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-push"
+version = "0.0.0"
+dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "base64 0.23.1",
+ "getrandom 0.4.3",
+ "hkdf 0.12.4",
+ "p256 0.13.2",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sr-net",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "sr-reader"
 version = "0.0.0"
 
@@ -5514,6 +5535,7 @@ dependencies = [
  "sr-media",
  "sr-net",
  "sr-payments",
+ "sr-push",
  "sr-review",
  "sr-search",
  "sr-storage",

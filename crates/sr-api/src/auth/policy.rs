@@ -56,6 +56,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/users/@me/connections")
         || p.starts_with("/users/@me/data-export")
         || p.starts_with("/users/@me/message-requests")
+        || p.starts_with("/users/@me/push-subscriptions")
+        || p.starts_with("/push/")
+        || p.starts_with("/gifs/")
+        || p.starts_with("/users/@me/mentions")
         || p.starts_with("/users/@me/primary-guild")
     {
         return true;

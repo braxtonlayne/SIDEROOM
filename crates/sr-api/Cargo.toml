@@ -36,6 +36,8 @@ sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-events = { path = "../sr-events" }
 sr-markdown = { path = "../sr-markdown" }
+sr-push = { path = "../sr-push" }
+sr-net = { path = "../sr-net" }
 sr-search = { path = "../sr-search" }
 sr-unfurl = { path = "../sr-unfurl" }
 sr-net = { path = "../sr-net" }
