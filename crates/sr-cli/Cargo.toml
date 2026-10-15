@@ -23,5 +23,7 @@ sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-db = { path = "../sr-db" }
 sr-storage = { path = "../sr-storage" }
+sr-theme = { path = "../sr-theme" }
+serde_json.workspace = true
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tracing = "0.1"

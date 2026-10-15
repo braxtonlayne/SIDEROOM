@@ -5225,6 +5225,7 @@ dependencies = [
  "anyhow",
  "clap",
  "rpassword",
+ "serde_json",
  "sqlx",
  "sr-admin",
  "sr-api",
@@ -5233,6 +5234,7 @@ dependencies = [
  "sr-core",
  "sr-db",
  "sr-storage",
+ "sr-theme",
  "tokio",
  "tracing",
 ]
