@@ -79,16 +79,16 @@ DELETE	/requests/{request_id}/vote	authenticated	other	allow	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
-DELETE	/users/@me/birthday	authenticated	self	allow	-
-DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	allow	-
+DELETE	/users/@me/birthday	authenticated	self	deny	-
+DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
 DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
 DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-
 DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-DELETE	/users/@me/reminders/{id}	authenticated	self	allow	-
-DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	allow	-
+DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-
+DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
 DELETE	/watch-parties/{party_id}	authenticated	other	allow	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	other	allow	-
 DELETE	/watch-parties/{party_id}/queue/{item_id}	authenticated	other	allow	-
@@ -350,8 +350,8 @@ GET	/tv/channels/{channel_id}/tune	authenticated	membership	allow	-
 GET	/tv/guide	authenticated	other	allow	-
 GET	/tv/timezones	authenticated	other	allow	-
 GET	/users/@me	authenticated	self	allow	identify
-GET	/users/@me/birthday	authenticated	self	allow	-
-GET	/users/@me/bookmarks	authenticated	self	allow	-
+GET	/users/@me/birthday	authenticated	self	deny	-
+GET	/users/@me/bookmarks	authenticated	self	deny	-
 GET	/users/@me/channels	authenticated	self	allow	-
 GET	/users/@me/connections	authenticated	self	deny	-
 GET	/users/@me/data-export	authenticated	self	deny	-
@@ -370,8 +370,8 @@ GET	/users/@me/profile	authenticated	self	allow	-
 GET	/users/@me/read-states	authenticated	self	allow	-
 GET	/users/@me/relationships	authenticated	self	deny	-
 GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-GET	/users/@me/reminders	authenticated	self	allow	-
-GET	/users/@me/scheduled-messages	authenticated	self	allow	-
+GET	/users/@me/reminders	authenticated	self	deny	-
+GET	/users/@me/scheduled-messages	authenticated	self	deny	-
 GET	/users/@me/settings	authenticated	self	deny	-
 GET	/users/{user_id}/profile	authenticated	other	allow	-
 GET	/watch-parties/me	authenticated	other	allow	-
@@ -419,7 +419,7 @@ PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-
 PATCH	/stage-instances/{channel_id}	authenticated	membership	allow	-
 PATCH	/submissions/{submission_id}	authenticated	other	allow	-
 PATCH	/users/@me	authenticated	self	allow	-
-PATCH	/users/@me/bookmarks/{message_id}	authenticated	self	allow	-
+PATCH	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
 PATCH	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 PATCH	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
 PATCH	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-
@@ -427,7 +427,7 @@ PATCH	/users/@me/notification-defaults	authenticated	self	deny	-
 PATCH	/users/@me/presence	authenticated	self	allow	-
 PATCH	/users/@me/privacy	authenticated	self	deny	-
 PATCH	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-PATCH	/users/@me/scheduled-messages/{id}	authenticated	self	allow	-
+PATCH	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
 PATCH	/users/@me/settings	authenticated	self	deny	-
 PATCH	/watch-parties/{party_id}	authenticated	other	allow	-
 PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	other	allow	-
@@ -532,7 +532,7 @@ POST	/channels/{channel_id}/messages/{message_id}/crosspost	authenticated	member
 POST	/channels/{channel_id}/messages/{message_id}/threads	authenticated	membership	allow	-
 POST	/channels/{channel_id}/pins/ack	authenticated	membership	allow	-
 POST	/channels/{channel_id}/polls/{message_id}/expire	authenticated	membership	allow	-
-POST	/channels/{channel_id}/scheduled-messages	authenticated	membership	allow	-
+POST	/channels/{channel_id}/scheduled-messages	authenticated	membership	deny	-
 POST	/channels/{channel_id}/send-soundboard-sound	authenticated	membership	allow	-
 POST	/channels/{channel_id}/threads	authenticated	membership	allow	-
 POST	/channels/{channel_id}/typing	authenticated	membership	allow	-
@@ -609,7 +609,7 @@ POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-
 POST	/users/@me/data-export	authenticated	self	deny	-
 POST	/users/@me/push-subscriptions	authenticated	self	deny	-
 POST	/users/@me/relationships	authenticated	self	deny	-
-POST	/users/@me/reminders	authenticated	self	allow	-
+POST	/users/@me/reminders	authenticated	self	deny	-
 POST	/watch-parties	authenticated	other	allow	-
 POST	/watch-parties/{party_id}/heartbeat	authenticated	other	allow	-
 POST	/watch-parties/{party_id}/host	authenticated	other	allow	-
@@ -692,7 +692,7 @@ PUT	/requests/{request_id}/vote	authenticated	other	allow	-
 PUT	/sr/auth/username	authenticated	self	deny	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
 PUT	/submissions/{submission_id}/library/series	authenticated	other	allow	-
-PUT	/users/@me/birthday	authenticated	self	allow	-
+PUT	/users/@me/birthday	authenticated	self	deny	-
 PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-
 PUT	/users/@me/connections/link	authenticated	self	deny	-
 PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-
