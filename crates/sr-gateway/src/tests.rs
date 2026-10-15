@@ -1041,6 +1041,28 @@ async fn staff_alert_is_dispatched_to_staff_only() {
     other.silent().await;
 }
 
+#[tokio::test]
+async fn platform_broadcast_reaches_every_session() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("bot:1", intents::GUILDS, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", 0, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::PlatformBroadcast {
+            name: "SR_FEATURE_UPDATE".into(),
+            payload: json!({ "scope": "platform", "flags": { "moderation.reports": true } }),
+        },
+    )
+    .await;
+    let d = a.expect_event("SR_FEATURE_UPDATE").await;
+    assert_eq!(d["d"]["scope"], "platform");
+    assert_eq!(d["d"]["flags"]["moderation.reports"], true);
+    let d = b.expect_event("SR_FEATURE_UPDATE").await;
+    assert_eq!(d["d"]["flags"]["moderation.reports"], true);
+}
+
 // ---- settings dispatches (invites, expressions, webhooks, automod, audit log) -------
 
 /// User 1 is a moderator of G1; user 2 is a plain member.

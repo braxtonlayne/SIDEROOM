@@ -299,6 +299,13 @@ pub enum DomainEvent {
         /// Admin path the card links to (`/admin/...`), when there is one.
         link: Option<String>,
     },
+    /// A dispatch for every connected session (`SR_FEATURE_UPDATE`, `SR_ANNOUNCEMENT_UPDATE`):
+    /// the gateway sends `name` and `payload` as-is to all sessions that signed in. Published on
+    /// `Topic::Platform`.
+    PlatformBroadcast {
+        name: String,
+        payload: Value,
+    },
     /// A Discord dispatch addressed to specific users (relationship, ack, note,
     /// user-settings and similar self-scoped events). Producers publish it to each
     /// addressed user's `Topic::User`; the gateway sends `name` and `payload`
@@ -552,6 +559,7 @@ impl DomainEvent {
             Self::UserScoped { users, .. } => users.iter().map(|u| Topic::User(*u)).collect(),
             Self::PresenceChanged { user, .. } => vec![Topic::User(*user)],
             Self::FeatureSettingsChanged { .. }
+            | Self::PlatformBroadcast { .. }
             | Self::StaffAlert { .. }
             | Self::StaffFeed { .. } => vec![Topic::Platform],
         }

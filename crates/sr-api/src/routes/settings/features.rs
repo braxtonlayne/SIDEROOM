@@ -121,19 +121,7 @@ pub async fn client_flags(
     _p: crate::auth::UserOnly,
     Ext(gf): Ext<GuildFeatures>,
 ) -> ApiResult<Json<ClientFlagsObject>> {
-    let mut flags = std::collections::BTreeMap::new();
-    for f in gf.ctx.settings.registry().iter() {
-        if !f.client_visible() || !f.scopes().contains(&Scope::Platform) {
-            continue;
-        }
-        let on = gf
-            .ctx
-            .settings
-            .is_enabled(f.id(), &ScopeRef::Platform)
-            .await
-            .map_err(feature_err)?;
-        flags.insert(f.id().to_owned(), on);
-    }
+    let flags = gf.ctx.settings.client_flags().await.map_err(feature_err)?;
     Ok(Json(ClientFlagsObject { flags }))
 }
 
