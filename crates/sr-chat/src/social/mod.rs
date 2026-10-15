@@ -13,8 +13,8 @@ pub mod presence;
 pub mod profile;
 pub mod read_state;
 pub mod relationships;
-pub mod safety;
 pub mod repo;
+pub mod safety;
 pub mod service;
 pub mod user_settings;
 

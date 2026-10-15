@@ -16,7 +16,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sr_admin::{
-    AdminGuild, AdminGuildPage, AdminGuildRef, AdminSession, AdminService, SuspicionEvent,
+    AdminGuild, AdminGuildPage, AdminGuildRef, AdminService, AdminSession, SuspicionEvent,
 };
 use sr_chat::admin_rules::GuildPatch;
 use sr_core::{GuildId, UserId};
@@ -175,7 +175,12 @@ pub async fn link_account(
 ) -> ApiResult<StatusCode> {
     let r = reason(&headers, b.reason.as_deref());
     ctx.svc()
-        .link_account(&ctx.caller, id(&person_id)?, id(&b.account_id)?, r.as_deref())
+        .link_account(
+            &ctx.caller,
+            id(&person_id)?,
+            id(&b.account_id)?,
+            r.as_deref(),
+        )
         .await
         .map_err(map_err)?;
     Ok(StatusCode::NO_CONTENT)

@@ -1839,7 +1839,6 @@ async fn privacy_settings_round_trip_and_gate_friend_requests() {
     assert_eq!(s, StatusCode::NO_CONTENT);
 }
 
-
 #[tokio::test]
 async fn safety_settings_round_trip_and_validate() {
     let e = env().await;

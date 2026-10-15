@@ -3006,7 +3006,13 @@ async fn emoji_popout_works_for_non_members_and_names_only_listed_servers() {
     // Members see the server.
     let (_, v) = e.get(&path, "bob").await;
     assert_eq!(v["guild"]["id"], e.guild.to_string());
-    assert_eq!((v["guild"]["joined"].as_bool(), v["guild"]["joinable"].as_bool()), (Some(true), Some(false)));
+    assert_eq!(
+        (
+            v["guild"]["joined"].as_bool(),
+            v["guild"]["joinable"].as_bool()
+        ),
+        (Some(true), Some(false))
+    );
 
     // An approved Directory listing of a Community server names it and offers Join.
     let mut c = e.repo.get_community(e.guild).await.unwrap();
@@ -3030,7 +3036,10 @@ async fn emoji_popout_works_for_non_members_and_names_only_listed_servers() {
     let (_, v) = e.get(&path, "carol").await;
     assert_eq!(v["guild"]["id"], e.guild.to_string(), "{v}");
     assert_eq!(
-        (v["guild"]["joined"].as_bool(), v["guild"]["joinable"].as_bool()),
+        (
+            v["guild"]["joined"].as_bool(),
+            v["guild"]["joinable"].as_bool()
+        ),
         (Some(false), Some(true))
     );
 

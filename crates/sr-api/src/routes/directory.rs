@@ -226,7 +226,6 @@ fn unknown_listing() -> HttpError {
     ))
 }
 
-
 // ------------------------------------------------------------------ emoji popout
 
 /// What the emoji popout shows for an emoji the viewer may not be able to use.

@@ -362,20 +362,40 @@ pub trait StaffExtrasRepository: Send + Sync {
     /// Servers the account is a member of.
     async fn account_guilds(&self, account_id: i64) -> AdminResult<Vec<AdminGuildRef>>;
     /// Freeze or unfreeze the account's invite creation by hand (on top of the suspicion freeze).
-    async fn set_invites_frozen(&self, account_id: i64, frozen: bool, audit: &AuditEntry) -> AdminResult<()>;
+    async fn set_invites_frozen(
+        &self,
+        account_id: i64,
+        frozen: bool,
+        audit: &AuditEntry,
+    ) -> AdminResult<()>;
     /// Replace the staff notes of a Person.
-    async fn set_person_notes(&self, person_id: i64, notes: &str, audit: &AuditEntry) -> AdminResult<()>;
+    async fn set_person_notes(
+        &self,
+        person_id: i64,
+        notes: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<()>;
     /// Move `account_id` into `person_id`. `Conflict` when either Person has an open ban. The old
     /// Person is merged (suspicion is the higher level, notes are joined) and removed when it has
     /// no account left. Returns the old Person id.
-    async fn link_account(&self, person_id: i64, account_id: i64, audit: &AuditEntry) -> AdminResult<i64>;
+    async fn link_account(
+        &self,
+        person_id: i64,
+        account_id: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<i64>;
     /// Give the account a Person of its own and return its id. `Conflict` when it is the only account
     /// of its Person or the Person has an open ban.
     async fn unlink_account(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<i64>;
     /// Suspicion history, newest first.
     async fn suspicion_log(&self, person_id: i64, limit: i64) -> AdminResult<Vec<SuspicionEvent>>;
     /// Servers by name fragment or exact id, ordered by id, strictly after `after`.
-    async fn search_guilds(&self, q: Option<&str>, after: Option<i64>, limit: i64) -> AdminResult<Vec<AdminGuild>>;
+    async fn search_guilds(
+        &self,
+        q: Option<&str>,
+        after: Option<i64>,
+        limit: i64,
+    ) -> AdminResult<Vec<AdminGuild>>;
     async fn get_guild(&self, id: i64) -> AdminResult<Option<AdminGuild>>;
     /// Write the audit entry of a server change that was applied through the chat stack.
     async fn record_guild_action(&self, audit: &AuditEntry) -> AdminResult<()>;

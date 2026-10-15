@@ -9,8 +9,8 @@
 
 use super::notifications::NotificationLevel;
 use super::relationships::FriendRequestSources;
-use super::safety::{MAX_SERVER_DM_OVERRIDES, MediaFilter};
 use super::repo::SocialRepository;
+use super::safety::{MAX_SERVER_DM_OVERRIDES, MediaFilter};
 use super::service::SocialService;
 use super::{SocialError, SocialResult};
 use serde_json::{Map, Value};
@@ -152,7 +152,9 @@ pub fn normalize_keywords(raw: &[String]) -> SocialResult<Vec<String>> {
             return Err(SocialError::invalid(
                 "keywords",
                 "BASE_TYPE_BAD_LENGTH",
-                format!("each keyword needs a letter or digit and at most {MAX_KEYWORD_CHARS} characters"),
+                format!(
+                    "each keyword needs a letter or digit and at most {MAX_KEYWORD_CHARS} characters"
+                ),
             ));
         }
         out.push(k);

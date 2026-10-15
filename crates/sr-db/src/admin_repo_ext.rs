@@ -6,9 +6,9 @@ use async_trait::async_trait;
 use sqlx::{PgConnection, Row, postgres::PgRow};
 use sr_admin::{
     AccountRef, AdminError, AdminGuild, AdminGuildRef, AdminResult, AdminSession, Announcement,
-    AnnouncementPatch, AnnouncementSeverity, SuspicionEvent,
-    AuditEntry, NewAnnouncement, NewOffer, OfferState, PrivateChannel, PrivateEdit, PrivateMessage,
-    StaffAlertRow, StaffExtrasRepository, StaffOffer,
+    AnnouncementPatch, AnnouncementSeverity, AuditEntry, NewAnnouncement, NewOffer, OfferState,
+    PrivateChannel, PrivateEdit, PrivateMessage, StaffAlertRow, StaffExtrasRepository, StaffOffer,
+    SuspicionEvent,
 };
 
 use crate::admin_repo::{PgAdminRepo, db, is_unique, ms};
@@ -347,7 +347,7 @@ impl StaffExtrasRepository for PgAdminRepo {
 
     async fn account_sessions(&self, account_id: i64) -> AdminResult<Vec<AdminSession>> {
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT id, ip::text AS ip, user_agent, device_label, {} AS created_ms, \
+            "SELECT id, host(ip) AS ip, user_agent, device_label, {} AS created_ms, \
                     {} AS seen_ms, {} AS expires_ms \
              FROM sessions WHERE account_id = $1 AND revoked_at IS NULL AND expires_at > now() \
              ORDER BY last_seen_at DESC LIMIT 100",
@@ -453,12 +453,13 @@ impl StaffExtrasRepository for PgAdminRepo {
         audit: &AuditEntry,
     ) -> AdminResult<i64> {
         let mut tx = self.pool().begin().await.map_err(db)?;
-        let old: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1 FOR UPDATE")
-            .bind(account_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(db)?
-            .ok_or(AdminError::NotFound("account"))?;
+        let old: i64 =
+            sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1 FOR UPDATE")
+                .bind(account_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(db)?
+                .ok_or(AdminError::NotFound("account"))?;
         if old == person_id {
             return Err(AdminError::Conflict(
                 "the account already belongs to this Person".into(),
@@ -541,22 +542,24 @@ impl StaffExtrasRepository for PgAdminRepo {
 
     async fn unlink_account(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<i64> {
         let mut tx = self.pool().begin().await.map_err(db)?;
-        let old: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1 FOR UPDATE")
-            .bind(account_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(db)?
-            .ok_or(AdminError::NotFound("account"))?;
+        let old: i64 =
+            sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1 FOR UPDATE")
+                .bind(account_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(db)?
+                .ok_or(AdminError::NotFound("account"))?;
         sqlx::query("SELECT id FROM persons WHERE id = $1 FOR UPDATE")
             .bind(old)
             .execute(&mut *tx)
             .await
             .map_err(db)?;
-        let siblings: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE person_id = $1")
-            .bind(old)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(db)?;
+        let siblings: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM accounts WHERE person_id = $1")
+                .bind(old)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(db)?;
         if siblings < 2 {
             return Err(AdminError::Conflict(
                 "this is the only account of its Person".into(),
@@ -659,10 +662,7 @@ impl StaffExtrasRepository for PgAdminRepo {
         .fetch_optional(self.pool())
         .await
         .map_err(db)?;
-        row.as_ref()
-            .map(guild_from)
-            .transpose()
-            .map_err(db)
+        row.as_ref().map(guild_from).transpose().map_err(db)
     }
 
     async fn record_guild_action(&self, audit: &AuditEntry) -> AdminResult<()> {

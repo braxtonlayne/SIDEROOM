@@ -770,7 +770,12 @@ impl UserSettingsRepository for MemoryRepo {
     }
 
     async fn get_notification_keywords(&self, user: UserId) -> RepoResult<Vec<String>> {
-        Ok(self.lock()?.keywords.get(&user).cloned().unwrap_or_default())
+        Ok(self
+            .lock()?
+            .keywords
+            .get(&user)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn put_notification_keywords(&self, user: UserId, keywords: &[String]) -> RepoResult<()> {

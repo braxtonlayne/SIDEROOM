@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { useStore } from '../../../store';
@@ -212,5 +212,26 @@ describe('Overview', () => {
     await userEvent.type(screen.getByLabelText(/Type "Book Club" to confirm/), 'Book Club');
     await userEvent.click(confirm);
     await waitFor(() => expect(deleted).toBe(true));
+  });
+
+  it('shows the online and member counts on the server card preview (LNG-SSET-009)', async () => {
+    seed({ perms: [MANAGE.guild] });
+    let url = '';
+    server.use(
+      http.get('*/api/v1/guilds/g1', ({ request }) => {
+        url = request.url;
+        return HttpResponse.json({
+          ...guildObj,
+          approximate_member_count: 12,
+          approximate_presence_count: 3,
+        });
+      }),
+      http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)),
+    );
+    await openSettings('overview');
+    const card = await screen.findByRole('group', { name: 'Server card preview' });
+    expect(await within(card).findByText(/3 Online/)).toBeInTheDocument();
+    expect(within(card).getByText(/12 Members/)).toBeInTheDocument();
+    expect(new URL(url).searchParams.get('with_counts')).toBe('true');
   });
 });

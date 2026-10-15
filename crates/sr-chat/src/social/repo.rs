@@ -6,10 +6,10 @@ use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
 use super::read_state::ReadState;
-use super::safety::SafetyPrefs;
 use super::relationships::{
     FriendRequestSources, RelOp, Relationship, RelationshipCounts, RelationshipKind,
 };
+use super::safety::SafetyPrefs;
 use super::user_settings::UserSettings;
 use crate::error::RepoError;
 use async_trait::async_trait;

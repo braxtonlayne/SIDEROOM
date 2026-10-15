@@ -114,7 +114,8 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/users/@me/notification-keywords",
-            get(user_settings::get_notification_keywords).put(user_settings::put_notification_keywords),
+            get(user_settings::get_notification_keywords)
+                .put(user_settings::put_notification_keywords),
         )
         .route(
             "/users/@me/guilds/{guild_id}/settings",

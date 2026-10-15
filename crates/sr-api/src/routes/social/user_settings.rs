@@ -263,7 +263,9 @@ fn media_filter(field: &str, v: Option<&String>) -> MsgResult<Option<MediaFilter
 
 type OverridePatch = BTreeMap<u64, Option<bool>>;
 
-fn parse_overrides(raw: Option<BTreeMap<String, Option<bool>>>) -> MsgResult<Option<OverridePatch>> {
+fn parse_overrides(
+    raw: Option<BTreeMap<String, Option<bool>>>,
+) -> MsgResult<Option<OverridePatch>> {
     raw.map(|m| {
         m.into_iter()
             .map(|(k, v)| {

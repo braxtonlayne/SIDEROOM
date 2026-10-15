@@ -1473,13 +1473,16 @@ async fn age_gate_records_the_answer() {
     assert_eq!(h.account(1).age_confirmed, Some(false));
 }
 
-
 #[tokio::test]
 async fn age_confirmation_can_be_read_and_reset() {
     let h = harness();
     h.add_account(1, "alice", "alice@x.test", AccountState::Active);
     let s = h.login("alice").await;
-    let get = || h.get("/api/v1/users/@me/age-confirmation").session(&s).send();
+    let get = || {
+        h.get("/api/v1/users/@me/age-confirmation")
+            .session(&s)
+            .send()
+    };
     let r = get().await;
     assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
     assert_eq!(r.body["confirmed"], Value::Null);
@@ -1492,11 +1495,18 @@ async fn age_confirmation_can_be_read_and_reset() {
     let r = get().await;
     assert_eq!(r.body["confirmed"], true);
     assert_eq!(r.body["method"], "self-declared");
-    assert!(r.body["confirmed_at"].as_str().is_some_and(|t| t.ends_with('Z')));
+    assert!(
+        r.body["confirmed_at"]
+            .as_str()
+            .is_some_and(|t| t.ends_with('Z'))
+    );
 
     // Signed-out callers are refused; resetting asks again.
     assert_eq!(
-        h.get("/api/v1/users/@me/age-confirmation").send().await.status,
+        h.get("/api/v1/users/@me/age-confirmation")
+            .send()
+            .await
+            .status,
         StatusCode::UNAUTHORIZED
     );
     let r = h
@@ -1514,7 +1524,10 @@ async fn age_confirmation_can_be_read_and_reset() {
         .send()
         .await;
     let r = get().await;
-    assert_eq!((r.body["confirmed"].as_bool(), &r.body["confirmed_at"]), (Some(false), &Value::Null));
+    assert_eq!(
+        (r.body["confirmed"].as_bool(), &r.body["confirmed_at"]),
+        (Some(false), &Value::Null)
+    );
 }
 
 #[tokio::test]

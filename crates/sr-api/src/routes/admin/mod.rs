@@ -31,7 +31,7 @@ mod system;
 #[cfg(test)]
 mod tests;
 
-pub use ctx::{AdminDeps, ReasonBody, StaffCtx, map_err, reason as reason_from};
+pub use ctx::{AdminDeps, IntegrationStatus, ReasonBody, StaffCtx, map_err, reason as reason_from};
 
 use crate::{openapi::ErrorBody, state::AppState};
 use axum::{
@@ -127,7 +127,10 @@ pub fn router() -> Router<AppState> {
             "/admin/accounts/{account_id}/credits",
             get(invites::ledger).post(invites::adjust),
         )
-        .route("/admin/accounts/{account_id}/sessions", get(people::sessions))
+        .route(
+            "/admin/accounts/{account_id}/sessions",
+            get(people::sessions),
+        )
         .route(
             "/admin/accounts/{account_id}/guilds",
             get(people::account_guilds),
@@ -186,6 +189,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/admin/stats", get(system::stats))
         .route("/admin/system", get(system::system))
+        .route("/admin/system/email-test", post(system::email_test))
         .route("/admin/jobs", get(system::jobs))
         .route("/admin/jobs/{job_id}/retry", post(system::retry_job))
         .route(
@@ -262,6 +266,7 @@ pub fn router() -> Router<AppState> {
         announce::edit,
         announce::active,
         entrance::get_copy,
+        system::email_test,
         people::sessions,
         people::account_guilds,
         people::freeze_invites,
@@ -328,6 +333,8 @@ pub fn router() -> Router<AppState> {
         announce::AnnounceBody,
         announce::EditAnnouncementBody,
         entrance::EntranceCopyBody,
+        system::MailTestResult,
+        ctx::IntegrationStatus,
         people::PersonNotesBody,
         people::LinkAccountBody,
         people::UnlinkResult,

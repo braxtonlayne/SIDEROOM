@@ -15,7 +15,7 @@ use serde_json::json;
 use sr_api::routes::messages::MessagesDeps;
 use sr_api::routes::social::SocialDeps;
 use sr_chat::social::notifications::{
-    MentionKind, NotificationLevel, matches_keyword, NotifyDecision, NotifyInput, NotifyReason,
+    MentionKind, NotificationLevel, NotifyDecision, NotifyInput, NotifyReason, matches_keyword,
 };
 use sr_chat::{Message, MessageType};
 use sr_core::{GuildId, MessageId, UserId};

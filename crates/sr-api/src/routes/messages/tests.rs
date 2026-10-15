@@ -893,7 +893,6 @@ async fn reaction_limits_and_permissions() {
     );
 }
 
-
 #[tokio::test]
 async fn burst_reactions_count_separately_and_are_capped() {
     let e = env().await;
@@ -934,11 +933,20 @@ async fn burst_reactions_count_separately_and_are_capped() {
     let (_, one) = e.get(&format!("/messages/{id}"), "bob").await;
     let r = &one["reactions"][0];
     assert_eq!(r["count"], 2);
-    assert_eq!(r["count_details"], serde_json::json!({"burst": 1, "normal": 1}));
-    assert_eq!((r["me"].as_bool(), r["me_burst"].as_bool()), (Some(true), Some(true)));
+    assert_eq!(
+        r["count_details"],
+        serde_json::json!({"burst": 1, "normal": 1})
+    );
+    assert_eq!(
+        (r["me"].as_bool(), r["me_burst"].as_bool()),
+        (Some(true), Some(true))
+    );
     let (_, other) = e.get(&format!("/messages/{id}"), "owner").await;
     assert_eq!(
-        (other["reactions"][0]["me"].as_bool(), other["reactions"][0]["me_burst"].as_bool()),
+        (
+            other["reactions"][0]["me"].as_bool(),
+            other["reactions"][0]["me_burst"].as_bool()
+        ),
         (Some(false), Some(false))
     );
 

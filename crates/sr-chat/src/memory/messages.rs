@@ -508,26 +508,30 @@ impl MessageStore for MemoryBackend {
         let mut rows: BTreeMap<(MessageId, String), ReactionSummary> = BTreeMap::new();
         for ((m, k), (emoji, users)) in &s.reactions {
             if messages.contains(m) {
-                let r = rows.entry((*m, k.clone())).or_insert_with(|| ReactionSummary {
-                    emoji: emoji.clone(),
-                    count: 0,
-                    burst_count: 0,
-                    me: false,
-                    me_burst: false,
-                });
+                let r = rows
+                    .entry((*m, k.clone()))
+                    .or_insert_with(|| ReactionSummary {
+                        emoji: emoji.clone(),
+                        count: 0,
+                        burst_count: 0,
+                        me: false,
+                        me_burst: false,
+                    });
                 r.count = u32::try_from(users.len()).unwrap_or(u32::MAX);
                 r.me = users.contains(&viewer);
             }
         }
         for ((m, k), (emoji, users)) in &s.burst_reactions {
             if messages.contains(m) {
-                let r = rows.entry((*m, k.clone())).or_insert_with(|| ReactionSummary {
-                    emoji: emoji.clone(),
-                    count: 0,
-                    burst_count: 0,
-                    me: false,
-                    me_burst: false,
-                });
+                let r = rows
+                    .entry((*m, k.clone()))
+                    .or_insert_with(|| ReactionSummary {
+                        emoji: emoji.clone(),
+                        count: 0,
+                        burst_count: 0,
+                        me: false,
+                        me_burst: false,
+                    });
                 r.burst_count = u32::try_from(users.len()).unwrap_or(u32::MAX);
                 r.me_burst = users.contains(&viewer);
             }
@@ -548,7 +552,11 @@ impl MessageStore for MemoryBackend {
         limit: usize,
     ) -> StoreResult<Vec<UserId>> {
         let s = self.data();
-        let map = if burst { &s.burst_reactions } else { &s.reactions };
+        let map = if burst {
+            &s.burst_reactions
+        } else {
+            &s.reactions
+        };
         let mut users: Vec<UserId> = map
             .get(&(message, emoji.key()))
             .map(|(_, u)| u.clone())

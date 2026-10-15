@@ -115,7 +115,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 
 ## LNG-NTF — Notifications & inbox
 - [x] **LNG-NTF-001** [BE] Notification settings model (guild/category/channel overrides, mute with expiry, suppress everyone/roles/highlights, mobile push)
-- [x] **LNG-NTF-002** [BE] Notification decision engine (mentions, replies, DMs, keyword highlights, thread follows) *sr-chat social/notifications.rs decide() plus SocialService::decide_notification; keyword highlights are supported by the engine but there is no per-user keyword list yet.*
+- [x] **LNG-NTF-002** [BE] Notification decision engine (mentions, replies, DMs, keyword highlights, thread follows) *sr-chat social/notifications.rs decide() plus SocialService::decide_notification; keyword highlights are supported by the engine but there is no per-user keyword list yet.* *(p13: the per-user keyword list is `GET/PUT /users/@me/notification-keywords`, and the push notifier now passes the hits to the engine)*
 - [x] **LNG-NTF-003** [BE] Web Push (VAPID) subscription management + delivery (`web-push` crate) with collapse keys *crates/sr-push (VAPID, RFC 8291, SSRF-safe sender, RFC test vector), routes/push.rs, sr-server push_notify.rs fan-out with collapse keys. Own implementation on RustCrypto instead of the web-push crate.*
 - [x] **LNG-NTF-004** [FE] Notification Settings modal (server: All / Only @mentions / Nothing; suppress toggles; mobile push; channel overrides list) *NotificationDialog: suppress everyone/roles/highlights, mobile push, channel overrides list with reset.*
 - [x] **LNG-NTF-005** [FE] Channel bell menu (Use Category Default / All / Only @mentions / Nothing, Mute ▸) *header/NotifyButton.tsx: Use category default / All / Only @mentions / Nothing plus Mute.*

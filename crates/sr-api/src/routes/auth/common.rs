@@ -145,6 +145,29 @@ pub struct AuthService {
 }
 
 impl AuthService {
+    /// Send a plain test message to the account's own address (the operator's "send test mail" button).
+    /// Returns the address with its local part masked. Fails when the account is unknown or the mailer
+    /// refuses; the error never carries the mail body.
+    pub async fn send_operator_test_mail(&self, id: i64) -> Result<String, AuthRouteError> {
+        let account = self
+            .store
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| AuthRouteError::internal("account missing"))?;
+        let to = account.email.clone();
+        let mail = super::mail::OutgoingMail {
+            to: to.clone(),
+            subject: "SIDE ROOM mail test".to_owned(),
+            text: "This is a test message from the SIDE ROOM admin Setup page. If you can read it, outgoing mail works.".to_owned(),
+            html: "<p>This is a test message from the SIDE ROOM admin Setup page. If you can read it, outgoing mail works.</p>".to_owned(),
+        };
+        self.mailer.send(mail).await.map_err(|e| {
+            tracing::warn!("operator mail test failed: {e}");
+            AuthRouteError::internal("mail delivery")
+        })?;
+        Ok(mask_email(&to))
+    }
+
     /// Set the account's locale (`PATCH /users/@me {locale}`).
     pub async fn set_locale(
         &self,
@@ -577,4 +600,15 @@ pub(super) fn user_agent(headers: &HeaderMap) -> Option<&str> {
     headers
         .get(header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
+}
+
+/// `j***@example.test`: the first character and the domain.
+fn mask_email(email: &str) -> String {
+    match email.split_once('@') {
+        Some((local, domain)) => {
+            let first: String = local.chars().take(1).collect();
+            format!("{first}***@{domain}")
+        }
+        None => "***".to_owned(),
+    }
 }

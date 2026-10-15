@@ -309,10 +309,7 @@ pub async fn get_age_confirmation(
     responses((status = 204, description = "Reset"), (status = 403, body = crate::openapi::ErrorBody)),
     security(("session" = []))
 )]
-pub async fn reset_age_confirmation(
-    UserOnly(p): UserOnly,
-    Svc { svc, .. }: Svc,
-) -> R<StatusCode> {
+pub async fn reset_age_confirmation(UserOnly(p): UserOnly, Svc { svc, .. }: Svc) -> R<StatusCode> {
     session_id(&p)?;
     svc.store.reset_age_confirmed(p.user_id).await?;
     svc.notify_user_update(p.user_id, serde_json::json!({ "age_confirmed": null }))

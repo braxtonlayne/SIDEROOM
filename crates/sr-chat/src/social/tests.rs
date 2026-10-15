@@ -1561,7 +1561,11 @@ async fn safety_prefs_update_partially_and_overrides_gate_server_dms() {
         .await
         .unwrap();
     assert_eq!(p.safety.sensitive_media.friends, MediaFilter::Block);
-    assert_eq!(p.safety.sensitive_media.others, MediaFilter::Blur, "untouched");
+    assert_eq!(
+        p.safety.sensitive_media.others,
+        MediaFilter::Blur,
+        "untouched"
+    );
     assert!(p.safety.dm_spam_filter);
     assert_eq!(p.safety.server_dm_overrides.len(), 2);
 
@@ -1613,5 +1617,13 @@ async fn too_many_server_dm_overrides_are_rejected() {
         )
         .await;
     assert!(err.is_err());
-    assert!(f.svc.privacy(u(1)).await.unwrap().safety.server_dm_overrides.is_empty());
+    assert!(
+        f.svc
+            .privacy(u(1))
+            .await
+            .unwrap()
+            .safety
+            .server_dm_overrides
+            .is_empty()
+    );
 }

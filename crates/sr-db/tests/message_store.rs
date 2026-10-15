@@ -93,7 +93,12 @@ async fn reactions_nonces_and_pins_round_trip() {
     let rows = store.reactions_for(&[m.id], owner).await.unwrap();
     assert_eq!(rows[&m.id][0].count, 1);
     assert!(rows[&m.id][0].me);
-    assert!(store.remove_reaction(m.id, owner, &thumbs, false).await.unwrap());
+    assert!(
+        store
+            .remove_reaction(m.id, owner, &thumbs, false)
+            .await
+            .unwrap()
+    );
 
     let page = store
         .fetch(

@@ -7,9 +7,9 @@ use crate::{
     chain,
     error::{AdminError, AdminResult},
     ext::{
-        AdminGuild, AdminGuildRef, AdminSession, Announcement, Delegation, NewAnnouncement, NewOffer, OfferState, PrivateChannel,
-        PrivateEdit, PrivateMessage, StaffAlertRow, StaffExtrasRepository, StaffOffer,
-        SuspicionEvent,
+        AdminGuild, AdminGuildRef, AdminSession, Announcement, Delegation, NewAnnouncement,
+        NewOffer, OfferState, PrivateChannel, PrivateEdit, PrivateMessage, StaffAlertRow,
+        StaffExtrasRepository, StaffOffer, SuspicionEvent,
     },
     model::{
         AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountRef, AccountState,
@@ -1527,11 +1527,21 @@ impl StaffExtrasRepository for MemoryAdminRepo {
         if !s.persons.contains_key(&person_id) {
             return Err(AdminError::NotFound("person"));
         }
-        let old = s.acct(account_id).ok_or(AdminError::NotFound("account"))?.s.person_id;
+        let old = s
+            .acct(account_id)
+            .ok_or(AdminError::NotFound("account"))?
+            .s
+            .person_id;
         if old == person_id {
-            return Err(AdminError::Conflict("the account already belongs to this Person".into()));
+            return Err(AdminError::Conflict(
+                "the account already belongs to this Person".into(),
+            ));
         }
-        let banned = |s: &State, p: i64| s.bans.iter().any(|b| b.person_id == p && b.lifted_at_ms.is_none());
+        let banned = |s: &State, p: i64| {
+            s.bans
+                .iter()
+                .any(|b| b.person_id == p && b.lifted_at_ms.is_none())
+        };
         if banned(&s, old) || banned(&s, person_id) {
             return Err(AdminError::Conflict("lift the ban first".into()));
         }
@@ -1544,9 +1554,11 @@ impl StaffExtrasRepository for MemoryAdminRepo {
                 t.1 = t.1.max(old_level);
                 if !old_notes.is_empty() {
                     if !t.0.is_empty() {
-                        t.0.push_str("
+                        t.0.push_str(
+                            "
 
-");
+",
+                        );
                     }
                     t.0.push_str(&old_notes);
                 }
@@ -1559,11 +1571,20 @@ impl StaffExtrasRepository for MemoryAdminRepo {
     async fn unlink_account(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<i64> {
         let now = self.now();
         let mut s = self.s();
-        let old = s.acct(account_id).ok_or(AdminError::NotFound("account"))?.s.person_id;
+        let old = s
+            .acct(account_id)
+            .ok_or(AdminError::NotFound("account"))?
+            .s
+            .person_id;
         if s.accounts.iter().filter(|a| a.s.person_id == old).count() < 2 {
-            return Err(AdminError::Conflict("this is the only account of its Person".into()));
+            return Err(AdminError::Conflict(
+                "this is the only account of its Person".into(),
+            ));
         }
-        if s.bans.iter().any(|b| b.person_id == old && b.lifted_at_ms.is_none()) {
+        if s.bans
+            .iter()
+            .any(|b| b.person_id == old && b.lifted_at_ms.is_none())
+        {
             return Err(AdminError::Conflict("lift the ban first".into()));
         }
         let new_person_id = s.id();

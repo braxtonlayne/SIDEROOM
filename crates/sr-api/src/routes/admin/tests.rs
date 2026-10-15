@@ -1,7 +1,7 @@
 //! Endpoint tests over the in-memory admin repository: 401/403 matrices for every
 //! route plus the main flows, driven through the real router with tower `oneshot`.
 
-use super::{AdminDeps, router};
+use super::{AdminDeps, IntegrationStatus, router};
 use crate::routes::auth::{
     AccountRecord, AccountState as AuthState, AuthConfig, AuthService, AuthStore,
     mail::MemoryMailer, memory::MemoryAuthStore,
@@ -121,6 +121,7 @@ struct Env {
     notes: Arc<Notes>,
     clock: Arc<ManualClock>,
     auth: Arc<MemoryAuthStore>,
+    mailer: Arc<MemoryMailer>,
 }
 
 async fn env() -> Env {
@@ -208,6 +209,11 @@ async fn env_with(reauth: bool) -> Env {
         None,
     );
     let deps = AdminDeps::new(svc)
+        .with_integrations(vec![IntegrationStatus {
+            id: "smtp".into(),
+            configured: true,
+            detail: Some("mail.example.test:587".into()),
+        }])
         .with_features(features)
         .with_gateway_sessions(Arc::new(|| 7))
         .with_reauth(reauth);
@@ -243,10 +249,11 @@ async fn env_with(reauth: bool) -> Env {
         auth.totp_confirm(uid, 1).await.unwrap();
     }
     let next = Arc::new(std::sync::atomic::AtomicI64::new(50_000));
+    let mailer = Arc::new(MemoryMailer::new());
     let auth_svc = Arc::new(
         AuthService::new(
             auth.clone(),
-            Arc::new(MemoryMailer::new()),
+            mailer.clone(),
             Arc::new(move || next.fetch_add(1, std::sync::atomic::Ordering::SeqCst)),
         )
         .with_hasher(hasher)
@@ -271,6 +278,7 @@ async fn env_with(reauth: bool) -> Env {
         notes,
         clock,
         auth,
+        mailer,
     }
 }
 
@@ -519,6 +527,73 @@ fn endpoints() -> Vec<(Method, String, Option<&'static str>, Option<Value>)> {
         ),
         (Method::GET, "/admin/stats".into(), None, None),
         (Method::GET, "/admin/system".into(), Some("OPERATOR"), None),
+        (
+            Method::POST,
+            "/admin/system/email-test".into(),
+            Some("OPERATOR"),
+            None,
+        ),
+        // ---- phase 13
+        (
+            Method::GET,
+            format!("/admin/accounts/{ALICE}/sessions"),
+            Some("MANAGE_ACCOUNTS"),
+            None,
+        ),
+        (
+            Method::GET,
+            format!("/admin/accounts/{ALICE}/guilds"),
+            Some("MANAGE_ACCOUNTS"),
+            None,
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/freeze-invites"),
+            Some("MANAGE_INVITES"),
+            reason(),
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/unfreeze-invites"),
+            Some("MANAGE_INVITES"),
+            reason(),
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/unlink"),
+            Some("MANAGE_ACCOUNTS"),
+            reason(),
+        ),
+        (
+            Method::PUT,
+            format!("/admin/persons/{}/notes", ALICE + 500_000),
+            Some("MANAGE_ACCOUNTS"),
+            Some(json!({ "notes": "n" })),
+        ),
+        (
+            Method::POST,
+            format!("/admin/persons/{}/link", BOB + 500_000),
+            Some("MANAGE_ACCOUNTS"),
+            Some(json!({ "account_id": ALICE.to_string(), "reason": "r" })),
+        ),
+        (
+            Method::GET,
+            format!("/admin/persons/{}/suspicion-log", ALICE + 500_000),
+            Some("MANAGE_INVITES"),
+            None,
+        ),
+        (
+            Method::GET,
+            "/admin/guilds".into(),
+            Some("MANAGE_GUILDS_GLOBAL"),
+            None,
+        ),
+        (
+            Method::GET,
+            "/admin/guilds/900".into(),
+            Some("MANAGE_GUILDS_GLOBAL"),
+            None,
+        ),
         (
             Method::GET,
             "/admin/jobs".into(),
@@ -2144,37 +2219,79 @@ async fn people_views_notes_links_freeze_and_server_list() {
     };
 
     // Sessions and servers: MANAGE_ACCOUNTS; the drawer read is logged.
-    let (s, v) = call(MODER, Method::GET, &format!("/admin/accounts/{ALICE}/sessions"), None).await;
+    let (s, v) = call(
+        MODER,
+        Method::GET,
+        &format!("/admin/accounts/{ALICE}/sessions"),
+        None,
+    )
+    .await;
     assert_eq!((s, v), (StatusCode::OK, json!([])));
     assert_eq!(
-        call(MODER, Method::GET, &format!("/admin/accounts/{ALICE}/guilds"), None).await.1,
+        call(
+            MODER,
+            Method::GET,
+            &format!("/admin/accounts/{ALICE}/guilds"),
+            None
+        )
+        .await
+        .1,
         json!([])
     );
     assert_eq!(
-        call(BASIC, Method::GET, &format!("/admin/accounts/{ALICE}/sessions"), None).await.0,
+        call(
+            BASIC,
+            Method::GET,
+            &format!("/admin/accounts/{ALICE}/sessions"),
+            None
+        )
+        .await
+        .0,
         StatusCode::FORBIDDEN
     );
 
     // Search by login IP: validated, and the lookup is logged.
     let (s, _) = call(MODER, Method::GET, "/admin/accounts?ip=not-an-ip", None).await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
-    let (s, v) = call(MODER, Method::GET, "/admin/accounts?ip=203.0.113.9&discord_id=1", None).await;
+    let (s, v) = call(
+        MODER,
+        Method::GET,
+        "/admin/accounts?ip=203.0.113.9&discord_id=1",
+        None,
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "{v}");
 
     // Person notes: replace, cap, permission.
     let person = |uid: i64| uid + 500_000;
     let notes = format!("/admin/persons/{}/notes", person(ALICE));
-    let (s, _) = call(MODER, Method::PUT, &notes, Some(json!({"notes": "knows Bob"}))).await;
+    let (s, _) = call(
+        MODER,
+        Method::PUT,
+        &notes,
+        Some(json!({"notes": "knows Bob"})),
+    )
+    .await;
     assert_eq!(s, StatusCode::NO_CONTENT);
-    let (_, p) = call(MODER, Method::GET, &format!("/admin/persons/{}", person(ALICE)), None).await;
+    let (_, p) = call(
+        MODER,
+        Method::GET,
+        &format!("/admin/persons/{}", person(ALICE)),
+        None,
+    )
+    .await;
     assert_eq!(p["notes"], "knows Bob");
     let long = "n".repeat(4_001);
     assert_eq!(
-        call(MODER, Method::PUT, &notes, Some(json!({"notes": long}))).await.0,
+        call(MODER, Method::PUT, &notes, Some(json!({"notes": long})))
+            .await
+            .0,
         StatusCode::BAD_REQUEST
     );
     assert_eq!(
-        call(BASIC, Method::PUT, &notes, Some(json!({"notes": "x"}))).await.0,
+        call(BASIC, Method::PUT, &notes, Some(json!({"notes": "x"})))
+            .await
+            .0,
         StatusCode::FORBIDDEN
     );
 
@@ -2186,44 +2303,99 @@ async fn people_views_notes_links_freeze_and_server_list() {
         StatusCode::BAD_REQUEST
     );
     assert_eq!(
-        call(MODER, Method::POST, &link, Some(body(Some("same household")))).await.0,
+        call(
+            MODER,
+            Method::POST,
+            &link,
+            Some(body(Some("same household")))
+        )
+        .await
+        .0,
         StatusCode::NO_CONTENT
     );
-    let (_, p) = call(MODER, Method::GET, &format!("/admin/persons/{}", person(BOB)), None).await;
+    let (_, p) = call(
+        MODER,
+        Method::GET,
+        &format!("/admin/persons/{}", person(BOB)),
+        None,
+    )
+    .await;
     assert_eq!(p["accounts"].as_array().map(Vec::len), Some(2));
     assert_eq!(p["notes"], "knows Bob");
     assert_eq!(
-        call(MODER, Method::GET, &format!("/admin/persons/{}", person(ALICE)), None).await.0,
+        call(
+            MODER,
+            Method::GET,
+            &format!("/admin/persons/{}", person(ALICE)),
+            None
+        )
+        .await
+        .0,
         StatusCode::NOT_FOUND
     );
     // Linking to the Person it is already in is a conflict.
     assert_eq!(
-        call(MODER, Method::POST, &link, Some(body(Some("again")))).await.0,
+        call(MODER, Method::POST, &link, Some(body(Some("again"))))
+            .await
+            .0,
         StatusCode::CONFLICT
     );
 
     // Unlink gives the account a Person of its own; the last account of a Person cannot split.
     let unlink = format!("/admin/accounts/{ALICE}/unlink");
-    let (s, v) = call(MODER, Method::POST, &unlink, Some(json!({"reason": "mistake"}))).await;
+    let (s, v) = call(
+        MODER,
+        Method::POST,
+        &unlink,
+        Some(json!({"reason": "mistake"})),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "{v}");
     let new_person = v["person_id"].as_str().unwrap().to_owned();
     assert_ne!(new_person, person(BOB).to_string());
     assert_eq!(
-        call(MODER, Method::POST, &unlink, Some(json!({"reason": "again"}))).await.0,
+        call(
+            MODER,
+            Method::POST,
+            &unlink,
+            Some(json!({"reason": "again"}))
+        )
+        .await
+        .0,
         StatusCode::CONFLICT
     );
 
     // Manual invite freeze: MANAGE_INVITES, reported on the drawer.
     let freeze = format!("/admin/accounts/{ALICE}/freeze-invites");
     assert_eq!(
-        call(MODER, Method::POST, &freeze, Some(json!({"reason": "spam"}))).await.0,
+        call(
+            MODER,
+            Method::POST,
+            &freeze,
+            Some(json!({"reason": "spam"}))
+        )
+        .await
+        .0,
         StatusCode::FORBIDDEN
     );
     assert_eq!(
-        call(OWNER, Method::POST, &freeze, Some(json!({"reason": "spam"}))).await.0,
+        call(
+            OWNER,
+            Method::POST,
+            &freeze,
+            Some(json!({"reason": "spam"}))
+        )
+        .await
+        .0,
         StatusCode::NO_CONTENT
     );
-    let (_, d) = call(OWNER, Method::GET, &format!("/admin/accounts/{ALICE}"), None).await;
+    let (_, d) = call(
+        OWNER,
+        Method::GET,
+        &format!("/admin/accounts/{ALICE}"),
+        None,
+    )
+    .await;
     assert_eq!(d["invites_frozen"], true);
     assert_eq!(
         call(
@@ -2236,12 +2408,23 @@ async fn people_views_notes_links_freeze_and_server_list() {
         .0,
         StatusCode::NO_CONTENT
     );
-    let (_, d) = call(OWNER, Method::GET, &format!("/admin/accounts/{ALICE}"), None).await;
+    let (_, d) = call(
+        OWNER,
+        Method::GET,
+        &format!("/admin/accounts/{ALICE}"),
+        None,
+    )
+    .await;
     assert_eq!(d["invites_frozen"], false);
     assert_eq!(
-        call(OWNER, Method::GET, &format!("/admin/persons/{new_person}/suspicion-log"), None)
-            .await
-            .1,
+        call(
+            OWNER,
+            Method::GET,
+            &format!("/admin/persons/{new_person}/suspicion-log"),
+            None
+        )
+        .await
+        .1,
         json!([])
     );
 
@@ -2264,7 +2447,40 @@ async fn people_views_notes_links_freeze_and_server_list() {
     let (s, g) = call(OWNER, Method::GET, "/admin/guilds/900", None).await;
     assert_eq!((s, g["member_count"].as_i64()), (StatusCode::OK, Some(5)));
     assert_eq!(
-        call(OWNER, Method::GET, "/admin/guilds/12345", None).await.0,
+        call(OWNER, Method::GET, "/admin/guilds/12345", None)
+            .await
+            .0,
         StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn setup_checklist_lists_integrations_and_the_mail_test_reaches_the_caller() {
+    let e = env().await;
+    let (s, v) = e
+        .call(Some(OWNER), Method::GET, "/admin/system", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["integrations"][0]["id"], "smtp");
+    assert_eq!(v["integrations"][0]["configured"], true);
+
+    // OPERATOR only: a moderator is refused and nothing is sent.
+    let (s, _) = e
+        .call(Some(MODER), Method::POST, "/admin/system/email-test", None)
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert!(e.mailer.sent().is_empty());
+
+    let (s, v) = e
+        .call(Some(OWNER), Method::POST, "/admin/system/email-test", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["sent_to"], "u***@x.test");
+    let sent = e.mailer.sent();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, format!("u{OWNER}@x.test"));
+    assert!(
+        !v.to_string().contains(&format!("u{OWNER}@")),
+        "the address is masked"
     );
 }

@@ -25,8 +25,8 @@ use sr_chat::social::repo::{
 };
 use sr_chat::social::safety::{MediaFilter, SafetyPrefs, SensitiveMedia};
 use sr_chat::social::user_settings::UserSettings;
-use std::collections::BTreeMap;
 use sr_core::{ChannelId, GuildId, MessageId, UserId};
+use std::collections::BTreeMap;
 
 /// Postgres-backed social repository.
 #[derive(Clone)]
@@ -70,7 +70,11 @@ fn overrides_from_json(v: &serde_json::Value) -> BTreeMap<u64, bool> {
 }
 
 fn overrides_to_json(m: &BTreeMap<u64, bool>) -> serde_json::Value {
-    serde_json::Value::Object(m.iter().map(|(k, v)| (k.to_string(), (*v).into())).collect())
+    serde_json::Value::Object(
+        m.iter()
+            .map(|(k, v)| (k.to_string(), (*v).into()))
+            .collect(),
+    )
 }
 
 fn guild_key(g: Option<GuildId>) -> i64 {

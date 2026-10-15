@@ -14,6 +14,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-007** [FE] Traits: 5 slots (emoji + short text)
 - [x] **LNG-SSET-008** [FE] Description textarea ("How did your server get started? Why should people join?")
 - [ ] **LNG-SSET-009** [FE] Live preview card (banner, icon, name, "● N Online ● N Members", "Est. <Mon YYYY>") *(p5: preview card with banner, icon, name and Est. date; no Online/Members counts)*
+   - p13 backend half built: `GET /guilds/{id}?with_counts=true` adds `approximate_member_count` and `approximate_presence_count` (test `guild_counts_come_with_with_counts_only`); the preview card does not use them yet.
 - [x] **LNG-SSET-010** [FE] Invite splash background (free) *(p5)*
 
 ## Server Tag
@@ -49,6 +50,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [x] **LNG-SSET-028** [FE] Bulk select → add/remove role, kick, ban *(p10: row and page checkboxes, bulk Add/Remove role, Kick, Ban run per member with a partial-failure report, `MemberBulk.tsx`, people test)*
 - [x] **LNG-SSET-029** [FE] Prune members modal (inactivity days, include roles, count preview) *(Members, needs Kick Members; wording is "have not sent a message in N days" until last-seen tracking lands (F-02), then Discord's, D-166)*
 - [ ] **LNG-SSET-030** [FE] Member detail side drawer (roles, timeout, audit history for this member) *(p5: details dialog (username, id, joined, nickname, timeout, roles); no audit history because the audit log cannot filter by target)*
+   - p13 backend half built: `GET /guilds/{id}/audit-logs?target_id=` filters entries about one member (test `audit_log_can_be_filtered_by_target`); the drawer does not show the history yet.
 
 ## Roles
 - [x] **LNG-SSET-031** [FE] Roles list (drag reorder, member counts, search, Create Role, "Default permissions" @everyone row)
