@@ -813,6 +813,34 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // The first message of a DM (or the first after Close DM) announces the channel to
     // each recipient before the message itself.
     let social_api = Arc::new(social_api);
+    // Account connections (LNG-USET-024) and the data export (LNG-USET-020). Every request to
+    // a provider goes through the SSRF-safe client; providers without an OAuth application
+    // in `[connections]` are simply not offered.
+    let provider_client = sr_net::SafeClient::production(
+        sr_net::Policy::default(),
+        &format!(
+            "SIDEROOM/1.0 (+{})",
+            cfg.server.public_url.trim_end_matches('/')
+        ),
+    );
+    let connections_deps = Arc::new(routes::userset::connections::ConnectionsDeps::new(
+        &cfg.server.public_url,
+        &cfg.connections,
+        (
+            cfg.discord.client_id.as_str(),
+            cfg.discord.client_secret.expose(),
+        ),
+        provider_client.clone(),
+        clock.clone(),
+    ));
+    let export_deps = Arc::new(routes::userset::data_export::DataExportDeps {
+        store: Arc::new(crate::userset_jobs::PgExportStore::new(
+            pool.clone(),
+            id_src.clone(),
+        )),
+        storage: storage.clone(),
+        clock: clock.clone(),
+    });
     let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
     call_recorder.bind(messages.clone());
 
@@ -883,7 +911,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(guilds.clone()))
         .extension(messages.clone())
         .extension(threads_deps.clone())
-        .extension(social_api)
+        .extension(social_api.clone())
+        .extension(connections_deps)
+        .extension(export_deps)
         .extension(settings_deps.clone())
         .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
             sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
@@ -996,6 +1026,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         download_service,
     );
     let runner = crate::payments_jobs::register(runner, &pool, payments.service.clone());
+    let runner = crate::userset_jobs::register(
+        runner,
+        &pool,
+        storage.clone(),
+        social_api.clone(),
+        provider_client.clone(),
+    );
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_insights(&pool).await?;
@@ -1008,6 +1045,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::cinema_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
+    crate::userset_jobs::schedule(&pool).await?;
     crate::payments_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 

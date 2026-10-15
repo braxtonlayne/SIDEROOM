@@ -14,6 +14,7 @@ pub mod auth_repo;
 pub mod auth_store;
 pub mod chat_repo;
 pub mod cinema_repo;
+pub mod data_export;
 pub mod directory_repo;
 mod error;
 mod guild_admin_repo;

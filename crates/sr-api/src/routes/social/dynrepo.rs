@@ -226,6 +226,33 @@ impl ProfileRepository for DynRepo {
     async fn count_connections(&self, user: UserId) -> RepoResult<usize> {
         self.0.count_connections(user).await
     }
+    async fn connection_owner(
+        &self,
+        provider: &str,
+        external_id: &str,
+    ) -> RepoResult<Option<UserId>> {
+        self.0.connection_owner(provider, external_id).await
+    }
+    async fn stale_connections(
+        &self,
+        before_ms: i64,
+        providers: &[&str],
+        limit: usize,
+    ) -> RepoResult<Vec<Connection>> {
+        self.0.stale_connections(before_ms, providers, limit).await
+    }
+    async fn set_connection_stats(
+        &self,
+        user: UserId,
+        provider: &str,
+        external_id: &str,
+        stats: &serde_json::Value,
+        now_ms: i64,
+    ) -> RepoResult<()> {
+        self.0
+            .set_connection_stats(user, provider, external_id, stats, now_ms)
+            .await
+    }
 }
 
 #[async_trait]

@@ -1,0 +1,223 @@
+//! DB-backed tests for the data export (LNG-USET-020). Run with a scratch Postgres:
+//! `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-db --test data_export -- --ignored`
+
+use std::io::{Cursor, Read};
+
+use sr_db::PgPool;
+use sr_db::data_export::{self, RequestRefusal};
+use sr_db::testing::TestDb;
+
+async fn account(pool: &PgPool, id: i64, name: &str) {
+    sqlx::query("INSERT INTO persons (id) VALUES ($1)")
+        .bind(id)
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO accounts (id, person_id, username, email, password_hash) \
+         VALUES ($1, $1, $2, $3, 'secret-hash')",
+    )
+    .bind(id)
+    .bind(name)
+    .bind(format!("{name}@example.test"))
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn request_is_queued_once_and_cooled_down() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    account(pool, 1, "asker").await;
+
+    let first = data_export::request(pool, 100, 101, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(first.state, "pending");
+    let job: (String, serde_json::Value) =
+        sqlx::query_as("SELECT kind, payload FROM jobs WHERE id = 101")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!(job.0, data_export::JOB_KIND);
+    assert_eq!(job.1["export_id"], "100");
+
+    // A second request while one is open is refused.
+    assert!(matches!(
+        data_export::request(pool, 102, 103, 1).await.unwrap(),
+        Err(RequestRefusal::InProgress(r)) if r.id == 100
+    ));
+    // After it finished, the cooldown applies; a failed one does not count.
+    assert_eq!(data_export::begin(pool, 100).await.unwrap(), Some(1));
+    data_export::finish(pool, 100, "exports/1/100.zip", 10)
+        .await
+        .unwrap();
+    assert!(matches!(
+        data_export::request(pool, 102, 103, 1).await.unwrap(),
+        Err(RequestRefusal::TooSoon { retry_after_secs }) if retry_after_secs > 23 * 3600
+    ));
+    let ready = data_export::latest(pool, 1).await.unwrap().unwrap();
+    assert_eq!(ready.state, "ready");
+    assert!(ready.expires_ms.unwrap() - ready.ready_ms.unwrap() >= 7 * 86_400_000 - 1000);
+    assert!(
+        data_export::get(pool, 2, 100).await.unwrap().is_none(),
+        "not another user's"
+    );
+
+    sqlx::query("UPDATE data_exports SET state = 'failed' WHERE id = 100")
+        .execute(pool)
+        .await
+        .unwrap();
+    assert!(
+        data_export::request(pool, 102, 103, 1)
+            .await
+            .unwrap()
+            .is_ok()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn expired_links_are_found_and_marked() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    account(pool, 1, "asker").await;
+    data_export::request(pool, 100, 101, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    data_export::finish(pool, 100, "exports/1/100.zip", 10)
+        .await
+        .unwrap();
+    assert!(data_export::lapsed(pool).await.unwrap().is_empty());
+    sqlx::query("UPDATE data_exports SET expires_at = now() - interval '1 minute'")
+        .execute(pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        data_export::lapsed(pool).await.unwrap(),
+        vec![(100, "exports/1/100.zip".to_owned())]
+    );
+    data_export::mark_expired(pool, 100).await.unwrap();
+    assert_eq!(
+        data_export::latest(pool, 1).await.unwrap().unwrap().state,
+        "expired"
+    );
+    assert!(data_export::lapsed(pool).await.unwrap().is_empty());
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_package_has_the_users_data_and_no_secrets() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    account(pool, 1, "writer").await;
+    account(pool, 2, "other").await;
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES (10, 'Room', 2)")
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES (20, 10, 0, 'general')")
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO guild_members (guild_id, user_id, nick) VALUES (10, 1, 'Nick')")
+        .execute(pool)
+        .await
+        .unwrap();
+    // Three messages by the user (one deleted) and one by someone else.
+    for (id, author, content, deleted) in [
+        (1_i64, 1_i64, "hello", false),
+        (2, 1, "second", false),
+        (3, 1, "gone", true),
+        (4, 2, "not mine", false),
+    ] {
+        sqlx::query(
+            "INSERT INTO messages (id, channel_id, guild_id, author_id, content, visibility, deleted_at) \
+             VALUES ($1, 20, 10, $2, $3, $4::message_visibility, CASE WHEN $5 THEN now() END)",
+        )
+        .bind(id)
+        .bind(author)
+        .bind(content)
+        .bind(if deleted { "user_deleted" } else { "visible" })
+        .bind(deleted)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+    sqlx::query("INSERT INTO relationships (user_id, target_id, type) VALUES (1, 2, 1)")
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO user_notes (user_id, target_id, note) VALUES (1, 2, 'my note')")
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO user_connections (user_id, provider, external_id, display_name) \
+         VALUES (1, 'github', '9', 'octo')",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
+    let mut buf = Cursor::new(Vec::new());
+    let n = data_export::build_package(pool, 1, &mut buf, 1_700_000_000_000)
+        .await
+        .unwrap();
+    assert_eq!(n, 2, "only the user's own, undeleted messages");
+
+    let mut zip = zip::ZipArchive::new(Cursor::new(buf.into_inner())).unwrap();
+    let names: Vec<String> = zip.file_names().map(|n| n.unwrap().into_owned()).collect();
+    for want in [
+        "README.txt",
+        "account.json",
+        "settings.json",
+        "relationships.json",
+        "servers.json",
+        "connections.json",
+        "invites.json",
+        "invoices.json",
+        "activity.json",
+        "security.json",
+        "attachments.json",
+        "messages/20.json",
+        "package.json",
+    ] {
+        assert!(
+            names.iter().any(|n| n == want),
+            "{want} missing in {names:?}"
+        );
+    }
+    let mut read = |name: &str| -> String {
+        let mut s = String::new();
+        zip.by_name(name).unwrap().read_to_string(&mut s).unwrap();
+        s
+    };
+    let account: serde_json::Value = serde_json::from_str(&read("account.json")).unwrap();
+    assert_eq!(account["username"], "writer");
+    assert_eq!(account["id"], "1", "ids are strings");
+    let everything: String = names.iter().map(|n| read(n)).collect();
+    assert!(
+        !everything.contains("secret-hash"),
+        "no password hash anywhere"
+    );
+    let messages: serde_json::Value = serde_json::from_str(&read("messages/20.json")).unwrap();
+    let contents: Vec<&str> = messages
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["content"].as_str().unwrap())
+        .collect();
+    assert_eq!(contents, ["hello", "second"]);
+    let rel: serde_json::Value = serde_json::from_str(&read("relationships.json")).unwrap();
+    assert_eq!(rel["notes"][0]["note"], "my note");
+    assert_eq!(rel["relationships"][0]["user_id"], "2");
+    let servers: serde_json::Value = serde_json::from_str(&read("servers.json")).unwrap();
+    assert_eq!(servers["memberships"][0]["name"], "Room");
+    let conns: serde_json::Value = serde_json::from_str(&read("connections.json")).unwrap();
+    assert_eq!(conns[0]["name"], "octo");
+}

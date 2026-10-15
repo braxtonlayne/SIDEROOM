@@ -626,6 +626,51 @@ impl ProfileRepository for MemoryRepo {
             .filter(|c| c.user == user)
             .count())
     }
+
+    async fn connection_owner(
+        &self,
+        provider: &str,
+        external_id: &str,
+    ) -> RepoResult<Option<UserId>> {
+        Ok(self
+            .lock()?
+            .connections
+            .iter()
+            .find(|c| c.verified && c.provider == provider && c.external_id == external_id)
+            .map(|c| c.user))
+    }
+
+    async fn stale_connections(
+        &self,
+        _before_ms: i64,
+        providers: &[&str],
+        limit: usize,
+    ) -> RepoResult<Vec<Connection>> {
+        Ok(self
+            .lock()?
+            .connections
+            .iter()
+            .filter(|c| c.verified && c.show_activity && providers.contains(&c.provider.as_str()))
+            .take(limit)
+            .cloned()
+            .collect())
+    }
+
+    async fn set_connection_stats(
+        &self,
+        user: UserId,
+        provider: &str,
+        external_id: &str,
+        stats: &serde_json::Value,
+        _now_ms: i64,
+    ) -> RepoResult<()> {
+        for c in self.lock()?.connections.iter_mut() {
+            if c.user == user && c.provider == provider && c.external_id == external_id {
+                c.stats = stats.clone();
+            }
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]

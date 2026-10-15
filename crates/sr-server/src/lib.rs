@@ -21,6 +21,7 @@ pub mod search_jobs;
 pub mod settings_pg;
 pub mod staff_feed;
 pub mod tv_catalog;
+pub mod userset_jobs;
 pub mod voice;
 pub mod watchparty;
 
@@ -56,3 +57,5 @@ mod staff_feed_pg_tests;
 mod tv_wiring_pg_tests;
 #[cfg(test)]
 mod watchparty_pg_tests;
+#[cfg(test)]
+mod userset_pg_tests;

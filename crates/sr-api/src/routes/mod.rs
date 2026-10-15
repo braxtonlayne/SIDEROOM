@@ -52,6 +52,7 @@ pub mod settings;
 pub mod social;
 pub mod threads;
 pub mod tv;
+pub mod userset;
 pub mod voice;
 pub mod voice_live;
 pub mod watchparty;
@@ -119,6 +120,7 @@ pub fn all() -> Router<AppState> {
         .merge(developer::router())
         .merge(directory::router())
         .merge(donations::router())
+        .merge(userset::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -154,6 +156,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(watchparty::openapi());
     doc.merge(developer::openapi());
     doc.merge(donations::openapi());
+    doc.merge(userset::openapi());
     doc
 }
 

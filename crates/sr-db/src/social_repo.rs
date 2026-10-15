@@ -1091,6 +1091,86 @@ impl ProfileRepository for PgSocialRepo {
         Ok(())
     }
 
+    async fn connection_owner(
+        &self,
+        provider: &str,
+        external_id: &str,
+    ) -> RepoResult<Option<UserId>> {
+        let owner: Option<i64> = sqlx::query_scalar(
+            "SELECT user_id FROM user_connections \
+             WHERE provider = $1 AND external_id = $2 AND verified LIMIT 1",
+        )
+        .bind(provider)
+        .bind(external_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(owner.map(|o| UserId::new(o as u64)))
+    }
+
+    async fn stale_connections(
+        &self,
+        before_ms: i64,
+        providers: &[&str],
+        limit: usize,
+    ) -> RepoResult<Vec<Connection>> {
+        let providers: Vec<String> = providers.iter().map(|p| (*p).to_owned()).collect();
+        let rows = sqlx::query(
+            "SELECT user_id, provider, external_id, display_name, visible, url, stats \
+             FROM user_connections \
+             WHERE verified AND show_activity AND provider = ANY($1) \
+               AND (stats_refreshed_at IS NULL \
+                    OR stats_refreshed_at < to_timestamp($2::bigint / 1000.0)) \
+             ORDER BY stats_refreshed_at NULLS FIRST LIMIT $3",
+        )
+        .bind(&providers)
+        .bind(before_ms)
+        .bind(i64::try_from(limit).unwrap_or(100))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|c| {
+                Ok(Connection {
+                    user: UserId::new(c.try_get::<i64, _>("user_id").map_err(db)? as u64),
+                    provider: c.try_get("provider").map_err(db)?,
+                    external_id: c.try_get("external_id").map_err(db)?,
+                    display_name: c.try_get("display_name").map_err(db)?,
+                    verified: true,
+                    visible: c.try_get("visible").map_err(db)?,
+                    url: c.try_get("url").map_err(db)?,
+                    show_activity: true,
+                    stats: c.try_get("stats").map_err(db)?,
+                    created_ms: 0,
+                })
+            })
+            .collect()
+    }
+
+    async fn set_connection_stats(
+        &self,
+        user: UserId,
+        provider: &str,
+        external_id: &str,
+        stats: &serde_json::Value,
+        now_ms: i64,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE user_connections SET stats = $4, \
+               stats_refreshed_at = to_timestamp($5::bigint / 1000.0), updated_at = now() \
+             WHERE user_id = $1 AND provider = $2 AND external_id = $3",
+        )
+        .bind(i(user.get()))
+        .bind(provider)
+        .bind(external_id)
+        .bind(stats)
+        .bind(now_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
     async fn count_connections(&self, user: UserId) -> RepoResult<usize> {
         let n: i64 = sqlx::query_scalar("SELECT count(*) FROM user_connections WHERE user_id = $1")
             .bind(i(user.get()))
