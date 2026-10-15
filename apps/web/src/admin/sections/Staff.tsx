@@ -3,6 +3,7 @@ import { useState } from 'react';
 import * as api from '../api';
 import { useT } from '../../i18n';
 import { canAssignRole, parsePerms, permNames } from '../permissions';
+import { DelegationsCard, OffersCard } from './StaffOffers';
 import {
   ActionStatus,
   Async,
@@ -62,6 +63,9 @@ export function StaffSection() {
   const staff = useResource('admin:staff', api.listStaff);
   const roles = useResource('admin:staff-roles', api.listStaffRoles);
   const [appointing, setAppointing] = useState(false);
+  // An offer (the appointee accepts by DM) is the normal path; the direct appoint stays behind it, Owner only.
+  const [offering, setOffering] = useState(false);
+  const [offersKey, setOffersKey] = useState(0);
   const [accountId, setAccountId] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
   const [editing, setEditing] = useState<api.StaffMember | null>(null);
@@ -75,6 +79,11 @@ export function StaffSection() {
     setPicked([]);
     setAppointing(true);
   };
+  const openOffer = () => {
+    setAccountId('');
+    setPicked([]);
+    setOffering(true);
+  };
   const openEdit = (m: api.StaffMember) => {
     setEditing(m);
     setEditRoles(m.roles.map((r) => r.id));
@@ -85,7 +94,16 @@ export function StaffSection() {
       <SectionHeader
         title={t('admin.staff.title')}
         description={t('admin.staff.description')}
-        actions={<Button onClick={openAppoint}>{t('admin.staff.appointButton')}</Button>}
+        actions={
+          <>
+            <Button onClick={openOffer}>{t('admin.staff.offerButton')}</Button>
+            {viewer.isOwner && (
+              <Button variant="secondary" onClick={openAppoint}>
+                {t('admin.staff.directButton')}
+              </Button>
+            )}
+          </>
+        }
       />
       {notice && (
         <Notice variant="success" role="status" className="ss-status">
@@ -139,12 +157,40 @@ export function StaffSection() {
           </ul>
         )}
       </Async>
+      <OffersCard reloadKey={offersKey} />
+      {viewer.isOwner && staff.data && <DelegationsCard members={staff.data} />}
       {!viewer.isOwner && (
         <p className="ss-sub" style={{ marginTop: 16 }}>
           {t('admin.staff.ownerOnlyNote')} {t('admin.staff.ownershipMovesWith')}{' '}
           <code>sr-cli staff transfer-owner</code>.
         </p>
       )}
+
+      <ReasonDialog
+        open={offering}
+        title={t('admin.staff.offerTitle')}
+        description={t('admin.staff.offerDescription')}
+        confirmLabel={t('admin.staff.offerSend')}
+        valid={/^\d+$/.test(accountId.trim()) && picked.length > 0}
+        onCancel={() => setOffering(false)}
+        onConfirm={async (reason) => {
+          await api.sendStaffOffer(accountId.trim(), picked, reason);
+          setOffering(false);
+          setNotice(t('admin.staff.offerSent'));
+          setOffersKey((k) => k + 1);
+        }}
+      >
+        <TextInput
+          label={t('admin.staff.accountId')}
+          hint={t('admin.staff.accountIdHint')}
+          inputMode="numeric"
+          value={accountId}
+          onChange={(e) => setAccountId(e.target.value)}
+        />
+        <Async res={roles} label={t('admin.staff.loadingRoles')}>
+          {(rs) => <RolePicker roles={rs} selected={picked} onChange={setPicked} />}
+        </Async>
+      </ReasonDialog>
 
       <ReasonDialog
         open={appointing}

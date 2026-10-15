@@ -106,6 +106,7 @@ describe('admin shell', () => {
       'Pricing and perks',
       'Features',
       'Limits & settings',
+      'Announcements',
       'System',
       'Platform audit log',
       'Private content',
@@ -412,7 +413,7 @@ describe('staff', () => {
     );
     openAdmin('staff');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Appoint staff' }));
+    await user.click(await screen.findByRole('button', { name: 'Appoint directly' }));
     const dialog = await screen.findByRole('dialog', { name: 'Appoint staff' });
     const go = within(dialog).getByRole('button', { name: 'Appoint' });
     expect(go).toBeDisabled();
