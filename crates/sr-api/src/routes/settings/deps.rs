@@ -284,19 +284,6 @@ fn percent_decode(raw: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reason_header_is_percent_decoded() {
-        assert_eq!(percent_decode("spam%20link%21"), "spam link!");
-        assert_eq!(percent_decode("100%"), "100%");
-        assert_eq!(percent_decode("%zz"), "%zz");
-        assert_eq!(percent_decode("%F0%9F%91%8D"), "\u{1F44D}");
-    }
-}
-
 impl GuildAccess {
     /// Second-factor requirement of the server (D-223): when the caller holds `needs` here
     /// and the server's `mfa_level` is 1, a browser session must have proved a second factor
@@ -312,5 +299,18 @@ impl GuildAccess {
             gate.check_level(user, self.guild.mfa_level).await?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reason_header_is_percent_decoded() {
+        assert_eq!(percent_decode("spam%20link%21"), "spam link!");
+        assert_eq!(percent_decode("100%"), "100%");
+        assert_eq!(percent_decode("%zz"), "%zz");
+        assert_eq!(percent_decode("%F0%9F%91%8D"), "\u{1F44D}");
     }
 }
