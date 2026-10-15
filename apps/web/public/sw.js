@@ -25,10 +25,11 @@ const BYPASS_PREFIXES = ['/api/', '/gateway', '/cdn/', '/internal/', '/developer
 const STATIC_PREFIXES = ['/assets/', '/fonts/', '/icons/', '/entrance/'];
 const STATIC_FILES = ['/manifest.webmanifest', '/offline.css', '/offline.html'];
 
-/** 'bypass' (do not intercept), 'navigate' (app shell), or 'static' (immutable build output). */
+/** 'bypass' (do not intercept), 'share' (Share Target POST), 'navigate' (app shell), or 'static' (immutable build output). */
 function classify(request, origin) {
-  if (request.method !== 'GET') return 'bypass';
   const url = new URL(request.url);
+  if (request.method === 'POST' && url.origin === origin && url.pathname === '/share') return 'share';
+  if (request.method !== 'GET') return 'bypass';
   if (url.origin !== origin) return 'bypass';
   const p = url.pathname;
   if (BYPASS_PREFIXES.some((x) => p === x.replace(/\/$/, '') || p.startsWith(x))) return 'bypass';
@@ -36,6 +37,44 @@ function classify(request, origin) {
   if (request.mode === 'navigate') return 'navigate';
   if (STATIC_PREFIXES.some((x) => p.startsWith(x)) || STATIC_FILES.includes(p)) return 'static';
   return 'bypass';
+}
+
+/**
+ * Share Target (G-18): the manifest posts shared files as multipart/form-data. Files go to IndexedDB (same
+ * names as src/pwa/shareFiles.ts); the page reads them after the redirect. Text fields travel in the query
+ * string like the GET form, so SharePage parses both the same way.
+ */
+function stashShare(form) {
+  const files = form.getAll('files').filter((f) => typeof f !== 'string');
+  const q = new URLSearchParams();
+  for (const k of ['title', 'text', 'url']) {
+    const v = form.get(k);
+    if (typeof v === 'string' && v) q.set(k, v);
+  }
+  if (files.length === 0) return Promise.resolve(q);
+  return new Promise((resolve) => {
+    const req = indexedDB.open('sr-share', 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains('files')) req.result.createObjectStore('files');
+    };
+    req.onerror = () => resolve(q);
+    req.onsuccess = () => {
+      const db = req.result;
+      const tx = db.transaction('files', 'readwrite');
+      const store = tx.objectStore('files');
+      store.clear();
+      files.forEach((f, i) => store.put(f, i));
+      tx.oncomplete = () => {
+        db.close();
+        q.set('files', '1');
+        resolve(q);
+      };
+      tx.onerror = tx.onabort = () => {
+        db.close();
+        resolve(q);
+      };
+    };
+  });
 }
 
 if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') {
@@ -74,6 +113,16 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') 
   self.addEventListener('fetch', (event) => {
     const kind = classify(event.request, self.location.origin);
     if (kind === 'bypass') return;
+    if (kind === 'share') {
+      event.respondWith(
+        event.request
+          .formData()
+          .then(stashShare)
+          .catch(() => new URLSearchParams())
+          .then((q) => Response.redirect('/share' + (q.toString() ? '?' + q.toString() : ''), 303)),
+      );
+      return;
+    }
     if (kind === 'navigate') {
       event.respondWith(
         fetch(event.request)

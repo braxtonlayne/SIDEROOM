@@ -9,8 +9,15 @@ import { resetStore, useStore } from '../store';
 import { http, HttpResponse, server } from '../test/server';
 import { WebPushCard } from './WebPushCard';
 import { disablePush, enablePush, pushStatus, urlBase64ToBytes } from './push';
+import { queuedFiles } from '../lounge/queuedFiles';
 import { parseShare, shareToDraft } from './shareText';
 import { badgeCount, useAppBadge } from './useAppBadge';
+
+const sharedFile = new File(['x'], 'pic.png', { type: 'image/png' });
+vi.mock('./shareFiles', () => ({
+  readSharedFiles: () => Promise.resolve([sharedFile]),
+  clearSharedFiles: () => Promise.resolve(),
+}));
 
 const g = globalThis as unknown as Record<string, unknown>;
 
@@ -103,7 +110,9 @@ describe('XC-PWA-006 share target', () => {
       title: 'T',
       text: 'Look',
       url: 'https://a.b',
+      hasFiles: false,
     });
+    expect(parseShare('?files=1').hasFiles).toBe(true);
     expect(shareToDraft({ title: 'T', text: 'Look', url: 'https://a.b' })).toBe(
       'T\nLook\nhttps://a.b',
     );
@@ -143,5 +152,25 @@ describe('XC-PWA-007 keyboard height', () => {
     expect(keyboardHeight(800, 800)).toBeNull();
     expect(keyboardHeight(760, 800)).toBeNull();
     expect(keyboardHeight(480, 800)).toBe(480);
+  });
+
+  it('G-18 queues shared files for the chosen channel without a draft', async () => {
+    resetPrefs();
+    drafts.clear();
+    signedIn();
+    server.use(
+      http.get('*/api/v1/users/@me/guilds', () => HttpResponse.json([{ id: '5', name: 'Club' }])),
+      http.get('*/api/v1/guilds/5/channels', () =>
+        HttpResponse.json([{ id: '50', type: 0, name: 'general', guild_id: '5' }]),
+      ),
+      http.get('*/api/v1/users/@me/channels', () => HttpResponse.json([])),
+    );
+    const setSpy = vi.spyOn(queuedFiles, 'set');
+    const router = createAppRouter(createMemoryHistory({ initialEntries: ['/share?files=1'] }));
+    render(<RouterProvider router={router} />);
+    expect(await screen.findByText('1 file attached')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: '#general' }));
+    expect(drafts.get('50')).toBeUndefined();
+    expect(setSpy).toHaveBeenCalledWith('50', [sharedFile]);
   });
 });

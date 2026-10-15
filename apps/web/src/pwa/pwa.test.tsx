@@ -50,6 +50,22 @@ describe('service worker policy', () => {
     }
   });
 
+  it('intercepts only the Share Target POST to /share', () => {
+    expect(sw.classify(req('/share', { method: 'POST' }), ORIGIN)).toBe('share');
+    expect(sw.classify(req('/share', { method: 'POST', origin: 'https://o.example' }), ORIGIN)).toBe(
+      'bypass',
+    );
+    expect(sw.classify(req('/share/x', { method: 'POST' }), ORIGIN)).toBe('bypass');
+    expect(sw.classify(req('/api/v10/share', { method: 'POST' }), ORIGIN)).toBe('bypass');
+  });
+
+  it('declares a POST multipart share target with files', () => {
+    const m = JSON.parse(readFileSync(resolve(PUBLIC, 'manifest.webmanifest'), 'utf8'));
+    expect(m.share_target.method).toBe('POST');
+    expect(m.share_target.enctype).toBe('multipart/form-data');
+    expect(m.share_target.params.files[0].name).toBe('files');
+  });
+
   it('never intercepts mutations, cross-origin, authorised or ranged requests', () => {
     expect(sw.classify(req('/assets/a.js', { method: 'POST' }), ORIGIN)).toBe('bypass');
     expect(sw.classify(req('/assets/a.js', { origin: 'https://other.example' }), ORIGIN)).toBe(
