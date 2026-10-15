@@ -35,6 +35,7 @@ import type {
   SubmissionState,
   Upload,
 } from '../review/types';
+import { renderPdfCover } from './pdf/pdfjs';
 import { KIND_LABEL } from './ui';
 import type { SeriesKind } from './types';
 
@@ -611,6 +612,7 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
                         submissionId={s.id}
                         chapter={c}
                         editable={editable}
+                        coverSource={s.kind === 'library.series' && c.id === rows[0]?.id}
                         onDone={refresh}
                       />
                     </td>
@@ -721,11 +723,14 @@ function UploadCell({
   submissionId,
   chapter,
   editable,
+  coverSource,
   onDone,
 }: {
   submissionId: string;
   chapter: DraftChapter;
   editable: boolean;
+  /** This chapter's PDF supplies the series cover (the first chapter of a new series, G-78). */
+  coverSource: boolean;
   onDone: () => void;
 }) {
   const t = useT();
@@ -768,6 +773,15 @@ function UploadCell({
       });
       await rv.putFile(slot, file);
       await rv.completeUpload(submissionId, slot.upload.id);
+      // A PDF has no page images, so its first page, drawn in the browser, becomes the series cover. Best
+      // effort: a missing pdf.js or a refused image never fails the upload itself.
+      if (coverSource && chapter.format === 'pdf') {
+        try {
+          await rv.setCover(submissionId, await renderPdfCover(file));
+        } catch {
+          /* the series simply has no cover yet */
+        }
+      }
       await uploads.refetch();
     } catch (e) {
       setError(errorMessages(e, t('library.submissions.upload.error')));

@@ -118,7 +118,16 @@ function ReaderLoader({ chapterId, page }: ReaderProps) {
         url={manifest.data.source_url}
         title={manifest.data.chapter.title || series.data.series.title}
         seriesId={series.data.series.id}
-        initialPage={(parsePageParam(page, 100000) ?? 0) + 1}
+        initialPage={
+          (parsePageParam(page, 100000) ??
+            (saved.data && !saved.data.completed ? Math.max(0, saved.data.page_index) : 0)) + 1
+        }
+        chapter={{
+          id: manifest.data.chapter.id,
+          number: manifest.data.chapter.number,
+          seriesTitle: series.data.series.title,
+          coverUrl: series.data.series.cover_url,
+        }}
       />
     );
   const count = manifest.data.pages.length;

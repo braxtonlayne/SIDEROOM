@@ -128,7 +128,11 @@ export function SharePage() {
           )}
         </blockquote>
       ) : (
-        <Notice variant="info">{t('pwa.share.empty')}</Notice>
+        <>
+          <Notice variant="info">{t('pwa.share.empty')}</Notice>
+          {/* A share the service worker did not take reaches the server as a POST and is sent here with a GET (G-77). */}
+          <p className="sr-share-hint">{t('pwa.share.openOnce')}</p>
+        </>
       )}
       {failed && <Notice variant="danger">{t('pwa.share.error')}</Notice>}
       {hasContent && !groups && !failed && <p role="status">{t('pwa.share.loading')}</p>}
