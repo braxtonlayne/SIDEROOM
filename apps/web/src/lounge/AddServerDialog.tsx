@@ -88,7 +88,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
     try {
       const invite = await useStore.getState().acceptInvite(code);
       onClose();
-      goto(invite.guild.id, invite.channel.id);
+      goto(invite.guild?.id ?? '@me', invite.channel.id);
     } catch (err) {
       setError(inviteErrorMessage(err));
       setBusy(false);

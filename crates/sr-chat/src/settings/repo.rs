@@ -3,6 +3,7 @@
 
 use async_trait::async_trait;
 use sr_core::{EmojiId, GuildId, SoundId, StickerId, UserId, WebhookId};
+use std::collections::{HashMap, HashSet};
 
 use crate::repo::RepoResult;
 
@@ -14,6 +15,7 @@ use super::expressions::{Emoji, Sticker};
 use super::guide::Guide;
 use super::insights::Insights;
 use super::invites::GuildInvite;
+use super::scheduled_events::ScheduledEvent;
 use super::soundboard::Sound;
 use super::tags::GuildTag;
 use super::templates::GuildTemplate;
@@ -173,6 +175,38 @@ pub trait InsightsRepository: Send + Sync {
     async fn insights(&self, guild: GuildId, days: u32, now_ms: i64) -> RepoResult<Insights>;
 }
 
+#[async_trait]
+pub trait ScheduledEventRepository: Send + Sync {
+    async fn insert_event(&self, event: &ScheduledEvent) -> RepoResult<()>;
+    /// An event of the guild in any state.
+    async fn get_event(&self, guild: GuildId, id: u64) -> RepoResult<Option<ScheduledEvent>>;
+    /// Scheduled and active events, soonest start first.
+    async fn list_open_events(&self, guild: GuildId) -> RepoResult<Vec<ScheduledEvent>>;
+    async fn count_open_events(&self, guild: GuildId) -> RepoResult<usize>;
+    async fn update_event(&self, event: &ScheduledEvent) -> RepoResult<()>;
+    /// Remove the event and everyone's interest in it. `false` when it is unknown.
+    async fn delete_event(&self, guild: GuildId, id: u64) -> RepoResult<bool>;
+    /// `true` when the user was not interested yet.
+    async fn add_interest(&self, event: u64, user: UserId, now_ms: i64) -> RepoResult<bool>;
+    /// `true` when the user was interested.
+    async fn remove_interest(&self, event: u64, user: UserId) -> RepoResult<bool>;
+    async fn interest_counts(&self, events: &[u64]) -> RepoResult<HashMap<u64, u32>>;
+    /// The ones among `events` that `user` is interested in.
+    async fn interested_in(&self, user: UserId, events: &[u64]) -> RepoResult<HashSet<u64>>;
+    /// Interested users in ascending id order, strictly after `after` or (with `before`) the
+    /// last `limit` ones before it.
+    async fn list_interested(
+        &self,
+        event: u64,
+        before: Option<UserId>,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<UserId>>;
+    /// Open events of every guild whose time has come at `now_ms`: scheduled with a start
+    /// time reached, or active with an end time reached.
+    async fn due_events(&self, now_ms: i64) -> RepoResult<Vec<ScheduledEvent>>;
+}
+
 /// Everything the settings service needs.
 pub trait SettingsRepository:
     InviteRepository
@@ -186,6 +220,7 @@ pub trait SettingsRepository:
     + InsightsRepository
     + GuideRepository
     + ApplicationRepository
+    + ScheduledEventRepository
 {
 }
 impl<
@@ -199,7 +234,8 @@ impl<
         + TagRepository
         + InsightsRepository
         + GuideRepository
-        + ApplicationRepository,
+        + ApplicationRepository
+        + ScheduledEventRepository,
 > SettingsRepository for T
 {
 }

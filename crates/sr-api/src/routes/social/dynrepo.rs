@@ -3,7 +3,7 @@
 //! pick the in-memory fake. Every method forwards to the wrapped repository.
 
 use async_trait::async_trait;
-use sr_chat::social::dm::{DmChannel, RequestState};
+use sr_chat::social::dm::{DmChannel, GroupInvite, RequestState};
 use sr_chat::social::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::PresencePrefs;
 use sr_chat::social::profile::{Connection, Profile};
@@ -151,6 +151,18 @@ impl DmRepository for DynRepo {
         state: RequestState,
     ) -> RepoResult<()> {
         self.0.set_request_state(user, id, state).await
+    }
+    async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()> {
+        self.0.insert_group_invite(invite).await
+    }
+    async fn get_group_invite(&self, code: &str) -> RepoResult<Option<GroupInvite>> {
+        self.0.get_group_invite(code).await
+    }
+    async fn revoke_group_invite(&self, code: &str) -> RepoResult<bool> {
+        self.0.revoke_group_invite(code).await
+    }
+    async fn list_group_invites(&self, channel: ChannelId) -> RepoResult<Vec<GroupInvite>> {
+        self.0.list_group_invites(channel).await
     }
 }
 

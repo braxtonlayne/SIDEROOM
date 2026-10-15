@@ -37,6 +37,7 @@ pub mod invites;
 pub mod join;
 pub mod presence;
 pub mod repo;
+pub mod scheduled_events;
 pub mod soundboard;
 pub mod tags;
 pub mod templates;
@@ -79,6 +80,7 @@ pub fn router() -> Router<AppState> {
         .merge(guide::routes())
         .merge(features::routes())
         .merge(applications::routes())
+        .merge(scheduled_events::routes())
 }
 
 /// OpenAPI fragment for these routes; merge into [`crate::openapi::base`].
@@ -167,6 +169,14 @@ pub fn router() -> Router<AppState> {
         applications::get_my_application,
         applications::list_applications,
         applications::decide_application,
+        scheduled_events::list_events,
+        scheduled_events::create_event,
+        scheduled_events::get_event,
+        scheduled_events::modify_event,
+        scheduled_events::delete_event,
+        scheduled_events::list_interested,
+        scheduled_events::mark_interested,
+        scheduled_events::clear_interested,
     ),
     components(schemas(
         ErrorBody,
@@ -239,6 +249,11 @@ pub fn router() -> Router<AppState> {
         applications::AnswerBody,
         applications::SubmitBody,
         applications::DecisionBody,
+        scheduled_events::EventMetadata,
+        scheduled_events::ScheduledEventObject,
+        scheduled_events::CreateEventBody,
+        scheduled_events::ModifyEventBody,
+        scheduled_events::EventUserObject,
         insights::InsightsDayObject,
         insights::InsightsChannelObject,
         crate::routes::social::model::PrimaryGuildObject,

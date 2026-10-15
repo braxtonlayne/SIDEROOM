@@ -1875,18 +1875,16 @@ async fn profile_decoration_effect_and_theme_edit_and_view() {
             "/users/@me",
             ALICE,
             json!({
-                "avatar_decoration": "neon-halo",
                 "profile_effect": "snow",
                 "theme_colors": [0x00ff_0000u32, 0x0000_00ffu32]
             }),
         )
         .await;
     assert_eq!(s, StatusCode::OK, "{v}");
-    assert_eq!(v["avatar_decoration"], "neon-halo");
+    assert_eq!(v["profile_effect"], "snow");
     assert_eq!(v["theme_colors"], json!([0x00ff_0000u32, 0x0000_00ffu32]));
 
     let (_, v) = e.get("/users/1/profile", BOB).await;
-    assert_eq!(v["user_profile"]["avatar_decoration"], "neon-halo");
     assert_eq!(v["user_profile"]["profile_effect"], "snow");
     assert_eq!(
         v["user_profile"]["theme_colors"],
@@ -1898,6 +1896,9 @@ async fn profile_decoration_effect_and_theme_edit_and_view() {
     // Bad slugs and wide colours are refused and change nothing.
     for body in [
         json!({"avatar_decoration": "Not A Slug"}),
+        // Well formed but not in the catalogue (no decorations ship; G-48).
+        json!({"avatar_decoration": "neon-halo"}),
+        json!({"profile_effect": "confetti"}),
         json!({"theme_colors": [0x0100_0000u32, 0]}),
     ] {
         let (s, _) = e.patch("/users/@me", ALICE, body).await;
@@ -1912,6 +1913,21 @@ async fn profile_decoration_effect_and_theme_edit_and_view() {
         )
         .await;
     assert!(v["avatar_decoration"].is_null() && v["theme_colors"].is_null());
+}
+
+#[tokio::test]
+async fn profile_catalogue_lists_effects_without_decorations() {
+    let e = env().await;
+    let (s, v) = e.get("/sr/profile-catalog", ALICE).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let slugs: Vec<&str> = v["effects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x["slug"].as_str().unwrap())
+        .collect();
+    assert_eq!(slugs, ["sparkle", "aurora", "snow", "embers"]);
+    assert_eq!(v["decorations"], json!([]));
 }
 
 #[tokio::test]

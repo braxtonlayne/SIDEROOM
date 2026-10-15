@@ -64,9 +64,10 @@ export function ServerInvite() {
     setError(null);
     try {
       const joined = await useStore.getState().acceptInvite(code);
+      // A group DM invite has no server: the group opens under Direct Messages.
       await navigate({
         to: '/channels/$guildId/$channelId',
-        params: { guildId: joined.guild.id, channelId: joined.channel.id },
+        params: { guildId: joined.guild?.id ?? '@me', channelId: joined.channel.id },
       });
     } catch (e) {
       setError(inviteErrorMessage(e));
@@ -75,7 +76,11 @@ export function ServerInvite() {
   };
 
   const counts = (inv: ServerInvitePreview) =>
-    inv.approximate_member_count || inv.approximate_presence_count ? (
+    !inv.guild && inv.approximate_member_count ? (
+      <p>
+        {t('entrance.invite.groupMembers', { count: formatNumber(inv.approximate_member_count) })}
+      </p>
+    ) : inv.approximate_member_count || inv.approximate_presence_count ? (
       <p>
         {t('entrance.serverInvite.counts', {
           online: formatNumber(inv.approximate_presence_count ?? 0),
@@ -83,6 +88,15 @@ export function ServerInvite() {
         })}
       </p>
     ) : null;
+
+  const inv = state.kind === 'ready' ? state.invite : null;
+  const isGroup = !!inv && !inv.guild;
+  const shownName = inv?.guild?.name ?? inv?.channel?.name ?? t('entrance.invite.groupName');
+  const iconUrl = inv?.guild?.icon
+    ? `/cdn/icons/${inv.guild.id}/${inv.guild.icon}.png`
+    : inv?.channel?.icon
+      ? `/cdn/channel-icons/${inv.channel.id}/${inv.channel.icon}.png`
+      : null;
 
   return (
     <ThemeProvider section="lounge" className="ent-invite-page">
@@ -92,19 +106,10 @@ export function ServerInvite() {
         {state.kind === 'ready' && (
           <>
             <div className="ent-invite-icon" aria-hidden="true">
-              {state.invite.guild.icon ? (
-                <img
-                  src={`/cdn/icons/${state.invite.guild.id}/${state.invite.guild.icon}.png`}
-                  alt=""
-                  width={72}
-                  height={72}
-                />
-              ) : (
-                initial(state.invite.guild.name)
-              )}
+              {iconUrl ? <img src={iconUrl} alt="" width={72} height={72} /> : initial(shownName)}
             </div>
-            <p>{t('entrance.serverInvite.invited')}</p>
-            <h1>{state.invite.guild.name}</h1>
+            <p>{isGroup ? t('entrance.invite.groupInvited') : t('entrance.serverInvite.invited')}</p>
+            <h1>{shownName}</h1>
             {counts(state.invite)}
             {state.signedIn ? (
               <>

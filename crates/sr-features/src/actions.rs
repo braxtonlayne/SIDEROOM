@@ -149,4 +149,23 @@ pub trait FeatureActions: Send + Sync {
     ) -> ActionResult<ChannelId>;
     async fn set_slowmode(&self, channel: ChannelId, seconds: u32) -> ActionResult<()>;
     async fn set_channel_name(&self, channel: ChannelId, name: &str) -> ActionResult<()>;
+
+    /// Members connected to a guild voice or stage channel right now.
+    async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Vec<UserId>>;
+    /// Move a connected member to another voice channel of the same guild, as a moderator
+    /// would (`PATCH /guilds/{id}/voice-states/{user}`). `NotFound` when they are not in voice.
+    async fn move_member(&self, guild: GuildId, user: UserId, to: ChannelId) -> ActionResult<()>;
+    /// Create a voice channel and return its id. With `owner`, that member may manage the
+    /// channel (rename it, set its limit, lock it, move members in it); everyone else gets
+    /// the category's permissions.
+    async fn create_voice_channel(
+        &self,
+        guild: GuildId,
+        name: &str,
+        parent: Option<ChannelId>,
+        user_limit: u32,
+        owner: Option<UserId>,
+    ) -> ActionResult<ChannelId>;
+    /// Delete a channel (and disconnect whoever is in it).
+    async fn delete_channel(&self, channel: ChannelId) -> ActionResult<()>;
 }

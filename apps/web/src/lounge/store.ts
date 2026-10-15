@@ -57,7 +57,9 @@ export type LoungeDialog =
       kind: 'community';
       guildId: string;
       tab?: 'rank' | 'suggestions' | 'tickets' | 'birthdays' | undefined;
-    };
+    }
+  | { kind: 'events'; guildId: string }
+  | { kind: 'createEvent'; guildId: string; channelId?: string | undefined };
 
 export interface LoungeUiState {
   /** Where to land on `/channels` after a reload (LNG-SHL-005). */

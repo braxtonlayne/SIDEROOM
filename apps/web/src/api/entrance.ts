@@ -85,7 +85,9 @@ export const getMe = () => apiFetch<{ id: string }>('/users/@me', { retries: 0 }
 
 export interface ServerInvitePreview {
   code: string;
-  guild: { id: string; name: string; icon: string | null };
+  /** Absent on a group DM invite, which names the group in `channel` instead. */
+  guild?: { id: string; name: string; icon: string | null };
+  channel?: { id: string; name?: string | null; type: number; icon?: string | null };
   approximate_member_count: number;
   approximate_presence_count: number;
   inviter?: { username: string; avatar: string | null };

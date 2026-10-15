@@ -1,6 +1,9 @@
 //! Orchestration for the social domain: load state, run the pure rules, persist.
 
-use super::dm::{self, AddPlan, DmAccess, DmChannel, DmKind, GroupEdit, RequestState, dm_access};
+use super::dm::{
+    self, AddPlan, DmAccess, DmChannel, DmKind, GroupEdit, GroupInvite, InviteJoinPlan,
+    RequestState, dm_access,
+};
 use super::notifications::{
     self, ChannelOverride, MentionKind, Mute, MuteDuration, NotificationLevel, ScopeSettings,
 };
@@ -423,6 +426,111 @@ impl<R: SocialRepository> SocialService<R> {
             .update_group(channel, up.name.as_deref(), up.icon_key.as_deref())
             .await?;
         self.get_dm_for(actor, channel).await
+    }
+
+    /// The group DM `channel` as seen by `actor`: `None` when the id is no DM channel at all
+    /// (so the caller can try a server channel instead); an error for a 1:1 DM or a group
+    /// the actor is not in.
+    pub async fn find_group(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+    ) -> SocialResult<Option<DmChannel>> {
+        let Some(ch) = self.repo.get_dm(channel).await? else {
+            return Ok(None);
+        };
+        if !ch.has(actor) {
+            return Err(SocialError::NotParticipant);
+        }
+        if ch.kind != DmKind::Group {
+            return Err(SocialError::NotGroupDm);
+        }
+        Ok(Some(ch))
+    }
+
+    /// Make an invite link for a group DM (owner only; 24 hours, unlimited uses). `code`
+    /// comes from the caller's entropy source.
+    pub async fn create_group_invite(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+        code: String,
+    ) -> SocialResult<GroupInvite> {
+        let ch = self.get_dm_for(actor, channel).await?;
+        dm::plan_group_invite_manage(actor, &ch)?;
+        let inv = GroupInvite::new(code, channel, actor, self.now());
+        self.repo.insert_group_invite(&inv).await?;
+        Ok(inv)
+    }
+
+    /// The usable invite behind `code` and the group it leads to.
+    pub async fn group_invite(&self, code: &str) -> SocialResult<(GroupInvite, DmChannel)> {
+        let inv = self
+            .repo
+            .get_group_invite(code)
+            .await?
+            .filter(|i| i.usable(self.now()))
+            .ok_or(SocialError::UnknownInvite)?;
+        let ch = self
+            .repo
+            .get_dm(inv.channel_id)
+            .await?
+            .filter(|c| c.kind == DmKind::Group)
+            .ok_or(SocialError::UnknownInvite)?;
+        Ok((inv, ch))
+    }
+
+    /// Join the group behind an invite. Returns the group and whether `user` was added
+    /// (`false` when already a member).
+    pub async fn join_group_invite(
+        &self,
+        user: UserId,
+        code: &str,
+    ) -> SocialResult<(DmChannel, bool)> {
+        let (inv, ch) = self.group_invite(code).await?;
+        let groups = self.repo.count_groups(user).await?;
+        let plan = dm::plan_group_invite_join(user, &ch, &inv, self.now(), groups, &self.limits)?;
+        if plan == InviteJoinPlan::AlreadyMember {
+            return Ok((ch, false));
+        }
+        self.repo.add_recipients(ch.id, &[user]).await?;
+        let ch = self
+            .repo
+            .get_dm(ch.id)
+            .await?
+            .ok_or(SocialError::UnknownChannel)?;
+        Ok((ch, true))
+    }
+
+    /// Revoke an invite (group owner). Returns the group.
+    pub async fn revoke_group_invite(&self, actor: UserId, code: &str) -> SocialResult<DmChannel> {
+        let inv = self
+            .repo
+            .get_group_invite(code)
+            .await?
+            .ok_or(SocialError::UnknownInvite)?;
+        let ch = self.get_dm_for(actor, inv.channel_id).await?;
+        dm::plan_group_invite_manage(actor, &ch)?;
+        self.repo.revoke_group_invite(code).await?;
+        Ok(ch)
+    }
+
+    /// Usable invites of a group (owner only), newest first.
+    pub async fn list_group_invites(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+    ) -> SocialResult<Vec<GroupInvite>> {
+        let ch = self.get_dm_for(actor, channel).await?;
+        dm::plan_group_invite_manage(actor, &ch)?;
+        let now = self.now();
+        Ok(self
+            .repo
+            .list_group_invites(channel)
+            .await?
+            .into_iter()
+            .filter(|i| i.usable(now))
+            .collect())
     }
 
     /// "Close DM": hide it from the list; it reappears on the next message.

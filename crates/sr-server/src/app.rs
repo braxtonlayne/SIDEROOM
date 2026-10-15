@@ -506,6 +506,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )))
         .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone())),
     );
+    let events_deps = settings_deps.clone();
     let search_dir = search_dir(&cfg.search.dir, std::env::var("SR_SEARCH_DIR").ok());
     let message_index = Arc::new(
         MessageIndex::open_in_dir(std::path::Path::new(&search_dir))
@@ -1005,13 +1006,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         bus: bus.clone(),
         settings: features.clone(),
         clock: clock.clone(),
-        actions: Arc::new(crate::feature_actions::PgFeatureActions::new(
-            pool.clone(),
-            messages.clone(),
-            threads_deps.clone(),
-            guilds.0.clone(),
-            &cfg.server.public_url,
-        )),
+        actions: Arc::new(
+            crate::feature_actions::PgFeatureActions::new(
+                pool.clone(),
+                messages.clone(),
+                threads_deps.clone(),
+                guilds.0.clone(),
+                &cfg.server.public_url,
+            )
+            .with_voice(Arc::new(crate::feature_actions::GatewayVoice(
+                gateway.clone(),
+            ))),
+        ),
         state: Arc::new(crate::features_store::PgFeatureState::new(pool.clone())),
     };
     let feature_runtime = sr_features::FeatureRuntime::new(feature_ctx.clone());
@@ -1075,9 +1081,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             crate::inbox_pg::PgMentionSource::new(pool.clone()),
         ))))
         .extension(settings_deps.clone())
-        .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
-            sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
-        ))))
+        .extension(Arc::new(
+            routes::directory::DirectoryDeps::new(Arc::new(
+                sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
+            ))
+            .with_features(features.clone()),
+        ))
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
         .extension(library_deps)
@@ -1160,6 +1169,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             if let Err(e) = gc_apps.purge_interactions().await {
                 tracing::warn!(error = %e, "could not purge expired interactions");
             }
+        }
+    });
+
+    // Scheduled events start and end by the clock (P12 lounge events).
+    let events_task = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            tick.tick().await;
+            routes::settings::scheduled_events::advance(&events_deps).await;
         }
     });
 
@@ -1298,6 +1316,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     gauge_task.abort();
     seen_task.abort();
     apps_gc_task.abort();
+    events_task.abort();
     metrics_task.abort();
     search_consumer.abort();
     push_consumer.abort();
@@ -1326,6 +1345,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     registry
         .register(sr_features::ModerationReportsFeature)
         .context("registering the moderation.reports feature")?;
+    registry
+        .register(sr_features::DirectoryHiddenCategoriesFeature)
+        .context("registering the directory.hidden_categories feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
     // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,

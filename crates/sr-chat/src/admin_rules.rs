@@ -43,6 +43,13 @@ pub struct GuildPatch {
     pub icon_key: Option<Option<String>>,
     pub banner_key: Option<Option<String>>,
     pub splash_key: Option<Option<String>>,
+    /// 0 or 1; only the owner changes it (G-36).
+    pub mfa_level: Option<u8>,
+    /// Discord `system_channel_flags` bits.
+    pub system_channel_flags: Option<u32>,
+    pub widget_enabled: Option<bool>,
+    /// A channel of the guild; `Some(None)` clears it. The service checks membership.
+    pub widget_channel_id: Option<Option<ChannelId>>,
 }
 
 impl GuildPatch {
@@ -59,6 +66,10 @@ impl GuildPatch {
             && self.icon_key.is_none()
             && self.banner_key.is_none()
             && self.splash_key.is_none()
+            && self.mfa_level.is_none()
+            && self.system_channel_flags.is_none()
+            && self.widget_enabled.is_none()
+            && self.widget_channel_id.is_none()
     }
 }
 
@@ -182,6 +193,29 @@ pub fn plan_edit_guild(
     if let Some(v) = patch.explicit_content_filter {
         out.explicit_content_filter = range_u8("explicit_content_filter", v, 2)?;
     }
+    if let Some(v) = patch.mfa_level {
+        let v = range_u8("mfa_level", v, 1)?;
+        if v != guild.mfa_level && guild.owner_id != actor_user {
+            return Err(ChatError::MissingPermissions);
+        }
+        out.mfa_level = v;
+    }
+    if let Some(f) = patch.system_channel_flags {
+        if f & !crate::domain::system_flags::ALL != 0 {
+            return Err(ChatError::invalid(
+                "system_channel_flags",
+                "NUMBER_TYPE_MAX",
+                "Contains bits that are not defined.",
+            ));
+        }
+        out.system_channel_flags = f;
+    }
+    if let Some(v) = patch.widget_enabled {
+        out.widget_enabled = v;
+    }
+    if let Some(c) = patch.widget_channel_id {
+        out.widget_channel_id = c;
+    }
     if let Some(k) = patch.icon_key {
         out.icon_key = k;
     }
@@ -283,12 +317,40 @@ fn apply_extras(
         out.extras.theme_colors = colors;
     }
     if let Some(slug) = &profile_effect {
-        out.extras.profile_effect = clean_slug("profile_effect", slug.as_deref())?;
+        out.extras.profile_effect = catalogue_slug(
+            "profile_effect",
+            slug.as_deref(),
+            crate::profile::catalog::is_effect,
+        )?;
     }
     if let Some(slug) = &avatar_decoration {
-        out.extras.avatar_decoration = clean_slug("avatar_decoration", slug.as_deref())?;
+        out.extras.avatar_decoration = catalogue_slug(
+            "avatar_decoration",
+            slug.as_deref(),
+            crate::profile::catalog::is_decoration,
+        )?;
     }
     Ok(())
+}
+
+/// A per-server effect or decoration slug: well formed and listed in the profile catalogue
+/// (G-48, `GET /sr/profile-catalog`), the same rule as `PATCH /users/@me`.
+fn catalogue_slug(
+    field: &str,
+    slug: Option<&str>,
+    listed: fn(&str) -> bool,
+) -> ChatResult<Option<String>> {
+    let cleaned = clean_slug(field, slug)?;
+    if let Some(s) = &cleaned
+        && !listed(s)
+    {
+        return Err(ChatError::invalid(
+            field,
+            "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+            "not in the profile catalogue (GET /sr/profile-catalog)",
+        ));
+    }
+    Ok(cleaned)
 }
 
 fn clean_slug(field: &str, slug: Option<&str>) -> ChatResult<Option<String>> {
@@ -1047,6 +1109,87 @@ mod tests {
             ..Default::default()
         };
         assert!(plan_edit_guild(UserId::new(5), &plain, &g, p, None, false, true).is_err());
+    }
+
+    #[test]
+    fn mfa_level_system_flags_and_widget_edits() {
+        let g = guild();
+        let manager = actor_with(Permissions::MANAGE_GUILD, 1);
+        let owner = GuildActor {
+            is_owner: true,
+            perms: Permissions::ALL,
+            top_position: 0,
+        };
+        let edit = |actor: &GuildActor, who: u64, patch: GuildPatch, base: &Guild| {
+            plan_edit_guild(UserId::new(who), actor, base, patch, None, false, false)
+        };
+        // Only the owner changes the 2FA requirement; a manager does not, even to the same value
+        // it already has being a no-op.
+        let on = GuildPatch {
+            mfa_level: Some(1),
+            ..Default::default()
+        };
+        assert!(edit(&manager, 5, on.clone(), &g).is_err());
+        let g2 = edit(&owner, OWNER, on, &g).unwrap();
+        assert_eq!(g2.mfa_level, 1);
+        let same = GuildPatch {
+            mfa_level: Some(1),
+            ..Default::default()
+        };
+        assert!(
+            edit(&manager, 5, same, &g2).is_ok(),
+            "unchanged value is not a change"
+        );
+        let off = GuildPatch {
+            mfa_level: Some(0),
+            ..Default::default()
+        };
+        assert!(edit(&manager, 5, off, &g2).is_err());
+        let bad = GuildPatch {
+            mfa_level: Some(2),
+            ..Default::default()
+        };
+        assert!(edit(&owner, OWNER, bad, &g).is_err());
+
+        // Flags: any defined combination, nothing else; managers may set them.
+        let flags = GuildPatch {
+            system_channel_flags: Some(
+                crate::domain::system_flags::SUPPRESS_JOIN_NOTIFICATIONS
+                    | crate::domain::system_flags::SUPPRESS_PREMIUM_SUBSCRIPTIONS,
+            ),
+            ..Default::default()
+        };
+        assert_eq!(
+            edit(&manager, 5, flags, &g).unwrap().system_channel_flags,
+            3
+        );
+        let undefined = GuildPatch {
+            system_channel_flags: Some(1 << 6),
+            ..Default::default()
+        };
+        assert!(edit(&manager, 5, undefined, &g).is_err());
+
+        // Widget: enable and point it at a channel; clearing the channel keeps it enabled.
+        let w = GuildPatch {
+            widget_enabled: Some(true),
+            widget_channel_id: Some(Some(ChannelId::new(42))),
+            ..Default::default()
+        };
+        let g3 = edit(&manager, 5, w, &g).unwrap();
+        assert!(g3.widget_enabled);
+        assert_eq!(g3.widget_channel_id, Some(ChannelId::new(42)));
+        let clear = GuildPatch {
+            widget_channel_id: Some(None),
+            ..Default::default()
+        };
+        let g4 = edit(&manager, 5, clear, &g3).unwrap();
+        assert!(g4.widget_enabled && g4.widget_channel_id.is_none());
+        let plain = actor_with(Permissions::empty(), 0);
+        let w2 = GuildPatch {
+            widget_enabled: Some(true),
+            ..Default::default()
+        };
+        assert!(edit(&plain, 6, w2, &g).is_err());
     }
 
     #[test]

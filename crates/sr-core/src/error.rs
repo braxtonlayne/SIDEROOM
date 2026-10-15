@@ -47,6 +47,7 @@ error_codes! {
     UnknownInteraction = 10062, 404, "Unknown interaction";
     UnknownApplicationCommand = 10063, 404, "Unknown application command";
     UnknownStageInstance = 10067, 404, "Unknown Stage Instance";
+    UnknownScheduledEvent = 10070, 404, "Unknown Guild Scheduled Event";
     UnknownSound = 10097, 404, "Unknown Soundboard Sound";
     BotsCannotUseThisEndpoint = 20001, 403, "Bots cannot use this endpoint";
     OnlyBotsCanUseThisEndpoint = 20002, 403, "Only bots can use this endpoint";

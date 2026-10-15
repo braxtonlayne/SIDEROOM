@@ -33,7 +33,11 @@ export function InviteCard({ code }: { code: string }) {
   const [err, setErr] = useState<string | null>(null);
   const navigate = useNavigate();
   const joined = useStore((s) =>
-    state.kind === 'ready' ? s.guilds[state.invite.guild.id] !== undefined : false,
+    state.kind === 'ready'
+      ? state.invite.guild
+        ? s.guilds[state.invite.guild.id] !== undefined
+        : s.channels[state.invite.channel.id] !== undefined
+      : false,
   );
 
   useEffect(() => {
@@ -59,19 +63,20 @@ export function InviteCard({ code }: { code: string }) {
     );
   }
   const { invite } = state;
+  const name = invite.guild?.name ?? invite.channel.name ?? t('lounge.inviteCard.group');
   const open = () =>
     void navigate({
       to: '/channels/$guildId/$channelId',
-      params: { guildId: invite.guild.id, channelId: invite.channel.id },
+      params: { guildId: invite.guild?.id ?? '@me', channelId: invite.channel.id },
     });
   return (
     <section
       className="lng-embed lng-invite"
-      aria-label={t('lounge.inviteCard.inviteTo', { name: invite.guild.name })}
+      aria-label={t('lounge.inviteCard.inviteTo', { name })}
     >
       <div className="lng-embed-main">
         <div className="lng-embed-provider">{t('lounge.inviteCard.invitedToJoin')}</div>
-        <div className="lng-embed-title">{invite.guild.name}</div>
+        <div className="lng-embed-title">{name}</div>
         <div className="lng-muted lng-invite-counts">
           {invite.approximate_presence_count !== undefined &&
             t('lounge.inviteCard.online', {

@@ -104,7 +104,8 @@ impl GuildAdminRepository for PgChatRepo {
             "UPDATE guilds SET name = $2, description = $3, icon_key = $4, owner_id = $5, \
              system_channel_id = $6, verification_level = $7, default_message_notifications = $8, \
              explicit_content_filter = $9, preferred_locale = $10, banner_key = $11, splash_key = $12, \
-             afk_channel_id = $13, afk_timeout = $14, \
+             afk_channel_id = $13, afk_timeout = $14, mfa_level = $15, \
+             system_channel_flags = $16, widget_enabled = $17, widget_channel_id = $18, \
              updated_at = now() WHERE id = $1",
         )
         .bind(i(g.id.get()))
@@ -121,6 +122,10 @@ impl GuildAdminRepository for PgChatRepo {
         .bind(g.splash_key.as_deref())
         .bind(g.afk_channel_id.map(|c| i(c.get())))
         .bind(i32::try_from(g.afk_timeout).unwrap_or(300))
+        .bind(i16::from(g.mfa_level))
+        .bind(i32::try_from(g.system_channel_flags).unwrap_or(0))
+        .bind(g.widget_enabled)
+        .bind(g.widget_channel_id.map(|c| i(c.get())))
         .execute(&self.pool)
         .await
         .map_err(db)?;

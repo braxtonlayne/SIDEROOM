@@ -29,6 +29,86 @@ impl DmChannel {
     }
 }
 
+/// How long a group DM invite lives (Discord: 24 hours). Invites never run out of uses and
+/// are always in-platform (G-47; D-022 does not apply).
+pub const GROUP_INVITE_TTL_MS: i64 = 24 * 60 * 60 * 1000;
+
+/// An invite link to a group DM.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupInvite {
+    pub code: String,
+    pub channel_id: ChannelId,
+    pub inviter_id: UserId,
+    pub created_at_ms: i64,
+    pub expires_at_ms: i64,
+    pub revoked: bool,
+}
+
+impl GroupInvite {
+    pub fn new(code: String, channel_id: ChannelId, inviter_id: UserId, now_ms: i64) -> Self {
+        Self {
+            code,
+            channel_id,
+            inviter_id,
+            created_at_ms: now_ms,
+            expires_at_ms: now_ms + GROUP_INVITE_TTL_MS,
+            revoked: false,
+        }
+    }
+
+    /// Neither revoked nor expired.
+    pub fn usable(&self, now_ms: i64) -> bool {
+        !self.revoked && now_ms < self.expires_at_ms
+    }
+}
+
+/// Only the owner of a group DM makes or revokes invites for it.
+pub fn plan_group_invite_manage(actor: UserId, dm: &DmChannel) -> SocialResult<()> {
+    if dm.kind != DmKind::Group {
+        return Err(SocialError::NotGroupDm);
+    }
+    if !dm.has(actor) {
+        return Err(SocialError::NotParticipant);
+    }
+    if dm.owner != Some(actor) {
+        return Err(SocialError::NotOwner);
+    }
+    Ok(())
+}
+
+/// What accepting a group invite does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InviteJoinPlan {
+    /// Already in the group: nothing changes.
+    AlreadyMember,
+    Join,
+}
+
+/// Accepting a group invite: it must be usable and the group not full; the newcomer's own
+/// group DM cap applies as for any other way of joining a group.
+pub fn plan_group_invite_join(
+    user: UserId,
+    dm: &DmChannel,
+    invite: &GroupInvite,
+    now_ms: i64,
+    user_group_count: usize,
+    limits: &SocialLimits,
+) -> SocialResult<InviteJoinPlan> {
+    if dm.kind != DmKind::Group || !invite.usable(now_ms) {
+        return Err(SocialError::UnknownInvite);
+    }
+    if dm.has(user) {
+        return Ok(InviteJoinPlan::AlreadyMember);
+    }
+    if dm.recipients.len() >= limits.max_group_size {
+        return Err(SocialError::MaxGroupSize);
+    }
+    if user_group_count >= limits.max_group_dms_per_user {
+        return Err(SocialError::MaxGroupDms);
+    }
+    Ok(InviteJoinPlan::Join)
+}
+
 /// A user's DM privacy preferences (docs/inventory LNG-USET-013).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DmPrivacy {

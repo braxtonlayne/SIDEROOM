@@ -65,11 +65,13 @@ pub async fn list_roles(
 pub async fn create_role(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path(guild_id): Path<String>,
     Json(body): Json<CreateRoleBody>,
 ) -> ApiResult<Json<RoleObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let input = NewRole {
         name: body.name,
         permissions: body
@@ -98,11 +100,13 @@ pub async fn create_role(
 pub async fn reorder_roles(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path(guild_id): Path<String>,
     Json(body): Json<Vec<ReorderRoleEntry>>,
 ) -> ApiResult<Json<Vec<RoleObject>>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let mut moves = Vec::with_capacity(body.len());
     for (n, e) in body.iter().enumerate() {
         moves.push((id::<RoleId>(&format!("{n}.id"), &e.id)?, e.position));
@@ -126,12 +130,14 @@ pub async fn reorder_roles(
 pub async fn modify_role(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     MaybeExt(media): MaybeExt<MediaDeps>,
     Path((guild_id, role_id)): Path<(String, String)>,
     Json(body): Json<ModifyRoleBody>,
 ) -> ApiResult<Json<RoleObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let rid: RoleId = id("role_id", &role_id)?;
     // The image is stored first (a bad upload fails the edit), the old one is removed after
     // the edit committed, and a refused edit removes the new one again.
@@ -205,10 +211,12 @@ pub async fn modify_role(
 pub async fn delete_role(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path((guild_id, role_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let rid: RoleId = id("role_id", &role_id)?;
     api.delete_role(user, gid, rid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
@@ -217,6 +225,7 @@ pub async fn delete_role(
 async fn set_member_role(
     p: Principal,
     api: std::sync::Arc<dyn super::backend::GuildBackend>,
+    gate: super::safety::MfaGate,
     (guild_id, user_id, role_id): (String, String, String),
     add: bool,
 ) -> ApiResult<StatusCode> {
@@ -224,6 +233,7 @@ async fn set_member_role(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let uid: UserId = id("user_id", &user_id)?;
     let rid: RoleId = id("role_id", &role_id)?;
+    gate.require(&*api, actor, gid).await?;
     api.assign_role(actor, gid, uid, rid, add)
         .await
         .map_err(ce)?;
@@ -245,9 +255,10 @@ async fn set_member_role(
 pub async fn add_member_role(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path(ids): Path<(String, String, String)>,
 ) -> ApiResult<StatusCode> {
-    set_member_role(p, api, ids, true).await
+    set_member_role(p, api, gate, ids, true).await
 }
 
 /// Remove a role from a member.
@@ -265,9 +276,10 @@ pub async fn add_member_role(
 pub async fn remove_member_role(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path(ids): Path<(String, String, String)>,
 ) -> ApiResult<StatusCode> {
-    set_member_role(p, api, ids, false).await
+    set_member_role(p, api, gate, ids, false).await
 }
 
 /// Query of `GET /guilds/{id}/roles/{role_id}/members`.

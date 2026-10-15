@@ -115,6 +115,20 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
                 .is_some_and(|ch| ch.guild_id == Some(id) && ch.kind == ChannelType::Voice),
             None => true,
         };
+        if let Some(Some(cid)) = patch.widget_channel_id {
+            let ok = self
+                .repo
+                .get_channel(cid)
+                .await?
+                .is_some_and(|ch| ch.guild_id == Some(id) && ch.kind != ChannelType::Category);
+            if !ok {
+                return Err(ChatError::invalid(
+                    "channel_id",
+                    "CHANNEL_INVALID",
+                    "Must be a channel of this server.",
+                ));
+            }
+        }
         let updated = plan_edit_guild(
             actor,
             &c.actor,

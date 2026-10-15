@@ -116,12 +116,14 @@ pub async fn get_ban(
 pub async fn create_ban(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     headers: HeaderMap,
     Path((guild_id, user_id)): Path<(String, String)>,
     body: Option<Json<BanBody>>,
 ) -> ApiResult<StatusCode> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, actor, gid).await?;
     let uid: UserId = id("user_id", &user_id)?;
     let body = body.map(|b| b.0).unwrap_or_default();
     let too_big = body
@@ -169,10 +171,12 @@ pub async fn create_ban(
 pub async fn remove_ban(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path((guild_id, user_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, actor, gid).await?;
     let uid: UserId = id("user_id", &user_id)?;
     api.unban(actor, gid, uid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
@@ -219,12 +223,14 @@ pub struct BulkBanResult {
 pub async fn bulk_ban(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     headers: HeaderMap,
     Path(guild_id): Path<String>,
     Json(body): Json<BulkBanBody>,
 ) -> ApiResult<Json<BulkBanResult>> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, actor, gid).await?;
     if body.user_ids.is_empty() || body.user_ids.len() > MAX_BULK_BAN {
         return Err(HttpError(ApiError::invalid_form().field(
             "user_ids",

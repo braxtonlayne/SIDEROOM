@@ -79,6 +79,10 @@ export interface GuildPermissions {
   mentionEveryone?: boolean;
   /** Any permission that opens Server Settings (Manage Server/Roles/Channels, Ban Members, View Audit Log, ...). */
   serverSettings?: boolean;
+  /** Create scheduled events (and edit or delete their own). */
+  createEvents?: boolean;
+  /** Edit, start, end and delete anyone's scheduled events. */
+  manageEvents?: boolean;
 }
 
 export interface Guild {

@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use sqlx::postgres::PgRow;
 use sqlx::types::Json;
 use sqlx::{PgPool, Row};
+use std::collections::{HashMap, HashSet};
 
 use sr_chat::error::RepoError;
 use sr_chat::repo::RepoResult;
@@ -24,9 +25,10 @@ use sr_chat::settings::insights::{Insights, InsightsDay, TOP_CHANNELS, TopChanne
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
     ApplicationRepository, AuditRepository, AutoModRepository, CommunityRepository,
-    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository, TagRepository,
-    TemplateRepository, WebhookRepository,
+    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository,
+    ScheduledEventRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
+use sr_chat::settings::scheduled_events::{EntityType, EventStatus, ScheduledEvent};
 use sr_chat::settings::soundboard::{Sound, SoundFormat};
 use sr_chat::settings::tags::GuildTag;
 use sr_chat::settings::templates::{GuildTemplate, TemplateSnapshot};
@@ -1054,7 +1056,8 @@ impl CommunityRepository for PgSettingsRepo {
             "SELECT community_enabled, safety_alerts_channel_id, \
              description, preferred_locale, onboarding_enabled, welcome_screen_enabled, guide_enabled, \
              invites_paused, raid_alert_joins_per_minute, age_restricted, \
-             screening_enabled, screening_description, screening_rules \
+             screening_enabled, screening_description, screening_rules, dm_spam_filter, \
+             explicit_media_filter_dms, hide_suspicious_links, warn_new_account_days \
              FROM guild_community WHERE guild_id = $1",
         )
         .bind(i(guild.get()))
@@ -1085,6 +1088,11 @@ impl CommunityRepository for PgSettingsRepo {
                 "raid_alert_joins_per_minute",
             )?)
             .map_err(|_| bad("raid_alert_joins_per_minute"))?,
+            dm_spam_filter: get(&r, "dm_spam_filter")?,
+            explicit_media_filter_dms: get(&r, "explicit_media_filter_dms")?,
+            hide_suspicious_links: get(&r, "hide_suspicious_links")?,
+            warn_new_account_days: u32::try_from(get::<i32>(&r, "warn_new_account_days")?)
+                .map_err(|_| bad("warn_new_account_days"))?,
             age_restricted: get(&r, "age_restricted")?,
             screening_enabled: get(&r, "screening_enabled")?,
             screening_description: get(&r, "screening_description")?,
@@ -1108,8 +1116,9 @@ impl CommunityRepository for PgSettingsRepo {
              safety_alerts_channel_id, description, preferred_locale, \
              onboarding_enabled, welcome_screen_enabled, guide_enabled, invites_paused, \
              raid_alert_joins_per_minute, age_restricted, screening_enabled, \
-             screening_description, screening_rules) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) \
+             screening_description, screening_rules, dm_spam_filter, \
+             explicit_media_filter_dms, hide_suspicious_links, warn_new_account_days) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
              ON CONFLICT (guild_id) DO UPDATE SET \
                community_enabled = EXCLUDED.community_enabled, \
                safety_alerts_channel_id = EXCLUDED.safety_alerts_channel_id, \
@@ -1121,7 +1130,11 @@ impl CommunityRepository for PgSettingsRepo {
                age_restricted = EXCLUDED.age_restricted, \
                screening_enabled = EXCLUDED.screening_enabled, \
                screening_description = EXCLUDED.screening_description, \
-               screening_rules = EXCLUDED.screening_rules, updated_at = now()",
+               screening_rules = EXCLUDED.screening_rules, \
+               dm_spam_filter = EXCLUDED.dm_spam_filter, \
+               explicit_media_filter_dms = EXCLUDED.explicit_media_filter_dms, \
+               hide_suspicious_links = EXCLUDED.hide_suspicious_links, \
+               warn_new_account_days = EXCLUDED.warn_new_account_days, updated_at = now()",
         )
         .bind(i(s.guild_id.get()))
         .bind(s.community_enabled)
@@ -1137,6 +1150,10 @@ impl CommunityRepository for PgSettingsRepo {
         .bind(s.screening_enabled)
         .bind(s.screening_description.as_deref())
         .bind(Json(&s.screening_rules))
+        .bind(s.dm_spam_filter)
+        .bind(s.explicit_media_filter_dms)
+        .bind(s.hide_suspicious_links)
+        .bind(s.warn_new_account_days as i32)
         .execute(&mut *tx)
         .await
         .map_err(db)?;
@@ -1649,5 +1666,231 @@ impl ApplicationRepository for PgSettingsRepo {
         }
         tx.commit().await.map_err(db)?;
         Ok(Some(app))
+    }
+}
+
+// ---- scheduled events (migration 0800) ---------------------------------------------
+
+fn event_cols() -> String {
+    format!(
+        "id, guild_id, channel_id, creator_id, name, description, status, entity_type, location, {} AS start_ms, {} AS end_ms, {} AS created_ms",
+        ms("scheduled_start"),
+        ms("scheduled_end"),
+        ms("created_at")
+    )
+}
+
+fn event_from(r: &PgRow) -> RepoResult<ScheduledEvent> {
+    Ok(ScheduledEvent {
+        id: u(get(r, "id")?),
+        guild_id: GuildId::new(u(get(r, "guild_id")?)),
+        channel_id: get::<Option<i64>>(r, "channel_id")?.map(|c| ChannelId::new(u(c))),
+        creator_id: UserId::new(u(get(r, "creator_id")?)),
+        name: get(r, "name")?,
+        description: get(r, "description")?,
+        start_ms: get(r, "start_ms")?,
+        end_ms: get(r, "end_ms")?,
+        status: u8::try_from(get::<i16>(r, "status")?)
+            .ok()
+            .and_then(EventStatus::from_code)
+            .ok_or_else(|| bad("status"))?,
+        entity_type: u8::try_from(get::<i16>(r, "entity_type")?)
+            .ok()
+            .and_then(EntityType::from_code)
+            .ok_or_else(|| bad("entity_type"))?,
+        location: get(r, "location")?,
+        created_at_ms: get(r, "created_ms")?,
+    })
+}
+
+#[async_trait]
+impl ScheduledEventRepository for PgSettingsRepo {
+    async fn insert_event(&self, e: &ScheduledEvent) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_scheduled_events (id, guild_id, channel_id, creator_id, name, description, scheduled_start, scheduled_end, status, entity_type, location, created_at) VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7::bigint / 1000.0), to_timestamp($8::bigint / 1000.0), $9, $10, $11, to_timestamp($12::bigint / 1000.0))",
+        )
+        .bind(i(e.id))
+        .bind(i(e.guild_id.get()))
+        .bind(e.channel_id.map(|c| i(c.get())))
+        .bind(i(e.creator_id.get()))
+        .bind(&e.name)
+        .bind(e.description.as_deref())
+        .bind(e.start_ms)
+        .bind(e.end_ms)
+        .bind(i16::from(e.status.code()))
+        .bind(i16::from(e.entity_type.code()))
+        .bind(e.location.as_deref())
+        .bind(e.created_at_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn get_event(&self, guild: GuildId, id: u64) -> RepoResult<Option<ScheduledEvent>> {
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} FROM guild_scheduled_events WHERE guild_id = $1 AND id = $2",
+            event_cols()
+        )))
+        .bind(i(guild.get()))
+        .bind(i(id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        row.as_ref().map(event_from).transpose()
+    }
+
+    async fn list_open_events(&self, guild: GuildId) -> RepoResult<Vec<ScheduledEvent>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} FROM guild_scheduled_events WHERE guild_id = $1 AND status IN (1, 2) ORDER BY scheduled_start, id",
+            event_cols()
+        )))
+        .bind(i(guild.get()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(event_from).collect()
+    }
+
+    async fn count_open_events(&self, guild: GuildId) -> RepoResult<usize> {
+        let n: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM guild_scheduled_events WHERE guild_id = $1 AND status IN (1, 2)",
+        )
+        .bind(i(guild.get()))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(usize::try_from(n).unwrap_or(0))
+    }
+
+    async fn update_event(&self, e: &ScheduledEvent) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE guild_scheduled_events SET channel_id = $3, name = $4, description = $5, scheduled_start = to_timestamp($6::bigint / 1000.0), scheduled_end = to_timestamp($7::bigint / 1000.0), status = $8, entity_type = $9, location = $10, updated_at = now() WHERE guild_id = $1 AND id = $2",
+        )
+        .bind(i(e.guild_id.get()))
+        .bind(i(e.id))
+        .bind(e.channel_id.map(|c| i(c.get())))
+        .bind(&e.name)
+        .bind(e.description.as_deref())
+        .bind(e.start_ms)
+        .bind(e.end_ms)
+        .bind(i16::from(e.status.code()))
+        .bind(i16::from(e.entity_type.code()))
+        .bind(e.location.as_deref())
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn delete_event(&self, guild: GuildId, id: u64) -> RepoResult<bool> {
+        let n = sqlx::query("DELETE FROM guild_scheduled_events WHERE guild_id = $1 AND id = $2")
+            .bind(i(guild.get()))
+            .bind(i(id))
+            .execute(&self.pool)
+            .await
+            .map_err(db)?
+            .rows_affected();
+        Ok(n > 0)
+    }
+
+    async fn add_interest(&self, event: u64, user: UserId, now_ms: i64) -> RepoResult<bool> {
+        let n = sqlx::query(
+            "INSERT INTO guild_scheduled_event_users (event_id, user_id, created_at) VALUES ($1, $2, to_timestamp($3::bigint / 1000.0)) ON CONFLICT DO NOTHING",
+        )
+        .bind(i(event))
+        .bind(i(user.get()))
+        .bind(now_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        Ok(n > 0)
+    }
+
+    async fn remove_interest(&self, event: u64, user: UserId) -> RepoResult<bool> {
+        let n = sqlx::query(
+            "DELETE FROM guild_scheduled_event_users WHERE event_id = $1 AND user_id = $2",
+        )
+        .bind(i(event))
+        .bind(i(user.get()))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        Ok(n > 0)
+    }
+
+    async fn interest_counts(&self, events: &[u64]) -> RepoResult<HashMap<u64, u32>> {
+        let rows = sqlx::query(
+            "SELECT event_id, count(*) AS n FROM guild_scheduled_event_users WHERE event_id = ANY($1) GROUP BY event_id",
+        )
+        .bind(ids_in(events.iter().copied()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok((
+                    u(get(r, "event_id")?),
+                    u32::try_from(get::<i64>(r, "n")?).unwrap_or(u32::MAX),
+                ))
+            })
+            .collect()
+    }
+
+    async fn interested_in(&self, user: UserId, events: &[u64]) -> RepoResult<HashSet<u64>> {
+        let ids: Vec<i64> = sqlx::query_scalar(
+            "SELECT event_id FROM guild_scheduled_event_users WHERE user_id = $1 AND event_id = ANY($2)",
+        )
+        .bind(i(user.get()))
+        .bind(ids_in(events.iter().copied()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(ids_out(ids).collect())
+    }
+
+    async fn list_interested(
+        &self,
+        event: u64,
+        before: Option<UserId>,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<UserId>> {
+        let limit = i64::try_from(limit).unwrap_or(100);
+        // "before" alone pages from the end: take the highest ids below it, then flip back.
+        let backwards = before.is_some() && after.is_none();
+        let lower = after.map_or(0, |a| i(a.get()));
+        let upper = before.map_or(i64::MAX, |b| i(b.get()));
+        let sql = if backwards {
+            "SELECT user_id FROM guild_scheduled_event_users WHERE event_id = $1 AND user_id > $2 AND user_id < $3 ORDER BY user_id DESC LIMIT $4"
+        } else {
+            "SELECT user_id FROM guild_scheduled_event_users WHERE event_id = $1 AND user_id > $2 AND user_id < $3 ORDER BY user_id LIMIT $4"
+        };
+        let mut ids: Vec<i64> = sqlx::query_scalar(sql)
+            .bind(i(event))
+            .bind(lower)
+            .bind(upper)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?;
+        if backwards {
+            ids.reverse();
+        }
+        Ok(ids_out(ids).map(UserId::new).collect())
+    }
+
+    async fn due_events(&self, now_ms: i64) -> RepoResult<Vec<ScheduledEvent>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} FROM guild_scheduled_events WHERE (status = 1 AND scheduled_start <= to_timestamp($1::bigint / 1000.0)) OR (status = 2 AND scheduled_end IS NOT NULL AND scheduled_end <= to_timestamp($1::bigint / 1000.0)) OR (status IN (1, 2) AND entity_type IN (1, 2) AND channel_id IS NULL) ORDER BY scheduled_start, id LIMIT 500",
+            event_cols()
+        )))
+        .bind(now_ms)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(event_from).collect()
     }
 }

@@ -30,12 +30,14 @@ pub type Entropy = Arc<dyn Fn() -> u64 + Send + Sync>;
 
 mod application_ops;
 mod community_ops;
+mod event_ops;
 mod expression_ops;
 mod sound_ops;
 mod tag_ops;
 mod template_ops;
 mod webhook_ops;
 
+pub use event_ops::EventStats;
 pub use expression_ops::StickerPatch;
 pub use sound_ops::{NewSound, SoundPatch};
 pub use webhook_ops::WebhookPatch;

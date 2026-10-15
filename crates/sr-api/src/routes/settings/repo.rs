@@ -15,13 +15,16 @@ use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
     ApplicationRepository, AuditRepository, AutoModRepository, CommunityRepository,
     ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository,
-    SettingsRepository, TagRepository, TemplateRepository, WebhookRepository,
+    ScheduledEventRepository, SettingsRepository, TagRepository, TemplateRepository,
+    WebhookRepository,
 };
+use sr_chat::settings::scheduled_events::ScheduledEvent;
 use sr_chat::settings::soundboard::Sound;
 use sr_chat::settings::tags::GuildTag;
 use sr_chat::settings::templates::GuildTemplate;
 use sr_chat::settings::webhooks::Webhook;
 use sr_core::{ChannelId, EmojiId, GuildId, SoundId, StickerId, UserId, WebhookId};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 /// A shared handle to any [`SettingsRepository`].
@@ -287,5 +290,51 @@ impl ApplicationRepository for DynRepo {
         self.0
             .decide_application(guild, id, approve, reviewer, now_ms, reason)
             .await
+    }
+}
+
+#[async_trait]
+impl ScheduledEventRepository for DynRepo {
+    async fn insert_event(&self, event: &ScheduledEvent) -> RepoResult<()> {
+        self.0.insert_event(event).await
+    }
+    async fn get_event(&self, guild: GuildId, id: u64) -> RepoResult<Option<ScheduledEvent>> {
+        self.0.get_event(guild, id).await
+    }
+    async fn list_open_events(&self, guild: GuildId) -> RepoResult<Vec<ScheduledEvent>> {
+        self.0.list_open_events(guild).await
+    }
+    async fn count_open_events(&self, guild: GuildId) -> RepoResult<usize> {
+        self.0.count_open_events(guild).await
+    }
+    async fn update_event(&self, event: &ScheduledEvent) -> RepoResult<()> {
+        self.0.update_event(event).await
+    }
+    async fn delete_event(&self, guild: GuildId, id: u64) -> RepoResult<bool> {
+        self.0.delete_event(guild, id).await
+    }
+    async fn add_interest(&self, event: u64, user: UserId, now_ms: i64) -> RepoResult<bool> {
+        self.0.add_interest(event, user, now_ms).await
+    }
+    async fn remove_interest(&self, event: u64, user: UserId) -> RepoResult<bool> {
+        self.0.remove_interest(event, user).await
+    }
+    async fn interest_counts(&self, events: &[u64]) -> RepoResult<HashMap<u64, u32>> {
+        self.0.interest_counts(events).await
+    }
+    async fn interested_in(&self, user: UserId, events: &[u64]) -> RepoResult<HashSet<u64>> {
+        self.0.interested_in(user, events).await
+    }
+    async fn list_interested(
+        &self,
+        event: u64,
+        before: Option<UserId>,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<UserId>> {
+        self.0.list_interested(event, before, after, limit).await
+    }
+    async fn due_events(&self, now_ms: i64) -> RepoResult<Vec<ScheduledEvent>> {
+        self.0.due_events(now_ms).await
     }
 }

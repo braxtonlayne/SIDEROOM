@@ -835,7 +835,7 @@ pub struct SignedUrlObject {
 /// Lifetime of minted emoji and sticker URLs.
 const URL_TTL_SECS: u64 = 3600;
 
-fn signed_media_url(
+pub(crate) fn signed_media_url(
     state: &AppState,
     cdn: &crate::routes::cdn::CdnDeps,
     media_key: &str,

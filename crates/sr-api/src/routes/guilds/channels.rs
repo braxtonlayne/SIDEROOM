@@ -199,11 +199,13 @@ pub async fn list_channels(
 pub async fn create_channel(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path(guild_id): Path<String>,
     Json(body): Json<CreateChannelBody>,
 ) -> ApiResult<(StatusCode, Json<ChannelObject>)> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let kind = ChannelType::from_code(body.kind.unwrap_or(0))
         .ok_or_else(|| invalid("type", "ENUM_TYPE_INVALID", "Unknown channel type."))?;
     let mut input = NewChannel::new(kind, body.name);
@@ -250,11 +252,13 @@ pub async fn create_channel(
 pub async fn reorder_channels(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path(guild_id): Path<String>,
     Json(body): Json<Vec<ReorderChannelEntry>>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require(&*api, user, gid).await?;
     let mut moves = Vec::with_capacity(body.len());
     for (n, e) in body.into_iter().enumerate() {
         let cid: ChannelId = id(&format!("{n}.id"), &e.id)?;
@@ -302,6 +306,7 @@ pub async fn get_channel(
 pub async fn modify_channel(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     MaybeExt(threads): MaybeExt<ThreadsDeps>,
     Path(channel_id): Path<String>,
     Json(body): Json<ModifyChannelBody>,
@@ -314,6 +319,7 @@ pub async fn modify_channel(
         let obj = t.modify(user, cid, patch).await.map_err(ce)?;
         return Ok(Json(obj));
     }
+    gate.require_channel(&*api, user, cid).await?;
     let kind = match body.kind {
         None => None,
         Some(code) => Some(ChannelType::from_code(code).ok_or_else(|| {
@@ -354,6 +360,7 @@ pub async fn modify_channel(
 pub async fn delete_channel(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     MaybeExt(threads): MaybeExt<ThreadsDeps>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<ChannelObject>> {
@@ -363,6 +370,7 @@ pub async fn delete_channel(
         let obj = t.delete(user, cid).await.map_err(ce)?;
         return Ok(Json(obj));
     }
+    gate.require_channel(&*api, user, cid).await?;
     let view = api.delete_channel(user, cid).await.map_err(ce)?;
     Ok(Json(ChannelObject::from(&view)))
 }
@@ -382,11 +390,13 @@ pub async fn delete_channel(
 pub async fn put_overwrite(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path((channel_id, overwrite_id)): Path<(String, String)>,
     Json(body): Json<OverwriteBody>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
+    gate.require_channel(&*api, user, cid).await?;
     let target: Snowflake = id("overwrite_id", &overwrite_id)?;
     let ow = overwrite_from(target, &body)?;
     api.set_overwrite(user, cid, ow).await.map_err(ce)?;
@@ -407,10 +417,12 @@ pub async fn put_overwrite(
 pub async fn delete_overwrite(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path((channel_id, overwrite_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
+    gate.require_channel(&*api, user, cid).await?;
     let target: Snowflake = id("overwrite_id", &overwrite_id)?;
     api.delete_overwrite(user, cid, target).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)

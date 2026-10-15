@@ -70,6 +70,26 @@ fn diff(old: &CommunitySettings, new: &CommunitySettings) -> Vec<AuditChange> {
         old.raid_alert_joins_per_minute.into(),
         new.raid_alert_joins_per_minute.into(),
     );
+    push(
+        "dm_spam_filter",
+        old.dm_spam_filter.into(),
+        new.dm_spam_filter.into(),
+    );
+    push(
+        "explicit_media_filter_dms",
+        old.explicit_media_filter_dms.into(),
+        new.explicit_media_filter_dms.into(),
+    );
+    push(
+        "hide_suspicious_links",
+        old.hide_suspicious_links.into(),
+        new.hide_suspicious_links.into(),
+    );
+    push(
+        "warn_new_account_days",
+        old.warn_new_account_days.into(),
+        new.warn_new_account_days.into(),
+    );
     out
 }
 

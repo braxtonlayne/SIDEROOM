@@ -17,6 +17,7 @@ import {
   getMyMember,
   getOwnProfile,
   getPresence,
+  getProfileCatalog,
   listGuilds,
   patchMyNick,
   patchSelf,
@@ -32,6 +33,41 @@ import { StaffBadgeCard } from './AccountSwitchCards';
 import { BirthdayCard } from './BirthdayCard';
 import { ServerTagCard } from './ServerTagCard';
 
+/** The profile effects the server approves (`GET /sr/profile-catalog`); hidden when there are none. */
+function EffectPicker({ value, onChange }: { value: string; onChange: (slug: string) => void }) {
+  const tt = useT();
+  const [effects, setEffects] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    getProfileCatalog().then(
+      (c) => live && setEffects(c.effects.map((e) => e.slug)),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (effects.length === 0) return null;
+  return (
+    <div>
+      <label className="us-label" id="us-effect-label">
+        {tt('settings.profile.effect')}
+      </label>
+      <Select
+        aria-labelledby="us-effect-label"
+        options={[
+          { value: '', label: tt('settings.profile.effectNone') },
+          ...effects.map((slug) => ({ value: slug, label: effectLabel(slug) })),
+        ]}
+        value={value}
+        onValueChange={onChange}
+      />
+    </div>
+  );
+}
+
+const effectLabel = (slug: string) => slug.charAt(0).toUpperCase() + slug.slice(1);
+
 export const BIO_MAX = 190;
 export const PRONOUNS_MAX = 40;
 export const STATUS_MAX = 128;
@@ -45,6 +81,8 @@ export interface ProfileDraft {
   /** `#rrggbb` or null for none. */
   accent: string | null;
   status: string;
+  /** Profile effect slug from the catalogue; '' for none. */
+  effect?: string;
   /** A new picture as a data URI, null to remove it, absent to leave it alone. */
   avatar?: string | null;
   banner?: string | null;
@@ -80,6 +118,8 @@ export function diffProfile(saved: ProfileDraft, draft: ProfileDraft): ProfilePa
     patch.accent_color = draft.accent ? fromHex(draft.accent) : null;
   if (draft.status !== saved.status)
     patch.custom_status = draft.status.trim() === '' ? null : { text: draft.status };
+  if ((draft.effect ?? '') !== (saved.effect ?? ''))
+    patch.profile_effect = draft.effect ? draft.effect : null;
   if (draft.avatar !== undefined) patch.avatar = draft.avatar;
   if (draft.banner !== undefined) patch.banner = draft.banner;
   return patch;
@@ -119,6 +159,7 @@ export function useProfileForm(active: boolean): ProfileForm {
           bio: p.user_profile.bio ?? '',
           accent: toHex(p.user_profile.accent_color),
           status: presence.custom_status?.text ?? '',
+          effect: p.user_profile.profile_effect ?? '',
         };
         setProfile(p);
         setSaved(d);
@@ -504,6 +545,10 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
                         {bioLen}/{BIO_MAX}
                       </p>
                     </div>
+                    <EffectPicker
+                      value={form.draft.effect ?? ''}
+                      onChange={(effect) => form.setDraft({ effect })}
+                    />
                     <TextInput
                       label={t('settings.profile.customStatus')}
                       value={form.draft.status}

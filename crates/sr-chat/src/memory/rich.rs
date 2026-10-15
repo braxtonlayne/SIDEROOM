@@ -4,7 +4,9 @@ use super::messages::MemoryBackend;
 use crate::message::Embed;
 use crate::poll_rules;
 use crate::repo::StoreResult;
-use crate::rich_repo::{PollTally, RetractResult, RichStore, StickerRecord, VoteResult};
+use crate::rich_repo::{
+    PollTally, RetractResult, RichStore, StickerPack, StickerRecord, VoteResult,
+};
 use async_trait::async_trait;
 use sr_core::{ChannelId, MessageId, UserId};
 use std::collections::HashMap;
@@ -181,5 +183,19 @@ impl RichStore for MemoryBackend {
             .iter()
             .filter_map(|id| d.sticker_rows.get(id).cloned())
             .collect())
+    }
+
+    async fn sticker_packs(&self) -> StoreResult<Vec<StickerPack>> {
+        Ok(self.data().sticker_packs.clone())
+    }
+
+    async fn pack_sticker_media(&self, id: u64) -> StoreResult<Option<String>> {
+        Ok(self
+            .data()
+            .sticker_packs
+            .iter()
+            .flat_map(|p| p.stickers.iter())
+            .find(|s| s.id == id)
+            .map(|s| s.media_key.clone()))
     }
 }

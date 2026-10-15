@@ -1,6 +1,6 @@
 // REST helpers for the Admin pages: /api/v1/admin/*. Shapes mirror crates/sr-admin (utoipa schemas).
 // Ids are snowflake strings. Mutations never retry on 429 so the staff member sees the error.
-import { apiFetch } from '../api/client';
+import { ApiError, apiFetch } from '../api/client';
 import { withReauth } from './reauth';
 
 export { errorText } from '../settings/server/api';
@@ -608,10 +608,34 @@ export interface ReauthStatus {
   window_secs: number;
   required: boolean;
 }
-/** Not wrapped in withReauth: this is the call the dialog itself makes. */
-export const getReauthStatus = () => apiFetch<ReauthStatus>('/admin/reauth', { retries: 0 });
+/**
+ * Not wrapped in withReauth: this is the call the dialog itself makes. Staff use the admin route; anyone else
+ * (a server moderator under a 2FA requirement, `POST /guilds/{id}/mfa`) falls back to `/sr/auth/reauth`, which
+ * opens the same per-session window.
+ */
+export const getReauthStatus = () =>
+  apiFetch<ReauthStatus>('/admin/reauth', { retries: 0 }).catch((e: unknown) => {
+    if (!(e instanceof ApiError) || e.status !== 403) throw e;
+    return apiFetch<Omit<ReauthStatus, 'required'>>('/sr/auth/reauth', { retries: 0 }).then(
+      (s) => ({
+        ...s,
+        required: true,
+      }),
+    );
+  });
 export const submitReauth = (method: 'totp' | 'recovery' | 'passkey', code: string) =>
-  apiFetch<ReauthStatus>('/admin/reauth', { method: 'POST', retries: 0, json: { method, code } });
+  apiFetch<ReauthStatus>('/admin/reauth', {
+    method: 'POST',
+    retries: 0,
+    json: { method, code },
+  }).catch((e: unknown) => {
+    if (!(e instanceof ApiError) || e.status !== 403) throw e;
+    return apiFetch<Omit<ReauthStatus, 'required'>>('/sr/auth/reauth', {
+      method: 'POST',
+      retries: 0,
+      json: { method, code },
+    }).then((s) => ({ ...s, required: true }));
+  });
 
 // ---- private content viewer (ADM-COM-003) ----
 
