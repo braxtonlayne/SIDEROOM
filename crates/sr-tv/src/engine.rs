@@ -104,8 +104,8 @@ fn splitmix(state: &mut u64) -> u64 {
 }
 
 impl Run<'_> {
-    fn zone(&self) -> Zone {
-        self.ch.zone
+    fn zone(&self) -> &Zone {
+        &self.ch.zone
     }
 
     fn align_up(&self, t: i64) -> i64 {
@@ -723,6 +723,36 @@ mod tests {
         // Friday and Sunday daytime are slate.
         assert_eq!(g.blocks[0].kind, BlockKind::Slate);
         assert_eq!(g.blocks[0].end_ms, utc(2025, 6, 7, 22, 0));
+    }
+
+    #[test]
+    fn equal_start_and_end_is_the_whole_day_without_a_gap() {
+        // G-11: an end at or before the start wraps past midnight; equal means 24 hours ("All day").
+        for (start, end) in [("00:00", "00:00"), ("00:00", "24:00"), ("08:00", "08:00")] {
+            let dp = part("All day", start, end, PickMode::Shuffle, Fit::Overrun);
+            let r = rules(60, 0, vec![dp]);
+            let pools = Pools {
+                dayparts: vec![movies(4, 60)],
+                bumpers: vec![],
+            };
+            let from = utc(2025, 6, 2, 9, 0);
+            let g = run(
+                "UTC",
+                &r,
+                FillerPolicy::Slate,
+                &pools,
+                from,
+                utc(2025, 6, 4, 9, 0),
+                Cursor::default(),
+            );
+            assert_contiguous(&g);
+            assert!(
+                g.blocks.iter().all(|b| b.kind == BlockKind::Program),
+                "{start}-{end}: no slate or off-air block in 48 hours"
+            );
+            assert!(g.warnings.is_empty(), "{start}-{end}: {:?}", g.warnings);
+            assert!(g.blocks.last().unwrap().end_ms >= utc(2025, 6, 4, 9, 0));
+        }
     }
 
     #[test]

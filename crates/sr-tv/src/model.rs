@@ -527,7 +527,7 @@ pub struct ChannelRecord {
 
 impl ChannelRecord {
     pub fn zone(&self) -> Zone {
-        Zone::parse(&self.input.timezone).unwrap_or(Zone::parse("UTC").expect("UTC is built in"))
+        Zone::parse(&self.input.timezone).unwrap_or_else(Zone::utc)
     }
 }
 

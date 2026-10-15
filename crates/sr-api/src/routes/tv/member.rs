@@ -54,10 +54,7 @@ pub async fn channels(ctx: MemberCtx) -> ApiResult<Json<ChannelList>> {
 )]
 pub async fn timezones(_ctx: MemberCtx) -> Json<TimezoneList> {
     Json(TimezoneList {
-        items: sr_tv::tz::ZONES
-            .iter()
-            .map(|z| z.name().to_owned())
-            .collect(),
+        items: sr_tv::tz::zone_names(),
     })
 }
 
