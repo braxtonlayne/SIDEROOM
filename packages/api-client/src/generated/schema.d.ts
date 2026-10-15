@@ -15717,7 +15717,7 @@ export interface components {
          * @description Browse ordering.
          * @enum {string}
          */
-        SortKey: "newest" | "updated" | "title" | "followers";
+        SortKey: "newest" | "updated" | "title" | "followers" | "rating";
         /** @description A stored staff alert (what `#alerts` showed), kept for the dashboard. */
         StaffAlertRow: {
             /** Format: int64 */
@@ -43060,9 +43060,11 @@ export interface operations {
                 language?: string;
                 year_from?: number;
                 year_to?: number;
+                /** @description Minimum average rating, 1 to 10. */
+                rating_min?: number;
                 /** @description `include` (default), `hide` or `only`. Everyone may see restricted series; opening their pages needs age confirmation. A member who set `library.hide_age_restricted` gets `hide` as the default. */
                 age?: components["schemas"]["AgeFilter"];
-                /** @description `updated` (default), `newest`, `title` or `followers`. */
+                /** @description `updated` (default), `newest`, `title`, `followers` or `rating`. */
                 sort?: components["schemas"]["SortKey"];
                 /** @description `asc` or `desc`; default depends on the sort. */
                 order?: string;

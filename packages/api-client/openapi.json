@@ -40432,6 +40432,16 @@
             }
           },
           {
+            "name": "rating_min",
+            "in": "query",
+            "description": "Minimum average rating, 1 to 10.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
             "name": "age",
             "in": "query",
             "description": "`include` (default), `hide` or `only`. Everyone may see restricted series; opening their pages needs age confirmation. A member who set `library.hide_age_restricted` gets `hide` as the default.",
@@ -40443,7 +40453,7 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "`updated` (default), `newest`, `title` or `followers`.",
+            "description": "`updated` (default), `newest`, `title`, `followers` or `rating`.",
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/SortKey"
@@ -69832,7 +69842,8 @@
           "newest",
           "updated",
           "title",
-          "followers"
+          "followers",
+          "rating"
         ]
       },
       "StaffAlertRow": {
