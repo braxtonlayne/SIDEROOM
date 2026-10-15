@@ -5,8 +5,8 @@
 use async_trait::async_trait;
 use sqlx::{PgConnection, Row, postgres::PgRow};
 use sr_admin::{
-    AccountRef, AdminError, AdminResult, Announcement, AnnouncementSeverity, AuditEntry,
-    NewAnnouncement, NewOffer, OfferState, PrivateChannel, PrivateEdit, PrivateMessage,
+    AccountRef, AdminError, AdminResult, Announcement, AnnouncementPatch, AnnouncementSeverity,
+    AuditEntry, NewAnnouncement, NewOffer, OfferState, PrivateChannel, PrivateEdit, PrivateMessage,
     StaffAlertRow, StaffExtrasRepository, StaffOffer,
 };
 
@@ -339,6 +339,58 @@ impl StaffExtrasRepository for PgAdminRepo {
         .await
         .map_err(db)?
         .ok_or(AdminError::NotFound("announcement"))?;
+        self.audit_in(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)?;
+        announcement_from(&r).map_err(db)
+    }
+
+    async fn get_announcement(&self, id: i64) -> AdminResult<Announcement> {
+        let r = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} FROM platform_announcements WHERE id = $1",
+            announcement_cols()
+        )))
+        .bind(id)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(db)?
+        .ok_or(AdminError::NotFound("announcement"))?;
+        announcement_from(&r).map_err(db)
+    }
+
+    async fn edit_announcement(
+        &self,
+        id: i64,
+        patch: &AnnouncementPatch,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<Announcement> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        // Lock the row so an edit and an end cannot cross.
+        let cur = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} FROM platform_announcements WHERE id = $1 FOR UPDATE",
+            announcement_cols()
+        )))
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?
+        .ok_or(AdminError::NotFound("announcement"))?;
+        let cur = announcement_from(&cur).map_err(db)?;
+        if cur.ended_at_ms.is_some() || cur.ends_at_ms.is_some_and(|e| e <= now_ms) {
+            return Err(AdminError::Conflict("this announcement has ended".into()));
+        }
+        let r = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "UPDATE platform_announcements SET title = COALESCE($2, title), body = COALESCE($3, body),                ends_at = CASE WHEN $4::bigint IS NULL THEN ends_at ELSE {} END              WHERE id = $1 RETURNING {}",
+            from_ms("$4"),
+            announcement_cols()
+        )))
+        .bind(id)
+        .bind(patch.title.as_deref())
+        .bind(patch.body.as_deref())
+        .bind(patch.ends_at_ms)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db)?;
         self.audit_in(&mut tx, audit).await?;
         tx.commit().await.map_err(db)?;
         announcement_from(&r).map_err(db)

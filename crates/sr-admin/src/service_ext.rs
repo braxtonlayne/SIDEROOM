@@ -6,9 +6,9 @@
 use crate::{
     error::{AdminError, AdminResult},
     ext::{
-        Announcement, AnnouncementInput, AnnouncementSeverity, Delegation, NewAnnouncement,
-        NewOffer, OFFER_TTL_MS, OfferState, PrivateChannel, PrivateMessagePage, StaffAlertRow,
-        StaffExtrasRepository, StaffOffer,
+        Announcement, AnnouncementInput, AnnouncementPatch, AnnouncementSeverity, Delegation,
+        NewAnnouncement, NewOffer, OFFER_TTL_MS, OfferState, PrivateChannel, PrivateMessagePage,
+        StaffAlertRow, StaffExtrasRepository, StaffOffer,
     },
     model::{AccessKind, AccountState, AccountSummary, Caller, SystemCounts},
     rules,
@@ -762,6 +762,7 @@ impl AdminService {
             json!({ "title": new.title, "severity": new.severity.as_str(), "send_dm": new.send_dm }),
         );
         let a = self.extras()?.create_announcement(&new, &audit).await?;
+        self.announcement_update("create", &a).await;
         if a.send_dm
             && let Some(n) = &self.notifier
         {
@@ -787,7 +788,97 @@ impl AdminService {
             &reason,
             json!({}),
         );
-        self.extras()?.end_announcement(id, &audit).await
+        let a = self.extras()?.end_announcement(id, &audit).await?;
+        self.announcement_update("end", &a).await;
+        Ok(a)
+    }
+
+    /// Tell every session that the banner list changed (`SR_ANNOUNCEMENT_UPDATE`); clients re-read
+    /// `GET /announcements/active`.
+    async fn announcement_update(&self, change: &str, a: &Announcement) {
+        self.broadcast(
+            "SR_ANNOUNCEMENT_UPDATE",
+            json!({ "change": change, "announcement": a }),
+        )
+        .await;
+    }
+
+    /// Edit the text or the end of an announcement that is still showing (G-69, `MANAGE_FEATURES`).
+    /// Severity, `critical` and `send_dm` never change and no DM is sent again. `Conflict` once
+    /// it has ended. The audit entry carries the diff.
+    pub async fn edit_announcement(
+        &self,
+        c: &Caller,
+        id: i64,
+        patch: AnnouncementPatch,
+        reason: Option<&str>,
+    ) -> AdminResult<Announcement> {
+        self.require(c, P::MANAGE_FEATURES, "announcement.edit")
+            .await?;
+        let reason = Self::optional_reason(reason)?;
+        let patch = AnnouncementPatch {
+            title: patch.title.map(|t| t.trim().to_owned()),
+            body: patch.body.map(|b| b.trim().to_owned()),
+            ends_at_ms: patch.ends_at_ms,
+        };
+        if patch.title.is_none() && patch.body.is_none() && patch.ends_at_ms.is_none() {
+            return Err(AdminError::Invalid(
+                "send a title, a message or an end time".into(),
+            ));
+        }
+        if let Some(t) = &patch.title
+            && (t.is_empty() || t.chars().count() > MAX_TITLE_CHARS)
+        {
+            return Err(AdminError::Invalid(format!(
+                "a title is 1 to {MAX_TITLE_CHARS} characters"
+            )));
+        }
+        if let Some(b) = &patch.body
+            && (b.is_empty() || b.chars().count() > MAX_BODY_CHARS)
+        {
+            return Err(AdminError::Invalid(format!(
+                "a message is 1 to {MAX_BODY_CHARS} characters"
+            )));
+        }
+        let now = self.now_ms();
+        let cur = self.extras()?.get_announcement(id).await?;
+        if cur.ended_at_ms.is_some() || cur.ends_at_ms.is_some_and(|e| e <= now) {
+            return Err(AdminError::Conflict("this announcement has ended".into()));
+        }
+        if let Some(end) = patch.ends_at_ms
+            && (end <= now || end <= cur.starts_at_ms)
+        {
+            return Err(AdminError::Invalid(
+                "it must end in the future, after it starts".into(),
+            ));
+        }
+        let mut diff = serde_json::Map::new();
+        if let Some(t) = patch.title.as_ref().filter(|t| **t != cur.title) {
+            diff.insert("title".into(), json!({ "from": cur.title, "to": t }));
+        }
+        if let Some(b) = patch.body.as_ref().filter(|b| **b != cur.body) {
+            diff.insert("body".into(), json!({ "from": cur.body, "to": b }));
+        }
+        if let Some(e) = patch.ends_at_ms.filter(|e| Some(*e) != cur.ends_at_ms) {
+            diff.insert(
+                "ends_at_ms".into(),
+                json!({ "from": cur.ends_at_ms, "to": e }),
+            );
+        }
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "announcement.edit",
+            Some(("announcement", id)),
+            &reason,
+            json!({ "diff": diff }),
+        );
+        let a = self
+            .extras()?
+            .edit_announcement(id, &patch, now, &audit)
+            .await?;
+        self.announcement_update("edit", &a).await;
+        Ok(a)
     }
 
     pub async fn list_announcements(&self, c: &Caller) -> AdminResult<Vec<Announcement>> {

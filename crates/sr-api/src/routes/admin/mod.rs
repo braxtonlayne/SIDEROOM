@@ -175,7 +175,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/admin/announcements/{announcement_id}",
-            axum::routing::delete(announce::end),
+            axum::routing::delete(announce::end).patch(announce::edit),
         )
         .route("/announcements/active", get(announce::active))
         .route("/admin/alerts", get(announce::alerts))
@@ -213,6 +213,7 @@ pub fn router() -> Router<AppState> {
         announce::list,
         announce::create,
         announce::end,
+        announce::edit,
         announce::active,
         announce::alerts,
         announce::ack,
@@ -265,6 +266,7 @@ pub fn router() -> Router<AppState> {
         private::ReauthStatus,
         private::ReauthBody,
         announce::AnnounceBody,
+        announce::EditAnnouncementBody,
         announce::CardActionBody,
         sr_admin::StaffOffer,
         sr_admin::OfferState,
@@ -272,6 +274,7 @@ pub fn router() -> Router<AppState> {
         sr_admin::Announcement,
         sr_admin::AnnouncementSeverity,
         sr_admin::AnnouncementInput,
+        sr_admin::AnnouncementPatch,
         sr_admin::StaffAlertRow,
         sr_admin::PrivateChannel,
         sr_admin::PrivateEdit,

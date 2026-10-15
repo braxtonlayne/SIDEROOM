@@ -199,6 +199,18 @@ pub struct AnnouncementInput {
     pub ends_at_ms: Option<i64>,
 }
 
+/// Input of `PATCH /admin/announcements/{id}` (G-69): the text and the end of an announcement that
+/// is still showing. Severity, `critical` and `send_dm` cannot change.
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+pub struct AnnouncementPatch {
+    pub title: Option<String>,
+    #[serde(alias = "message")]
+    pub body: Option<String>,
+    /// Stop showing at this time (must be in the future).
+    #[serde(alias = "ends_at")]
+    pub ends_at_ms: Option<i64>,
+}
+
 /// Row for [`StaffExtrasRepository::create_announcement`].
 #[derive(Debug, Clone)]
 pub struct NewAnnouncement {
@@ -319,6 +331,15 @@ pub trait StaffExtrasRepository: Send + Sync {
         audit: &AuditEntry,
     ) -> AdminResult<Announcement>;
     async fn end_announcement(&self, id: i64, audit: &AuditEntry) -> AdminResult<Announcement>;
+    async fn get_announcement(&self, id: i64) -> AdminResult<Announcement>;
+    /// Change the text and end of an announcement that has not ended; `Conflict` once it has.
+    async fn edit_announcement(
+        &self,
+        id: i64,
+        patch: &AnnouncementPatch,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<Announcement>;
     async fn list_announcements(&self, limit: i64) -> AdminResult<Vec<Announcement>>;
     /// Announcements showing at `now_ms`.
     async fn active_announcements(&self, now_ms: i64) -> AdminResult<Vec<Announcement>>;

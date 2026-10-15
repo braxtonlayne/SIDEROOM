@@ -14,7 +14,10 @@ use axum::{
     http::HeaderMap,
 };
 use serde::Deserialize;
-use sr_admin::{Announcement, AnnouncementInput, CardActionResult, SYSTEM_USER_ID, StaffAlertRow};
+use sr_admin::{
+    Announcement, AnnouncementInput, AnnouncementPatch, CardActionResult, SYSTEM_USER_ID,
+    StaffAlertRow,
+};
 use sr_chat::message::Component;
 use sr_core::{ChannelId, ErrorCode, MessageId, UserId};
 use utoipa::ToSchema;
@@ -83,6 +86,38 @@ pub async fn end(
         .await
         .map(Json)
         .map_err(map_err)
+}
+
+/// Edit an announcement that is still showing: its title, message or end time (`MANAGE_FEATURES`,
+/// fresh second factor). Severity, `critical` and `send_dm` cannot change and no DM is sent again.
+/// 409 once the announcement has ended. Every session hears `SR_ANNOUNCEMENT_UPDATE`.
+#[utoipa::path(
+    patch, path = "/admin/announcements/{announcement_id}", request_body = EditAnnouncementBody,
+    params(("announcement_id" = String, Path, description = "Announcement snowflake")),
+    responses((status = 200, body = Announcement), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn edit(
+    ctx: StaffCtx,
+    Path(announcement_id): Path<String>,
+    headers: HeaderMap,
+    Json(b): Json<EditAnnouncementBody>,
+) -> ApiResult<Json<Announcement>> {
+    let r = reason(&headers, b.reason.as_deref());
+    ctx.require_reauth().await?;
+    ctx.svc()
+        .edit_announcement(&ctx.caller, id(&announcement_id)?, b.patch, r.as_deref())
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct EditAnnouncementBody {
+    #[serde(flatten)]
+    pub patch: AnnouncementPatch,
+    pub reason: Option<String>,
 }
 
 /// The banners showing right now. Any signed-in user.
