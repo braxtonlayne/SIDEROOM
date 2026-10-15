@@ -63,6 +63,8 @@ export function ComponentRows({
     try {
       const out = await runStaffButton(button, context);
       setStaffDone(out.message ?? t('lounge.components.staffDone'));
+      // A rejection needs a reason, so the card sends the reviewer to the review page's reject dialog.
+      if (out.link?.startsWith('/')) window.location.assign(out.link);
     } catch (e) {
       // D-198: accepting an appointment needs an authenticator app or a passkey first.
       if (e instanceof ApiError && e.body?.code === 900014) {
