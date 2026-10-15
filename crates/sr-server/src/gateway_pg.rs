@@ -981,7 +981,8 @@ mod tests {
             .expect("connect");
         sr_db::migrate(&pool).await.expect("migrate");
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-        let w = ((std::process::id() % 8) * 2) as u8 + 3;
+        // w and w + 16 must both stay within the 0..=31 worker range for every pid.
+        let w = ((std::process::id() % 4) * 4) as u8 + 3;
         let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
         let svc = ChatService::new(
             PgChatRepo::new(pool.clone()),
@@ -1094,7 +1095,8 @@ mod tests {
             .expect("connect");
         sr_db::migrate(&pool).await.expect("migrate");
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-        let w = ((std::process::id() % 8) * 2) as u8 + 5;
+        // w and w + 16 must both stay within the 0..=31 worker range for every pid.
+        let w = ((std::process::id() % 4) * 4) as u8 + 1;
         let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
         let svc = ChatService::new(
             PgChatRepo::new(pool.clone()),
