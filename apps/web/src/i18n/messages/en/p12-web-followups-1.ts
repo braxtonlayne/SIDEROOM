@@ -21,4 +21,15 @@ export default {
   'lounge.followButton.close': 'Close',
   'lounge.followButton.done': 'Done. Announcements will appear in #{channel}.',
   'lounge.channelView.badgeUpdates': 'Updates',
+  // G-59 PDF reading in the browser
+  'library.pdf.backToSeries': 'Back to the series',
+  'library.pdf.missingTitle': 'PDF reading is not installed',
+  'library.pdf.missingDescription':
+    'This server was built without the PDF viewer (pdf.js). Ask the operator to install it, or download the chapter if you may.',
+  'library.pdf.failedTitle': 'This PDF could not be opened',
+  'library.pdf.failedDescription': 'The file may be damaged. Try again in a moment.',
+  'library.pdf.previous': 'Previous page',
+  'library.pdf.next': 'Next page',
+  'library.pdf.pageOf': 'Page {page} of {count}',
+  'library.pdf.pageLabel': 'Page {page}',
 } satisfies Record<string, string>;

@@ -114,6 +114,8 @@ export interface PageManifest {
   chapter: Chapter;
   reading_direction: ReadingDirection;
   pages: PageEntry[];
+  /** PDF and EPUB chapters: a signed link to the original file, with no pages (library-reader spec 6.4). */
+  source_url?: string | null;
   expires_at: number;
   next_chapter_id?: string | null;
   prev_chapter_id?: string | null;
