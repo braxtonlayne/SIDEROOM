@@ -405,6 +405,12 @@ pub fn router() -> Router<AppState> {
             "/submissions/{submission_id}/library/uploads/{upload_id}/complete",
             post(library::complete_upload),
         )
+        .route(
+            "/library/submissions/{submission_id}/cover",
+            post(library::set_cover).layer(axum::extract::DefaultBodyLimit::max(
+                library::COVER_BODY_LIMIT,
+            )),
+        )
         // Requests.
         .route("/requests", get(requests::list).post(requests::create))
         .route(
@@ -497,6 +503,7 @@ pub fn router() -> Router<AppState> {
         member::naming_parse,
         member::credits,
         library::update_series,
+        library::set_cover,
         library::chapters,
         library::create_chapter,
         library::update_chapter,
@@ -567,6 +574,7 @@ pub fn router() -> Router<AppState> {
         sr_review::model::RequestPage,
         sr_review::model::ClaimRequestInput,
         sr_library::model::SeriesInput,
+        library::CoverBody,
         sr_library::model::Series,
         sr_library::model::ChapterInput,
         sr_library::model::Chapter,

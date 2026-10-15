@@ -24,6 +24,9 @@ use crate::service::{Actor, LibraryService};
 pub const KIND_SERIES: &str = "library.series";
 pub const KIND_ITEMS: &str = "library.items";
 
+/// Largest cover image a member may send.
+pub const MAX_COVER_BYTES: usize = 2 * 1024 * 1024;
+
 impl From<LibraryError> for ReviewError {
     fn from(e: LibraryError) -> Self {
         match e {
@@ -147,6 +150,58 @@ impl LibraryDraftOps {
         Ok(self
             .svc
             .update_series(sponsor(user), series_of(s)?, input)
+            .await?)
+    }
+
+    /// Set the cover of the draft series from an image the member uploaded (G-78): one JPEG or
+    /// PNG of at most [`MAX_COVER_BYTES`], sniffed from its content and re-encoded (metadata
+    /// stripped, at most 600 x 900) before it is stored. A member cannot name storage keys, so
+    /// this is the only way a cover gets into a member's draft. `library.series` only.
+    pub async fn set_cover(&self, s: &Submission, user: i64, image: &[u8]) -> ReviewResult<Series> {
+        use sr_storage::img::{self, Fit, ImgFormat, Limits};
+        if s.kind != KIND_SERIES {
+            return Err(ReviewError::Conflict(
+                "only a new series has a cover to set".into(),
+            ));
+        }
+        if image.is_empty() || image.len() > MAX_COVER_BYTES {
+            return Err(ReviewError::Invalid(
+                "the cover must be a JPEG or PNG of at most 2 MiB".into(),
+            ));
+        }
+        if !matches!(
+            ImgFormat::sniff(image),
+            Some(ImgFormat::Jpeg | ImgFormat::Png)
+        ) {
+            return Err(ReviewError::Invalid(
+                "the cover must be a JPEG or PNG image".into(),
+            ));
+        }
+        let limits = Limits {
+            max_bytes: MAX_COVER_BYTES as u64,
+            ..Limits::default()
+        };
+        let out = img::normalize(image, Fit::Bound { w: 600, h: 900 }, &limits)
+            .map_err(|e| ReviewError::Invalid(format!("the cover could not be read: {e}")))?;
+        let storage = self
+            .svc
+            .ingest
+            .as_ref()
+            .map(|i| i.storage.clone())
+            .ok_or_else(|| ReviewError::Conflict("uploads are not available".into()))?;
+        let series = series_of(s)?;
+        let key = format!(
+            "library/{series}/cover-{}.{}",
+            (self.svc.ids)(),
+            out.format.ext()
+        );
+        storage
+            .put(&key, bytes::Bytes::from(out.bytes))
+            .await
+            .map_err(|e| ReviewError::Storage(e.to_string()))?;
+        Ok(self
+            .svc
+            .set_series_cover(sponsor(user), series, &key)
             .await?)
     }
 

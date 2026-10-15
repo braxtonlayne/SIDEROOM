@@ -645,6 +645,33 @@ impl LibraryService {
         Ok(self.series(rec, self.expires_at()))
     }
 
+    /// Replace the cover of a series with the image at storage key `key` (the caller stored it).
+    /// Only the cover changes; the rest of the series is read back and written unchanged.
+    pub async fn set_series_cover(&self, a: Actor, id: i64, key: &str) -> LibraryResult<Series> {
+        a.publish()?;
+        let cur = self
+            .repo
+            .get_series(id, Scope::Staff)
+            .await?
+            .ok_or(LibraryError::NotFound("series"))?;
+        let input = SeriesInput {
+            kind: cur.kind,
+            title: cur.title,
+            alt_titles: cur.alt_titles,
+            authors: cur.authors,
+            artists: cur.artists,
+            status: cur.status,
+            year: cur.year,
+            synopsis: cur.synopsis,
+            genres: cur.genres,
+            tags: cur.tags,
+            reading_direction: Some(cur.reading_direction),
+            age_restricted: cur.age_restricted,
+            cover_key: Some(key.to_owned()),
+        };
+        self.update_series(a, id, input).await
+    }
+
     /// Publish (`PUBLISH_READING`) or unpublish (`PUBLISH_READING` or `DELETE_CONTENT`).
     pub async fn set_series_published(
         &self,
