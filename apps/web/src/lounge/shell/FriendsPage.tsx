@@ -10,9 +10,9 @@ import {
   Tabs,
   TextInput,
 } from '@sideroom/ui';
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
-import { t, useT } from '../../i18n';
+import { useT } from '../../i18n';
 import { usePresenceMap, type Presence } from '../data';
 import { useLoungeUi } from '../store';
 import {
@@ -23,6 +23,7 @@ import {
   removeRelationship,
   type RelationshipRow,
 } from './api';
+import { ActiveNow } from './ActiveNow';
 import { useOpenDm } from './dm';
 import { friendsOf, incomingOf, outgoingOf, useSocial, wireName } from './social';
 
@@ -236,8 +237,6 @@ export function FriendsPage() {
   const match = (r: RelationshipRow) =>
     !q || wireName(r.user).toLowerCase().includes(q) || r.user.username.toLowerCase().includes(q);
 
-  const active = useMemo(() => activeNow(friends, presence), [friends, presence]);
-
   let body: ReactNode;
   if (tab === 'add') body = <AddFriend />;
   else if (tab === 'pending')
@@ -375,48 +374,10 @@ export function FriendsPage() {
           )}
           {(status === 'ready' || rows.length > 0 || tab === 'add') && body}
         </div>
-        <aside className="lng-active-now" aria-label={t('lounge.friends.activeNow')}>
-          <h2 className="lng-friends-h">{t('lounge.friends.activeNow')}</h2>
-          {active.length === 0 ? (
-            <div className="lng-active-empty">
-              <p className="lng-active-title">{t('lounge.friends.quietTitle')}</p>
-              <p className="lng-muted">{t('lounge.friends.quietBody')}</p>
-            </div>
-          ) : (
-            <ul className="lng-active-list">
-              {active.map((a) => (
-                <li key={a.row.id} className="lng-active-card">
-                  <Avatar name={wireName(a.row.user)} size={32} status={a.status} />
-                  <span className="lng-friend-text">
-                    <span className="lng-friend-name">{wireName(a.row.user)}</span>
-                    <span className="lng-friend-sub">{a.text}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </aside>
+        <ActiveNow friends={friends} />
       </div>
     </section>
   );
-}
-
-/** Friends who are doing something (an activity that is not just a custom status). */
-export function activeNow(friends: RelationshipRow[], presence: PresenceMap) {
-  return friends.flatMap((row) => {
-    const p = presence[row.id];
-    const act = p?.activity;
-    if (!p || p.status === 'offline' || !act || act.kind === 'custom') return [];
-    const text =
-      act.kind === 'playing'
-        ? t('lounge.friends.activityPlaying', { text: act.text })
-        : act.kind === 'watching'
-          ? t('lounge.friends.activityWatching', { text: act.text })
-          : act.kind === 'reading'
-            ? t('lounge.friends.activityReading', { text: act.text })
-            : t('lounge.friends.activityListening', { text: act.text });
-    return [{ row, status: p.status, text }];
-  });
 }
 
 function AddFriend() {

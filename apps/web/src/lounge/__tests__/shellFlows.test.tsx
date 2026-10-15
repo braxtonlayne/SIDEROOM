@@ -92,6 +92,10 @@ async function openServerMenu(name = /Alpha Guild/) {
 }
 
 describe('server menu: mute, notifications, leave', () => {
+  // The shell is a lazy route; load it once so a cold transform does not eat the first test's budget.
+  beforeAll(async () => {
+    await import('../LoungeShell');
+  }, 90_000);
   beforeEach(() => {
     quiet();
   });

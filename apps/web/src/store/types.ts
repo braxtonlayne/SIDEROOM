@@ -35,6 +35,10 @@ export interface Channel {
   rate_limit_per_user?: number;
   /** DM / group DM participants. */
   recipients?: User[];
+  /** Group DM owner (contract: Discord's `owner_id`). */
+  owner_id?: string | null;
+  /** Group DM icon hash, served from `/cdn/icons/{channel_id}/{hash}` (contract). */
+  icon?: string | null;
   /** DM from a non-friend awaiting acceptance; such channels stay out of the DM list. */
   is_message_request?: boolean | null;
   /** Voice channels: maximum simultaneous participants (0 or absent = unlimited). */

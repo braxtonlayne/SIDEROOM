@@ -381,14 +381,11 @@ function GuildHeader({ guild }: { guild: Guild }) {
       onSelect: soon(t('lounge.channelSidebar.appDirectory')),
     },
     core.notifications,
+    core.privacy,
     {
-      label: t('lounge.channelSidebar.privacySettings'),
-      onSelect: soon(t('lounge.channelSidebar.privacySettings')),
-    },
-    {
+      ...(core.editProfile as object),
       label: t('lounge.channelSidebar.editPerServerProfile'),
-      onSelect: soon(t('lounge.channelSidebar.editPerServerProfile')),
-    },
+    } as MenuEntry,
     core.mute,
     core.hideMuted,
     {

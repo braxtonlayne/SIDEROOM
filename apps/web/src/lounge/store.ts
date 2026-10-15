@@ -36,11 +36,14 @@ export const RIGHT_PANEL_MAX = 340;
 /** Modal dialogs opened from menus anywhere in the shell; rendered once by LoungeDialogs. */
 export type LoungeDialog =
   | { kind: 'addServer' }
+  | { kind: 'directory' }
+  | { kind: 'guildProfile'; guildId: string }
   | { kind: 'createChannel'; guildId: string; parentId?: string | undefined; category?: boolean }
   | { kind: 'invite'; guildId: string; channelId?: string | undefined }
   | { kind: 'leaveServer'; guildId: string }
   | { kind: 'folder'; folderId: string }
   | { kind: 'createDm' }
+  | { kind: 'addToDm'; channelId: string }
   | { kind: 'customStatus' }
   | { kind: 'note'; userId: string; name: string }
   | { kind: 'nickname'; guildId: string; userId: string }

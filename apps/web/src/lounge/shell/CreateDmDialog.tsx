@@ -2,21 +2,33 @@ import { Avatar, Button, Checkbox, EmptyState, Modal, Spinner, TextInput } from 
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
-import { usePresenceMap } from '../data';
-import { useOpenDm } from './dm';
+import { HOME } from '../channels';
+import { useLoungeGoto } from '../nav';
+import { useDms, usePresenceMap } from '../data';
+import { addRecipient } from './api';
+import { rememberDm, useOpenDm } from './dm';
 import { friendsOf, useSocial, wireName } from './social';
 
 /** A group DM holds you plus up to nine others. */
 export const MAX_GROUP_RECIPIENTS = 9;
 
 /** Create DM / Group DM picker (LNG-HOME-005): search friends, tick up to nine, create. */
-export function CreateDmDialog({ onClose }: { onClose: () => void }) {
+export function CreateDmDialog({
+  onClose,
+  addTo,
+}: {
+  onClose: () => void;
+  /** Add people to this DM instead of creating one (LNG-DM-004): a 1:1 DM turns into a new group. */
+  addTo?: string | undefined;
+}) {
   const t = useT();
   const rows = useSocial((s) => s.relationships);
   const status = useSocial((s) => s.status);
   const load = useSocial((s) => s.loadRelationships);
   const presence = usePresenceMap();
   const openDm = useOpenDm();
+  const goto = useLoungeGoto();
+  const existing = useDms().find((d) => d.id === addTo)?.recipientIds ?? [];
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -26,13 +38,13 @@ export function CreateDmDialog({ onClose }: { onClose: () => void }) {
     void load();
   }, [load]);
 
-  const friends = friendsOf(rows);
+  const friends = friendsOf(rows).filter((r) => !existing.includes(r.id));
   const q = query.trim().toLowerCase();
   const shown = friends.filter(
     (r) =>
       !q || wireName(r.user).toLowerCase().includes(q) || r.user.username.toLowerCase().includes(q),
   );
-  const full = picked.length >= MAX_GROUP_RECIPIENTS;
+  const full = picked.length + existing.length >= MAX_GROUP_RECIPIENTS;
 
   const toggle = (id: string, on: boolean) =>
     setPicked((p) => (on ? (p.includes(id) ? p : [...p, id]) : p.filter((x) => x !== id)));
@@ -43,7 +55,18 @@ export function CreateDmDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await openDm(picked);
+      if (addTo) {
+        let target = addTo;
+        for (const id of picked) {
+          // Adding to a 1:1 DM answers with the new group; later people join that group.
+          const made = await addRecipient(target, id);
+          if (made) {
+            rememberDm(made);
+            target = made.id;
+          }
+        }
+        if (target !== addTo) goto(HOME, target);
+      } else await openDm(picked);
       onClose();
     } catch (err) {
       setError(
@@ -58,8 +81,10 @@ export function CreateDmDialog({ onClose }: { onClose: () => void }) {
       open
       onClose={onClose}
       size="sm"
-      title={t('lounge.createDm.title')}
-      description={t('lounge.createDm.canAdd', { n: MAX_GROUP_RECIPIENTS - picked.length })}
+      title={addTo ? t('lounge.createDm.addTitle') : t('lounge.createDm.title')}
+      description={t('lounge.createDm.canAdd', {
+        n: MAX_GROUP_RECIPIENTS - existing.length - picked.length,
+      })}
     >
       <form className="lng-form" onSubmit={(e) => void submit(e)}>
         <TextInput
@@ -119,7 +144,11 @@ export function CreateDmDialog({ onClose }: { onClose: () => void }) {
             {t('lounge.createDm.cancel')}
           </Button>
           <Button type="submit" loading={busy} disabled={!picked.length}>
-            {picked.length > 1 ? t('lounge.createDm.createGroup') : t('lounge.createDm.create')}
+            {addTo
+              ? t('lounge.createDm.add')
+              : picked.length > 1
+                ? t('lounge.createDm.createGroup')
+                : t('lounge.createDm.create')}
           </Button>
         </div>
       </form>

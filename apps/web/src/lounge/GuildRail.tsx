@@ -1,8 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { Avatar, ContextMenu, CounterBadge, Icon, Tooltip, type MenuEntry } from '@sideroom/ui';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { RailPill, type RailPillState } from '@sideroom/ui';
-import { ComingSoon } from '@sideroom/ui';
 import { RovingNav } from '../a11y/RovingNav';
 import { useT } from '../i18n';
 import { firstTextChannel, HOME } from './channels';
@@ -19,6 +18,7 @@ import {
 import { useLoungeRoute } from './nav';
 import { useVoiceSession } from '../voice/session';
 import { useLoungeUi } from './store';
+import { InstallButton } from './shell/InstallButton';
 import { useGuildMenuCore, useLoadNotifSettings } from './shell/useGuildMenu';
 import { useRailDnd, type DropMark, type DropTarget } from './shell/useRailDnd';
 import { addToFolder, moveBy, removeFromFolder, deleteFolder } from './shell/railLayout';
@@ -113,8 +113,12 @@ function GuildIcon({
     core.hideMuted,
     { type: 'separator' },
     ...(guild.isStaff ? [core.platformAdmin] : []),
-    core.settings,
+    core.settingsMenu,
+    core.privacy,
+    core.editProfile,
     core.createChannel,
+    core.createCategory,
+    { label: t('lounge.guildMenu.createEvent'), disabled: true },
     { type: 'separator' },
     ...(inFolder
       ? [
@@ -334,7 +338,6 @@ export function GuildRail() {
   const dms = useDms();
   const users = useUsers();
   const { guildId } = useLoungeRoute();
-  const [modal, setModal] = useState<null | 'discover'>(null);
   const openDialog = useLoungeUi((s) => s.openDialog);
   const dmMentions = dms.reduce((n, d) => n + d.mentionCount, 0);
   const unreadDms = dms.filter((d) => d.unread);
@@ -445,21 +448,15 @@ export function GuildRail() {
                 type="button"
                 className="lng-guild lng-rail-action"
                 aria-label={t('lounge.guildRail.discover')}
-                onClick={() => setModal('discover')}
+                onClick={() => openDialog({ kind: 'directory' })}
               >
                 <Icon name="compass" size={24} />
               </button>
             </Tooltip>
           </div>
         </li>
+        <InstallButton />
       </ul>
-      <ComingSoon
-        open={modal === 'discover'}
-        onClose={() => setModal(null)}
-        title={t('lounge.guildRail.serverDirectory')}
-      >
-        <p>{t('lounge.guildRail.directoryNote')}</p>
-      </ComingSoon>
     </RovingNav>
   );
 }
