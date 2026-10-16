@@ -17,6 +17,14 @@ export default {
   'lounge.joinGate.browseIntro': 'These are the channels you will see in {name}.',
   'lounge.joinGate.done': 'Done',
 
+  // Create Server: icon step (LNG-GLD-017)
+  'lounge.addServerDialog.iconPreview': 'Server icon preview',
+  'lounge.addServerDialog.iconUpload': 'Upload an icon',
+  'lounge.addServerDialog.iconChange': 'Change the icon',
+  'lounge.addServerDialog.iconRemove': 'Remove the icon',
+  'lounge.addServerDialog.iconFile': 'Server icon file',
+  'lounge.addServerDialog.cropTitle': 'Crop the server icon',
+
   // Server guide (LNG-GLD-033)
   'lounge.channelSidebar.serverGuide': 'Server Guide',
   'lounge.serverGuide.title': '{name} guide',

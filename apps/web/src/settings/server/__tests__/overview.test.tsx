@@ -10,6 +10,19 @@ vi.mock('../../../store/connect', () => ({
   getGateway: vi.fn(() => null),
 }));
 
+// jsdom cannot decode or draw images: stand in for the browser's decoder and canvas (icon crop step).
+vi.mock('../../user/imageCrop', async (orig) => ({
+  ...(await orig<typeof import('../../user/imageCrop')>()),
+  loadImage: async () => ({
+    width: 1000,
+    height: 600,
+    url: 'blob:test',
+    release: () => undefined,
+    render: () =>
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  }),
+}));
+
 const guildObj = {
   id: 'g1',
   name: 'Book Club',
@@ -82,6 +95,11 @@ describe('Overview', () => {
       },
     );
     await userEvent.upload(screen.getByTestId('file-server-icon'), file);
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Crop Server icon' })).getByRole('button', {
+        name: 'Apply',
+      }),
+    );
     await userEvent.click(await screen.findByRole('button', { name: 'Remove server banner' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Server settings saved.');

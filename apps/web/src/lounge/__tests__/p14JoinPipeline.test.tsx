@@ -221,3 +221,46 @@ describe('Security actions (LNG-GLD-034)', () => {
     await waitFor(() => expect(patches[1]).toEqual({ dm_spam_filter: true }));
   });
 });
+
+describe('Create Server: icon step (LNG-GLD-017)', () => {
+  it('keeps a GIF icon as it is and sets it right after the server is created', async () => {
+    seed();
+    let patch: unknown;
+    server.use(
+      guide(false),
+      http.get('*/api/v1/users/@me/guilds/g1/member', () =>
+        HttpResponse.json({ pending: false, joined_at: '2020-01-01T00:00:00Z', roles: [] }),
+      ),
+      http.post('*/api/v1/guilds', () =>
+        HttpResponse.json(
+          {
+            id: 'g5',
+            name: 'Fresh',
+            owner_id: '1',
+            channels: [{ id: 'k2', type: 0, guild_id: 'g5', name: 'general', position: 1 }],
+            roles: [],
+          },
+          { status: 201 },
+        ),
+      ),
+      http.patch('*/api/v1/guilds/g5', async ({ request }) => {
+        patch = await request.json();
+        return HttpResponse.json({ id: 'g5', name: 'Fresh', owner_id: '1' });
+      }),
+    );
+    const router = at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Create My Own' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'skip this question' }));
+    await userEvent.upload(
+      screen.getByLabelText('Server icon file'),
+      new File(['GIF89a'], 'spin.gif', { type: 'image/gif' }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Change the icon' })).toBeVisible(),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/channels/g5/k2'));
+    expect((patch as { icon: string }).icon).toMatch(/^data:image\/gif;base64,/);
+  });
+});

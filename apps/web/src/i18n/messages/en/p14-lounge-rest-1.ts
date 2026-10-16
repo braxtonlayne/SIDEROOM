@@ -112,6 +112,9 @@ export default {
   'settings.communityMore.directorySaved': 'Listing request saved.',
   'settings.communityMore.directoryWithdrawn': 'Listing withdrawn.',
 
+  // Icon crop step (LNG-SSET-005)
+  'settings.imageField.cropTitle': 'Crop {label}',
+
   // Soundboard (LNG-SSET-025)
   'settings.soundboard.tab': 'Soundboard',
   'settings.soundboard.rules':

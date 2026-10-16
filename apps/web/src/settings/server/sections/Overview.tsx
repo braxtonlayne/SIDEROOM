@@ -164,6 +164,7 @@ function OverviewForm({
           hint={t('settings.overview.iconHint')}
           ownerId={guildId}
           shape="square"
+          crop={{ aspect: 1, outWidth: 512 }}
           value={draft.value.icon}
           onChange={(v) => draft.set('icon', v)}
         />

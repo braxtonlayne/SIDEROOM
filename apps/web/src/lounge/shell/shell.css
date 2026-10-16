@@ -533,3 +533,25 @@
   padding-inline-start: 12px;
   border-inline-start: 2px solid var(--ui-border);
 }
+
+/* Create Server: icon picker (LNG-GLD-017) */
+.lng-icon-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lng-icon-preview {
+  inline-size: 64px;
+  block-size: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--ui-surface-2, rgba(128, 128, 128, 0.2));
+  flex: none;
+}
+.lng-icon-preview img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
