@@ -19,4 +19,14 @@ Branch `feat/p14-fu-ops`, base `integration/phase14` (= `main`). Items: H-46, H-
 - Migration 0803 will stop an upgrade of a database that still has plaintext seeds; that is the specified behavior.
 
 ## Tests run
-See the final report of the agent for the exact commands and results.
+
+`-j 2`, one cargo command at a time, scratch database `sr_p14_fuops` (dropped afterwards).
+
+- `cargo test -p sr-storage --lib img` (15 pass, incl. animated GIF to WebP frame count, animated WebP round trip and frame budget).
+- `cargo test -p sr-api --lib cdn::variant` (13 pass, incl. `format=avif` answers WebP and Accept-negotiated animated WebP).
+- `cargo test -p sr-core --lib config` and `--test deploy_files` (pass).
+- `cargo test -p sr-db --test secret_columns --test migration_0803 --test migration_versions` and `--test apps_repo -- --include-ignored --test-threads=1` (19 pass, migrations incl. 0803 applied).
+- `cargo test -p sr-server --lib staff_feed -- --include-ignored --test-threads=1` (11 pass, incl. the 7-day expiry).
+- `node --test scripts/install.test.mjs` (7 pass).
+- `cargo fmt --check` and `cargo clippy --all-targets -D warnings` on sr-storage, sr-core, sr-db, sr-api, sr-server: clean.
+- Not run: web typecheck/vitest (no web code touched), shellcheck (not installed; `install.sh` additions follow its rules: quoted expansions, no `ls | grep`), OpenAPI regenerated with `sr-server openapi`; `schema.d.ts` description edited by hand for the one changed line (no node_modules in this worktree).
