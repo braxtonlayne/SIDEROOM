@@ -452,3 +452,106 @@ describe('Integrations overview and followed channels (LNG-SSET-044, LNG-SSET-04
     expect(await screen.findByText('No followed channels')).toBeVisible();
   });
 });
+
+describe('Soundboard settings (LNG-SSET-025)', () => {
+  const sound = (id: string, name: string) => ({
+    sound_id: id,
+    name,
+    volume: 0.5,
+    emoji_name: '🔔',
+    guild_id: 'g1',
+    available: true,
+    user: { id: '2', username: 'bob' },
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  const fakeAudio = (duration: number) => {
+    class FakeAudio {
+      duration = duration;
+      preload = '';
+      onloadedmetadata: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_: string) {
+        queueMicrotask(() => this.onloadedmetadata?.());
+      }
+    }
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal(
+      'URL',
+      Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }),
+    );
+  };
+
+  it('lists sounds, renames one and deletes another', async () => {
+    seed({ perms: [MANAGE.expressions] });
+    const patch = capture();
+    const del = capture();
+    await openWith('expressions', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/soundboard-sounds', () =>
+          HttpResponse.json({ items: [sound('7', 'Airhorn'), sound('8', 'Ding')] }),
+        ),
+        http.patch('*/api/v1/guilds/g1/soundboard-sounds/7', async ({ request }) => {
+          await patch.record(request);
+          return HttpResponse.json(sound('7', 'Horn'));
+        }),
+        http.delete('*/api/v1/guilds/g1/soundboard-sounds/8', async ({ request }) => {
+          await del.record(request);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      ),
+    );
+    await userEvent.click(await screen.findByRole('tab', { name: 'Soundboard' }));
+    const input = await screen.findByLabelText('Name of Airhorn');
+    expect(screen.getAllByText('Uploaded by bob')).toHaveLength(2);
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Horn');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Airhorn' }));
+    await waitFor(() => expect(patch.calls).toHaveLength(1));
+    expect(patch.calls[0]!.body).toEqual({ name: 'Horn', volume: 0.5 });
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Ding' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Delete Ding?' })).getByRole('button', {
+        name: 'Delete',
+      }),
+    );
+    await waitFor(() => expect(del.calls).toHaveLength(1));
+  });
+
+  it('uploads a short sound and refuses one over five seconds', async () => {
+    seed({ perms: [MANAGE.expressions] });
+    const post = capture();
+    await openWith('expressions', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/soundboard-sounds', () => HttpResponse.json({ items: [] })),
+        http.post('*/api/v1/guilds/g1/soundboard-sounds', async ({ request }) => {
+          await post.record(request);
+          return HttpResponse.json(sound('9', 'Clap'), { status: 201 });
+        }),
+      ),
+    );
+    await userEvent.click(await screen.findByRole('tab', { name: 'Soundboard' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Upload a sound' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Upload a sound' });
+
+    fakeAudio(8);
+    const file = new File(['abc'], 'clap.wav', { type: 'audio/wav' });
+    await userEvent.upload(within(dialog).getByLabelText('Sound file'), file);
+    expect(await within(dialog).findByText(/8\.0 seconds long/)).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: 'Upload' })).toBeDisabled();
+
+    fakeAudio(2);
+    await userEvent.upload(
+      within(dialog).getByLabelText('Sound file'),
+      new File(['abc'], 'clap.wav', { type: 'audio/wav' }),
+    );
+    await waitFor(() => expect(within(dialog).getByLabelText('Name')).toHaveValue('clap'));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Upload' }));
+    await waitFor(() => expect(post.calls).toHaveLength(1));
+    const sent = post.calls[0]!.body as Record<string, unknown>;
+    expect(sent.name).toBe('clap');
+    expect(sent.volume).toBe(1);
+    expect(String(sent.sound)).toMatch(/^data:/);
+  });
+});
