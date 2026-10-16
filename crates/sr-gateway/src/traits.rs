@@ -197,8 +197,38 @@ pub trait GuildDirectory: Send + Sync {
         None
     }
 
+    /// The members an op 8 `REQUEST_GUILD_MEMBERS` asks for. `None` when the directory cannot
+    /// answer (default; the request is then ignored).
+    async fn request_members(
+        &self,
+        _guild: GuildId,
+        _request: &MemberRequest,
+    ) -> Option<RequestedMembers> {
+        None
+    }
+
     /// Extra READY fields (`private_channels`, `relationships`, ...).
     async fn ready_extras(&self, _user: UserId) -> Value {
         json!({})
     }
+}
+
+/// What an op 8 `REQUEST_GUILD_MEMBERS` asks the directory for (D-242).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MemberRequest {
+    /// Members whose nickname, username or display name contains `query` (the same search the
+    /// REST route `GET /guilds/{id}/members/search` runs), ordered by user id. The empty query
+    /// is everyone. `limit` 0 means no limit.
+    Search { query: String, limit: usize },
+    /// Exactly these users (at most 100).
+    Ids(Vec<UserId>),
+}
+
+/// The directory's answer to a [`MemberRequest`].
+#[derive(Debug, Clone, Default)]
+pub struct RequestedMembers {
+    /// Member objects as the REST search returns them, without `sr_join` and `sr_signals`.
+    pub members: Vec<Value>,
+    /// Requested ids that are not members of the guild.
+    pub not_found: Vec<UserId>,
 }
