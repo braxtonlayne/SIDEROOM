@@ -1556,6 +1556,76 @@ async fn a_chapter_export_is_a_cbz_of_the_pages_cached_by_page_list() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_collector_deletes_exports_nobody_read_for_a_week_and_adopts_strays() {
+    let w = world().await;
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 36.0, 2).await;
+    w.publish_series(s).await;
+    for i in 0..2 {
+        w.storage
+            .put(
+                &format!("library/{s}/{c}/{i:04}.webp"),
+                Bytes::from(vec![i as u8; 10]),
+            )
+            .await
+            .unwrap();
+    }
+    let export = w.svc.export_chapter(w.member, c).await.unwrap();
+    let key = export
+        .url
+        .split("/cdn/")
+        .nth(1)
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap()
+        .to_owned();
+    // Building it recorded a read; a fresh export survives the sweep.
+    let rows = || async {
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM library_export_cache WHERE export_key = $1")
+            .bind(&key)
+            .fetch_one(&w.pool)
+            .await
+            .unwrap()
+    };
+    assert_eq!(rows().await, 1);
+    w.svc.run_gc().await.unwrap();
+    assert!(w.exists(&key).await);
+
+    // A stray from before the index existed is adopted as read now, not deleted.
+    let stray = format!("library/exports/{c}/00000000deadbeef.cbz");
+    w.storage.put(&stray, Bytes::from_static(b"zip")).await.unwrap();
+    let r = w.svc.run_gc().await.unwrap();
+    assert_eq!(r.exports_deleted, 0);
+    assert!(w.exists(&stray).await);
+
+    // Serving it again refreshes the read; 8 idle days make the sweep delete it.
+    sqlx::query("UPDATE library_export_cache SET last_read_at = now() - interval '8 days' WHERE export_key = ANY($1)")
+        .bind(vec![key.clone(), stray.clone()])
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    w.svc.export_chapter(w.member, c).await.unwrap();
+    let r = w.svc.run_gc().await.unwrap();
+    assert_eq!(r.exports_deleted, 1, "only the stray was idle: {r:?}");
+    assert!(w.exists(&key).await, "a read keeps the export");
+    assert!(!w.exists(&stray).await);
+    sqlx::query("UPDATE library_export_cache SET last_read_at = now() - interval '8 days' WHERE export_key = $1")
+        .bind(&key)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    let r = w.svc.run_gc().await.unwrap();
+    assert_eq!(r.exports_deleted, 1);
+    assert!(!w.exists(&key).await);
+    assert_eq!(rows().await, 0);
+    // It is rebuilt on demand.
+    assert!(w.svc.export_chapter(w.member, c).await.is_ok());
+    assert!(w.exists(&key).await);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn a_multipart_upload_is_remembered_resumed_and_completed() {
     use sr_library::{MemoryPartStore, MultipartWiring};
     let w = world().await;

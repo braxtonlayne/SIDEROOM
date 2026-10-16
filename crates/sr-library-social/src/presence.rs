@@ -5,7 +5,9 @@
 //! * A member who turned library sharing off or paused their history shares nothing (D-190).
 //! * Age-restricted series never show unless the member allows it (`hide_age_restricted` off), and
 //!   then go to friends only with the title masked, as in Cinema.
-//! * The audience is the member's friends. (There is no "everyone" level for reading yet.)
+//! * `library.share_reading` in the settings blob (D-229): `off` shares nothing, `friends` (the default)
+//!   the member's friends, `everyone` also people who share a server (never strangers; a person who
+//!   blocked or ignored the reader is left out). Age-restricted series stay with friends, masked.
 
 use serde_json::{Value, json};
 use sqlx::Row;
@@ -37,14 +39,44 @@ fn activity(title: &str, restricted: bool, chapter: &str, started_ms: i64) -> Va
     })
 }
 
+/// Delete reading presence rows whose heartbeat lapsed (`library.gc`, H-18). The readers of the table
+/// already ignore them; this keeps the table small. Returns how many rows went.
+pub async fn sweep_expired_presence(pool: &sqlx::PgPool) -> SocialResult<u64> {
+    let done = sqlx::query("DELETE FROM reading_presence WHERE expires_at < now()")
+        .execute(pool)
+        .await?;
+    Ok(done.rows_affected())
+}
+
 impl LibrarySocial {
-    async fn friends_of(&self, user: i64) -> SocialResult<Vec<i64>> {
+    /// Friends, and with `everyone` people who share a server with `user` (minus anyone who blocked
+    /// or ignored them), capped. The same audience the Cinema's watching presence uses.
+    async fn audience_of(&self, user: i64, everyone: bool) -> SocialResult<Vec<i64>> {
         Ok(sqlx::query_scalar(
-            "SELECT target_id FROM relationships WHERE user_id = $1 AND type = 1 LIMIT $2",
+            "SELECT target_id FROM relationships WHERE user_id = $1 AND type = 1 \
+             UNION \
+             SELECT gm2.user_id FROM guild_members gm1 \
+               JOIN guild_members gm2 ON gm2.guild_id = gm1.guild_id AND gm2.user_id <> gm1.user_id \
+             WHERE $2 AND gm1.user_id = $1 \
+               AND NOT EXISTS (SELECT 1 FROM relationships r WHERE r.user_id = gm2.user_id \
+                               AND r.target_id = $1 AND r.type IN (2, 6)) \
+             LIMIT $3",
         )
         .bind(user)
+        .bind(everyone)
         .bind(MAX_AUDIENCE)
         .fetch_all(&self.pool)
+        .await?)
+    }
+
+    /// `library.share_reading` of `user`: 0 off, 1 friends (default), 2 everyone.
+    pub(crate) async fn share_level(&self, user: i64) -> SocialResult<i16> {
+        Ok(sqlx::query_scalar(
+            "SELECT CASE (SELECT settings #>> '{library,share_reading}' FROM user_settings WHERE user_id = $1) \
+                      WHEN 'off' THEN 0 WHEN 'everyone' THEN 2 ELSE 1 END::smallint",
+        )
+        .bind(user)
+        .fetch_one(&self.pool)
         .await?)
     }
 
@@ -83,24 +115,28 @@ impl LibrarySocial {
         .bind(restricted)
         .fetch_one(&self.pool)
         .await?;
-        if !shares {
+        let level = self.share_level(v.user_id).await?;
+        if !shares || level == 0 {
             return self.stop_reading(v.user_id).await;
         }
+        // Age-restricted series go to friends only; `everyone` adds server mates for the rest.
+        let audience_flag: i16 = i16::from(level == 2 && !restricted);
         let prev = sqlx::query(
-            "SELECT chapter_id, expires_at > now() AS live FROM reading_presence WHERE user_id = $1",
+            "SELECT chapter_id, audience, expires_at > now() AS live FROM reading_presence WHERE user_id = $1",
         )
         .bind(v.user_id)
         .fetch_optional(&self.pool)
         .await?;
         let row = sqlx::query(
-            "INSERT INTO reading_presence (user_id, series_id, chapter_id, restricted, started_at, expires_at) \
-             VALUES ($1, $2, $3, $4, now(), now() + make_interval(secs => $5)) \
+            "INSERT INTO reading_presence (user_id, series_id, chapter_id, restricted, audience, started_at, expires_at) \
+             VALUES ($1, $2, $3, $4, $6, now(), now() + make_interval(secs => $5)) \
              ON CONFLICT (user_id) DO UPDATE SET \
                started_at = CASE WHEN reading_presence.series_id = EXCLUDED.series_id \
                                   AND reading_presence.expires_at > now() \
                             THEN reading_presence.started_at ELSE now() END, \
                series_id = EXCLUDED.series_id, chapter_id = EXCLUDED.chapter_id, \
-               restricted = EXCLUDED.restricted, expires_at = EXCLUDED.expires_at \
+               restricted = EXCLUDED.restricted, audience = EXCLUDED.audience, \
+               expires_at = EXCLUDED.expires_at \
              RETURNING (extract(epoch FROM started_at) * 1000)::bigint AS started_ms, \
                        (extract(epoch FROM expires_at) * 1000)::bigint AS expires_ms",
         )
@@ -109,12 +145,14 @@ impl LibrarySocial {
         .bind(chapter)
         .bind(restricted)
         .bind(PRESENCE_TTL_SECS as f64)
+        .bind(audience_flag)
         .fetch_one(&self.pool)
         .await?;
-        // A heartbeat on the same chapter changes nothing for the audience.
+        // A heartbeat on the same chapter and audience changes nothing for the audience.
         if prev.as_ref().is_some_and(|p| {
             p.try_get::<bool, _>("live").unwrap_or(false)
                 && p.try_get::<i64, _>("chapter_id").unwrap_or(0) == chapter
+                && p.try_get::<i16, _>("audience").unwrap_or(0) == audience_flag
         }) {
             return Ok(());
         }
@@ -130,21 +168,21 @@ impl LibrarySocial {
             payload["series_id"] = json!(series.to_string());
             payload["chapter_id"] = json!(chapter.to_string());
         }
-        let audience = self.friends_of(v.user_id).await?;
+        let audience = self.audience_of(v.user_id, audience_flag == 1).await?;
         self.emit_activity(audience, payload).await;
         Ok(())
     }
 
     /// End the account's own "reading" presence and tell friends. Quiet when there is none.
     pub async fn stop_reading(&self, user: i64) -> SocialResult<()> {
-        let live: Option<bool> = sqlx::query_scalar(
-            "DELETE FROM reading_presence WHERE user_id = $1 RETURNING expires_at > now()",
+        let gone: Option<(bool, i16)> = sqlx::query_as(
+            "DELETE FROM reading_presence WHERE user_id = $1 RETURNING expires_at > now(), audience",
         )
         .bind(user)
         .fetch_optional(&self.pool)
         .await?;
-        if live == Some(true) {
-            let audience = self.friends_of(user).await?;
+        if let Some((true, audience)) = gone {
+            let audience = self.audience_of(user, audience == 1).await?;
             self.emit_activity(
                 audience,
                 json!({ "type": "stopped", "user_id": user.to_string(), "kind": "reading" }),
@@ -162,10 +200,17 @@ impl LibrarySocial {
                (extract(epoch FROM p.started_at) * 1000)::bigint AS started_ms, \
                (extract(epoch FROM p.expires_at) * 1000)::bigint AS expires_ms \
              FROM reading_presence p \
-             JOIN relationships r ON r.user_id = $1 AND r.target_id = p.user_id AND r.type = 1 \
              JOIN reading_series s ON s.id = p.series_id AND s.published AND s.merged_into IS NULL \
              JOIN reading_chapters c ON c.id = p.chapter_id AND c.published \
              WHERE p.expires_at > now() AND activity_shares(p.user_id, 'library') \
+               AND (EXISTS (SELECT 1 FROM relationships r WHERE r.user_id = $1 \
+                              AND r.target_id = p.user_id AND r.type = 1) \
+                    OR (p.audience = 1 AND NOT p.restricted AND p.user_id <> $1 \
+                        AND EXISTS (SELECT 1 FROM guild_members g1 JOIN guild_members g2 \
+                                      ON g2.guild_id = g1.guild_id \
+                                    WHERE g1.user_id = $1 AND g2.user_id = p.user_id) \
+                        AND NOT EXISTS (SELECT 1 FROM relationships b WHERE b.user_id = p.user_id \
+                                          AND b.target_id = $1 AND b.type IN (2, 6)))) \
                AND NOT (p.restricted AND activity_hides_restricted(p.user_id)) \
                AND ($2 OR NOT p.restricted) \
              ORDER BY p.started_at DESC LIMIT 60",
