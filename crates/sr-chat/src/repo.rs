@@ -43,6 +43,20 @@ pub trait GuildRepository: Send + Sync {
             }
         }
     }
+    /// Members who joined at or after `since_ms` (the join-rate alert of D-243). The default
+    /// pages through the members; stores should override it with a cheap count.
+    async fn count_recent_joins(&self, guild: GuildId, since_ms: i64) -> RepoResult<u64> {
+        let mut total = 0u64;
+        let mut after = None;
+        loop {
+            let page = self.page_members(guild, after, 1000).await?;
+            total += page.iter().filter(|m| m.joined_at_ms >= since_ms).count() as u64;
+            match page.last() {
+                Some(m) if page.len() == 1000 => after = Some(m.user_id),
+                _ => return Ok(total),
+            }
+        }
+    }
     /// All roles including `@everyone`.
     async fn list_roles(&self, guild: GuildId) -> RepoResult<Vec<Role>>;
     /// Insert a role, first shifting every role with `position >= role.position` up by one.
@@ -102,6 +116,18 @@ pub trait MessageRepository: Send + Sync {
     /// Persist an edit and append a `message_edits` row when
     /// `plan.history_previous_content` is set.
     async fn apply_edit(&self, plan: &EditPlan) -> RepoResult<()>;
+    /// Rewrite a system card in place: its text, embeds and components, stamping the edit time
+    /// (the AutoMod alert and incident messages of D-243/D-244 lose a button when it is used).
+    /// Whether a message of `channel` with that id existed.
+    async fn replace_card(
+        &self,
+        channel: ChannelId,
+        id: MessageId,
+        content: &str,
+        embeds: &[crate::message::Embed],
+        components: &[crate::message::Component],
+        now_ms: i64,
+    ) -> RepoResult<bool>;
     async fn apply_delete(&self, plan: &DeletePlan) -> RepoResult<()>;
     /// Time the user last posted in the channel, for slowmode. System messages
     /// (types other than default and reply) do not count (open question 154).

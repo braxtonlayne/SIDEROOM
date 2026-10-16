@@ -15,7 +15,7 @@ use sr_chat::settings::applications::{
     Answer, Application, ApplicationForm, ApplicationStatus, Question,
 };
 use sr_chat::settings::audit::{AuditAction, AuditChange, AuditEntry, AuditQuery};
-use sr_chat::settings::automod::{Action, AutoModRule, EventType, Trigger};
+use sr_chat::settings::automod::{Action, AutoModAlert, AutoModRule, EventType, Trigger};
 use sr_chat::settings::community::{
     CommunitySettings, Onboarding, OnboardingPrompt, WelcomeChannel, WelcomeScreen,
 };
@@ -803,6 +803,68 @@ impl AutoModRepository for PgSettingsRepo {
             .map_err(db)?;
         Ok(r.rows_affected() > 0)
     }
+
+    async fn insert_alert(&self, a: &AutoModAlert) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO automod_alerts (id, guild_id, rule_id, rule_name, channel_id, \
+             target_user_id, flagged_channel_id, flagged_message_id) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        )
+        .bind(i(a.id))
+        .bind(i(a.guild_id.get()))
+        .bind(i(a.rule_id))
+        .bind(&a.rule_name)
+        .bind(i(a.channel_id.get()))
+        .bind(i(a.target_user_id.get()))
+        .bind(i(a.flagged_channel_id.get()))
+        .bind(a.flagged_message_id.map(i))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn get_alert(&self, id: u64) -> RepoResult<Option<AutoModAlert>> {
+        let row = sqlx::query(
+            "SELECT id, guild_id, rule_id, rule_name, channel_id, target_user_id, \
+             flagged_channel_id, flagged_message_id, resolved_by \
+             FROM automod_alerts WHERE id = $1",
+        )
+        .bind(i(id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        row.map(|r| {
+            let big = |name: &str| -> RepoResult<u64> { Ok(get::<i64>(&r, name)? as u64) };
+            Ok(AutoModAlert {
+                id: big("id")?,
+                guild_id: GuildId::new(big("guild_id")?),
+                rule_id: big("rule_id")?,
+                rule_name: get(&r, "rule_name")?,
+                channel_id: ChannelId::new(big("channel_id")?),
+                target_user_id: UserId::new(big("target_user_id")?),
+                flagged_channel_id: ChannelId::new(big("flagged_channel_id")?),
+                flagged_message_id: get::<Option<i64>>(&r, "flagged_message_id")?.map(|v| v as u64),
+                resolved_by: get::<Option<i64>>(&r, "resolved_by")?.map(|v| UserId::new(v as u64)),
+            })
+        })
+        .transpose()
+    }
+
+    async fn resolve_alert(&self, id: u64, user: UserId, now_ms: i64) -> RepoResult<bool> {
+        let r = sqlx::query(
+            "UPDATE automod_alerts SET resolved_by = $2, \
+             resolved_at = to_timestamp($3::bigint / 1000.0) \
+             WHERE id = $1 AND resolved_by IS NULL",
+        )
+        .bind(i(id))
+        .bind(i(user.get()))
+        .bind(now_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(r.rows_affected() > 0)
+    }
 }
 
 // ---- webhooks ------------------------------------------------------------------
@@ -1071,7 +1133,11 @@ impl CommunityRepository for PgSettingsRepo {
              description, preferred_locale, onboarding_enabled, welcome_screen_enabled, guide_enabled, \
              invites_paused, raid_alert_joins_per_minute, age_restricted, \
              screening_enabled, screening_description, screening_rules, dm_spam_filter, \
-             explicit_media_filter_dms, hide_suspicious_links, warn_new_account_days \
+             explicit_media_filter_dms, hide_suspicious_links, warn_new_account_days, \
+             (extract(epoch FROM invites_disabled_until) * 1000)::bigint AS invites_disabled_ms, \
+             (extract(epoch FROM dms_disabled_until) * 1000)::bigint AS dms_disabled_ms, \
+             (extract(epoch FROM raid_detected_at) * 1000)::bigint AS raid_detected_ms, \
+             raid_auto_pause_invites \
              FROM guild_community WHERE guild_id = $1",
         )
         .bind(i(guild.get()))
@@ -1111,6 +1177,10 @@ impl CommunityRepository for PgSettingsRepo {
             screening_enabled: get(&r, "screening_enabled")?,
             screening_description: get(&r, "screening_description")?,
             screening_rules: get::<Json<Vec<String>>>(&r, "screening_rules")?.0,
+            invites_disabled_until_ms: get(&r, "invites_disabled_ms")?,
+            dms_disabled_until_ms: get(&r, "dms_disabled_ms")?,
+            raid_detected_at_ms: get(&r, "raid_detected_ms")?,
+            raid_auto_pause_invites: get(&r, "raid_auto_pause_invites")?,
         })
     }
 
@@ -1131,8 +1201,12 @@ impl CommunityRepository for PgSettingsRepo {
              onboarding_enabled, welcome_screen_enabled, guide_enabled, invites_paused, \
              raid_alert_joins_per_minute, age_restricted, screening_enabled, \
              screening_description, screening_rules, dm_spam_filter, \
-             explicit_media_filter_dms, hide_suspicious_links, warn_new_account_days) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
+             explicit_media_filter_dms, hide_suspicious_links, warn_new_account_days, \
+             invites_disabled_until, dms_disabled_until, raid_detected_at, \
+             raid_auto_pause_invites) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, \
+                     to_timestamp($19::bigint / 1000.0), to_timestamp($20::bigint / 1000.0), \
+                     to_timestamp($21::bigint / 1000.0), $22) \
              ON CONFLICT (guild_id) DO UPDATE SET \
                community_enabled = EXCLUDED.community_enabled, \
                safety_alerts_channel_id = EXCLUDED.safety_alerts_channel_id, \
@@ -1148,7 +1222,12 @@ impl CommunityRepository for PgSettingsRepo {
                dm_spam_filter = EXCLUDED.dm_spam_filter, \
                explicit_media_filter_dms = EXCLUDED.explicit_media_filter_dms, \
                hide_suspicious_links = EXCLUDED.hide_suspicious_links, \
-               warn_new_account_days = EXCLUDED.warn_new_account_days, updated_at = now()",
+               warn_new_account_days = EXCLUDED.warn_new_account_days, \
+               invites_disabled_until = EXCLUDED.invites_disabled_until, \
+               dms_disabled_until = EXCLUDED.dms_disabled_until, \
+               raid_detected_at = EXCLUDED.raid_detected_at, \
+               raid_auto_pause_invites = EXCLUDED.raid_auto_pause_invites, \
+               updated_at = now()",
         )
         .bind(i(s.guild_id.get()))
         .bind(s.community_enabled)
@@ -1168,10 +1247,52 @@ impl CommunityRepository for PgSettingsRepo {
         .bind(s.explicit_media_filter_dms)
         .bind(s.hide_suspicious_links)
         .bind(s.warn_new_account_days as i32)
+        .bind(s.invites_disabled_until_ms)
+        .bind(s.dms_disabled_until_ms)
+        .bind(s.raid_detected_at_ms)
+        .bind(s.raid_auto_pause_invites)
         .execute(&mut *tx)
         .await
         .map_err(db)?;
         tx.commit().await.map_err(db)
+    }
+
+    async fn mark_raid(
+        &self,
+        guild: GuildId,
+        now_ms: i64,
+        cooldown_ms: i64,
+        pause_until_ms: i64,
+    ) -> RepoResult<Option<bool>> {
+        sqlx::query_scalar(
+            "UPDATE guild_community SET raid_detected_at = to_timestamp($2::bigint / 1000.0), \
+               invites_disabled_until = CASE WHEN raid_auto_pause_invites \
+                 THEN to_timestamp($4::bigint / 1000.0) ELSE invites_disabled_until END, \
+               updated_at = now() \
+             WHERE guild_id = $1 \
+               AND (raid_detected_at IS NULL \
+                    OR raid_detected_at < to_timestamp(($2::bigint - $3::bigint) / 1000.0)) \
+             RETURNING raid_auto_pause_invites",
+        )
+        .bind(i(guild.get()))
+        .bind(now_ms)
+        .bind(cooldown_ms)
+        .bind(pause_until_ms)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn clear_invite_pause(&self, guild: GuildId) -> RepoResult<bool> {
+        let r = sqlx::query(
+            "UPDATE guild_community SET invites_disabled_until = NULL, updated_at = now() \
+             WHERE guild_id = $1 AND invites_disabled_until IS NOT NULL",
+        )
+        .bind(i(guild.get()))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(r.rows_affected() > 0)
     }
 
     async fn get_onboarding(&self, guild: GuildId) -> RepoResult<Onboarding> {

@@ -6,12 +6,13 @@ use crate::repo::{
 };
 use async_trait::async_trait;
 
+use crate::admin_repo::{Ban, GuildAdminRepository, MemberFilter, PruneCriteria};
 use crate::domain::{Channel, Guild, Member, Message, Role, Visibility};
 use crate::guild_rules::GuildBlueprint;
 use crate::message_rules::{DeletePlan, EditPlan};
 use crate::repo::{ChannelRepository, GuildRepository, MessageRepository, RepoResult};
-use sr_core::permissions::Overwrite;
-use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, UserId};
+use sr_core::permissions::{Overwrite, OverwriteKind};
+use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -46,6 +47,10 @@ pub struct Data {
     pub app_emojis: HashMap<u64, i64>,
     /// Bot user to application (test seed, D-237).
     pub bot_apps: HashMap<UserId, i64>,
+    /// Bans for [`GuildAdminRepository`].
+    pub bans: Vec<crate::admin_repo::Ban>,
+    /// How members joined (tests seed this).
+    pub joins: HashMap<(GuildId, UserId), crate::admin_repo::MemberJoin>,
 }
 
 /// Cheap-to-clone handle over shared state.
@@ -62,6 +67,10 @@ impl MemoryBackend {
     /// Direct access for test setup (members, DM recipients, ...).
     pub fn data(&self) -> MutexGuard<'_, Data> {
         self.data.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn lock_data(&self) -> RepoResult<MutexGuard<'_, Data>> {
+        Ok(self.data())
     }
 }
 
@@ -292,6 +301,30 @@ impl MessageRepository for MemoryBackend {
             slot.1.push(m.id);
         }
         Ok(out)
+    }
+
+    async fn replace_card(
+        &self,
+        channel: ChannelId,
+        id: MessageId,
+        content: &str,
+        embeds: &[crate::message::Embed],
+        components: &[crate::message::Component],
+        now_ms: i64,
+    ) -> RepoResult<bool> {
+        let mut s = self.data();
+        let Some(m) = s
+            .messages
+            .iter_mut()
+            .find(|m| m.channel_id == channel && m.id == id)
+        else {
+            return Ok(false);
+        };
+        m.content = content.to_owned();
+        m.embeds = embeds.to_vec();
+        m.components = components.to_vec();
+        m.edited_at_ms = Some(now_ms);
+        Ok(true)
     }
 
     async fn apply_edit(&self, plan: &EditPlan) -> RepoResult<()> {
@@ -582,5 +615,278 @@ impl crate::repo::UserLookup for MemoryBackend {
             .iter()
             .filter_map(|id| s.users.get(id).cloned())
             .collect())
+    }
+}
+
+#[async_trait]
+impl GuildAdminRepository for MemoryBackend {
+    async fn member_joins(
+        &self,
+        guild: GuildId,
+        users: &[UserId],
+    ) -> RepoResult<Vec<crate::admin_repo::MemberJoin>> {
+        let s = self.lock_data()?;
+        Ok(users
+            .iter()
+            .map(|u| {
+                s.joins
+                    .get(&(guild, *u))
+                    .cloned()
+                    .unwrap_or(crate::admin_repo::MemberJoin {
+                        user_id: *u,
+                        source: None,
+                        invite_code: None,
+                        ref_id: None,
+                        rejoined: false,
+                    })
+            })
+            .collect())
+    }
+
+    async fn set_vanity(&self, guild: GuildId, code: Option<&str>) -> RepoResult<bool> {
+        let mut s = self.lock_data()?;
+        if let Some(c) = code
+            && s.guilds.values().any(|g| {
+                g.id != guild
+                    && g.vanity_code
+                        .as_deref()
+                        .is_some_and(|v| v.eq_ignore_ascii_case(c))
+            })
+        {
+            return Ok(false);
+        }
+        if let Some(g) = s.guilds.get_mut(&guild) {
+            g.vanity_code = code.map(str::to_owned);
+        }
+        Ok(true)
+    }
+
+    async fn update_guild(&self, guild: &Guild) -> RepoResult<()> {
+        self.lock_data()?.guilds.insert(guild.id, guild.clone());
+        Ok(())
+    }
+
+    async fn delete_guild(&self, id: GuildId) -> RepoResult<()> {
+        let mut s = self.lock_data()?;
+        s.guilds.remove(&id);
+        s.members.retain(|m| m.guild_id != id);
+        s.roles.retain(|r| r.guild_id != id);
+        s.channels.retain(|_, c| c.guild_id != Some(id));
+        s.bans.retain(|b| b.guild_id != id);
+        Ok(())
+    }
+
+    async fn list_user_guilds(&self, user: UserId) -> RepoResult<Vec<Guild>> {
+        let s = self.lock_data()?;
+        let mut out: Vec<Guild> = s
+            .members
+            .iter()
+            .filter(|m| m.user_id == user)
+            .filter_map(|m| s.guilds.get(&m.guild_id).cloned())
+            .collect();
+        out.sort_by_key(|g| g.id);
+        Ok(out)
+    }
+
+    async fn list_members(
+        &self,
+        guild: GuildId,
+        filter: &MemberFilter,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let s = self.lock_data()?;
+        let needle = filter.query.as_deref().map(str::to_lowercase);
+        let hit = |m: &Member| {
+            let role_ok = filter
+                .role
+                .is_none_or(|r| r.get() == guild.get() || m.role_ids.contains(&r));
+            let query_ok = needle.as_deref().is_none_or(|q| {
+                let has = |v: Option<&str>| v.is_some_and(|v| v.to_lowercase().contains(q));
+                let user = s.users.get(&m.user_id);
+                has(m.nick.as_deref())
+                    || has(user.map(|u| u.username.as_str()))
+                    || has(user.and_then(|u| u.display_name.as_deref()))
+            });
+            role_ok && query_ok
+        };
+        let mut out: Vec<Member> = s
+            .members
+            .iter()
+            .filter(|m| m.guild_id == guild && after.is_none_or(|a| m.user_id > a) && hit(m))
+            .cloned()
+            .collect();
+        out.sort_by_key(|m| m.user_id);
+        out.truncate(limit);
+        Ok(out)
+    }
+
+    async fn prune_candidates(
+        &self,
+        guild: GuildId,
+        criteria: &PruneCriteria,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let s = self.lock_data()?;
+        let owner = s.guilds.get(&guild).map(|g| g.owner_id);
+        let mut out: Vec<Member> = s
+            .members
+            .iter()
+            .filter(|m| m.guild_id == guild && Some(m.user_id) != owner)
+            .filter(|m| m.joined_at_ms < criteria.joined_before_ms)
+            .filter(|m| {
+                m.role_ids
+                    .iter()
+                    .all(|r| criteria.include_roles.contains(r))
+            })
+            .filter(|m| {
+                !s.messages.iter().any(|msg| {
+                    msg.guild_id == Some(guild)
+                        && msg.author_id == m.user_id
+                        && msg.id.snowflake().unix_ms() >= criteria.active_since_ms
+                })
+            })
+            .cloned()
+            .collect();
+        out.sort_by_key(|m| m.user_id);
+        out.truncate(limit);
+        Ok(out)
+    }
+
+    async fn remove_members(&self, guild: GuildId, users: &[UserId]) -> RepoResult<u64> {
+        let mut s = self.lock_data()?;
+        let before = s.members.len();
+        s.members
+            .retain(|m| !(m.guild_id == guild && users.contains(&m.user_id)));
+        Ok((before - s.members.len()) as u64)
+    }
+
+    async fn update_member(&self, member: &Member) -> RepoResult<()> {
+        let mut s = self.lock_data()?;
+        if let Some(m) = s
+            .members
+            .iter_mut()
+            .find(|m| m.guild_id == member.guild_id && m.user_id == member.user_id)
+        {
+            *m = member.clone();
+        }
+        Ok(())
+    }
+
+    async fn remove_member(&self, guild: GuildId, user: UserId) -> RepoResult<()> {
+        self.lock_data()?
+            .members
+            .retain(|m| !(m.guild_id == guild && m.user_id == user));
+        Ok(())
+    }
+
+    async fn set_role_positions(
+        &self,
+        guild: GuildId,
+        positions: &[(RoleId, i32)],
+    ) -> RepoResult<()> {
+        let mut s = self.lock_data()?;
+        for (id, pos) in positions {
+            if let Some(r) = s
+                .roles
+                .iter_mut()
+                .find(|r| r.id == *id && r.guild_id == guild)
+            {
+                r.position = *pos;
+            }
+        }
+        Ok(())
+    }
+
+    async fn update_channel_layout(&self, channels: &[Channel]) -> RepoResult<()> {
+        let mut s = self.lock_data()?;
+        for c in channels {
+            if let Some(cur) = s.channels.get_mut(&c.id) {
+                cur.position = c.position;
+                cur.parent_id = c.parent_id;
+            }
+        }
+        Ok(())
+    }
+
+    async fn put_overwrite(&self, channel: ChannelId, overwrite: &Overwrite) -> RepoResult<()> {
+        let mut s = self.lock_data()?;
+        let list = s.overwrites.entry(channel).or_default();
+        list.retain(|o| !(o.id == overwrite.id && o.kind == overwrite.kind));
+        list.push(*overwrite);
+        Ok(())
+    }
+
+    async fn delete_overwrite(
+        &self,
+        channel: ChannelId,
+        target: Snowflake,
+        kind: OverwriteKind,
+    ) -> RepoResult<()> {
+        if let Some(list) = self.lock_data()?.overwrites.get_mut(&channel) {
+            list.retain(|o| !(o.id == target && o.kind == kind));
+        }
+        Ok(())
+    }
+
+    async fn replace_overwrites(
+        &self,
+        channel: ChannelId,
+        overwrites: &[Overwrite],
+    ) -> RepoResult<()> {
+        self.lock_data()?
+            .overwrites
+            .insert(channel, overwrites.to_vec());
+        Ok(())
+    }
+
+    async fn insert_ban(&self, ban: &Ban) -> RepoResult<()> {
+        let mut s = self.lock_data()?;
+        s.members
+            .retain(|m| !(m.guild_id == ban.guild_id && m.user_id == ban.user_id));
+        s.bans
+            .retain(|b| !(b.guild_id == ban.guild_id && b.user_id == ban.user_id));
+        s.bans.push(ban.clone());
+        Ok(())
+    }
+
+    async fn delete_ban(&self, guild: GuildId, user: UserId) -> RepoResult<bool> {
+        let mut s = self.lock_data()?;
+        let before = s.bans.len();
+        s.bans
+            .retain(|b| !(b.guild_id == guild && b.user_id == user));
+        Ok(s.bans.len() != before)
+    }
+
+    async fn get_ban(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Ban>> {
+        Ok(self
+            .lock_data()?
+            .bans
+            .iter()
+            .find(|b| b.guild_id == guild && b.user_id == user)
+            .cloned())
+    }
+
+    async fn list_bans(
+        &self,
+        guild: GuildId,
+        before: Option<UserId>,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Ban>> {
+        let mut out: Vec<Ban> = self
+            .lock_data()?
+            .bans
+            .iter()
+            .filter(|b| {
+                b.guild_id == guild
+                    && before.is_none_or(|x| b.user_id < x)
+                    && after.is_none_or(|x| b.user_id > x)
+            })
+            .cloned()
+            .collect();
+        out.sort_by_key(|b| b.user_id);
+        out.truncate(limit);
+        Ok(out)
     }
 }

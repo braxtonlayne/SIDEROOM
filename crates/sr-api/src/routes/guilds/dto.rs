@@ -342,6 +342,14 @@ pub struct ChannelObject {
     pub default_thread_rate_limit_per_user: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_auto_archive_duration: Option<u32>,
+    /// Voice and stage channels: 1 auto (the adaptive default), 2 full (camera tracks may use the
+    /// 720p tier whatever the occupancy).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_quality_mode: Option<u8>,
+    /// Voice and stage channels: always `null` (this installation has one voice region).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<String>)]
+    pub rtc_region: Option<Option<String>>,
 }
 
 impl ChannelObject {
@@ -397,6 +405,8 @@ impl ChannelObject {
             default_forum_layout: c.forum.default_forum_layout.filter(|_| forum),
             default_thread_rate_limit_per_user: c.forum.default_thread_rate_limit,
             default_auto_archive_duration: c.forum.default_auto_archive_duration,
+            video_quality_mode: c.kind.is_voice_like().then_some(c.video_quality_mode),
+            rtc_region: c.kind.is_voice_like().then_some(None),
         }
     }
 
@@ -505,6 +515,9 @@ pub struct GuildObject {
     /// Server Protection (D-224): a link whose text names another host is shown as its raw
     /// target with a warning. Visible to every member; set in `/sr/community`.
     pub hide_suspicious_links: bool,
+    /// Incident actions (D-243): the timed invite and DM pauses and the last join-rate alert.
+    /// Fields are `null` when unset; a time in the past means the pause ended.
+    pub incidents_data: IncidentsDataObject,
     /// Only with `?with_counts=true` on `GET /guilds/{id}` (Discord shape).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub approximate_member_count: Option<u64>,
@@ -550,6 +563,7 @@ impl GuildObject {
             public_updates_channel_id: g.public_updates_channel_id.map(|c| c.to_string()),
             safety_alerts_channel_id: g.safety_alerts_channel_id.map(|c| c.to_string()),
             hide_suspicious_links: g.hide_suspicious_links,
+            incidents_data: IncidentsDataObject::of(&g.incidents),
             approximate_member_count: None,
             approximate_presence_count: None,
             sr_max_upload_bytes: None,
@@ -559,6 +573,36 @@ impl GuildObject {
                 traits: g.traits.iter().map(GuildTraitObject::from).collect(),
             },
         }
+    }
+}
+
+/// `incidents_data` of the guild object (D-243).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct IncidentsDataObject {
+    /// Invites cannot be used until this time (ISO8601), or `null`.
+    pub invites_disabled_until: Option<String>,
+    /// Direct messages between members who are not friends are refused until this time, or `null`.
+    pub dms_disabled_until: Option<String>,
+    /// When the join-rate alert last fired, or `null`.
+    pub raid_detected_at: Option<String>,
+}
+
+impl IncidentsDataObject {
+    pub fn of(i: &sr_chat::domain::IncidentsData) -> Self {
+        Self {
+            invites_disabled_until: i.invites_disabled_until_ms.map(iso8601),
+            dms_disabled_until: i.dms_disabled_until_ms.map(iso8601),
+            raid_detected_at: i.raid_detected_at_ms.map(iso8601),
+        }
+    }
+
+    /// From the saved community settings (what a write just stored).
+    pub fn of_settings(s: &sr_chat::settings::community::CommunitySettings) -> Self {
+        Self::of(&sr_chat::domain::IncidentsData {
+            invites_disabled_until_ms: s.invites_disabled_until_ms,
+            dms_disabled_until_ms: s.dms_disabled_until_ms,
+            raid_detected_at_ms: s.raid_detected_at_ms,
+        })
     }
 }
 
@@ -686,7 +730,7 @@ impl MemberObject {
             premium_since: None,
             deaf: false,
             mute: false,
-            flags: 0,
+            flags: m.extras.flags,
             pending: m.pending,
             communication_disabled_until: m.communication_disabled_until_ms.map(iso8601),
             guild_id: with_guild_id.then(|| m.guild_id.to_string()),
@@ -826,6 +870,12 @@ pub struct CreateChannelBody {
     pub rate_limit_per_user: Option<u32>,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    /// Voice and stage channels: 1 auto (default), 2 full.
+    pub video_quality_mode: Option<u8>,
+    /// Only `null` is accepted: this installation has one voice region.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub rtc_region: Option<Option<String>>,
     #[serde(default)]
     pub permission_overwrites: Vec<OverwriteBody>,
     /// Forum and media channels: `REQUIRE_TAG` (1 << 4) and similar settings bits.
@@ -858,6 +908,12 @@ pub struct ModifyChannelBody {
     pub rate_limit_per_user: Option<u32>,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    /// Voice and stage channels (`MANAGE_CHANNELS`): 1 auto, 2 full.
+    pub video_quality_mode: Option<u8>,
+    /// Only `null` is accepted: this installation has one voice region.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub rtc_region: Option<Option<String>>,
     pub position: Option<i32>,
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]

@@ -64,6 +64,7 @@ impl World {
             camera: false,
             screen: false,
             tier: 0,
+            video_full: false,
         }
     }
 

@@ -125,6 +125,8 @@ pub(super) struct Env {
     pub(super) guild: GuildId,
     pub(super) ch: ChannelId,
     pub(super) auth: Option<Arc<crate::routes::auth::memory::MemoryAuthStore>>,
+    /// The settings store behind the audit log (command permission changes write there).
+    pub(super) settings: Arc<sr_chat::settings::memory::MemorySettingsRepo>,
 }
 
 pub(super) fn summary(id: i64, name: &str, bot: bool) -> UserSummary {
@@ -286,6 +288,18 @@ pub(super) async fn env_build(
     )
     .unwrap();
 
+    let settings_repo = Arc::new(sr_chat::settings::memory::MemorySettingsRepo::default());
+    let entropy_counter = Arc::new(AtomicI64::new(1));
+    let settings_deps = crate::routes::settings::SettingsDeps::new(
+        settings_repo.clone(),
+        Arc::new(backend.clone()),
+        storage.clone(),
+        dyn_clock.clone(),
+        Arc::new(move || entropy_counter.fetch_add(1, Ordering::SeqCst) as u64),
+        1,
+        5,
+    )
+    .unwrap();
     let auth = Arc::new(AppsAuth::new(Arc::new(svc.clone())));
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
@@ -298,6 +312,7 @@ pub(super) async fn env_build(
         .settings(settings)
         .extension(Arc::new(dev))
         .extension(Arc::new(messages))
+        .extension(Arc::new(settings_deps))
         .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
             storage.clone(),
             sr_storage::cdn::CdnSigner::new(b"app-media-test-secret-0123456789".to_vec()),
@@ -366,6 +381,7 @@ pub(super) async fn env_build(
         guild,
         ch,
         auth: auth_store,
+        settings: settings_repo,
     }
 }
 

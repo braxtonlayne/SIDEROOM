@@ -34,6 +34,7 @@ error_codes! {
     UnknownApplication = 10002, 404, "Unknown Application";
     UnknownChannel = 10003, 404, "Unknown Channel";
     UnknownGuild = 10004, 404, "Unknown Guild";
+    UnknownIntegration = 10005, 404, "Unknown Integration";
     UnknownInvite = 10006, 404, "Unknown Invite";
     UnknownMember = 10007, 404, "Unknown Member";
     UnknownMessage = 10008, 404, "Unknown Message";

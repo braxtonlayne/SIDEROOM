@@ -37,6 +37,12 @@ export interface Guild {
   safety_alerts_channel_id?: string | null;
   /** Server Protection (D-224): links whose text names another host show their raw target and a warning. */
   hide_suspicious_links?: boolean;
+  /** Timed invite and DM pauses and the last join-rate alert (D-243); a time in the past means it ended. */
+  incidents_data?: {
+    invites_disabled_until: string | null;
+    dms_disabled_until: string | null;
+    raid_detected_at: string | null;
+  };
   /** Largest file the viewer may upload in this server, in bytes (D-233); absent until `GET /guilds/{id}` is read. */
   sr_max_upload_bytes?: number;
   /** Side Room's profile extras: the server's traits (J-07). */

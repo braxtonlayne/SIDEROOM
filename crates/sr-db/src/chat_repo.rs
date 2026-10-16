@@ -50,6 +50,7 @@ pub(crate) fn extras_from(r: &PgRow) -> Result<Box<sr_chat::domain::MemberExtras
         theme_colors: primary.zip(accent).map(|(p, a)| [p as u32, a as u32]),
         profile_effect: r.try_get("profile_effect")?,
         avatar_decoration: r.try_get("avatar_decoration")?,
+        flags: u32::try_from(r.try_get::<i32, _>("flags")?).unwrap_or(0),
     }))
 }
 
@@ -88,7 +89,7 @@ pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key
     vanity_code::text AS vanity_code, mfa_level, system_channel_flags, widget_enabled, \
     widget_channel_id, rules_channel_id, public_updates_channel_id, traits, \
     (SELECT gc.safety_alerts_channel_id FROM guild_community gc WHERE gc.guild_id = guilds.id) \
-    AS safety_alerts_channel_id, \n    COALESCE((SELECT gc.hide_suspicious_links FROM guild_community gc WHERE gc.guild_id = guilds.id), \n    FALSE) AS hide_suspicious_links";
+    AS safety_alerts_channel_id, \n    COALESCE((SELECT gc.hide_suspicious_links FROM guild_community gc WHERE gc.guild_id = guilds.id), \n    FALSE) AS hide_suspicious_links, \n    (SELECT (extract(epoch FROM gc.invites_disabled_until) * 1000)::bigint FROM guild_community gc \n     WHERE gc.guild_id = guilds.id) AS invites_disabled_ms, \n    (SELECT (extract(epoch FROM gc.dms_disabled_until) * 1000)::bigint FROM guild_community gc \n     WHERE gc.guild_id = guilds.id) AS dms_disabled_ms, \n    (SELECT (extract(epoch FROM gc.raid_detected_at) * 1000)::bigint FROM guild_community gc \n     WHERE gc.guild_id = guilds.id) AS raid_detected_ms";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
     Ok(Guild {
@@ -135,6 +136,11 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
         hide_suspicious_links: r.try_get("hide_suspicious_links")?,
         traits: serde_json::from_value(r.try_get::<serde_json::Value, _>("traits")?)
             .unwrap_or_default(),
+        incidents: sr_chat::domain::IncidentsData {
+            invites_disabled_until_ms: r.try_get("invites_disabled_ms")?,
+            dms_disabled_until_ms: r.try_get("dms_disabled_ms")?,
+            raid_detected_at_ms: r.try_get("raid_detected_ms")?,
+        },
     })
 }
 
@@ -169,7 +175,7 @@ pub(crate) const CHANNEL_SELECT: &str = "SELECT c.id, c.guild_id, c.type, c.name
     c.position, c.parent_id, c.nsfw, c.rate_limit_per_user, c.bitrate, c.user_limit, \
     c.last_message_id, c.owner_id, c.flags, c.available_tags, c.default_reaction_emoji, \
     c.default_sort_order, c.default_forum_layout, c.default_thread_rate_limit, \
-    c.default_auto_archive_duration, \
+    c.default_auto_archive_duration, c.video_quality_mode, \
     tm.archived AS t_archived, tm.auto_archive_duration AS t_auto_archive, \
     (extract(epoch FROM tm.archive_timestamp) * 1000)::bigint AS t_archive_ms, \
     tm.locked AS t_locked, tm.invitable AS t_invitable, \
@@ -255,6 +261,8 @@ pub(crate) fn channel_from(r: &PgRow) -> RepoResult<Channel> {
             default_thread_rate_limit: small("default_thread_rate_limit")?,
             default_auto_archive_duration: small("default_auto_archive_duration")?,
         },
+        video_quality_mode: u8::try_from(r.try_get::<i16, _>("video_quality_mode").map_err(db)?)
+            .unwrap_or(1),
     })
 }
 
@@ -348,8 +356,8 @@ fn ids_i64<T: Copy>(v: &[T], f: impl Fn(T) -> u64) -> Vec<i64> {
 pub(crate) const INSERT_CHANNEL: &str = "INSERT INTO channels (id, guild_id, type, name, topic, position, \
     parent_id, nsfw, rate_limit_per_user, bitrate, user_limit, owner_id, flags, available_tags, \
     default_reaction_emoji, default_sort_order, default_forum_layout, default_thread_rate_limit, \
-    default_auto_archive_duration) \
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)";
+    default_auto_archive_duration, video_quality_mode) \
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)";
 
 fn tags_json(c: &Channel) -> Option<serde_json::Value> {
     (!c.forum.available_tags.is_empty())
@@ -390,6 +398,7 @@ pub(crate) fn bind_channel<'q>(
         .bind(c.forum.default_forum_layout.map(i16::from))
         .bind(opt_i32(c.forum.default_thread_rate_limit))
         .bind(opt_i32(c.forum.default_auto_archive_duration))
+        .bind(i16::from(c.video_quality_mode))
 }
 
 #[async_trait]
@@ -518,6 +527,20 @@ impl GuildRepository for PgChatRepo {
         Ok(u64::try_from(n).unwrap_or(0))
     }
 
+    async fn count_recent_joins(&self, guild: GuildId, since_ms: i64) -> RepoResult<u64> {
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT count(*) FROM guild_members gm WHERE gm.guild_id = $1 \
+             AND gm.joined_at >= to_timestamp($2::bigint / 1000.0) AND {}",
+            crate::accounts::NOT_SYSTEM_MEMBER
+        )))
+        .bind(i(guild.get()))
+        .bind(since_ms)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(u64::try_from(n).unwrap_or(0))
+    }
+
     async fn page_members(
         &self,
         guild: GuildId,
@@ -526,7 +549,7 @@ impl GuildRepository for PgChatRepo {
     ) -> RepoResult<Vec<Member>> {
         let rows = sqlx::query(
             "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
-    gm.profile_effect, gm.avatar_decoration, \
+    gm.profile_effect, gm.avatar_decoration, gm.flags, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -569,7 +592,7 @@ impl GuildRepository for PgChatRepo {
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>> {
         let row = sqlx::query(
             "SELECT gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
-    gm.profile_effect, gm.avatar_decoration, \
+    gm.profile_effect, gm.avatar_decoration, gm.flags, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -793,7 +816,8 @@ impl ChannelRepository for PgChatRepo {
              rate_limit_per_user = $7, bitrate = $8, user_limit = $9, flags = $10, \
              available_tags = $11, default_reaction_emoji = $12, default_sort_order = $13, \
              default_forum_layout = $14, default_thread_rate_limit = $15, \
-             default_auto_archive_duration = $16, updated_at = now() WHERE id = $1",
+             default_auto_archive_duration = $16, video_quality_mode = $17, \
+             updated_at = now() WHERE id = $1",
         )
         .bind(i(c.id.get()))
         .bind(c.name.as_deref())
@@ -811,6 +835,7 @@ impl ChannelRepository for PgChatRepo {
         .bind(c.forum.default_forum_layout.map(i16::from))
         .bind(opt_i32(c.forum.default_thread_rate_limit))
         .bind(opt_i32(c.forum.default_auto_archive_duration))
+        .bind(i16::from(c.video_quality_mode))
         .execute(&mut *tx)
         .await
         .map_err(db)?;
@@ -1009,6 +1034,32 @@ impl MessageRepository for PgChatRepo {
             .await
             .map_err(db)?;
         tx.commit().await.map_err(db)
+    }
+
+    async fn replace_card(
+        &self,
+        channel: ChannelId,
+        id: MessageId,
+        content: &str,
+        embeds: &[sr_chat::message::Embed],
+        components: &[sr_chat::message::Component],
+        now_ms: i64,
+    ) -> RepoResult<bool> {
+        let r = sqlx::query(
+            "UPDATE messages SET content = $3, embeds = $4, components = $5, \
+             edited_at = to_timestamp($6::double precision / 1000.0) \
+             WHERE id = $1 AND channel_id = $2",
+        )
+        .bind(i(id.get()))
+        .bind(i(channel.get()))
+        .bind(content)
+        .bind(sqlx::types::Json(embeds))
+        .bind(sqlx::types::Json(components))
+        .bind(now_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(r.rows_affected() == 1)
     }
 
     async fn apply_edit(&self, plan: &EditPlan) -> RepoResult<()> {

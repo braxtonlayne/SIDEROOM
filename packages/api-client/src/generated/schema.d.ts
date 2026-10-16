@@ -3975,7 +3975,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Commands of the application in one server. */
+        /**
+         * Commands of the application in one server. The application's bot, its owner and the server's
+         *     managers may read them (J-10: the command permission editor lists them).
+         */
         get: operations["list_guild"];
         /** Replace all commands of one server. */
         put: operations["overwrite_guild"];
@@ -3994,7 +3997,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Overwrites of every command in a server. */
+        /**
+         * Overwrites of every command in a server. The application's bot, its owner and the server's
+         *     managers may read them.
+         */
         get: operations["guild_permissions"];
         put?: never;
         post?: never;
@@ -4030,12 +4036,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Overwrites of one command. */
+        /**
+         * Overwrites of one command. The application's bot, its owner and the server's managers may
+         *     read them.
+         */
         get: operations["command_permissions"];
         /**
-         * Replace the overwrites of one command. Needs a bearer token with
-         *     `applications.commands.permissions.update`, issued to this application, of a user who
-         *     manages the server. Bot tokens and sessions are refused (as on Discord).
+         * Replace the overwrites of one command (audit log entry 121 in the server). Needs a person:
+         *     the application's owner, a member who holds `MANAGE_GUILD` in the server, or an OAuth2
+         *     bearer token with `applications.commands.permissions.update` of such a manager. Bot tokens
+         *     are refused (as on Discord).
          */
         put: operations["set_command_permissions"];
         post?: never;
@@ -6387,6 +6397,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/alert-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Press a button on an AutoMod alert or a join-rate alert. The message must be a system card of
+         *     this server in a channel the caller can see; the action runs with the caller's own
+         *     permission (checked now, not when the card was posted) and second factor, through the
+         *     ordinary service, and the card is rewritten without the used button.
+         */
+        post: operations["alert_action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/audit-logs": {
         parameters: {
             query?: never;
@@ -6622,6 +6654,64 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/incident-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Security Actions (`MANAGE_GUILD`, second factor when the server requires it): pause invites
+         *     and direct messages between members for up to 24 hours. Answers the guild's
+         *     `incidents_data` and dispatches `GUILD_UPDATE`.
+         */
+        put: operations["put_incident_actions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The applications installed in the server (`MANAGE_GUILD`). */
+        get: operations["list_integrations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/integrations/{integration_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove an installed application from the server (`MANAGE_GUILD`; a second factor when the
+         *     server requires one). The bot leaves and its managed role is deleted.
+         */
+        delete: operations["delete_integration"];
         options?: never;
         head?: never;
         patch?: never;
@@ -11615,6 +11705,19 @@ export interface components {
          * @enum {string}
          */
         AgeFilter: "hide" | "include" | "only";
+        AlertActionBody: {
+            channel_id: string;
+            /** @description The `custom_id` of the pressed button or select (`sr:automod:...`, `sr:incident:...`). */
+            custom_id: string;
+            message_id: string;
+            /** @description The chosen value of the Timeout select (seconds). */
+            values?: string[];
+        };
+        AlertActionResult: {
+            message: string;
+            /** @description False when the press changed nothing ("already handled"). */
+            ok: boolean;
+        };
         /**
          * @description Discord's `allowed_mentions` object. `parse` may hold `users`, `roles` and
          *     `everyone`; listed `users`/`roles` ids may ping even when their kind is not parsed.
@@ -12420,6 +12523,8 @@ export interface components {
             position: number;
             /** Format: int32 */
             rate_limit_per_user: number;
+            /** @description Voice and stage channels: always `null` (this installation has one voice region). */
+            rtc_region?: string | null;
             thread_metadata?: null | components["schemas"]["ThreadMetadataObject"];
             topic?: string | null;
             /**
@@ -12431,6 +12536,12 @@ export interface components {
             type: number;
             /** Format: int32 */
             user_limit?: number | null;
+            /**
+             * Format: int32
+             * @description Voice and stage channels: 1 auto (the adaptive default), 2 full (camera tracks may use the
+             *     720p tier whatever the occupancy).
+             */
+            video_quality_mode?: number | null;
         };
         ChannelOverrideBody: {
             /**
@@ -13060,6 +13171,8 @@ export interface components {
              * @description Alert when more than this many members join per minute; 0 = off.
              */
             raid_alert_joins_per_minute: number;
+            /** @description The join-rate alert pauses invites for 24 hours by itself (default on, D-243). */
+            raid_auto_pause_invites: boolean;
             rules_channel_id?: string | null;
             safety_alerts_channel_id?: string | null;
             screening_description?: string | null;
@@ -13253,6 +13366,8 @@ export interface components {
             position?: number | null;
             /** Format: int32 */
             rate_limit_per_user?: number | null;
+            /** @description Only `null` is accepted: this installation has one voice region. */
+            rtc_region?: string | null;
             /** @description An episode of that title, for a series. */
             sr_watch_party_episode_id?: string | null;
             /**
@@ -13272,6 +13387,11 @@ export interface components {
             type?: number | null;
             /** Format: int32 */
             user_limit?: number | null;
+            /**
+             * Format: int32
+             * @description Voice and stage channels: 1 auto (default), 2 full.
+             */
+            video_quality_mode?: number | null;
         };
         CreateDmBody: {
             name?: string | null;
@@ -14523,6 +14643,11 @@ export interface components {
             icon?: string | null;
             id: string;
             /**
+             * @description Incident actions (D-243): the timed invite and DM pauses and the last join-rate alert.
+             *     Fields are `null` when unset; a time in the past means the pause ended.
+             */
+            incidents_data: components["schemas"]["IncidentsDataObject"];
+            /**
              * @description Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
              *     in the rail and show the staff badge.
              */
@@ -14685,6 +14810,28 @@ export interface components {
             /** Format: int64 */
             month_start_ms: number;
         };
+        /**
+         * @description Body of `PUT /guilds/{id}/incident-actions`. Both fields are replaced: omitted or `null`
+         *     clears the pause.
+         */
+        IncidentActionsBody: {
+            /**
+             * @description Pause direct messages between members who are not friends until this time, at most 24
+             *     hours ahead.
+             */
+            dms_disabled_until?: string | null;
+            /** @description Pause invites until this time (ISO8601), at most 24 hours ahead. */
+            invites_disabled_until?: string | null;
+        };
+        /** @description `incidents_data` of the guild object (D-243). */
+        IncidentsDataObject: {
+            /** @description Direct messages between members who are not friends are refused until this time, or `null`. */
+            dms_disabled_until?: string | null;
+            /** @description Invites cannot be used until this time (ISO8601), or `null`. */
+            invites_disabled_until?: string | null;
+            /** @description When the join-rate alert last fired, or `null`. */
+            raid_detected_at?: string | null;
+        };
         /** @description A configured source. */
         IngestSource: {
             backend: components["schemas"]["Backend"];
@@ -14775,6 +14922,35 @@ export interface components {
             genres: string[];
             series: components["schemas"]["Series"][];
             tags: string[];
+        };
+        /** @description `account` of an integration: for an application it is the application itself. */
+        IntegrationAccountObject: {
+            id: string;
+            name: string;
+        };
+        /** @description The application part of an integration (Discord shape). */
+        IntegrationApplicationObject: {
+            bot: components["schemas"]["GuildUserRef"];
+            description: string;
+            /** @description Icon hash, served at `/cdn/avatars/{bot.id}/{hash}.png`. */
+            icon?: string | null;
+            id: string;
+            name: string;
+        };
+        /** @description One installed application as a Discord integration object. */
+        IntegrationObject: {
+            account: components["schemas"]["IntegrationAccountObject"];
+            application: components["schemas"]["IntegrationApplicationObject"];
+            enabled: boolean;
+            /** @description The application id. */
+            id: string;
+            name: string;
+            /** @description The scopes the install was granted. */
+            scopes: string[];
+            /** @description Always `discord`, as for Discord's own application integrations. */
+            type: string;
+            /** @description Who installed it. */
+            user: components["schemas"]["GuildUserRef"];
         };
         /** @description Whether an optional integration is set up. Never carries a secret. */
         IntegrationStatus: {
@@ -15631,6 +15807,11 @@ export interface components {
             /** @description `CALL` messages: who was in the call and when it ended. */
             call?: Record<string, never> | null;
             channel_id: string;
+            /**
+             * @description Buttons and select menus (action rows), as the author or the system sent them; present only
+             *     when the message has any.
+             */
+            components?: Record<string, never>[];
             content: string;
             edited_timestamp?: string | null;
             embeds: Record<string, never>[];
@@ -15776,6 +15957,8 @@ export interface components {
             position?: number | null;
             /** Format: int32 */
             rate_limit_per_user?: number | null;
+            /** @description Only `null` is accepted: this installation has one voice region. */
+            rtc_region?: string | null;
             topic?: string | null;
             /**
              * Format: int32
@@ -15785,6 +15968,11 @@ export interface components {
             type?: number | null;
             /** Format: int32 */
             user_limit?: number | null;
+            /**
+             * Format: int32
+             * @description Voice and stage channels (`MANAGE_CHANNELS`): 1 auto, 2 full.
+             */
+            video_quality_mode?: number | null;
         };
         ModifyCommunityBody: {
             age_restricted?: boolean | null;
@@ -15800,6 +15988,7 @@ export interface components {
             public_updates_channel_id?: string | null;
             /** Format: int32 */
             raid_alert_joins_per_minute?: number | null;
+            raid_auto_pause_invites?: boolean | null;
             rules_channel_id?: string | null;
             safety_alerts_channel_id?: string | null;
             screening_description?: string | null;
@@ -32706,6 +32895,11 @@ export interface operations {
                 application_id: string;
                 /** @description Guild snowflake */
                 guild_id: string;
+                /**
+                 * @description SIDE ROOM extension for the command permission editor: also list the application's global
+                 *     commands (the ones with `guild_id` absent).
+                 */
+                include_global: boolean;
             };
             cookie?: never;
         };
@@ -32829,6 +33023,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -32967,6 +33169,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             404: {
@@ -40250,6 +40460,56 @@ export interface operations {
             };
         };
     };
+    alert_action: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertActionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertActionResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_audit_log: {
         parameters: {
             query?: {
@@ -41305,6 +41565,132 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_incident_actions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentActionsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentsDataObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_integrations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_integration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description The application id */
+                integration_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             403: {
                 headers: {

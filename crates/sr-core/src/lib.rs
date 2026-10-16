@@ -7,6 +7,7 @@
 pub mod config;
 pub mod error;
 pub mod ids;
+pub mod member_flags;
 pub mod permissions;
 pub mod platform_permissions;
 pub mod snowflake;

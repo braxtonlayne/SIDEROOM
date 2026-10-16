@@ -671,7 +671,10 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
             member.role_ids.push(*rid);
             added.push(*rid);
         }
-        if !added.is_empty() {
+        // D-245: answering the questions completes onboarding, whatever was picked.
+        let flagged = member.extras.flags & sr_core::member_flags::COMPLETED_ONBOARDING == 0;
+        member.extras.flags |= sr_core::member_flags::COMPLETED_ONBOARDING;
+        if !added.is_empty() || flagged {
             self.repo.update_member(&member).await?;
         }
         Ok(added)

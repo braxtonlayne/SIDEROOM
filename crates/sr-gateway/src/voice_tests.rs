@@ -134,6 +134,7 @@ impl GuildDirectory for Dir {
             user_limit: limit,
             bitrate: Some(64_000),
             age_restricted: ch == ADULT,
+            video_quality: 1,
         })
     }
 

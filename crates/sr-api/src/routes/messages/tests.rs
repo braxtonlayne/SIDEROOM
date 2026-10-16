@@ -1699,6 +1699,7 @@ impl crate::routes::settings::AutoModGate for FakeGate {
             v.alerts.push(Alert {
                 channel_id: ChannelId::new(99),
                 rule_id: 7,
+                trigger: sr_chat::settings::automod::TriggerKind::Keyword,
                 rule_name: "words".into(),
                 matched: "word".into(),
                 user_id: msg.author,

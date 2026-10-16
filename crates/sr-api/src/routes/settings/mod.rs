@@ -21,6 +21,7 @@
 //! joined member through [`join::MemberJoiner`] (the composition root wires the
 //! bus-backed [`join::InviteMemberJoiner`]).
 
+pub mod alerts;
 pub mod applications;
 pub mod audit;
 pub mod automod;
@@ -77,6 +78,7 @@ pub fn router() -> Router<AppState> {
         .merge(follow::routes())
         .merge(templates::routes())
         .merge(community::routes())
+        .merge(alerts::routes())
         .merge(tags::routes())
         .merge(insights::routes())
         .merge(guide::routes())
@@ -144,6 +146,8 @@ pub fn router() -> Router<AppState> {
         templates::delete_template,
         community::get_community,
         community::modify_community,
+        community::put_incident_actions,
+        alerts::alert_action,
         community::get_onboarding,
         community::put_onboarding,
         community::get_welcome_screen,
@@ -219,6 +223,9 @@ pub fn router() -> Router<AppState> {
         templates::ModifyTemplateBody,
         community::CommunityObject,
         community::ModifyCommunityBody,
+        community::IncidentActionsBody,
+        alerts::AlertActionBody,
+        alerts::AlertActionResult,
         community::OnboardingObject,
         community::OnboardingDto,
         community::PromptDto,

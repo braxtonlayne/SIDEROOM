@@ -347,7 +347,10 @@ impl<R: SocialRepository> SocialService<R> {
             }
         }
         // Friends/blocks decide; an existing conversation stays reachable unless blocked.
-        if access == DmAccess::Denied && (existing.is_none() || dm_blocked(st)) {
+        if access == DmAccess::Denied
+            && (existing.is_none() || dm_blocked(st) || protection.dms_paused_all)
+        {
+            // D-243: a DM pause also closes a conversation that already exists between non-friends.
             return Err(SocialError::DmNotAllowed);
         }
         match existing {

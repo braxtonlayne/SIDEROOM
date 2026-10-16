@@ -180,6 +180,7 @@ pub(crate) mod fixtures {
             public_updates_channel_id: None,
             safety_alerts_channel_id: None,
             hide_suspicious_links: false,
+            incidents: Default::default(),
             owner_id: UserId::new(OWNER),
             is_staff_guild: false,
             system_channel_id: None,

@@ -9,7 +9,7 @@ use crate::repo::RepoResult;
 
 use super::applications::{Application, ApplicationForm, ApplicationStatus};
 use super::audit::{AuditEntry, AuditQuery};
-use super::automod::AutoModRule;
+use super::automod::{AutoModAlert, AutoModRule};
 use super::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use super::expressions::{Emoji, Sticker};
 use super::guide::Guide;
@@ -80,6 +80,11 @@ pub trait AutoModRepository: Send + Sync {
     /// Insert or replace by id.
     async fn put_rule(&self, rule: &AutoModRule) -> RepoResult<()>;
     async fn delete_rule(&self, guild: GuildId, id: u64) -> RepoResult<bool>;
+    /// Remember a posted AutoMod alert (D-244).
+    async fn insert_alert(&self, alert: &AutoModAlert) -> RepoResult<()>;
+    async fn get_alert(&self, id: u64) -> RepoResult<Option<AutoModAlert>>;
+    /// Mark an alert resolved by `user`; `false` when it already was.
+    async fn resolve_alert(&self, id: u64, user: UserId, now_ms: i64) -> RepoResult<bool>;
 }
 
 #[async_trait]
@@ -109,6 +114,19 @@ pub trait CommunityRepository: Send + Sync {
     /// Defaults when nothing was saved yet.
     async fn get_community(&self, guild: GuildId) -> RepoResult<CommunitySettings>;
     async fn put_community(&self, settings: &CommunitySettings) -> RepoResult<()>;
+    /// Record a join-rate alert (D-243) unless one fired within `cooldown_ms`: sets
+    /// `raid_detected_at` and, when `raid_auto_pause_invites` is on, `invites_disabled_until`
+    /// to `pause_until_ms`. `None` when nothing fired (cooldown, or no row); otherwise whether
+    /// invites were paused.
+    async fn mark_raid(
+        &self,
+        guild: GuildId,
+        now_ms: i64,
+        cooldown_ms: i64,
+        pause_until_ms: i64,
+    ) -> RepoResult<Option<bool>>;
+    /// Clear the timed invite pause (the `Resume invites` button). Whether one was set.
+    async fn clear_invite_pause(&self, guild: GuildId) -> RepoResult<bool>;
     async fn get_onboarding(&self, guild: GuildId) -> RepoResult<Onboarding>;
     async fn put_onboarding(&self, onboarding: &Onboarding) -> RepoResult<()>;
     async fn get_welcome_screen(&self, guild: GuildId) -> RepoResult<WelcomeScreen>;

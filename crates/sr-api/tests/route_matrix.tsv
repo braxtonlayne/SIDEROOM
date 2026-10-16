@@ -61,6 +61,7 @@ DELETE	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membersh
 DELETE	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/integrations/{integration_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	allow	-
@@ -211,10 +212,10 @@ GET	/applications/{application_id}/audit-log	authenticated	owner	deny	-
 GET	/applications/{application_id}/commands	authenticated	owner	allow	-
 GET	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-
 GET	/applications/{application_id}/emojis	authenticated	owner	allow	-
-GET	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
-GET	/applications/{application_id}/guilds/{guild_id}/commands/permissions	authenticated	owner	allow	-
+GET	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	membership	allow	-
+GET	/applications/{application_id}/guilds/{guild_id}/commands/permissions	authenticated	membership	allow	-
 GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
-GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	owner	allow	-
+GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	membership	allow	-
 GET	/applications/{application_id}/installs	authenticated	owner	deny	-
 GET	/applications/{application_id}/testers	authenticated	owner	deny	-
 GET	/applications/{application_id}/versions	authenticated	owner	deny	-
@@ -303,6 +304,7 @@ GET	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/emojis/{emoji_id}/url	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/integrations	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/invites	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/leveling/leaderboard	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/leveling/rank/{user_id}	authenticated	membership	allow	-
@@ -658,6 +660,7 @@ POST	/donations/invoices/{invoice_id}/check	authenticated	self	allow	-
 POST	/guilds	authenticated	membership	deny	-
 POST	/guilds/templates/{code}	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/ack	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/alert-actions	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/bulk-ban	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-
@@ -772,7 +775,7 @@ PUT	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
 PUT	/applications/{application_id}/activity	authenticated	owner	deny	-
 PUT	/applications/{application_id}/commands	authenticated	owner	allow	-
 PUT	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
-PUT	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	owner	allow	applications.commands.permissions.update
+PUT	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	membership	allow	applications.commands.permissions.update
 PUT	/channels/{channel_id}/messages/{message_id}/bookmark	authenticated	membership	allow	-
 PUT	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me	authenticated	membership	allow	-
 PUT	/channels/{channel_id}/permissions/{overwrite_id}	authenticated	membership	allow	-
@@ -794,6 +797,7 @@ PUT	/cinema/titles/{title_id}/rating	authenticated	self	allow	-
 PUT	/cinema/titles/{title_id}/review	authenticated	self	allow	-
 PUT	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/incident-actions	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-

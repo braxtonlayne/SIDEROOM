@@ -7,12 +7,12 @@ import { useChannels, useCurrentUser, useGuild } from '../data';
 import { useLoungeRoute } from '../nav';
 import {
   acceptScreening,
+  COMPLETED_ONBOARDING,
+  completedOnboarding,
   getGuide,
   getMemberVerification,
   getOnboarding,
   getOwnMember,
-  markOnboardingDone,
-  onboardingDone,
   postOnboardingResponses,
   useGuideFlags,
   type MemberVerification,
@@ -28,8 +28,10 @@ type Step =
 /**
  * What a new member goes through when they open a server (LNG-GLD-030, LNG-GLD-031): the rules they must agree to
  * (they stay read-only until they do), then the onboarding questions. Both are skippable here without side effects:
- * a pending member just stays read-only, and skipped onboarding is not offered again. It also notes whether the
- * server has a guide so the server menu can offer it (LNG-GLD-033).
+ * a pending member just stays read-only. The questions are offered to a member whose `COMPLETED_ONBOARDING` flag is
+ * clear who joined within three days or has just accepted the rules (D-245); everyone else without the flag finds
+ * "Channels & Roles" at the top of the channel list. It also notes whether the server has a guide so the server menu
+ * can offer it (LNG-GLD-033).
  */
 export function JoinGate() {
   const { guildId } = useLoungeRoute();
@@ -39,6 +41,7 @@ export function JoinGate() {
   const [step, setStep] = useState<{ guildId: string; step: Step } | null>(null);
   const setGuide = useGuideFlags((s) => s.set);
   const setBrowse = useGuideFlags((s) => s.setOnboarding);
+  const setFlags = useGuideFlags((s) => s.setMemberFlags);
   const owner = guild?.ownerId === me.id;
   const known = !!guild;
 
@@ -54,13 +57,14 @@ export function JoinGate() {
         if (owner) return;
         const member = await getOwnMember(active);
         if (!live) return;
+        setFlags(active, member.flags ?? 0);
         if (member.pending) {
           const rules = await getMemberVerification(active);
           if (live && rules.enabled)
             setStep({ guildId: active, step: { kind: 'screening', form: rules } });
           return;
         }
-        if (onboardingDone(me.id, active)) return;
+        if (completedOnboarding(member.flags) || useGuideFlags.getState().skipped[active]) return;
         const joined = member.joined_at ? Date.parse(member.joined_at) : 0;
         if (!joined || Date.now() - joined > ONBOARDING_WINDOW_MS) return;
         if (live && form?.enabled && form.prompts.some((p) => p.in_onboarding)) {
@@ -73,7 +77,7 @@ export function JoinGate() {
     return () => {
       live = false;
     };
-  }, [active, known, owner, me.id, setGuide, setBrowse]);
+  }, [active, known, owner, me.id, setGuide, setBrowse, setFlags]);
 
   if (!active || !step || step.guildId !== active) return null;
   const close = () => setStep(null);
@@ -89,7 +93,7 @@ export function JoinGate() {
             if (
               form.enabled &&
               form.prompts.some((p) => p.in_onboarding) &&
-              !onboardingDone(me.id, active)
+              !completedOnboarding(useGuideFlags.getState().memberFlags[active])
             )
               setStep({ guildId: active, step: { kind: 'onboarding', form } });
             else close();
@@ -97,7 +101,32 @@ export function JoinGate() {
         }}
       />
     );
-  return <OnboardingDialog guildId={active} userId={me.id} form={step.step.form} onClose={close} />;
+  return <OnboardingDialog guildId={active} form={step.step.form} onClose={close} />;
+}
+
+/**
+ * "Channels & Roles" (D-245): the onboarding questions, opened from the top of the channel list by a member who has
+ * not answered them yet (whenever they joined).
+ */
+export function OnboardingEntryDialog({
+  guildId,
+  onClose,
+}: {
+  guildId: string;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState<Onboarding | null>(null);
+  useEffect(() => {
+    let live = true;
+    getOnboarding(guildId).then(
+      (f) => live && (f.prompts.some((p) => p.in_onboarding) ? setForm(f) : onClose()),
+      () => live && onClose(),
+    );
+    return () => {
+      live = false;
+    };
+  }, [guildId, onClose]);
+  return form ? <OnboardingDialog guildId={guildId} form={form} onClose={onClose} /> : null;
 }
 
 function ScreeningDialog({
@@ -167,12 +196,10 @@ function ScreeningDialog({
 
 function OnboardingDialog({
   guildId,
-  userId,
   form,
   onClose,
 }: {
   guildId: string;
-  userId: string;
   form: Onboarding;
   onClose: () => void;
 }) {
@@ -201,7 +228,7 @@ function OnboardingDialog({
   );
 
   const skip = () => {
-    markOnboardingDone(userId, guildId);
+    useGuideFlags.getState().skip(guildId);
     onClose();
   };
   const submit = async () => {
@@ -209,7 +236,9 @@ function OnboardingDialog({
     setError(null);
     try {
       const out = await postOnboardingResponses(guildId, picked);
-      markOnboardingDone(userId, guildId);
+      // The server set COMPLETED_ONBOARDING; the channel list stops offering "Channels & Roles".
+      const { memberFlags, setMemberFlags } = useGuideFlags.getState();
+      setMemberFlags(guildId, (memberFlags[guildId] ?? 0) | COMPLETED_ONBOARDING);
       setResult(out.channel_ids);
       setBusy(false);
     } catch (e) {

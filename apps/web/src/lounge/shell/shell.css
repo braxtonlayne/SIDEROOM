@@ -555,3 +555,18 @@
   block-size: 100%;
   object-fit: cover;
 }
+
+/* "Invites paused until <time>" under the server name (D-243). */
+.lng-incident-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block: 0 4px;
+  margin-inline: 8px;
+  padding-block: 4px;
+  padding-inline: 8px;
+  border-radius: 6px;
+  background: var(--ui-surface-hover, rgb(255 255 255 / 6%));
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+}

@@ -26,6 +26,11 @@ export interface ComponentContext {
 }
 
 const isStaff = (customId: string | undefined) => parseStaffButton(customId) !== null;
+/** Staff card buttons are answered once; the buttons of an alert card (D-244) stay, the server rewrites the card. */
+const isOnce = (customId: string | undefined) => {
+  const b = parseStaffButton(customId);
+  return b !== null && b.kind !== 'alert';
+};
 
 /**
  * Buttons and select menus on app messages (LNG-MSGUI-022). Link buttons open their URL. Everything else
@@ -56,12 +61,12 @@ export function ComponentRows({
   // Staff card buttons (`sr:` custom ids) are answered once; afterwards they stay disabled.
   const [staffDone, setStaffDone] = useState<string | null>(null);
 
-  const staffPress = async (key: string, customId: string | undefined) => {
+  const staffPress = async (key: string, customId: string | undefined, values?: string[]) => {
     const button = parseStaffButton(customId);
     if (!button || !context) return;
     setBusy(key);
     try {
-      const out = await runStaffButton(button, context);
+      const out = await runStaffButton(button, { ...context, guildId }, values);
       setStaffDone(out.message ?? t('lounge.components.staffDone'));
       // A rejection needs a reason, so the card sends the reviewer to the review page's reject dialog.
       if (out.link?.startsWith('/')) window.location.assign(out.link);
@@ -190,7 +195,7 @@ export function ComponentRows({
                     className="lng-cbtn"
                     data-style={style}
                     disabled={
-                      c.disabled || busy === key || (staffDone !== null && isStaff(c.custom_id))
+                      c.disabled || busy === key || (staffDone !== null && isOnce(c.custom_id))
                     }
                     aria-busy={busy === key || undefined}
                     onClick={() =>
@@ -212,10 +217,16 @@ export function ComponentRows({
                       className="lng-cselect"
                       aria-label={label}
                       data-select-type={c.type}
-                      disabled={c.disabled || busy === key}
+                      disabled={
+                        c.disabled || busy === key || (staffDone !== null && isOnce(c.custom_id))
+                      }
                       aria-busy={busy === key || undefined}
                       value=""
-                      onChange={(e) => interact(key, c, [e.target.value])}
+                      onChange={(e) =>
+                        isStaff(c.custom_id) && context
+                          ? void staffPress(key, c.custom_id, [e.target.value])
+                          : interact(key, c, [e.target.value])
+                      }
                     >
                       <option value="" disabled>
                         {label}

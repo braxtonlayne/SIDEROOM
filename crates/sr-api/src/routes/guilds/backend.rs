@@ -227,6 +227,17 @@ pub trait GuildBackend: Send + Sync {
         patch: MemberPatch,
     ) -> ChatResult<Member>;
     async fn kick_member(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<()>;
+    /// [`Self::kick_member`] with the reason that goes on the audit row (the AutoMod alert
+    /// buttons of D-244 give "AutoMod alert: <rule>").
+    async fn kick_member_with_reason(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        user: UserId,
+        _reason: Option<String>,
+    ) -> ChatResult<()> {
+        self.kick_member(actor, guild, user).await
+    }
     // bans
     async fn list_bans(
         &self,
@@ -550,9 +561,10 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         guild: GuildId,
         roles: &[RoleId],
     ) -> ChatResult<Vec<RoleId>> {
+        let before = self.svc.get_member_view(user, guild, user).await?;
         let added = self.svc.apply_onboarding_roles(user, guild, roles).await?;
-        if !added.is_empty() {
-            let m = self.svc.get_member_view(user, guild, user).await?;
+        let m = self.svc.get_member_view(user, guild, user).await?;
+        if !added.is_empty() || m.extras.flags != before.extras.flags {
             self.emit_member_updated(&m).await;
         }
         Ok(added)
@@ -965,6 +977,26 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         self.emit_member_left(guild, user).await;
         self.audit(guild, actor, AuditAction::MemberKick, user.get(), None)
             .await;
+        Ok(())
+    }
+
+    async fn kick_member_with_reason(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        user: UserId,
+        reason: Option<String>,
+    ) -> ChatResult<()> {
+        self.svc.kick_member(actor, guild, user).await?;
+        self.emit_member_left(guild, user).await;
+        self.audit(
+            guild,
+            actor,
+            AuditAction::MemberKick,
+            user.get(),
+            reason.as_deref(),
+        )
+        .await;
         Ok(())
     }
 

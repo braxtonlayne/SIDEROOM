@@ -251,6 +251,26 @@ async fn env_with(opts: Opts) -> Env {
         dyn_clock.clone(),
         "https://side.test",
     );
+    // The guild backend behind the alert buttons (kick, ban, timeout), writing audit rows into
+    // the same settings store.
+    let chat_ids = SnowflakeGenerator::new(dyn_clock.clone(), 3, 3).unwrap();
+    let chat_svc = sr_chat::ChatService::new(
+        backend.clone(),
+        dyn_clock.clone(),
+        chat_ids,
+        sr_chat::ChatLimits::default(),
+    );
+    let audit_ids = SnowflakeGenerator::new(dyn_clock.clone(), 4, 4).unwrap();
+    let audit_counter = Arc::new(AtomicU64::new(7));
+    let audit_service = Arc::new(SettingsService::new(
+        super::DynRepo(repo.clone()),
+        dyn_clock.clone(),
+        audit_ids,
+        Arc::new(move || audit_counter.fetch_add(1, Ordering::SeqCst)),
+    ));
+    let guild_api = crate::routes::guilds::GuildApi(
+        crate::routes::guilds::backend::backend_with_audit(chat_svc, bus.clone(), audit_service),
+    );
     let mut builder = AppState::builder()
         .bots(bots)
         .sessions(sessions.clone())
@@ -258,6 +278,7 @@ async fn env_with(opts: Opts) -> Env {
         .settings(settings)
         .extension(deps.clone())
         .extension(Arc::new(AutoModGateHandle(deps.clone())))
+        .extension(Arc::new(guild_api))
         .extension(Arc::new(crate::routes::media::MediaDeps::new(
             storage.clone(),
         )))
@@ -3361,4 +3382,470 @@ async fn following_a_channel_posts_a_follow_added_notice_in_the_receiving_channe
     assert_eq!(notices.len(), 1);
     assert_eq!(notices[0]["content"], "news");
     assert_eq!(notices[0]["author"]["id"], OWNER.to_string());
+}
+
+// ---- alert messages with moderation buttons (D-243, D-244) -----------------------
+
+impl Env {
+    /// A request as a signed-in browser session of `user` (alert buttons are for people).
+    async fn as_user(
+        &self,
+        user: u64,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
+        use sr_auth::{
+            repo::{SessionRecord, SessionRepository},
+            session::SessionToken,
+        };
+        let t = SessionToken::generate().unwrap();
+        let now = self.clock.now_unix_ms() / 1000;
+        self.sessions
+            .create(SessionRecord {
+                id: i64::try_from(user).unwrap(),
+                user_id: i64::try_from(user).unwrap(),
+                token_hash: t.hash(),
+                created_at: now - 10,
+                last_seen_at: now,
+                expires_at: now + 100_000,
+                device_name: None,
+            })
+            .await
+            .unwrap();
+        let mut req = Request::builder()
+            .method(method.clone())
+            .uri(format!("/api/v1{path}"))
+            .header("cookie", format!("sr_session={}", t.expose()));
+        if method != Method::GET {
+            req = req.header("x-sr-csrf", csrf::token_for(t.expose()));
+        }
+        let body = match body {
+            Some(v) => {
+                req = req.header("content-type", "application/json");
+                Body::from(v.to_string())
+            }
+            None => Body::empty(),
+        };
+        let resp = self
+            .app
+            .clone()
+            .oneshot(req.body(body).unwrap())
+            .await
+            .unwrap();
+        let (parts, body) = resp.into_parts();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        let json = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+        (parts.status, json)
+    }
+
+    /// Add permissions to the `mods` role (MOD's role).
+    fn grant_mods(&self, p: Permissions) {
+        let mut d = self.backend.data();
+        d.roles
+            .iter_mut()
+            .find(|r| r.name == "mods")
+            .unwrap()
+            .permissions |= p;
+    }
+
+    /// Press a button on a card in `channel`.
+    async fn press(
+        &self,
+        who: u64,
+        channel: ChannelId,
+        card: &Value,
+        custom_id: &str,
+        values: &[&str],
+    ) -> (StatusCode, Value) {
+        self.as_user(
+            who,
+            Method::POST,
+            &self.g("/alert-actions"),
+            Some(json!({
+                "channel_id": channel.to_string(),
+                "message_id": card["id"],
+                "custom_id": custom_id,
+                "values": values,
+            })),
+        )
+        .await
+    }
+}
+
+fn card_ids(card: &Value) -> Vec<String> {
+    card["components"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|r| r["components"].as_array().into_iter().flatten())
+        .filter_map(|c| c["custom_id"].as_str().map(str::to_owned))
+        .collect()
+}
+
+fn card_field(card: &Value, name: &str) -> Option<String> {
+    card["embeds"][0]["fields"]
+        .as_array()?
+        .iter()
+        .find(|f| f["name"] == name)
+        .and_then(|f| f["value"].as_str().map(str::to_owned))
+}
+
+/// The cards (type 24) in a channel, newest first.
+async fn cards(e: &Env, channel: ChannelId) -> Vec<Value> {
+    history(e, channel)
+        .await
+        .into_iter()
+        .filter(|m| m["type"] == 24)
+        .collect()
+}
+
+#[tokio::test]
+async fn a_join_burst_pauses_invites_and_posts_a_resume_card() {
+    let e = wired().await;
+    let alerts = add_channel(&e, 7_000_001, sr_chat::ChannelType::Text, "safety", 0);
+    let code = new_invite(&e, json!({})).await;
+    // Three members are here (owner, bob, mod); more than four in a minute is a burst.
+    let (s, c) = e
+        .patch(
+            &e.g("/sr/community"),
+            "owner",
+            json!({
+                "raid_alert_joins_per_minute": 4,
+                "safety_alerts_channel_id": alerts.to_string(),
+            }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(c["raid_auto_pause_invites"], true);
+
+    assert_eq!(e.accept(10, &code).await.0, StatusCode::OK);
+    assert!(
+        cards(&e, alerts).await.is_empty(),
+        "four joins is not a burst"
+    );
+    assert_eq!(e.accept(11, &code).await.0, StatusCode::OK);
+
+    // The alert: a card from the system user with a Resume invites button.
+    let found = cards(&e, alerts).await;
+    assert_eq!(found.len(), 1, "{found:?}");
+    let card = &found[0];
+    assert_eq!(card["author"]["id"], "1");
+    assert_eq!(
+        card_ids(card),
+        [format!("sr:incident:resume-invites:{}", e.guild)],
+        "{card}"
+    );
+    assert_eq!(
+        card_field(card, "Joins in the last minute").as_deref(),
+        Some("5")
+    );
+    // Invites are paused for 24 hours by itself and the audit row names the module.
+    let (raid, until) = e.repo.with(|s| {
+        let c = &s.community[&e.guild];
+        (c.raid_detected_at_ms, c.invites_disabled_until_ms)
+    });
+    assert_eq!((raid, until), (Some(T0), Some(T0 + 24 * 3_600_000)));
+    assert_eq!(
+        code_of(&e.accept(12, &code).await),
+        (StatusCode::FORBIDDEN, Some(40006))
+    );
+    let (_, log) = e.get(&e.g("/audit-logs?action_type=1"), "owner").await;
+    assert!(
+        log["audit_log_entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|x| x["options"]["module"] == "community"),
+        "{log}"
+    );
+
+    // Resume invites is checked at press time: a plain member is refused, a manager is not.
+    let id = format!("sr:incident:resume-invites:{}", e.guild);
+    assert_eq!(
+        e.press(BOB, alerts, card, &id, &[]).await.0,
+        StatusCode::FORBIDDEN
+    );
+    // A button id the card does not carry is a stale copy.
+    let (s, r) = e
+        .press(MOD, alerts, card, "sr:incident:resume-invites:1", &[])
+        .await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(false)), "{r}");
+    let (s, r) = e.press(MOD, alerts, card, &id, &[]).await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(true)), "{r}");
+    assert_eq!(
+        e.repo
+            .with(|s| s.community[&e.guild].invites_disabled_until_ms),
+        None
+    );
+    let after = &cards(&e, alerts).await[0];
+    assert!(card_ids(after).is_empty(), "the button is gone");
+    assert_eq!(
+        card_field(after, "Handled").as_deref(),
+        Some(format!("Invites resumed by <@{MOD}>").as_str())
+    );
+    assert_eq!(
+        e.accept(12, &code).await.0,
+        StatusCode::OK,
+        "invites are open again"
+    );
+    // A stale copy gets the polite answer.
+    let (s, r) = e.press(MOD, alerts, card, &id, &[]).await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(false)), "{r}");
+
+    // A second burst inside the cooldown posts nothing more.
+    assert_eq!(e.accept(13, &code).await.0, StatusCode::OK);
+    assert_eq!(cards(&e, alerts).await.len(), 1);
+
+    // With the automatic pause switched off, the alert posts but offers no button.
+    e.clock.advance_ms(11 * 60_000);
+    e.repo.with(|s| {
+        s.community
+            .get_mut(&e.guild)
+            .unwrap()
+            .raid_auto_pause_invites = false;
+    });
+    for user in 14..=18 {
+        assert_eq!(e.accept(user, &code).await.0, StatusCode::OK);
+    }
+    let found = cards(&e, alerts).await;
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(card_ids(&found[0]).is_empty());
+    assert_eq!(
+        e.repo
+            .with(|s| s.community[&e.guild].invites_disabled_until_ms),
+        None
+    );
+}
+
+fn alert_rule(channel: ChannelId, block: bool) -> Value {
+    let mut actions = vec![json!({"type": 2, "metadata": {"channel_id": channel.to_string()}})];
+    if block {
+        actions.push(json!({"type": 1, "metadata": {"custom_message": "no"}}));
+    }
+    json!({
+        "name": "no bad words", "event_type": 1, "trigger_type": 1,
+        "trigger_metadata": {"keyword_filter": ["badword"]},
+        "actions": actions, "enabled": true,
+    })
+}
+
+#[tokio::test]
+async fn automod_alerts_are_cards_whose_buttons_check_the_presser_when_pressed() {
+    let e = env().await;
+    let log = add_channel(&e, 7_000_002, sr_chat::ChannelType::Text, "mod-log", 0);
+    let (s, rule) = e
+        .post(
+            &e.g("/auto-moderation/rules"),
+            "owner",
+            alert_rule(log, false),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{rule}");
+
+    let flagged = say(&e, e.ch, "bob", "this has a BADWORD in it").await;
+    let found = cards(&e, log).await;
+    assert_eq!(found.len(), 1, "{found:?}");
+    let card = &found[0];
+    let id = card["id"].as_str().unwrap().to_owned();
+    assert_eq!(card["author"]["id"], "1");
+    assert_eq!(
+        card["flags"].as_u64().unwrap() & (1 << 30),
+        1 << 30,
+        "SYSTEM tag"
+    );
+    assert_eq!(card_field(card, "Rule").as_deref(), Some("no bad words"));
+    assert_eq!(card_field(card, "Trigger").as_deref(), Some("Keyword"));
+    assert_eq!(card_field(card, "Channel"), Some(format!("<#{}>", e.ch)));
+    assert_eq!(card_field(card, "Member"), Some(format!("<@{BOB}>")));
+    assert_eq!(card_field(card, "Blocked").as_deref(), Some("No"));
+    assert_eq!(
+        card_ids(card),
+        [
+            format!("sr:automod:delete:{id}"),
+            format!("sr:automod:kick:{id}"),
+            format!("sr:automod:ban:{id}"),
+            format!("sr:automod:resolve:{id}"),
+            format!("sr:automod:timeout:{id}"),
+        ]
+    );
+    let select = &card["components"][1]["components"][0];
+    let values: Vec<&str> = select["options"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|o| o["value"].as_str())
+        .collect();
+    assert_eq!(values, ["60", "300", "600", "3600", "86400", "604800"]);
+    // People press; a bot token is refused.
+    let delete = format!("sr:automod:delete:{id}");
+    assert_eq!(
+        e.post(
+            &e.g("/alert-actions"),
+            "mod",
+            json!({"channel_id": log.to_string(), "message_id": id, "custom_id": delete})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Delete message needs MANAGE_MESSAGES now, whatever the card says.
+    let (s, r) = e.press(MOD, log, card, &delete, &[]).await;
+    assert_eq!(
+        (s, r["code"].as_u64()),
+        (StatusCode::FORBIDDEN, Some(50013)),
+        "{r}"
+    );
+    assert_eq!(
+        e.press(BOB, log, card, &delete, &[]).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert!(
+        history(&e, e.ch)
+            .await
+            .iter()
+            .any(|m| m["id"] == flagged["id"])
+    );
+    e.grant_mods(Permissions::MANAGE_MESSAGES);
+    let (s, r) = e.press(MOD, log, card, &delete, &[]).await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(true)), "{r}");
+    assert!(
+        !history(&e, e.ch)
+            .await
+            .iter()
+            .any(|m| m["id"] == flagged["id"]),
+        "the flagged message is gone"
+    );
+    let card = cards(&e, log).await.remove(0);
+    assert!(!card_ids(&card).contains(&delete));
+    assert_eq!(
+        card_field(&card, "Handled"),
+        Some(format!("Deleted by <@{MOD}>"))
+    );
+    // Pressing the removed button again is a polite no.
+    let (s, r) = e.press(MOD, log, &card, &delete, &[]).await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(false)), "{r}");
+
+    // Timeout: the choice must be one of the six.
+    let timeout = format!("sr:automod:timeout:{id}");
+    let (s, _) = e.press(MOD, log, &card, &timeout, &["3600"]).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "MODERATE_MEMBERS is missing");
+    e.grant_mods(Permissions::MODERATE_MEMBERS);
+    assert_eq!(
+        e.press(MOD, log, &card, &timeout, &["5"]).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        e.press(MOD, log, &card, &timeout, &[]).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (s, r) = e.press(MOD, log, &card, &timeout, &["3600"]).await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(true)), "{r}");
+    let until = e
+        .backend
+        .data()
+        .members
+        .iter()
+        .find(|m| m.user_id.get() == BOB)
+        .and_then(|m| m.communication_disabled_until_ms);
+    assert_eq!(until, Some(T0 + 3_600_000));
+    // Every row the ordinary services write carries the rule as its reason.
+    let (_, member_log) = e.get(&e.g("/audit-logs?action_type=24"), "owner").await;
+    assert_eq!(
+        member_log["audit_log_entries"][0]["reason"], "AutoMod alert: no bad words",
+        "{member_log}"
+    );
+    assert_eq!(
+        member_log["audit_log_entries"][0]["user_id"],
+        MOD.to_string()
+    );
+    let card = cards(&e, log).await.remove(0);
+    assert_eq!(
+        card_field(&card, "Handled"),
+        Some(format!(
+            "Deleted by <@{MOD}>\nTimed out by <@{MOD}> for 1 h"
+        ))
+    );
+
+    // Kick carries the AutoMod reason into the audit row, naming the presser.
+    let kick = format!("sr:automod:kick:{id}");
+    assert_eq!(
+        e.press(MOD, log, &card, &kick, &[]).await.0,
+        StatusCode::FORBIDDEN
+    );
+    e.grant_mods(Permissions::KICK_MEMBERS);
+    let (s, r) = e.press(MOD, log, &card, &kick, &[]).await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(true)), "{r}");
+    assert!(!is_member(&e, BOB));
+    let (_, audit) = e.get(&e.g("/audit-logs?action_type=20"), "owner").await;
+    let entry = &audit["audit_log_entries"][0];
+    assert_eq!(entry["user_id"], MOD.to_string(), "{audit}");
+    assert_eq!(entry["reason"], "AutoMod alert: no bad words");
+
+    // Mark resolved closes the card.
+    let card = cards(&e, log).await.remove(0);
+    let resolve = format!("sr:automod:resolve:{id}");
+    let (s, r) = e.press(MOD, log, &card, &resolve, &[]).await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(true)), "{r}");
+    let card = cards(&e, log).await.remove(0);
+    assert!(card_ids(&card).is_empty());
+    assert!(
+        card_field(&card, "Handled")
+            .unwrap()
+            .ends_with(&format!("Resolved by <@{MOD}>"))
+    );
+    let (s, r) = e.press(MOD, log, &card, &resolve, &[]).await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(false)), "{r}");
+}
+
+#[tokio::test]
+async fn a_blocked_message_still_gets_an_alert_card_without_a_delete_button() {
+    let e = env().await;
+    let log = add_channel(&e, 7_000_003, sr_chat::ChannelType::Text, "mod-log", 0);
+    let (s, rule) = e
+        .post(
+            &e.g("/auto-moderation/rules"),
+            "owner",
+            alert_rule(log, true),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{rule}");
+    let (s, _) = e
+        .post(
+            &format!("/channels/{}/messages", e.ch),
+            "bob",
+            json!({"content": "badword"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let found = cards(&e, log).await;
+    assert_eq!(found.len(), 1);
+    let card = &found[0];
+    assert_eq!(card_field(card, "Blocked").as_deref(), Some("Yes"));
+    let id = card["id"].as_str().unwrap();
+    assert!(!card_ids(card).contains(&format!("sr:automod:delete:{id}")));
+
+    // Ban: the reason reaches the ban and the audit row.
+    e.grant_mods(Permissions::BAN_MEMBERS);
+    let ban = format!("sr:automod:ban:{id}");
+    let (s, r) = e.press(MOD, log, card, &ban, &[]).await;
+    assert_eq!((s, r["ok"].as_bool()), (StatusCode::OK, Some(true)), "{r}");
+    assert!(
+        e.backend
+            .data()
+            .bans
+            .iter()
+            .any(|b| b.guild_id == e.guild && b.user_id == UserId::new(BOB))
+    );
+    let (_, audit) = e.get(&e.g("/audit-logs?action_type=22"), "owner").await;
+    assert_eq!(
+        audit["audit_log_entries"][0]["reason"],
+        "AutoMod alert: no bad words"
+    );
+    let card = cards(&e, log).await.remove(0);
+    assert_eq!(
+        card_field(&card, "Handled"),
+        Some(format!("Banned by <@{MOD}>"))
+    );
 }

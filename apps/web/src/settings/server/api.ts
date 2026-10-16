@@ -188,6 +188,10 @@ export interface ChannelObject {
   rate_limit_per_user: number;
   user_limit?: number;
   bitrate?: number;
+  /** Voice and stage channels: 1 auto (the adaptive default), 2 full (camera layers up to 720p whatever the load). */
+  video_quality_mode?: 1 | 2;
+  /** Voice and stage channels: always null, the installation has one voice region. */
+  rtc_region?: string | null;
   /** Minutes of inactivity before new threads in this channel archive. */
   default_auto_archive_duration?: number | null;
   default_thread_rate_limit_per_user?: number | null;
@@ -224,6 +228,7 @@ export interface ChannelBody {
   default_forum_layout?: number;
   user_limit?: number;
   bitrate?: number;
+  video_quality_mode?: 1 | 2;
 }
 export const listChannels = (g: string) =>
   apiFetch<ChannelObject[]>(`/guilds/${g}/channels`, { retries: 0 });
@@ -283,6 +288,75 @@ export const getMember = (g: string, u: string) =>
   apiFetch<MemberObject>(`/guilds/${g}/members/${u}`, { retries: 0 });
 export const kickMember = (g: string, u: string, reason?: string) =>
   send<void>(`/guilds/${g}/members/${u}`, 'DELETE', undefined, reasonHeader(reason));
+// ---- installed applications (J-05) and their command permissions (J-10) ----
+
+/** `GET /guilds/{id}/integrations`: one entry per application installed in the server. */
+export interface IntegrationObject {
+  /** The application id. */
+  id: string;
+  name: string;
+  type: string;
+  enabled: boolean;
+  application: {
+    id: string;
+    name: string;
+    icon: string | null;
+    description: string;
+    bot: UserRef & { bot?: boolean; avatar?: string | null };
+  };
+  /** Who installed it. */
+  user: UserRef;
+  scopes: string[];
+}
+export const listIntegrations = (g: string) =>
+  apiFetch<IntegrationObject[]>(`/guilds/${g}/integrations`, { retries: 0 });
+/** Removes the application: its bot leaves and its managed role is deleted. */
+export const removeIntegration = (g: string, appId: string) =>
+  send<void>(`/guilds/${g}/integrations/${appId}`, 'DELETE');
+
+/** Discord's command permission targets: 1 role, 2 member, 3 channel. */
+export interface CommandPermissionEntry {
+  id: string;
+  type: 1 | 2 | 3;
+  permission: boolean;
+}
+export interface CommandPermissionsObject {
+  /** The command id, or the application id for the application default. */
+  id: string;
+  application_id: string;
+  guild_id: string;
+  permissions: CommandPermissionEntry[];
+}
+/** A command of the application as the editor needs it. */
+export interface AppCommand {
+  id: string;
+  name: string;
+  /** Absent for a global command. */
+  guild_id?: string | null;
+}
+/** The application's commands in this server, with its global commands when `includeGlobal`. */
+export const listAppCommands = (appId: string, g: string, includeGlobal = true) =>
+  apiFetch<AppCommand[]>(
+    `/applications/${appId}/guilds/${g}/commands${includeGlobal ? '?include_global=true' : ''}`,
+    { retries: 0 },
+  );
+export const listCommandPermissions = (appId: string, g: string) =>
+  apiFetch<CommandPermissionsObject[]>(`/applications/${appId}/guilds/${g}/commands/permissions`, {
+    retries: 0,
+  });
+/** Replaces the overrides of one command; the application id as `commandId` is the application default. */
+export const putCommandPermissions = (
+  appId: string,
+  g: string,
+  commandId: string,
+  permissions: CommandPermissionEntry[],
+) =>
+  send<CommandPermissionsObject>(
+    `/applications/${appId}/guilds/${g}/commands/${commandId}/permissions`,
+    'PUT',
+    { permissions },
+  );
+
 /** `until` is an ISO timestamp, or null to clear the timeout. */
 export const timeoutMember = (g: string, u: string, until: string | null) =>
   send<MemberObject>(`/guilds/${g}/members/${u}`, 'PATCH', { communication_disabled_until: until });

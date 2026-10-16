@@ -5,37 +5,36 @@ import { cdnUrl, useChannels } from '../../../store';
 import * as api from '../api';
 import { useResource, type Viewer } from '../hooks';
 import { ActionStatus, Async, useAction } from '../ui';
+import { BotCommandPermissions } from './BotCommandPermissions';
 
 /** Discord's webhook types: 1 incoming, 2 channel follower. */
 const FOLLOWER = 2;
 
-/** Members of a guild that are bots, from the first 1000 members (the largest page the API serves). */
-const listBots = async (guildId: string) =>
-  (await api.listMembers(guildId, { limit: 1000 })).filter(
-    (m) => (m.user as api.UserRef & { bot?: boolean }).bot,
-  );
-
 /**
- * Integrations overview (LNG-SSET-044): how many webhooks and followed channels the server has, and the bots in it.
- * Removing a bot kicks its member (the bot's app stays installed on the developer's side).
+ * Integrations overview (LNG-SSET-044): how many webhooks and followed channels the server has, and the applications
+ * installed in it (`GET /guilds/{id}/integrations`, J-05). A server manager opens an application's command
+ * permissions (J-10, LNG-SSET-047) or removes it: the bot leaves and its role goes with it.
  */
 export function IntegrationsOverview({ guildId, viewer }: { guildId: string; viewer: Viewer }) {
   const t = useT();
   const hooks = useResource(`integrations-hooks:${guildId}`, () => api.listWebhooks(guildId));
-  const bots = useResource(`integrations-bots:${guildId}`, () => listBots(guildId));
-  const [toRemove, setToRemove] = useState<api.MemberObject | null>(null);
+  const canManage = viewer.can('MANAGE_GUILD');
+  const apps = useResource(`integrations-apps:${guildId}`, () =>
+    canManage ? api.listIntegrations(guildId) : Promise.resolve([]),
+  );
+  const [toRemove, setToRemove] = useState<api.IntegrationObject | null>(null);
+  const [editing, setEditing] = useState<api.IntegrationObject | null>(null);
   const action = useAction();
   const canWebhooks = viewer.can('MANAGE_WEBHOOKS');
-  const canKick = viewer.can('KICK_MEMBERS');
 
   const remove = async () => {
     if (!toRemove) return;
     const ok = await action.run(async () => {
-      await api.kickMember(guildId, toRemove.user.id);
+      await api.removeIntegration(guildId, toRemove.id);
       return true;
     });
     if (ok) {
-      bots.set((cur) => (cur ?? []).filter((m) => m.user.id !== toRemove.user.id));
+      apps.set((cur) => (cur ?? []).filter((a) => a.id !== toRemove.id));
       setToRemove(null);
     }
   };
@@ -61,61 +60,81 @@ export function IntegrationsOverview({ guildId, viewer }: { guildId: string; vie
           )}
         </Async>
       )}
-      <section aria-label={t('settings.integrationsOverview.botsTitle')}>
-        <h2 className="ss-sub">{t('settings.integrationsOverview.botsTitle')}</h2>
-        <Async res={bots} label={t('settings.integrationsOverview.loadingBots')}>
-          {(list) =>
-            list.length === 0 ? (
-              <EmptyState
-                title={t('settings.integrationsOverview.noBots')}
-                description={t('settings.integrationsOverview.noBotsHint')}
-              />
-            ) : (
-              <ul className="ss-list" aria-label={t('settings.integrationsOverview.botsTitle')}>
-                {list.map((m) => {
-                  const name = api.userName(m.user);
-                  return (
-                    <li key={m.user.id} className="ss-row">
+      {canManage && (
+        <section aria-label={t('settings.integrationsOverview.botsTitle')}>
+          <h2 className="ss-sub">{t('settings.integrationsOverview.botsTitle')}</h2>
+          <Async res={apps} label={t('settings.integrationsOverview.loadingBots')}>
+            {(list) =>
+              list.length === 0 ? (
+                <EmptyState
+                  title={t('settings.integrationsOverview.noBots')}
+                  description={t('settings.integrationsOverview.noAppsHint')}
+                />
+              ) : (
+                <ul className="ss-list" aria-label={t('settings.integrationsOverview.botsTitle')}>
+                  {list.map((a) => (
+                    <li key={a.id} className="ss-row">
                       <Avatar
-                        name={name}
+                        name={a.name}
                         size={32}
-                        src={cdnUrl('avatars', m.user.id, (m.user as { avatar?: string }).avatar, {
+                        src={cdnUrl('avatars', a.application.bot.id, a.application.icon, {
                           size: 64,
                         })}
                       />
                       <div className="ss-grow">
-                        <div className="ss-name">{name}</div>
+                        <div className="ss-name">{a.name}</div>
+                        <div className="ss-meta">
+                          {t('settings.integrationsOverview.addedBy', {
+                            name: api.userName(a.user),
+                          })}
+                        </div>
                       </div>
-                      {canKick && (
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          aria-label={t('settings.integrationsOverview.removeNamed', { name })}
-                          onClick={() => setToRemove(m)}
-                        >
-                          {t('settings.integrationsOverview.remove')}
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        aria-label={t('settings.integrationsOverview.commandsNamed', {
+                          name: a.name,
+                        })}
+                        onClick={() => setEditing(a)}
+                      >
+                        {t('settings.integrationsOverview.commands')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        aria-label={t('settings.integrationsOverview.removeNamed', {
+                          name: a.name,
+                        })}
+                        onClick={() => setToRemove(a)}
+                      >
+                        {t('settings.integrationsOverview.remove')}
+                      </Button>
                     </li>
-                  );
-                })}
-              </ul>
-            )
-          }
-        </Async>
-      </section>
+                  ))}
+                </ul>
+              )
+            }
+          </Async>
+        </section>
+      )}
       <ConfirmDialog
         open={!!toRemove}
         danger
-        title={t('settings.integrationsOverview.removeTitle', {
-          name: toRemove ? api.userName(toRemove.user) : '',
-        })}
+        title={t('settings.integrationsOverview.removeTitle', { name: toRemove?.name ?? '' })}
         description={t('settings.integrationsOverview.removeBody')}
         confirmLabel={t('settings.integrationsOverview.remove')}
         loading={action.busy}
         onConfirm={() => void remove()}
         onCancel={() => setToRemove(null)}
       />
+      {editing && (
+        <BotCommandPermissions
+          guildId={guildId}
+          appId={editing.id}
+          appName={editing.name}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }
