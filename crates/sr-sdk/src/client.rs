@@ -12,9 +12,13 @@ use tokio::time::sleep;
 use crate::cache::Cache;
 use crate::command::{CommandRouter, Context};
 use crate::error::{Error, Result};
-use crate::gateway::{Dispatch, Event, GatewayConnector, ShardConfig, WsConnector, run_shard};
+use crate::gateway::{
+    Dispatch, Event, GatewayConnector, ShardConfig, WsConnector, host_allowed, run_shard_with,
+    url_host,
+};
 use crate::http::{HttpTransport, MessageBody, Rest};
 use crate::model::{CallbackType, intents};
+use crate::ops::GatewayHandle;
 
 /// Receives every decoded event. Handlers run on their own task, so a slow one never delays
 /// the heartbeat.
@@ -43,6 +47,7 @@ pub struct ClientBuilder {
     intents: u64,
     shards: Shards,
     gateway_url: Option<String>,
+    gateway_hosts: Vec<String>,
     handler: Option<Arc<dyn EventHandler>>,
     router: Option<CommandRouter>,
     register_commands: bool,
@@ -60,6 +65,7 @@ impl ClientBuilder {
             intents: intents::DEFAULT,
             shards: Shards::Auto,
             gateway_url: None,
+            gateway_hosts: Vec::new(),
             handler: None,
             router: None,
             register_commands: true,
@@ -76,6 +82,12 @@ impl ClientBuilder {
     }
     pub fn shards(mut self, s: Shards) -> Self {
         self.shards = s;
+        self
+    }
+    /// Also follow gateway and resume URLs on this host (D-234). By default only the host of
+    /// the base URL (and of an explicit `gateway_url`) is followed.
+    pub fn allow_gateway_host(mut self, host: impl Into<String>) -> Self {
+        self.gateway_hosts.push(host.into().to_ascii_lowercase());
         self
     }
     /// Skip `GET /gateway/bot` for the URL.
@@ -111,8 +123,8 @@ impl ClientBuilder {
 
     pub fn build(self) -> Result<Client> {
         let rest = match self.transport {
-            Some(t) => Rest::with_transport(self.base_url, self.token.clone(), t),
-            None => Rest::new(self.base_url, self.token.clone())?,
+            Some(t) => Rest::with_transport(self.base_url.clone(), self.token.clone(), t),
+            None => Rest::new(self.base_url.clone(), self.token.clone())?,
         };
         Ok(Client {
             rest,
@@ -120,6 +132,9 @@ impl ClientBuilder {
             intents: self.intents,
             shards: self.shards,
             gateway_url: self.gateway_url,
+            gateway_hosts: self.gateway_hosts,
+            base_url: self.base_url,
+            gateway: GatewayHandle::default(),
             handler: self.handler,
             router: self.router.map(Arc::new),
             register_commands: self.register_commands,
@@ -129,12 +144,27 @@ impl ClientBuilder {
     }
 }
 
+/// `wss://host/gateway` for an API root such as `https://host/api/v1` (the server's default).
+fn default_gateway_url(base_url: &str) -> String {
+    let (scheme, rest) = base_url.split_once("://").unwrap_or(("https", base_url));
+    let ws = if scheme.eq_ignore_ascii_case("http") {
+        "ws"
+    } else {
+        "wss"
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    format!("{ws}://{authority}/gateway")
+}
+
 pub struct Client {
     rest: Rest,
     cache: Cache,
     intents: u64,
     shards: Shards,
     gateway_url: Option<String>,
+    gateway_hosts: Vec<String>,
+    base_url: String,
+    gateway: GatewayHandle,
     handler: Option<Arc<dyn EventHandler>>,
     router: Option<Arc<CommandRouter>>,
     register_commands: bool,
@@ -151,6 +181,12 @@ impl Client {
         &self.rest
     }
 
+    /// Send gateway operations (member requests, presence) to the running shards. Clone it
+    /// before `start` consumes the client.
+    pub fn gateway(&self) -> GatewayHandle {
+        self.gateway.clone()
+    }
+
     pub fn cache(&self) -> &Cache {
         &self.cache
     }
@@ -164,10 +200,31 @@ impl Client {
 
     /// Connect every shard and run until one fails fatally (bad token or intents).
     pub async fn start(self) -> Result<()> {
+        // D-234: the base host and the operator's allow-list are the only hosts followed.
+        let mut allowed: Vec<String> = url_host(&self.base_url).into_iter().collect();
+        allowed.extend(self.gateway_hosts.iter().cloned());
         let (url, recommended) = match &self.gateway_url {
             Some(u) => (u.clone(), 1),
-            None => self.rest.gateway_bot().await?,
+            None => {
+                let (u, n) = self.rest.gateway_bot().await?;
+                if host_allowed(&u, &allowed) {
+                    (u, n)
+                } else {
+                    let fallback = default_gateway_url(&self.base_url);
+                    tracing::warn!(
+                        gateway_url = u.as_str(),
+                        fallback = fallback.as_str(),
+                        "ignoring a gateway URL on a host that is neither the base host nor allow-listed"
+                    );
+                    (fallback, n)
+                }
+            }
         };
+        if let Some(h) = url_host(&url)
+            && !allowed.contains(&h)
+        {
+            allowed.push(h);
+        }
         let plan: Vec<(u32, u32)> = match self.shards {
             Shards::Auto => (0..recommended).map(|i| (i, recommended)).collect(),
             Shards::Count(n) => (0..n.max(1)).map(|i| (i, n.max(1))).collect(),
@@ -176,8 +233,13 @@ impl Client {
 
         let (tx, mut rx) = mpsc::channel::<Dispatch>(256);
         let mut shard_tasks: JoinSet<Result<()>> = JoinSet::new();
+        let shard_count = plan.first().map_or(1, |s| s.1);
+        let mut senders = std::collections::HashMap::new();
         for (n, shard) in plan.into_iter().enumerate() {
-            let cfg = ShardConfig::new(self.rest.token(), self.intents, shard, url.clone());
+            let mut cfg = ShardConfig::new(self.rest.token(), self.intents, shard, url.clone());
+            cfg.allowed_hosts.clone_from(&allowed);
+            let (out_tx, out_rx) = mpsc::channel::<String>(32);
+            senders.insert(shard.0, out_tx);
             let connector = self.connector.clone();
             let tx = tx.clone();
             let delay = self.identify_gap * u32::try_from(n).unwrap_or(u32::MAX);
@@ -185,10 +247,11 @@ impl Client {
                 if !delay.is_zero() {
                     sleep(delay).await;
                 }
-                run_shard(cfg, connector.as_ref(), tx).await
+                run_shard_with(cfg, connector.as_ref(), tx, Some(out_rx)).await
             });
         }
         drop(tx);
+        self.gateway.register_shards(shard_count, senders);
 
         let ctx = self.context();
         let mut registered = false;
@@ -198,6 +261,9 @@ impl Client {
                     let Some(d) = d else { break };
                     self.cache.apply(&d.name, &d.data);
                     let event = Event::from_dispatch(&d.name, d.data);
+                    if let Event::GuildMembersChunk(c) = &event {
+                        self.gateway.deliver_chunk(c);
+                    }
                     if matches!(event, Event::Ready(_)) && !registered {
                         registered = true;
                         self.register(&ctx).await;
@@ -324,7 +390,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn start_runs_shards_registers_commands_routes_events_and_stops_on_fatal_close() {
         let transport = FakeTransport::new(vec![
-            FakeTransport::json(200, json!({"url": "wss://gw.test/gateway", "shards": 1})),
+            FakeTransport::json(200, json!({"url": "wss://x.test/gateway", "shards": 1})),
             FakeTransport::json(200, json!([])),
             FakeTransport::no_content(),
         ]);
@@ -390,7 +456,7 @@ mod tests {
     async fn auto_sharding_uses_the_recommended_count_and_identifies_each_shard() {
         let transport = FakeTransport::new(vec![FakeTransport::json(
             200,
-            json!({"url": "wss://gw.test/gateway", "shards": 2}),
+            json!({"url": "wss://x.test/gateway", "shards": 2}),
         )]);
         let (conn, links) = FakeConnector::new(2);
         let client = Client::builder("tok", "https://x.test/api/v1")
@@ -409,6 +475,112 @@ mod tests {
         let b = links[1].from_client.lock().expect("lock")[0].clone();
         assert_eq!(a["d"]["shard"], json!([0, 2]));
         assert_eq!(b["d"]["shard"], json!([1, 2]));
+        run.abort();
+    }
+}
+
+#[cfg(test)]
+mod gateway_ops_tests {
+    //! D-234 gateway address rule and the op 8 / op 3 senders.
+    use super::*;
+    use crate::gateway::Incoming;
+    use crate::gateway::fake::{FakeConnector, text};
+    use crate::http::fake::FakeTransport;
+    use crate::ops::{PresenceUpdate, RequestGuildMembers, Status};
+    use serde_json::json;
+
+    fn hello() -> Incoming {
+        text(json!({"op": 10, "d": {"heartbeat_interval": 40000}}))
+    }
+
+    async fn gateway_url_used(url: &str, allow: Option<&str>) -> String {
+        let transport = FakeTransport::new(vec![FakeTransport::json(
+            200,
+            json!({"url": url, "shards": 1}),
+        )]);
+        let (conn, _links) = FakeConnector::new(1);
+        let conn = Arc::new(conn);
+        let mut b = Client::builder("tok", "https://x.test/api/v1")
+            .http_transport(transport)
+            .gateway_connector(conn.clone())
+            .identify_gap(Duration::ZERO);
+        if let Some(h) = allow {
+            b = b.allow_gateway_host(h);
+        }
+        let run = tokio::spawn(b.build().expect("client").start());
+        sleep(Duration::from_millis(100)).await;
+        run.abort();
+        conn.urls.lock().expect("lock")[0].clone()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_gateway_url_on_another_host_falls_back_to_the_configured_one() {
+        assert_eq!(
+            gateway_url_used("wss://evil.test/gateway", None).await,
+            "wss://x.test/gateway"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_allow_listed_gateway_host_is_followed() {
+        assert_eq!(
+            gateway_url_used("wss://gw.test/gateway", Some("GW.test")).await,
+            "wss://gw.test/gateway"
+        );
+        assert_eq!(
+            gateway_url_used("wss://x.test:8443/gateway", None).await,
+            "wss://x.test:8443/gateway",
+            "the base host is always allowed"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn member_requests_and_presence_reach_the_shard_and_chunks_come_back() {
+        let transport = FakeTransport::new(vec![FakeTransport::json(
+            200,
+            json!({"url": "wss://x.test/gateway", "shards": 1}),
+        )]);
+        let (conn, links) = FakeConnector::new(1);
+        let client = Client::builder("tok", "https://x.test/api/v1")
+            .http_transport(transport)
+            .gateway_connector(Arc::new(conn))
+            .identify_gap(Duration::ZERO)
+            .build()
+            .expect("client");
+        let gw = client.gateway();
+        let run = tokio::spawn(client.start());
+        links[0].to_client.send(hello()).expect("hello");
+        sleep(Duration::from_millis(50)).await;
+
+        let mut chunks = gw
+            .request_guild_members(RequestGuildMembers::all("42"))
+            .await
+            .expect("op 8");
+        gw.update_presence(&PresenceUpdate::new(Status::Idle))
+            .await
+            .expect("op 3");
+        sleep(Duration::from_millis(50)).await;
+        let (nonce, ops): (String, Vec<u64>) = {
+            let sent = links[0].from_client.lock().expect("lock");
+            let nonce = sent[1]["d"]["nonce"].as_str().expect("nonce").to_owned();
+            (
+                nonce,
+                sent.iter().filter_map(|f| f["op"].as_u64()).collect(),
+            )
+        };
+        assert_eq!(ops, vec![2, 8, 3]);
+
+        links[0]
+            .to_client
+            .send(text(
+                json!({"op": 0, "s": 1, "t": "GUILD_MEMBERS_CHUNK", "d": {
+                "guild_id": "42", "members": [{"user": {"id": "1"}}],
+                "chunk_index": 0, "chunk_count": 1, "nonce": nonce}}),
+            ))
+            .expect("chunk");
+        let c = chunks.recv().await.expect("chunk");
+        assert_eq!(c.members.len(), 1);
+        assert!(chunks.recv().await.is_none());
         run.abort();
     }
 }

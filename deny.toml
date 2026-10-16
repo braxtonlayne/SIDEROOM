@@ -52,7 +52,7 @@ deny = [
     # `oauth2` (fixed-URL Discord OAuth) and `object_store` (S3)). A new crate that
     # adds a reqwest dependency fails this check; add it here only with a decision.
     # sr-sdk is the bot SDK: it connects to the server its operator names, never to an address a
-    # user supplied (p13 handoff, owner question).
+    # user supplied (D-234: only the base host and allow-listed hosts are followed).
     # sr-push, sr-storage, sr-transcoder and sr-unfurl are grandfathered: operator-configured
     # fixed endpoints (push services, S3, transcoder worker) or SafeClient transports.
     { crate = "reqwest", wrappers = [
