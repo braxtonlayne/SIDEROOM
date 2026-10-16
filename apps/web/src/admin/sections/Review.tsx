@@ -411,7 +411,7 @@ function ReviewDetail({
     } else {
       autoReject.current = null;
     }
-  }, [res, res.data, viewer.userId, id, action, t]);
+  }, [res, res.data, viewer.userId, id, action, t, dialogOnOpen]);
 
   const apply = async (fn: () => Promise<SubmissionDetail>, done: string) => {
     const d = await action.run(fn, done);

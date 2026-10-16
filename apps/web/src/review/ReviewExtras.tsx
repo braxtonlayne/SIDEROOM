@@ -133,7 +133,6 @@ function ProxyVideo({ item }: { item: api.ReviewMediaItem }) {
   return (
     <div className="rv-stack">
       <h4>{item.label}</h4>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- a review proxy has no captions */}
       <video
         ref={setVideo}
         src={item.url ?? undefined}
