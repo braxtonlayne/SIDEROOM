@@ -404,7 +404,8 @@ pub fn validate_edit(input: &EditMessageInput, ctx: &EditContext<'_>) -> ChatRes
     let parsed = sr_markdown::check_limits(&content, &ctx.limits.markdown()).map_err(map_limit)?;
     // A new card token needs USE_LIBRARY_EMBEDS too (D-241); unchanged content is not re-checked.
     if content_changes && parsed.cards > 0 && !ctx.perms.has(Permissions::USE_LIBRARY_EMBEDS) {
-        let had = sr_markdown::check_limits(&m.content, &ctx.limits.markdown()).map_or(0, |p| p.cards);
+        let had =
+            sr_markdown::check_limits(&m.content, &ctx.limits.markdown()).map_or(0, |p| p.cards);
         if parsed.cards > had {
             return Err(ChatError::MissingPermissions);
         }

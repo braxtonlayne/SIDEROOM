@@ -5656,6 +5656,8 @@ dependencies = [
  "reqwest 0.13.5",
  "serde",
  "serde_json",
+ "sr-core",
+ "sr-gateway",
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite",

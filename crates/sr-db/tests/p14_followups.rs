@@ -54,7 +54,6 @@ async fn guild(pool: &PgPool, test_ids: &Ids) -> GuildId {
         .id
 }
 
-
 const EMBEDS_BIT: u64 = 1 << 58;
 
 async fn bits(pool: &PgPool, id: i64) -> u64 {

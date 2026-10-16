@@ -324,7 +324,12 @@ async fn emoji_audit_rows_name_the_bot_or_the_owner() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|r| (r["action"].as_str().unwrap(), r["actor_id"].as_str().unwrap()))
+        .map(|r| {
+            (
+                r["action"].as_str().unwrap(),
+                r["actor_id"].as_str().unwrap(),
+            )
+        })
         .filter(|(a, _)| a.starts_with("app.emoji_"))
         .collect();
     let owner = OWNER.to_string();

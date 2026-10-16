@@ -751,6 +751,83 @@ impl GuildDirectory for PgGuildDirectory {
         })
     }
 
+    async fn request_members(
+        &self,
+        guild: GuildId,
+        request: &sr_gateway::MemberRequest,
+    ) -> Option<sr_gateway::RequestedMembers> {
+        use sr_chat::admin_repo::{GuildAdminRepository, MemberFilter};
+        /// The longest name query the REST search accepts.
+        const QUERY_MAX: usize = 64;
+        /// Rows fetched per round trip of a long listing.
+        const PAGE: usize = 1000;
+        let found: Result<(Vec<sr_chat::domain::Member>, Vec<UserId>), sr_chat::RepoError> =
+            async {
+                match request {
+                    sr_gateway::MemberRequest::Ids(ids) => {
+                        let mut members = Vec::new();
+                        let mut missing = Vec::new();
+                        for id in ids {
+                            match self.chat.get_member(guild, *id).await? {
+                                Some(m) => members.push(m),
+                                None => missing.push(*id),
+                            }
+                        }
+                        members.sort_by_key(|m| m.user_id);
+                        Ok((members, missing))
+                    }
+                    sr_gateway::MemberRequest::Search { query, limit } => {
+                        let q = query.trim();
+                        if q.chars().count() > QUERY_MAX {
+                            return Ok((Vec::new(), Vec::new()));
+                        }
+                        let filter = MemberFilter {
+                            query: (!q.is_empty()).then(|| q.to_owned()),
+                            role: None,
+                        };
+                        let want = if *limit == 0 { usize::MAX } else { *limit };
+                        let mut all = Vec::new();
+                        let mut after = None;
+                        while all.len() < want {
+                            let take = PAGE.min(want - all.len());
+                            let page = self.chat.list_members(guild, &filter, after, take).await?;
+                            let full = page.len() == take;
+                            after = page.last().map(|m| m.user_id);
+                            all.extend(page);
+                            if !full {
+                                break;
+                            }
+                        }
+                        Ok((all, Vec::new()))
+                    }
+                }
+            }
+            .await;
+        let (members, not_found) = match found {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!(error = %e, "request_members failed");
+                return None;
+            }
+        };
+        let ids: Vec<UserId> = members.iter().map(|m| m.user_id).collect();
+        let users: std::collections::HashMap<UserId, sr_chat::repo::UserSummary> =
+            match self.chat.users(&ids).await {
+                Ok(u) => u.into_iter().map(|u| (u.id, u)).collect(),
+                Err(e) => {
+                    tracing::error!(error = %e, "request_members users failed");
+                    return None;
+                }
+            };
+        Some(sr_gateway::RequestedMembers {
+            members: members
+                .iter()
+                .map(|m| json!(MemberObject::new(m, false, &users)))
+                .collect(),
+            not_found,
+        })
+    }
+
     async fn member_payload(&self, guild: GuildId, user: UserId) -> Option<Value> {
         let res: Result<Option<Value>, sr_chat::error::RepoError> = async {
             let Some(m) = self.chat.get_member(guild, user).await? else {
@@ -1120,6 +1197,119 @@ mod tests {
                 .await
                 .is_none()
         );
+    }
+
+    /// Op 8 (D-242): members by name, by id (missing ids reported) and the whole list, as the REST
+    /// search shows them, without the moderator-only join fields.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn request_members_searches_by_name_and_ids() {
+        use sr_chat::{ChatLimits, ChatService};
+        use sr_gateway::{MemberRequest, RequestedMembers};
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let w = ((std::process::id() % 4) * 4) as u8 + 2;
+        let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+        let svc = ChatService::new(
+            PgChatRepo::new(pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), w + 16, w + 16).expect("ids"),
+            ChatLimits::default(),
+        );
+        let (owner, zoe, other) = (
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+        );
+        let guild = svc
+            .create_guild(owner, "Roster Club")
+            .await
+            .unwrap()
+            .guild
+            .id;
+        for u in [zoe, other] {
+            sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+                .bind(guild.get() as i64)
+                .bind(u.get() as i64)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query(
+            "UPDATE guild_members SET nick = 'Zoe Quartz' WHERE guild_id = $1 AND user_id = $2",
+        )
+        .bind(guild.get() as i64)
+        .bind(zoe.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let dir = PgGuildDirectory::new(pool.clone(), clock.clone());
+        let ids_of = |r: &RequestedMembers| -> Vec<String> {
+            r.members
+                .iter()
+                .map(|m| m["user"]["id"].as_str().unwrap().to_owned())
+                .collect()
+        };
+        let by_name = dir
+            .request_members(
+                guild,
+                &MemberRequest::Search {
+                    query: "quartz".into(),
+                    limit: 5,
+                },
+            )
+            .await
+            .expect("an answer");
+        assert_eq!(ids_of(&by_name), vec![zoe.to_string()]);
+        assert_eq!(by_name.members[0]["nick"], "Zoe Quartz");
+        assert!(by_name.members[0].get("sr_join").is_none());
+        assert!(by_name.members[0].get("sr_signals").is_none());
+
+        let everyone = dir
+            .request_members(
+                guild,
+                &MemberRequest::Search {
+                    query: String::new(),
+                    limit: 0,
+                },
+            )
+            .await
+            .expect("an answer");
+        let mut want = vec![owner, zoe, other];
+        want.sort();
+        assert_eq!(
+            ids_of(&everyone),
+            want.iter().map(ToString::to_string).collect::<Vec<_>>()
+        );
+        let limited = dir
+            .request_members(
+                guild,
+                &MemberRequest::Search {
+                    query: String::new(),
+                    limit: 2,
+                },
+            )
+            .await
+            .expect("an answer");
+        assert_eq!(limited.members.len(), 2);
+
+        let stranger = UserId::new(1);
+        let by_id = dir
+            .request_members(guild, &MemberRequest::Ids(vec![other, stranger, zoe]))
+            .await
+            .expect("an answer");
+        let mut got = vec![other, zoe];
+        got.sort();
+        assert_eq!(
+            ids_of(&by_id),
+            got.iter().map(ToString::to_string).collect::<Vec<_>>()
+        );
+        assert_eq!(by_id.not_found, vec![stranger]);
     }
 
     /// Age-restricted channels (and threads of them), GUILD_CREATE without the system user,

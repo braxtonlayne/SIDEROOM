@@ -23,6 +23,9 @@ tokio-tungstenite = { version = "0.29", features = ["connect", "rustls-tls-nativ
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "time", "sync", "macros", "net", "test-util", "rt-multi-thread"] }
+# The server side of op 8 is tested against the real gateway state machine (H-52).
+sr-gateway = { path = "../sr-gateway", features = ["test-support"] }
+sr-core = { path = "../sr-core", default-features = false }
 
 [[example]]
 name = "echo_bot"
