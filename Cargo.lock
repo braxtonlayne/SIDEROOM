@@ -5215,6 +5215,7 @@ dependencies = [
  "url",
  "utoipa",
  "utoipa-scalar",
+ "zip",
 ]
 
 [[package]]
@@ -5450,6 +5451,7 @@ dependencies = [
  "sevenz-rust2",
  "sr-core",
  "sr-library-rules",
+ "sr-reader",
  "sr-review",
  "sr-storage",
  "tantivy",

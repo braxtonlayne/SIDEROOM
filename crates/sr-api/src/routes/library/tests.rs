@@ -88,6 +88,7 @@ struct Stub {
     progress: Mutex<HashMap<(i64, i64), Progress>>,
     bookmarks: Mutex<Vec<(i64, Bookmark)>>,
     uploads: Mutex<HashMap<i64, UploadRecord>>,
+    multipart: Mutex<HashMap<i64, (String, u64)>>,
     /// Keys queued for the storage collector.
     gc: Mutex<Vec<String>>,
     clock: std::sync::atomic::AtomicI64,
@@ -465,6 +466,16 @@ impl sr_library::UploadRepository for Stub {
     async fn set_chapter_source(&self, _: i64, _: &str, _: i32) -> LibraryResult<bool> {
         Ok(true)
     }
+    async fn set_multipart(&self, upload: i64, id: &str, part_size: u64) -> LibraryResult<()> {
+        self.multipart
+            .lock()
+            .unwrap()
+            .insert(upload, (id.to_owned(), part_size));
+        Ok(())
+    }
+    async fn get_multipart(&self, upload: i64) -> LibraryResult<Option<(String, u64)>> {
+        Ok(self.multipart.lock().unwrap().get(&upload).cloned())
+    }
     async fn expire_uploads(&self, _: i64, _: u32) -> LibraryResult<Vec<UploadRecord>> {
         Ok(vec![])
     }
@@ -488,6 +499,7 @@ struct Env {
     tokens: HashMap<i64, String>,
     storage: Arc<sr_storage::ObjectStoreStorage>,
     queue: Arc<RecordingQueue>,
+    parts: Arc<sr_library::MemoryPartStore>,
 }
 
 /// Remembers which uploads were queued for conversion.
@@ -572,6 +584,7 @@ async fn env_with(library: bool) -> Env {
     let stub = Arc::new(Stub::default());
     let storage = Arc::new(sr_storage::ObjectStoreStorage::in_memory());
     let queue = Arc::new(RecordingQueue::default());
+    let parts = Arc::new(sr_library::MemoryPartStore::new(storage.clone()));
     let service = LibraryService::new(
         stub.clone(),
         CdnSigner::new(vec![3u8; 32]),
@@ -585,7 +598,8 @@ async fn env_with(library: bool) -> Env {
             sr_library::IngestSettingsSnapshot::default(),
         )),
         queue.clone(),
-    );
+    )
+    .with_multipart(sr_library::MultipartWiring::new(parts.clone()).with_part_size(5));
     let age = Arc::new(Confirmed(Mutex::new(HashSet::from([
         UserId::new(ADULT as u64),
         UserId::new(HIDER as u64),
@@ -612,6 +626,7 @@ async fn env_with(library: bool) -> Env {
         tokens,
         storage,
         queue,
+        parts,
     }
 }
 
@@ -1510,4 +1525,203 @@ fn openapi_lists_the_phase_4_paths() {
         assert!(doc["components"]["schemas"][s].is_object(), "{s}");
     }
     assert!(doc["components"]["schemas"]["ChapterList"]["properties"]["next_cursor"].is_object());
+}
+
+#[tokio::test]
+async fn a_multipart_upload_resumes_and_completes_from_the_stored_parts() {
+    use sr_storage::ObjectStorage;
+    let e = env().await;
+    let uploads = "/admin/library/chapters/70/uploads";
+    // 12 bytes in parts of 5: three parts (5 + 5 + 2).
+    let begin = json!({ "filename": "Ch 1.cbz", "size_bytes": 12, "multipart": true });
+    let (s, slot) = e
+        .call(Some(CURATOR), Method::POST, uploads, Some(begin))
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{slot}");
+    assert_eq!(slot["upload_url"], "");
+    assert_eq!(slot["multipart"]["part_size"], 5);
+    assert_eq!(slot["multipart"]["part_count"], 3);
+    let urls = slot["multipart"]["parts"].as_array().unwrap();
+    assert_eq!(urls.len(), 3);
+    assert!(urls[0]["url"].as_str().unwrap().contains("partNumber=1"));
+
+    // The browser sent parts 1 and 3, then the page was refreshed: resume asks what is missing.
+    e.parts
+        .put_part("mem-1", 1, bytes::Bytes::from_static(b"hello"));
+    e.parts
+        .put_part("mem-1", 3, bytes::Bytes::from_static(b"!!"));
+    let parts_path = "/admin/library/uploads/4242/parts";
+    let (s, got) = e.call(Some(CURATOR), Method::GET, parts_path, None).await;
+    assert_eq!(s, StatusCode::OK, "{got}");
+    assert_eq!(got["received"].as_array().unwrap().len(), 2);
+    let missing = got["missing"].as_array().unwrap();
+    assert_eq!(missing.len(), 1);
+    assert_eq!(missing[0]["part_number"], 2);
+
+    // Completing now names the missing part and does not queue the conversion.
+    let complete = "/admin/library/uploads/4242/complete";
+    let (s, body) = e.call(Some(CURATOR), Method::POST, complete, None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body["message"].as_str().unwrap().contains("part 2"),
+        "{body}"
+    );
+    assert!(e.queue.0.lock().unwrap().is_empty());
+
+    // A short middle part is refused too.
+    e.parts
+        .put_part("mem-1", 2, bytes::Bytes::from_static(b"wor"));
+    let (s, got) = e.call(Some(CURATOR), Method::GET, parts_path, None).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(got["missing"][0]["part_number"], 2, "{got}");
+    let (s, _) = e.call(Some(CURATOR), Method::POST, complete, None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    e.parts
+        .put_part("mem-1", 2, bytes::Bytes::from_static(b" wor1"));
+    let (s, body) = e.call(Some(CURATOR), Method::POST, complete, None).await;
+    assert_eq!(s, StatusCode::ACCEPTED, "{body}");
+    assert_eq!(body["status"], "queued");
+    let stored = e.storage.get("library/7/70/src-4242.cbz").await.unwrap();
+    assert_eq!(&stored[..], b"hello wor1!!");
+    // Once queued the parts route and the cancel route refuse.
+    let (s, _) = e.call(Some(CURATOR), Method::GET, parts_path, None).await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::DELETE,
+            "/admin/library/uploads/4242",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn cancelling_a_multipart_upload_frees_its_parts() {
+    let e = env().await;
+    let begin = json!({ "filename": "Ch 1.cbz", "size_bytes": 12, "multipart": true });
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::POST,
+            "/admin/library/chapters/70/uploads",
+            Some(begin),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED);
+    let (s, body) = e
+        .call(
+            Some(CURATOR),
+            Method::DELETE,
+            "/admin/library/uploads/4242",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["status"], "expired");
+    assert_eq!(e.parts.aborted(), vec!["mem-1".to_owned()]);
+    // Not a resumable upload, and not a publisher: nothing to resume.
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/admin/library/uploads/4242/parts",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn a_plain_upload_has_no_parts_to_resume() {
+    let e = env().await;
+    // The plain single-PUT slot still works and carries no multipart block.
+    let (s, slot) = e
+        .call(
+            Some(CURATOR),
+            Method::POST,
+            "/admin/library/chapters/70/uploads",
+            Some(json!({ "filename": "Ch 1.cbz", "size_bytes": 12 })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED);
+    assert!(slot["multipart"].is_null());
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::GET,
+            "/admin/library/uploads/4242/parts",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn an_uploaded_archive_can_be_listed_before_it_is_converted() {
+    use sr_storage::ObjectStorage;
+    use std::io::Write;
+    let e = env().await;
+    let png = {
+        let img = image::RgbImage::from_pixel(4, 4, image::Rgb([9, 9, 9]));
+        let mut out = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+        out.into_inner()
+    };
+    let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for name in ["Ch 1/001.png", "Ch 1/002.png", "Ch 2/001.png"] {
+        w.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        w.write_all(&png).unwrap();
+    }
+    let bytes = w.finish().unwrap().into_inner();
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::POST,
+            "/admin/library/chapters/70/uploads",
+            Some(json!({ "filename": "Ch 1.cbz", "size_bytes": bytes.len() })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED);
+    let inspect = "/admin/library/uploads/4242/inspect";
+    // Nothing uploaded yet.
+    let (s, _) = e.call(Some(CURATOR), Method::GET, inspect, None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    e.storage
+        .put("library/7/70/src-4242.cbz", bytes::Bytes::from(bytes))
+        .await
+        .unwrap();
+    let (s, r) = e.call(Some(CURATOR), Method::GET, inspect, None).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["format"], "zip");
+    assert_eq!(r["pages"], 3);
+    assert_eq!(r["folders"][0]["path"], "Ch 1");
+    assert_eq!(r["folders"][0]["pages"], 2);
+    assert_eq!(r["folders"][1]["pages"], 1);
+    // Members without the publisher permission are refused.
+    let (s, _) = e.call(Some(MEMBER), Method::GET, inspect, None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn ingest_source_routes_need_staff_and_a_scanner() {
+    let e = env().await;
+    let paths = [
+        (Method::GET, "/admin/ingest-sources"),
+        (Method::POST, "/admin/ingest-sources/7/dry-run"),
+        (Method::POST, "/admin/ingest-sources/7/scan"),
+        (Method::DELETE, "/admin/ingest-sources/7"),
+    ];
+    for (m, p) in paths {
+        let (s, _) = e.call(None, m.clone(), p, None).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED, "{m} {p}");
+        let (s, _) = e.call(Some(MEMBER), m.clone(), p, None).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{m} {p}");
+        // A curator is allowed in, but this server has no scanner configured.
+        let (s, b) = e.call(Some(CURATOR), m.clone(), p, None).await;
+        assert_eq!(s, StatusCode::CONFLICT, "{m} {p}: {b}");
+    }
 }

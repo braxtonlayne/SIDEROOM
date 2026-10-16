@@ -31,6 +31,7 @@ struct FakeKind {
     published: Mutex<Vec<i64>>,
     replacements: Mutex<Vec<i64>>,
     purged: Mutex<Vec<i64>>,
+    dupes: Mutex<Vec<DuplicateMatch>>,
 }
 
 #[async_trait]
@@ -92,6 +93,9 @@ impl SubmissionKind for FakeKind {
             .map(|i| i.ref_id)
             .filter(|r| !rep.contains(r))
             .collect())
+    }
+    async fn duplicates(&self, _: &Submission) -> ReviewResult<Vec<DuplicateMatch>> {
+        Ok(self.dupes.lock().unwrap().clone())
     }
     async fn purge(&self, s: &Submission, _: &[SubmissionItem]) -> ReviewResult<()> {
         self.purged.lock().unwrap().push(s.id);
@@ -1648,4 +1652,143 @@ async fn the_open_submission_cap_follows_the_platform_setting() {
         .create(Caller::member(OTHER), new_sub("first of other"))
         .await
         .unwrap();
+}
+
+fn dupe(ref_id: i64, score: u8) -> DuplicateMatch {
+    DuplicateMatch {
+        section: "library".into(),
+        ref_id,
+        title: format!("Existing {ref_id}"),
+        year: Some(2001),
+        score,
+        reasons: vec!["title".into()],
+        href: None,
+    }
+}
+
+#[tokio::test]
+async fn duplicates_are_listed_best_first_and_the_submitter_sees_no_resolution() {
+    let w = world();
+    w.kind
+        .dupes
+        .lock()
+        .unwrap()
+        .extend([dupe(7, 60), dupe(8, 95)]);
+    let id = in_review(&w, reviewer(REVIEWER)).await;
+    let r = w
+        .svc
+        .duplicates_for_review(reviewer(REVIEWER), id)
+        .await
+        .unwrap();
+    assert_eq!(
+        r.matches.iter().map(|m| m.ref_id).collect::<Vec<_>>(),
+        vec![8, 7]
+    );
+    assert!(r.resolution.is_none());
+    let mine = w.svc.duplicates_mine(MEMBER, id).await.unwrap();
+    assert_eq!(mine.matches.len(), 2);
+    // Someone else's submission is unknown to a member.
+    assert!(matches!(
+        w.svc.duplicates_mine(OTHER, id).await,
+        Err(ReviewError::NotFound(_))
+    ));
+    // A reviewer without the kind's permission sees nothing.
+    let nobody = Caller {
+        user_id: 30,
+        permissions: P::STAFF_BASIC,
+    };
+    assert!(w.svc.duplicates_for_review(nobody, id).await.is_err());
+}
+
+#[tokio::test]
+async fn resolving_a_duplicate_needs_the_claim_and_a_listed_target() {
+    let w = world();
+    w.kind.dupes.lock().unwrap().push(dupe(8, 95));
+    let id = draft(&w).await;
+    w.svc.submit(MEMBER, id).await.unwrap();
+    let merge = |target: Option<i64>| DuplicateResolutionInput {
+        action: DuplicateAction::Merge,
+        target,
+        note: Some("same series, other spelling".into()),
+    };
+    // Not claimed yet.
+    assert!(matches!(
+        w.svc
+            .resolve_duplicate(reviewer(REVIEWER), id, merge(Some(8)))
+            .await,
+        Err(ReviewError::Conflict(_))
+    ));
+    w.svc.claim(reviewer(REVIEWER), id, false).await.unwrap();
+    // A merge names a target, and it must be one of the matches.
+    assert!(matches!(
+        w.svc
+            .resolve_duplicate(reviewer(REVIEWER), id, merge(None))
+            .await,
+        Err(ReviewError::Invalid(_))
+    ));
+    assert!(matches!(
+        w.svc
+            .resolve_duplicate(reviewer(REVIEWER), id, merge(Some(99)))
+            .await,
+        Err(ReviewError::Invalid(_))
+    ));
+    // Another reviewer does not hold the claim.
+    assert!(
+        w.svc
+            .resolve_duplicate(reviewer(REVIEWER2), id, merge(Some(8)))
+            .await
+            .is_err()
+    );
+    let r = w
+        .svc
+        .resolve_duplicate(reviewer(REVIEWER), id, merge(Some(8)))
+        .await
+        .unwrap();
+    let res = r.resolution.unwrap();
+    assert_eq!(res.action, DuplicateAction::Merge);
+    assert_eq!(res.target, Some(8));
+    assert_eq!(res.decided_by, Some(REVIEWER));
+    // It is on the internal timeline, not the submitter's.
+    let d = w.svc.get_mine(MEMBER, id).await.unwrap();
+    assert!(d.events.iter().all(|e| e.kind != "duplicate_resolved"));
+    let r = w
+        .svc
+        .duplicates_for_review(reviewer(REVIEWER), id)
+        .await
+        .unwrap();
+    assert_eq!(r.resolution.unwrap().target, Some(8));
+}
+
+#[tokio::test]
+async fn a_merged_duplicate_earns_no_credit_but_not_a_duplicate_does() {
+    for (action, credits) in [
+        (DuplicateAction::Merge, 0),
+        (DuplicateAction::Replacement, 0),
+        (DuplicateAction::NotDuplicate, 2),
+    ] {
+        let w = world();
+        w.kind.dupes.lock().unwrap().push(dupe(8, 95));
+        let id = in_review(&w, reviewer(REVIEWER)).await;
+        w.svc
+            .resolve_duplicate(
+                reviewer(REVIEWER),
+                id,
+                DuplicateResolutionInput {
+                    action,
+                    target: (action != DuplicateAction::NotDuplicate).then_some(8),
+                    note: None,
+                },
+            )
+            .await
+            .unwrap();
+        w.svc
+            .approve(reviewer(REVIEWER), id, DecisionInput::default())
+            .await
+            .unwrap();
+        assert_eq!(
+            w.svc.credit_total(MEMBER).await.unwrap(),
+            credits,
+            "{action:?}"
+        );
+    }
 }

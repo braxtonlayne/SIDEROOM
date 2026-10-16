@@ -24,6 +24,7 @@ use crate::ingest::archive::ArchiveLimits;
 use crate::ingest::pipeline::{IngestLimits, IngestedChapter, ingest_archive_rev};
 use crate::ingest::{IngestError, epub, pdf};
 use crate::model::*;
+use crate::multipart::MultipartWiring;
 use crate::rules;
 use crate::service::{Actor, LibraryService};
 
@@ -131,6 +132,21 @@ pub trait UploadRepository: Send + Sync {
     ) -> LibraryResult<bool>;
     /// Uploads still `awaiting_upload` that were created before `before_ms`, marked `expired`.
     async fn expire_uploads(&self, before_ms: i64, limit: u32) -> LibraryResult<Vec<UploadRecord>>;
+    /// Remember the multipart upload id and part size of an upload slot.
+    async fn set_multipart(
+        &self,
+        _upload: i64,
+        _multipart_id: &str,
+        _part_size: u64,
+    ) -> LibraryResult<()> {
+        Err(LibraryError::Conflict(
+            "multipart uploads are not available on this server".into(),
+        ))
+    }
+    /// `(multipart id, part size)` of a multipart upload slot, `None` for a single-PUT one.
+    async fn get_multipart(&self, _upload: i64) -> LibraryResult<Option<(String, u64)>> {
+        Ok(None)
+    }
     /// Queue objects for collection.
     async fn queue_gc(&self, keys: &[String], chapter: Option<i64>) -> LibraryResult<()>;
     /// Queued objects older than `before_ms` that nothing references; referenced ones are
@@ -196,7 +212,7 @@ fn kind_of(format: ChapterFormat) -> UploadKind {
     }
 }
 
-fn to_upload(r: UploadRecord) -> Upload {
+pub(crate) fn to_upload(r: UploadRecord) -> Upload {
     Upload {
         id: r.id,
         chapter_id: r.chapter_id,
@@ -315,6 +331,12 @@ impl LibraryService {
         self
     }
 
+    /// Allow resumable multipart uploads (`UploadRequest.multipart`).
+    pub fn with_multipart(mut self, wiring: MultipartWiring) -> Self {
+        self.multipart = Some(wiring);
+        self
+    }
+
     /// Write ingest outcomes to the staff access log.
     pub fn with_audit(mut self, audit: Arc<dyn LibraryAudit>) -> Self {
         self.audit = Some(audit);
@@ -330,6 +352,11 @@ impl LibraryService {
     ) -> LibraryResult<UploadSlot> {
         a.publish()?;
         let w = wiring(self)?;
+        if req.multipart && self.multipart.is_none() {
+            return Err(LibraryError::Conflict(
+                "resumable uploads are not available on this server".into(),
+            ));
+        }
         let c = self
             .repo
             .get_chapter(chapter, None)
@@ -373,6 +400,9 @@ impl LibraryService {
             finished_at_ms: None,
         };
         self.repo.create_upload(&rec).await?;
+        if req.multipart {
+            return self.begin_multipart(w, rec, limits.max_upload_bytes).await;
+        }
         let url = match w
             .storage
             .presign(PresignMethod::Put, &key, UPLOAD_URL_TTL)
@@ -389,6 +419,7 @@ impl LibraryService {
         };
         Ok(UploadSlot {
             upload: to_upload(rec),
+            multipart: None,
             upload_url: url,
             upload_method: "PUT".into(),
             expires_in_secs: UPLOAD_URL_TTL.as_secs(),
@@ -417,6 +448,10 @@ impl LibraryService {
                     rec.status.as_str()
                 )));
             }
+        }
+        if let Some((multipart_id, part_size)) = self.repo.get_multipart(id).await? {
+            self.assemble_multipart(&rec, &multipart_id, part_size)
+                .await?;
         }
         let limits = w.settings.snapshot().await;
         let info = match w.storage.head(&rec.object_key).await {
@@ -449,6 +484,53 @@ impl LibraryService {
             return Err(LibraryError::Storage(format!("queueing the ingest: {e}")));
         }
         Ok(to_upload(queued))
+    }
+
+    /// The storage key of an upload slot's file (for server-side imports that fill the slot).
+    pub(crate) async fn upload_object_key(&self, id: i64) -> LibraryResult<String> {
+        self.repo
+            .get_upload(id)
+            .await?
+            .map(|r| r.object_key)
+            .ok_or(LibraryError::NotFound("upload"))
+    }
+
+    /// Pre-inspection (REV-UP-004): list the archive of an upload slot without converting it.
+    /// Works from the moment the file is in storage until the conversion has run.
+    pub async fn inspect_upload(
+        &self,
+        a: Actor,
+        id: i64,
+    ) -> LibraryResult<crate::ingest::inspect::ArchiveReport> {
+        a.publish()?;
+        let w = wiring(self)?;
+        let rec = self
+            .repo
+            .get_upload(id)
+            .await?
+            .ok_or(LibraryError::NotFound("upload"))?;
+        if rec.kind != UploadKind::Archive {
+            return Err(LibraryError::Invalid(
+                "only archives (CBZ, CB7, CBR) can be inspected".into(),
+            ));
+        }
+        if !matches!(
+            rec.status,
+            UploadStatus::AwaitingUpload | UploadStatus::Queued
+        ) {
+            return Err(LibraryError::Conflict(
+                "the archive is already converted; there is nothing left to inspect".into(),
+            ));
+        }
+        let s = w.settings.snapshot().await;
+        let limits = ArchiveLimits {
+            rar_enabled: s.rar_enabled,
+            max_archive_bytes: s.max_upload_bytes,
+            ..ArchiveLimits::default()
+        };
+        crate::ingest::inspect::inspect_stored(w.storage.clone(), &rec.object_key, limits)
+            .await
+            .map_err(|_| LibraryError::Invalid("the file has not been uploaded yet".into()))
     }
 
     /// The status of an upload.
@@ -727,6 +809,12 @@ impl LibraryService {
             .await?
         {
             report.uploads_expired += 1;
+            // A multipart slot also holds parts in the store; free them.
+            if let Some(m) = &self.multipart
+                && let Ok(Some((multipart_id, _))) = self.repo.get_multipart(u.id).await
+            {
+                let _ = m.store.abort(&u.object_key, &multipart_id).await;
+            }
             self.repo
                 .queue_gc(std::slice::from_ref(&u.object_key), None)
                 .await?;

@@ -235,6 +235,7 @@ impl World {
                 UploadRequest {
                     filename: "c.cbz".into(),
                     size_bytes: bytes.len() as u64,
+                    multipart: false,
                 },
             )
             .await
@@ -561,7 +562,8 @@ async fn draft_ops_are_scoped_to_the_submissions_own_series() {
                 ch_b.id,
                 UploadRequest {
                     filename: "c.cbz".into(),
-                    size_bytes: 10
+                    size_bytes: 10,
+                    multipart: false,
                 }
             )
             .await,

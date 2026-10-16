@@ -14,6 +14,7 @@ serde.workspace = true
 serde_json.workspace = true
 sr-core = { path = "../sr-core", default-features = false }
 sr-library-rules = { path = "../sr-library-rules" }
+sr-reader = { path = "../sr-reader" }
 sr-review = { path = "../sr-review" }
 sr-storage = { path = "../sr-storage" }
 tantivy = "0.26"

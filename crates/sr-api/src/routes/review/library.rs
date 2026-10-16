@@ -9,6 +9,7 @@ use crate::{error::ApiResult, openapi::ErrorBody};
 use axum::{Json, extract::Path, http::StatusCode};
 use sr_core::{ApiError, ErrorCode};
 use sr_library::model::*;
+use sr_library::multipart::UploadParts;
 use sr_library::submissions::LibraryDraftOps;
 use sr_review::model::Submission;
 use sr_review::repo::NewItem;
@@ -283,6 +284,48 @@ pub async fn complete_upload(
     Ok((StatusCode::ACCEPTED, Json(up)))
 }
 
+/// Resume a multipart upload: which parts arrived and fresh URLs for the missing ones.
+#[utoipa::path(
+    get, path = "/submissions/{submission_id}/library/uploads/{upload_id}/parts", operation_id = "submissions_library_upload_parts",
+    params(("submission_id" = String, Path, description = "Submission snowflake"),
+           ("upload_id" = String, Path, description = "Upload snowflake")),
+    responses((status = 200, body = UploadParts), (status = 401, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn upload_parts(
+    ctx: MemberCtx,
+    Path((submission_id, upload_id)): Path<(String, String)>,
+) -> ApiResult<Json<UploadParts>> {
+    let s = editable(&ctx, &submission_id).await?;
+    ops(&ctx)?
+        .upload_parts(&s, ctx.user(), id(&upload_id, "upload")?)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// Cancel an upload that was not completed: its parts are freed.
+#[utoipa::path(
+    delete, path = "/submissions/{submission_id}/library/uploads/{upload_id}", operation_id = "submissions_library_abort_upload",
+    params(("submission_id" = String, Path, description = "Submission snowflake"),
+           ("upload_id" = String, Path, description = "Upload snowflake")),
+    responses((status = 200, body = Upload), (status = 401, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn abort_upload(
+    ctx: MemberCtx,
+    Path((submission_id, upload_id)): Path<(String, String)>,
+) -> ApiResult<Json<Upload>> {
+    let s = editable(&ctx, &submission_id).await?;
+    ops(&ctx)?
+        .abort_upload(&s, ctx.user(), id(&upload_id, "upload")?)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
 /// Poll an upload of my submission.
 #[utoipa::path(
     get, path = "/submissions/{submission_id}/library/uploads/{upload_id}", operation_id = "submissions_library_upload",
@@ -360,6 +403,28 @@ pub async fn set_cover(
     let bytes = crate::routes::settings::expressions::decode_data_uri("image", &b.image)?;
     ops(&ctx)?
         .set_cover(&s, ctx.user(), &bytes)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// List the contents of an uploaded archive of my submission without converting it: pages per
+/// chapter folder, ignored files, `ComicInfo.xml` facts and why it would be refused.
+#[utoipa::path(
+    get, path = "/submissions/{submission_id}/library/uploads/{upload_id}/inspect", operation_id = "submissions_library_inspect_upload",
+    params(("submission_id" = String, Path, description = "Submission snowflake"),
+           ("upload_id" = String, Path, description = "Upload snowflake")),
+    responses((status = 200, body = sr_library::ingest::inspect::ArchiveReport), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn inspect_upload(
+    ctx: MemberCtx,
+    Path((submission_id, upload_id)): Path<(String, String)>,
+) -> ApiResult<Json<sr_library::ingest::inspect::ArchiveReport>> {
+    let s = own(&ctx, &submission_id).await?;
+    ops(&ctx)?
+        .inspect_upload(&s, ctx.user(), id(&upload_id, "upload")?)
         .await
         .map(Json)
         .map_err(map_err)

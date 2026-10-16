@@ -184,6 +184,50 @@ pub async fn schedule_gc(pool: &PgPool) -> DbResult<()> {
     Ok(())
 }
 
+/// Kind and reserved singleton id of the ingest source scanner (REV-UP-005).
+pub const SOURCES_KIND: &str = "library.sources";
+pub const SOURCES_JOB_ID: i64 = 895;
+/// How often the scanner looks for sources that are due (each has its own poll interval).
+const SOURCES_INTERVAL: Duration = Duration::from_secs(30);
+
+async fn sources_handler(
+    pool: PgPool,
+    scanner: sr_library::sources::SourceScanner,
+    job: Job,
+) -> Result<(), HandlerError> {
+    let n = scanner.scan_due().await;
+    if n > 0 {
+        tracing::debug!(sources = n, "ingest sources scanned");
+    }
+    jobs::reschedule_running(&pool, job.id, SOURCES_INTERVAL).await?;
+    Ok(())
+}
+
+/// Register `library.sources` on `runner`. Pair with [`schedule_sources`].
+pub fn register_sources(
+    runner: JobRunner,
+    pool: &PgPool,
+    scanner: sr_library::sources::SourceScanner,
+) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(SOURCES_KIND, 1, move |job| {
+        Box::pin(sources_handler(pool.clone(), scanner.clone(), job))
+    })
+}
+
+/// Create or re-arm the scanner singleton.
+pub async fn schedule_sources(pool: &PgPool) -> DbResult<()> {
+    jobs::schedule_singleton(
+        pool,
+        SOURCES_JOB_ID,
+        SOURCES_KIND,
+        &json!({}),
+        SOURCES_INTERVAL,
+    )
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

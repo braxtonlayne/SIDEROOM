@@ -310,6 +310,38 @@ impl GifConfig {
     }
 }
 
+/// `[ingest]`: folders the server may read for watched folders and imports (REV-UP-005). A staff
+/// member can only point an ingest source at a directory under one of these roots; with none
+/// listed, local folders are off (storage prefixes below `imports/` still work).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IngestConfig {
+    /// Absolute directories, for example a mounted Storage Box.
+    pub roots: Vec<String>,
+}
+
+/// `[lookup]`: metadata lookup providers behind the submission editor's "Fetch details"
+/// (REV-ED-005). Everything is off by default: a provider is used only when the operator turns it
+/// on here (and gave its key, where it needs one) AND the platform setting
+/// `review.lookup.enabled` is on. Requests go out from this server under the SSRF-safe client; the
+/// member's browser never contacts a provider.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LookupConfig {
+    /// AniList (manga and anime), no key needed.
+    pub anilist: bool,
+    /// MangaDex, no key needed.
+    pub mangadex: bool,
+    /// MangaUpdates, no key needed.
+    pub mangaupdates: bool,
+    /// TMDB (films and series): a v3 API key or a v4 read access token. Empty switches TMDB off.
+    /// Treat as a secret (`SR_LOOKUP__TMDB_API_KEY_FILE` works).
+    pub tmdb_api_key: Secret,
+    /// ComicVine (comics): the API key. Empty switches ComicVine off.
+    /// Treat as a secret (`SR_LOOKUP__COMICVINE_API_KEY_FILE` works).
+    pub comicvine_api_key: Secret,
+}
+
 /// `[search]`: the message search index (open questions 131-138).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -386,6 +418,8 @@ pub struct Config {
     pub search: SearchConfig,
     pub unfurl: UnfurlConfig,
     pub gif: GifConfig,
+    pub lookup: LookupConfig,
+    pub ingest: IngestConfig,
     pub voice: VoiceConfig,
 }
 
@@ -471,6 +505,8 @@ pub const SECRET_FILE_KEYS: &[&str] = &[
     "connections.reddit.client_secret",
     "connections.steam.client_secret",
     "gif.api_key",
+    "lookup.tmdb_api_key",
+    "lookup.comicvine_api_key",
 ];
 
 /// The list-valued key that reads one entry per line from `SR_<KEY>_FILE`.

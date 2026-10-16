@@ -18,6 +18,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useT, type MessageKey } from '../i18n';
 import * as rv from '../review/api';
 import { NamingGuide } from '../review/NamingGuide';
+import { DuplicateWarning, SeriesMetaEditor } from '../review/SeriesMetaEditor';
+import { FolderImport, RESUMABLE_FROM, UploadDock, getUploadManager } from '../review/UploadDock';
 import { errorMessages } from '../review/api';
 import {
   ItemChip,
@@ -506,13 +508,23 @@ function DetailsForm({
 
 function SeriesPreviewPanel({ id }: { id: string }) {
   const t = useT();
+  const qc = useQueryClient();
   const p = useQuery({ queryKey: key.preview(id), queryFn: () => rv.getMinePreview(id) });
   if (!p.data) return null;
   return (
-    <section className="rv-panel" aria-labelledby="sub-meta-h">
-      <h2 id="sub-meta-h">{t('library.submissions.preview')}</h2>
-      <PreviewFacts preview={p.data.preview} />
-    </section>
+    <>
+      <DuplicateWarning submissionId={id} />
+      <SeriesMetaEditor
+        key={JSON.stringify(p.data.preview.series)}
+        submissionId={id}
+        preview={p.data.preview}
+        onSaved={() => void qc.invalidateQueries({ queryKey: key.preview(id) })}
+      />
+      <section className="rv-panel" aria-labelledby="sub-meta-h">
+        <h2 id="sub-meta-h">{t('library.submissions.preview')}</h2>
+        <PreviewFacts preview={p.data.preview} />
+      </section>
+    </>
   );
 }
 
@@ -649,6 +661,8 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
       )}
       {del.isError && <Problems messages={errorMessages(del.error)} />}
       {editable && <AddChapter submissionId={s.id} onAdded={refresh} />}
+      {editable && <FolderImport submissionId={s.id} onAdded={refresh} />}
+      <UploadDock />
     </section>
   );
 }
@@ -775,6 +789,12 @@ function UploadCell({
           setError([check.message]);
           return;
         }
+      }
+      if (file.size >= RESUMABLE_FROM) {
+        // Big files go in 64 MB parts that survive a refresh (the upload dock shows them).
+        await getUploadManager().enqueue(submissionId, chapter.id, file);
+        await uploads.refetch();
+        return;
       }
       const slot = await rv.beginUpload(submissionId, chapter.id, {
         filename: file.name,

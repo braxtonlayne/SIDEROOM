@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sr_core::PlatformPermissions as P;
-use sr_review::model::{Submission, SubmissionItem};
+use sr_review::model::{DuplicateMatch, MediaRef, Submission, SubmissionItem};
 use sr_review::repo::NewItem;
 use sr_review::{KindDraft, ReviewError, ReviewResult, SubmissionKind};
 
@@ -536,6 +536,101 @@ impl SubmissionKind for CinemaKind {
             .map(|i| i.ref_id)
             .filter(|r| *r == detail.title.id || detail.episodes.iter().any(|e| e.id == *r))
             .collect())
+    }
+
+    /// Published titles with the same or a similar name, same year first (title, alternative
+    /// titles and the original title). Only a new title can duplicate one.
+    async fn duplicates(&self, s: &Submission) -> ReviewResult<Vec<DuplicateMatch>> {
+        use sr_review::similar::title_score;
+        if !self.new_title {
+            return Ok(Vec::new());
+        }
+        let detail = self.detail(s).await?;
+        let mine = &detail.title;
+        let mut mine_names = vec![mine.title.clone()];
+        mine_names.extend(mine.original_title.clone());
+        mine_names.extend(mine.alt_titles.iter().cloned());
+        let viewer = crate::service::Viewer {
+            user_id: 0,
+            adult: true,
+            hide_restricted: false,
+        };
+        let mut out: Vec<DuplicateMatch> = Vec::new();
+        for name in &mine_names {
+            let found = self
+                .svc
+                .search(viewer, name, 20, Some(mine.kind))
+                .await
+                .map_err(ReviewError::from)?;
+            for t in found.titles.iter().filter(|t| t.id != mine.id) {
+                let theirs = std::iter::once(&t.title)
+                    .chain(t.original_title.iter())
+                    .chain(t.alt_titles.iter());
+                let mut best = 0_u8;
+                for a in &mine_names {
+                    for b in theirs.clone() {
+                        best = best.max(title_score(a, b));
+                    }
+                }
+                if best == 0 {
+                    continue;
+                }
+                let mut reasons = vec!["title".to_owned()];
+                let mut score = best;
+                if mine.year.is_some() && mine.year == t.year {
+                    reasons.push("year".into());
+                    score = score.saturating_add(5).min(100);
+                }
+                if out.iter().any(|m| m.ref_id == t.id) {
+                    continue;
+                }
+                out.push(DuplicateMatch {
+                    section: "cinema".into(),
+                    ref_id: t.id,
+                    title: t.title.clone(),
+                    year: t.year.map(i32::from),
+                    score,
+                    reasons,
+                    href: Some(format!("/cinema/title/{}", t.id)),
+                });
+            }
+        }
+        Ok(out)
+    }
+
+    /// The videos of the episodes (or the film) under review.
+    async fn media(&self, s: &Submission) -> ReviewResult<Vec<MediaRef>> {
+        let detail = self.detail(s).await?;
+        let episodes: Vec<&Episode> = if self.new_title {
+            detail.episodes.iter().collect()
+        } else {
+            detail.episodes.iter().filter(|e| !e.published).collect()
+        };
+        let mut out = Vec::new();
+        if self.new_title && (episodes.is_empty() || detail.title.asset_id.is_some()) {
+            out.push(MediaRef {
+                ref_id: detail.title.id,
+                label: detail.title.title.clone(),
+                asset_id: detail.title.asset_id,
+            });
+        }
+        for e in episodes {
+            out.push(MediaRef {
+                ref_id: e.id,
+                label: format!(
+                    "S{:02}E{:02}{}",
+                    e.season_number,
+                    e.number,
+                    if e.title.is_empty() {
+                        String::new()
+                    } else {
+                        format!(": {}", e.title)
+                    }
+                ),
+                asset_id: e.asset_id,
+            });
+        }
+        Ok(out)
     }
 
     /// Delete the unpublished draft of a rejected or abandoned submission and discard the videos

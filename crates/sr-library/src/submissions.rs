@@ -13,7 +13,7 @@
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use sr_core::PlatformPermissions as P;
-use sr_review::model::{ItemState, Submission, SubmissionItem};
+use sr_review::model::{DuplicateMatch, ItemState, Submission, SubmissionItem};
 use sr_review::repo::NewItem;
 use sr_review::{KindDraft, ReviewError, ReviewResult, SubmissionKind};
 
@@ -318,6 +318,39 @@ impl LibraryDraftOps {
         self.own_upload(s, user, upload).await
     }
 
+    /// Resume a multipart upload: the parts that arrived and URLs for the rest.
+    pub async fn upload_parts(
+        &self,
+        s: &Submission,
+        user: i64,
+        upload: i64,
+    ) -> ReviewResult<crate::multipart::UploadParts> {
+        self.own_upload(s, user, upload).await?;
+        Ok(self.svc.upload_parts(sponsor(user), upload).await?)
+    }
+
+    /// List the archive of an upload without converting it.
+    pub async fn inspect_upload(
+        &self,
+        s: &Submission,
+        user: i64,
+        upload: i64,
+    ) -> ReviewResult<crate::ingest::inspect::ArchiveReport> {
+        self.own_upload(s, user, upload).await?;
+        Ok(self.svc.inspect_upload(sponsor(user), upload).await?)
+    }
+
+    /// Cancel an upload that was not completed.
+    pub async fn abort_upload(
+        &self,
+        s: &Submission,
+        user: i64,
+        upload: i64,
+    ) -> ReviewResult<Upload> {
+        self.own_upload(s, user, upload).await?;
+        Ok(self.svc.abort_upload(sponsor(user), upload).await?)
+    }
+
     pub async fn chapter_uploads(
         &self,
         s: &Submission,
@@ -604,6 +637,14 @@ impl SubmissionKind for LibraryKind {
             self.svc.set_chapter_published(by, it.ref_id, true).await?;
         }
         Ok(())
+    }
+
+    /// Published series with the same or a similar title, or the same cover artwork.
+    async fn duplicates(&self, s: &Submission) -> ReviewResult<Vec<DuplicateMatch>> {
+        if !self.new_series {
+            return Ok(Vec::new());
+        }
+        Ok(self.svc.find_duplicates(series_of(s)?).await?)
     }
 
     /// Delete what a rejected or abandoned submission left: the draft series of a new

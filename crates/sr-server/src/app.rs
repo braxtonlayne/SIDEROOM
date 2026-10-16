@@ -530,6 +530,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         id_src.clone(),
     )
     .with_index(library_index)
+    .with_cover_hashes(Arc::new(sr_db::library_repo::PgLibraryRepo::new(
+        pool.clone(),
+    )))
     .with_events(Arc::new(routes::library::BusLibraryEvents::new(
         bus.clone(),
     )))
@@ -542,28 +545,41 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         pool.clone(),
         id_src.clone(),
     )));
+    // Resumable multipart uploads of chapter files (REV-UP-001) need part-level presigning, which
+    // only the S3 API offers; with `SR_MEDIA_SINGLE_PUT=1` they are off and slots are one PUT.
+    let library_service = if std::env::var("SR_MEDIA_SINGLE_PUT").is_ok_and(|v| v == "1") {
+        library_service
+    } else {
+        let s3 = sr_storage::s3multipart::S3Multipart::new(
+            &s.endpoint,
+            &s.bucket,
+            &s.region,
+            s.access_key.expose(),
+            s.secret_key.expose(),
+        )
+        .context("configuring library multipart uploads")?;
+        library_service.with_multipart(sr_library::MultipartWiring::new(Arc::new(s3)))
+    };
     let indexed = library_service
         .reindex_all()
         .await
         .map_err(|e| anyhow::anyhow!("indexing the library catalog: {e}"))?;
     tracing::info!(series = indexed, "library search index rebuilt");
-    let library_deps = Arc::new(
-        routes::library::LibraryDeps::new(library_service.clone())
-            .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
-            .with_prefs(Arc::new(crate::settings_pg::PgLibraryPrefs::new(
-                pool.clone(),
-            )))
-            .with_social(
-                sr_library_social::LibrarySocial::new(pool.clone(), id_src.clone())
-                    .with_trending_cache(
-                        std::time::Duration::from_secs(3600),
-                        std::time::Duration::from_secs(600),
-                    )
-                    .with_events(Arc::new(routes::library::BusLibraryEvents::new(
-                        bus.clone(),
-                    ))),
-            ),
-    );
+    let library_deps = routes::library::LibraryDeps::new(library_service.clone())
+        .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
+        .with_prefs(Arc::new(crate::settings_pg::PgLibraryPrefs::new(
+            pool.clone(),
+        )))
+        .with_social(
+            sr_library_social::LibrarySocial::new(pool.clone(), id_src.clone())
+                .with_trending_cache(
+                    std::time::Duration::from_secs(3600),
+                    std::time::Duration::from_secs(600),
+                )
+                .with_events(Arc::new(routes::library::BusLibraryEvents::new(
+                    bus.clone(),
+                ))),
+        );
 
     // The Cinema catalog (CIN-DATA-*): Postgres repository, signed artwork URLs (the same CDN
     // signer), and a title search index in `<search dir>/cinema`, rebuilt from the database at
@@ -803,9 +819,29 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .with_library(sr_library::submissions::LibraryDraftOps::new(
             library_service.clone(),
+        ))
+        .with_media(routes::review::ReviewMedia::new(
+            media_repo.clone(),
+            cdn_signer.clone(),
         )),
     );
 
+    // Watched folders and storage imports (REV-UP-005/006): draft submissions of staff-owned
+    // sources. Local folders are limited to the roots in `[ingest] roots`.
+    let source_scanner = sr_library::sources::SourceScanner::new(
+        Arc::new(sr_db::library_repo::PgLibraryRepo::new(pool.clone())),
+        Arc::new(sr_library::sources::FsAndStorageFiles::new(
+            cfg.ingest
+                .roots
+                .iter()
+                .map(std::path::PathBuf::from)
+                .collect(),
+            storage.clone(),
+        )),
+        library_service.clone(),
+        review_deps.service.clone(),
+        clock.clone(),
+    );
     // Index jobs for every message event, DMs included, and search cache
     // invalidation, from one firehose subscription (see `search_jobs`).
     let search_consumer = {
@@ -945,6 +981,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     };
     let gif_deps = Arc::new(routes::gifs::GifDeps::new(
         gif_source,
+        Some(cdn_signer.clone()),
+    ));
+    // Metadata lookup for the submission editor (REV-ED-005): off unless `[lookup]` enables a
+    // provider and the platform setting `review.lookup.enabled` is on.
+    let lookup_deps = Arc::new(routes::review::LookupDeps::new(
+        crate::lookup_wiring::providers_from(&cfg.lookup),
+        Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
         Some(cdn_signer.clone()),
     ));
     let push_subject = if cfg.server.public_url.starts_with("https://") {
@@ -1112,6 +1155,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(export_deps)
         .extension(push_deps)
         .extension(gif_deps)
+        .extension(lookup_deps)
         .extension(Arc::new(routes::inbox::InboxDeps::new(Arc::new(
             crate::inbox_pg::PgMentionSource::new(pool.clone()),
         ))))
@@ -1124,7 +1168,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         ))
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
-        .extension(library_deps)
+        .extension(Arc::new(library_deps.with_sources(source_scanner.clone())))
         .extension(cinema_deps)
         .extension(tv_deps)
         .extension(media_deps)
@@ -1223,6 +1267,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
+    let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::apps_jobs::register(runner, &pool, (*apps_service).clone());
@@ -1259,6 +1304,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
+    crate::library_jobs::schedule_sources(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
     crate::apps_jobs::schedule(&pool).await?;

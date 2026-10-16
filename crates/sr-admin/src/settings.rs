@@ -216,6 +216,15 @@ pub const CATALOG: &[SettingDef] = &[
         512,
         "Largest Library chapter upload (archive, EPUB or PDF) in MiB.",
     ),
+    SettingDef {
+        key: "review.lookup.enabled",
+        group: "library",
+        kind: SettingKind::Boolean,
+        min: 0.0,
+        max: 1.0,
+        default_int: 0,
+        description: "Offer \"Fetch details\" in the submission editor (metadata lookup at the providers the operator configured in [lookup]).",
+    },
     int(
         "cinema.upload.max_gb",
         "cinema",

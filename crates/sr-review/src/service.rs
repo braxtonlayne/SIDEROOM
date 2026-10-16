@@ -618,6 +618,12 @@ impl ReviewService {
         self.detail(s, true).await
     }
 
+    /// The videos of the items under review (reviewers of the kind).
+    pub async fn media_for_review(&self, c: Caller, id: i64) -> ReviewResult<Vec<MediaRef>> {
+        let (s, kind) = self.load_for_review(c, id).await?;
+        kind.media(&s).await
+    }
+
     pub async fn preview_for_review(&self, c: Caller, id: i64) -> ReviewResult<Value> {
         let (s, kind) = self.load_for_review(c, id).await?;
         kind.preview(&s).await
@@ -1114,6 +1120,105 @@ impl ReviewService {
             })
     }
 
+    // ---- duplicates (REV-ED-006, REV-RV-003) ---------------------------
+
+    /// The latest resolution on the timeline, if any.
+    fn resolution_of(events: &[SubmissionEvent]) -> Option<DuplicateResolution> {
+        events
+            .iter()
+            .rev()
+            .find(|e| e.kind == "duplicate_resolved")
+            .and_then(|e| serde_json::from_value(e.data.clone()).ok())
+    }
+
+    async fn duplicate_report(
+        &self,
+        s: &Submission,
+        kind: &dyn SubmissionKind,
+    ) -> ReviewResult<DuplicateReport> {
+        let mut matches = kind.duplicates(s).await?;
+        matches.sort_by_key(|a| std::cmp::Reverse(a.score));
+        matches.truncate(10);
+        let events = self.repo.events(s.id).await?;
+        Ok(DuplicateReport {
+            matches,
+            resolution: Self::resolution_of(&events),
+        })
+    }
+
+    /// Possible duplicates of a submission for its submitter (a warning in the validation
+    /// panel; the resolution is the reviewers' business).
+    pub async fn duplicates_mine(&self, user: i64, id: i64) -> ReviewResult<DuplicateReport> {
+        let s = self.load_own(user, id).await?;
+        let kind = self.kinds.get(&s.kind)?.clone();
+        let mut r = self.duplicate_report(&s, kind.as_ref()).await?;
+        r.resolution = None;
+        Ok(r)
+    }
+
+    /// Possible duplicates and the reviewers' resolution, for reviewers of the kind.
+    pub async fn duplicates_for_review(&self, c: Caller, id: i64) -> ReviewResult<DuplicateReport> {
+        let (s, kind) = self.load_for_review(c, id).await?;
+        self.duplicate_report(&s, kind.as_ref()).await
+    }
+
+    /// Record what the reviewer decided about the duplicates: merge into an existing entry, mark
+    /// as a replacement, or not a duplicate. Needs the live claim. A merge or replacement earns
+    /// the submitter no contribution credit (spec section 6); the catalog itself is merged with
+    /// the section's own merge tool.
+    pub async fn resolve_duplicate(
+        &self,
+        c: Caller,
+        id: i64,
+        input: DuplicateResolutionInput,
+    ) -> ReviewResult<DuplicateReport> {
+        let (s, kind) = self.load_for_review(c, id).await?;
+        Self::not_own(c, &s)?;
+        if s.state != SubmissionState::InReview
+            || !s.lease_live(self.now())
+            || s.claimed_by != Some(c.user_id)
+        {
+            return Err(ReviewError::Conflict(
+                "claim the submission before resolving its duplicates".into(),
+            ));
+        }
+        let report = self.duplicate_report(&s, kind.as_ref()).await?;
+        let target = match input.action {
+            DuplicateAction::NotDuplicate => None,
+            DuplicateAction::Merge | DuplicateAction::Replacement => {
+                let t = input.target.ok_or_else(|| {
+                    ReviewError::Invalid("pick the existing entry this refers to".into())
+                })?;
+                if !report.matches.iter().any(|m| m.ref_id == t) {
+                    return Err(ReviewError::Invalid(
+                        "the target is not one of the possible duplicates".into(),
+                    ));
+                }
+                Some(t)
+            }
+        };
+        let note = reason_text(input.note.as_deref(), false, "the duplicate note")?;
+        let resolution = DuplicateResolution {
+            action: input.action,
+            target,
+            note: note.clone(),
+            decided_by: Some(c.user_id),
+            decided_at_ms: self.now(),
+        };
+        let ev = self.event(
+            "duplicate_resolved",
+            c.user_id,
+            note,
+            true,
+            serde_json::to_value(&resolution).unwrap_or(Value::Null),
+        );
+        self.repo.add_event(id, &ev).await?;
+        Ok(DuplicateReport {
+            matches: report.matches,
+            resolution: Some(resolution),
+        })
+    }
+
     // ---- contribution credits (REV-CORE-006) ---------------------------
 
     /// Credit the submitter for the new items just published (D-074). Best effort: the
@@ -1126,6 +1231,15 @@ impl ReviewService {
         published: &[SubmissionItem],
     ) {
         let Some(user) = s.submitter_id else { return };
+        // A duplicate merged into an existing entry, or a replacement, earns no credit.
+        if let Ok(events) = self.repo.events(s.id).await
+            && matches!(
+                Self::resolution_of(&events).map(|r| r.action),
+                Some(DuplicateAction::Merge | DuplicateAction::Replacement)
+            )
+        {
+            return;
+        }
         let section = kind
             .section()
             .unwrap_or_else(|| s.kind.split('.').next().unwrap_or(""));

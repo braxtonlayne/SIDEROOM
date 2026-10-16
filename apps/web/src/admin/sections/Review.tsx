@@ -19,6 +19,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatTime, type MessageKey, useT } from '../../i18n';
 import * as rv from '../../review/api';
 import {
+  DuplicatePanel,
+  ManifestDiff,
+  PackagePreview,
+  VideoProxyPlayer,
+} from '../../review/ReviewExtras';
+import {
   ChangeList,
   ItemChip,
   PreviewFacts,
@@ -49,6 +55,18 @@ import {
 } from '../ui';
 
 const PAGE = 25;
+
+/** The `manifest` an app or package kind puts in its preview, if any. */
+const manifestOf = (p: unknown): unknown =>
+  p && typeof p === 'object' ? (p as Record<string, unknown>).manifest : undefined;
+
+/** The theme CSS a package kind puts in its preview (`package.theme_css`), if any. */
+const packageCss = (p: unknown): string | undefined => {
+  const pkg = p && typeof p === 'object' ? (p as Record<string, unknown>).package : undefined;
+  const css =
+    pkg && typeof pkg === 'object' ? (pkg as Record<string, unknown>).theme_css : undefined;
+  return typeof css === 'string' && css ? css : undefined;
+};
 
 type TFn = ReturnType<typeof useT>;
 type OptionKeys = { value: string; label: MessageKey }[];
@@ -123,7 +141,15 @@ export function LibraryReviewPanel() {
     const q = new URLSearchParams(search);
     const submission = q.get('submission');
     return submission && /^\d+$/.test(submission)
-      ? { id: submission, reject: q.get('reject') === '1' }
+      ? {
+          id: submission,
+          dialog:
+            q.get('reject') === '1'
+              ? ('reject' as const)
+              : q.get('changes') === '1'
+                ? ('changes' as const)
+                : null,
+        }
       : null;
     // Read once, when the panel opens; later changes of the queue do not touch the address.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,7 +158,7 @@ export function LibraryReviewPanel() {
   return open ? (
     <ReviewDetail
       id={open}
-      rejectOnOpen={!!link?.reject && open === link.id}
+      dialogOnOpen={open === link?.id ? (link.dialog ?? null) : null}
       onBack={() => setOpen(null)}
     />
   ) : (
@@ -331,11 +357,11 @@ function claimText(t: TFn, s: Submission, me: string): string {
 function ReviewDetail({
   id,
   onBack,
-  rejectOnOpen = false,
+  dialogOnOpen = null,
 }: {
   id: string;
   onBack: () => void;
-  rejectOnOpen?: boolean;
+  dialogOnOpen?: 'reject' | 'changes' | null;
 }) {
   const t = useT();
   const viewer = useAdminViewer();
@@ -361,30 +387,31 @@ function ReviewDetail({
     return () => clearInterval(timer);
   }, []);
 
-  // Coming from a review card's Reject button: take the claim if it is free, then open the reject dialog.
-  const autoReject = useRef(rejectOnOpen);
+  // Coming from a review card's Reject or Request changes button: take the claim if it is free, then open that dialog.
+  const autoReject = useRef(dialogOnOpen);
   useEffect(() => {
     const d = res.data;
     if (!autoReject.current || !d) return;
     const s = d.submission;
     const live = !!s.claimed_by && (s.claim_expires_at_ms ?? 0) > Date.now();
     if (live && s.claimed_by === viewer.userId && s.state === 'in_review') {
-      autoReject.current = false;
-      setDialog('reject');
+      const which = autoReject.current;
+      autoReject.current = null;
+      setDialog(which);
     } else if (s.state === 'submitted' || (s.state === 'in_review' && !live)) {
-      autoReject.current = false;
+      autoReject.current = null;
       void action
         .run(() => rv.claim(id), t('admin.review.claimedNotice'))
         .then((claimed) => {
           if (claimed) {
             res.set(claimed);
-            autoReject.current = true;
+            autoReject.current = dialogOnOpen;
           }
         });
     } else {
-      autoReject.current = false;
+      autoReject.current = null;
     }
-  }, [res, res.data, viewer.userId, id, action, t]);
+  }, [res, res.data, viewer.userId, id, action, t, dialogOnOpen]);
 
   const apply = async (fn: () => Promise<SubmissionDetail>, done: string) => {
     const d = await action.run(fn, done);
@@ -544,6 +571,13 @@ function ReviewDetail({
                 )}
               </Async>
             </section>
+
+            <DuplicatePanel id={id} canResolve={canDecide} />
+            <VideoProxyPlayer id={id} />
+            {manifestOf(last) !== undefined && (
+              <ManifestDiff before={manifestOf(prev)} after={manifestOf(last)} />
+            )}
+            {packageCss(preview.data) && <PackagePreview css={packageCss(preview.data)!} />}
 
             <section className="rv-panel" aria-labelledby="rv-items-h">
               <h3 id="rv-items-h">{t('admin.review.chapters', { count: items.length })}</h3>

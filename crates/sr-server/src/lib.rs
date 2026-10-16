@@ -19,6 +19,7 @@ pub mod inbox_pg;
 pub mod jobs;
 pub mod lag_bus;
 pub mod library_jobs;
+pub mod lookup_wiring;
 pub mod media_jobs;
 pub mod payments_jobs;
 pub mod push_notify;

@@ -7,7 +7,7 @@ import { withReauth } from '../../admin/reauth';
 export type StaffButton =
   | { kind: 'offer'; offerId: string; accept: boolean }
   | { kind: 'tester'; inviteId: string; accept: boolean }
-  /** `#review-queue` card (G-68): approve runs on the server, reject opens the review page's reject dialog. */
+  /** `#review-queue` card (G-68): approve runs on the server, reject and request-changes open the review page's dialog. */
   | { kind: 'review'; submissionId: string; approve: boolean; customId: string }
   | { kind: 'card'; customId: string };
 
@@ -18,7 +18,7 @@ export function parseStaffButton(customId: string | undefined): StaffButton | nu
   if (m) return { kind: 'offer', offerId: m[2]!, accept: m[1] === 'accept' };
   const tester = /^sr:tester-(accept|decline):(\d+)$/.exec(customId);
   if (tester) return { kind: 'tester', inviteId: tester[2]!, accept: tester[1] === 'accept' };
-  const review = /^sr:review-(approve|reject):(\d+)$/.exec(customId);
+  const review = /^sr:review-(approve|reject|changes):(\d+)$/.exec(customId);
   if (review)
     return { kind: 'review', submissionId: review[2]!, approve: review[1] === 'approve', customId };
   return { kind: 'card', customId };
