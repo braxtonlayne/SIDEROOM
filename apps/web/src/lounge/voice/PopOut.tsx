@@ -4,7 +4,7 @@ import { Avatar, Icon } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { voiceController } from '../../voice/controller';
 import { useVoiceSession } from '../../voice/session';
-import { useLocalVideo } from '../../voice/video';
+import { useLocalVideo, useRemoteVideo } from '../../voice/video';
 import { useUsers, useVoiceMembers } from '../data';
 import { VideoSurface } from './VideoSurface';
 import './voice-p10.css';
@@ -88,13 +88,21 @@ function PopOutCall({ channelId, onClose }: { channelId: string; onClose: () => 
   const screen = useLocalVideo((s) => s.screen);
   const camera = useLocalVideo((s) => s.camera);
   const controller = voiceController();
-  const stream = session.screen ? screen?.stream : session.camera ? camera?.stream : undefined;
+  // A stream the viewer is watching comes first: pop it out to keep an eye on it (VOX-UI-004).
+  const watched = useRemoteVideo((s) => {
+    const id = Object.keys(s.watching).find((u) => s.watching[u] && s.screen[u]);
+    return id ? s.screen[id] : undefined;
+  });
+  const stream =
+    watched ?? (session.screen ? screen?.stream : session.camera ? camera?.stream : undefined);
   const mutedNow = session.selfMute || session.serverMute;
   const deafNow = session.selfDeaf || session.serverDeaf;
   return (
     <div className="vc-popout" data-testid="voice-popout">
       <h1 className="vc-popout-title">{session.channelName}</h1>
-      {stream && <VideoSurface stream={stream} label={t('lounge.popOut.preview')} />}
+      {stream && (
+        <VideoSurface stream={stream} muted={!watched} label={t('lounge.popOut.preview')} />
+      )}
       <ul className="vc-popout-people" aria-label={t('lounge.popOut.people')}>
         {members.map((m) => {
           const u = users[m.userId];

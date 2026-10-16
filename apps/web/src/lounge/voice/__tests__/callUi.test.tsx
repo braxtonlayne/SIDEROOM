@@ -14,6 +14,7 @@ import { patchSession, resetSession, useVoiceSession } from '../../../voice/sess
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../../../voice/settings';
 import {
   resetLocalVideo,
+  resetRemoteVideo,
   useLocalVideo,
   useRemoteVideo,
   type VideoDeps,
@@ -23,6 +24,8 @@ import { JoinPreview } from '../JoinPreview';
 import { MockDataProvider } from '../../mockData';
 import { PingGraph, pingPoints } from '../PingGraph';
 import { StreamTile } from '../Tiles';
+import { setPreviewFetcher } from '../useStreamPreview';
+import { resetStreams, useStreams } from '../../../voice/streams';
 import { ScreenSharePicker } from '../ScreenSharePicker';
 import { FREE_PROFILES } from '../../../voice/video';
 
@@ -94,7 +97,8 @@ beforeEach(() => {
   localStorage.clear();
   clearVideoLimitsCache();
   resetLocalVideo();
-  useRemoteVideo.setState({ camera: {}, screen: {}, watching: {} });
+  resetRemoteVideo();
+  resetStreams();
   useLoungeUi.setState(useLoungeUi.getInitialState(), true);
   useVoiceSettings.setState({ settings: DEFAULT_VOICE_SETTINGS });
   resetSession();
@@ -203,7 +207,8 @@ describe('screen share picker', () => {
     for (const name of [/720p 60 fps/, /1080p 30 fps/, /1080p 60 fps/])
       expect(within(dialog).getByRole('radio', { name })).toBeDisabled();
     expect(within(dialog).getAllByText('Needs Patron or a higher server level')).toHaveLength(3);
-    expect(within(dialog).getByTestId('share-preview-only')).toBeInTheDocument();
+    // The SFU forwards shares now, so the "preview only" note is gone.
+    expect(within(dialog).queryByTestId('share-preview-only')).toBeNull();
     await user.click(within(dialog).getByRole('radio', { name: /A browser tab/ }));
     await user.click(within(dialog).getByRole('radio', { name: /Detail/ }));
     await user.click(within(dialog).getByRole('switch', { name: /Share audio/ }));
@@ -369,7 +374,7 @@ describe('call controls', () => {
     render(
       <MockDataProvider>
         <ul>
-          <StreamTile userId="2" name="Mara" />
+          <StreamTile guildId="g1" channelId="c1" userId="2" name="Mara" />
         </ul>
       </MockDataProvider>,
     );
@@ -384,6 +389,84 @@ describe('call controls', () => {
     expect(within(tile).getByRole('button', { name: 'Full screen' })).toBeInTheDocument();
     await user.click(within(tile).getByRole('button', { name: 'Stop Watching' }));
     expect(useRemoteVideo.getState().watching['2']).toBe(false);
+  });
+
+  it('shows the viewer count to people watching and the streamer, and the quality it arrives at', async () => {
+    render(
+      <MockDataProvider>
+        <ul>
+          <StreamTile guildId="g1" channelId="c1" userId="2" name="Mara" />
+        </ul>
+      </MockDataProvider>,
+    );
+    const tile = await screen.findByTestId('stream-tile-2');
+    // Someone who has not joined the stream sees no audience figure.
+    act(() =>
+      useStreams.setState({
+        byOwner: {
+          '2': {
+            key: 'guild:g1:c1:2',
+            ownerId: '2',
+            viewerIds: ['a', 'b'],
+            maxViewers: 25,
+            paused: false,
+            height: 720,
+            fps: 30,
+          },
+        },
+      }),
+    );
+    expect(within(tile).queryByTestId('stream-viewers-2')).toBeNull();
+    act(() =>
+      useRemoteVideo.setState({
+        watching: { '2': true },
+        screen: { '2': new Stream() as unknown as MediaStream },
+        info: { '2:screen': { width: 1280, height: 720, fps: 30 } },
+        layers: { '2:screen': 'mid' },
+      }),
+    );
+    expect(within(tile).getByTestId('stream-viewers-2')).toHaveTextContent('2 viewers');
+    expect(within(tile).getByText('Streaming at 720p 30 fps (mid)')).toBeInTheDocument();
+    act(() =>
+      useStreams.setState({
+        byOwner: {
+          '2': {
+            key: 'guild:g1:c1:2',
+            ownerId: '2',
+            viewerIds: ['a'],
+            maxViewers: 25,
+            paused: false,
+            height: 720,
+            fps: 30,
+          },
+        },
+      }),
+    );
+    expect(within(tile).getByTestId('stream-viewers-2')).toHaveTextContent('1 viewer');
+  });
+
+  it('shows the streamer thumbnail on the idle tile until you watch', async () => {
+    const urls: string[] = [];
+    const create = vi.fn(() => {
+      const u = `blob:thumb-${urls.length}`;
+      urls.push(u);
+      return u;
+    });
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() }));
+    setPreviewFetcher(
+      async () => new Response(new Blob(['jpeg']), { status: 200, headers: { etag: '"1"' } }),
+    );
+    render(
+      <MockDataProvider>
+        <ul>
+          <StreamTile guildId="g1" channelId="c1" userId="2" name="Mara" />
+        </ul>
+      </MockDataProvider>,
+    );
+    const img = await screen.findByAltText('Preview of the stream of Mara');
+    expect(img).toHaveAttribute('src', 'blob:thumb-0');
+    setPreviewFetcher(null);
+    vi.unstubAllGlobals();
   });
 
   it('has no a11y violations with every control present', async () => {
@@ -410,6 +493,25 @@ describe('voice user menu (VOX-UI-008)', () => {
     await user.click(within(menu).getByRole('menuitem', { name: 'Mention' }));
     expect(writeText).toHaveBeenCalledWith('<@2>');
     usePrefsStore.setState({ prefs: DEFAULT_PREFS });
+  });
+
+  it('offers Call, and Disable video only for someone whose camera is on', async () => {
+    const user = userEvent.setup();
+    await joined(user);
+    const tile = await screen.findByRole('group', { name: /^Mara/ });
+    await user.pointer({ keys: '[MouseRight]', target: tile });
+    let menu = await screen.findByRole('menu', { name: 'Mara voice actions' });
+    expect(within(menu).getByRole('menuitem', { name: 'Call' })).toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: 'Disable video' })).toBeNull();
+    await user.keyboard('{Escape}');
+    act(() => useRemoteVideo.setState({ camera: { '2': new Stream() as unknown as MediaStream } }));
+    await user.pointer({
+      keys: '[MouseRight]',
+      target: await screen.findByRole('group', { name: /^Mara/ }),
+    });
+    menu = await screen.findByRole('menu', { name: 'Mara voice actions' });
+    await user.click(within(menu).getByRole('menuitem', { name: 'Disable video' }));
+    expect(useRemoteVideo.getState().videoOff['2']).toBe(true);
   });
 
   it('has no menu on your own tile', async () => {

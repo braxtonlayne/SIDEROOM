@@ -1,0 +1,33 @@
+/* ---------- voice, phase 13 (stream viewers and previews, soundboard, stage, calls) ---------- */
+.vc-viewer-count {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-end: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.vc-stream-idle[data-preview] {
+  position: relative;
+  overflow: hidden;
+}
+.vc-stream-idle[data-preview] > :not(.vc-stream-preview) {
+  position: relative;
+  z-index: 1;
+}
+.vc-stream-preview {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  opacity: 0.45;
+  filter: blur(1px);
+}

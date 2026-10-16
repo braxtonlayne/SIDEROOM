@@ -7,6 +7,7 @@ export function VideoSurface({
   mirror = false,
   label,
   className,
+  volume,
 }: {
   stream: MediaStream;
   /** Local previews are muted; a watched remote stream is not. */
@@ -15,6 +16,8 @@ export function VideoSurface({
   mirror?: boolean;
   label: string;
   className?: string;
+  /** 0 to 1; a watched stream follows the viewer's volume for that person. */
+  volume?: number | undefined;
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
@@ -24,6 +27,9 @@ export function VideoSurface({
       if (el) el.srcObject = null;
     };
   }, [stream]);
+  useEffect(() => {
+    if (ref.current && volume !== undefined) ref.current.volume = Math.min(1, Math.max(0, volume));
+  }, [volume]);
   return (
     <video
       ref={ref}

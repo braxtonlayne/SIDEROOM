@@ -94,6 +94,8 @@ export function VoiceChannelView({
       return (
         <StreamTile
           key={item.key}
+          guildId={channel.guildId}
+          channelId={channel.id}
           userId={item.userId}
           name={nameOf(item.userId)}
           onError={setError}

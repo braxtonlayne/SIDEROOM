@@ -177,7 +177,14 @@ describe('joining', () => {
     expect(h.sent).toEqual([
       {
         op: Op.VOICE_STATE_UPDATE,
-        d: { guild_id: 'g1', channel_id: 'c1', self_mute: false, self_deaf: false },
+        d: {
+          guild_id: 'g1',
+          channel_id: 'c1',
+          self_mute: false,
+          self_deaf: false,
+          self_video: false,
+          self_stream: false,
+        },
       },
     ]);
     expect(sess().status).toBe('joining');

@@ -16,6 +16,7 @@ import {
   REJOIN_VOICE_CLOSES,
   SPEAKING_PRIORITY,
   SPEAKING_VOICE,
+  parseStreamId,
   tuneOpus,
   VoiceClose,
   VoiceOp,
@@ -24,7 +25,13 @@ import {
   type SdpData,
   type QualityData,
   type SpeakingData,
+  type VideoHint,
+  type VideoIn,
+  type VideoLayer,
+  type VideoPublishOut,
+  type VideoSource,
 } from './protocol';
+import { simulcastEncodings } from './video';
 import { qualityFromStats, type ConnectionQuality } from './quality';
 
 export type EngineStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting';
@@ -71,6 +78,24 @@ export interface EngineEvents {
   peer(userId: string, present: boolean): void;
   /** The SFU's egress governor reduced (or restored) the quality of this room (VOX-UI-014). */
   governor?(reduced: boolean): void;
+  /** Someone's camera or screen stream arrived (`stream`) or went away (`null`). */
+  remoteVideo?(userId: string, kind: 'camera' | 'screen', stream: MediaStream | null): void;
+  /** Someone started or stopped publishing a source (op 12 `published`), with its size and frame rate. */
+  videoPublished?(
+    userId: string,
+    source: VideoSource,
+    active: boolean,
+    size: { width: number; height: number; fps: number },
+  ): void;
+  /** The SFU switched the simulcast layer it sends us for someone's source (op 12 `layer`). */
+  videoLayer?(userId: string, source: VideoSource, layer: VideoLayer): void;
+}
+
+/** What a capture is, for the SFU's `publish` message and the sender's encodings. */
+export interface PublishInfo {
+  width: number;
+  height: number;
+  fps: number;
 }
 
 /** What the rest of the app depends on. */
@@ -91,10 +116,25 @@ export interface VoiceEngine {
   setOutputDevice(deviceId: string): Promise<void>;
   /** Re-run ICE (network change). */
   restartIce(): void;
+  /**
+   * Send a camera or a screen (with its audio, when the stream has any) on their own lines. The camera goes out as
+   * three simulcast layers; the SFU is told which line is which (op 12 `publish`). Replaces a running one.
+   */
+  publishVideo?(source: 'camera' | 'screen', stream: MediaStream, info: PublishInfo): void;
+  /** Stop sending the camera or the screen (and its audio). */
+  unpublishVideo?(source: 'camera' | 'screen'): void;
+  /** Tell the SFU which sources of which participants to forward, and how big (op 12 `subscribe`). */
+  setVideoSubscriptions?(hints: readonly VideoHint[]): void;
 }
 
 export type EngineEventHandlers = Partial<EngineEvents>;
 export type EngineFactory = (events: EngineEvents) => VoiceEngine;
+
+/** The part of an RTCRtpTransceiver the engine reads: its mid (set by the first local description) and stop. */
+export interface TransceiverLike {
+  readonly mid: string | null;
+  stop?(): void;
+}
 
 /** A narrow view of RTCPeerConnection (real or fake). */
 export interface PeerLike {
@@ -107,8 +147,12 @@ export interface PeerLike {
   ontrack: ((ev: { track: MediaStreamTrack; streams: readonly MediaStream[] }) => void) | null;
   addTransceiver(
     track: MediaStreamTrack,
-    init: { direction: 'sendrecv' | 'sendonly'; streams: MediaStream[] },
-  ): unknown;
+    init: {
+      direction: 'sendrecv' | 'sendonly';
+      streams: MediaStream[];
+      sendEncodings?: RTCRtpEncodingParameters[];
+    },
+  ): TransceiverLike | undefined;
   createOffer(o?: { iceRestart?: boolean }): Promise<{ type: string; sdp?: string }>;
   createAnswer(): Promise<{ type: string; sdp?: string }>;
   setLocalDescription(d?: { type: string; sdp?: string }): Promise<void>;
@@ -134,6 +178,16 @@ export const browserEngineDeps = (): EngineDeps => ({
     return () => window.removeEventListener('online', cb);
   },
 });
+
+interface Outgoing {
+  source: VideoSource;
+  track: MediaStreamTrack;
+  stream: MediaStream;
+  info: PublishInfo;
+  tx: TransceiverLike | null;
+  /** The mid the SFU was last told this source is on. */
+  announced: string | null;
+}
 
 export const CONNECT_TIMEOUT_MS = 15_000;
 export const ICE_GATHER_TIMEOUT_MS = 2_500;
@@ -178,6 +232,12 @@ export class RtcVoiceEngine implements VoiceEngine {
   private userMuted = new Set<string>();
   private deafened = false;
   private remoteStreams = new Map<string, MediaStream>();
+  /** Our own camera / screen / screen audio lines. */
+  private outgoing = new Map<VideoSource, Outgoing>();
+  /** The last subscription hints, sent again after a reconnect. */
+  private hints: readonly VideoHint[] | null = null;
+  /** Remote camera / screen streams by `<user>:<kind>`. */
+  private remoteVideo = new Map<string, MediaStream>();
 
   constructor(
     private readonly events: EngineEvents,
@@ -352,6 +412,9 @@ export class RtcVoiceEngine implements VoiceEngine {
         if (typeof d?.reduced === 'boolean') this.events.governor?.(d.reduced);
         break;
       }
+      case VoiceOp.VIDEO:
+        this.onVideoFrame(f.d as VideoIn | undefined);
+        break;
       case VoiceOp.CLIENT_DISCONNECT: {
         const id = (f.d as { user_id?: string } | undefined)?.user_id;
         if (id) this.dropPeer(id);
@@ -406,11 +469,18 @@ export class RtcVoiceEngine implements VoiceEngine {
     const out = this.mic.outStream;
     const track = this.mic.track;
     if (track && out) pc.addTransceiver(track, { direction: 'sendonly', streams: [out] });
+    for (const o of this.outgoing.values()) this.attach(pc, o);
     pc.ontrack = (ev) => {
       const stream = ev.streams[0];
-      if (!stream || ev.track.kind !== 'audio') return;
-      // The SFU labels each forwarded line's msid stream with the speaker's user id (spec 4.4).
-      this.addPeer(stream.id, stream);
+      if (!stream) return;
+      // The SFU labels each forwarded line's msid stream: the speaker's user id for the mic (spec 4.4),
+      // `<user>-camera` and `<user>-screen` for video (the screen's audio shares the screen's stream).
+      const id = parseStreamId(stream.id);
+      if (id.kind !== 'mic') {
+        this.addRemoteVideo(id.userId, id.kind, stream);
+      } else if (ev.track.kind === 'audio') {
+        this.addPeer(id.userId, stream);
+      }
     };
     pc.onconnectionstatechange = () => this.onPeerState(pc);
     return pc;
@@ -449,6 +519,9 @@ export class RtcVoiceEngine implements VoiceEngine {
       this.offerPending = false;
       this.reoffer = { restart };
       await pc.setLocalDescription({ type: 'rollback' });
+    } else {
+      this.announceOutgoing();
+      if (this.hints) this.sendHints(this.hints);
     }
   }
 
@@ -566,6 +639,143 @@ export class RtcVoiceEngine implements VoiceEngine {
     this.remoteStreams.delete(userId);
     this.playback.remove(userId);
     this.events.peer(userId, false);
+    for (const key of [...this.remoteVideo.keys()]) {
+      if (key.startsWith(`${userId}:`)) this.dropRemoteVideo(key);
+    }
+  }
+
+  // ---- video ----
+
+  private addRemoteVideo(userId: string, kind: 'camera' | 'screen', stream: MediaStream): void {
+    const key = `${userId}:${kind}`;
+    if (this.remoteVideo.get(key) !== stream) {
+      this.remoteVideo.set(key, stream);
+      this.events.remoteVideo?.(userId, kind, stream);
+      // The line is removed (the publisher stopped) when the stream loses its last track.
+      stream.addEventListener?.('removetrack', () => {
+        if (stream.getTracks().length === 0 && this.remoteVideo.get(key) === stream) {
+          this.dropRemoteVideo(key);
+        }
+      });
+    }
+  }
+
+  private dropRemoteVideo(key: string): void {
+    if (!this.remoteVideo.delete(key)) return;
+    const [userId, kind] = key.split(':') as [string, 'camera' | 'screen'];
+    this.events.remoteVideo?.(userId, kind, null);
+  }
+
+  private onVideoFrame(m: VideoIn | undefined): void {
+    if (!m || typeof m !== 'object') return;
+    if (m.t === 'published') {
+      this.events.videoPublished?.(m.user_id, m.source, m.active, {
+        width: m.width ?? 0,
+        height: m.height ?? 0,
+        fps: m.fps ?? 0,
+      });
+      if (!m.active && m.source !== 'screen_audio') {
+        this.dropRemoteVideo(`${m.user_id}:${m.source}`);
+      }
+    } else if (m.t === 'layer') {
+      this.events.videoLayer?.(m.user_id, m.source, m.layer);
+    }
+  }
+
+  publishVideo(source: 'camera' | 'screen', stream: MediaStream, info: PublishInfo): void {
+    this.unpublishVideo(source, false);
+    const video = stream.getVideoTracks()[0];
+    if (!video) return;
+    const added: Outgoing[] = [{ source, track: video, stream, info, tx: null, announced: null }];
+    const audio = source === 'screen' ? stream.getAudioTracks()[0] : undefined;
+    if (audio) {
+      added.push({ source: 'screen_audio', track: audio, stream, info, tx: null, announced: null });
+    }
+    for (const o of added) this.outgoing.set(o.source, o);
+    if (this.pc) {
+      for (const o of added) this.attach(this.pc, o);
+      this.enqueue(() => this.negotiate(false));
+    }
+  }
+
+  unpublishVideo(source: 'camera' | 'screen', renegotiate = true): void {
+    const sources: VideoSource[] = source === 'screen' ? ['screen', 'screen_audio'] : [source];
+    let changed = false;
+    for (const s of sources) {
+      const o = this.outgoing.get(s);
+      if (!o) continue;
+      this.outgoing.delete(s);
+      if (o.announced !== null) {
+        this.sendVideo({
+          t: 'publish',
+          mid: o.announced,
+          source: s,
+          active: false,
+          width: 0,
+          height: 0,
+          fps: 0,
+        });
+      }
+      if (o.tx) {
+        try {
+          o.tx.stop?.();
+        } catch {
+          /* already stopped */
+        }
+        changed = true;
+      }
+    }
+    if (changed && renegotiate && this.pc) this.enqueue(() => this.negotiate(false));
+  }
+
+  setVideoSubscriptions(hints: readonly VideoHint[]): void {
+    this.hints = hints;
+    this.sendHints(hints);
+  }
+
+  private sendHints(hints: readonly VideoHint[]): void {
+    this.send(VoiceOp.VIDEO, { t: 'subscribe', subscriptions: hints });
+  }
+
+  private sendVideo(m: VideoPublishOut): void {
+    this.send(VoiceOp.VIDEO, m);
+  }
+
+  /** Put one of our captures on a sendonly line of the peer. The camera is three simulcast layers. */
+  private attach(pc: PeerLike, o: Outgoing): void {
+    if (o.tx) return;
+    const { info } = o;
+    const sendEncodings =
+      o.source === 'camera'
+        ? simulcastEncodings({ height: info.height, fps: info.fps })
+        : o.source === 'screen'
+          ? [{ maxFramerate: info.fps, maxBitrate: screenBitrate(info) }]
+          : undefined;
+    o.tx =
+      pc.addTransceiver(o.track, {
+        direction: 'sendonly',
+        streams: [o.stream],
+        ...(sendEncodings ? { sendEncodings } : {}),
+      }) ?? null;
+    o.announced = null;
+  }
+
+  /** Name our lines to the SFU once the offer has given them mids (op 12 `publish`). */
+  private announceOutgoing(): void {
+    for (const o of this.outgoing.values()) {
+      const mid = o.tx?.mid;
+      if (!mid || o.announced === mid) continue;
+      o.announced = mid;
+      this.sendVideo({
+        t: 'publish',
+        mid,
+        source: o.source,
+        active: true,
+        width: o.info.width,
+        height: o.info.height,
+        fps: o.info.fps,
+      });
+    }
   }
 
   // ---- controls ----
@@ -655,6 +865,9 @@ export class RtcVoiceEngine implements VoiceEngine {
     }
     this.mic.stop();
     for (const id of [...this.remoteStreams.keys()]) this.dropPeer(id);
+    for (const key of [...this.remoteVideo.keys()]) this.dropRemoteVideo(key);
+    this.outgoing.clear();
+    this.hints = null;
     this.playback.dispose();
     this.params = null;
     this.socketRetries = this.iceRestarts = 0;
@@ -668,4 +881,10 @@ export class RtcVoiceEngine implements VoiceEngine {
     rej?.(new Error('Voice connection closed'));
     this.setStatus('idle');
   }
+}
+
+/** A screen share's bitrate cap: the camera's ladder, a little richer for text and slides. */
+function screenBitrate(info: PublishInfo): number {
+  const kbps = info.height <= 480 ? 1200 : info.height <= 720 ? 2500 : 5000;
+  return Math.round(kbps * (info.fps > 30 ? 1.4 : 1)) * 1000;
 }

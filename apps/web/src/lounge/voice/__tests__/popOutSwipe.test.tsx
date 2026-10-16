@@ -1,4 +1,5 @@
 import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
+import { useRemoteVideo } from '../../../voice/video';
 import { useRef } from 'react';
 import { afterAll, beforeAll, vi } from 'vitest';
 import { resetStore, useStore } from '../../../store';
@@ -178,6 +179,26 @@ describe('pop-out window (VOX-UI-012)', () => {
     act(() => patchSession({ status: 'idle' }));
     expect(closeSpy).toHaveBeenCalled();
     expect(screen.getByTestId('state')).toHaveTextContent('closed');
+  });
+
+  it('pops out a stream you are watching, with sound', async () => {
+    render(<Host />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'open' }));
+      await Promise.resolve();
+    });
+    const body = within(pip.document.body);
+    expect(body.queryByLabelText('Your camera or screen')).toBeNull();
+    act(() =>
+      useRemoteVideo.setState({
+        watching: { '2': true },
+        screen: { '2': { getTracks: () => [] } as unknown as MediaStream },
+      }),
+    );
+    const video = pip.document.body.querySelector('video');
+    expect(video).not.toBeNull();
+    expect(video!.muted).toBe(false);
+    act(() => useRemoteVideo.setState({ watching: {}, screen: {} }));
   });
 
   it('forgets the window when the person closes it', async () => {
