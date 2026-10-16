@@ -123,7 +123,13 @@ pub async fn create_ban(
 ) -> ApiResult<StatusCode> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, actor, gid).await?;
+    gate.require_perm(
+        &*api,
+        actor,
+        gid,
+        sr_core::permissions::Permissions::BAN_MEMBERS,
+    )
+    .await?;
     let uid: UserId = id("user_id", &user_id)?;
     let body = body.map(|b| b.0).unwrap_or_default();
     let too_big = body
@@ -176,7 +182,13 @@ pub async fn remove_ban(
 ) -> ApiResult<StatusCode> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, actor, gid).await?;
+    gate.require_perm(
+        &*api,
+        actor,
+        gid,
+        sr_core::permissions::Permissions::BAN_MEMBERS,
+    )
+    .await?;
     let uid: UserId = id("user_id", &user_id)?;
     api.unban(actor, gid, uid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
@@ -230,7 +242,14 @@ pub async fn bulk_ban(
 ) -> ApiResult<Json<BulkBanResult>> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, actor, gid).await?;
+    gate.require_perm(
+        &*api,
+        actor,
+        gid,
+        sr_core::permissions::Permissions::BAN_MEMBERS
+            | sr_core::permissions::Permissions::MANAGE_GUILD,
+    )
+    .await?;
     if body.user_ids.is_empty() || body.user_ids.len() > MAX_BULK_BAN {
         return Err(HttpError(ApiError::invalid_form().field(
             "user_ids",

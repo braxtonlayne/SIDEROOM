@@ -71,7 +71,13 @@ pub async fn create_role(
 ) -> ApiResult<Json<RoleObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_ROLES,
+    )
+    .await?;
     let input = NewRole {
         name: body.name,
         permissions: body
@@ -106,7 +112,13 @@ pub async fn reorder_roles(
 ) -> ApiResult<Json<Vec<RoleObject>>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_ROLES,
+    )
+    .await?;
     let mut moves = Vec::with_capacity(body.len());
     for (n, e) in body.iter().enumerate() {
         moves.push((id::<RoleId>(&format!("{n}.id"), &e.id)?, e.position));
@@ -137,7 +149,13 @@ pub async fn modify_role(
 ) -> ApiResult<Json<RoleObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_ROLES,
+    )
+    .await?;
     let rid: RoleId = id("role_id", &role_id)?;
     // The image is stored first (a bad upload fails the edit), the old one is removed after
     // the edit committed, and a refused edit removes the new one again.
@@ -216,7 +234,13 @@ pub async fn delete_role(
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_ROLES,
+    )
+    .await?;
     let rid: RoleId = id("role_id", &role_id)?;
     api.delete_role(user, gid, rid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
@@ -233,7 +257,13 @@ async fn set_member_role(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let uid: UserId = id("user_id", &user_id)?;
     let rid: RoleId = id("role_id", &role_id)?;
-    gate.require(&*api, actor, gid).await?;
+    gate.require_perm(
+        &*api,
+        actor,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_ROLES,
+    )
+    .await?;
     api.assign_role(actor, gid, uid, rid, add)
         .await
         .map_err(ce)?;

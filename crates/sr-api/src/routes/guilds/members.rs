@@ -13,6 +13,7 @@ use axum::{
 use serde::Deserialize;
 use sr_chat::admin_repo::MemberFilter;
 use sr_chat::admin_rules::MemberPatch;
+use sr_core::permissions::Permissions;
 use sr_core::{ApiError, ErrorCode, GuildId, RoleId, UserId};
 use sr_storage::media::MediaKind;
 use utoipa::ToSchema;
@@ -140,9 +141,13 @@ pub async fn modify_member(
 ) -> ApiResult<Json<MemberObject>> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    if body.roles.is_some() || body.communication_disabled_until.is_some() {
-        // Role assignment (`MANAGE_ROLES`) and timeouts (`MODERATE_MEMBERS`), D-223.
-        gate.require(&*api, actor, gid).await?;
+    if body.roles.is_some() {
+        gate.require_perm(&*api, actor, gid, Permissions::MANAGE_ROLES)
+            .await?;
+    }
+    if body.communication_disabled_until.is_some() {
+        gate.require_perm(&*api, actor, gid, Permissions::MODERATE_MEMBERS)
+            .await?;
     }
     let uid: UserId = id("user_id", &user_id)?;
     let roles = match body.roles {
@@ -195,7 +200,13 @@ pub async fn kick_member(
 ) -> ApiResult<StatusCode> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, actor, gid).await?;
+    gate.require_perm(
+        &*api,
+        actor,
+        gid,
+        sr_core::permissions::Permissions::KICK_MEMBERS,
+    )
+    .await?;
     let uid: UserId = id("user_id", &user_id)?;
     api.kick_member(actor, gid, uid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)

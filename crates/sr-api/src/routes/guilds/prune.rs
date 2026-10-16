@@ -119,7 +119,13 @@ pub async fn prune(
 ) -> ApiResult<Json<PruneResult>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::KICK_MEMBERS,
+    )
+    .await?;
     let include = roles(body.include_roles)?;
     let pruned = api
         .prune(user, gid, body.days.unwrap_or(DEFAULT_DAYS), include)
