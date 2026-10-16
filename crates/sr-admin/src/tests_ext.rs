@@ -33,6 +33,7 @@ struct Notes {
     notices: Mutex<Vec<String>>,
     broadcasts: Mutex<Vec<Announcement>>,
     dms: Mutex<Vec<(i64, String)>>,
+    closed: Mutex<Vec<(i64, OfferState)>>,
 }
 
 #[async_trait]
@@ -50,6 +51,9 @@ impl StaffNotifier for Notes {
     async fn system_dm(&self, to: i64, text: &str) -> bool {
         self.dms.lock().unwrap().push((to, text.to_owned()));
         true
+    }
+    async fn offer_closed(&self, offer: &StaffOffer) {
+        self.closed.lock().unwrap().push((offer.id, offer.state));
     }
 }
 
@@ -172,6 +176,11 @@ async fn an_offer_makes_nobody_staff_until_accepted() {
         .await
         .unwrap();
     assert_eq!(closed.state, OfferState::Accepted);
+    // The DM card is closed (its buttons go) once the offer is answered.
+    assert_eq!(
+        *e.notes.closed.lock().unwrap(),
+        [(offer.id, OfferState::Accepted)]
+    );
     let c = e.svc.resolve(NEWBIE, None).await.unwrap();
     assert!(c.permissions.has(P::PLATFORM_BAN));
     assert!(e.notes.notices.lock().unwrap()[0].contains("newbie joined the staff as Moderator"));
@@ -216,6 +225,10 @@ async fn declining_leaves_the_account_alone_and_only_the_appointee_can_answer() 
         .await
         .unwrap();
     assert_eq!(closed.state, OfferState::Declined);
+    assert_eq!(
+        *e.notes.closed.lock().unwrap(),
+        [(offer.id, OfferState::Declined)]
+    );
     assert_eq!(
         e.svc.resolve(NEWBIE, None).await.unwrap_err(),
         AdminError::NotStaff

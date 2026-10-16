@@ -69,9 +69,25 @@ function cardWith(page: Page, name: string | RegExp) {
 }
 
 test('AutoMod alert card: buttons render, a press is run by the server and the card is rewritten', async ({
-  scenario,
+  seedUser,
+  signedIn,
 }) => {
-  const { a, b, guildId, channelId } = await scenario.ownerAndMember();
+  // A fresh server owner: the bootstrapped Owner is in every server earlier specs made (slow READY).
+  const a = await signedIn(await seedUser('modown'));
+  const b = await signedIn(await seedUser('modmem'));
+  const guild = await apiPost<{ id: string; channels: { id: string; type: number }[] }>(
+    a.context.request,
+    '/guilds',
+    { name: `AutoMod ${Date.now().toString(36)}` },
+  );
+  const guildId = guild.id;
+  const channelId = guild.channels.find((c) => c.type === 0)!.id;
+  const invite = await apiPost<{ code: string }>(
+    a.context.request,
+    `/channels/${channelId}/invites`,
+    {},
+  );
+  await apiPost(b.context.request, `/invites/${invite.code}`);
   const word = `zorbleflux${Date.now().toString(36)}`;
   await apiPost(a.context.request, `/guilds/${guildId}/auto-moderation/rules`, {
     name: 'E2E keyword alert',

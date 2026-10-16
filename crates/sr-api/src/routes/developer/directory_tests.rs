@@ -192,15 +192,24 @@ async fn the_app_page_shows_install_parameters_and_commands_and_hides_everything
     );
 }
 
-/// The Owner holds every platform permission, `REVIEW_APPS` included: they can decide versions
-/// (found in the browser run, where the Owner was refused with "Missing platform permission").
+/// The Owner holds every platform permission, `REVIEW_APPS` included, and may review someone
+/// else's application (the browser run found the Owner refused with "Missing platform permission");
+/// nobody reviews their own.
 #[tokio::test]
-async fn the_owner_can_review_versions() {
+async fn the_owner_reviews_other_peoples_versions_but_not_their_own() {
     let e = env().await;
-    let (id, ..) = e.new_app().await;
+    let (s, v) = e
+        .post(
+            Who::Session(BOB),
+            "/applications",
+            json!({"name": "Bob app", "description": "x"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let id = v["application"]["id"].as_str().unwrap().to_owned();
     let (s, v) = e
         .patch(
-            Who::Session(OWNER),
+            Who::Session(BOB),
             &format!("/applications/{id}"),
             json!({"privacy_policy_url": "https://a.test/privacy"}),
         )
@@ -208,7 +217,7 @@ async fn the_owner_can_review_versions() {
     assert_eq!(s, StatusCode::OK, "{v}");
     let (s, v) = e
         .post(
-            Who::Session(OWNER),
+            Who::Session(BOB),
             &format!("/applications/{id}/versions"),
             json!({"note": "ready"}),
         )

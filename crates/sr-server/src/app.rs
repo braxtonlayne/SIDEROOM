@@ -285,7 +285,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // `storage.endpoint = "memory:"` keeps every object in this process (lost on restart, presigned
     // URLs do not work). Only for local browser tests on hosts without an S3 service.
     let storage: Arc<dyn ObjectStorage> = if s.endpoint == "memory:" {
-        tracing::warn!("object storage is in memory (storage.endpoint = \"memory:\"): test use only");
+        tracing::warn!(
+            "object storage is in memory (storage.endpoint = \"memory:\"): test use only"
+        );
         Arc::new(ObjectStoreStorage::in_memory())
     } else {
         Arc::new(

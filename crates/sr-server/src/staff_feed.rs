@@ -567,9 +567,16 @@ impl StaffVoice {
                 value: clip(outcome, 1024),
                 inline: false,
             }),
-            None => content = clip(&format!("{content}
+            None => {
+                content = clip(
+                    &format!(
+                        "{content}
 
-{outcome}"), 2000),
+{outcome}"
+                    ),
+                    2000,
+                )
+            }
         }
         self.rewrite(
             channel,

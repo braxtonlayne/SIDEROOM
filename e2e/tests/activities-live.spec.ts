@@ -1,4 +1,4 @@
-import { expect, test, apiPatch, apiPost, registerUser } from '../support/fixtures';
+import { expect, test, apiPatch, apiPost, loginApi, registerUser } from '../support/fixtures';
 import { testActivityBundle } from '../support/activityBundle';
 import {
   debugPage,
@@ -50,10 +50,15 @@ test.describe('Activities (real browser)', () => {
     );
     const base = process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173';
     const req = await playwright.request.newContext({ baseURL: base });
+    // Fresh accounts for the browser pages (the bootstrapped Owner is in every server earlier specs made,
+    // and its READY is slow); the Owner only reviews, over the API.
+    const alice = await registerUser(req, 'acta');
     const bob = await registerUser(req, 'actb');
     await req.dispose();
+    const staff = await playwright.request.newContext({ baseURL: base });
+    await loginApi(staff, owner);
 
-    const a = await mediaContext(browser, browserName, owner);
+    const a = await mediaContext(browser, browserName, alice);
     const b = await mediaContext(browser, browserName, bob);
     await trackPeerConnections(a.page);
     await trackPeerConnections(b.page);
@@ -61,10 +66,11 @@ test.describe('Activities (real browser)', () => {
     debugPage(b.page, 'B');
 
     try {
-      // --- An application with an approved version (the proxy serves only released applications).
+      // --- Bob's application with a version the Owner approved (nobody reviews their own; the proxy
+      // serves only released applications).
       const name = `E2E Activity ${Date.now().toString(36)}`;
       const { application: app } = await apiPost<{ application: { id: string } }>(
-        a.context.request,
+        b.context.request,
         '/applications',
         {
           name,
@@ -72,39 +78,43 @@ test.describe('Activities (real browser)', () => {
         },
       );
       // A version needs the policy links (doc 11).
-      await apiPatch(a.context.request, `/applications/${app.id}`, {
+      await apiPatch(b.context.request, `/applications/${app.id}`, {
         privacy_policy_url: 'https://example.test/privacy',
         terms_of_service_url: 'https://example.test/terms',
       });
       const version = await apiPost<{ id: string }>(
-        a.context.request,
+        b.context.request,
         `/applications/${app.id}/versions`,
         { note: 'e2e' },
       );
-      await apiPost(a.context.request, `/admin/developers/versions/${version.id}/decision`, {
+      await apiPost(staff, `/admin/developers/versions/${version.id}/decision`, {
         decision: 'approve',
       });
 
-      // --- Developer portal: upload the bundle and submit it.
-      await a.page.goto(`/developers/applications/${app.id}?tab=activities`);
-      await a.page.getByLabel('Activity bundle (zip)').setInputFiles({
+      // --- Developer portal (Bob): upload the bundle and submit it.
+      await b.page.goto(`/developers/applications/${app.id}?tab=activities`);
+      await b.page.getByLabel('Activity bundle (zip)').setInputFiles({
         name: 'activity.zip',
         mimeType: 'application/zip',
         buffer: testActivityBundle(),
       });
-      const bundles = a.page.getByRole('list', { name: 'Bundles' });
+      const bundles = b.page.getByRole('list', { name: 'Bundles' });
       await expect(bundles.getByRole('button', { name: 'Submit for review' })).toBeVisible({
         timeout: 30_000,
       });
       await bundles.getByRole('button', { name: 'Submit for review' }).click();
       await expect(bundles.getByText('In review')).toBeVisible();
 
-      // --- Staff: approve it in Review Queues, Apps.
-      await a.page.goto('/admin/review');
-      await a.page.getByRole('tab', { name: 'Apps' }).click();
-      await a.page.getByRole('button', { name: `Approve the Activity of ${name}` }).click();
-      await a.page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
-      await expect(a.page.getByText('Decision recorded.')).toBeVisible();
+      // --- Staff: the review queue lists it; approve that bundle.
+      const queue = await (await staff.get('/api/v1/admin/developers/activities')).json();
+      const row = (
+        queue as { config: { application_id: string }; bundle: { bundle: { id: string } } }[]
+      ).find((r) => r.config.application_id === app.id);
+      expect(row, 'the Activity is in the review queue').toBeTruthy();
+      await apiPost(staff, `/admin/developers/activities/${app.id}/decision`, {
+        decision: 'approve',
+        bundle_id: row!.bundle.bundle.id,
+      });
 
       // --- Both in one voice channel; A starts the Activity from the call bar.
       const server = await voiceServer(a.context, [b.context], 'Game Night');
@@ -172,6 +182,7 @@ test.describe('Activities (real browser)', () => {
     } finally {
       await a.context.close();
       await b.context.close();
+      await staff.dispose();
     }
   });
 });

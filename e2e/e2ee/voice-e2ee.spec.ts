@@ -131,7 +131,6 @@ test.describe('Voice E2EE (real browsers)', () => {
   test('two clients form an MLS group, share a call code and exchange encrypted audio and video', async ({
     browser,
     browserName,
-    owner,
     playwright,
   }) => {
     // Playwright's Windows WebKit has no WebRTC at all; the client would (rightly) refuse the call.
@@ -153,12 +152,14 @@ test.describe('Voice E2EE (real browsers)', () => {
     const req = await playwright.request.newContext({
       baseURL: process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173',
     });
+    // Fresh accounts: the bootstrapped Owner is in every server earlier specs made, and its READY is slow.
+    const alice = await registerUser(req, 'e2eea');
     const bob = await registerUser(req, 'e2eeb');
     // The observer inspects frames in an RTCRtpScriptTransform worker.
     const eve = caps.script ? await registerUser(req, 'e2eeobs') : null;
     await req.dispose();
 
-    const a = await mediaContext(browser, browserName, owner);
+    const a = await mediaContext(browser, browserName, alice);
     const b = await mediaContext(browser, browserName, bob);
     const c = eve ? await mediaContext(browser, browserName, eve) : null;
     for (const [p, label] of [
