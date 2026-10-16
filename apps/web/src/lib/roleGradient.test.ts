@@ -4,7 +4,11 @@ import { HOLOGRAPHIC, gradientOf, nameStyle, stopsOf } from './roleGradient';
 describe('role gradients (J-08)', () => {
   it('the holographic preset is the triple the server enforces (K-02)', () => {
     // Mirrors sr_chat::role_rules::HOLOGRAPHIC; the server refuses any other tertiary stop.
-    expect(HOLOGRAPHIC).toEqual({ primary: 11_127_295, secondary: 16_759_788, tertiary: 16_761_760 });
+    expect(HOLOGRAPHIC).toEqual({
+      primary: 11_127_295,
+      secondary: 16_759_788,
+      tertiary: 16_761_760,
+    });
   });
 
   it('builds the stops from the colors object, first stop first', () => {

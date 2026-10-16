@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import {
+  TRIM_SAMPLE_RATE,
+  decodeAudioFile,
   durationOf,
   encodeWav,
   maxStart,
@@ -100,5 +102,34 @@ describe('soundboard trimmer (J-06, D-201)', () => {
     const wav = encodeWav(s, 0, 1, true);
     const v = view(wav);
     for (let i = 0; i < 100; i++) expect(v.getInt16(44 + i * 2, true)).toBe(0);
+  });
+});
+
+describe('decodeAudioFile (K-03)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('decodes in an offline context pinned to 48 kHz, not the live one', async () => {
+    const made: unknown[][] = [];
+    class Offline {
+      constructor(...args: unknown[]) {
+        made.push(args);
+      }
+      decodeAudioData = async () => ({
+        sampleRate: TRIM_SAMPLE_RATE,
+        length: 1,
+        numberOfChannels: 2,
+        getChannelData: () => new Float32Array(1),
+      });
+    }
+    const live = vi.fn();
+    vi.stubGlobal('OfflineAudioContext', Offline);
+    vi.stubGlobal('AudioContext', live);
+    const out = await decodeAudioFile(new Blob(['x']));
+    expect(out.sampleRate).toBe(48000);
+    expect(made).toEqual([[2, 1, 48000]]);
+    expect(live).not.toHaveBeenCalled();
+    // The exported WAV carries that rate.
+    const wav = encodeWav(out, 0, 1, false);
+    expect(new DataView(wav.buffer).getUint32(24, true)).toBe(48000);
   });
 });
