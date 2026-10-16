@@ -1,6 +1,29 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { capture, http, HttpResponse, MANAGE, openSettings, seed, server } from './helpers';
+import { render } from '@testing-library/react';
+import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
+import { createAppRouter } from '../../../router';
+import {
+  baseHandlers,
+  capture,
+  http,
+  HttpResponse,
+  MANAGE,
+  openSettings,
+  seed,
+  server,
+} from './helpers';
+
+/** Like openSettings, but the test's own handlers (set up after the base ones) win. */
+async function openWith(section: string, setup: () => void) {
+  baseHandlers();
+  setup();
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/settings/server/g1/${section}`] }),
+  );
+  render(<RouterProvider router={router} />);
+  await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+}
 
 vi.mock('../../../store/connect', () => ({
   connectGateway: vi.fn(),
@@ -314,5 +337,118 @@ describe('Member details: audit history (LNG-SSET-030)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Details for bob' }));
     const dialog = await screen.findByRole('dialog', { name: 'bob' });
     expect(within(dialog).queryByText('Audit history')).toBeNull();
+  });
+});
+
+describe('Features search (LNG-SSET-049)', () => {
+  it('narrows the modules by name or description', async () => {
+    seed({ perms: [MANAGE.guild] });
+    const mod = (id: string, name: string, description: string) => ({
+      id,
+      name,
+      description,
+      section: 'Lounge',
+      phase: 11,
+      enabled: false,
+      default_enabled: false,
+      platform_disabled: false,
+      settings: {},
+      schema: { fields: [] },
+    });
+    server.use(
+      http.get('*/api/v1/guilds/g1/sr/features', () =>
+        HttpResponse.json([
+          mod('lounge.starboard', 'Starboard', 'Repost popular messages.'),
+          mod('lounge.sticky', 'Sticky messages', 'Keep a message at the bottom.'),
+        ]),
+      ),
+    );
+    await openSettings('features');
+    await userEvent.type(await screen.findByLabelText('Search features'), 'bottom');
+    expect(screen.queryByText('Starboard')).toBeNull();
+    expect(screen.getByText('Sticky messages')).toBeVisible();
+    await userEvent.clear(screen.getByLabelText('Search features'));
+    await userEvent.type(screen.getByLabelText('Search features'), 'zzz');
+    expect(await screen.findByText('No feature matches your search.')).toBeVisible();
+  });
+});
+
+describe('Integrations overview and followed channels (LNG-SSET-044, LNG-SSET-046)', () => {
+  const hook = (id: string, type: number, name: string) => ({
+    id,
+    type,
+    guild_id: 'g1',
+    channel_id: 'c1',
+    name,
+    avatar: null,
+  });
+
+  it('counts webhooks and followed channels, lists bots and kicks one', async () => {
+    seed({ perms: [MANAGE.webhooks, MANAGE.kick] });
+    const kick = capture();
+    const setup = () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/webhooks', () =>
+          HttpResponse.json([hook('w1', 1, 'CI'), hook('w2', 2, 'News'), hook('w3', 2, 'Blog')]),
+        ),
+        http.get('*/api/v1/guilds/g1/members', () =>
+          HttpResponse.json([
+            { user: { id: '2', username: 'bob' }, roles: [], joined_at: '2026-01-01T00:00:00Z' },
+            {
+              user: { id: '50', username: 'helper', bot: true },
+              roles: [],
+              joined_at: '2026-01-01T00:00:00Z',
+            },
+          ]),
+        ),
+        http.delete('*/api/v1/guilds/g1/members/50', async ({ request }) => {
+          await kick.record(request);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+    await openWith('integrations', setup);
+    const counts = await screen.findByRole('list', { name: 'Integration counts' });
+    expect(within(counts).getByText('1 webhook')).toBeVisible();
+    expect(within(counts).getByText('2 followed channels')).toBeVisible();
+    expect(await screen.findByText('helper')).toBeVisible();
+    expect(screen.queryByText('bob')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Remove helper' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Remove helper?' })).getByRole('button', {
+        name: 'Remove',
+      }),
+    );
+    await waitFor(() => expect(kick.calls).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText('helper')).toBeNull());
+  });
+
+  it('unfollows a channel from its own tab and keeps followers out of Webhooks', async () => {
+    seed({ perms: [MANAGE.webhooks] });
+    const del = capture();
+    const setup = () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/webhooks', () =>
+          HttpResponse.json([hook('w1', 1, 'CI'), hook('w2', 2, 'News')]),
+        ),
+        http.get('*/api/v1/guilds/g1/members', () => HttpResponse.json([])),
+        http.delete('*/api/v1/webhooks/w2', async ({ request }) => {
+          await del.record(request);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+    await openWith('integrations', setup);
+    await userEvent.click(await screen.findByRole('tab', { name: 'Webhooks' }));
+    expect(await screen.findByText('CI')).toBeVisible();
+    expect(screen.queryByText('News')).toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: 'Followed Channels' }));
+    expect(await screen.findByText('News')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Unfollow News' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Unfollow News?' })).getByRole('button', {
+        name: 'Unfollow',
+      }),
+    );
+    await waitFor(() => expect(del.calls).toHaveLength(1));
+    expect(await screen.findByText('No followed channels')).toBeVisible();
   });
 });

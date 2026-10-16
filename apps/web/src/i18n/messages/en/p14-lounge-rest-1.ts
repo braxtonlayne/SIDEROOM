@@ -112,6 +112,38 @@ export default {
   'settings.communityMore.directorySaved': 'Listing request saved.',
   'settings.communityMore.directoryWithdrawn': 'Listing withdrawn.',
 
+  // Features search (LNG-SSET-049)
+  'settings.features.search': 'Search features',
+  'settings.features.noMatch': 'No feature matches your search.',
+
+  // Integrations overview and followed channels (LNG-SSET-044, LNG-SSET-046)
+  'settings.integrationsOverview.tabOverview': 'Overview',
+  'settings.integrationsOverview.tabFollowed': 'Followed Channels',
+  'settings.integrationsOverview.loading': 'Loading integrations',
+  'settings.integrationsOverview.counts': 'Integration counts',
+  'settings.integrationsOverview.webhooks': '{count, plural, one {# webhook} other {# webhooks}}',
+  'settings.integrationsOverview.followed':
+    '{count, plural, one {# followed channel} other {# followed channels}}',
+  'settings.integrationsOverview.botsTitle': 'Bots and apps',
+  'settings.integrationsOverview.loadingBots': 'Loading bots',
+  'settings.integrationsOverview.noBots': 'No bots in this server',
+  'settings.integrationsOverview.noBotsHint':
+    'Add one from the Apps tab. The first 1000 members are checked.',
+  'settings.integrationsOverview.remove': 'Remove',
+  'settings.integrationsOverview.removeNamed': 'Remove {name}',
+  'settings.integrationsOverview.removeTitle': 'Remove {name}?',
+  'settings.integrationsOverview.removeBody':
+    'The bot leaves this server. You can add it again from the Apps tab.',
+  'settings.integrationsOverview.noFollowed': 'No followed channels',
+  'settings.integrationsOverview.noFollowedHint':
+    'Follow an announcement channel from another server to get its posts here.',
+  'settings.integrationsOverview.postsTo': 'Posts to #{name}',
+  'settings.integrationsOverview.unfollow': 'Unfollow',
+  'settings.integrationsOverview.unfollowNamed': 'Unfollow {name}',
+  'settings.integrationsOverview.unfollowTitle': 'Unfollow {name}?',
+  'settings.integrationsOverview.unfollowBody':
+    'Posts from that channel stop arriving here. Messages already posted stay.',
+
   // Member audit history in the details dialog (LNG-SSET-030)
   'settings.members.history': 'Audit history',
   'settings.members.historyLoading': 'Loading the history',

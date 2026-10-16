@@ -2,7 +2,7 @@
 // reaction roles, sticky messages, ...). Every module is a switch plus a settings form the server describes
 // itself (crates/sr-features), so a new module needs no screen here. Temporary roles also get a small panel
 // to grant and end roles, because they are actions as well as settings.
-import { Button, Notice, Switch } from '@sideroom/ui';
+import { Button, Notice, Switch, TextInput } from '@sideroom/ui';
 import { useMemo, useState } from 'react';
 import {
   SchemaForm,
@@ -30,6 +30,7 @@ export function FeaturesSection({ guildId }: SectionProps) {
   const res = useResource(`features-${guildId}`, () => api.listFeatures(guildId));
   const channels = useChannels(guildId);
   const { roles } = useGuild(guildId);
+  const [query, setQuery] = useState('');
   const pickers = useMemo<PickerChoices>(
     () => ({
       channels: channels
@@ -48,13 +49,25 @@ export function FeaturesSection({ guildId }: SectionProps) {
       />
       <Async res={res} label={t('settings.features.loading')}>
         {(features) => {
+          const needle = query.trim().toLowerCase();
+          const shown = needle
+            ? features.filter((f) =>
+                `${f.name} ${f.description} ${f.section}`.toLowerCase().includes(needle),
+              )
+            : features;
           const bySection = new Map<string, api.GuildFeature[]>();
-          for (const f of features)
-            bySection.set(f.section, [...(bySection.get(f.section) ?? []), f]);
+          for (const f of shown) bySection.set(f.section, [...(bySection.get(f.section) ?? []), f]);
           if (features.length === 0)
             return <p className="ss-meta">{t('settings.features.none')}</p>;
           return (
             <>
+              <TextInput
+                label={t('settings.features.search')}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {shown.length === 0 && <p className="ss-meta">{t('settings.features.noMatch')}</p>}
               {[...bySection.entries()].map(([section, list]) => (
                 <section key={section} aria-label={section}>
                   <h2 className="ss-sub">{section}</h2>
