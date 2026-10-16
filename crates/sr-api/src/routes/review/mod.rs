@@ -23,10 +23,12 @@
 mod duplicates;
 mod library;
 mod lookup;
+mod media;
 pub use lookup::{
     AniList, ComicVine, LookupCandidate, LookupDeps, LookupError, LookupProvider, LookupSwitch,
     MangaDex, MangaUpdates, RawCandidate, Section, Tmdb,
 };
+pub use media::ReviewMedia;
 mod member;
 mod requests;
 mod reviewer;
@@ -62,6 +64,8 @@ pub struct ReviewDeps {
     pub service: ReviewService,
     /// Draft content operations of the Library kinds (absent when the Library is off).
     pub library: Option<LibraryDraftOps>,
+    /// Review proxies of Cinema videos (absent when Cinema media is off).
+    pub media: Option<ReviewMedia>,
 }
 
 impl ReviewDeps {
@@ -69,7 +73,13 @@ impl ReviewDeps {
         Self {
             service,
             library: None,
+            media: None,
         }
+    }
+
+    pub fn with_media(mut self, media: ReviewMedia) -> Self {
+        self.media = Some(media);
+        self
     }
 
     pub fn with_library(mut self, ops: LibraryDraftOps) -> Self {
@@ -499,6 +509,10 @@ pub fn router() -> Router<AppState> {
             post(reviewer::revoke_credits),
         )
         .route(
+            "/admin/review/submissions/{submission_id}/media",
+            get(media::list),
+        )
+        .route(
             "/admin/review/submissions/{submission_id}/duplicates",
             get(duplicates::review),
         )
@@ -532,6 +546,7 @@ pub fn router() -> Router<AppState> {
         duplicates::mine,
         duplicates::review,
         duplicates::resolve,
+        media::list,
         lookup::providers,
         lookup::search,
         library::update_series,
@@ -626,6 +641,9 @@ pub fn router() -> Router<AppState> {
         lookup::LookupProviderInfo,
         lookup::LookupProviders,
         lookup::LookupResults,
+        media::MediaItem,
+        media::MediaList,
+        sr_review::model::MediaRef,
         sr_library::model::UploadSlot,
         sr_library::multipart::MultipartSlot,
         sr_library::multipart::PartUrl,

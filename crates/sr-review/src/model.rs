@@ -495,3 +495,19 @@ pub struct DuplicateResolutionInput {
     pub target: Option<i64>,
     pub note: Option<String>,
 }
+
+// ---- media under review (REV-RV-002) ----
+
+/// A video that belongs to an item under review.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct MediaRef {
+    /// The item (episode or title) the video is for.
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub ref_id: i64,
+    pub label: String,
+    /// The media asset; none while the item has no video yet.
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub asset_id: Option<i64>,
+}

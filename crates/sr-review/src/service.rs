@@ -602,6 +602,12 @@ impl ReviewService {
         self.detail(s, true).await
     }
 
+    /// The videos of the items under review (reviewers of the kind).
+    pub async fn media_for_review(&self, c: Caller, id: i64) -> ReviewResult<Vec<MediaRef>> {
+        let (s, kind) = self.load_for_review(c, id).await?;
+        kind.media(&s).await
+    }
+
     pub async fn preview_for_review(&self, c: Caller, id: i64) -> ReviewResult<Value> {
         let (s, kind) = self.load_for_review(c, id).await?;
         kind.preview(&s).await

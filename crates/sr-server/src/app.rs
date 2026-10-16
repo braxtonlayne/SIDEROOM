@@ -814,6 +814,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .with_library(sr_library::submissions::LibraryDraftOps::new(
             library_service.clone(),
+        ))
+        .with_media(routes::review::ReviewMedia::new(
+            media_repo.clone(),
+            cdn_signer.clone(),
         )),
     );
 

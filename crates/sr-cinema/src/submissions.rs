@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sr_core::PlatformPermissions as P;
-use sr_review::model::{DuplicateMatch, Submission, SubmissionItem};
+use sr_review::model::{DuplicateMatch, MediaRef, Submission, SubmissionItem};
 use sr_review::repo::NewItem;
 use sr_review::{KindDraft, ReviewError, ReviewResult, SubmissionKind};
 
@@ -594,6 +594,41 @@ impl SubmissionKind for CinemaKind {
                     href: Some(format!("/cinema/title/{}", t.id)),
                 });
             }
+        }
+        Ok(out)
+    }
+
+    /// The videos of the episodes (or the film) under review.
+    async fn media(&self, s: &Submission) -> ReviewResult<Vec<MediaRef>> {
+        let detail = self.detail(s).await?;
+        let episodes: Vec<&Episode> = if self.new_title {
+            detail.episodes.iter().collect()
+        } else {
+            detail.episodes.iter().filter(|e| !e.published).collect()
+        };
+        let mut out = Vec::new();
+        if self.new_title && (episodes.is_empty() || detail.title.asset_id.is_some()) {
+            out.push(MediaRef {
+                ref_id: detail.title.id,
+                label: detail.title.title.clone(),
+                asset_id: detail.title.asset_id,
+            });
+        }
+        for e in episodes {
+            out.push(MediaRef {
+                ref_id: e.id,
+                label: format!(
+                    "S{:02}E{:02}{}",
+                    e.season_number,
+                    e.number,
+                    if e.title.is_empty() {
+                        String::new()
+                    } else {
+                        format!(": {}", e.title)
+                    }
+                ),
+                asset_id: e.asset_id,
+            });
         }
         Ok(out)
     }
