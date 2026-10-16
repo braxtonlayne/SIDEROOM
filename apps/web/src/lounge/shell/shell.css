@@ -495,3 +495,41 @@
   align-self: flex-start;
   text-decoration: none;
 }
+
+/* Join pipeline, server guide (LNG-GLD-030, LNG-GLD-031, LNG-GLD-033) */
+.lng-join-rules {
+  margin-block: 0 12px;
+  padding-inline-start: 20px;
+  display: grid;
+  gap: 6px;
+}
+.lng-join-prompt {
+  border: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.lng-join-prompt legend {
+  font-weight: 600;
+  margin-block-end: 6px;
+}
+.lng-join-error {
+  color: var(--ui-danger);
+  margin-block: 8px 0;
+}
+.lng-guide-welcome {
+  margin-block: 0 16px;
+}
+.lng-guide-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.lng-guide-resource {
+  margin-block-start: 6px;
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--ui-border);
+}

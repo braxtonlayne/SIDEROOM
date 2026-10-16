@@ -6,6 +6,7 @@ import { useT } from '../i18n';
 import { useAppBadge } from '../pwa/useAppBadge';
 import { useDesktopNotify } from './shell/desktopNotify';
 import { DmToasts } from './shell/DmToasts';
+import { JoinGate } from './shell/JoinGate';
 import { Welcome } from './shell/Welcome';
 import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
 import { useVisualViewport } from './useVisualViewport';
@@ -302,6 +303,7 @@ function Shell() {
       <ToastProvider>
         <DmToasts />
         <Welcome />
+        <JoinGate />
         <SectionBar />
         <EventAlerts />
         {!isMobile && <TitleStrip title={title} />}

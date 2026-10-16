@@ -18,6 +18,8 @@ import { MemberActionDialog } from './shell/MemberDialogs';
 import { NicknameDialog, NoteDialog } from './shell/UserDialogs';
 import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
+import { SecurityActionsDialog } from './shell/SecurityActionsDialog';
+import { ServerGuideDialog } from './shell/ServerGuideDialog';
 import { SlowmodeDialog } from './shell/SlowmodeDialog';
 import { TransferOwnershipDialog } from './shell/TransferOwnershipDialog';
 import { CommunityDialog } from './community/CommunityDialog';
@@ -36,6 +38,10 @@ export function LoungeDialogs() {
       return <AddServerDialog onClose={close} />;
     case 'guildProfile':
       return <GuildProfileDialog guildId={dialog.guildId} onClose={close} />;
+    case 'serverGuide':
+      return <ServerGuideDialog guildId={dialog.guildId} onClose={close} />;
+    case 'securityActions':
+      return <SecurityActionsDialog guildId={dialog.guildId} onClose={close} />;
     case 'directory':
       return <DirectoryDialog onClose={close} />;
     case 'createChannel':

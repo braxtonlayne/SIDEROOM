@@ -33,6 +33,7 @@ import {
 } from './data';
 import { useLoungeRoute } from './nav';
 import { NestedThreads } from './threads/NestedThreads';
+import { useGuideFlags } from './shell/joinPipeline';
 import { useGuildMenuCore } from './shell/useGuildMenu';
 import { hasMemberModule, useGuildModules } from './features/useModules';
 import { useChannelDnd, type ChannelDropMark } from './shell/useChannelDnd';
@@ -354,6 +355,7 @@ function GuildHeader({ guild }: { guild: Guild }) {
   const t = useT();
   const core = useGuildMenuCore(guild);
   const modules = useGuildModules(guild.id);
+  const guideOn = useGuideFlags((s) => !!s.enabled[guild.id]);
   const openDialog = useLoungeUi((s) => s.openDialog);
   const [coming, setComing] = useState<string | null>(null);
   const soon = (title: string) => () => setComing(title);
@@ -394,6 +396,14 @@ function GuildHeader({ guild }: { guild: Guild }) {
           } as MenuEntry,
         ]
       : []),
+    ...(guideOn
+      ? [
+          {
+            label: t('lounge.channelSidebar.serverGuide'),
+            onSelect: () => openDialog({ kind: 'serverGuide', guildId: guild.id }),
+          } as MenuEntry,
+        ]
+      : []),
     core.notifications,
     core.privacy,
     {
@@ -418,7 +428,7 @@ function GuildHeader({ guild }: { guild: Guild }) {
       ? [
           {
             label: t('lounge.channelSidebar.securityActions'),
-            onSelect: soon(t('lounge.channelSidebar.securityActions')),
+            onSelect: () => openDialog({ kind: 'securityActions', guildId: guild.id }),
           } as MenuEntry,
         ]
       : []),
