@@ -669,6 +669,10 @@ fn read_package_files(
 /// `sr-cli package validate <dir>`: the upload-time checks of `sr-theme` on a local folder.
 fn package_validate(dir: &std::path::Path, json: bool) -> Result<()> {
     let files = read_package_files(dir)?;
+    // Every other kind (profile layout, packs, recipe, server template) goes through the shared validator.
+    if !files.contains_key("theme.json") && !files.contains_key("tokens.json") {
+        return package_validate_other(&files, json);
+    }
     let pkg = match sr_theme::package_from_files(&files) {
         Ok(p) => p,
         Err(problems) => {
@@ -720,6 +724,59 @@ fn package_validate(dir: &std::path::Path, json: bool) -> Result<()> {
     Ok(())
 }
 
+/// The non-theme kinds of `package validate` (EXT-PKG-007): the same checks as an upload, except those that need
+/// the running server (feature modules of a recipe, the structure of a server template), which are said so.
+fn package_validate_other(
+    files: &std::collections::BTreeMap<String, Vec<u8>>,
+    json: bool,
+) -> Result<()> {
+    match sr_packages::validate::validate(files, &sr_packages::Checks::lenient()) {
+        Ok(v) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "valid": true, "readable": true, "kind": v.kind.as_str(), "id": v.slug,
+                        "version": v.version, "files": v.files.len(), "warnings": v.warnings,
+                    })
+                );
+            } else {
+                for w in &v.warnings {
+                    println!("warn   {w}");
+                }
+                if matches!(
+                    v.kind,
+                    sr_packages::PackageKind::Recipe | sr_packages::PackageKind::ServerTemplate
+                ) {
+                    println!(
+                        "note   feature settings and server templates are checked against the server when you upload"
+                    );
+                }
+                println!(
+                    "{} ({}): 0 error(s), {} warning(s)",
+                    v.slug,
+                    v.kind.as_str(),
+                    v.warnings.len()
+                );
+            }
+            Ok(())
+        }
+        Err(problems) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"valid": false, "readable": true, "problems": problems})
+                );
+            } else {
+                for p in &problems {
+                    println!("error  {p}");
+                }
+                println!("{} error(s)", problems.len());
+            }
+            bail!("{} error(s) in the package", problems.len())
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

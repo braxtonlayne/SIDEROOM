@@ -67,24 +67,7 @@ pub async fn submit(
     body: Bytes,
 ) -> MsgResult<(StatusCode, Json<VersionView>)> {
     let registry = gf.ctx.settings.registry().clone();
-    let recipe = move |fid: &str, values: &Map<String, Value>| -> Result<(), String> {
-        let feature = registry
-            .get(fid)
-            .ok_or_else(|| "no such feature module".to_owned())?;
-        if !feature.scopes().contains(&Scope::Guild) {
-            return Err("cannot be configured per server".to_owned());
-        }
-        let schema = feature.settings_schema();
-        schema.validate(values).map_err(|e| e.to_string())?;
-        let picked = schema.picked_ids(values);
-        if !picked.channels.is_empty() || !picked.roles.is_empty() {
-            return Err(
-                "a recipe is shared between servers, so it cannot name channels or roles"
-                    .to_owned(),
-            );
-        }
-        Ok(())
-    };
+    let recipe = move |fid: &str, values: &Map<String, Value>| recipe_check(&registry, fid, values);
     let template = |v: &Value| -> Result<(), String> {
         let snap: TemplateSnapshot =
             serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
@@ -559,6 +542,7 @@ fn invalid_feature(fid: &str, why: &str) -> MsgError {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = PackageCreateGuildBody)]
 pub struct CreateGuildBody {
     /// 2 to 100 characters.
     pub name: String,
@@ -691,7 +675,7 @@ pub async fn page_by_name(
     ))
 }
 
-/// A person's profile page by id (the compact popout uses this).
+/// A person's profile page by id (the compact popout uses this); `@me` is the caller.
 #[utoipa::path(
     get, path = "/users/{user_id}/profile-page", tag = "profile-pages",
     params(("user_id" = String, Path, description = "User snowflake")),
@@ -703,9 +687,10 @@ pub async fn page_by_id(
     Ext(deps): Ext<PackagesDeps>,
     Path(user): Path<String>,
 ) -> MsgResult<Json<ProfilePage>> {
+    let target = if user == "@me" { p.user_id } else { id(&user)? };
     Ok(Json(
         deps.service
-            .page(p.user_id, None, Some(id(&user)?))
+            .page(p.user_id, None, Some(target))
             .await
             .map_err(pkg)?,
     ))
@@ -919,4 +904,73 @@ pub async fn admin_decide(
         tracing::error!(error = %e, "package decision was not written to the access log");
     }
     Ok(Json(d))
+}
+
+/// Is `fid` with `values` an acceptable recipe entry? The module must exist and be configurable per server,
+/// the values must fit its settings schema, and they must not name a channel or role: a recipe is shared
+/// between servers, so such an id could only ever point into somebody else's server.
+pub(crate) fn recipe_check(
+    registry: &sr_features::FeatureRegistry,
+    fid: &str,
+    values: &Map<String, Value>,
+) -> Result<(), String> {
+    let feature = registry
+        .get(fid)
+        .ok_or_else(|| "no such feature module".to_owned())?;
+    if !feature.scopes().contains(&Scope::Guild) {
+        return Err("cannot be configured per server".to_owned());
+    }
+    let schema = feature.settings_schema();
+    schema.validate(values).map_err(|e| e.to_string())?;
+    let picked = schema.picked_ids(values);
+    if !picked.channels.is_empty() || !picked.roles.is_empty() {
+        return Err(
+            "a recipe is shared between servers, so it cannot name channels or roles".to_owned(),
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn registry() -> sr_features::FeatureRegistry {
+        let mut r = sr_features::FeatureRegistry::new();
+        sr_features::modules::register_all(&mut r).expect("register modules");
+        r
+    }
+
+    fn obj(v: Value) -> Map<String, Value> {
+        v.as_object().cloned().unwrap_or_default()
+    }
+
+    #[test]
+    fn a_recipe_entry_must_name_a_real_server_module() {
+        let r = registry();
+        assert!(recipe_check(&r, "lounge.starboard", &obj(json!({"threshold": 5}))).is_ok());
+        assert!(recipe_check(&r, "lounge.starboard", &Map::new()).is_ok());
+        assert!(recipe_check(&r, "no.such.module", &Map::new()).is_err());
+    }
+
+    #[test]
+    fn settings_must_fit_the_schema_and_name_no_channels_or_roles() {
+        let r = registry();
+        // Out of range for the schema.
+        assert!(recipe_check(&r, "lounge.starboard", &obj(json!({"threshold": 0}))).is_err());
+        assert!(recipe_check(&r, "lounge.starboard", &obj(json!({"unknown_key": 1}))).is_err());
+        // A channel id would point into somebody else's server.
+        let err =
+            recipe_check(&r, "lounge.starboard", &obj(json!({"channel": "123456"}))).unwrap_err();
+        assert!(err.contains("channels or roles"), "{err}");
+        assert!(
+            recipe_check(
+                &r,
+                "lounge.starboard",
+                &obj(json!({"ignored_channels": ["1", "2"]}))
+            )
+            .is_err()
+        );
+    }
 }

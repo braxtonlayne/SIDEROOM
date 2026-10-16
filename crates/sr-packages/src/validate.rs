@@ -78,9 +78,9 @@ impl PackageKind {
 pub struct Checks<'a> {
     /// A recipe entry: the feature id with its settings. Must know the feature, accept the settings against
     /// its schema and refuse settings that name a channel or role (a recipe is shared across servers).
-    pub recipe_feature: &'a dyn Fn(&str, &Map<String, Value>) -> Result<(), String>,
+    pub recipe_feature: &'a (dyn Fn(&str, &Map<String, Value>) -> Result<(), String> + Send + Sync),
     /// The `serialized_source_guild` of a server template.
-    pub template: &'a dyn Fn(&Value) -> Result<(), String>,
+    pub template: &'a (dyn Fn(&Value) -> Result<(), String> + Send + Sync),
 }
 
 impl Checks<'static> {

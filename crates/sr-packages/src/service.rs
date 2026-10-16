@@ -153,6 +153,8 @@ pub struct GuestbookEntry {
     pub author: PageUser,
     pub body: String,
     pub created_at_ms: i64,
+    /// The viewer may remove it: they own the page or wrote the entry.
+    pub can_remove: bool,
 }
 
 struct Inner {
@@ -1005,6 +1007,7 @@ impl PackageService {
                     author: user_of(r, "u_")?,
                     body: r.try_get("body")?,
                     created_at_ms: r.try_get("created_ms")?,
+                    can_remove: viewer == profile || r.try_get::<i64, _>("u_id")? == viewer,
                 })
             })
             .collect::<Result<_, sqlx::Error>>()

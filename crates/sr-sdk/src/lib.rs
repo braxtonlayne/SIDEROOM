@@ -20,6 +20,8 @@ pub mod gateway;
 pub mod http;
 pub mod model;
 pub mod ops;
+#[cfg(feature = "voice-e2ee")]
+pub mod voice;
 
 pub use cache::Cache;
 pub use client::{Client, ClientBuilder, EventHandler, Shards};
