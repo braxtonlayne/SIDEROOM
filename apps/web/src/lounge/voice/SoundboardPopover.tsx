@@ -8,6 +8,7 @@ import {
   applySoundboardEvent,
   loadSounds,
   soundKey,
+  startFavoritesSync,
   useSoundboard,
   type Sound,
 } from '../../voice/soundboard';
@@ -96,6 +97,8 @@ function Body({ guildId, channelId }: { guildId: string; channelId: string }) {
   const [failed, setFailed] = useState(false);
   const silenced = session.selfMute || session.selfDeaf || session.serverMute || session.serverDeaf;
   const blocked = !perms.useSoundboard || silenced || session.status !== 'connected';
+
+  useEffect(() => startFavoritesSync(), []);
 
   useEffect(() => {
     let dead = false;

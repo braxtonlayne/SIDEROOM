@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/client';
+import { useStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { VoiceController, type ControllerDeps } from '../controller';
 import type { EngineEvents, VoiceEngine } from '../engine';
 import { resetSession, useVoiceSession } from '../session';
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../settings';
 import {
+  adoptFavorites,
   applySoundboardEvent,
   audioUrl,
   loadSounds,
@@ -15,6 +17,7 @@ import {
   setAudioFetcher,
   soundAudio,
   soundKey,
+  startFavoritesSync,
   useSoundboard,
   type Sound,
 } from '../soundboard';
@@ -305,5 +308,59 @@ describe('playing into the call', () => {
       throw new Error('offline');
     });
     expect(await c.previewSound({ ...deft, id: '2' })).toBe(false);
+  });
+});
+
+describe('synced favorites (H-45)', () => {
+  const patches: unknown[] = [];
+  beforeEach(() => {
+    patches.length = 0;
+    useStore.setState({ userSettings: null });
+    server.use(
+      http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
+        const body = (await request.json()) as { settings: Record<string, unknown> };
+        patches.push(body.settings);
+        return HttpResponse.json({ version: 9, settings: body.settings });
+      }),
+    );
+  });
+
+  it('imports the localStorage list once when the blob has no key, and keeps the volume local', async () => {
+    localStorage.setItem(
+      'sr.soundboard',
+      JSON.stringify({ favorites: ['default:1', 'g1:77'], volume: 40 }),
+    );
+    resetSoundboard();
+    useSoundboard.setState({ favorites: ['default:1', 'g1:77'], volume: 40 });
+    adoptFavorites({ version: 1, settings: {} });
+    await vi.waitFor(() =>
+      expect(patches).toEqual([{ soundboardFavorites: ['default:1', 'g1:77'] }]),
+    );
+    expect(JSON.parse(localStorage.getItem('sr.soundboard')!)).toEqual({ volume: 40 });
+    // Later the blob wins over any local list.
+    adoptFavorites({ version: 2, settings: { soundboardFavorites: ['default:2'] } });
+    expect(useSoundboard.getState().favorites).toEqual(['default:2']);
+    expect(patches).toHaveLength(1);
+  });
+
+  it('writes a toggle to the blob and caps the list at 50, newest last', async () => {
+    const fifty = Array.from({ length: 50 }, (_, i) => `default:${i}`);
+    adoptFavorites({ version: 1, settings: { soundboardFavorites: fifty } });
+    useSoundboard.getState().toggleFavorite('g1:77');
+    const next = useSoundboard.getState().favorites;
+    expect(next).toHaveLength(50);
+    expect(next[49]).toBe('g1:77');
+    expect(next[0]).toBe('default:1');
+    await vi.waitFor(() => expect(patches).toEqual([{ soundboardFavorites: next }]));
+  });
+
+  it('follows SR_USER_SETTINGS_UPDATE from another session', () => {
+    const stop = startFavoritesSync();
+    useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', {
+      version: 3,
+      settings: { soundboardFavorites: ['default:2', 5] },
+    });
+    expect(useSoundboard.getState().favorites).toEqual(['default:2']);
+    stop();
   });
 });
