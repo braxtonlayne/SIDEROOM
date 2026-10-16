@@ -60,63 +60,52 @@ async function e2ee(page: Page): Promise<E2eeSnapshot> {
 }
 
 /**
- * The observer: E2EE off for this page, and every received encoded frame is inspected through Chromium's
- * `createEncodedStreams` before it reaches the decoder. A frame "looks encrypted" when it ends with the
- * sr-e2ee trailer: `... version (1) | trailer length | 'S' 'R'` (crates/sr-e2ee/src/frame.rs).
+ * The observer: E2EE off for this page, and every received encoded frame is inspected in an
+ * `RTCRtpScriptTransform` worker before it reaches the decoder. A frame "looks encrypted" when it ends with
+ * the sr-e2ee trailer: `... version (1) | trailer length | 'S' 'R'` (crates/sr-e2ee/src/frame.rs).
  */
 async function observeFrames(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('sr.e2e.noVoiceE2ee', '1');
     const w = window as unknown as {
-      __frames: { audio: number; video: number; audioSr: number; videoSr: number };
+      __frames: { audio: number; video: number; audioSr: number; videoSr: number; tracks: string[] };
     };
-    w.__frames = { audio: 0, video: 0, audioSr: 0, videoSr: 0 };
+    w.__frames = { audio: 0, video: 0, audioSr: 0, videoSr: 0, tracks: [] };
+    const Transform = (window as unknown as { RTCRtpScriptTransform?: new (w: Worker, o: unknown) => unknown })
+      .RTCRtpScriptTransform;
+    if (!Transform) return;
+    const source = `
+      const counts = { audio: 0, video: 0, audioSr: 0, videoSr: 0 };
+      onrtctransform = (ev) => {
+        const kind = ev.transformer.options.kind;
+        ev.transformer.readable
+          .pipeThrough(new TransformStream({
+            transform(frame, ctl) {
+              const b = new Uint8Array(frame.data);
+              const n = b.length;
+              const sr = n > 17 && b[n - 2] === 0x53 && b[n - 1] === 0x52 && b[n - 4] === 1;
+              counts[kind]++;
+              if (sr) counts[kind + 'Sr']++;
+              ctl.enqueue(frame);
+            },
+          }))
+          .pipeTo(ev.transformer.writable)
+          .catch(() => {});
+      };
+      setInterval(() => postMessage(counts), 250);
+    `;
+    const worker = new Worker(URL.createObjectURL(new Blob([source], { type: 'text/javascript' })));
+    worker.onmessage = (e: MessageEvent) => Object.assign(w.__frames, e.data);
     const Native = window.RTCPeerConnection;
     window.RTCPeerConnection = class extends Native {
       constructor(config?: RTCConfiguration) {
-        super({ ...(config ?? {}), encodedInsertableStreams: true } as RTCConfiguration);
-        const pc = this;
-        const pipe = (
-          endpoint: { createEncodedStreams?: () => { readable: ReadableStream; writable: WritableStream } },
-          kind: string | null,
-        ) => {
-          const streams = endpoint.createEncodedStreams?.();
-          if (!streams) return;
-          const inspect = new TransformStream({
-            transform(frame: { data: ArrayBuffer }, ctl) {
-              if (kind) {
-                const b = new Uint8Array(frame.data);
-                const n = b.length;
-                const sr =
-                  n > 17 && b[n - 2] === 0x53 && b[n - 1] === 0x52 && b[n - 4] === 1;
-                if (kind === 'audio') {
-                  w.__frames.audio++;
-                  if (sr) w.__frames.audioSr++;
-                } else {
-                  w.__frames.video++;
-                  if (sr) w.__frames.videoSr++;
-                }
-              }
-              ctl.enqueue(frame);
-            },
+        super(config);
+        this.addEventListener('track', (ev) => {
+          w.__frames.tracks.push(ev.track.kind);
+          (ev.receiver as unknown as { transform: unknown }).transform = new Transform(worker, {
+            kind: ev.track.kind,
           });
-          void streams.readable.pipeThrough(inspect).pipeTo(streams.writable).catch(() => {});
-        };
-        pc.addEventListener('track', (ev) => pipe(ev.receiver as never, ev.track.kind));
-        // With encoded streams on, Chromium also wants the senders' streams taken; pass them through.
-        const addTrack = pc.addTrack.bind(pc);
-        pc.addTrack = (track, ...streams) => {
-          const sender = addTrack(track, ...streams);
-          pipe(sender as never, null);
-          return sender;
-        };
-        const addTransceiver = pc.addTransceiver.bind(pc);
-        pc.addTransceiver = (trackOrKind, init) => {
-          const t = addTransceiver(trackOrKind, init);
-          if (typeof trackOrKind !== 'string' || init?.direction !== 'recvonly')
-            pipe(t.sender as never, null);
-          return t;
-        };
+        });
       }
     } as typeof RTCPeerConnection;
   });
@@ -204,6 +193,13 @@ test.describe('Voice E2EE (real browsers)', () => {
         expect(f.encrypted).toBeGreaterThan(50);
       }
 
+      // --- A third party without E2EE joins (it watches the frames, see the end); the pair stays secure.
+      if (c) {
+        await joinVoice(c.page, server);
+        for (const p of [a.page, b.page])
+          await expect.poll(async () => (await e2ee(p)).status).toBe('secure');
+      }
+
       // --- Video: A turns the (fake) camera on; B decodes frames that went through decryption.
       const before = (await e2ee(b.page)).frames!.decrypted;
       const callA = a.page.getByRole('region', { name: 'Voice connection' });
@@ -218,9 +214,8 @@ test.describe('Voice E2EE (real browsers)', () => {
         .poll(async () => (await e2ee(b.page)).frames!.decrypted - before, { timeout: 30_000 })
         .toBeGreaterThan(100);
 
-      // --- A third party without E2EE: everything the SFU forwards to it is ciphertext.
+      // --- The third party: everything the SFU forwarded to it is ciphertext.
       if (c) {
-        await joinVoice(c.page, server);
         await expect
           .poll(
             () =>
@@ -230,6 +225,14 @@ test.describe('Voice E2EE (real browsers)', () => {
             { timeout: 30_000 },
           )
           .toBeGreaterThan(50);
+        if (process.env.SR_E2E_VOICE_DEBUG === '1') {
+          await c.page.waitForTimeout(5000);
+          console.log(
+            'observer',
+            JSON.stringify(await c.page.evaluate(() => (window as unknown as { __frames: unknown }).__frames)),
+            JSON.stringify(await inbound(c.page)),
+          );
+        }
         await expect
           .poll(
             () =>

@@ -97,12 +97,20 @@ export async function registerUser(
     email: `${label}_${s}@example.test`,
     password: 'Seeded-Passw0rd-9!',
   };
-  const res = await apiPost<{ id: string }>(request, '/sr/register', {
-    code: createInvite(`e2e ${label} ${s}`),
-    ...user,
-    accepted_house_notes: true,
-  });
-  return { id: res.id, ...user };
+  const body = { code: createInvite(`e2e ${label} ${s}`), ...user, accepted_house_notes: true };
+  // Registration allows 5 per minute per address: wait out a short window instead of failing.
+  for (let attempt = 0; ; attempt++) {
+    const res = await request.post(`${API}/sr/register`, { headers: headers(), data: body });
+    if (res.status() === 429 && attempt < 3) {
+      const retry = Number(((await res.json()) as { retry_after?: number }).retry_after ?? 60);
+      if (retry <= 70) {
+        await new Promise((r) => setTimeout(r, (retry + 1) * 1000));
+        continue;
+      }
+    }
+    if (!res.ok()) throw new Error(`POST /sr/register -> ${res.status()}: ${await res.text()}`);
+    return { id: ((await res.json()) as { id: string }).id, ...user };
+  }
 }
 
 /** Log `request`'s cookie jar in as `user` (accounts without 2FA only). */
