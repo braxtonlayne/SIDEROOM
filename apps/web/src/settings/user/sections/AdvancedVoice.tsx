@@ -40,7 +40,7 @@ export function AdvancedVoiceCards() {
         description={t('settings.advanced.hwDesc')}
       >
         {accel === false ? (
-          <Notice variant="warning" title={t('settings.advanced.hwOffTitle')}>
+          <Notice variant="info" title={t('settings.advanced.hwOffTitle')}>
             {t('settings.advanced.hwOffBody')}
           </Notice>
         ) : (

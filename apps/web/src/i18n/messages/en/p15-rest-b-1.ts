@@ -34,6 +34,12 @@ export default {
   'lounge.privacyCodes.hidden':
     'Privacy codes are hidden. Turn them on in User Settings > Advanced.',
   'settings.voice.soundboardVolume': 'Soundboard volume',
+  // Settings > Activity (LNG-USET-035)
+  'settings.activityHistory.audioLang': 'Preferred audio language',
+  'settings.activityHistory.audioDefault': 'Follow the title',
+  'settings.activityHistory.qualityCap': 'Highest video quality',
+  'settings.activityHistory.qualityNoCap': 'No limit',
+  'settings.activityHistory.preloadCount': 'Pages to load ahead',
   // Composer
   'lounge.composer.stickerSuggestions': 'Sticker suggestions',
   'lounge.composer.markdownPreview': 'Preview',

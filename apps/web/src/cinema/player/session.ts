@@ -15,6 +15,7 @@ import {
   type PlaybackEngine,
   type QualityLevel,
 } from './engine';
+import { capOf } from './defaults';
 import {
   DEFAULT_SUBTITLE_STYLE,
   HEARTBEAT_MS,
@@ -70,6 +71,8 @@ interface Prefs {
   autoplayNext: boolean;
   subtitleStyle: SubtitleStyle;
   subtitleLang: string | null;
+  audioLang: string | null;
+  qualityCap: number | null;
 }
 const PREFS_KEY = 'sr.cinema.player.v1';
 const DEFAULT_PREFS: Prefs = {
@@ -79,6 +82,8 @@ const DEFAULT_PREFS: Prefs = {
   autoplayNext: true,
   subtitleStyle: DEFAULT_SUBTITLE_STYLE,
   subtitleLang: null,
+  audioLang: null,
+  qualityCap: null,
 };
 function loadPrefs(): Prefs {
   try {
@@ -140,6 +145,7 @@ export class PlayerSession {
   private prefs: Prefs;
   private pageHooks = false;
   private autoNext = false;
+  private audioDefaultDone = false;
 
   constructor(private readonly deps: SessionDeps) {
     this.prefs = loadPrefs();
@@ -266,7 +272,8 @@ export class PlayerSession {
       }
       this.engine = engine;
       this.unsubEngine = engine.subscribe((e) => this.onEngine(e));
-      engine.setMaxHeight(this.state.dataSaver ? DATA_SAVER_MAX_HEIGHT : null);
+      this.audioDefaultDone = false;
+      engine.setMaxHeight(this.maxHeight(this.state.dataSaver));
       engine.load(info.master_url, opts.startAt);
       this.set({ status: 'ready', engineKind: engine.kind });
       this.scheduleRefresh(info.expires_at_ms, info.refresh_at_ms);
@@ -277,6 +284,23 @@ export class PlayerSession {
       if (token === this.token)
         this.set({ status: 'error', error: 'We could not start playback.', waiting: false });
     }
+  }
+
+  /** The cap that applies: data saver, the chosen quality cap, or whichever is lower. */
+  private maxHeight(dataSaver: boolean): number | null {
+    const caps = [dataSaver ? DATA_SAVER_MAX_HEIGHT : null, capOf(this.prefs.qualityCap)].filter(
+      (c): c is number => c !== null,
+    );
+    return caps.length ? Math.min(...caps) : null;
+  }
+
+  /** Starts on the audio track in the preferred language, once per item (LNG-USET-035). */
+  private pickDefaultAudio(tracks: EngineAudioTrack[], active: string | null) {
+    const lang = this.prefs.audioLang;
+    if (this.audioDefaultDone || !lang || tracks.length < 2) return;
+    this.audioDefaultDone = true;
+    const want = tracks.find((t) => t.language.toLowerCase().split('-')[0] === lang.toLowerCase());
+    if (want && want.id !== active) this.setAudioTrack(want.id);
   }
 
   private pickDefaultSubtitle(info: PlaybackInfo) {
@@ -486,6 +510,7 @@ export class PlayerSession {
         break;
       case 'audio':
         this.set({ audioTracks: e.tracks, audioId: e.active });
+        this.pickDefaultAudio(e.tracks, e.active);
         break;
       case 'error':
         if (e.kind === 'auth') void this.refreshNow(true);
@@ -574,7 +599,7 @@ export class PlayerSession {
     this.say(lvl ? `${lvl.height}p` : 'Quality: auto');
   }
   setDataSaver(on: boolean) {
-    this.engine?.setMaxHeight(on ? DATA_SAVER_MAX_HEIGHT : null);
+    this.engine?.setMaxHeight(this.maxHeight(on));
     this.prefs = { ...this.prefs, dataSaver: on };
     savePrefs(this.prefs);
     this.set({ dataSaver: on });

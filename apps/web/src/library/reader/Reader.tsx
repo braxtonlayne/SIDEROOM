@@ -12,6 +12,7 @@ import { CommentsSection } from '../Comments';
 import { commentKeys, getComments, readingHeartbeat, readingStop } from '../p13api';
 import { ChapterDownload } from '../SeriesExtras';
 import {
+  preloadCountOf,
   resolveReaderPrefs,
   useReaderPrefsStore,
   type ReaderMode,
@@ -392,7 +393,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
     const w = stageWidth;
     const dpr = window.devicePixelRatio || 1;
     const want = [index, ...(strip ? [] : [index + 1])].filter((i) => i < count);
-    for (const i of [...want, ...preloadWindow(index, count, 3)])
+    for (const i of [...want, ...preloadWindow(index, count, preloadCountOf(prefs.preloadCount))])
       void preloadImage(
         pickVariant(pages[i]!, strip ? w : w / (prefs.mode === 'double' ? 2 : 1), dpr),
       );

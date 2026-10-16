@@ -49,6 +49,55 @@ describe('start', () => {
   });
 });
 
+describe('settings defaults (LNG-USET-035)', () => {
+  const setPrefs = (patch: Record<string, unknown>) =>
+    localStorage.setItem('sr.cinema.player.v1', JSON.stringify(patch));
+
+  it('starts under the chosen quality cap, the lower of cap and data saver', async () => {
+    setPrefs({ qualityCap: 720 });
+    const a = await started();
+    expect(a.engine.setMaxHeight).toHaveBeenCalledWith(720);
+    a.session.setDataSaver(true);
+    expect(a.engine.setMaxHeight).toHaveBeenLastCalledWith(480);
+    a.session.setDataSaver(false);
+    expect(a.engine.setMaxHeight).toHaveBeenLastCalledWith(720);
+  });
+
+  it('ignores a cap that is not one of the offered heights', async () => {
+    setPrefs({ qualityCap: 999 });
+    const a = await started();
+    expect(a.engine.setMaxHeight).toHaveBeenCalledWith(null);
+  });
+
+  it('switches to the preferred audio language once per item', async () => {
+    setPrefs({ audioLang: 'ja' });
+    const { engine } = await started();
+    const tracks = [
+      { id: '0', label: 'English', language: 'en' },
+      { id: '1', label: 'Japanese', language: 'ja-JP' },
+    ];
+    engine.emit({ type: 'audio', tracks, active: '0' });
+    expect(engine.setAudioTrack).toHaveBeenCalledWith('1');
+    engine.setAudioTrack.mockClear();
+    engine.emit({ type: 'audio', tracks, active: '0' });
+    expect(engine.setAudioTrack).not.toHaveBeenCalled();
+  });
+
+  it('keeps the default track when none matches or there is only one', async () => {
+    setPrefs({ audioLang: 'fr' });
+    const { engine } = await started();
+    engine.emit({
+      type: 'audio',
+      tracks: [
+        { id: '0', label: 'English', language: 'en' },
+        { id: '1', label: 'Japanese', language: 'ja' },
+      ],
+      active: '0',
+    });
+    expect(engine.setAudioTrack).not.toHaveBeenCalled();
+  });
+});
+
 describe('progress saving (CIN-PLY-007)', () => {
   it('saves on a 10 s heartbeat while playing', async () => {
     vi.useFakeTimers();

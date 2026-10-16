@@ -77,6 +77,16 @@ export interface ReaderPrefs {
   cropBorders: boolean;
   /** Keep the current and next chapter in the browser for offline reading (LIB-RDR-015). */
   offline: boolean;
+  /** How many pages after the current one are fetched ahead, 1..10 (LNG-USET-035). */
+  preloadCount: number;
+}
+
+export const PRELOAD_RANGE = [1, 10] as const;
+/** Stored values can be anything: a whole number inside the range, else the default. */
+export function preloadCountOf(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v)
+    ? Math.min(PRELOAD_RANGE[1], Math.max(PRELOAD_RANGE[0], Math.round(v)))
+    : DEFAULT_READER_PREFS.preloadCount;
 }
 
 export const DEFAULT_READER_PREFS: ReaderPrefs = {
@@ -91,6 +101,7 @@ export const DEFAULT_READER_PREFS: ReaderPrefs = {
   coverOffset: true,
   cropBorders: false,
   offline: true,
+  preloadCount: 3,
 };
 
 const STORE_KEY = 'sr.library.reader.v1';
