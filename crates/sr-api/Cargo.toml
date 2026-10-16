@@ -32,6 +32,7 @@ sr-reader = { path = "../sr-reader" }
 sr-tv = { path = "../sr-tv" }
 sr-cinema-social = { path = "../sr-cinema-social" }
 sr-activities = { path = "../sr-activities" }
+sr-packages = { path = "../sr-packages" }
 sr-watchparty = { path = "../sr-watchparty" }
 sr-payments = { path = "../sr-payments" }
 sr-review = { path = "../sr-review" }
