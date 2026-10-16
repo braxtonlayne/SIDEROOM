@@ -1,4 +1,4 @@
-# Handoff: integration/phase13 (first batch)
+# Handoff: integration/phase13
 
 Branch `integration/phase13` (base `main` at `337b49a`). Local only: nothing pushed, no PR.
 
@@ -69,7 +69,7 @@ the test now sets the filter `off`. The sharded `sr-voice` e2e tests failed unde
 the second UDP port between `free_port_pair` and `start` (one shard instead of two); `start_sharded` now retries with a
 fresh pair.
 
-## Gates (final tree, all twelve branches merged)
+## Gates (first batch, all twelve branches merged, before the H branches)
 
 - `cargo fmt --check` ok; `cargo clippy --workspace --all-targets -D warnings` ok.
 - `cargo test --workspace -j 2`: 2422 passed, 0 failed, 364 ignored.
@@ -95,3 +95,44 @@ fresh pair.
   the port retry and not reproduced in 8 later runs; it may be a separate load-timing flake.
 - Doc 05's "no TypeScript copy of the epoch" is only half met (one copy plus a drift test).
 - The Share to Lounge channel picker does not hide channels without `SEND_MESSAGES`/`USE_LIBRARY_EMBEDS`.
+
+## Second batch: feat/p13-h-a, feat/p13-h-b, feat/p13-h-c
+
+Merged on top of `40fa908` as merge commits, in this order: `feat/p13-h-a`, `feat/p13-h-b`, `feat/p13-h-c`.
+
+- **Conflicts.** h-a and h-b merged without a conflict (route matrix, generated client, doc 05, `app.rs`, checklists and i18n
+  fragments all merged textually). h-c conflicted only in doc 05 section 3: the snowflake epoch row takes h-c's wording (the
+  generated `apps/web/src/lounge/epoch.generated.ts`, checked by `web_epoch_file_is_generated_from_rust`) and the upload limit row
+  takes h-b's (D-238, `Entitlements::limits(user, guild).upload_bytes`). The stale "Not built yet: applying `sensitive_media`
+  per viewer" sentence in the privacy row was replaced with what H-33 built.
+- **Migrations.** 0870, 0871, 0873, 0879 (h-a) and 0874, 0875 (h-b); no duplicate prefix (`migration_versions` passes).
+- **Permission bits.** `PlatformPermissions::MANAGE_ENTRANCE = 1 << 24` (h-b) is free among the platform bits (0 to 23 and 63);
+  the guild `MOVE_MEMBERS = 1 << 24` is a different bitfield. `apps/web/src/admin/permissions.ts` matches.
+- **Epoch.** One source: the Rust constant, written to `epoch.generated.ts`; `liveMap.ts`, `Welcome.tsx`, `requestReason.ts` and
+  `securityNudge.ts` import it. Doc 05's "no TypeScript copy" rule is now met (generated file plus drift test).
+- **Generated files.** OpenAPI, `schema.d.ts` and MSW handlers regenerated from the merged Rust (814 operations): identical to the
+  textual merge. Route matrix regenerated: no change, 849 rows, no `?`, no `other`.
+- **Fixes.** None needed beyond the doc 05 resolution.
+
+## Gates (final tree, all fifteen branches merged)
+
+- `cargo fmt --check` ok; `cargo clippy --workspace --all-targets -j 2 -D warnings` ok.
+- `cargo test --workspace -j 2 --no-fail-fast`: 2463 passed, 0 failed, 374 ignored (146 test binaries).
+- Postgres (own scratch database `sr_p13int2`, created and dropped; `--include-ignored --test-threads=1`): sr-db 233, sr-server 96,
+  sr-api 661, sr-library-social 25, sr-storage 67, sr-tv 55, sr-userfeat 48, sr-watchparty 62, sr-cinema-social 30, sr-cli 14
+  passed, 0 failed (sr-cli now uses a `TestDb` clone, h-c). `TestDb` templates (`sr_tpl_*`) stay on the server by design.
+- `cargo deny check`: advisories, bans, licenses, sources ok.
+- Web: install offline, WASM package rebuilt, `pnpm -r typecheck` ok, `pnpm -r lint` ok, prettier (apps packages docs scripts
+  deploy) ok, vitest apps/web `--maxWorkers=2`: 208 files, 2043 tests passed (no flakes); api-client 6, markdown-react 45, wasm 9,
+  bot 18, ui 278 passed; `vite build` and bundle budget ok (lounge 385.6 KB, admin 315.1 KB of 600); `i18n-verify-diff` MISSING
+  0 (i18n tests 46); `mocks:check` ok; doc links ok; ops files ok; `render-caddyfile --check` ok; `install.test.mjs` and
+  `ci-scripts.test.mjs` 11 passed.
+
+## Not verified (second batch)
+
+- Playwright (shared ports, per the brief); real browsers for the voice video path.
+- The op 8 `REQUEST_GUILD_MEMBERS` server handler does not exist (h-c built the SDK side only).
+- The S3 live tests in sr-storage need a bucket; without one they return early (CI `storage.yml` covers them).
+- `docs/dev/answers-followups-p13.md` still has 13 unticked boxes (H-04 to H-10, H-19, H-20, H-22 to H-25) although several look
+  built (for example `ConnectionLinkBody`, the reaction shim, `/sr/entrance/copy`, the EPUB reader, H-04 in `e92c5c2`). They were
+  not re-audited here; the owner or a follow-up pass should tick what is done.
