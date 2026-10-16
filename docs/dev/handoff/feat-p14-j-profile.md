@@ -57,7 +57,6 @@ Branch `feat/p14-j-profile`, base `integration/phase14` (07ade74). Items from `d
 
 ## Tests run
 
-See the final report of the agent; commands: `cargo test -p sr-chat --lib`, `cargo test -p sr-api --test guilds`,
-`--test route_matrix` (with `SR_UPDATE_ROUTE_MATRIX=1` once), `--test openapi_names`, `cargo test -p sr-db --test p14_profile
---test chat_repo --test guild_admin_repo --test lounge_repo -- --include-ignored --test-threads=1`, and vitest
-(`--maxWorkers=2`) for `settings/server`, `lounge`, `voice/soundboard`, `lib`.
+- Rust (one cargo at a time, -j 2): `cargo fmt --check` and `clippy --all-targets -D warnings` on sr-chat, sr-db, sr-api; `cargo check -p sr-server --tests`; `cargo test -p sr-chat -p sr-api` (sr-chat 318, sr-api lib 583, `guilds` 23, `lounge` 29, `openapi_names` 2 with `KNOWN_CLASHES` empty, `route_matrix` 5); Postgres (own scratch templates on the local server, `--include-ignored --test-threads=1`): `p14_profile` 2, `chat_repo` 4, `guild_admin_repo` 8, `lounge_repo` 6.
+- Web: `tsc --noEmit`, eslint and prettier on the touched files, full `vitest run --maxWorkers=2` (223 files; the one failure was my own wrong expectation in `soundboard.test.ts`, fixed and re-run green together with `shellFlows.test.tsx`), `vite build` and `scripts/check-bundle-budget.mjs` (settings 277 KB gzip of 600, lounge 396 of 600).
+- Not run: Playwright (shared ports), the Postgres suites of crates I did not touch.
