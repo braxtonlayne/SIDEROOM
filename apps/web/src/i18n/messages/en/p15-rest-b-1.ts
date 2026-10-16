@@ -40,6 +40,24 @@ export default {
   'settings.activityHistory.qualityCap': 'Highest video quality',
   'settings.activityHistory.qualityNoCap': 'No limit',
   'settings.activityHistory.preloadCount': 'Pages to load ahead',
+  // Account > Sign in with Discord (ENT-AUTH-011)
+  'settings.discord.what': 'Discord sign-in',
+  'settings.discord.title': 'Sign in with Discord',
+  'settings.discord.desc':
+    'Link a Discord account to sign in with it. Your SIDE ROOM password and second factor keep working.',
+  'settings.discord.linked': 'Linked',
+  'settings.discord.notLinked': 'Not linked',
+  'settings.discord.link': 'Link Discord',
+  'settings.discord.unlink': 'Unlink',
+  'settings.discord.unlinkTitle': 'Unlink Discord',
+  'settings.discord.unlinkDesc':
+    'You will no longer be able to sign in with Discord. Enter your password to confirm. That Discord account stays tied to this SIDE ROOM account and cannot be linked to another one.',
+  'settings.discord.unlinkConfirm': 'Unlink',
+  'settings.discord.unlinked': 'Discord unlinked',
+  'settings.discord.errorTaken': 'That Discord account is already linked to another account.',
+  'settings.discord.errorAlready': 'This account already has a Discord account linked.',
+  'settings.discord.errorFailed': 'Linking Discord did not work. Try again.',
+  'lounge.voiceChannel.e2eeSecure': 'End-to-end encrypted',
   // Composer
   'lounge.composer.stickerSuggestions': 'Sticker suggestions',
   'lounge.composer.markdownPreview': 'Preview',

@@ -193,6 +193,17 @@ pub struct DeletedAccount {
     pub banner_key: Option<String>,
 }
 
+/// What linking a Discord identity to an account did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiscordLink {
+    /// The identity is now linked to the account.
+    Linked,
+    /// Another account owns this Discord identity (D-030: identities are unique across accounts).
+    TakenByOther,
+    /// The account already has a different Discord identity linked.
+    AlreadyLinked,
+}
+
 /// Why an account could not be deleted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeleteRefusal {
@@ -292,6 +303,19 @@ pub trait AuthStore: Send + Sync {
     async fn find_by_id(&self, id: i64) -> StoreResult<Option<AccountRecord>>;
     /// The account linked to a Discord user id (open question 79).
     async fn find_by_discord(&self, provider_user_id: &str) -> StoreResult<Option<AccountRecord>>;
+    /// Whether the account has a Discord identity linked right now (not unlinked).
+    async fn discord_linked(&self, account_id: i64) -> StoreResult<bool>;
+    /// Link a Discord identity to an existing account (ENT-AUTH-011). `identity_id` is the row id used
+    /// when a new link is created. An identity that was unlinked from this same account is relinked.
+    async fn link_discord(
+        &self,
+        account_id: i64,
+        identity_id: i64,
+        provider_user_id: &str,
+    ) -> StoreResult<DiscordLink>;
+    /// Unlink the account's Discord identity. The record is kept so the identity is not freed for
+    /// another account. `false` when nothing was linked.
+    async fn unlink_discord(&self, account_id: i64) -> StoreResult<bool>;
     /// Replace the password hash.
     async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()>;
     /// Mark the email verified (idempotent).

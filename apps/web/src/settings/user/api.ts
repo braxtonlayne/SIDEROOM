@@ -549,3 +549,14 @@ export interface DataExport {
 }
 export const getDataExport = () => apiFetch<DataExport>('/users/@me/data-export', { retries: 0 });
 export const requestDataExport = () => apiPost<DataExport>('/users/@me/data-export');
+
+// ---- Discord sign-in link (ENT-AUTH-011) ----
+export interface DiscordStatus {
+  enabled: boolean;
+  linked: boolean;
+}
+export const discordStatus = () => apiFetch<DiscordStatus>('/sr/auth/discord', { retries: 0 });
+/** Starts the link: the answer is Discord's authorize page, which the browser then opens. */
+export const discordLinkStart = () => apiPost<{ url: string }>('/sr/auth/discord/link', {});
+export const discordUnlink = (password: string) =>
+  apiPost<void>('/sr/auth/discord/unlink', { password });
