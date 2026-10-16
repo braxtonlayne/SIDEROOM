@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
@@ -553,5 +553,90 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
     expect(sent.name).toBe('clap');
     expect(sent.volume).toBe(1);
     expect(String(sent.sound)).toMatch(/^data:/);
+  });
+});
+
+describe('Channel settings: announcement, voice limits, followers (LNG-CHN-017)', () => {
+  const ch = (id: string, name: string, type: number, extra: object = {}) => ({
+    id,
+    type,
+    guild_id: 'g1',
+    name,
+    topic: null,
+    position: 0,
+    parent_id: null,
+    nsfw: false,
+    rate_limit_per_user: 0,
+    permission_overwrites: [],
+    ...extra,
+  });
+
+  it('turns a text channel into an announcement channel', async () => {
+    seed({ perms: [MANAGE.channels] });
+    const cap = capture();
+    await openWith('channels', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/channels', () => HttpResponse.json([ch('c1', 'news', 0)])),
+        http.patch('*/api/v1/channels/c1', async ({ request }) => {
+          await cap.record(request);
+          return HttpResponse.json(ch('c1', 'news', 5));
+        }),
+      ),
+    );
+    await userEvent.click(await screen.findByRole('button', { name: '# news' }));
+    await userEvent.click(await screen.findByRole('switch', { name: /Announcement channel/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(cap.calls).toHaveLength(1));
+    expect(cap.calls[0]!.body).toEqual({ type: 5 });
+  });
+
+  it('changes the user limit and bitrate of a voice channel', async () => {
+    seed({ perms: [MANAGE.channels] });
+    const cap = capture();
+    await openWith('channels', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/channels', () =>
+          HttpResponse.json([ch('v1', 'Lounge', 2, { user_limit: 0, bitrate: 64000 })]),
+        ),
+        http.patch('*/api/v1/channels/v1', async ({ request }) => {
+          await cap.record(request);
+          return HttpResponse.json(ch('v1', 'Lounge', 2));
+        }),
+      ),
+    );
+    await userEvent.click(
+      await screen.findAllByRole('button', { name: /Lounge/ }).then((l) => l[0]!),
+    );
+    fireEvent.change(await screen.findByLabelText(/User limit/), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText(/Bitrate/), { target: { value: '96' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(cap.calls).toHaveLength(1));
+    expect(cap.calls[0]!.body).toEqual({ user_limit: 5, bitrate: 96000 });
+  });
+
+  it('lists followers of a channel and unfollows one', async () => {
+    seed({ perms: [MANAGE.channels, MANAGE.webhooks] });
+    const del = capture();
+    await openWith('channels', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/channels', () => HttpResponse.json([ch('c1', 'news', 5)])),
+        http.get('*/api/v1/guilds/g1/webhooks', () =>
+          HttpResponse.json([
+            { id: 'w2', type: 2, guild_id: 'g1', channel_id: 'c1', name: 'Far Away', avatar: null },
+          ]),
+        ),
+        http.delete('*/api/v1/webhooks/w2', async ({ request }) => {
+          await del.record(request);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      ),
+    );
+    await userEvent.click(await screen.findByRole('button', { name: '# news' }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Integrations' }));
+    expect(await screen.findByText('Far Away')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Unfollow Far Away' }));
+    const dialogs = await screen.findAllByRole('dialog');
+    await userEvent.click(within(dialogs.at(-1)!).getAllByRole('button').at(-1)!);
+    await waitFor(() => expect(del.calls).toHaveLength(1));
   });
 });

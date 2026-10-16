@@ -112,6 +112,16 @@ export default {
   'settings.communityMore.directorySaved': 'Listing request saved.',
   'settings.communityMore.directoryWithdrawn': 'Listing withdrawn.',
 
+  // Channel settings: announcement toggle, voice limits, followed channels (LNG-CHN-017)
+  'settings.channels.announcement': 'Announcement channel',
+  'settings.channels.announcementHint': 'Other servers can follow this channel to get its posts.',
+  'settings.channels.userLimit': 'User limit: {count, plural, =0 {no limit} other {# people}}',
+  'settings.channels.bitrate': 'Bitrate: {kbps} kbps',
+  'settings.channelTabs.followedLabel': 'Followed channels posting here',
+  'settings.channelTabs.followedNone': 'No other server follows into this channel.',
+  'settings.channelTabs.unfollow': 'Unfollow',
+  'settings.channelTabs.unfollowNamed': 'Unfollow {name}',
+
   // Icon crop step (LNG-SSET-005)
   'settings.imageField.cropTitle': 'Crop {label}',
 

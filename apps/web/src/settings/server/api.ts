@@ -200,6 +200,8 @@ export interface ChannelBody {
   default_reaction_emoji?: { emoji_name: string } | null;
   default_sort_order?: number | null;
   default_forum_layout?: number;
+  user_limit?: number;
+  bitrate?: number;
 }
 export const listChannels = (g: string) =>
   apiFetch<ChannelObject[]>(`/guilds/${g}/channels`, { retries: 0 });
