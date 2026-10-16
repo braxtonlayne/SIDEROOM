@@ -49726,7 +49726,7 @@ export interface operations {
             query?: {
                 /** @description Return the created message */
                 wait?: boolean;
-                /** @description Not supported yet */
+                /** @description A thread of the webhook's channel to post into */
                 thread_id?: string;
             };
             header?: never;

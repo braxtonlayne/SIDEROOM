@@ -50985,7 +50985,7 @@
           {
             "name": "thread_id",
             "in": "query",
-            "description": "Not supported yet",
+            "description": "A thread of the webhook's channel to post into",
             "required": false,
             "schema": {
               "type": "string"

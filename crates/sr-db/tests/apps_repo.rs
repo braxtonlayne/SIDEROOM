@@ -1281,6 +1281,21 @@ async fn a_declined_invitation_blocks_a_new_one_for_a_day() {
 }
 
 // ---------------------------------------------------- DEV-PORT-003: emoji and assets
+fn new_emoji(
+    id: i64,
+    name: &str,
+    animated: bool,
+    size: i64,
+    key: &str,
+) -> sr_apps::service::NewAppEmoji {
+    sr_apps::service::NewAppEmoji {
+        id,
+        name: name.into(),
+        animated,
+        size_bytes: size,
+        media_key: key.into(),
+    }
+}
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
@@ -1294,11 +1309,13 @@ async fn application_emoji_and_assets_keep_names_unique_and_cascade() {
         .add_app_emoji(
             f.owner,
             id,
-            eid,
-            "Party",
-            false,
-            10,
-            format!("emoji/app/{id}/{eid}.png"),
+            new_emoji(
+                eid,
+                "Party",
+                false,
+                10,
+                &format!("emoji/app/{id}/{eid}.png"),
+            ),
         )
         .await
         .unwrap();
@@ -1309,18 +1326,14 @@ async fn application_emoji_and_assets_keep_names_unique_and_cascade() {
             .add_app_emoji(
                 f.owner,
                 id,
-                f.svc.new_media_id(),
-                "party",
-                false,
-                1,
-                "k".into()
+                new_emoji(f.svc.new_media_id(), "party", false, 1, "k")
             )
             .await,
         Err(AppsError::Conflict(_))
     ));
     let other = f.svc.new_media_id();
     f.svc
-        .add_app_emoji(f.owner, id, other, "second", true, 1, "k2".into())
+        .add_app_emoji(f.owner, id, new_emoji(other, "second", true, 1, "k2"))
         .await
         .unwrap();
     assert!(matches!(

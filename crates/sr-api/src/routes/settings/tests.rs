@@ -3064,11 +3064,8 @@ async fn a_webhook_posts_into_a_thread_of_its_channel() {
     {
         let mut d = e.backend.data();
         for (cid, parent) in [(thread, Some(e.ch)), (other, None)] {
-            let mut c = sr_chat::Channel::new(
-                cid,
-                Some(e.guild),
-                sr_chat::ChannelType::PublicThread,
-            );
+            let mut c =
+                sr_chat::Channel::new(cid, Some(e.guild), sr_chat::ChannelType::PublicThread);
             c.name = Some("t".into());
             c.parent_id = parent;
             c.thread = Some(sr_chat::threads::model::ThreadInfo::new(T0, 1440));
@@ -3092,7 +3089,12 @@ async fn a_webhook_posts_into_a_thread_of_its_channel() {
     assert_eq!(m["webhook_id"], id);
 
     // A thread of some other channel, a plain channel and junk are refused.
-    for bad in [other.to_string(), e.ch.to_string(), "x".to_owned(), "0".to_owned()] {
+    for bad in [
+        other.to_string(),
+        e.ch.to_string(),
+        "x".to_owned(),
+        "0".to_owned(),
+    ] {
         let (s, v) = e
             .call(
                 Method::POST,
@@ -3104,5 +3106,8 @@ async fn a_webhook_posts_into_a_thread_of_its_channel() {
         assert_eq!(s, StatusCode::BAD_REQUEST, "{bad}: {v}");
     }
     let (_, history) = e.get(&format!("/channels/{}/messages", e.ch), "bob").await;
-    assert!(history.as_array().unwrap().is_empty(), "nothing leaked into the parent channel");
+    assert!(
+        history.as_array().unwrap().is_empty(),
+        "nothing leaked into the parent channel"
+    );
 }

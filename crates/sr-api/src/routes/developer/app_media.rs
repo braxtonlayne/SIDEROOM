@@ -237,11 +237,13 @@ pub async fn create_emoji(
         .add_app_emoji(
             p.user_id,
             app,
-            id,
-            &body.name,
-            animated,
-            i64::try_from(original).unwrap_or(0),
-            key.clone(),
+            sr_apps::service::NewAppEmoji {
+                id,
+                name: body.name.clone(),
+                animated,
+                size_bytes: i64::try_from(original).unwrap_or(0),
+                media_key: key.clone(),
+            },
         )
         .await
     {

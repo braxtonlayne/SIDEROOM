@@ -23,6 +23,21 @@ pub fn valid_asset_name(name: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
 }
 
+/// What the API layer hands over once the image is stored.
+#[derive(Debug, Clone)]
+pub struct NewAppEmoji {
+    /// Id minted by [`AppsService::new_media_id`] (it is part of the object key).
+    pub id: i64,
+    /// Emoji name.
+    pub name: String,
+    /// Animated image.
+    pub animated: bool,
+    /// Size of the original upload.
+    pub size_bytes: i64,
+    /// Object key of the stored image.
+    pub media_key: String,
+}
+
 impl AppsService {
     /// A fresh id for an emoji or asset, so the caller can build the object key first.
     pub fn new_media_id(&self) -> i64 {
@@ -49,12 +64,16 @@ impl AppsService {
         &self,
         owner: i64,
         app: i64,
-        id: i64,
-        name: &str,
-        animated: bool,
-        size_bytes: i64,
-        media_key: String,
+        new: NewAppEmoji,
     ) -> AppsResult<AppEmoji> {
+        let NewAppEmoji {
+            id,
+            name,
+            animated,
+            size_bytes,
+            media_key,
+        } = new;
+        let name = name.as_str();
         let app = self.owned(owner, app).await?;
         if !valid_emoji_name(name) {
             return Err(AppsError::field(

@@ -160,7 +160,7 @@ async fn the_app_page_shows_install_parameters_and_commands_and_hides_everything
         .get(Who::Session(BOB), &format!("/app-directory/{id}"))
         .await;
     assert_eq!(s, StatusCode::OK, "{v}");
-    assert_eq!(v["name"].is_string(), true);
+    assert!(v["name"].is_string());
     assert_eq!(v["commands"][0]["name"], "play");
     assert_eq!(v["privacy_policy_url"], "https://a.test/privacy");
     assert!(v["install_scopes"].is_array() && v["install_permissions"].is_string());
