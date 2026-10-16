@@ -281,3 +281,38 @@ describe('Community: Directory listing request (LNG-SSET-069)', () => {
     expect(await screen.findByRole('button', { name: 'Request a listing' })).toBeVisible();
   });
 });
+
+describe('Member details: audit history (LNG-SSET-030)', () => {
+  it('lists the audit entries about the member when the viewer may read the log', async () => {
+    seed({ perms: [MANAGE.kick, MANAGE.audit] });
+    const urls: string[] = [];
+    server.use(
+      http.get('*/api/v1/guilds/g1/audit-logs', ({ request }) => {
+        urls.push(new URL(request.url).search);
+        return HttpResponse.json({
+          audit_log_entries: [
+            { id: '5', user_id: '3', target_id: '2', action_type: 22, changes: [], reason: 'spam' },
+          ],
+          users: [
+            { id: '2', username: 'bob' },
+            { id: '3', username: 'carol' },
+          ],
+        });
+      }),
+    );
+    await openSettings('members');
+    await userEvent.click(await screen.findByRole('button', { name: 'Details for bob' }));
+    const dialog = await screen.findByRole('dialog', { name: 'bob' });
+    expect(await within(dialog).findByText(/carol .*bob/)).toBeVisible();
+    expect(within(dialog).getByText('(spam)')).toBeVisible();
+    expect(urls[0]).toContain('target_id=2');
+  });
+
+  it('hides the history from a viewer who cannot read the audit log', async () => {
+    seed({ perms: [MANAGE.kick] });
+    await openSettings('members');
+    await userEvent.click(await screen.findByRole('button', { name: 'Details for bob' }));
+    const dialog = await screen.findByRole('dialog', { name: 'bob' });
+    expect(within(dialog).queryByText('Audit history')).toBeNull();
+  });
+});

@@ -111,4 +111,9 @@ export default {
   'settings.communityMore.directoryWithdraw': 'Withdraw',
   'settings.communityMore.directorySaved': 'Listing request saved.',
   'settings.communityMore.directoryWithdrawn': 'Listing withdrawn.',
+
+  // Member audit history in the details dialog (LNG-SSET-030)
+  'settings.members.history': 'Audit history',
+  'settings.members.historyLoading': 'Loading the history',
+  'settings.members.historyEmpty': 'Nothing in the audit log is about this member.',
 } satisfies Record<string, string>;

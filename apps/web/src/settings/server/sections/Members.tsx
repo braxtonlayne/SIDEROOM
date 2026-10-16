@@ -5,11 +5,13 @@ import { useGuild } from '../../../store';
 import { onDispatch } from '../../../store/events';
 import { BulkDialog, type BulkKind, type BulkResult } from './MemberBulk';
 import { PruneDialog } from './PruneDialog';
+import { describeEntry, type Names } from '../auditText';
 import * as api from '../api';
-import type { Viewer } from '../hooks';
+import { useResource, type Viewer } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import {
   ActionStatus,
+  Async,
   ColorDot,
   Loading,
   LoadError,
@@ -458,6 +460,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       {details && (
         <MemberDetails
           member={members.find((m) => m.user.id === details.user.id) ?? details}
+          guildId={guildId}
+          canAudit={viewer.can('VIEW_AUDIT_LOG')}
           roleById={roleById}
           onClose={() => setDetails(null)}
         />
@@ -908,10 +912,14 @@ function MemberRolesDialog({
 
 function MemberDetails({
   member,
+  guildId,
+  canAudit,
   roleById,
   onClose,
 }: {
   member: api.MemberObject;
+  guildId: string;
+  canAudit: boolean;
   roleById: Map<string, { id: string; name: string; color: number }>;
   onClose: () => void;
 }) {
@@ -970,6 +978,42 @@ function MemberDetails({
           </dd>
         </div>
       </dl>
+      {canAudit && <MemberHistory guildId={guildId} userId={member.user.id} />}
     </Modal>
+  );
+}
+
+/** Audit history of one member: the entries whose target is them (LNG-SSET-030). */
+function MemberHistory({ guildId, userId }: { guildId: string; userId: string }) {
+  const t = useT();
+  const res = useResource(`member-audit:${guildId}:${userId}`, () =>
+    api.listAuditLog(guildId, { target_id: userId }),
+  );
+  return (
+    <section className="ss-history" aria-label={t('settings.members.history')}>
+      <h3>{t('settings.members.history')}</h3>
+      <Async res={res} label={t('settings.members.historyLoading')}>
+        {(log) => {
+          if (log.audit_log_entries.length === 0)
+            return <p className="ss-meta">{t('settings.members.historyEmpty')}</p>;
+          const users = new Map(log.users.map((u) => [u.id, api.userName(u)]));
+          const names: Names = {
+            user: (id) => users.get(id) ?? t('settings.auditLog.userFallback', { id }),
+            role: (id) => t('settings.auditLog.roleFallback', { id }),
+            channel: (id) => t('settings.auditLog.channelFallback', { id }),
+          };
+          return (
+            <ul className="ss-list">
+              {log.audit_log_entries.map((e) => (
+                <li key={e.id}>
+                  {describeEntry(e, names.user(e.user_id), names)}
+                  {e.reason && <span className="ss-meta">{` (${e.reason})`}</span>}
+                </li>
+              ))}
+            </ul>
+          );
+        }}
+      </Async>
+    </section>
   );
 }
