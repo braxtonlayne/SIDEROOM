@@ -137,6 +137,20 @@ describe('review queue', () => {
     expect(within(dialog).getByRole('button', { name: 'Reject' })).toBeDisabled();
   });
 
+  it("opens the request-changes dialog a card's Request changes button links to (H-04)", async () => {
+    useReviewApi({
+      detail: () => detail({ id: '7', title: 'Linked series', state: 'submitted' }),
+      onPost: (path) =>
+        path === 'claim'
+          ? detail({ id: '7', title: 'Linked series', state: 'in_review', ...lease() })
+          : undefined,
+    });
+    openAdmin('review?submission=7&changes=1');
+    expect(await screen.findByRole('heading', { name: 'Linked series' })).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Request changes' });
+    expect(within(dialog).getByRole('button', { name: 'Send back' })).toBeDisabled();
+  });
+
   it('says so when nothing waits', async () => {
     server.use(http.get('*/api/v1/admin/review/queue', () => queue([], 0)));
     openAdmin('review');

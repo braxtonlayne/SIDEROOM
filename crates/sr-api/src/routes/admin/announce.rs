@@ -185,13 +185,24 @@ pub struct CardActionBody {
     pub custom_id: String,
 }
 
-/// `sr:review-approve:<id>` and `sr:review-reject:<id>` as (approve, submission id).
-fn parse_review_button(custom_id: &str) -> Option<(bool, i64)> {
+/// What a button on a `#review-queue` card asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReviewPress {
+    Approve,
+    /// Opens the review page on the reject dialog (a reason is required).
+    Reject,
+    /// Opens the review page on the request-changes dialog (a reason is required).
+    Changes,
+}
+
+/// `sr:review-approve:<id>`, `sr:review-reject:<id>` and `sr:review-changes:<id>`.
+fn parse_review_button(custom_id: &str) -> Option<(ReviewPress, i64)> {
     let (action, id) = custom_id.strip_prefix("sr:review-")?.split_once(':')?;
     let id: i64 = id.parse().ok().filter(|v| *v > 0)?;
     match action {
-        "approve" => Some((true, id)),
-        "reject" => Some((false, id)),
+        "approve" => Some((ReviewPress::Approve, id)),
+        "reject" => Some((ReviewPress::Reject, id)),
+        "changes" => Some((ReviewPress::Changes, id)),
         _ => None,
     }
 }
@@ -203,7 +214,7 @@ fn parse_review_button(custom_id: &str) -> Option<(bool, i64)> {
 pub async fn press_review_button(
     svc: &sr_review::ReviewService,
     caller: sr_review::Caller,
-    approve: bool,
+    press: ReviewPress,
     submission: i64,
     now_ms: i64,
 ) -> Result<(CardActionResult, Option<serde_json::Value>), HttpError> {
@@ -224,9 +235,19 @@ pub async fn press_review_button(
     ) {
         return Ok((answer(false, "Already decided.", None), None));
     }
-    if !approve {
-        let link = format!("/admin/review?submission={submission}&reject=1");
-        let message = "Rejecting needs a reason. Opening the review page.";
+    if press != ReviewPress::Approve {
+        let (flag, message) = if press == ReviewPress::Changes {
+            (
+                "changes",
+                "Requesting changes needs a reason. Opening the review page.",
+            )
+        } else {
+            (
+                "reject",
+                "Rejecting needs a reason. Opening the review page.",
+            )
+        };
+        let link = format!("/admin/review?submission={submission}&{flag}=1");
         return Ok((answer(true, message, Some(link)), None));
     }
     let mine = s.claimed_by == Some(caller.user_id) && s.lease_live(now_ms);
@@ -264,7 +285,7 @@ pub async fn press_review_button(
 async fn run_review_button(
     ctx: &StaffCtx,
     review: &ReviewDeps,
-    approve: bool,
+    press: ReviewPress,
     submission: i64,
 ) -> Result<CardActionResult, HttpError> {
     let caller = sr_review::Caller {
@@ -273,7 +294,7 @@ async fn run_review_button(
     };
     let now = crate::routes::review::now_ms();
     let (result, audit) =
-        press_review_button(&review.service, caller, approve, submission, now).await?;
+        press_review_button(&review.service, caller, press, submission, now).await?;
     if let Some(detail) = audit
         && let Err(e) = ctx
             .svc()
@@ -346,9 +367,9 @@ pub async fn card_action(
     {
         return Err(ErrorCode::UnknownMessage.into());
     }
-    if let Some((approve, submission)) = review_press {
+    if let Some((press, submission)) = review_press {
         let review = review.ok_or_else(|| HttpError::from(ErrorCode::SrInternal))?;
-        return run_review_button(&ctx, &review, approve, submission)
+        return run_review_button(&ctx, &review, press, submission)
             .await
             .map(Json);
     }

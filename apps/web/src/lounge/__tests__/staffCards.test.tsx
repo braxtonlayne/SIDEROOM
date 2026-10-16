@@ -52,6 +52,11 @@ describe('parseStaffButton', () => {
       submissionId: '9',
       approve: false,
     });
+    expect(parseStaffButton('sr:review-changes:9')).toMatchObject({
+      kind: 'review',
+      submissionId: '9',
+      approve: false,
+    });
     // Anything else under the prefix is an ordinary card action for the server to judge.
     expect(parseStaffButton('sr:review-approve:x')).toEqual({
       kind: 'card',
