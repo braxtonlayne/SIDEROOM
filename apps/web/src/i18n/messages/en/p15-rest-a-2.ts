@@ -1,0 +1,26 @@
+export default {
+  'review.validation.title': 'Checks before sending',
+  'review.validation.clean': 'Nothing to fix. The submission looks ready to send.',
+  'review.validation.counts':
+    '{errors, plural, one {# error} other {# errors}}, {warnings, plural, one {# warning} other {# warnings}}',
+  'review.validation.error': 'Error',
+  'review.validation.warning': 'Warning',
+  'review.validation.noTitle': 'The submission has no title.',
+  'review.validation.noChapters': 'There are no chapters yet. Add one or drop a folder.',
+  'review.validation.duplicateNumber': 'More than one chapter is numbered {n}.',
+  'review.validation.noFile':
+    '{count, plural, one {# chapter has} other {# chapters have}} no pages yet. Upload a file for {count, plural, one {it} other {each}}.',
+  'review.validation.gap': 'Chapters are missing in the numbering: {list}.',
+  'review.validation.noSynopsis': 'The series has no synopsis. Reviewers and readers see it first.',
+  'library.submissions.chapters.moveUp': 'Move {name} up',
+  'library.submissions.chapters.moveDown': 'Move {name} down',
+  'library.submissions.chapters.rename': 'Rename',
+  'library.submissions.chapters.renameLabel': 'Rename {name}',
+  'library.submissions.chapters.renameForm': 'Rename chapter',
+  'library.submissions.chapters.saveRename': 'Save',
+  'library.submissions.chapters.cancelRename': 'Cancel',
+  'review.folder.include': 'Include {path}',
+  'review.folder.numberLabel': 'Chapter number of {path}',
+  'review.folder.titleLabel': 'Title of {path}',
+  'review.folder.duplicate': 'Two files share chapter number {n}.',
+} satisfies Record<string, string>;

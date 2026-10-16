@@ -37,6 +37,8 @@ import type {
   SubmissionState,
   Upload,
 } from '../review/types';
+import { ValidationSummary } from '../review/ValidationSummary';
+import { checkSubmission, reorderNumbers, spareNumber } from '../review/chapterEdit';
 import { renderPdfCover } from './pdf/pdfjs';
 import { isZipName, precheckArchive } from './precheck';
 import { KIND_LABEL } from './ui';
@@ -587,9 +589,51 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
     mutationFn: (c: DraftChapter) => rv.deleteDraftChapter(s.id, c.id),
     onSuccess: refresh,
   });
+  const [editing, setEditing] = useState<string | null>(null);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const byId = new Map(rows.map((c) => [c.id, c]));
+  const put = (c: DraftChapter, number: number, title: string | null) =>
+    rv.updateDraftChapter(s.id, c.id, {
+      number,
+      title,
+      format: c.format,
+      release_group: c.release_group,
+    });
+  const rename = useMutation({
+    mutationFn: (v: { c: DraftChapter; number: number; title: string | null }) =>
+      put(v.c, v.number, v.title),
+    onSuccess: () => {
+      setEditing(null);
+      refresh();
+    },
+  });
+  // Reordering is renumbering: the chapters keep their set of numbers. Two passes (to spare numbers first, then
+  // the real ones) so no two chapters ever share a number on the way.
+  const move = useMutation({
+    mutationFn: async (v: { from: number; to: number }) => {
+      const changes = reorderNumbers(rows, v.from, v.to);
+      const spare = spareNumber(rows);
+      for (const [i, ch] of changes.entries()) {
+        const c = byId.get(ch.id)!;
+        await put(c, spare + i, c.title);
+      }
+      for (const ch of changes) {
+        const c = byId.get(ch.id)!;
+        await put(c, ch.number, c.title);
+      }
+    },
+    onSettled: refresh,
+  });
+  const issues = checkSubmission({
+    title: s.title,
+    describesSeries: s.kind === 'library.series',
+    synopsis: typeof s.payload.synopsis === 'string' ? s.payload.synopsis : null,
+    chapters: rows,
+  });
   return (
     <section className="rv-panel" aria-labelledby="sub-ch-h">
       <h2 id="sub-ch-h">{t('library.submissions.chapters.title')}</h2>
+      {editable && chapters.data && <ValidationSummary issues={issues} />}
       {chapters.isPending && <Spinner label={t('library.submissions.chapters.loading')} />}
       {chapters.data && rows.length === 0 && (
         <p className="rv-muted">{t('library.submissions.chapters.empty')}</p>
@@ -610,15 +654,38 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
               </tr>
             </thead>
             <tbody>
-              {rows.map((c) => {
+              {rows.map((c, index) => {
                 const item = itemOf.get(c.id);
                 const name = c.title
                   ? t('library.submissions.chapters.namedTitled', { n: c.number, title: c.title })
                   : t('library.submissions.chapters.named', { n: c.number });
                 return (
-                  <tr key={c.id}>
+                  <tr
+                    key={c.id}
+                    draggable={editable && editing === null}
+                    onDragStart={() => setDragFrom(index)}
+                    onDragOver={(e) => {
+                      if (dragFrom !== null) e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragFrom !== null && dragFrom !== index)
+                        move.mutate({ from: dragFrom, to: index });
+                      setDragFrom(null);
+                    }}
+                    onDragEnd={() => setDragFrom(null)}
+                  >
                     <td>
-                      <strong>{name}</strong>
+                      {editing === c.id ? (
+                        <ChapterRename
+                          chapter={c}
+                          busy={rename.isPending}
+                          onCancel={() => setEditing(null)}
+                          onSave={(number, title) => rename.mutate({ c, number, title })}
+                        />
+                      ) : (
+                        <strong>{name}</strong>
+                      )}
                     </td>
                     <td>
                       <UploadCell
@@ -641,15 +708,43 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
                     </td>
                     <td>
                       {editable && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          aria-label={t('library.submissions.chapters.removeLabel', { name })}
-                          disabled={del.isPending}
-                          onClick={() => del.mutate(c)}
-                        >
-                          {t('library.submissions.chapters.remove')}
-                        </Button>
+                        <span className="rv-row">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={t('library.submissions.chapters.moveUp', { name })}
+                            disabled={index === 0 || move.isPending}
+                            onClick={() => move.mutate({ from: index, to: index - 1 })}
+                          >
+                            ↑
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={t('library.submissions.chapters.moveDown', { name })}
+                            disabled={index === rows.length - 1 || move.isPending}
+                            onClick={() => move.mutate({ from: index, to: index + 1 })}
+                          >
+                            ↓
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={t('library.submissions.chapters.renameLabel', { name })}
+                            onClick={() => setEditing(c.id)}
+                          >
+                            {t('library.submissions.chapters.rename')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={t('library.submissions.chapters.removeLabel', { name })}
+                            disabled={del.isPending}
+                            onClick={() => del.mutate(c)}
+                          >
+                            {t('library.submissions.chapters.remove')}
+                          </Button>
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -660,10 +755,61 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
         </div>
       )}
       {del.isError && <Problems messages={errorMessages(del.error)} />}
+      {rename.isError && <Problems messages={errorMessages(rename.error)} />}
+      {move.isError && <Problems messages={errorMessages(move.error)} />}
       {editable && <AddChapter submissionId={s.id} onAdded={refresh} />}
       {editable && <FolderImport submissionId={s.id} onAdded={refresh} />}
       <UploadDock />
     </section>
+  );
+}
+
+/** Inline edit of one chapter's number and title (REV-ED-001). */
+function ChapterRename({
+  chapter,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  chapter: DraftChapter;
+  busy: boolean;
+  onSave: (number: number, title: string | null) => void;
+  onCancel: () => void;
+}) {
+  const t = useT();
+  const [number, setNumber] = useState(String(chapter.number));
+  const [title, setTitle] = useState(chapter.title ?? '');
+  const ok = number.trim() !== '' && Number.isFinite(Number(number)) && Number(number) >= 0;
+  return (
+    <form
+      className="rv-form"
+      aria-label={t('library.submissions.chapters.renameForm')}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ok) onSave(Number(number), title.trim() || null);
+      }}
+    >
+      <TextInput
+        label={t('library.submissions.add.number')}
+        inputMode="decimal"
+        value={number}
+        onChange={(e) => setNumber(e.target.value)}
+      />
+      <TextInput
+        label={t('library.submissions.add.title')}
+        value={title}
+        maxLength={200}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <div className="rv-row">
+        <Button type="submit" size="sm" disabled={!ok} loading={busy}>
+          {t('library.submissions.chapters.saveRename')}
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={onCancel}>
+          {t('library.submissions.chapters.cancelRename')}
+        </Button>
+      </div>
+    </form>
   );
 }
 
