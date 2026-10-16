@@ -14,7 +14,7 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
 
-for b in initdb pg_ctl psql pg_basebackup; do need "$b"; done
+for b in initdb pg_ctl psql pg_basebackup pg_archivecleanup; do need "$b"; done
 port=${SR_DRILL_PORT:-55441}
 port2=$((port + 1))
 
@@ -105,7 +105,11 @@ tl=$(q "$port2" "select timeline_id from pg_control_checkpoint()")
 log "recovered 200 rows, none after the target, timeline $tl"
 
 # The base backup recorded its first segment; nothing older than it may remain after trimming.
+# Archiving is asynchronous, so a segment older than the backup can reach the archive after
+# basebackup.sh trimmed it; the next backup's trim removes it. Trim once more here, as that run would.
 first=$(sed -n 's/.*"start_wal":"\([0-9A-F]*\)".*/\1/p' "$base/backup.json")
+[ -n "$first" ] || die "the base backup manifest has no start_wal"
+pg_archivecleanup "$archive" "$first"
 oldest=$(segments | sort | head -n 1)
 smallest=$(printf '%s\n%s\n' "$first" "$oldest" | sort | head -n 1)
 [ "$smallest" = "$first" ] || die "archive still holds $oldest, older than $first"
