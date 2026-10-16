@@ -956,6 +956,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         gif_source,
         Some(cdn_signer.clone()),
     ));
+    // Metadata lookup for the submission editor (REV-ED-005): off unless `[lookup]` enables a
+    // provider and the platform setting `review.lookup.enabled` is on.
+    let lookup_deps = Arc::new(routes::review::LookupDeps::new(
+        crate::lookup_wiring::providers_from(&cfg.lookup),
+        Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
+        Some(cdn_signer.clone()),
+    ));
     let push_subject = if cfg.server.public_url.starts_with("https://") {
         cfg.server.public_url.trim_end_matches('/').to_owned()
     } else {
@@ -1107,6 +1114,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(export_deps)
         .extension(push_deps)
         .extension(gif_deps)
+        .extension(lookup_deps)
         .extension(Arc::new(routes::inbox::InboxDeps::new(Arc::new(
             crate::inbox_pg::PgMentionSource::new(pool.clone()),
         ))))

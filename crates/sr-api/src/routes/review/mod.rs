@@ -22,6 +22,11 @@
 
 mod duplicates;
 mod library;
+mod lookup;
+pub use lookup::{
+    AniList, ComicVine, LookupCandidate, LookupDeps, LookupError, LookupProvider, LookupSwitch,
+    MangaDex, MangaUpdates, RawCandidate, Section, Tmdb,
+};
 mod member;
 mod requests;
 mod reviewer;
@@ -501,6 +506,7 @@ pub fn router() -> Router<AppState> {
             "/admin/review/requests/{request_id}/decline",
             post(requests::decline),
         )
+        .merge(lookup::router())
 }
 
 /// OpenAPI fragment for the review endpoints.
@@ -522,6 +528,8 @@ pub fn router() -> Router<AppState> {
         duplicates::mine,
         duplicates::review,
         duplicates::resolve,
+        lookup::providers,
+        lookup::search,
         library::update_series,
         library::set_cover,
         library::chapters,
@@ -609,6 +617,10 @@ pub fn router() -> Router<AppState> {
         sr_review::model::DuplicateResolution,
         sr_review::model::DuplicateResolutionInput,
         sr_review::model::DuplicateReport,
+        lookup::LookupCandidate,
+        lookup::LookupProviderInfo,
+        lookup::LookupProviders,
+        lookup::LookupResults,
         sr_library::model::UploadSlot,
         sr_library::multipart::MultipartSlot,
         sr_library::multipart::PartUrl,

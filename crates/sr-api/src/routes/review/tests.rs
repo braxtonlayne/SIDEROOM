@@ -3,7 +3,7 @@
 //! visibility rules, the access log trail and `SR_SUBMISSION_UPDATE`. The Postgres behaviour
 //! and the Library kinds are covered by `sr-db/tests/review_repo.rs`.
 
-use super::{ReviewDeps, router};
+use super::{LookupDeps, ReviewDeps, router};
 use crate::{
     ApiSettings, AppState,
     auth::{
@@ -113,6 +113,43 @@ impl SubmissionKind for StubKind {
     }
 }
 
+struct FixedLookup;
+
+#[async_trait]
+impl super::LookupProvider for FixedLookup {
+    fn id(&self) -> &'static str {
+        "fixed"
+    }
+    fn label(&self) -> &'static str {
+        "Fixed"
+    }
+    fn serves(&self, s: super::Section) -> bool {
+        s == super::Section::Library
+    }
+    async fn search(
+        &self,
+        _: super::Section,
+        q: &str,
+        _: Option<i32>,
+    ) -> Result<Vec<super::RawCandidate>, super::LookupError> {
+        Ok(vec![super::RawCandidate {
+            external_id: "1".into(),
+            title: q.to_owned(),
+            year: Some(2001),
+            ..Default::default()
+        }])
+    }
+}
+
+struct LookupOn;
+
+#[async_trait]
+impl super::LookupSwitch for LookupOn {
+    async fn enabled(&self) -> bool {
+        true
+    }
+}
+
 #[derive(Default)]
 struct Sink(Mutex<Vec<(Vec<i64>, Value)>>);
 
@@ -214,6 +251,11 @@ async fn env() -> Env {
         .bots(bots)
         .extension(Arc::new(AdminDeps::new(svc)))
         .extension(Arc::new(ReviewDeps::new(review)))
+        .extension(Arc::new(LookupDeps::new(
+            vec![Arc::new(FixedLookup)],
+            Arc::new(LookupOn),
+            None,
+        )))
         .build();
     Env {
         app: build_router(state, router()),
@@ -296,6 +338,8 @@ fn member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         ),
         (Method::GET, "/submissions/7/credits", None),
         (Method::GET, "/submissions/7/duplicates", None),
+        (Method::GET, "/submissions/lookup/providers", None),
+        (Method::GET, "/submissions/lookup?provider=fixed&q=ab", None),
         (Method::GET, "/submissions", None),
         (
             Method::POST,
@@ -1053,4 +1097,81 @@ async fn duplicates_are_listed_and_resolved_over_http() {
         )
         .await;
     assert_eq!(st, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn metadata_lookup_lists_providers_and_validates_queries() {
+    let e = env().await;
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup/providers",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["enabled"], true);
+    assert_eq!(b["providers"][0]["id"], "fixed");
+    // Cinema has no provider in this setup.
+    let (_, b) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup/providers?section=cinema",
+            None,
+        )
+        .await;
+    assert_eq!(b["enabled"], false);
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup/providers?section=nope",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup?provider=fixed&q=Blue%20Hour",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["candidates"][0]["title"], "Blue Hour");
+    assert_eq!(b["candidates"][0]["year"], 2001);
+    assert_eq!(b["candidates"][0]["cover"], "");
+    // Too short, and an unknown provider.
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup?provider=fixed&q=x",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup?provider=tmdb&q=Akira",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    // A session is required.
+    let (st, _) = e
+        .call(
+            None,
+            Method::GET,
+            "/submissions/lookup?provider=fixed&q=Akira",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
 }
