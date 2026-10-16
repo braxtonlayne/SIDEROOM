@@ -360,10 +360,15 @@ export function ChannelVoice({ channel }: { channel: api.ChannelObject }) {
     if (!edited) setText(current);
   }, [current, edited]);
   const save = async (next: string | null) => {
-    const ok = await action.run(async () => {
-      await setChannelStatus(channel.id, next);
-      return true;
-    }, next ? t('settings.channelTabs.voiceStatusSaved') : t('settings.channelTabs.voiceStatusCleared'));
+    const ok = await action.run(
+      async () => {
+        await setChannelStatus(channel.id, next);
+        return true;
+      },
+      next
+        ? t('settings.channelTabs.voiceStatusSaved')
+        : t('settings.channelTabs.voiceStatusCleared'),
+    );
     if (ok) {
       setEdited(false);
       if (!next) setText('');

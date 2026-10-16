@@ -46,7 +46,9 @@ export interface Guild {
   /** Largest file the viewer may upload in this server, in bytes (D-233); absent until `GET /guilds/{id}` is read. */
   sr_max_upload_bytes?: number;
   /** Side Room's profile extras: the server's traits (J-07). */
-  sr_profile?: { traits?: { emoji_id?: string | null; emoji_name?: string | null; label: string }[] };
+  sr_profile?: {
+    traits?: { emoji_id?: string | null; emoji_name?: string | null; label: string }[];
+  };
 }
 
 export interface Channel {
