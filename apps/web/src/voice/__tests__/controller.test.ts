@@ -812,3 +812,65 @@ describe('session defaults', () => {
     expect(IDLE_SESSION.status).toBe('idle');
   });
 });
+
+describe('end-to-end encryption (VOX-E2E-003)', () => {
+  const flushAll = async () => {
+    for (let i = 0; i < 6; i++) await Promise.resolve();
+  };
+
+  it('starts E2EE before the engine, hands it the hooks, and routes E2EE_MLS to the call', async () => {
+    const h = harness();
+    const onMessage = vi.fn();
+    const onRosterChanged = vi.fn();
+    const stop = vi.fn();
+    const hooks = { peerConfig: {}, attachSender: vi.fn(), attachReceiver: vi.fn() };
+    let ctx: { roster(): string[]; send(d: Record<string, unknown>): boolean } | null = null;
+    h.c.configure({
+      e2ee: (c) => {
+        ctx = c;
+        return Promise.resolve({
+          engine: hooks,
+          call: { onMessage, onRosterChanged } as never,
+          stop,
+        });
+      },
+    });
+    joinAndServe(h);
+    expect(h.engines).toHaveLength(0); // waits for E2EE
+    await flushAll();
+    expect(h.engines).toHaveLength(1);
+    expect(h.last().connectParams!.e2ee).toBe(hooks);
+    // op 101 goes out through the gateway; the roster includes the viewer.
+    ctx!.send({ type: 'hello', channel_id: 'c1' });
+    expect(h.sent.at(-1)).toEqual({ op: Op.E2EE_MLS, d: { type: 'hello', channel_id: 'c1' } });
+    expect(ctx!.roster()).toContain('me');
+    h.emit('E2EE_MLS', { type: 'commit', channel_id: 'c1' });
+    expect(onMessage).toHaveBeenCalledWith({ type: 'commit', channel_id: 'c1' });
+    h.last().ok();
+    await flushAll();
+    h.emit('VOICE_STATE_UPDATE', { guild_id: 'g1', channel_id: 'c1', user_id: 'u2' });
+    await flushAll();
+    expect(onRosterChanged).toHaveBeenCalled();
+    h.c.leave();
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it('refuses to join when the browser cannot transform frames', async () => {
+    const h = harness();
+    h.c.configure({ e2ee: () => Promise.resolve('unsupported') });
+    joinAndServe(h);
+    await flushAll();
+    expect(h.engines).toHaveLength(0);
+    expect(sess().status).toBe('error');
+    expect(sess().error?.message).toMatch(/cannot join end-to-end encrypted calls/);
+  });
+
+  it('a failed E2EE start fails the join instead of joining in the clear', async () => {
+    const h = harness();
+    h.c.configure({ e2ee: () => Promise.reject(new Error('no wasm')) });
+    joinAndServe(h);
+    await flushAll();
+    expect(h.engines).toHaveLength(0);
+    expect(sess().status).toBe('error');
+  });
+});

@@ -13,15 +13,30 @@ export interface EncodedFrameLike {
 /** Options the main thread attaches to a transform. */
 export interface TransformOptions {
   direction: 'send' | 'recv';
-  /** The codec's MIME type when frame metadata lacks it (`audio/opus`, `video/VP8`...). */
+  /** The codec's MIME type when frame metadata lacks it: `audio/opus`, or `video/*` to tell VP8 and H.264 apart by their bytes. */
   mime: string;
   /** recv: the sender's user id. */
   sender?: string;
 }
 
-export function frameMime(frame: EncodedFrameLike, fallback: string): string {
+/**
+ * The SFU negotiates VP8 and H.264 for video. When the browser does not say which one a frame
+ * is (older encoded-frame metadata has no `mimeType`), tell them apart by the bytes the
+ * transform leaves in the clear: an H.264 access unit starts with an Annex B start code, a VP8
+ * frame never does (its first byte is odd on interframes and carries show_frame on keyframes).
+ */
+export function sniffVideoMime(data: Uint8Array): string {
+  const h264 =
+    (data[0] === 0 && data[1] === 0 && data[2] === 1) ||
+    (data[0] === 0 && data[1] === 0 && data[2] === 0 && data[3] === 1);
+  return h264 ? 'video/H264' : 'video/VP8';
+}
+
+export function frameMime(frame: EncodedFrameLike, fallback: string, data?: Uint8Array): string {
   const m = frame.getMetadata?.().mimeType;
-  return m && m.length > 0 ? m : fallback;
+  if (m && m.length > 0) return m;
+  if (fallback === 'video/*') return sniffVideoMime(data ?? new Uint8Array(frame.data));
+  return fallback;
 }
 
 /** Transform one frame in place; `false` means drop it. */
@@ -31,8 +46,8 @@ export function transformFrame(
   frame: EncodedFrameLike,
   now: () => number = Date.now,
 ): boolean {
-  const mime = frameMime(frame, opts.mime);
   const input = new Uint8Array(frame.data);
+  const mime = frameMime(frame, opts.mime, input);
   const out =
     opts.direction === 'send'
       ? media.encrypt(mime, input)

@@ -37,6 +37,24 @@ export interface Identity {
   publicKey: Uint8Array;
   /** Non-extractable ECDSA P-256 signing key. */
   signingKey: CryptoKey;
+  /** The public key as 65 raw bytes (uncompressed SEC1), the form MLS credentials carry. */
+  rawPublicKey: Uint8Array;
+}
+
+async function rawOf(spki: ArrayBuffer | Uint8Array, subtle: SubtleCrypto): Promise<Uint8Array> {
+  const k = await subtle.importKey('spki', spki, SIGN, true, ['verify']);
+  return new Uint8Array(await subtle.exportKey('raw', k));
+}
+
+/** Sign with the identity key: ECDSA P-256 / SHA-256, 64 bytes r||s (what MLS credentials hold). */
+export async function signWithIdentity(
+  id: Identity,
+  message: Uint8Array,
+  subtle: SubtleCrypto = globalThis.crypto.subtle,
+): Promise<Uint8Array> {
+  return new Uint8Array(
+    await subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, id.signingKey, message),
+  );
 }
 
 const SIGN = { name: 'ECDSA', namedCurve: 'P-256' } as const;
@@ -83,6 +101,7 @@ export async function loadOrCreateIdentity(
       return {
         publicKey: new Uint8Array(stored.publicKey),
         signingKey: await unwrap(stored, wrap, subtle, false),
+        rawPublicKey: await rawOf(stored.publicKey, subtle),
       };
     } catch {
       // The wrapping key was lost or replaced (site data partly cleared): start over.
@@ -106,6 +125,7 @@ export async function loadOrCreateIdentity(
   return {
     publicKey: new Uint8Array(publicKey),
     signingKey: await unwrap(fresh, wrap, subtle, false),
+    rawPublicKey: await rawOf(publicKey, subtle),
   };
 }
 
