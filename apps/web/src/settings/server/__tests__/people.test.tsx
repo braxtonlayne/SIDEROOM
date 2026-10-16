@@ -332,7 +332,11 @@ describe('Members: join source and signals (H-37, LNG-SSET-027)', () => {
             sr_signals: ['new_account', 'rejoined'],
           }),
         ];
-        return HttpResponse.json(flagged ? all.filter((m) => m.sr_signals.length) : all);
+        return HttpResponse.json(
+          flagged
+            ? all.filter((m) => ((m as { sr_signals?: string[] }).sr_signals ?? []).length > 0)
+            : all,
+        );
       }),
     );
     // Not openSettings: its base handlers would answer the member list ahead of this one.

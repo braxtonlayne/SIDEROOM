@@ -93,7 +93,7 @@ export function HeroBlock({
         />
       </label>
       {fileError && (
-        <Notice variant="error" role="alert">
+        <Notice variant="danger" role="alert">
           {fileError}
         </Notice>
       )}

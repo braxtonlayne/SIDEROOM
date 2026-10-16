@@ -805,7 +805,7 @@ async fn forum_posts_carry_the_callers_upload_slots_of_the_forum() {
     assert_eq!(s, StatusCode::CREATED, "{post}");
     let files = post["message"]["attachments"]
         .as_array()
-        .expect(&post.to_string());
+        .unwrap_or_else(|| panic!("{post}"));
     assert_eq!(files.len(), 2, "{post}");
     assert_eq!(files[0]["filename"], "a.bin");
     assert_eq!(files[1]["description"], "greeting");
