@@ -1,3 +1,17 @@
 export default {
   'lounge.embeds.spoilerReveal': 'Spoiler: show link preview',
+  'admin.setup.integrationOk': 'Configured on the server.',
+  'admin.setup.integrationMissing': 'Not configured yet. See the System page.',
+  'admin.system.integrationsTitle': 'Integrations',
+  'admin.system.integrationConfigured': 'Configured',
+  'admin.system.integrationMissing': 'Not configured',
+  'admin.system.integrationSmtp': 'Email (SMTP)',
+  'admin.system.integrationDiscordOauth': 'Discord sign-in',
+  'admin.system.integrationVoice': 'Voice (SFU)',
+  'admin.system.integrationTurn': 'TURN relay',
+  'admin.system.integrationGif': 'GIF search',
+  'admin.system.integrationPush': 'Web Push',
+  'admin.system.integrationConnections': 'Linked accounts',
+  'admin.system.sendTestEmail': 'Send a test email to me',
+  'admin.system.testEmailSent': 'Test message sent to {to}.',
 } satisfies Record<string, string>;

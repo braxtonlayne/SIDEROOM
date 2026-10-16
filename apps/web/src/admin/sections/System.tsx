@@ -15,9 +15,21 @@ import {
   useResource,
 } from '../ui';
 
+const INTEGRATION_LABELS: Record<string, MessageKey> = {
+  smtp: 'admin.system.integrationSmtp',
+  discord_oauth: 'admin.system.integrationDiscordOauth',
+  voice: 'admin.system.integrationVoice',
+  turn: 'admin.system.integrationTurn',
+  gif: 'admin.system.integrationGif',
+  push: 'admin.system.integrationPush',
+  connections: 'admin.system.integrationConnections',
+};
+
 export function SystemSection() {
   const t = useT();
   const res = useResource('admin:system', api.getSystem);
+  const mail = useAction();
+  const [sentTo, setSentTo] = useState<string | null>(null);
   return (
     <>
       <SectionHeader
@@ -61,6 +73,48 @@ export function SystemSection() {
                 ))}
               </ul>
             </section>
+            {s.integrations && s.integrations.length > 0 && (
+              <section className="ss-card" aria-labelledby="sys-integrations">
+                <h2 id="sys-integrations">{t('admin.system.integrationsTitle')}</h2>
+                <ul className="ss-list" aria-label={t('admin.system.integrationsTitle')}>
+                  {s.integrations.map((i) => (
+                    <li key={i.id} className="ss-row">
+                      <div className="ss-grow">
+                        <div className="ss-name">
+                          {INTEGRATION_LABELS[i.id] ? t(INTEGRATION_LABELS[i.id]!) : i.id}
+                        </div>
+                        {i.detail && <div className="ss-meta">{i.detail}</div>}
+                      </div>
+                      <Badge variant={i.configured ? 'success' : 'neutral'}>
+                        {i.configured
+                          ? t('admin.system.integrationConfigured')
+                          : t('admin.system.integrationMissing')}
+                      </Badge>
+                      {i.id === 'smtp' && i.configured && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={mail.busy}
+                          onClick={() => {
+                            void mail
+                              .run(() => api.sendEmailTest())
+                              .then((r) => {
+                                if (r) setSentTo(r.sent_to);
+                              });
+                          }}
+                        >
+                          {t('admin.system.sendTestEmail')}
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <ActionStatus
+                  error={mail.error}
+                  done={sentTo ? t('admin.system.testEmailSent', { to: sentTo }) : null}
+                />
+              </section>
+            )}
           </>
         )}
       </Async>

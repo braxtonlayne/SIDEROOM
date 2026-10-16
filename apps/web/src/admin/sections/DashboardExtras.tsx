@@ -272,12 +272,31 @@ export function SetupChecklist({ staff }: { staff: number }) {
       state: staff > 1 ? 'done' : 'todo',
       section: 'staff',
     });
-    for (const [id, label] of [
-      ['smtp', t('admin.setup.smtp')],
-      ['discord', t('admin.setup.discord')],
-      ['voice', t('admin.setup.voice')],
-    ] as const)
-      steps.push({ id, label, detail: t('admin.setup.noStatusRoute'), state: 'unknown' });
+    // Optional integrations come from `GET /admin/system` (OPERATOR); without it they stay unknown.
+    const configured = (...ids: string[]) => {
+      const found = system?.integrations?.filter((i) => ids.includes(i.id));
+      if (!found || found.length === 0) return null;
+      return found.every((i) => i.configured);
+    };
+    for (const [id, label, ids] of [
+      ['smtp', t('admin.setup.smtp'), ['smtp']],
+      ['discord', t('admin.setup.discord'), ['discord_oauth']],
+      ['voice', t('admin.setup.voice'), ['voice', 'turn']],
+    ] as const) {
+      const ok = configured(...ids);
+      steps.push({
+        id,
+        label,
+        detail:
+          ok === null
+            ? t('admin.setup.noStatusRoute')
+            : ok
+              ? t('admin.setup.integrationOk')
+              : t('admin.setup.integrationMissing'),
+        state: ok === null ? 'unknown' : ok ? 'done' : 'todo',
+        section: 'system',
+      });
+    }
     return steps;
   });
   if (!res.data || res.data.length === 0) return null;

@@ -60,13 +60,22 @@ export interface Probe {
   ok: boolean;
   error?: string | null;
 }
+/** Whether an optional integration is set up; never carries a secret (ADM-DASH-003). */
+export interface Integration {
+  id: string;
+  configured: boolean;
+  detail?: string | null;
+}
 export interface SystemView {
   counts: SystemCounts;
+  integrations?: Integration[];
   gateway_sessions?: number | null;
   probes: Probe[];
   version: string;
 }
 export const getSystem = () => get<SystemView>('/admin/system');
+/** Sends a test message to the caller's own address (OPERATOR, fresh second factor). */
+export const sendEmailTest = () => send<{ sent_to: string }>('/admin/system/email-test', 'POST');
 
 export interface JobRow {
   id: string;
