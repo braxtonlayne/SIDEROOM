@@ -62,7 +62,7 @@ describe('Privacy and Safety', () => {
     expect(await screen.findByText('Try later.')).toBeInTheDocument();
   });
 
-  it('shows the empty states, and says where the data request and media filters stand', async () => {
+  it('shows the empty states, and says where the data request stands', async () => {
     server.use(
       http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
       http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
@@ -71,7 +71,6 @@ describe('Privacy and Safety', () => {
     expect(await screen.findByText("You haven't ignored anyone.")).toBeInTheDocument();
     expect(screen.getByText(/data export package/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Request my data' })).toBeDisabled();
-    expect(screen.getByText(/no media-scanning/)).toBeInTheDocument();
   });
 
   it('loads who can reach you and saves each change straight away', async () => {

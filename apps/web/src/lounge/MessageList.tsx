@@ -4,6 +4,7 @@ import {
   type Rect,
   type Virtualizer,
 } from '@tanstack/react-virtual';
+import { hasKeyword, useKeywordMatcher } from './keywords';
 import type { Resolvers } from '@sideroom/markdown-react';
 import { Icon } from '@sideroom/ui';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -498,9 +499,11 @@ export function MessageList({
     // Inside the loaded range but absent: the original was deleted.
     return oldestId && cmpId(m.replyToId, oldestId) > 0 ? 'deleted' : 'unloaded';
   };
+  const keywordRe = useKeywordMatcher();
   const mentionsMe = (m: Message) =>
     m.author.id !== me.id &&
     (!!m.mentionIds?.includes(me.id) ||
+      hasKeyword(keywordRe, m.content) ||
       !!m.mentionEveryone ||
       !!m.mentionRoleIds?.some((r) => myRoleIds.includes(r)));
 

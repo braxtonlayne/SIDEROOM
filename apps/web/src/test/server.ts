@@ -34,8 +34,15 @@ export const server = setupServer(
       friend_requests_server_members: true,
       allow_server_member_dms: true,
       message_requests: true,
+      sensitive_media: { friends: 'show', others: 'blur', servers: 'show' },
+      dm_spam_filter: 'non_friends',
+      server_dm_overrides: {},
     }),
   ),
+  http.get('*/api/v1/users/@me/age-confirmation', () =>
+    HttpResponse.json({ confirmed_at: null, method: null }),
+  ),
+  http.get('*/api/v1/users/@me/notification-keywords', () => HttpResponse.json({ keywords: [] })),
   http.get('*/api/v1/users/@me/notification-defaults', () =>
     HttpResponse.json({ message_notifications: null }),
   ),

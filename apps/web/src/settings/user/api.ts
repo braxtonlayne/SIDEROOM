@@ -254,9 +254,51 @@ export interface PrivacySettings {
   allow_server_member_dms: boolean;
   /** DMs from non-friends land in Message Requests. */
   message_requests: boolean;
+  /** Per audience: how sensitive attachments are handled (D-230). */
+  sensitive_media: SensitiveMediaPrefs;
+  /** `off` leaves it to the Message Requests toggle, `all` also screens friends' first DMs. */
+  dm_spam_filter: DmSpamFilter;
+  /** Server id to allow (true) or refuse (false) DMs; absent means `allow_server_member_dms`. */
+  server_dm_overrides: Record<string, boolean>;
 }
+export type SensitiveMediaMode = 'show' | 'blur' | 'block';
+export type SensitiveMediaAudience = 'friends' | 'others' | 'servers';
+export type SensitiveMediaPrefs = Record<SensitiveMediaAudience, SensitiveMediaMode>;
+export type DmSpamFilter = 'off' | 'non_friends' | 'all';
+/** PATCH body: partial everywhere; a `null` override puts a server back to the default. */
+export type PrivacyPatch = Partial<
+  Omit<PrivacySettings, 'sensitive_media' | 'server_dm_overrides'>
+> & {
+  sensitive_media?: Partial<SensitiveMediaPrefs>;
+  server_dm_overrides?: Record<string, boolean | null>;
+};
+
+/** `GET/DELETE /users/@me/age-confirmation` (LNG-USET-015). */
+export interface AgeConfirmation {
+  confirmed_at: string | null;
+  method: string | null;
+}
+export const getAgeConfirmation = () =>
+  apiFetch<AgeConfirmation>('/users/@me/age-confirmation', { retries: 0 });
+/** Forgets the stored answer; needs the account password. */
+export const resetAgeConfirmation = (current_password: string) =>
+  apiFetch<void>('/users/@me/age-confirmation', {
+    method: 'DELETE',
+    json: { current_password },
+    retries: 0,
+  });
+
+/** `GET/PUT /users/@me/notification-keywords`: words that notify like a mention. */
+export const getNotificationKeywords = () =>
+  apiFetch<{ keywords: string[] }>('/users/@me/notification-keywords', { retries: 0 });
+export const putNotificationKeywords = (keywords: string[]) =>
+  apiFetch<{ keywords: string[] }>('/users/@me/notification-keywords', {
+    method: 'PUT',
+    json: { keywords },
+    retries: 0,
+  });
 export const getPrivacy = () => apiFetch<PrivacySettings>('/users/@me/privacy', { retries: 0 });
-export const patchPrivacy = (body: Partial<PrivacySettings>) =>
+export const patchPrivacy = (body: PrivacyPatch) =>
   apiFetch<PrivacySettings>('/users/@me/privacy', { method: 'PATCH', json: body, retries: 0 });
 
 /** `GET/PATCH /users/@me/notification-defaults`: 0 all messages, 1 only mentions, 2 nothing, null per server. */

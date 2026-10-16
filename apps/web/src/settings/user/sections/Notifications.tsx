@@ -14,6 +14,7 @@ import {
 } from '../api';
 import { WebPushCard } from '../../../pwa/WebPushCard';
 import { Card, Loaded, SectionTitle, Unavailable } from '../parts';
+import { KeywordsCard } from './KeywordsCard';
 import { PlatformDmCard } from './AccountSwitchCards';
 import { PUSH_INACTIVE_CHOICES } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
@@ -172,6 +173,7 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
     <>
       <SectionTitle>{t('settings.notifications.title')}</SectionTitle>
       <DefaultLevelCard />
+      <KeywordsCard />
       <Card id="us-desktop" title={t('settings.notifications.desktop')}>
         {perm === 'unsupported' ? (
           <Notice variant="info">{t('settings.notifications.unsupported')}</Notice>
