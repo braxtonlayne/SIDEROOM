@@ -87,6 +87,10 @@ pub fn router() -> Router<AppState> {
         )
         .route("/admin/directory", get(admin_list))
         .route(
+            "/admin/directory/queue/{guild_id}/preview",
+            get(admin_preview),
+        )
+        .route(
             "/admin/directory/{guild_id}",
             axum::routing::patch(admin_decide),
         )
@@ -115,6 +119,9 @@ pub struct DirectoryGuildObject {
     pub vanity_url_code: Option<String>,
     /// The caller already is a member.
     pub joined: bool,
+    /// Staff preview of a request that is still waiting (H-40); never set in the public list.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pending: bool,
 }
 
 /// A server's own listing request.
@@ -166,13 +173,24 @@ async fn card(
     entry: &DirectoryEntry,
     viewer: sr_core::UserId,
 ) -> ApiResult<Option<DirectoryGuildObject>> {
+    build_card(deps, entry, viewer, false).await
+}
+
+/// The card of a listing. `preview` skips the visibility rule (staff look at requests that are
+/// not public yet) and leaves out the presence count.
+async fn build_card(
+    deps: &SettingsDeps,
+    entry: &DirectoryEntry,
+    viewer: sr_core::UserId,
+    preview: bool,
+) -> ApiResult<Option<DirectoryGuildObject>> {
     let community = deps
         .service
         .repo()
         .get_community(entry.guild_id)
         .await
         .map_err(re)?;
-    if !directory::is_visible(entry, community.community_enabled) {
+    if !preview && !directory::is_visible(entry, community.community_enabled) {
         return Ok(None);
     }
     let Some(g) = deps.chat.get_guild(entry.guild_id).await.map_err(re)? else {
@@ -186,7 +204,7 @@ async fn card(
         .map_err(re)?
         .is_some();
     let presence = match deps.presence() {
-        Some(p) if members <= 1000 => {
+        Some(p) if members <= 1000 && !preview => {
             let page = deps.chat.page_members(g.id, None, 1000).await.map_err(re)?;
             let ids: Vec<_> = page.iter().map(|m| m.user_id).collect();
             Some(p.count_online(&ids))
@@ -209,6 +227,7 @@ async fn card(
         preferred_locale: g.preferred_locale.clone(),
         vanity_url_code: g.vanity_code.clone(),
         joined,
+        pending: preview && entry.status == DirectoryStatus::Pending,
     }))
 }
 
@@ -729,6 +748,41 @@ pub async fn admin_list(
     Ok(Json(out))
 }
 
+/// What a listing would look like in the directory, as its draft stands (`MANAGE_DIRECTORY`).
+/// The card is the public shape plus `pending: true` while the request waits. The admin queue's
+/// Preview opens the server page in preview mode (banner, no join). The category list is a
+/// constant; hiding a category is the `directory.hidden_categories` platform setting.
+#[utoipa::path(
+    get,
+    path = "/admin/directory/queue/{guild_id}/preview",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 200, body = DirectoryGuildObject), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn admin_preview(
+    ctx: StaffCtx,
+    Ext(dir): Ext<DirectoryDeps>,
+    Ext(deps): Ext<SettingsDeps>,
+    Path(guild_id): Path<String>,
+) -> ApiResult<Json<DirectoryGuildObject>> {
+    ctx.svc()
+        .authorize(&ctx.caller, P::MANAGE_DIRECTORY, "directory.preview")
+        .await
+        .map_err(admin_err)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    let entry = dir
+        .repo
+        .get_listing(gid)
+        .await
+        .map_err(re)?
+        .ok_or_else(unknown_listing)?;
+    let staff = sr_core::UserId::new(u64::try_from(ctx.caller.user_id).unwrap_or(0));
+    build_card(&deps, &entry, staff, true)
+        .await?
+        .map(Json)
+        .ok_or_else(unknown_listing)
+}
+
 /// Body of `PATCH /admin/directory/{guild_id}`.
 #[derive(Debug, Default, Deserialize, ToSchema)]
 pub struct DecisionBody {
@@ -826,6 +880,7 @@ pub async fn admin_decide(
         request_listing,
         withdraw_listing,
         admin_list,
+        admin_preview,
         admin_decide,
     ),
     components(schemas(

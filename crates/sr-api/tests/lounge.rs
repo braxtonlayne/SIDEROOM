@@ -1254,6 +1254,27 @@ async fn server_directory_listing_approval_search_and_join() {
         w.get(STAFF, "/admin/directory?status=bogus").await.0,
         StatusCode::BAD_REQUEST
     );
+
+    // H-40: staff preview the pending draft in the public shape, with `pending: true`; nobody
+    // else may, and the public routes still hide it.
+    let preview = format!("/admin/directory/queue/{gid}/preview");
+    assert_eq!(w.get(BASIC, &preview).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(w.get(OWNER, &preview).await.0, StatusCode::FORBIDDEN);
+    let (s, card) = w.get(STAFF, &preview).await;
+    assert_eq!(s, StatusCode::OK, "{card}");
+    assert_eq!(card["id"], gid);
+    assert_eq!(card["name"], "Chess Club");
+    assert_eq!(card["category"], "gaming");
+    assert_eq!(card["description"], "Boards and clocks");
+    assert_eq!(card["pending"], true);
+    assert_eq!(card["joined"], false);
+    let missing = w
+        .get(
+            STAFF,
+            &format!("/admin/directory/queue/{}/preview", u64::MAX / 3),
+        )
+        .await;
+    assert_eq!(missing.0, StatusCode::NOT_FOUND);
     let decide = |body: Value| {
         let w = &w;
         let gid = gid.clone();
