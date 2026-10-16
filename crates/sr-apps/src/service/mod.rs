@@ -815,6 +815,12 @@ impl AppsService {
             .version(id)
             .await?
             .ok_or(AppsError::NotFound("version"))?;
+        // Two people per release: nobody reviews their own application, the Owner included.
+        if app.owner_id == reviewer {
+            return Err(AppsError::Forbidden(
+                "You cannot review your own application.".into(),
+            ));
+        }
         let bits = intents::from_names(approved_intents).map_err(|b| {
             invalid(
                 "approved_intents",

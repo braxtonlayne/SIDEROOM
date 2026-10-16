@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 import { cspOptionsFromConfig, securityHeaders } from './src/security/csp';
+import { activityHostProxy } from './vite/activityHosts';
 import { pwaPlugin } from './vite/pwa';
 
 /** Optional comma-separated extra CSP origins for self-hosters (a separate voice host, activities). */
@@ -22,7 +23,11 @@ const extra = {
 };
 
 export default defineConfig({
-  plugins: [react(), pwaPlugin()],
+  plugins: [
+    react(),
+    pwaPlugin(),
+    ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy()] : []),
+  ],
   // VOX-E2E-003: the E2EE media worker is a module worker that lazy-loads its WASM.
   worker: { format: 'es' },
   server: {

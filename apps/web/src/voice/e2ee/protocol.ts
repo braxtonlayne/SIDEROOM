@@ -2,6 +2,7 @@
  * Messages from the main thread to the E2EE media worker. Key material only ever travels
  * main thread -> worker (never back), and the worker never logs it.
  */
+import type { MediaStats } from './media';
 import type { EncodedFrameLike, TransformOptions } from './transform';
 
 export type WorkerIn =
@@ -20,4 +21,10 @@ export type WorkerIn =
 export type WorkerOut =
   | { type: 'ready' }
   | { type: 'error'; message: string }
-  | { type: 'stats'; sendEpoch: number; receiveEpoch: number };
+  | {
+      type: 'stats';
+      sendEpoch: number;
+      receiveEpoch: number;
+      /** Frame counters so far (no key material). */
+      frames?: MediaStats;
+    };

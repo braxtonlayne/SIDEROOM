@@ -7,5 +7,18 @@
 export function e2eeFlagEnabled(
   env: { VITE_SR_VOICE_E2EE?: string } = import.meta.env as { VITE_SR_VOICE_E2EE?: string },
 ): boolean {
-  return env.VITE_SR_VOICE_E2EE === '1';
+  return env.VITE_SR_VOICE_E2EE === '1' && !e2eOptOut();
+}
+
+/**
+ * e2e builds only (VITE_SR_E2E=1): a browser test can join as a client without E2EE (localStorage
+ * `sr.e2e.noVoiceE2ee` = 1), to look at what the SFU forwards. Never honoured in a normal build.
+ */
+function e2eOptOut(): boolean {
+  if ((import.meta.env as { VITE_SR_E2E?: string }).VITE_SR_E2E !== '1') return false;
+  try {
+    return globalThis.localStorage?.getItem('sr.e2e.noVoiceE2ee') === '1';
+  } catch {
+    return false;
+  }
 }

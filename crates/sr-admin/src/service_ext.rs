@@ -307,9 +307,19 @@ impl AdminService {
             &reason,
             json!({ "offer": offer_id }),
         );
-        extras
+        let closed = extras
             .close_offer(offer_id, OfferState::Cancelled, &audit)
-            .await
+            .await?;
+        self.offer_card_closed(&closed).await;
+        Ok(closed)
+    }
+
+    /// The offer DM loses its Accept and Decline buttons once the offer is closed (ADM-STF-004):
+    /// a reload must not show a button that can only fail.
+    async fn offer_card_closed(&self, offer: &StaffOffer) {
+        if let Some(n) = &self.notifier {
+            n.offer_closed(offer).await;
+        }
     }
 
     /// The appointee answers an offer from their system DM. Anyone signed in may call
@@ -335,6 +345,8 @@ impl AdminService {
         };
         let target = Some(("account", user_id));
         if offer.state != OfferState::Pending {
+            // A card shown from before this offer was closed: put it right.
+            self.offer_card_closed(&offer).await;
             return Err(AdminError::Conflict(format!(
                 "This offer was already {}",
                 offer.state.as_str()
@@ -349,9 +361,10 @@ impl AdminService {
                 &offer.reason,
                 json!({ "offer": offer_id }),
             );
-            extras
+            let closed = extras
                 .close_offer(offer_id, OfferState::Expired, &audit)
                 .await?;
+            self.offer_card_closed(&closed).await;
             return Err(AdminError::Conflict("This offer has expired".into()));
         }
         if !accept {
@@ -366,6 +379,7 @@ impl AdminService {
             let closed = extras
                 .close_offer(offer_id, OfferState::Declined, &audit)
                 .await?;
+            self.offer_card_closed(&closed).await;
             if let Some(n) = &self.notifier {
                 n.staff_notice(&format!(
                     "{} declined the staff appointment offered by {}.",
@@ -437,6 +451,7 @@ impl AdminService {
         let closed = extras
             .close_offer(offer_id, OfferState::Accepted, &audit)
             .await?;
+        self.offer_card_closed(&closed).await;
         if let Some(n) = &self.notifier {
             n.staff_notice(&format!(
                 "{} joined the staff as {}.",
@@ -450,7 +465,11 @@ impl AdminService {
 
     /// Expire pending offers past their time; returns how many.
     pub async fn expire_offers(&self) -> AdminResult<usize> {
-        Ok(self.extras()?.expire_offers(self.now_ms()).await?.len())
+        let expired = self.extras()?.expire_offers(self.now_ms()).await?;
+        for offer in &expired {
+            self.offer_card_closed(offer).await;
+        }
+        Ok(expired.len())
     }
 
     // ===== delegations =====================================================

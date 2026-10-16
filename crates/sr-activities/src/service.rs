@@ -573,6 +573,15 @@ impl ActivityService {
                 "Must be 1000 characters or fewer.".to_owned(),
             ));
         }
+        // Two people per release, as for application versions: nobody reviews their own Activity.
+        let owner: Option<i64> =
+            sqlx::query_scalar("SELECT owner_id FROM applications WHERE id = $1")
+                .bind(app)
+                .fetch_optional(self.pool())
+                .await?;
+        if owner == Some(staff) {
+            return Err(ActivityError::Forbidden);
+        }
         let mut tx = self.pool().begin().await?;
         Self::lock_row(&mut tx, app).await?;
         let moved = sqlx::query(

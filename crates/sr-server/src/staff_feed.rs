@@ -26,7 +26,7 @@ use sr_api::routes::{
 };
 use sr_chat::{
     SendMessage,
-    message::{Component, Embed},
+    message::{Component, Embed, EmbedField},
     social::repo::DmRepository,
 };
 use sr_core::{ChannelId, UserId};
@@ -541,6 +541,86 @@ impl StaffVoice {
         true
     }
 
+    /// Close an answered card (an offer or a tester invitation): rewrite it without its buttons and
+    /// with `outcome` as a last embed field (or line). Nothing happens when the message is not the
+    /// system user's or has no buttons left, so a card is closed once.
+    pub async fn close_card_at(&self, channel: i64, message: i64, outcome: &str) -> bool {
+        let (Ok(c), Ok(m)) = (u64::try_from(channel), u64::try_from(message)) else {
+            return false;
+        };
+        let Ok(Some(msg)) = self
+            .messages
+            .repo
+            .get_message(ChannelId::new(c), sr_core::MessageId::new(m))
+            .await
+        else {
+            return false;
+        };
+        if msg.author_id != Self::system() || msg.components.is_empty() {
+            return false;
+        }
+        let mut content = msg.content;
+        let mut embed = msg.embeds.into_iter().next();
+        match embed.as_mut() {
+            Some(e) => e.fields.push(EmbedField {
+                name: "Answer".into(),
+                value: clip(outcome, 1024),
+                inline: false,
+            }),
+            None => {
+                content = clip(
+                    &format!(
+                        "{content}
+
+{outcome}"
+                    ),
+                    2000,
+                )
+            }
+        }
+        self.rewrite(
+            channel,
+            message,
+            Card {
+                content,
+                embed,
+                buttons: Vec::new(),
+            },
+        )
+        .await
+    }
+
+    /// Close the card in the system DM to `to` that carries the button `custom_id` (see
+    /// [`Self::close_card_at`]).
+    pub async fn close_dm_card(&self, to: i64, custom_id: &str, outcome: &str) -> bool {
+        let social = PgSocialRepo::new(self.pool.clone());
+        let Ok(target) = u64::try_from(to) else {
+            return false;
+        };
+        let Ok(Some(dm)) = social.find_dm(Self::system(), UserId::new(target)).await else {
+            return false;
+        };
+        let Ok(channel) = i64::try_from(dm.id.get()) else {
+            return false;
+        };
+        // Custom ids are `sr:<action>:<digits>`: nothing in them is special to LIKE.
+        let pattern = format!("%\"{custom_id}\"%");
+        let found: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM messages WHERE channel_id = $1 AND author_id = $2              AND components::text LIKE $3 ORDER BY id DESC LIMIT 1",
+        )
+        .bind(channel)
+        .bind(SYSTEM_USER_ID)
+        .bind(pattern)
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten();
+        match found {
+            Some(message) => self.close_card_at(channel, message, outcome).await,
+            None => false,
+        }
+    }
+
     /// DM `to` from the system user. Returns the DM channel and message ids.
     pub async fn dm(&self, to: i64, card: Card) -> Option<(i64, i64)> {
         let social = PgSocialRepo::new(self.pool.clone());
@@ -605,10 +685,36 @@ impl sr_api::routes::developer::SystemDm for StaffVoice {
         .await
         .is_some()
     }
+
+    async fn close_card(&self, to: i64, custom_id: &str, outcome: &str) -> bool {
+        self.close_dm_card(to, custom_id, outcome).await
+    }
+}
+
+/// The line an answered appointment offer shows instead of its buttons.
+pub fn offer_outcome(state: sr_admin::OfferState) -> Option<&'static str> {
+    use sr_admin::OfferState as S;
+    Some(match state {
+        S::Pending => return None,
+        S::Accepted => "You accepted this offer.",
+        S::Declined => "You declined this offer.",
+        S::Cancelled => "This offer was withdrawn.",
+        S::Expired => "This offer expired.",
+    })
 }
 
 #[async_trait]
 impl StaffNotifier for StaffVoice {
+    async fn offer_closed(&self, offer: &StaffOffer) {
+        if let (Some(channel), Some(message), Some(outcome)) = (
+            offer.dm_channel_id,
+            offer.dm_message_id,
+            offer_outcome(offer.state),
+        ) {
+            self.close_card_at(channel, message, outcome).await;
+        }
+    }
+
     async fn appointment_offer(&self, offer: &StaffOffer) -> Option<(i64, i64)> {
         self.dm(offer.account_id, offer_card(offer)).await
     }
