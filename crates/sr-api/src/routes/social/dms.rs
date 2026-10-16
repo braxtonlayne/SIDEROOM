@@ -437,8 +437,18 @@ pub(crate) async fn announce(
 ) -> MsgResult<()> {
     let users = deps.summaries(dm.recipients.iter().copied()).await?;
     for user in to {
-        let payload: Value =
-            serde_json::to_value(DmChannelObject::new(dm, *user, &users)).unwrap_or(Value::Null);
+        let mut obj = DmChannelObject::new(dm, *user, &users);
+        // H-12: a conversation that opens into this recipient's Message Requests says so (and
+        // why); the sender's own object never carries either field.
+        if deps.service.request_state(*user, dm.id).await? == Some(RequestState::Pending) {
+            obj.is_message_request = Some(true);
+            obj.sr_request_reason = deps
+                .service
+                .request_reason(*user, dm.id)
+                .await?
+                .map(|r| r.as_str().to_owned());
+        }
+        let payload: Value = serde_json::to_value(obj).unwrap_or(Value::Null);
         deps.emit(SocialEvent::new(name, vec![*user], payload).for_channel(dm.id))
             .await;
     }
