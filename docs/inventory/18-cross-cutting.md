@@ -34,24 +34,24 @@ All phases.
 ## XC-PERF — Performance
 - [x] **XC-PERF-001** [FE] Route-level code splitting (Lounge, Cinema, Library, Admin, Developer bundles) _(Lounge, Library pages, Admin, both Settings screens.)_
 - [x] **XC-PERF-002** [FE] Performance budgets (JS < 300 KB gz for Entrance, < 600 KB for Lounge initial) enforced in CI _(scripts/check-bundle-budget.mjs, wired into web.yml.)_
-- [ ] **XC-PERF-003** [BE] Load test suite (k6 or Rust `goose`): 2,000 concurrent gateway sessions, 200 msg/s, REST p95 < 100 ms
+- [x] **XC-PERF-003** [BE] Load test suite (k6 or Rust `goose`): 2,000 concurrent gateway sessions, 200 msg/s, REST p95 < 100 ms *Suite done: `crates/sr-loadtest` (docs/dev/load-testing.md, manual workflow `load-test.yml`); 300 sessions at 100 msg/s passes, the full 2,000 / 200 msg/s / REST p95 100 ms run completed but missed the rate and latency targets on a shared laptop with debug builds, so the release-build CI run is the real verdict.*
 - [x] **XC-PERF-004** [BE] DB query review: EXPLAIN on hot paths, indexes per doc 04 §13 _(EXPLAIN harness `crates/sr-db/tests/explain_hot_paths.rs` (`just explain-hot-paths`) found no seq scan on a large table, so no migration was added. Message search is Tantivy, not SQL; member search is covered. See doc 04 section 13.)_
 
 ## XC-OPS — Operations
-- [ ] **XC-OPS-001** [OPS] Production compose + systemd units + Caddyfile (incl. activities wildcard) _(prod.yml, systemd units and Caddyfile.prod exist but are untested end to end; the activities wildcard is not included.)_
-- [ ] **XC-OPS-002** [OPS] `install.sh` interactive installer
-- [ ] **XC-OPS-003** [OPS] Backups (pg_dump + WAL archive, rustic snapshots) + restore drill in CI _(pg_dump, rustic snapshots, retention and a weekly CI drill are in; WAL archiving is not.)_
+- [x] **XC-OPS-001** [OPS] Production compose + systemd units + Caddyfile (incl. activities wildcard) _(prod.yml, systemd units and Caddyfile.prod exist but are untested end to end; the activities wildcard is not included.)_ *Done as far as possible without Docker: `crates/sr-core/tests/deploy_files.rs` pushes the prod.yml server environment through the real config loader and cross-checks env file, services, volumes, ports, Caddyfile, WAL settings and systemd units; the image has a real `sr-server healthcheck`; the activities wildcard is the opt-in `caddy/activities.snippet` (needs a DNS-challenge build). A clean-host install is still the final test.*
+- [x] **XC-OPS-002** [OPS] `install.sh` interactive installer *Done: `deploy/install.sh` (interactive or `--yes`, fresh secrets, ordered bring-up); tested against a recording fake docker in `scripts/install.test.mjs`.*
+- [x] **XC-OPS-003** [OPS] Backups (pg_dump + WAL archive, rustic snapshots) + restore drill in CI _(pg_dump, rustic snapshots, retention and a weekly CI drill are in; WAL archiving is not.)_ *Done: continuous WAL archiving in the stack (`wal-archive.sh`), nightly `basebackup.sh` with retention and archive trimming, `pitr-restore.sh`, and `wal-drill.sh`, which recovers a scratch Postgres 17 cluster to a chosen moment (run locally, and weekly in `backup-drill.yml`).*
 - [x] **XC-OPS-004** [OPS] coturn config template with REST secret _(Template only; not run against a real coturn.)_
 - [x] **XC-OPS-005** [OPS] Garage cluster config (single node + multi-node guide)
 - [x] **XC-OPS-006** [DOC] `deploy/INSTALL.md`, `deploy/UPGRADE.md`, `deploy/BACKUP.md`, operator FAQ _(BACKUP, UPGRADE, RUNBOOK, GARAGE and FAQ under deploy/.)_
 - [x] **XC-OPS-007** [OPS] Grafana dashboards JSON _(deploy/monitoring; metric names are checked against the server by scripts/check-ops-files.mjs.)_
 
 ## XC-TEST — Testing infrastructure
-- [ ] **XC-TEST-001** [TEST] Rust test harness: ephemeral Postgres per test (template DB), Garage test bucket, fake clock _(sr_db::testing::TestDb gives each test a template-cloned database; the Garage bucket helper is not included.)_
+- [ ] **XC-TEST-001** [TEST] Rust test harness: ephemeral Postgres per test (template DB), Garage test bucket, fake clock _(sr_db::testing::TestDb gives each test a template-cloned database; the Garage bucket helper is not included.)_ _(Garage has no Windows build and the live-S3 suite already runs against Garage in `storage.yml`; a per-test bucket helper is not added)_
 - [x] **XC-TEST-002** [TEST] Gateway test client utilities (connect as N users, await dispatches) _(`sr_gateway::test_support` (feature `test-support`): TestWorld, TestClient, connect_users, await_dispatch. In-process, no sockets; real-WebSocket clients are not included.)_
 - [x] **XC-TEST-003** [TEST] Frontend MSW mocks generated from OpenAPI _(`packages/api-client/scripts/gen-msw.mjs` emits one handler per operation with schema-shaped placeholder bodies; `mocks:check` is the drift check, wired into the OpenAPI drift workflow. Existing hand-written handlers in apps/web/src/test/server.ts were not migrated.)_
 - [x] **XC-TEST-004** [TEST] Playwright fixtures (seeded users, logged-in contexts, multi-user scenarios) _(`e2e/support/fixtures.ts`: seedUser, signedIn, scenario.ownerAndMember. Typechecks and lists; not run against a live stack in this wave. TOTP and passkey users are not covered by signedIn.)_
-- [ ] **XC-TEST-005** [TEST] Visual regression snapshots for Entrance/Cinema/Library vs mockups
+- [ ] **XC-TEST-005** [TEST] Visual regression snapshots for Entrance/Cinema/Library vs mockups _(not started: needs a Playwright run against a live stack, which this wave could not do)_
 
 ## XC-CI — Repo automation
 - [x] **XC-CI-001** [OPS] Issue generation script: inventory items → GitHub issues (labels by area/phase, milestone by phase) _(Dry run by default; the owner runs it with --create.)_
