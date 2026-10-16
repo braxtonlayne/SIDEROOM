@@ -58,6 +58,8 @@ export interface ConnectParams {
   /** The channel's audio bitrate in bits per second (advertised to the SFU and set on the sender, spec 4.4). */
   maxBitrate?: number;
   mic: MicOptions;
+  /** Mark the voice line as high packet priority (DSCP hint and sender priority, LNG-USET-050). */
+  highPriority?: boolean;
   /** VOX-E2E-003: end-to-end encrypt every track through the call's media worker. */
   e2ee?: EngineE2ee;
 }
@@ -493,7 +495,17 @@ export class RtcVoiceEngine implements VoiceEngine {
     const out = this.mic.outStream;
     const track = this.mic.track;
     if (track && out) {
-      const tx = pc.addTransceiver(track, { direction: 'sendonly', streams: [out] });
+      const tx = pc.addTransceiver(track, {
+        direction: 'sendonly',
+        streams: [out],
+        ...(this.params?.highPriority
+          ? {
+              sendEncodings: [
+                { priority: 'high', networkPriority: 'high' } as RTCRtpEncodingParameters,
+              ],
+            }
+          : {}),
+      });
       if (e2ee) e2ee.attachSender(tx?.sender, 'audio');
     }
     for (const o of this.outgoing.values()) this.attach(pc, o);

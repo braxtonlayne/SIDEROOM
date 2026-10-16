@@ -42,6 +42,10 @@ export interface VoiceSettings {
   soundPtt: boolean;
   /** The incoming-call ring. */
   soundRing: boolean;
+  /** Ask the network for high packet priority on the voice line (QoS, LNG-USET-050); off by default. */
+  qosHighPriority: boolean;
+  /** List the verification codes in the call's shield (LNG-USET-050). */
+  showPrivacyCodes: boolean;
   /** Volume of the cue sounds, percent 0..100. */
   soundVolume: number;
   /** Percent the other voices are lowered while you speak, 0 (off) to 100. */
@@ -76,6 +80,8 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   soundMuteDeafen: true,
   soundPtt: true,
   soundRing: true,
+  qosHighPriority: false,
+  showPrivacyCodes: true,
   soundVolume: 60,
   attenuation: 0,
   cameraDeviceId: 'default',
@@ -131,6 +137,8 @@ export function sanitizeVoiceSettings(raw: unknown): VoiceSettings {
     soundMuteDeafen: bool(r.soundMuteDeafen, d.soundMuteDeafen),
     soundPtt: bool(r.soundPtt, d.soundPtt),
     soundRing: bool(r.soundRing, d.soundRing),
+    qosHighPriority: bool(r.qosHighPriority, d.qosHighPriority),
+    showPrivacyCodes: bool(r.showPrivacyCodes, d.showPrivacyCodes),
     attenuation: clamp(r.attenuation, 0, 100, d.attenuation),
     cameraDeviceId: text(r.cameraDeviceId, d.cameraDeviceId),
     alwaysPreviewVideo: bool(r.alwaysPreviewVideo, d.alwaysPreviewVideo),

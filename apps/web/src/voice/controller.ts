@@ -904,6 +904,7 @@ export class VoiceController {
         ...(server.ice_servers ? { iceServers: server.ice_servers } : {}),
         ...bitrateOf(t.channelId),
         mic: micOptions(s),
+        ...(s.qosHighPriority ? { highPriority: true } : {}),
         ...(e2ee ? { e2ee } : {}),
       })
       .then(() => {

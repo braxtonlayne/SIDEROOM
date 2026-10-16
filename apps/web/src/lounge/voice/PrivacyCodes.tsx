@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { Icon, Popover } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useE2ee } from '../../voice/e2ee/store';
+import { useVoiceSettings } from '../../voice/settings';
 import { verifiedStore, type VerifiedStore } from '../../voice/e2ee/verified';
 import { useUsers } from '../data';
 import './voice-p14-e2ee.css';
@@ -37,6 +38,7 @@ export function PrivacyCodes({ callCode, participants, store, error }: PrivacyCo
   const allVerified =
     participants.length > 0 &&
     participants.every((p) => store.isVerified(p.userId, p.keyFingerprint));
+  const showCodes = useVoiceSettings((s) => s.settings.showPrivacyCodes);
   const label = !callCode
     ? t('lounge.privacyCodes.securing')
     : allVerified
@@ -60,7 +62,9 @@ export function PrivacyCodes({ callCode, participants, store, error }: PrivacyCo
       }
     >
       <p className="vc-e2ee-intro">{t('lounge.privacyCodes.intro')}</p>
-      {callCode ? (
+      {!showCodes ? (
+        <p className="vc-e2ee-intro">{t('lounge.privacyCodes.hidden')}</p>
+      ) : callCode ? (
         <div className="vc-e2ee-call">
           <span className="vc-e2ee-name">{t('lounge.privacyCodes.callCode')}</span>
           <code className="vc-e2ee-code" aria-label={t('lounge.privacyCodes.callCode')}>
@@ -70,7 +74,7 @@ export function PrivacyCodes({ callCode, participants, store, error }: PrivacyCo
       ) : (
         <p className="vc-e2ee-intro">{t('lounge.privacyCodes.securing')}</p>
       )}
-      {participants.length > 0 && (
+      {showCodes && participants.length > 0 && (
         <ul className="vc-e2ee-list">
           {participants.map((p) => {
             const isVerified = store.isVerified(p.userId, p.keyFingerprint);
