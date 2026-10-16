@@ -95,6 +95,7 @@ struct Notes {
     offers: Mutex<Vec<StaffOffer>>,
     notices: Mutex<Vec<String>>,
     broadcasts: Mutex<Vec<Announcement>>,
+    dms: Mutex<Vec<(i64, String)>>,
 }
 
 #[async_trait]
@@ -108,6 +109,10 @@ impl StaffNotifier for Notes {
     }
     fn broadcast_announcement(&self, a: &Announcement) {
         self.broadcasts.lock().unwrap().push(a.clone());
+    }
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.dms.lock().unwrap().push((to, text.to_owned()));
+        true
     }
 }
 

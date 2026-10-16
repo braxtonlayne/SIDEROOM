@@ -84,6 +84,31 @@ struct World {
     tokens: HashMap<i64, String>,
     auth: Arc<MemoryAuthStore>,
     threads: Arc<sr_api::routes::threads::ThreadsDeps>,
+    /// System DMs staff actions sent: recipient and text.
+    dms: Arc<SystemDms>,
+}
+
+/// Records the system DMs of staff actions on servers (H-36).
+#[derive(Default)]
+struct SystemDms(std::sync::Mutex<Vec<(i64, String)>>);
+
+impl SystemDms {
+    fn lock_for_test(&self) -> std::sync::MutexGuard<'_, Vec<(i64, String)>> {
+        self.0.lock().unwrap()
+    }
+}
+
+#[async_trait::async_trait]
+impl sr_admin::StaffNotifier for SystemDms {
+    async fn appointment_offer(&self, _: &sr_admin::StaffOffer) -> Option<(i64, i64)> {
+        None
+    }
+    async fn staff_notice(&self, _: &str) {}
+    fn broadcast_announcement(&self, _: &sr_admin::Announcement) {}
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.0.lock().unwrap().push((to, text.to_owned()));
+        true
+    }
 }
 
 /// Voice side of the event clock: occupancy, live stages and a log of stage calls.
@@ -235,7 +260,13 @@ async fn world() -> World {
     );
     admin_repo.add_role(2, "Basic", 1, P::STAFF_BASIC);
     admin_repo.set_owner(ADMIN_OWNER);
-    let admin_svc = AdminService::new(admin_repo.clone()).with_extras(admin_repo.clone());
+    for (id, name) in [(OWNER, "owner"), (BOB, "bob")] {
+        admin_repo.add_account(id, name, AccountState::Active, None, None);
+    }
+    let dms = Arc::new(SystemDms::default());
+    let admin_svc = AdminService::new(admin_repo.clone())
+        .with_extras(admin_repo.clone())
+        .with_notifier(dms.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
     admin_svc
         .appoint(&op, STAFF, &[1], Some("t"))
@@ -372,6 +403,7 @@ async fn world() -> World {
         tokens,
         auth: auth_store,
         threads,
+        dms,
     }
 }
 
@@ -2469,6 +2501,19 @@ async fn staff_list_transfer_and_delete_servers_with_a_reason() {
     assert_eq!(s, StatusCode::OK, "{v}");
     let (_, g) = w.get(BOB, &format!("/guilds/{gid}")).await;
     assert_eq!(g["owner_id"], BOB.to_string());
+    // H-36: the previous owner here is the system account (deactivated, id 1), which is not
+    // messaged; the new owner is, without the staff reason.
+    {
+        let dms = w.dms.lock_for_test();
+        assert_eq!(dms.len(), 1, "{dms:?}");
+        assert_eq!(dms[0].0, BOB);
+        assert!(
+            dms[0]
+                .1
+                .starts_with("You are now the owner of `Chess Club`.")
+        );
+        assert!(!dms[0].1.contains("help desk"));
+    }
     // A non-member cannot become the owner.
     let (s, _) = w
         .post(
@@ -2497,6 +2542,11 @@ async fn staff_list_transfer_and_delete_servers_with_a_reason() {
     assert_eq!(
         w.get(BOB, &format!("/guilds/{other}")).await.0,
         StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        w.dms.lock_for_test().len(),
+        1,
+        "a deactivated owner is not messaged"
     );
 }
 
@@ -2686,4 +2736,65 @@ async fn thread_edits_by_a_non_creator_meet_the_gate_but_the_creators_own_do_not
     assert_eq!(r.0, StatusCode::OK, "{}", r.1);
     let r = w.delete(DAVE, &path).await;
     assert_eq!(r.0, StatusCode::OK, "{}", r.1);
+}
+
+#[tokio::test]
+async fn staff_transfer_and_delete_send_system_dms_to_the_owners() {
+    let w = world().await;
+    // DAVE owns the server (an active account); BOB is a member.
+    w.admin_repo
+        .add_account(DAVE, "dave", AccountState::Active, None, None);
+    let (s, g) = w
+        .post(DAVE, "/guilds", json!({ "name": "Book Club" }))
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{g}");
+    let gid = g["id"].as_str().unwrap().to_owned();
+    w.add_member(&gid, BOB);
+    w.admin_repo
+        .add_guild(gid.parse().unwrap(), "Book Club", DAVE, 2);
+    let path = format!("/admin/guilds/{gid}");
+
+    let (s, v) = w
+        .post(
+            STAFF,
+            &format!("{path}/transfer-ownership"),
+            json!({"new_owner_id": BOB.to_string(), "reason": "owner asked on the help desk"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    {
+        let dms = w.dms.lock_for_test();
+        assert_eq!(dms.len(), 2, "{dms:?}");
+        assert_eq!(dms[0].0, DAVE);
+        assert_eq!(
+            dms[0].1,
+            "Staff transferred ownership of `Book Club` to `bob`. If this looks wrong, contact staff."
+        );
+        assert_eq!(dms[1].0, BOB);
+        assert_eq!(
+            dms[1].1,
+            "You are now the owner of `Book Club`. If this looks wrong, contact staff."
+        );
+        assert!(dms.iter().all(|(_, t)| !t.contains("help desk")));
+    }
+
+    // Delete: the owner at that moment (BOB, now) hears it. The admin store is a seeded copy,
+    // so point it at BOB first.
+    w.admin_repo.set_guild_owner(gid.parse().unwrap(), BOB);
+    let (s, _) = w
+        .call(
+            STAFF,
+            Method::DELETE,
+            &path,
+            Some(json!({"reason": "illegal content, see case 4"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let dms = w.dms.lock_for_test();
+    let last = dms.last().unwrap();
+    assert_eq!(last.0, BOB);
+    assert_eq!(
+        last.1,
+        "Staff deleted `Book Club`. If this looks wrong, contact staff."
+    );
 }

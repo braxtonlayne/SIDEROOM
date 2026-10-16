@@ -352,10 +352,34 @@ pub async fn transfer_ownership(
     {
         tracing::warn!(error = %e, "server transfer was not written to the access log");
     }
+    // H-36: both owners hear about it from the system user, without the staff reason.
+    let name = quoted(&g.name);
+    let new_name = match svc.username_of(new_owner).await {
+        Some(u) => quoted(&u),
+        None => "the new owner".to_owned(),
+    };
+    svc.system_dm(
+        g.owner_id,
+        &format!("Staff transferred ownership of {name} to {new_name}. {CONTACT_STAFF}"),
+    )
+    .await;
+    svc.system_dm(
+        new_owner,
+        &format!("You are now the owner of {name}. {CONTACT_STAFF}"),
+    )
+    .await;
     svc.get_guild(&ctx.caller, gid)
         .await
         .map(Json)
         .map_err(map_err)
+}
+
+/// The standing line of the system DMs about staff actions on a server.
+const CONTACT_STAFF: &str = "If this looks wrong, contact staff.";
+
+/// A name inside backticks, so a server called `@everyone` mentions nobody.
+fn quoted(name: &str) -> String {
+    format!("`{}`", name.replace('`', "'"))
 }
 
 /// Delete a server (`MANAGE_GUILDS_GLOBAL`, reason required). Applied as the owner: the same soft
@@ -398,5 +422,10 @@ pub async fn delete_guild(
     {
         tracing::warn!(error = %e, "server delete was not written to the access log");
     }
+    svc.system_dm(
+        g.owner_id,
+        &format!("Staff deleted {}. {CONTACT_STAFF}", quoted(&g.name)),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }

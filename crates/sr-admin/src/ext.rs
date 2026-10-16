@@ -433,6 +433,11 @@ pub trait StaffNotifier: Send + Sync {
     /// DM an announcement from the system user to every active account. Runs in the
     /// background; the implementation must not block the caller.
     fn broadcast_announcement(&self, a: &Announcement);
+    /// A plain DM from the system user (staff actions that affect a server, H-36). The default
+    /// delivers nothing; the server implementation opens the DM and posts the text.
+    async fn system_dm(&self, _to: i64, _text: &str) -> bool {
+        false
+    }
 }
 
 /// The Entrance copy blocks an operator may override (ENT-UI-025). The client serves its own

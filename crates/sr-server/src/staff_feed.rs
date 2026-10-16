@@ -620,6 +620,18 @@ impl StaffNotifier for StaffVoice {
         .await;
     }
 
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.dm(
+            to,
+            Card {
+                content: clip(text, 1900),
+                ..Card::default()
+            },
+        )
+        .await
+        .is_some()
+    }
+
     fn broadcast_announcement(&self, a: &Announcement) {
         let (pool, messages, base) = (
             self.pool.clone(),

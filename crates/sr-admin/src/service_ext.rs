@@ -1182,6 +1182,27 @@ impl AdminService {
         Ok((g, reason))
     }
 
+    /// DM `text` from the system user to an account (H-36). Skipped, returning false, when there is
+    /// no notifier or the account is not active (a deactivated owner is not messaged).
+    pub async fn system_dm(&self, to: i64, text: &str) -> bool {
+        let Some(n) = &self.notifier else {
+            return false;
+        };
+        match self.repo().account_detail(to).await {
+            Ok(Some(d)) if d.account.state == crate::AccountState::Active => {}
+            _ => return false,
+        }
+        n.system_dm(to, text).await
+    }
+
+    /// The username of an account, for the text of a system DM.
+    pub async fn username_of(&self, id: i64) -> Option<String> {
+        match self.repo().account_detail(id).await {
+            Ok(Some(d)) => Some(d.account.username),
+            _ => None,
+        }
+    }
+
     /// Record a server change made through the chat stack.
     pub async fn log_guild_action(
         &self,
