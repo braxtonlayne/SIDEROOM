@@ -14,9 +14,10 @@
 
 use super::deps::{SettingsDeps, actor, id, invalid, re, se};
 use super::events::{ScheduledEventDispatch, SettingsEvent};
-use crate::routes::Ext;
 use crate::routes::guilds::dto::{MemberObject, UserRef, iso8601, nullable, parse_iso8601};
+use crate::routes::media::MediaDeps;
 use crate::routes::messages::error::{ApiJson, ApiQuery};
+use crate::routes::{Ext, MaybeExt};
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{Json, Router, extract::Path, http::StatusCode, routing::get};
 use serde::{Deserialize, Serialize};
@@ -25,9 +26,10 @@ use sr_chat::ChannelType;
 use sr_chat::settings::scheduled_events::{
     ChannelKind, EntityType, EventPatch, EventStatus, NewEvent, ScheduledEvent,
 };
-use sr_chat::settings::service::EventStats;
+use sr_chat::settings::service::{EventChange, EventStats};
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, ErrorCode, GuildId, UserId};
+use sr_storage::media::MediaKind;
 use std::collections::HashMap;
 use utoipa::ToSchema;
 
@@ -35,11 +37,16 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route(
             "/guilds/{guild_id}/scheduled-events",
-            get(list_events).post(create_event),
+            axum::routing::post(create_event)
+                .layer(crate::routes::media::body_limit())
+                .get(list_events),
         )
         .route(
             "/guilds/{guild_id}/scheduled-events/{event_id}",
-            get(get_event).patch(modify_event).delete(delete_event),
+            axum::routing::patch(modify_event)
+                .layer(crate::routes::media::body_limit())
+                .get(get_event)
+                .delete(delete_event),
         )
         .route(
             "/guilds/{guild_id}/scheduled-events/{event_id}/users",
@@ -79,6 +86,7 @@ pub struct ScheduledEventObject {
     pub status: u8,
     /// 1 stage, 2 voice, 3 external.
     pub entity_type: u8,
+    /// The stage instance (the stage channel id) of a running stage event.
     pub entity_id: Option<String>,
     pub entity_metadata: Option<EventMetadata>,
     /// Members who marked themselves interested; with `with_user_count=true`.
@@ -87,6 +95,7 @@ pub struct ScheduledEventObject {
     /// The caller is interested (SIDE ROOM extension; absent on gateway dispatches).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_rsvp: Option<bool>,
+    /// Cover image hash: `/cdn/guild-events/{id}/{hash}.png` (SIDE ROOM serves JPEG, PNG and GIF).
     pub image: Option<String>,
 }
 
@@ -110,14 +119,14 @@ impl ScheduledEventObject {
             privacy_level: 2,
             status: e.status.code(),
             entity_type: e.entity_type.code(),
-            entity_id: None,
+            entity_id: e.entity_id.map(|id| id.to_string()),
             entity_metadata: (e.entity_type == EntityType::External).then(|| EventMetadata {
                 location: e.location.clone(),
             }),
             user_count: with_count
                 .then(|| stats.map_or(0, |s| s.interested.get(&e.id).copied().unwrap_or(0))),
             user_rsvp: stats.map(|s| s.mine.contains(&e.id)),
-            image: None,
+            image: e.image_key.clone(),
         }
     }
 }
@@ -138,6 +147,8 @@ pub struct CreateEventBody {
     pub scheduled_end_time: Option<String>,
     /// Only 2 (server members) exists.
     pub privacy_level: Option<u8>,
+    /// Cover image as a data URI (JPEG, PNG or GIF, 2 MiB at most).
+    pub image: Option<String>,
 }
 
 /// Body of `PATCH /guilds/{id}/scheduled-events/{event_id}`.
@@ -161,6 +172,10 @@ pub struct ModifyEventBody {
     /// 2 starts a scheduled event, 3 ends a running one, 4 cancels a scheduled one.
     pub status: Option<u8>,
     pub privacy_level: Option<u8>,
+    /// Cover image data URI; `null` removes the cover.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub image: Option<Option<String>>,
 }
 
 /// Query of the list and get routes.
@@ -285,16 +300,72 @@ pub async fn announce(deps: &SettingsDeps, kind: ScheduledEventDispatch, e: &Sch
     .await;
 }
 
-/// The clock's turn (every 30 s from `sr-server`): start events whose time has come, end the
-/// running ones whose end time passed, and wind up orphans. Each change is announced.
+/// Announce a status change: `GUILD_SCHEDULED_EVENT_UPDATE`, and when the event just started,
+/// the start notification to every interested member (gateway dispatch and Web Push; G-93).
+pub async fn announce_change(deps: &SettingsDeps, change: &EventChange) {
+    announce(deps, ScheduledEventDispatch::Update, &change.event).await;
+    if change.started() {
+        notify_started(deps, &change.event).await;
+    }
+}
+
+async fn notify_started(deps: &SettingsDeps, ev: &ScheduledEvent) {
+    match deps.service.all_interested(ev.id).await {
+        Ok(interested) if !interested.is_empty() => {
+            deps.event_notifier().event_started(ev, &interested).await;
+        }
+        Ok(_) => {}
+        Err(e) => tracing::warn!(error = %e, "could not list members interested in an event"),
+    }
+}
+
+/// The clock's turn (the leased `scheduled_events.tick` job in `sr-server`, every 30 s):
+/// start external events whose time has come, end running ones at their end time, after 15
+/// minutes of an empty channel or when their stage instance is gone, cancel voice and stage
+/// events nobody started within a day, and wind up orphans. Each change is audited and
+/// announced. Idempotent, so a repeated or concurrent turn changes nothing twice.
 pub async fn advance(deps: &SettingsDeps) {
-    match deps.service.advance_events().await {
+    match deps.service.advance_events(deps.event_world()).await {
         Ok(changed) => {
-            for ev in changed {
-                announce(deps, ScheduledEventDispatch::Update, &ev).await;
+            for change in &changed {
+                announce_change(deps, change).await;
             }
         }
         Err(e) => tracing::warn!(error = %e, "advancing scheduled events failed"),
+    }
+}
+
+/// A member entered `channel` of `guild` (`VoiceJoined` on the bus): a voice or stage event
+/// waiting on the channel starts when its start time has come (D-222).
+pub async fn on_voice_joined(deps: &SettingsDeps, guild: GuildId, channel: ChannelId) {
+    match deps
+        .service
+        .start_on_voice_join(guild, channel, deps.event_world())
+        .await
+    {
+        Ok(Some(change)) => announce_change(deps, &change).await,
+        Ok(None) => {}
+        Err(e) => tracing::warn!(error = %e, "starting an event on a voice join failed"),
+    }
+}
+
+/// Store a cover under the event and return its hash. The image field of the request names
+/// the error tree.
+async fn store_cover(
+    media: &Option<std::sync::Arc<MediaDeps>>,
+    event: u64,
+    uri: String,
+) -> ApiResult<String> {
+    let Some(m) = media else {
+        tracing::error!("event covers need MediaDeps registered on AppState");
+        return Err(ErrorCode::SrInternal.into());
+    };
+    m.store(MediaKind::EventCover, event, "image", uri).await
+}
+
+async fn drop_cover(media: &Option<std::sync::Arc<MediaDeps>>, event: u64, hash: &str) {
+    if let Some(m) = media {
+        m.remove(MediaKind::EventCover, event, hash).await;
     }
 }
 
@@ -354,6 +425,7 @@ pub async fn list_events(
 pub async fn create_event(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<CreateEventBody>,
 ) -> ApiResult<Json<ScheduledEventObject>> {
@@ -369,7 +441,18 @@ pub async fn create_event(
         .transpose()?;
     let (kind, chan_perms) = channel_kind(&deps, user, gid, channel_id).await?;
     need_channel_access(chan_perms)?;
+    if !sr_chat::settings::scheduled_events::can_create(acc.perms) {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
+    // The cover is stored under the id the event is about to get.
+    let event_id = deps.service.new_id();
+    let image_key = match body.image.filter(|i| !i.is_empty()) {
+        Some(uri) => Some(store_cover(&media, event_id, uri).await?),
+        None => None,
+    };
     let new = NewEvent {
+        id: Some(event_id),
+        image_key: image_key.clone(),
         channel_id,
         name: body.name,
         description: body.description,
@@ -382,11 +465,19 @@ pub async fn create_event(
         entity_type: entity_of(body.entity_type)?,
         location: body.entity_metadata.and_then(|m| m.location),
     };
-    let ev = deps
+    let ev = match deps
         .service
         .create_event(acc.perms, user, gid, new, kind)
         .await
-        .map_err(se)?;
+    {
+        Ok(ev) => ev,
+        Err(e) => {
+            if let Some(h) = &image_key {
+                drop_cover(&media, event_id, h).await;
+            }
+            return Err(se(e));
+        }
+    };
     announce(&deps, ScheduledEventDispatch::Create, &ev).await;
     let mut out = render(&deps, user, std::slice::from_ref(&ev), true).await?;
     Ok(Json(out.remove(0)))
@@ -441,6 +532,7 @@ pub async fn get_event(
 pub async fn modify_event(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path((guild_id, event_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<ModifyEventBody>,
 ) -> ApiResult<Json<ScheduledEventObject>> {
@@ -450,6 +542,9 @@ pub async fn modify_event(
     let acc = deps.guild_access(user, gid).await?;
     check_privacy(body.privacy_level)?;
     let current = deps.service.get_event(gid, eid).await.map_err(se)?;
+    if !sr_chat::settings::scheduled_events::can_manage(acc.perms, &current, user) {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
     let channel = match &body.channel_id {
         None => None,
         Some(None) => Some(None),
@@ -461,7 +556,20 @@ pub async fn modify_event(
     if channel.is_some() {
         need_channel_access(chan_perms)?;
     }
+    // A new cover is stored first and the replaced one dropped once the edit committed.
+    let mut stored: Option<String> = None;
+    let image_key = match body.image {
+        None => None,
+        Some(None) => Some(None),
+        Some(Some(uri)) if uri.is_empty() => Some(None),
+        Some(Some(uri)) => {
+            let h = store_cover(&media, eid, uri).await?;
+            stored = Some(h.clone());
+            Some(Some(h))
+        }
+    };
     let patch = EventPatch {
+        image_key,
         channel_id: channel,
         name: body.name,
         description: body.description,
@@ -486,13 +594,33 @@ pub async fn modify_event(
             })
             .transpose()?,
     };
-    let ev = deps
+    let ev = match deps
         .service
-        .update_event(acc.perms, user, gid, eid, patch, kind)
+        .update_event(acc.perms, user, gid, eid, patch, kind, deps.event_world())
         .await
-        .map_err(se)?;
+    {
+        Ok(ev) => ev,
+        Err(e) => {
+            if let Some(h) = &stored {
+                drop_cover(&media, eid, h).await;
+            }
+            return Err(se(e));
+        }
+    };
+    if let Some(old) = &current.image_key
+        && ev.image_key.as_ref() != Some(old)
+    {
+        drop_cover(&media, eid, old).await;
+    }
     if ev != current {
-        announce(&deps, ScheduledEventDispatch::Update, &ev).await;
+        announce_change(
+            &deps,
+            &EventChange {
+                before: current.status,
+                event: ev.clone(),
+            },
+        )
+        .await;
     }
     let mut out = render(&deps, user, std::slice::from_ref(&ev), true).await?;
     Ok(Json(out.remove(0)))
@@ -513,6 +641,7 @@ pub async fn modify_event(
 pub async fn delete_event(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path((guild_id, event_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
@@ -521,9 +650,12 @@ pub async fn delete_event(
     let acc = deps.guild_access(user, gid).await?;
     let ev = deps
         .service
-        .delete_event(acc.perms, user, gid, eid)
+        .delete_event(acc.perms, user, gid, eid, deps.event_world())
         .await
         .map_err(se)?;
+    if let Some(h) = &ev.image_key {
+        drop_cover(&media, eid, h).await;
+    }
     announce(&deps, ScheduledEventDispatch::Delete, &ev).await;
     Ok(StatusCode::NO_CONTENT)
 }

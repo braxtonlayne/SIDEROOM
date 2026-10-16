@@ -2,6 +2,7 @@ import { Button, Modal, TextArea, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { useT, type MessageKey } from '../../i18n';
+import { EventCoverField } from './EventCoverField';
 import { useChannels, useGuild } from '../data';
 import { createEvent, EVENT_ENTITY } from './api';
 import './events.css';
@@ -67,6 +68,7 @@ export function CreateEventDialog({
   const [description, setDescription] = useState('');
   const [start, setStart] = useState(defaultTime(1));
   const [end, setEnd] = useState(defaultTime(2));
+  const [cover, setCover] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,6 +107,7 @@ export function CreateEventDialog({
         scheduled_start_time: startAt.toISOString(),
         ...(endAt ? { scheduled_end_time: endAt.toISOString() } : {}),
         privacy_level: 2,
+        ...(cover ? { image: cover } : {}),
       });
       onCreated?.();
       onClose();
@@ -207,6 +210,7 @@ export function CreateEventDialog({
           maxLength={1000}
           onChange={(e) => setDescription(e.target.value)}
         />
+        <EventCoverField value={cover} onChange={setCover} disabled={busy} />
         {error && (
           <p role="alert" className="lng-failed">
             {error}

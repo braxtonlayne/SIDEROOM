@@ -42,9 +42,24 @@ pub enum MediaKind {
     MemberBanner,
     /// Icon of a group DM (G-50); the owner is the channel (`channel-icons/<channel_id>/<hash>`).
     ChannelIcon,
+    /// Cover image of a scheduled event (G-93); the owner is the event (`guild-events/<event_id>/<hash>`).
+    EventCover,
 }
 
 impl MediaKind {
+    /// Largest decoded upload this kind accepts.
+    pub const fn max_upload(self) -> usize {
+        match self {
+            Self::EventCover => 2 * 1024 * 1024,
+            _ => MAX_UPLOAD_BYTES,
+        }
+    }
+
+    /// Whether a WebP upload is fine (event covers are JPEG, PNG or GIF only).
+    pub const fn accepts_webp(self) -> bool {
+        !matches!(self, Self::EventCover)
+    }
+
     /// Square crop vs aspect-preserving bound, and the largest stored size.
     pub const fn fit(self) -> Fit {
         match self {
@@ -52,9 +67,11 @@ impl MediaKind {
                 Fit::Square { max: 1024 }
             }
             Self::RoleIcon | Self::ChannelIcon => Fit::Square { max: 256 },
-            Self::UserBanner | Self::GuildBanner | Self::GuildSplash | Self::MemberBanner => {
-                Fit::Bound { w: 1920, h: 1080 }
-            }
+            Self::UserBanner
+            | Self::GuildBanner
+            | Self::GuildSplash
+            | Self::MemberBanner
+            | Self::EventCover => Fit::Bound { w: 1920, h: 1080 },
         }
     }
 
@@ -70,6 +87,7 @@ impl MediaKind {
             Self::MemberAvatar => "member-avatar",
             Self::MemberBanner => "member-banner",
             Self::ChannelIcon => "channel-icon",
+            Self::EventCover => "event-cover",
         }
     }
 
@@ -83,6 +101,7 @@ impl MediaKind {
             | Self::MemberBanner => "avatars",
             Self::GuildIcon | Self::GuildBanner | Self::GuildSplash | Self::RoleIcon => "icons",
             Self::ChannelIcon => "channel-icons",
+            Self::EventCover => "guild-events",
         }
     }
 
@@ -95,6 +114,7 @@ impl MediaKind {
             | Self::RoleIcon
             | Self::MemberAvatar => "icon_or_avatar",
             Self::ChannelIcon => "icon",
+            Self::EventCover => "image",
             Self::UserBanner | Self::GuildBanner | Self::MemberBanner => "banner",
             Self::GuildSplash => "splash",
         }

@@ -489,6 +489,14 @@ impl<R: SocialRepository> SocialService<R> {
     ) -> SocialResult<(DmChannel, bool)> {
         let (inv, ch) = self.group_invite(code).await?;
         let groups = self.repo.count_groups(user).await?;
+        // A joiner and the group owner who block each other (either way) see no link at all
+        // (D-221); members already inside are not affected.
+        if let Some(owner) = ch.owner.filter(|o| *o != user && !ch.has(user)) {
+            let st = self.pair_state(user, owner).await?;
+            if dm_blocked(st) {
+                return Err(SocialError::UnknownInvite);
+            }
+        }
         let plan = dm::plan_group_invite_join(user, &ch, &inv, self.now(), groups, &self.limits)?;
         if plan == InviteJoinPlan::AlreadyMember {
             return Ok((ch, false));

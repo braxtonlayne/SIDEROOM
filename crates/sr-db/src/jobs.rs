@@ -244,6 +244,29 @@ pub async fn list_dead<'e>(ex: impl PgExecutor<'e>, limit: i64) -> DbResult<Vec<
         .await?)
 }
 
+/// Kind of the scheduled-events clock (G-92).
+pub const SCHEDULED_EVENTS_TICK_KIND: &str = "scheduled_events.tick";
+/// Reserved singleton id of the scheduled-events clock.
+pub const SCHEDULED_EVENTS_TICK_JOB_ID: i64 = 820;
+/// How far ahead the clock re-enqueues itself.
+pub const SCHEDULED_EVENTS_TICK_INTERVAL: Duration = Duration::from_secs(30);
+
+/// Seed the `scheduled_events.tick` singleton if no node has yet. A row that is `queued` or
+/// `running` is left alone, so any number of nodes may call this at startup: the claim
+/// (`FOR UPDATE SKIP LOCKED`) then lets exactly one runner advance events per turn, and the
+/// handler re-enqueues the job [`SCHEDULED_EVENTS_TICK_INTERVAL`] ahead. Returns `true` when
+/// a row was inserted or re-armed.
+pub async fn seed_scheduled_events_tick<'e>(ex: impl PgExecutor<'e>) -> DbResult<bool> {
+    schedule_singleton(
+        ex,
+        SCHEDULED_EVENTS_TICK_JOB_ID,
+        SCHEDULED_EVENTS_TICK_KIND,
+        &serde_json::json!({}),
+        Duration::ZERO,
+    )
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

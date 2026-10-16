@@ -849,6 +849,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         bus.clone(),
     );
     gateway.start();
+    // The event clock reads voice occupancy and stage instances from the gateway (G-91).
+    settings_deps.set_event_world(Arc::new(crate::events_jobs::GatewayEventWorld(
+        gateway.clone(),
+    )));
     gateway_presence.attach(gateway.clone());
     temporary_members.attach(gateway.clone());
     temporary_members.schedule_startup_sweep(pool.clone());
@@ -943,17 +947,29 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     } else {
         "mailto:admin@localhost.invalid".to_owned()
     };
+    let push_sender: Arc<dyn sr_push::PushSender> = Arc::new(sr_push::WebPushClient::new(
+        vapid,
+        push_subject,
+        sr_net::Policy::default(),
+    ));
+    // Interested members hear when a scheduled event starts (G-93).
+    settings_deps.set_event_notifier(Arc::new(crate::events_jobs::EventStartPush {
+        bus: bus.clone(),
+        social: social_api.clone(),
+        chat: Arc::new(PgChatRepo::new(pool.clone())),
+        store: push_store.clone(),
+        sender: push_sender.clone(),
+        activity: Some(Arc::new(gateway.clone())),
+    }));
+    let events_voice_listener =
+        crate::events_jobs::spawn_voice_listener(lag_bus.tap(), settings_deps.clone());
     let push_consumer = crate::push_notify::spawn(
         lag_bus.tap(),
         Arc::new(crate::push_notify::PushNotifier {
             messages: messages.clone(),
             social: social_api.clone(),
             store: push_store,
-            sender: Arc::new(sr_push::WebPushClient::new(
-                vapid,
-                push_subject,
-                sr_net::Policy::default(),
-            )),
+            sender: push_sender,
             pool: pool.clone(),
             activity: Some(Arc::new(gateway.clone())),
         }),
@@ -1184,15 +1200,6 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }
     });
 
-    // Scheduled events start and end by the clock (P12 lounge events).
-    let events_task = tokio::spawn(async move {
-        let mut tick = tokio::time::interval(Duration::from_secs(30));
-        loop {
-            tick.tick().await;
-            routes::settings::scheduled_events::advance(&events_deps).await;
-        }
-    });
-
     let (job_tx, job_rx) = watch::channel(false);
     let runner = crate::jobs::register(
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
@@ -1213,6 +1220,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::apps_jobs::register(runner, &pool, (*apps_service).clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
+    // The event clock is a leased singleton job: one node advances events (G-92).
+    let runner = crate::events_jobs::register(runner, &pool, events_deps.clone());
     let tv_reminders = Arc::new(crate::userfeat::TvReminders {
         tv: tv_deps_for_reminders,
         poster: system_poster_for_tv,
@@ -1247,6 +1256,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::review_jobs::schedule(&pool).await?;
     crate::apps_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
+    crate::events_jobs::schedule(&pool).await?;
     crate::userfeat::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
     crate::userset_jobs::schedule(&pool).await?;
@@ -1335,7 +1345,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     gauge_task.abort();
     seen_task.abort();
     apps_gc_task.abort();
-    events_task.abort();
+    events_voice_listener.abort();
     metrics_task.abort();
     search_consumer.abort();
     push_consumer.abort();

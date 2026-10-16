@@ -48,7 +48,7 @@ export function LoungeDialogs() {
         />
       );
     case 'events':
-      return <EventsDialog guildId={dialog.guildId} onClose={close} />;
+      return <EventsDialog guildId={dialog.guildId} eventId={dialog.eventId} onClose={close} />;
     case 'createEvent':
       return (
         <CreateEventDialog guildId={dialog.guildId} channelId={dialog.channelId} onClose={close} />

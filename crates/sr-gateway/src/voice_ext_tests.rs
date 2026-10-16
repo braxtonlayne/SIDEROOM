@@ -455,6 +455,42 @@ fn stage_patch(suppress: bool) -> ModPatch {
 }
 
 #[tokio::test]
+async fn a_stage_event_opens_and_closes_its_stage_without_a_moderator() {
+    let e = env();
+    let mut watcher = client(&e, FRIEND).await;
+    // Only stage channels; the event's creator needs no stage permissions.
+    assert_eq!(
+        e.gw.stage_open_for_event(LOBBY, "Town hall", u(MEMBER), 77)
+            .await,
+        Err(StageError::NotStageChannel)
+    );
+    assert_eq!(
+        e.gw.stage_open_for_event(ChannelId::new(999), "x", u(MEMBER), 77)
+            .await,
+        Err(StageError::UnknownChannel)
+    );
+    let inst =
+        e.gw.stage_open_for_event(STAGE, "Town hall", u(MEMBER), 77)
+            .await
+            .unwrap();
+    assert_eq!(inst.scheduled_event_id, Some(77));
+    let ev = watcher.event("STAGE_INSTANCE_CREATE").await;
+    assert_eq!(ev["topic"], "Town hall");
+    assert_eq!(ev["guild_scheduled_event_id"], "77");
+    // One stage per channel.
+    assert_eq!(
+        e.gw.stage_open_for_event(STAGE, "again", u(MEMBER), 78)
+            .await,
+        Err(StageError::AlreadyExists)
+    );
+    // Ending it for the event announces the delete; ending twice is harmless.
+    e.gw.stage_end_for_event(STAGE).await;
+    watcher.event("STAGE_INSTANCE_DELETE").await;
+    assert!(e.gw.stage_instance(STAGE).is_none());
+    e.gw.stage_end_for_event(STAGE).await;
+}
+
+#[tokio::test]
 async fn a_stage_runs_from_start_to_end() {
     let e = env();
     let mut watcher = client(&e, FRIEND).await;

@@ -37,7 +37,7 @@ mod tag_ops;
 mod template_ops;
 mod webhook_ops;
 
-pub use event_ops::EventStats;
+pub use event_ops::{EventChange, EventStats};
 pub use expression_ops::StickerPatch;
 pub use sound_ops::{NewSound, SoundPatch};
 pub use webhook_ops::WebhookPatch;

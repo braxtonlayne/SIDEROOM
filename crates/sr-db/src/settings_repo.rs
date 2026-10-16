@@ -1673,10 +1673,11 @@ impl ApplicationRepository for PgSettingsRepo {
 
 fn event_cols() -> String {
     format!(
-        "id, guild_id, channel_id, creator_id, name, description, status, entity_type, location, {} AS start_ms, {} AS end_ms, {} AS created_ms",
+        "id, guild_id, channel_id, creator_id, name, description, status, entity_type, location, image_key, entity_id, {} AS start_ms, {} AS end_ms, {} AS created_ms, {} AS empty_ms",
         ms("scheduled_start"),
         ms("scheduled_end"),
-        ms("created_at")
+        ms("created_at"),
+        ms("empty_since")
     )
 }
 
@@ -1700,6 +1701,9 @@ fn event_from(r: &PgRow) -> RepoResult<ScheduledEvent> {
             .ok_or_else(|| bad("entity_type"))?,
         location: get(r, "location")?,
         created_at_ms: get(r, "created_ms")?,
+        entity_id: get::<Option<i64>>(r, "entity_id")?.map(u),
+        image_key: get(r, "image_key")?,
+        empty_since_ms: get(r, "empty_ms")?,
     })
 }
 
@@ -1707,7 +1711,7 @@ fn event_from(r: &PgRow) -> RepoResult<ScheduledEvent> {
 impl ScheduledEventRepository for PgSettingsRepo {
     async fn insert_event(&self, e: &ScheduledEvent) -> RepoResult<()> {
         sqlx::query(
-            "INSERT INTO guild_scheduled_events (id, guild_id, channel_id, creator_id, name, description, scheduled_start, scheduled_end, status, entity_type, location, created_at) VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7::bigint / 1000.0), to_timestamp($8::bigint / 1000.0), $9, $10, $11, to_timestamp($12::bigint / 1000.0))",
+            "INSERT INTO guild_scheduled_events (id, guild_id, channel_id, creator_id, name, description, scheduled_start, scheduled_end, status, entity_type, location, created_at, image_key, entity_id, empty_since) VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7::bigint / 1000.0), to_timestamp($8::bigint / 1000.0), $9, $10, $11, to_timestamp($12::bigint / 1000.0), $13, $14, to_timestamp($15::bigint / 1000.0))",
         )
         .bind(i(e.id))
         .bind(i(e.guild_id.get()))
@@ -1721,6 +1725,9 @@ impl ScheduledEventRepository for PgSettingsRepo {
         .bind(i16::from(e.entity_type.code()))
         .bind(e.location.as_deref())
         .bind(e.created_at_ms)
+        .bind(e.image_key.as_deref())
+        .bind(e.entity_id.map(i))
+        .bind(e.empty_since_ms)
         .execute(&self.pool)
         .await
         .map_err(db)?;
@@ -1765,7 +1772,7 @@ impl ScheduledEventRepository for PgSettingsRepo {
 
     async fn update_event(&self, e: &ScheduledEvent) -> RepoResult<()> {
         sqlx::query(
-            "UPDATE guild_scheduled_events SET channel_id = $3, name = $4, description = $5, scheduled_start = to_timestamp($6::bigint / 1000.0), scheduled_end = to_timestamp($7::bigint / 1000.0), status = $8, entity_type = $9, location = $10, updated_at = now() WHERE guild_id = $1 AND id = $2",
+            "UPDATE guild_scheduled_events SET channel_id = $3, name = $4, description = $5, scheduled_start = to_timestamp($6::bigint / 1000.0), scheduled_end = to_timestamp($7::bigint / 1000.0), status = $8, entity_type = $9, location = $10, image_key = $11, entity_id = $12, empty_since = to_timestamp($13::bigint / 1000.0), updated_at = now() WHERE guild_id = $1 AND id = $2",
         )
         .bind(i(e.guild_id.get()))
         .bind(i(e.id))
@@ -1777,6 +1784,9 @@ impl ScheduledEventRepository for PgSettingsRepo {
         .bind(i16::from(e.status.code()))
         .bind(i16::from(e.entity_type.code()))
         .bind(e.location.as_deref())
+        .bind(e.image_key.as_deref())
+        .bind(e.entity_id.map(i))
+        .bind(e.empty_since_ms)
         .execute(&self.pool)
         .await
         .map_err(db)?;
@@ -1884,7 +1894,7 @@ impl ScheduledEventRepository for PgSettingsRepo {
 
     async fn due_events(&self, now_ms: i64) -> RepoResult<Vec<ScheduledEvent>> {
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT {} FROM guild_scheduled_events WHERE (status = 1 AND scheduled_start <= to_timestamp($1::bigint / 1000.0)) OR (status = 2 AND scheduled_end IS NOT NULL AND scheduled_end <= to_timestamp($1::bigint / 1000.0)) OR (status IN (1, 2) AND entity_type IN (1, 2) AND channel_id IS NULL) ORDER BY scheduled_start, id LIMIT 500",
+            "SELECT {} FROM guild_scheduled_events WHERE status = 2 OR (status = 1 AND (scheduled_start <= to_timestamp($1::bigint / 1000.0) OR (entity_type IN (1, 2) AND channel_id IS NULL))) ORDER BY scheduled_start, id LIMIT 5000",
             event_cols()
         )))
         .bind(now_ms)

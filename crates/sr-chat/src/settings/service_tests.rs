@@ -660,3 +660,298 @@ async fn module_audit_entries_name_the_system_user_and_module() {
     assert_eq!(opts["module"], "Auto roles");
     assert_eq!(opts["module_id"], "lounge.auto_roles");
 }
+
+// ---- scheduled events: the clock, voice joins and stage links (G-91, G-93) ----------------
+
+mod events_clock {
+    use super::*;
+    use crate::settings::scheduled_events::{
+        ChannelKind, EntityType, EventPatch, EventStatus, EventWorld, NewEvent, VoiceView,
+    };
+    use std::sync::Mutex;
+
+    const HOUR: i64 = 3_600_000;
+    const MIN: i64 = 60_000;
+    const T0: i64 = 1_800_000_000_000;
+    const VC: ChannelId = ChannelId::new(30);
+    const STAGE: ChannelId = ChannelId::new(31);
+
+    /// Occupancy, live stages and a log of what the service asked of the stage side.
+    #[derive(Default)]
+    struct World {
+        occupants: Mutex<Vec<(ChannelId, usize)>>,
+        live: Mutex<Vec<ChannelId>>,
+        log: Mutex<Vec<String>>,
+        stage_busy: Mutex<bool>,
+    }
+
+    #[async_trait::async_trait]
+    impl EventWorld for World {
+        async fn view(&self, _channels: &[ChannelId]) -> VoiceView {
+            VoiceView {
+                occupants: self.occupants.lock().unwrap().iter().copied().collect(),
+                live_stages: self.live.lock().unwrap().iter().copied().collect(),
+            }
+        }
+        async fn start_stage(
+            &self,
+            _guild: GuildId,
+            channel: ChannelId,
+            topic: &str,
+            _by: UserId,
+            _event_id: u64,
+        ) -> Result<(), String> {
+            if *self.stage_busy.lock().unwrap() {
+                return Err("A stage is already running in this channel.".into());
+            }
+            self.log
+                .lock()
+                .unwrap()
+                .push(format!("start {channel} {topic}"));
+            self.live.lock().unwrap().push(channel);
+            Ok(())
+        }
+        async fn end_stage(&self, channel: ChannelId) {
+            self.log.lock().unwrap().push(format!("end {channel}"));
+            self.live.lock().unwrap().retain(|c| *c != channel);
+        }
+    }
+
+    fn manage() -> Permissions {
+        Permissions::MANAGE_EVENTS
+    }
+
+    fn start_patch() -> EventPatch {
+        EventPatch {
+            status: Some(EventStatus::Active),
+            ..EventPatch::default()
+        }
+    }
+
+    async fn make(
+        svc: &SettingsService<MemorySettingsRepo>,
+        entity: EntityType,
+        channel: Option<ChannelId>,
+        start: i64,
+    ) -> u64 {
+        let kind = match entity {
+            EntityType::Voice => ChannelKind::Voice,
+            EntityType::StageInstance => ChannelKind::Stage,
+            EntityType::External => ChannelKind::Missing,
+        };
+        svc.create_event(
+            manage(),
+            ADMIN,
+            G,
+            NewEvent {
+                id: None,
+                image_key: None,
+                channel_id: channel,
+                name: "Movie night".into(),
+                description: None,
+                start_ms: start,
+                end_ms: (entity == EntityType::External).then_some(start + HOUR),
+                entity_type: entity,
+                location: (entity == EntityType::External).then(|| "the park".into()),
+            },
+            kind,
+        )
+        .await
+        .unwrap()
+        .id
+    }
+
+    async fn audit_updates(svc: &SettingsService<MemorySettingsRepo>) -> usize {
+        svc.list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(G))
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|e| e.action == AuditAction::ScheduledEventUpdate)
+            .count()
+    }
+
+    #[tokio::test]
+    async fn the_clock_starts_and_completes_external_events_and_audits_each_move() {
+        let (svc, clock) = setup();
+        let w = World::default();
+        let id = make(&svc, EntityType::External, None, T0 + HOUR).await;
+        assert!(svc.advance_events(&w).await.unwrap().is_empty());
+        clock.advance_ms(HOUR);
+        let moved = svc.advance_events(&w).await.unwrap();
+        assert_eq!(moved.len(), 1);
+        assert!(moved[0].started());
+        assert_eq!(audit_updates(&svc).await, 1);
+        // A second node (or tick) finds nothing left to do.
+        assert!(svc.advance_events(&w).await.unwrap().is_empty());
+        clock.advance_ms(HOUR);
+        let done = svc.advance_events(&w).await.unwrap();
+        assert_eq!(done[0].event.status, EventStatus::Completed);
+        assert_eq!(audit_updates(&svc).await, 2);
+        assert_eq!(
+            svc.get_event(G, id).await.unwrap().status,
+            EventStatus::Completed
+        );
+    }
+
+    #[tokio::test]
+    async fn the_first_join_at_or_after_the_start_time_starts_a_voice_event() {
+        let (svc, clock) = setup();
+        let w = World::default();
+        let id = make(&svc, EntityType::Voice, Some(VC), T0 + HOUR).await;
+        // Too early, and the wrong channel.
+        assert!(svc.start_on_voice_join(G, VC, &w).await.unwrap().is_none());
+        clock.advance_ms(HOUR);
+        assert!(
+            svc.start_on_voice_join(G, ChannelId::new(99), &w)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let started = svc.start_on_voice_join(G, VC, &w).await.unwrap().unwrap();
+        assert!(started.started());
+        assert_eq!(started.event.id, id);
+        assert_eq!(audit_updates(&svc).await, 1);
+        // A second join changes nothing.
+        assert!(svc.start_on_voice_join(G, VC, &w).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn an_unstarted_event_is_canceled_after_a_day_and_an_empty_one_ends_after_15_minutes() {
+        let (svc, clock) = setup();
+        let w = World::default();
+        let stale = make(&svc, EntityType::Voice, Some(VC), T0 + HOUR).await;
+        clock.advance_ms(HOUR + 24 * HOUR - 1);
+        assert!(svc.advance_events(&w).await.unwrap().is_empty());
+        clock.advance_ms(1);
+        let c = svc.advance_events(&w).await.unwrap();
+        assert_eq!(c[0].event.id, stale);
+        assert_eq!(c[0].event.status, EventStatus::Canceled);
+
+        // A manually started event whose channel nobody enters.
+        let now = T0 + 25 * HOUR;
+        let id = make(&svc, EntityType::Voice, Some(VC), now + HOUR).await;
+        svc.update_event(
+            manage(),
+            ADMIN,
+            G,
+            id,
+            start_patch(),
+            ChannelKind::Voice,
+            &w,
+        )
+        .await
+        .unwrap();
+        assert!(
+            svc.advance_events(&w).await.unwrap().is_empty(),
+            "countdown starts"
+        );
+        clock.advance_ms(14 * MIN);
+        assert!(svc.advance_events(&w).await.unwrap().is_empty());
+        w.occupants.lock().unwrap().push((VC, 2));
+        clock.advance_ms(2 * MIN);
+        assert!(
+            svc.advance_events(&w).await.unwrap().is_empty(),
+            "someone is there"
+        );
+        w.occupants.lock().unwrap().clear();
+        assert!(
+            svc.advance_events(&w).await.unwrap().is_empty(),
+            "countdown restarts"
+        );
+        clock.advance_ms(15 * MIN);
+        let done = svc.advance_events(&w).await.unwrap();
+        assert_eq!(done[0].event.status, EventStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn a_stage_event_opens_and_closes_its_stage_instance() {
+        let (svc, clock) = setup();
+        let w = World::default();
+        let id = make(&svc, EntityType::StageInstance, Some(STAGE), T0 + HOUR).await;
+        // A stage already running there blocks the start.
+        *w.stage_busy.lock().unwrap() = true;
+        let busy = svc
+            .update_event(
+                manage(),
+                ADMIN,
+                G,
+                id,
+                start_patch(),
+                ChannelKind::Stage,
+                &w,
+            )
+            .await;
+        assert!(busy.is_err());
+        assert_eq!(
+            svc.get_event(G, id).await.unwrap().status,
+            EventStatus::Scheduled
+        );
+        *w.stage_busy.lock().unwrap() = false;
+
+        let ev = svc
+            .update_event(
+                manage(),
+                ADMIN,
+                G,
+                id,
+                start_patch(),
+                ChannelKind::Stage,
+                &w,
+            )
+            .await
+            .unwrap();
+        assert_eq!(ev.entity_id, Some(STAGE.get()));
+        assert_eq!(
+            w.log.lock().unwrap().as_slice(),
+            [format!("start {STAGE} Movie night")]
+        );
+        w.occupants.lock().unwrap().push((STAGE, 1));
+        assert!(svc.advance_events(&w).await.unwrap().is_empty());
+
+        // The stage instance is deleted from outside: the event completes.
+        w.live.lock().unwrap().clear();
+        clock.advance_ms(MIN);
+        let done = svc.advance_events(&w).await.unwrap();
+        assert_eq!(done[0].event.status, EventStatus::Completed);
+        assert_eq!(done[0].event.entity_id, None);
+
+        // Ending a running stage event by hand deletes the instance.
+        let id2 = make(&svc, EntityType::StageInstance, Some(STAGE), T0 + 50 * HOUR).await;
+        svc.update_event(
+            manage(),
+            ADMIN,
+            G,
+            id2,
+            start_patch(),
+            ChannelKind::Stage,
+            &w,
+        )
+        .await
+        .unwrap();
+        assert!(w.live.lock().unwrap().contains(&STAGE));
+        let end = EventPatch {
+            status: Some(EventStatus::Completed),
+            ..EventPatch::default()
+        };
+        svc.update_event(manage(), ADMIN, G, id2, end, ChannelKind::Stage, &w)
+            .await
+            .unwrap();
+        assert!(w.live.lock().unwrap().is_empty());
+        assert_eq!(
+            w.log.lock().unwrap().last().map(String::as_str),
+            Some(format!("end {STAGE}").as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn all_interested_pages_through_every_member() {
+        let (svc, _) = setup();
+        let id = make(&svc, EntityType::External, None, T0 + HOUR).await;
+        for n in 1..=130u64 {
+            svc.set_interested(G, id, UserId::new(1000 + n), true)
+                .await
+                .unwrap();
+        }
+        assert_eq!(svc.all_interested(id).await.unwrap().len(), 130);
+    }
+}

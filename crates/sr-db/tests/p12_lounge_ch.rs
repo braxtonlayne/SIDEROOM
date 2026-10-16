@@ -359,6 +359,9 @@ async fn scheduled_events_round_trip_interest_and_due_queries() {
         entity_type: kind,
         location: (kind == EntityType::External).then(|| "park".to_owned()),
         created_at_ms: t0,
+        entity_id: None,
+        image_key: Some("0123456789abcdef0123456789abcdef".to_owned()),
+        empty_since_ms: None,
     };
     let a = mk(
         test_ids.generate().get(),
@@ -429,11 +432,18 @@ async fn scheduled_events_round_trip_interest_and_due_queries() {
     let mut running = b.clone();
     running.status = EventStatus::Active;
     repo.update_event(&running).await.unwrap();
-    assert!(repo.due_events(t0 + 1_500).await.unwrap().is_empty());
-    assert_eq!(
-        repo.due_events(t0 + 2_500).await.unwrap()[0].status,
-        EventStatus::Active
-    );
+    // A running event is always the clock's to look at (occupancy, end time, empty countdown).
+    let due = repo.due_events(t0 + 1_500).await.unwrap();
+    assert_eq!(due.len(), 1);
+    assert_eq!(due[0].status, EventStatus::Active);
+    // The clock's bookkeeping round-trips: stage link, cover and the empty-channel mark.
+    running.entity_id = Some(voice.get());
+    running.empty_since_ms = Some(t0 + 1_800);
+    running.image_key = None;
+    repo.update_event(&running).await.unwrap();
+    assert_eq!(repo.get_event(g, b.id).await.unwrap().unwrap(), running);
+    running.entity_id = None;
+    running.empty_since_ms = None;
     running.status = EventStatus::Completed;
     repo.update_event(&running).await.unwrap();
     assert_eq!(repo.count_open_events(g).await.unwrap(), 1);

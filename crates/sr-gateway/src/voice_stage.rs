@@ -41,6 +41,8 @@ pub struct StageInstance {
     pub created_ms: i64,
     /// Who started it.
     pub started_by: UserId,
+    /// The scheduled event this stage belongs to, when it was opened by one (G-93).
+    pub scheduled_event_id: Option<u64>,
 }
 
 impl StageInstance {
@@ -53,7 +55,7 @@ impl StageInstance {
             "topic": self.topic,
             "privacy_level": self.privacy_level,
             "discoverable_disabled": true,
-            "guild_scheduled_event_id": null,
+            "guild_scheduled_event_id": self.scheduled_event_id.map(|id| id.to_string()),
         })
     }
 }
@@ -220,6 +222,7 @@ impl Gateway {
             privacy_level: privacy,
             created_ms: unix_ms(),
             started_by: actor,
+            scheduled_event_id: None,
         };
         {
             let mut st = self.st();
@@ -230,6 +233,57 @@ impl Gateway {
         }
         self.stage_dispatch("STAGE_INSTANCE_CREATE", &inst).await;
         Ok(inst)
+    }
+
+    /// A starting stage event opens the stage of its channel with the event name as topic
+    /// (G-93, D-222). There is no moderator check: starting the event is the authority.
+    pub async fn stage_open_for_event(
+        &self,
+        channel: ChannelId,
+        topic: &str,
+        started_by: UserId,
+        event_id: u64,
+    ) -> Result<StageInstance, StageError> {
+        if self.voice_cfg().is_none() {
+            return Err(StageError::Unavailable);
+        }
+        let dir = &self.inner.dir;
+        let guild = dir
+            .channel_guild(channel)
+            .await
+            .ok_or(StageError::UnknownChannel)?;
+        let info = dir
+            .voice_channel(guild, channel)
+            .await
+            .ok_or(StageError::UnknownChannel)?;
+        if info.kind != VoiceChannelKind::Stage {
+            return Err(StageError::NotStageChannel);
+        }
+        let inst = StageInstance {
+            guild_id: guild,
+            channel_id: channel,
+            topic: validate_topic(topic)?,
+            privacy_level: PRIVACY_GUILD_ONLY,
+            created_ms: unix_ms(),
+            started_by,
+            scheduled_event_id: Some(event_id),
+        };
+        {
+            let mut st = self.st();
+            if st.vx.stages.contains_key(&channel) {
+                return Err(StageError::AlreadyExists);
+            }
+            st.vx.stages.insert(channel, inst.clone());
+        }
+        self.stage_dispatch("STAGE_INSTANCE_CREATE", &inst).await;
+        Ok(inst)
+    }
+
+    /// A stage event ended: delete the stage instance of its channel when one is live.
+    pub async fn stage_end_for_event(&self, channel: ChannelId) {
+        if self.stage_instance_exists(channel) {
+            self.stage_finish(channel).await;
+        }
     }
 
     /// `PATCH /stage-instances/{channel}`: change the topic or privacy. Moderators only.
@@ -437,6 +491,7 @@ mod tests {
             privacy_level: PRIVACY_GUILD_ONLY,
             created_ms: 0,
             started_by: UserId::new(3),
+            scheduled_event_id: None,
         };
         let v = i.to_json();
         for k in [

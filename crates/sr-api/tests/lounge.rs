@@ -36,9 +36,10 @@ use sr_chat::memory::MemoryRepo;
 use sr_chat::repo::UserSummary;
 use sr_chat::settings::directory::MemoryDirectory;
 use sr_chat::settings::memory::{MemoryInviteJoin, MemorySettingsRepo};
+use sr_chat::social::repo::DmRepository;
 use sr_chat::{ChatLimits, ChatService, Member};
 use sr_core::PlatformPermissions as P;
-use sr_core::{Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
+use sr_core::{ChannelId, Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
 use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
 use sr_storage::{ObjectStorage, ObjectStoreStorage};
 use std::collections::HashMap;
@@ -71,8 +72,62 @@ struct World {
     features: sr_features::FeatureService,
     social: Arc<SocialDeps>,
     settings_deps: Arc<settings::SettingsDeps>,
+    voice: Arc<FakeVoice>,
+    notified: Arc<Notified>,
     clock: Arc<ManualClock>,
     tokens: HashMap<i64, String>,
+}
+
+/// Voice side of the event clock: occupancy, live stages and a log of stage calls.
+#[derive(Default)]
+struct FakeVoice {
+    occupants: std::sync::Mutex<HashMap<ChannelId, usize>>,
+    live: std::sync::Mutex<Vec<ChannelId>>,
+    log: std::sync::Mutex<Vec<String>>,
+}
+
+#[async_trait::async_trait]
+impl settings::EventWorld for FakeVoice {
+    async fn view(&self, _channels: &[ChannelId]) -> settings::event_world::VoiceView {
+        settings::event_world::VoiceView {
+            occupants: self.occupants.lock().unwrap().clone(),
+            live_stages: self.live.lock().unwrap().iter().copied().collect(),
+        }
+    }
+    async fn start_stage(
+        &self,
+        _guild: GuildId,
+        channel: ChannelId,
+        topic: &str,
+        _by: UserId,
+        _event_id: u64,
+    ) -> Result<(), String> {
+        self.log.lock().unwrap().push(format!("start {topic}"));
+        self.live.lock().unwrap().push(channel);
+        Ok(())
+    }
+    async fn end_stage(&self, channel: ChannelId) {
+        self.log.lock().unwrap().push("end".into());
+        self.live.lock().unwrap().retain(|c| *c != channel);
+    }
+}
+
+/// Records the start notifications: event name and the members told.
+#[derive(Default)]
+struct Notified(std::sync::Mutex<Vec<(String, Vec<UserId>)>>);
+
+#[async_trait::async_trait]
+impl settings::EventStartNotifier for Notified {
+    async fn event_started(
+        &self,
+        event: &sr_chat::settings::scheduled_events::ScheduledEvent,
+        interested: &[UserId],
+    ) {
+        self.0
+            .lock()
+            .unwrap()
+            .push((event.name.clone(), interested.to_vec()));
+    }
 }
 
 async fn world() -> World {
@@ -122,6 +177,8 @@ async fn world() -> World {
         Arc::new(repo.clone()),
         bus.clone(),
     ));
+    let voice = Arc::new(FakeVoice::default());
+    let notified = Arc::new(Notified::default());
     let settings_deps = Arc::new(
         settings::SettingsDeps::new(
             settings_repo.clone(),
@@ -136,7 +193,9 @@ async fn world() -> World {
         .with_events(Arc::new(settings::events::BusSettingsEvents::new(
             bus.clone(),
         )))
-        .with_joiner(joiner.clone()),
+        .with_joiner(joiner.clone())
+        .with_event_world(voice.clone())
+        .with_event_notifier(notified.clone()),
     );
 
     // Staff: STAFF may manage the directory, BASIC may not.
@@ -252,6 +311,8 @@ async fn world() -> World {
         features,
         social: social_deps,
         settings_deps,
+        voice,
+        notified,
         clock,
         tokens,
     }
@@ -1333,7 +1394,11 @@ async fn group_dm_invites_create_resolve_join_and_revoke() {
         .await;
     assert_eq!(s, StatusCode::OK, "{inv}");
     assert_eq!(inv["type"], 1);
-    assert!(inv.get("guild").is_none(), "no server behind a group link");
+    assert!(inv["guild"].is_null(), "no server behind a group link");
+    assert!(
+        inv.as_object().unwrap().contains_key("guild"),
+        "guild is null, not absent"
+    );
     assert_eq!(inv["channel"]["id"], dm.as_str());
     assert_eq!(inv["channel"]["type"], 3);
     assert_eq!(inv["max_age"], 86_400);
@@ -1871,4 +1936,285 @@ async fn scheduled_events_start_and_end_by_the_clock_and_are_audited() {
         .filter_map(|e| e["action_type"].as_u64())
         .collect();
     assert!(actions.contains(&100), "{log}");
+}
+
+#[tokio::test]
+async fn group_dm_invite_is_refused_to_a_joiner_who_blocks_or_is_blocked_by_the_owner() {
+    let w = world().await;
+    let dm = group_dm(&w).await;
+    let (_, inv) = w
+        .post(OWNER, &format!("/channels/{dm}/invites"), json!({}))
+        .await;
+    let code = inv["code"].as_str().unwrap().to_owned();
+    let (owner, dave) = (UserId::new(OWNER as u64), UserId::new(DAVE as u64));
+
+    // The joiner blocked the owner: the link does not exist for them.
+    w.social.service.block(dave, owner).await.unwrap();
+    let (s, _) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // So does the other direction.
+    w.social.service.unblock(dave, owner).await.unwrap();
+    w.social.service.block(owner, dave).await.unwrap();
+    let (s, _) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // Nobody joined meanwhile; once the block is gone the same link works.
+    w.social.service.unblock(owner, dave).await.unwrap();
+    let (s, joined) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{joined}");
+    assert_eq!(joined["approximate_member_count"], 4);
+}
+
+#[tokio::test]
+async fn group_dm_invite_stops_at_ten_recipients() {
+    let w = world().await;
+    let dm = group_dm(&w).await;
+    let (_, inv) = w
+        .post(OWNER, &format!("/channels/{dm}/invites"), json!({}))
+        .await;
+    let code = inv["code"].as_str().unwrap().to_owned();
+    // Seven more seats fill the group (owner, Bob, Carol and seven).
+    let fillers: Vec<UserId> = (100..107).map(UserId::new).collect();
+    let dm_id: ChannelId = dm.parse().unwrap();
+    w.social
+        .service
+        .repo()
+        .add_recipients(dm_id, &fillers)
+        .await
+        .unwrap();
+    let (s, body) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    let (_, mine) = w.get(DAVE, "/users/@me/channels").await;
+    assert!(
+        !mine
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == dm.as_str()),
+        "no seat was taken"
+    );
+}
+
+async fn stage_channel(w: &World, gid: &str) -> String {
+    let (s, c) = w
+        .post(
+            OWNER,
+            &format!("/guilds/{gid}/channels"),
+            json!({ "name": "town-hall", "type": 13 }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{c}");
+    c["id"].as_str().unwrap().to_owned()
+}
+
+async fn audit_actions(w: &World, gid: &str) -> Vec<u64> {
+    let (_, log) = w.get(OWNER, &format!("/guilds/{gid}/audit-logs")).await;
+    log["audit_log_entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|e| e["action_type"].as_u64())
+        .collect()
+}
+
+#[tokio::test]
+async fn event_cover_is_stored_replaced_and_removed_with_the_event() {
+    let w = world().await;
+    let (gid, _) = w.guild("Cover Club").await;
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let body = |image: Value| {
+        json!({
+            "name": "Picnic", "entity_type": 3, "entity_metadata": { "location": "park" },
+            "scheduled_start_time": at(HOUR), "scheduled_end_time": at(2 * HOUR), "image": image
+        })
+    };
+    // Only JPEG, PNG and GIF, 2 MiB at most, and it must be an image.
+    for bad in [
+        json!("data:image/webp;base64,AAAA"),
+        json!("data:text/plain;base64,aGk="),
+        json!("not-a-data-uri"),
+        json!(format!("data:image/png;base64,{}", "A".repeat(3_000_000))),
+    ] {
+        let (s, e) = w.post(BOB, &path, body(bad.clone())).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{bad} -> {e}");
+        assert!(e["errors"]["image"].is_object(), "{e}");
+    }
+    let (s, ev) = w.post(BOB, &path, body(json!(PNG))).await;
+    assert_eq!(s, StatusCode::OK, "{ev}");
+    let eid = ev["id"].as_str().unwrap().to_owned();
+    let hash = ev["image"].as_str().unwrap().to_owned();
+    let key = format!("guild-events/{eid}/{hash}");
+    assert!(w.storage.get(&key).await.is_ok(), "stored under {key}");
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["image"], hash);
+
+    // A second cover replaces the first object; null removes the cover.
+    let png2 = "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACwAAAAAAQABAAACAkQBADs=";
+    let (s, ev2) = w
+        .patch(BOB, &format!("{path}/{eid}"), json!({ "image": png2 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ev2}");
+    let hash2 = ev2["image"].as_str().unwrap().to_owned();
+    assert_ne!(hash, hash2);
+    assert!(w.storage.get(&key).await.is_err(), "the old cover is gone");
+    let key2 = format!("guild-events/{eid}/{hash2}");
+    assert!(w.storage.get(&key2).await.is_ok());
+    // A bad cover on an edit changes nothing.
+    let (s, _) = w
+        .patch(BOB, &format!("{path}/{eid}"), json!({ "image": "nope" }))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["image"], hash2);
+    let (_, cleared) = w
+        .patch(BOB, &format!("{path}/{eid}"), json!({ "image": null }))
+        .await;
+    assert!(cleared["image"].is_null(), "{cleared}");
+    assert!(w.storage.get(&key2).await.is_err());
+
+    // Deleting an event takes its cover along.
+    let (_, ev3) = w.post(BOB, &path, body(json!(PNG))).await;
+    let eid3 = ev3["id"].as_str().unwrap().to_owned();
+    let key3 = format!("guild-events/{eid3}/{}", ev3["image"].as_str().unwrap());
+    assert!(w.storage.get(&key3).await.is_ok());
+    assert_eq!(
+        w.delete(BOB, &format!("{path}/{eid3}")).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert!(w.storage.get(&key3).await.is_err());
+}
+
+#[tokio::test]
+async fn a_member_joining_the_voice_channel_starts_the_event_and_interested_members_are_told() {
+    let w = world().await;
+    let (gid, _) = w.guild("Voice Club").await;
+    w.add_member(&gid, CAROL);
+    let voice = voice_channel(&w, &gid).await;
+    let (g, ch) = (
+        GuildId::new(gid.parse().unwrap()),
+        ChannelId::new(voice.parse().unwrap()),
+    );
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let (_, ev) = w
+        .post(
+            BOB,
+            &path,
+            json!({
+                "name": "Movie night", "entity_type": 2, "channel_id": voice,
+                "scheduled_start_time": at(HOUR)
+            }),
+        )
+        .await;
+    let eid = ev["id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        w.put(CAROL, &format!("{path}/{eid}/users/@me"), json!({}))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    let mut events = w.events(&gid);
+
+    // Before the start time a join does nothing, and the clock never starts a voice event.
+    settings::scheduled_events::on_voice_joined(&w.settings_deps, g, ch).await;
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 1);
+    w.clock.advance_ms(HOUR);
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 1);
+    assert!(w.notified.0.lock().unwrap().is_empty());
+
+    // The first join at the start time starts it: UPDATE dispatched, audit 101, Carol told.
+    settings::scheduled_events::on_voice_joined(&w.settings_deps, g, ch).await;
+    let (_, now) = w.get(BOB, &format!("{path}/{eid}")).await;
+    assert_eq!(now["status"], 2, "{now}");
+    let mut saw_update = false;
+    while let Ok(Some(ev)) = tokio::time::timeout(Duration::from_millis(50), events.next()).await {
+        if let DomainEvent::ScheduledEvent { kind, payload, .. } = ev
+            && kind.dispatch_name() == "GUILD_SCHEDULED_EVENT_UPDATE"
+            && payload["status"] == 2
+        {
+            saw_update = true;
+        }
+    }
+    assert!(saw_update, "GUILD_SCHEDULED_EVENT_UPDATE with status 2");
+    assert!(audit_actions(&w, &gid).await.contains(&101));
+    let told = w.notified.0.lock().unwrap().clone();
+    assert_eq!(
+        told,
+        vec![("Movie night".to_owned(), vec![UserId::new(CAROL as u64)])]
+    );
+
+    // A second join announces nothing more; an empty channel ends it after 15 minutes.
+    settings::scheduled_events::on_voice_joined(&w.settings_deps, g, ch).await;
+    assert_eq!(w.notified.0.lock().unwrap().len(), 1);
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    w.clock.advance_ms(15 * 60_000);
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 3);
+}
+
+#[tokio::test]
+async fn a_stage_event_opens_its_stage_instance_and_ends_with_it() {
+    let w = world().await;
+    let (gid, _) = w.guild("Stage Club").await;
+    let stage = stage_channel(&w, &gid).await;
+    w.add_member(&gid, CAROL);
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let (s, ev) = w
+        .post(
+            OWNER,
+            &path,
+            json!({
+                "name": "Town hall", "entity_type": 1, "channel_id": stage,
+                "scheduled_start_time": at(HOUR)
+            }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ev}");
+    let eid = ev["id"].as_str().unwrap().to_owned();
+    assert!(ev["entity_id"].is_null());
+    // Carol is interested; she is told when it starts.
+    w.put(CAROL, &format!("{path}/{eid}/users/@me"), json!({}))
+        .await;
+
+    // Starting by hand opens the stage (topic = event name) and links it as entity_id.
+    let (s, started) = w
+        .patch(OWNER, &format!("{path}/{eid}"), json!({ "status": 2 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{started}");
+    assert_eq!(started["entity_id"], stage.as_str());
+    assert_eq!(w.voice.log.lock().unwrap().as_slice(), ["start Town hall"]);
+    assert_eq!(w.notified.0.lock().unwrap().len(), 1);
+
+    // Someone is in the channel; the event runs. The stage instance goes: the event completes.
+    w.voice
+        .occupants
+        .lock()
+        .unwrap()
+        .insert(ChannelId::new(stage.parse().unwrap()), 2);
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    assert_eq!(w.get(OWNER, &format!("{path}/{eid}")).await.1["status"], 2);
+    w.voice.live.lock().unwrap().clear();
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    let (_, done) = w.get(OWNER, &format!("{path}/{eid}")).await;
+    assert_eq!(done["status"], 3, "{done}");
+    assert!(done["entity_id"].is_null());
+
+    // Ending a running stage event by hand deletes its instance too.
+    let (_, ev2) = w
+        .post(
+            OWNER,
+            &path,
+            json!({
+                "name": "Q and A", "entity_type": 1, "channel_id": stage,
+                "scheduled_start_time": at(2 * HOUR)
+            }),
+        )
+        .await;
+    let eid2 = ev2["id"].as_str().unwrap().to_owned();
+    w.patch(OWNER, &format!("{path}/{eid2}"), json!({ "status": 2 }))
+        .await;
+    assert_eq!(w.voice.live.lock().unwrap().len(), 1);
+    let (s, _) = w
+        .patch(OWNER, &format!("{path}/{eid2}"), json!({ "status": 3 }))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(w.voice.live.lock().unwrap().is_empty());
+    assert_eq!(w.voice.log.lock().unwrap().last().unwrap(), "end");
 }

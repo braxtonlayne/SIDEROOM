@@ -11602,6 +11602,8 @@ export interface components {
              * @description 1 stage, 2 voice, 3 external.
              */
             entity_type: number;
+            /** @description Cover image as a data URI (JPEG, PNG or GIF, 2 MiB at most). */
+            image?: string | null;
             name: string;
             /**
              * Format: int32
@@ -13484,6 +13486,8 @@ export interface components {
             entity_metadata?: null | components["schemas"]["EventMetadata"];
             /** Format: int32 */
             entity_type?: number | null;
+            /** @description Cover image data URI; `null` removes the cover. */
+            image?: string | null;
             name?: string | null;
             /** Format: int32 */
             privacy_level?: number | null;
@@ -14971,6 +14975,7 @@ export interface components {
             creator: components["schemas"]["UserRef"];
             creator_id: string;
             description?: string | null;
+            /** @description The stage instance (the stage channel id) of a running stage event. */
             entity_id?: string | null;
             entity_metadata?: null | components["schemas"]["EventMetadata"];
             /**
@@ -14980,6 +14985,7 @@ export interface components {
             entity_type: number;
             guild_id: string;
             id: string;
+            /** @description Cover image hash: `/cdn/guild-events/{id}/{hash}.png` (SIDE ROOM serves JPEG, PNG and GIF). */
             image?: string | null;
             name: string;
             /**
