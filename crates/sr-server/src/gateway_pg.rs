@@ -1280,7 +1280,7 @@ mod tests {
             )
             .await
             .expect("an answer");
-        let mut want = vec![owner, zoe, other];
+        let mut want = [owner, zoe, other];
         want.sort();
         assert_eq!(
             ids_of(&everyone),
@@ -1303,7 +1303,7 @@ mod tests {
             .request_members(guild, &MemberRequest::Ids(vec![other, stranger, zoe]))
             .await
             .expect("an answer");
-        let mut got = vec![other, zoe];
+        let mut got = [other, zoe];
         got.sort();
         assert_eq!(
             ids_of(&by_id),
