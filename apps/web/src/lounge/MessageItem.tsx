@@ -15,6 +15,8 @@ import { useDeveloperMode, useSavedPrefs } from '../settings/user/prefs';
 import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
 import { isJumbo, parseMarkdown, useMarkdownReady } from './markdown';
+import { showRawSuspiciousLinks } from './suspiciousLinks';
+import { useStore } from '../store';
 import { AttachmentList } from './msg/Attachments';
 import { EphemeralNote } from './apps/EphemeralNote';
 import { useAppsMenu } from './apps/useAppsMenu';
@@ -120,7 +122,17 @@ function MessageBody({
   useMarkdownReady();
   const t = useT();
   const { linkPreviews, showEmbeds, spoilers } = useSavedPrefs();
-  const nodes = parseMarkdown(m.content);
+  const hideSuspicious = useStore((s) =>
+    guildId ? s.guilds[guildId]?.hide_suspicious_links : false,
+  );
+  const parsed = parseMarkdown(m.content);
+  const nodes = useMemo(
+    () =>
+      hideSuspicious
+        ? showRawSuspiciousLinks(parsed, (host) => t('lounge.links.suspiciousWarning', { host }))
+        : parsed,
+    [hideSuspicious, parsed, t],
+  );
   // Link previews (everything built from a pasted link) and embeds posted by apps are separate switches.
   const embeds = (m.embeds ?? []).filter((e) => (e.type === 'rich' ? showEmbeds : linkPreviews));
   const showCards = linkPreviews && !m.suppressEmbeds;

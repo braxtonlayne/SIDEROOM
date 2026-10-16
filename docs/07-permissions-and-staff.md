@@ -22,6 +22,10 @@ Use Discord's bits 0–50 with identical semantics (CREATE_INSTANT_INVITE … SE
 | 58 | `USE_LIBRARY_EMBEDS` | Post rich Cinema/Library cards |
 | 59 | `MANAGE_EXTENSIONS` | Enable or disable approved extensions/themes for the server |
 
+### Server 2FA requirement (D-223)
+
+With a server's `mfa_level` set to 1 (owner only, `POST /guilds/{id}/mfa`), every action behind the elevated guild permissions needs a second factor proved on the session in the last 15 minutes: `KICK_MEMBERS`, `BAN_MEMBERS`, `ADMINISTRATOR`, `MANAGE_CHANNELS`, `MANAGE_GUILD`, `MANAGE_MESSAGES`, `MANAGE_ROLES`, `MANAGE_WEBHOOKS`, `MANAGE_THREADS`, `MANAGE_GUILD_EXPRESSIONS` and `MODERATE_MEMBERS` (AutoMod, community and safety settings and invite deletion included; invite creation and a member's own content excluded). A session that has a second factor and has not proved it gets `403 900004`; an account with no TOTP and no passkey gets `403 900123 MFA_ENROLLMENT_REQUIRED`. Bots pass when the owner of the application has a second factor enrolled and get `900123` otherwise. The route list is in doc 05 (server safety fields).
+
 ## 3. Platform permissions
 
 Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions`, only meaningful when `guild.is_staff_guild`).

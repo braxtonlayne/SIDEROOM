@@ -6,6 +6,7 @@
 use super::community::require_guild_channels;
 use super::deps::{SettingsDeps, actor, id, se};
 use crate::routes::Ext;
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::messages::error::ApiJson;
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{Json, Router, extract::Path, routing::get};
@@ -133,6 +134,7 @@ pub async fn get_guide(
 )]
 pub async fn put_guide(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<PutGuideBody>,
@@ -140,6 +142,8 @@ pub async fn put_guide(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
     let mut todos = Vec::with_capacity(body.todos.len());
     for t in body.todos {
         todos.push(GuideTodo {

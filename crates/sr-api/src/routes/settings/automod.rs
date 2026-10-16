@@ -9,6 +9,7 @@
 use super::deps::{SettingsDeps, actor, id, invalid, re, se};
 use super::events::SettingsEvent;
 use crate::routes::Ext;
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::messages::error::ApiJson;
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{Json, Router, extract::Path, http::StatusCode, routing::get};
@@ -487,6 +488,7 @@ pub async fn get_rule(
 )]
 pub async fn create_rule(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<RuleBody>,
@@ -494,6 +496,8 @@ pub async fn create_rule(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
     need_manage(acc.perms)?;
     let rule = apply_body(gid, None, body)?;
     check_channels(&deps, gid, &rule).await?;
@@ -525,6 +529,7 @@ pub async fn create_rule(
 )]
 pub async fn modify_rule(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, rule_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<RuleBody>,
@@ -533,6 +538,8 @@ pub async fn modify_rule(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let rid: u64 = id("rule_id", &rule_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
     need_manage(acc.perms)?;
     let existing = deps
         .service
@@ -570,6 +577,7 @@ pub async fn modify_rule(
 )]
 pub async fn delete_rule(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, rule_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
@@ -577,6 +585,8 @@ pub async fn delete_rule(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let rid: u64 = id("rule_id", &rule_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
     need_manage(acc.perms)?;
     let existing = deps.service.repo().get_rule(gid, rid).await.map_err(re)?;
     deps.service

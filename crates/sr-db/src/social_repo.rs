@@ -10,7 +10,9 @@ use sqlx::postgres::PgRow;
 use sqlx::{PgPool, Row};
 
 use sr_chat::error::RepoError;
-use sr_chat::social::dm::{DmChannel, DmKind, DmPrivacy, GroupInvite, RequestState};
+use sr_chat::social::dm::{
+    DmChannel, DmKind, DmPrivacy, GroupInvite, RequestReason, RequestState, SharedProtection,
+};
 use sr_chat::social::notifications::{ChannelOverride, Mute, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::{CustomStatus, PresencePrefs, Status};
 use sr_chat::social::profile::{Connection, Profile};
@@ -692,6 +694,59 @@ impl DmRepository for PgSocialRepo {
         .await
         .map_err(db)?;
         Ok(())
+    }
+
+    async fn get_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+    ) -> RepoResult<Option<RequestReason>> {
+        let code: Option<Option<String>> = sqlx::query_scalar(
+            "SELECT request_reason FROM channel_recipients WHERE channel_id = $1 AND user_id = $2",
+        )
+        .bind(i(id.get()))
+        .bind(i(user.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        code.flatten()
+            .map(|c| RequestReason::parse(&c).ok_or_else(|| bad("request_reason")))
+            .transpose()
+    }
+
+    async fn set_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+        reason: Option<RequestReason>,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE channel_recipients SET request_reason = $3 WHERE channel_id = $1 AND user_id = $2",
+        )
+        .bind(i(id.get()))
+        .bind(i(user.get()))
+        .bind(reason.map(RequestReason::as_str))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection> {
+        let (shared, filtered, explicit, days): (i64, i64, bool, i32) = sqlx::query_as(
+            "SELECT count(*), \n                    count(*) FILTER (WHERE COALESCE(c.dm_spam_filter, FALSE)), \n                    COALESCE(bool_or(c.explicit_media_filter_dms), FALSE), \n                    COALESCE(max(c.warn_new_account_days), 0) \n             FROM guild_members x \n             JOIN guild_members y ON y.guild_id = x.guild_id \n             LEFT JOIN guild_community c ON c.guild_id = x.guild_id \n             WHERE x.user_id = $1 AND y.user_id = $2",
+        )
+        .bind(i(a.get()))
+        .bind(i(b.get()))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(SharedProtection {
+            shared: usize::try_from(shared).unwrap_or(0),
+            spam_filter_all: shared > 0 && filtered == shared,
+            explicit_media_any: explicit,
+            warn_new_account_days: u32::try_from(days).unwrap_or(0),
+        })
     }
 
     async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()> {

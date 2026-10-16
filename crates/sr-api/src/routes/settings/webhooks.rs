@@ -13,6 +13,7 @@
 use super::deps::{SettingsDeps, actor, id, invalid, re, se};
 use super::events::SettingsEvent;
 use crate::routes::guilds::dto::{UserRef, nullable};
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::media::MediaDeps;
 use crate::routes::messages::MessagesDeps;
 use crate::routes::messages::error::{ApiJson, ApiQuery, MsgError, MsgResult};
@@ -154,6 +155,7 @@ fn webhook_id(raw: &str) -> ApiResult<WebhookId> {
 )]
 pub async fn create_webhook(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     MaybeExt(media): MaybeExt<MediaDeps>,
     Path(channel_id): Path<String>,
@@ -162,6 +164,9 @@ pub async fn create_webhook(
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
     let acc = deps.channel_access(user, cid).await?;
+    acc.guild
+        .require_mfa(&gate, user, Permissions::MANAGE_WEBHOOKS)
+        .await?;
     let gid = acc.guild.guild.id;
     let wid = deps.service.new_webhook_id();
     // The permission check and the name validation come first so a refused request
@@ -269,6 +274,28 @@ async fn managed(
     user: sr_core::UserId,
     raw: &str,
 ) -> ApiResult<(Webhook, Permissions)> {
+    let (w, acc) = managed_access(deps, user, raw).await?;
+    Ok((w, acc.perms))
+}
+
+/// [`managed`] for a change: the server's 2FA requirement applies (D-223).
+async fn managed_mfa(
+    deps: &SettingsDeps,
+    gate: &MfaGate,
+    user: sr_core::UserId,
+    raw: &str,
+) -> ApiResult<(Webhook, Permissions)> {
+    let (w, acc) = managed_access(deps, user, raw).await?;
+    acc.require_mfa(gate, user, Permissions::MANAGE_WEBHOOKS)
+        .await?;
+    Ok((w, acc.perms))
+}
+
+async fn managed_access(
+    deps: &SettingsDeps,
+    user: sr_core::UserId,
+    raw: &str,
+) -> ApiResult<(Webhook, super::deps::GuildAccess)> {
     use sr_chat::settings::repo::WebhookRepository;
     let wid = webhook_id(raw)?;
     let w = deps
@@ -279,7 +306,7 @@ async fn managed(
         .map_err(re)?
         .ok_or(ErrorCode::UnknownWebhook)?;
     let acc = deps.guild_access(user, w.guild_id).await?;
-    Ok((w, acc.perms))
+    Ok((w, acc))
 }
 
 /// Get a webhook (`MANAGE_WEBHOOKS`).
@@ -318,11 +345,12 @@ pub async fn get_webhook(
 )]
 pub async fn reset_webhook_token(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(webhook_id): Path<String>,
 ) -> ApiResult<Json<WebhookObject>> {
     let user = actor(&p)?;
-    let (w, perms) = managed(&deps, user, &webhook_id).await?;
+    let (w, perms) = managed_mfa(&deps, &gate, user, &webhook_id).await?;
     let (w, token) = deps
         .service
         .reset_webhook_token(perms, user, w.guild_id, w.id)
@@ -426,13 +454,14 @@ async fn modify_inner(
 )]
 pub async fn modify_webhook(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     MaybeExt(media): MaybeExt<MediaDeps>,
     Path(webhook_id): Path<String>,
     ApiJson(body): ApiJson<ModifyWebhookBody>,
 ) -> ApiResult<Json<WebhookObject>> {
     let user = actor(&p)?;
-    let (w, perms) = managed(&deps, user, &webhook_id).await?;
+    let (w, perms) = managed_mfa(&deps, &gate, user, &webhook_id).await?;
     Ok(Json(
         modify_inner(&deps, media.as_deref(), user, perms, &w, body, true).await?,
     ))
@@ -448,12 +477,13 @@ pub async fn modify_webhook(
 )]
 pub async fn delete_webhook(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     MaybeExt(media): MaybeExt<MediaDeps>,
     Path(webhook_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
-    let (w, perms) = managed(&deps, user, &webhook_id).await?;
+    let (w, perms) = managed_mfa(&deps, &gate, user, &webhook_id).await?;
     deps.service
         .delete_webhook(perms, user, w.guild_id, w.id)
         .await

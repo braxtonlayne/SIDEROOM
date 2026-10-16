@@ -57272,6 +57272,13 @@
             },
             "description": "Everyone except the viewer, in join order."
           },
+          "sr_request_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "With `is_message_request`: `server_filter` or `new_account` when a server's Protection\nsettings sent the conversation there (D-224). SIDE ROOM extension."
+          },
           "type": {
             "type": "integer",
             "format": "int32",
@@ -59188,7 +59195,8 @@
           "system_channel_flags",
           "widget_enabled",
           "preferred_locale",
-          "features"
+          "features",
+          "hide_suspicious_links"
         ],
         "properties": {
           "afk_channel_id": {
@@ -59241,6 +59249,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "hide_suspicious_links": {
+            "type": "boolean",
+            "description": "Server Protection (D-224): a link whose text names another host is shown as its raw\ntarget with a warning. Visible to every member; set in `/sr/community`."
           },
           "icon": {
             "type": [

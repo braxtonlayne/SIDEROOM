@@ -2,7 +2,7 @@
 
 use super::dm::{
     self, AddPlan, DmAccess, DmChannel, DmKind, GroupEdit, GroupInvite, InviteJoinPlan,
-    RequestState, dm_access,
+    RequestReason, RequestState, dm_access_protected,
 };
 use super::notifications::{
     self, ChannelOverride, MentionKind, Mute, MuteDuration, NotificationLevel, ScopeSettings,
@@ -42,6 +42,8 @@ pub struct OpenedDm {
     pub created: bool,
     /// `Request` means it lands in the recipient's Message Requests.
     pub access: DmAccess,
+    /// The server setting that sent it there, if one did (D-224).
+    pub reason: Option<RequestReason>,
 }
 
 /// Mutual context between a profile's viewer and its owner.
@@ -286,7 +288,10 @@ impl<R: SocialRepository> SocialService<R> {
         let privacy = self.repo.get_privacy(target).await?.dms;
         let shares = self.repo.shares_guild(me, target).await?;
         let existing = self.repo.find_dm(me, target).await?;
-        let access = dm_access(st, &privacy, shares);
+        let protection = self.repo.shared_protection(me, target).await?;
+        let age_days =
+            (self.now() - sr_core::Snowflake::new(me.get()).unix_ms()).max(0) / 86_400_000;
+        let (access, reason) = dm_access_protected(st, &privacy, shares, &protection, age_days);
         // Friends/blocks decide; an existing conversation stays reachable unless blocked.
         if access == DmAccess::Denied && (existing.is_none() || dm_blocked(st)) {
             return Err(SocialError::DmNotAllowed);
@@ -302,6 +307,7 @@ impl<R: SocialRepository> SocialService<R> {
                     } else {
                         access
                     },
+                    reason: None,
                 })
             }
             None => {
@@ -312,6 +318,7 @@ impl<R: SocialRepository> SocialService<R> {
                     self.repo
                         .set_request_state(target, id, RequestState::Pending)
                         .await?;
+                    self.repo.set_request_reason(target, id, reason).await?;
                 }
                 let channel = self
                     .repo
@@ -322,6 +329,7 @@ impl<R: SocialRepository> SocialService<R> {
                     channel,
                     created: true,
                     access,
+                    reason,
                 })
             }
         }
@@ -555,6 +563,43 @@ impl<R: SocialRepository> SocialService<R> {
         channel: ChannelId,
     ) -> SocialResult<Option<RequestState>> {
         Ok(self.repo.get_request_state(user, channel).await?)
+    }
+
+    /// The server setting that put `user`'s pending request in Message Requests, if any.
+    pub async fn request_reason(
+        &self,
+        user: UserId,
+        channel: ChannelId,
+    ) -> SocialResult<Option<RequestReason>> {
+        Ok(self.repo.get_request_reason(user, channel).await?)
+    }
+
+    /// Should attachments `sender` uploads to `channel` carry the spoiler flag? True in a
+    /// 1:1 conversation sitting in the other person's Message Requests when a server the
+    /// two share has `explicit_media_filter_dms` on (D-224; nothing is scanned).
+    pub async fn spoiler_attachments(
+        &self,
+        sender: UserId,
+        channel: ChannelId,
+    ) -> SocialResult<bool> {
+        let Some(dm) = self.repo.get_dm(channel).await? else {
+            return Ok(false);
+        };
+        if dm.kind != DmKind::Dm || !dm.has(sender) {
+            return Ok(false);
+        }
+        for other in dm.recipients.iter().filter(|u| **u != sender) {
+            if self.repo.get_request_state(*other, channel).await? == Some(RequestState::Pending)
+                && self
+                    .repo
+                    .shared_protection(sender, *other)
+                    .await?
+                    .explicit_media_any
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Move a pending request to accepted, ignored or spam. `Pending` cannot be

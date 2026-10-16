@@ -1,7 +1,7 @@
 //! Repository traits for the social domain. Postgres implementations live in
 //! `sr-db` (`social_repo`); [`super::memory::MemoryRepo`] backs the tests.
 
-use super::dm::{DmChannel, DmPrivacy, GroupInvite, RequestState};
+use super::dm::{DmChannel, DmPrivacy, GroupInvite, RequestReason, RequestState, SharedProtection};
 use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
@@ -115,6 +115,20 @@ pub trait DmRepository: Send + Sync {
         id: ChannelId,
         state: RequestState,
     ) -> RepoResult<()>;
+    /// Why `user`'s pending request is in Message Requests, when a server setting sent it there.
+    async fn get_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+    ) -> RepoResult<Option<RequestReason>>;
+    async fn set_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+        reason: Option<RequestReason>,
+    ) -> RepoResult<()>;
+    /// Server Protection settings of the servers `a` and `b` share (D-224).
+    async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection>;
     /// Group DM invites (G-47).
     async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()>;
     async fn get_group_invite(&self, code: &str) -> RepoResult<Option<GroupInvite>>;

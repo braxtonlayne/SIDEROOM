@@ -1,5 +1,6 @@
 //! Channels, categories, bulk reorder and permission overwrites.
 
+use super::backend::GuildBackend;
 use super::dto::{
     ChannelObject, CreateChannelBody, ForumSettingsBody, ModifyChannelBody, OverwriteBody,
     ReorderChannelEntry,
@@ -20,7 +21,7 @@ use sr_chat::admin_rules::ChannelMove;
 use sr_chat::channel_rules::{ChannelPatch, NewChannel};
 use sr_chat::threads::{DefaultReaction, ForumPatch, TagInput, ThreadPatch};
 use sr_core::permissions::{Overwrite, OverwriteKind};
-use sr_core::{ApiError, ChannelId, GuildId, Snowflake};
+use sr_core::{ApiError, ChannelId, GuildId, Snowflake, UserId};
 use sr_watchparty::PartyError;
 use sr_watchparty::model::{CreateInput, SettingsInput};
 use std::sync::Arc;
@@ -169,6 +170,21 @@ async fn thread_service(
         Some(k) if k.is_thread() => Ok(Some(t.clone())),
         _ => Ok(None),
     }
+}
+
+/// A thread edited or deleted by someone other than its creator is a moderator action
+/// (`MANAGE_THREADS`, D-223): the server's 2FA requirement applies.
+async fn thread_gate(
+    gate: &super::safety::MfaGate,
+    api: &dyn GuildBackend,
+    user: UserId,
+    cid: ChannelId,
+) -> Result<(), HttpError> {
+    let view = api.get_channel(user, cid).await.map_err(ce)?;
+    if view.channel.owner_id == Some(user) {
+        return Ok(());
+    }
+    gate.require_channel(api, user, cid).await
 }
 
 /// Channels of the guild that the caller can view.
@@ -436,6 +452,7 @@ pub async fn modify_channel(
     let cid: ChannelId = id("channel_id", &channel_id)?;
     // Threads are edited by the thread service (archive, lock, tags, pin, ...).
     if let Some(t) = thread_service(threads.as_ref(), cid).await? {
+        thread_gate(&gate, &*api, user, cid).await?;
         let patch = thread_patch(&body)?;
         let obj = t.modify(user, cid, patch).await.map_err(ce)?;
         return Ok(Json(obj));
@@ -488,6 +505,7 @@ pub async fn delete_channel(
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
     if let Some(t) = thread_service(threads.as_ref(), cid).await? {
+        thread_gate(&gate, &*api, user, cid).await?;
         let obj = t.delete(user, cid).await.map_err(ce)?;
         return Ok(Json(obj));
     }

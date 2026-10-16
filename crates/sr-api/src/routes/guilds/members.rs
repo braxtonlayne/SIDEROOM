@@ -134,11 +134,16 @@ pub async fn get_member(
 pub async fn modify_member(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path((guild_id, user_id)): Path<(String, String)>,
     Json(body): Json<ModifyMemberBody>,
 ) -> ApiResult<Json<MemberObject>> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    if body.roles.is_some() || body.communication_disabled_until.is_some() {
+        // Role assignment (`MANAGE_ROLES`) and timeouts (`MODERATE_MEMBERS`), D-223.
+        gate.require(&*api, actor, gid).await?;
+    }
     let uid: UserId = id("user_id", &user_id)?;
     let roles = match body.roles {
         None => None,

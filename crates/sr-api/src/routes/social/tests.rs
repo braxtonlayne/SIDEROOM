@@ -1956,3 +1956,27 @@ async fn profile_returns_the_server_profile_only_for_a_shared_server() {
     let (s, _) = e.get("/users/2/profile?guild_id=nope", ALICE).await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn message_request_carries_the_server_protection_reason() {
+    use sr_chat::social::dm::SharedProtection;
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    e.repo.store.lock().unwrap().protection.insert(
+        (UserId::new(ALICE), UserId::new(BOB)),
+        SharedProtection {
+            shared: 1,
+            spam_filter_all: true,
+            ..SharedProtection::default()
+        },
+    );
+    let (s, v) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    // The sender's own view names no reason.
+    assert!(v["sr_request_reason"].is_null());
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    assert_eq!(bob[0]["is_message_request"], true);
+    assert_eq!(bob[0]["sr_request_reason"], "server_filter");
+}

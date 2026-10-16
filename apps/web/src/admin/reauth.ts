@@ -9,6 +9,23 @@ export const REAUTH_CODE = 900004;
 export const isReauthRequired = (e: unknown): boolean =>
   e instanceof ApiError && e.status === 403 && e.body?.code === REAUTH_CODE;
 
+/** `ErrorCode::SrMfaEnrollmentRequired`: the server demands 2FA and this account has none (D-223). */
+export const ENROLLMENT_CODE = 900123;
+
+export const isEnrollmentRequired = (e: unknown): boolean =>
+  e instanceof ApiError && e.status === 403 && e.body?.code === ENROLLMENT_CODE;
+
+const enrollmentListeners: Array<() => void> = [];
+
+/** <ReauthHost> subscribes to show the "set up two-factor" notice; returns the unsubscribe function. */
+export function onEnrollmentRequired(listener: () => void): () => void {
+  enrollmentListeners.push(listener);
+  return () => {
+    const i = enrollmentListeners.lastIndexOf(listener);
+    if (i >= 0) enrollmentListeners.splice(i, 1);
+  };
+}
+
 /** Resolves true once the window is open, false when the staff member gave up. */
 type Prompt = () => Promise<boolean>;
 // A stack: the app root mounts a host (so Lounge staff cards can use it) and the admin shell mounts its own;
@@ -41,6 +58,8 @@ export async function withReauth<T>(call: () => Promise<T>): Promise<T> {
   try {
     return await call();
   } catch (e) {
+    // No second factor on the account: the re-auth dialog cannot help, point to Settings instead (G-97).
+    if (isEnrollmentRequired(e)) enrollmentListeners[enrollmentListeners.length - 1]?.();
     if (!isReauthRequired(e) || !(await ask())) throw e;
     return call();
   }

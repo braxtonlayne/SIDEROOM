@@ -7,6 +7,7 @@
  */
 import { create } from 'zustand';
 import { apiFetch } from '../../api/client';
+import { withReauth } from '../../admin/reauth';
 import { onDispatch } from '../../store/events';
 
 export interface ThreadInfo {
@@ -185,15 +186,19 @@ export const useThreads = create<ThreadsState>()((set, get) => ({
     return t;
   },
   async update(threadId, patch) {
-    const w = await apiFetch<WireThread>(`/channels/${threadId}`, {
-      method: 'PATCH',
-      json: patch,
-      retries: 0,
-    });
+    const w = await withReauth(() =>
+      apiFetch<WireThread>(`/channels/${threadId}`, {
+        method: 'PATCH',
+        json: patch,
+        retries: 0,
+      }),
+    );
     get().upsert([w]);
   },
   async destroy(threadId) {
-    await apiFetch<void>(`/channels/${threadId}`, { method: 'DELETE', retries: 0 });
+    await withReauth(() =>
+      apiFetch<void>(`/channels/${threadId}`, { method: 'DELETE', retries: 0 }),
+    );
     get().remove(threadId);
   },
   async join(threadId) {

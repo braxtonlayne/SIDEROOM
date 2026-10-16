@@ -5,17 +5,20 @@
 //! * `GET|POST /sr/auth/reauth`: prove a second factor to open the 15-minute window that
 //!   [`MfaGate`] checks.
 //!
-//! With `mfa_level = 1` a moderator action (kick, ban, prune, roles, channels, server
-//! settings) needs a browser session whose second factor was checked in the last 15
-//! minutes; the refusal is `900004 SR_REAUTH_REQUIRED`, which clients answer by calling
-//! `POST /sr/auth/reauth` and retrying. Bots are not session-bound and are exempt, as on
-//! Discord (the bot owner needs 2FA there).
+//! With `mfa_level = 1` every elevated route (D-223: moderator actions, webhooks, expressions,
+//! AutoMod, community settings, pins, other members' messages) needs a browser session whose
+//! second factor was checked in the last 15 minutes; the refusal is `900004 SR_REAUTH_REQUIRED`,
+//! which clients answer by calling `POST /sr/auth/reauth` and retrying, or `900123
+//! MFA_ENROLLMENT_REQUIRED` when the account has no second factor at all. Bots are not
+//! session-bound: they pass when their application owner has a second factor, else `900123`.
 
 use super::backend::GuildBackend;
 use super::util::{Api, actor, ce, id};
 use crate::routes::auth::{
-    AuthRouteError, AuthService, STAFF_MFA_WINDOW_SECS, StaffMfa, staff_mfa_prove, staff_mfa_state,
+    AuthRouteError, AuthService, STAFF_MFA_WINDOW_SECS, StaffMfa, has_second_factor,
+    staff_mfa_prove, staff_mfa_state,
 };
+use crate::routes::developer::DevDeps;
 use crate::routes::messages::error::ApiJson;
 use crate::{
     AuthKind, HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState,
@@ -45,8 +48,10 @@ pub fn routes() -> Router<AppState> {
 /// Checks the second-factor requirement of a server for the acting session.
 pub struct MfaGate {
     auth: Option<Arc<AuthService>>,
+    dev: Option<Arc<DevDeps>>,
     now_secs: i64,
     session: Option<i64>,
+    bot_app: Option<i64>,
 }
 
 impl FromRequestParts<AppState> for MfaGate {
@@ -59,9 +64,14 @@ impl FromRequestParts<AppState> for MfaGate {
         let p = Principal::from_request_parts(parts, state).await?;
         Ok(Self {
             auth: state.extension::<AuthService>(),
+            dev: state.extension::<DevDeps>(),
             now_secs: state.now_secs(),
             session: match p.kind {
                 AuthKind::Session { session_id } => Some(session_id),
+                _ => None,
+            },
+            bot_app: match p.kind {
+                AuthKind::Bot { application_id } => Some(application_id),
                 _ => None,
             },
         })
@@ -70,6 +80,10 @@ impl FromRequestParts<AppState> for MfaGate {
 
 fn reauth_required(msg: &str) -> HttpError {
     ApiError::with_message(ErrorCode::SrReauthRequired, msg).into()
+}
+
+fn enrollment_required(msg: &str) -> HttpError {
+    ApiError::with_message(ErrorCode::SrMfaEnrollmentRequired, msg).into()
 }
 
 fn auth_err(e: AuthRouteError) -> HttpError {
@@ -95,13 +109,27 @@ impl MfaGate {
         user: UserId,
         guild: GuildId,
     ) -> Result<(), HttpError> {
+        if self.session.is_none() && self.bot_app.is_none() {
+            return Ok(());
+        }
+        let (g, _) = api.get_guild(user, guild).await.map_err(ce)?;
+        self.check_level(user, g.mfa_level).await
+    }
+
+    /// The check of [`Self::require`] when the caller already knows the server's `mfa_level`
+    /// (routes outside the guild backend). A session needs a second factor proved in the
+    /// last 15 minutes (`900004`; `900123` with none enrolled); a bot passes when its
+    /// application's owner has a second factor enrolled and gets `900123` otherwise (D-223).
+    pub async fn check_level(&self, user: UserId, mfa_level: u8) -> Result<(), HttpError> {
+        if mfa_level == 0 {
+            return Ok(());
+        }
+        if let Some(app) = self.bot_app {
+            return self.check_bot_owner(app).await;
+        }
         let Some(session) = self.session else {
             return Ok(());
         };
-        let (g, _) = api.get_guild(user, guild).await.map_err(ce)?;
-        if g.mfa_level == 0 {
-            return Ok(());
-        }
         let Some(auth) = &self.auth else {
             tracing::error!("a server demands 2FA but no AuthService is registered");
             return Err(ErrorCode::SrInternal.into());
@@ -116,10 +144,36 @@ impl MfaGate {
                 "This server requires two-factor authentication for moderator actions. \
                  Confirm your second factor to continue.",
             )),
-            StaffMfa::NotEnrolled => Err(reauth_required(
+            StaffMfa::NotEnrolled => Err(enrollment_required(
                 "This server requires two-factor authentication for moderator actions. \
                  Set up two-factor authentication in your account settings first.",
             )),
+        }
+    }
+
+    /// Does the gate apply to this caller at all (a browser session or a bot)?
+    pub fn applies(&self) -> bool {
+        self.session.is_some() || self.bot_app.is_some()
+    }
+
+    async fn check_bot_owner(&self, app: i64) -> Result<(), HttpError> {
+        let (Some(dev), Some(auth)) = (&self.dev, &self.auth) else {
+            tracing::error!("a server demands 2FA but the bot owner cannot be resolved");
+            return Err(ErrorCode::SrInternal.into());
+        };
+        let owner = dev
+            .apps
+            .application(app)
+            .await
+            .map_err(|_| HttpError::from(ErrorCode::SrInternal))?
+            .owner_id;
+        if has_second_factor(auth, owner).await.map_err(auth_err)? {
+            Ok(())
+        } else {
+            Err(enrollment_required(
+                "This server requires two-factor authentication. The owner of this \
+                 application must set up two-factor authentication first.",
+            ))
         }
     }
 }
@@ -132,7 +186,7 @@ impl MfaGate {
         user: UserId,
         channel: ChannelId,
     ) -> Result<(), HttpError> {
-        if self.session.is_none() {
+        if self.session.is_none() && self.bot_app.is_none() {
             return Ok(());
         }
         let view = api.get_channel(user, channel).await.map_err(ce)?;
@@ -248,7 +302,10 @@ pub async fn set_mfa_level(
 ) -> ApiResult<Json<MfaLevelObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    // Only the owner may change it; the enrolment check is theirs alone (others get the 403 below).
+    let is_owner = api.get_guild(user, gid).await.map_err(ce)?.0.owner_id == user;
     if body.level == 1
+        && is_owner
         && let (Some(auth), Some(session)) = (&gate.auth, gate.session)
     {
         let st = staff_mfa_state(auth, gate.now_secs, p.user_id, session)

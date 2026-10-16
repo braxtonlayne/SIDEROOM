@@ -188,6 +188,79 @@ pub fn dm_access(pair: PairState, recipient_privacy: &DmPrivacy, shares_guild: b
     }
 }
 
+/// The Server Protection settings of the servers two accounts share (D-224).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SharedProtection {
+    /// Number of servers both accounts are members of.
+    pub shared: usize,
+    /// At least one server is shared and every shared server has `dm_spam_filter` on.
+    pub spam_filter_all: bool,
+    /// Any shared server has `explicit_media_filter_dms` on.
+    pub explicit_media_any: bool,
+    /// The largest `warn_new_account_days` among the shared servers (0 = off).
+    pub warn_new_account_days: u32,
+}
+
+/// Why a conversation sits in Message Requests because of a server's Protection settings
+/// (`sr_request_reason`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequestReason {
+    /// Every shared server filters DMs from non-friends.
+    ServerFilter,
+    /// The sender's account is younger than a shared server's threshold.
+    NewAccount,
+}
+
+impl RequestReason {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ServerFilter => "server_filter",
+            Self::NewAccount => "new_account",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "server_filter" => Self::ServerFilter,
+            "new_account" => Self::NewAccount,
+            _ => return None,
+        })
+    }
+}
+
+/// [`dm_access`] with the Server Protection settings of the shared servers applied (D-224).
+/// They only tighten: a conversation the recipient's own settings already send to Message
+/// Requests stays there, and one they allow moves there when every shared server filters
+/// DMs from non-friends or the sender's account is younger than the largest shared
+/// threshold. Friends are never affected. The reason is reported whenever a setting applies.
+pub fn dm_access_protected(
+    pair: PairState,
+    recipient_privacy: &DmPrivacy,
+    shares_guild: bool,
+    protection: &SharedProtection,
+    sender_age_days: i64,
+) -> (DmAccess, Option<RequestReason>) {
+    let base = dm_access(pair, recipient_privacy, shares_guild);
+    let friends = pair.mine == Some(RelationshipKind::Friend)
+        && pair.theirs == Some(RelationshipKind::Friend);
+    if friends || base == DmAccess::Denied {
+        return (base, None);
+    }
+    let reason = if protection.warn_new_account_days > 0
+        && sender_age_days < i64::from(protection.warn_new_account_days)
+    {
+        Some(RequestReason::NewAccount)
+    } else if protection.spam_filter_all {
+        Some(RequestReason::ServerFilter)
+    } else {
+        None
+    };
+    match reason {
+        Some(_) => (DmAccess::Request, reason),
+        None => (base, None),
+    }
+}
+
 /// Ordered pair for the one-DM-per-pair uniqueness key (`user_a < user_b`).
 pub fn dm_pair(a: UserId, b: UserId) -> (UserId, UserId) {
     if a < b { (a, b) } else { (b, a) }

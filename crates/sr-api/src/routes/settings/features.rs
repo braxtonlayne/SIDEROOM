@@ -18,6 +18,7 @@
 use super::deps::{SettingsDeps, actor, ce, id, invalid};
 use crate::routes::Ext;
 use crate::routes::guilds::backend::GuildBackend;
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::messages::error::ApiJson;
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use async_trait::async_trait;
@@ -242,6 +243,7 @@ pub async fn list_features(
 )]
 pub async fn patch_feature(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Ext(gf): Ext<GuildFeatures>,
     Path((guild_id, feature_id)): Path<(String, String)>,
@@ -250,6 +252,8 @@ pub async fn patch_feature(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
     if !acc.perms.has(Permissions::MANAGE_GUILD) {
         return Err(ErrorCode::MissingPermissions.into());
     }
