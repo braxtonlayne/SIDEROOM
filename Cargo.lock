@@ -5375,6 +5375,17 @@ dependencies = [
 [[package]]
 name = "sr-e2ee"
 version = "0.0.0"
+dependencies = [
+ "aes 0.8.4",
+ "aes-gcm",
+ "ctr",
+ "hkdf 0.12.4",
+ "serde_json",
+ "sha2 0.10.9",
+ "subtle",
+ "thiserror 2.0.21",
+ "zeroize",
+]
 
 [[package]]
 name = "sr-events"
