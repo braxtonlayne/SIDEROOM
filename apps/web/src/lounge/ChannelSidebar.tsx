@@ -449,7 +449,12 @@ function GuildHeader({ guild }: { guild: Guild }) {
         label={t('lounge.channelSidebar.serverMenu', { name: guild.name })}
         items={items}
         trigger={
-          <button type="button" className="lng-guild-header">
+          <button
+            type="button"
+            className="lng-guild-header"
+            data-banner={guild.bannerUrl ? '' : undefined}
+            style={guild.bannerUrl ? { backgroundImage: `url(${guild.bannerUrl})` } : undefined}
+          >
             <span className="lng-guild-title">{guild.name}</span>
             <Icon name="chevron-down" size={16} />
           </button>

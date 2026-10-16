@@ -297,3 +297,25 @@ describe('Browse Channels and the help menu (LNG-GLD-032, LNG-CHN-018)', () => {
     expect(await screen.findByRole('dialog', { name: /shortcut/i })).toBeVisible();
   });
 });
+
+describe('Server header banner and rail icon (LNG-GLD-019)', () => {
+  it('draws the banner behind the server name and the icon in the rail', async () => {
+    seed();
+    useStore.setState((s) => ({
+      guilds: { g1: { ...s.guilds['g1']!, icon: 'iconhash', banner: 'bannerhash' } },
+    }));
+    server.use(
+      guide(false),
+      http.get('*/api/v1/users/@me/guilds/g1/member', () =>
+        HttpResponse.json({ pending: false, joined_at: '2020-01-01T00:00:00Z', roles: [] }),
+      ),
+    );
+    at('/channels/g1/c1');
+    const header = await screen.findByRole('button', {
+      name: /Alpha Guild server menu|Alpha Guild/,
+    });
+    await waitFor(() => expect(header).toHaveAttribute('data-banner'));
+    expect(header.style.backgroundImage).toContain('/cdn/icons/g1/bannerhash');
+    expect(document.querySelector('img[src*="/cdn/icons/g1/iconhash"]')).not.toBeNull();
+  });
+});

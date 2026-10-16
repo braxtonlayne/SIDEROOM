@@ -91,6 +91,8 @@ export interface Guild {
   id: Snowflake;
   name: string;
   iconUrl?: string | null;
+  /** Server banner shown behind the name in the channel list header (LNG-GLD-019). */
+  bannerUrl?: string | null;
   ownerId: Snowflake;
   /** Any non-muted channel unread. */
   unread: boolean;

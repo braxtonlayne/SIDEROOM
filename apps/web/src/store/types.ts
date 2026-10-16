@@ -23,6 +23,8 @@ export interface Guild {
   id: string;
   name: string;
   icon?: string | null;
+  /** Banner hash, served from the same CDN kind as the icon (LNG-GLD-019). */
+  banner?: string | null;
   owner_id?: string;
   member_count?: number;
   /** True for READY stubs until GUILD_CREATE arrives. */
