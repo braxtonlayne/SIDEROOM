@@ -1,7 +1,7 @@
 //! Postgres implementation of [`sr_payments::repo::PaymentRepo`] (tables in migrations
 //! 0540..0542). `save_evaluation` and `resolve` lock the invoice row (`FOR UPDATE`) and apply or
 //! revert the credit in the same transaction, so crediting is exactly-once under polling,
-//! restarts and concurrent workers. `PgDownloadEntitlements` keeps the legacy table readable.
+//! restarts and concurrent workers. the legacy download table is gone (migration 0871).
 //!
 //! Tests: `tests/payments_repo.rs` (needs `SR_TEST_DATABASE_URL`).
 

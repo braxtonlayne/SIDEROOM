@@ -10,9 +10,8 @@
 //!   `[{"name":"a","url":"https://...","pointer":"/data/amount"}]` (`pointer` selects the USD price).
 //! * `SR_PAYMENTS_DESCRIPTOR` and `SR_PAYMENTS_NETWORK`, a WATCH-ONLY descriptor to register when no
 //!   wallet exists yet (Admin > Donations can set it instead). Private keys are refused.
-//! * `SR_DOWNLOADS_LEGACY_FALLBACK` (default `0`, off since Phase 12): `1` keeps honouring
-//!   `cinema_download_grants` for the Patron download perk. Check Admin > Entitlements first. The flag
-//!   and the table go in a later phase.
+//! The legacy download fallback (`SR_DOWNLOADS_LEGACY_FALLBACK` and `cinema_download_grants`) was removed
+//! with migration 0871: only entitlements grant the Patron download perk.
 //!
 //! Nothing in this module signs or broadcasts anything.
 
@@ -72,7 +71,6 @@ struct RateSpec {
 pub struct PaymentsRuntime {
     pub service: Arc<PaymentService>,
     pub entitlements: Arc<EntitlementService>,
-    pub legacy_fallback: bool,
 }
 
 fn now_ms() -> i64 {
@@ -140,9 +138,6 @@ pub async fn build(pool: &PgPool, ids: IdSource, bus: Arc<dyn EventBus>) -> Paym
     PaymentsRuntime {
         service,
         entitlements,
-        legacy_fallback: std::env::var("SR_DOWNLOADS_LEGACY_FALLBACK")
-            .map(|v| v == "1")
-            .unwrap_or(false),
     }
 }
 

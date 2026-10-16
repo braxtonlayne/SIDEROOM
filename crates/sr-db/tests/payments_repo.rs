@@ -17,7 +17,7 @@ use std::{
 use sr_db::{
     PgPool,
     accounts::{self, NewAccount},
-    media_repo::{EntitlementDownloads, PgDownloadEntitlements},
+    media_repo::EntitlementDownloads,
     payments_repo::PgPaymentRepo,
     testing::TestDb,
 };
@@ -583,47 +583,32 @@ async fn grants_config_prefs_and_constraints() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
-async fn legacy_download_grants_cut_over() {
+async fn the_download_perk_comes_from_entitlements_only() {
     let r = rig(20).await;
-    let (old_user, expired_user, forever_user) = (
-        account(&r.pool).await,
-        account(&r.pool).await,
-        account(&r.pool).await,
-    );
+    let (patron, plain) = (account(&r.pool).await, account(&r.pool).await);
     sqlx::query(
-        "INSERT INTO cinema_download_grants (user_id, per_day, expires_at) VALUES \
-         ($1, 5, now() + interval '10 days'), ($2, 5, now() - interval '1 day'), ($3, 50, NULL)",
+        "INSERT INTO entitlement_grants (id, kind, user_id, source, permanent, starts_ms, reason) \
+         VALUES ($1, 'patron', $2, 'admin', TRUE, 0, 'test')",
     )
-    .bind(old_user)
-    .bind(expired_user)
-    .bind(forever_user)
+    .bind(-patron)
+    .bind(patron)
     .execute(&r.pool)
     .await
     .unwrap();
-    // The legacy table alone still works through the fallback.
-    let legacy = PgDownloadEntitlements::new(r.pool.clone());
-    let both = EntitlementDownloads::new(r.svc.entitlements().clone(), Some(legacy));
-    assert_eq!(both.allowance(old_user).await.unwrap().unwrap().per_day, 5);
+    let downloads = EntitlementDownloads::new(r.svc.entitlements().clone());
+    r.svc.entitlements().invalidate_user(patron).await;
+    r.svc.entitlements().invalidate_user(plain).await;
     assert_eq!(
-        both.allowance(forever_user).await.unwrap().unwrap().per_day,
-        50
-    );
-    assert!(both.allowance(expired_user).await.unwrap().is_none());
-    // Without the fallback they are not Patrons (the migration only ran on the empty table here).
-    let new_only = EntitlementDownloads::new(r.svc.entitlements().clone(), None);
-    assert!(new_only.allowance(old_user).await.unwrap().is_none());
-    // Re-running the migration's INSERT copies the unexpired rows as Patron grants.
-    let sql = include_str!("../migrations/0542_download_grants_cutover.sql");
-    sqlx::raw_sql(sql).execute(&r.pool).await.unwrap();
-    r.svc.entitlements().invalidate_user(old_user).await;
-    r.svc.entitlements().invalidate_user(forever_user).await;
-    r.svc.entitlements().invalidate_user(expired_user).await;
-    assert_eq!(
-        new_only.allowance(old_user).await.unwrap().unwrap().per_day,
+        downloads.allowance(patron).await.unwrap().unwrap().per_day,
         20
     );
-    assert!(new_only.allowance(forever_user).await.unwrap().is_some());
-    assert!(new_only.allowance(expired_user).await.unwrap().is_none());
+    assert!(downloads.allowance(plain).await.unwrap().is_none());
+    // The legacy table is gone (migration 0871).
+    let table: Option<String> = sqlx::query_scalar("SELECT to_regclass('cinema_download_grants')::text")
+        .fetch_one(&r.pool)
+        .await
+        .unwrap();
+    assert!(table.is_none());
 }
 
 #[tokio::test]

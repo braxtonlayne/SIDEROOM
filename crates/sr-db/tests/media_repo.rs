@@ -13,7 +13,7 @@ use bytes::Bytes;
 use sr_db::{
     PgPool,
     accounts::{self, NewAccount},
-    media_repo::{PgDownloadEntitlements, PgMediaRepo},
+    media_repo::PgMediaRepo,
     testing::TestDb,
 };
 use sr_media::assets::*;
@@ -859,6 +859,26 @@ async fn link_sets_title_and_episode_on_the_asset() {
     assert!(w.svc.link(9, Some(1), None).await.is_err());
 }
 
+/// The Patron perk as the entitlements would report it: a fixed allowance for the listed members.
+struct Patrons {
+    members: Mutex<Vec<i64>>,
+    per_day: u32,
+}
+
+#[async_trait]
+impl DownloadEntitlements for Patrons {
+    async fn allowance(&self, user: i64) -> MediaResult<Option<Allowance>> {
+        Ok(self
+            .members
+            .lock()
+            .unwrap()
+            .contains(&user)
+            .then_some(Allowance {
+                per_day: self.per_day,
+            }))
+    }
+}
+
 struct Downloads {
     w: World,
     dl: DownloadService,
@@ -878,10 +898,14 @@ async fn downloads(per_day: i64) -> (Downloads, i64, i64) {
         Arc::new(std::sync::atomic::AtomicU64::new(1000)),
     );
     finish_ladder(&svc, &token, 1000).await;
+    let patrons = Arc::new(Patrons {
+        members: Mutex::new(Vec::new()),
+        per_day: per_day as u32,
+    });
     let dl = DownloadService::new(
         w.repo.clone(),
         w.repo.clone(),
-        Arc::new(PgDownloadEntitlements::new(w.pool.clone())),
+        patrons.clone(),
         Arc::new(CdnSigner::new(b"s".to_vec())),
         w.storage.clone(),
         ids(),
@@ -893,13 +917,7 @@ async fn downloads(per_day: i64) -> (Downloads, i64, i64) {
     );
     let patron = account(&w.pool).await;
     let other = account(&w.pool).await;
-    sqlx::query("INSERT INTO cinema_download_grants (user_id, per_day) VALUES ($1, $2), ($3, $2)")
-        .bind(patron)
-        .bind(per_day as i32)
-        .bind(other)
-        .execute(&w.pool)
-        .await
-        .unwrap();
+    patrons.members.lock().unwrap().extend([patron, other]);
     let asset = w.svc.get(a.id).await.unwrap();
     (
         Downloads {
