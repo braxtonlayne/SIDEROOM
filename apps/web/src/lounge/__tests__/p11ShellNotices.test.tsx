@@ -81,4 +81,68 @@ describe('LNG-SHL-009 notices bar', () => {
     await screen.findByTestId('channel-sidebar');
     expect(screen.queryByRole('region', { name: 'Notices' })).toBeNull();
   });
+
+  describe('second-factor notice (H-21)', () => {
+    const old = '1';
+    const setup = (
+      opts: {
+        mfa?: boolean;
+        id?: string;
+        passkeys?: unknown[];
+        settings?: Record<string, unknown>;
+      } = {},
+    ) => {
+      const patches: unknown[] = [];
+      server.use(
+        http.get('*/api/v1/announcements/active', () => HttpResponse.json([])),
+        http.get('*/api/v1/users/@me', () =>
+          HttpResponse.json({
+            id: opts.id ?? old,
+            username: 'me',
+            mfa_enabled: opts.mfa ?? false,
+          }),
+        ),
+        http.get('*/api/v1/sr/auth/passkeys', () => HttpResponse.json(opts.passkeys ?? [])),
+        http.get('*/api/v1/users/@me/settings', () =>
+          HttpResponse.json({ version: 1, settings: opts.settings ?? {} }),
+        ),
+        http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
+          patches.push(await request.json());
+          return HttpResponse.json({ version: 2, settings: { securityNudgeDone: true } });
+        }),
+      );
+      return patches;
+    };
+
+    it('shows once for an older account with no TOTP or passkey, and stores the dismissal', async () => {
+      const patches = setup();
+      at('/channels/g1/c1');
+      const bar = await screen.findByRole('region', { name: 'Notices' });
+      expect(
+        await within(bar).findByText('Protect your account with a second factor.'),
+      ).toBeInTheDocument();
+      expect(within(bar).getByRole('button', { name: 'Open My Account' })).toBeInTheDocument();
+      await userEvent.click(
+        within(bar).getByRole('button', { name: 'Dismiss the second-factor notice' }),
+      );
+      await waitFor(() => expect(screen.queryByRole('region', { name: 'Notices' })).toBeNull());
+      expect(patches).toEqual([{ settings: { securityNudgeDone: true } }]);
+    });
+
+    it.each([
+      ['TOTP is on', { mfa: true }],
+      ['a passkey exists', { passkeys: [{ id: 'p1' }] }],
+      ['already dismissed', { settings: { securityNudgeDone: true } }],
+      [
+        'the account is new (welcome dialog window)',
+        { id: String(BigInt(Date.now() - 1767225600000 - 1000) << 22n) },
+      ],
+    ])('stays quiet when %s', async (_name, opts) => {
+      setup(opts);
+      at('/channels/g1/c1');
+      await screen.findByTestId('channel-sidebar');
+      await new Promise((r) => setTimeout(r, 150));
+      expect(screen.queryByText('Protect your account with a second factor.')).toBeNull();
+    });
+  });
 });

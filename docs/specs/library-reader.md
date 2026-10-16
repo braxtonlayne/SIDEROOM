@@ -153,3 +153,7 @@ page, cover or source references it, and expires abandoned upload slots (and the
   `/submissions/{id}/library/*`; a curator publishes by approving. Staff can still publish directly through the routes above.
 * Volume bundles (one archive holding several chapters) are not split automatically; upload one archive per chapter.
 * PDF pages are not rasterized (owner decision pending, open-questions).
+
+### 6.7 Phase 13 rules
+- **EPUB (D-225).** `foliate-js` is the EPUB engine (approved `apps/web` dependency, pinned, lazy chunk under the library budget). The server only validates EPUBs with the `epub` crate and serves the kept file. Progress for a book is the EPUB CFI (`cfi`) stored beside the page index on the chapter-progress route.
+- **Share to Lounge (D-226).** Sharing a series posts the `<library:id>` rich card as an ordinary message sent from the person's own session (optional comment; channel picker limited to channels where they hold `SEND_MESSAGES` and `USE_LIBRARY_EMBEDS`, DMs and groups included). "Copy link" stays as a second item. No poster port, no system user.

@@ -19,7 +19,7 @@ Everything ships as **Docker Compose** (`deploy/compose/`) **and** as systemd un
 
 ## 2. Install steps (documented in `deploy/INSTALL.md`)
 
-1. Provision the server and point DNS (`A`/`AAAA` for `<host>` and `*.activities.<host>`).
+1. Provision the server and point DNS (`A`/`AAAA` for `<host>`, and `*.activities.<host>` only when `activities.enabled` is on). If activities are on or voice signalling uses another origin, run `node deploy/scripts/render-caddyfile.mjs --public-url https://<host> [--activities] [--voice-url <url>]` and build the web app with `VITE_PUBLIC_URL`, `VITE_ACTIVITIES_ENABLED=true` and `VITE_VOICE_PUBLIC_URL` set to the same values, so the Content-Security-Policy in `Caddyfile.prod` and in the app cannot drift (OQ-XC-3).
 2. `curl -fsSL <release>/install.sh | sh`. This downloads release binaries or pulls images, creates the `sideroom` user, writes `/etc/sideroom/config.toml` from prompts, and generates secrets.
 3. `sr-cli migrate` → `sr-cli bootstrap --owner-username … --owner-email …` (doc 06 §8).
 4. Open the printed one-time link, log in as Owner, and finish the **Setup Wizard** in Admin → Setup: SMTP, Discord OAuth app credentials (optional), BTC xpub (optional), storage check, voice connectivity test, and default limits.

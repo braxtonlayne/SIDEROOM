@@ -53,7 +53,7 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [x] **ENT-UI-019** [FE] Forgot password + reset pages
 - [ ] **ENT-UI-020** [FE] Verify-email landing + "verify your email" banner in app
 - [x] **ENT-UI-021** [FE] Lockout / rate-limit / closed-door messages
-- [ ] **ENT-UI-022** [FE] First-run onboarding modal (theme, avatar, 2FA nudge, suggested servers)
+- [ ] **ENT-UI-022** [FE] First-run onboarding modal (theme, avatar, 2FA nudge, suggested servers) (14-day window; older accounts get the notices-bar nudge, H-21)
 - [x] **ENT-UI-023** [FE] Logged-in redirect from `/` and `/login` to last section
 - [x] **ENT-UI-024** [FE] Responsive layouts < 900px (stacked hero, door as background)
 - [ ] **ENT-UI-025** [FE] Operator-editable copy loading (Admin → Entrance) with defaults

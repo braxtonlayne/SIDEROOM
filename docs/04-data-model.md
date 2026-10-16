@@ -149,7 +149,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 ## 5. Expression
 
-`emojis` (guild_id, name, key, animated, roles allowed, available), `stickers`, `sticker_packs`, `soundboard_sounds`, `guild_templates`, `scheduled_events`, `scheduled_event_users`, `stage_instances`, `automod_rules`, `onboarding` (prompts, options, default channels), `welcome_screens`, `webhooks`, `invites` (server invites: code, guild_id, channel_id, inviter_id, max_age, max_uses, uses, temporary, single_use_external default per D-022).
+`emojis` (guild_id, name, key, animated, roles allowed, available), `stickers`, `sticker_packs`, `soundboard_sounds`, `guild_templates`, `guild_scheduled_events`, `guild_scheduled_event_users`, `stage_instances`, `automod_rules`, `onboarding` (prompts, options, default channels), `welcome_screens`, `webhooks`, `invites` (server invites: code, guild_id, channel_id, inviter_id, max_age, max_uses, uses, temporary, single_use_external default per D-022).
 
 ## 6. Applications and developer platform
 
