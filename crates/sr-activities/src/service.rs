@@ -1,14 +1,19 @@
-//! The Activities backend over Postgres.
+//! The Activities backend over Postgres and object storage.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
+use bytes::Bytes;
+use futures::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
-use sqlx::{PgPool, Row, postgres::PgRow};
+use sqlx::{PgPool, Postgres, Row, Transaction, postgres::PgRow};
+use sr_storage::{ObjectStorage, StorageError};
 
+use crate::bundle;
 use crate::error::{ActivityError, ActivityResult};
 use crate::model::{
-    ConfigInput, ConfigView, InstanceView, ParticipantView, PendingView, ReviewState, ShelfItem,
-    UrlMapping,
+    BundleDetail, BundleEntry, BundleState, BundleView, ConfigInput, ConfigView, InstanceView,
+    ParticipantView, PendingView, ReviewState, ShelfItem, UrlMapping,
 };
 use crate::ports::{
     ActivityEvents, ChannelAccess, ChannelPerms, EVENT_INSTANCE_UPDATE, NoChannels, NoEvents,
@@ -18,9 +23,52 @@ use crate::rules;
 /// Source of snowflake ids.
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
 
+/// Largest guild a development build may be started in (the tester-guild size of D-204).
+const DEV_GUILD_MAX_MEMBERS: i64 = 25;
+/// Bundles listed in the review history.
+const HISTORY: i64 = 20;
+/// Objects written at once while unpacking a bundle.
+const PUT_CONCURRENCY: usize = 8;
+
 /// A timestamp column as epoch milliseconds.
 fn ms(col: &str) -> String {
     format!("(EXTRACT(EPOCH FROM {col}) * 1000)::bigint")
+}
+
+/// Object key of one file of a bundle.
+pub fn object_key(app: i64, sha256: &str, path: &str) -> String {
+    format!("activities/{app}/{sha256}/{path}")
+}
+
+/// Object key of the zip as uploaded (for the reviewer's download).
+pub fn zip_key(app: i64, sha256: &str) -> String {
+    format!("activities/{app}/{sha256}.zip")
+}
+
+/// What the proxy serves for an application.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Serving {
+    /// The reviewed bundle with this SHA-256.
+    Bundle { sha256: String },
+    /// The live development URL (development applications only).
+    Dev { url: String },
+}
+
+/// Everything the proxy needs for one request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServeSpec {
+    pub serving: Serving,
+    pub url_mappings: Vec<UrlMapping>,
+}
+
+/// The proxy's view of an application.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Lookup {
+    /// No Activity here, or the application is suspended.
+    Unknown,
+    /// An Activity that has nothing to serve right now (not reviewed again, or not released).
+    Paused,
+    Ready(ServeSpec),
 }
 
 struct Inner {
@@ -28,6 +76,7 @@ struct Inner {
     ids: IdSource,
     channels: Arc<dyn ChannelAccess>,
     events: Arc<dyn ActivityEvents>,
+    storage: Option<Arc<dyn ObjectStorage>>,
 }
 
 /// The Activities backend. Cheap to clone.
@@ -36,32 +85,27 @@ pub struct ActivityService {
     inner: Arc<Inner>,
 }
 
-fn config_of(r: &PgRow) -> Result<ConfigView, sqlx::Error> {
-    let mappings: Value = r.try_get("url_mappings")?;
-    let state: String = r.try_get("review_state")?;
-    Ok(ConfigView {
-        application_id: r.try_get::<i64, _>("application_id")?.to_string(),
-        entry_url: r.try_get("entry_url")?,
-        url_mappings: serde_json::from_value(mappings).unwrap_or_default(),
-        review_state: ReviewState::parse(&state),
-        pinned_sha256: r.try_get("pinned_sha256")?,
-        reviewed_sha256: r.try_get("reviewed_sha256")?,
-        review_note: r.try_get("review_note")?,
-        updated_at_ms: r.try_get("updated_ms")?,
+fn bundle_of(r: &PgRow) -> Result<BundleView, sqlx::Error> {
+    let state: String = r.try_get("state")?;
+    Ok(BundleView {
+        id: r.try_get::<i64, _>("id")?.to_string(),
+        sha256: r.try_get("sha256")?,
+        byte_size: r.try_get("byte_size")?,
+        entry_count: r.try_get("entry_count")?,
+        state: BundleState::parse(&state),
+        uploaded_at_ms: r.try_get("uploaded_ms")?,
+        reviewed_at_ms: r.try_get("reviewed_ms")?,
+        note: r.try_get("note")?,
     })
 }
 
-fn config_select() -> String {
+fn bundle_columns() -> String {
     format!(
-        "SELECT c.application_id, c.entry_url, c.url_mappings, c.review_state, c.pinned_sha256, \
-         c.reviewed_sha256, c.review_note, {} AS updated_ms FROM application_activities c",
-        ms("c.updated_at")
+        "b.id, b.sha256, b.byte_size, b.entry_count, b.state, b.note, {} AS uploaded_ms, \
+         {} AS reviewed_ms",
+        ms("b.uploaded_at"),
+        ms("b.reviewed_at")
     )
-}
-
-/// A 64-character lowercase hex digest.
-fn is_sha256_hex(s: &str) -> bool {
-    s.len() == 64 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 impl ActivityService {
@@ -72,6 +116,7 @@ impl ActivityService {
                 ids,
                 channels: Arc::new(NoChannels),
                 events: Arc::new(NoEvents),
+                storage: None,
             }),
         }
     }
@@ -94,44 +139,141 @@ impl ActivityService {
         self
     }
 
+    /// Where bundles are stored. Without it uploads are refused. Call before the service is shared.
+    #[must_use]
+    pub fn with_storage(mut self, s: Arc<dyn ObjectStorage>) -> Self {
+        if let Some(i) = Arc::get_mut(&mut self.inner) {
+            i.storage = Some(s);
+        }
+        self
+    }
+
     fn pool(&self) -> &PgPool {
         &self.inner.pool
     }
 
-    // ------------------------------------------------------------------ settings and review
+    fn storage(&self) -> ActivityResult<&Arc<dyn ObjectStorage>> {
+        self.inner.storage.as_ref().ok_or_else(|| {
+            ActivityError::Conflict("Bundle storage is not available on this server.".to_owned())
+        })
+    }
+
+    // ------------------------------------------------------------------ settings
+
+    async fn bundles_of(&self, app: i64) -> ActivityResult<Vec<BundleView>> {
+        let sql = format!(
+            "SELECT {} FROM application_activity_bundles b WHERE b.application_id = $1 \
+             ORDER BY b.uploaded_at DESC, b.id DESC LIMIT {HISTORY}",
+            bundle_columns()
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(app)
+            .fetch_all(self.pool())
+            .await?;
+        rows.iter()
+            .map(bundle_of)
+            .collect::<Result<_, sqlx::Error>>()
+            .map_err(Into::into)
+    }
 
     /// The settings of an application (an empty draft when none were saved).
     pub async fn config(&self, app: i64) -> ActivityResult<ConfigView> {
-        let sql = format!("{} WHERE c.application_id = $1", config_select());
+        let sql = format!(
+            "SELECT c.url_mappings, c.dev_entry_url, c.review_state, c.review_note, \
+             c.reviewed_bundle_id, {} AS updated_ms FROM application_activities c \
+             WHERE c.application_id = $1",
+            ms("c.updated_at")
+        );
         let row = sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(app)
             .fetch_optional(self.pool())
             .await?;
-        match row {
-            Some(r) => Ok(config_of(&r)?),
-            None => Ok(ConfigView {
+        let bundles = self.bundles_of(app).await?;
+        let Some(r) = row else {
+            return Ok(ConfigView {
                 application_id: app.to_string(),
-                entry_url: None,
+                dev_entry_url: None,
                 url_mappings: Vec::new(),
                 review_state: ReviewState::Draft,
-                pinned_sha256: None,
-                reviewed_sha256: None,
+                reviewed_bundle: None,
+                bundles,
                 review_note: None,
                 updated_at_ms: 0,
-            }),
-        }
+            });
+        };
+        let mappings: Value = r.try_get("url_mappings")?;
+        let state: String = r.try_get("review_state")?;
+        let reviewed: Option<i64> = r.try_get("reviewed_bundle_id")?;
+        let reviewed_bundle = reviewed.and_then(|id| {
+            let id = id.to_string();
+            bundles.iter().find(|b| b.id == id).cloned()
+        });
+        Ok(ConfigView {
+            application_id: app.to_string(),
+            dev_entry_url: r.try_get("dev_entry_url")?,
+            url_mappings: serde_json::from_value(mappings).unwrap_or_default(),
+            review_state: ReviewState::parse(&state),
+            reviewed_bundle,
+            bundles,
+            review_note: r.try_get("review_note")?,
+            updated_at_ms: r.try_get("updated_ms")?,
+        })
     }
 
-    /// Save the entry URL and mappings. A change drops the review: the state returns to `draft` and the
-    /// approved hash is cleared, so the proxy stops serving until the new version is approved. Saving the
-    /// same values again changes nothing.
+    /// Whether the application has an Activity row (settings saved or a bundle uploaded). Such an
+    /// application has the implicit redirect URI of its Activity origin (J-13).
+    pub async fn has_activity(&self, app: i64) -> ActivityResult<bool> {
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM application_activities WHERE application_id = $1)",
+        )
+        .bind(app)
+        .fetch_one(self.pool())
+        .await?)
+    }
+
+    /// Recompute the summary state of an application from its bundles.
+    async fn refresh_state(tx: &mut Transaction<'_, Postgres>, app: i64) -> ActivityResult<()> {
+        sqlx::query(
+            "UPDATE application_activities c SET updated_at = now(), review_state = CASE \
+               WHEN EXISTS (SELECT 1 FROM application_activity_bundles b \
+                            WHERE b.application_id = c.application_id AND b.state = 'pending') THEN 'pending' \
+               WHEN c.reviewed_bundle_id IS NOT NULL THEN 'approved' \
+               WHEN EXISTS (SELECT 1 FROM application_activity_bundles b \
+                            WHERE b.application_id = c.application_id AND b.state = 'rejected') THEN 'rejected' \
+               ELSE 'draft' END \
+             WHERE c.application_id = $1",
+        )
+        .bind(app)
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
+
+    /// Create the settings row if the application has none, and lock it for the rest of the transaction.
+    async fn lock_row(tx: &mut Transaction<'_, Postgres>, app: i64) -> ActivityResult<()> {
+        sqlx::query(
+            "INSERT INTO application_activities (application_id) VALUES ($1) ON CONFLICT DO NOTHING",
+        )
+        .bind(app)
+        .execute(&mut **tx)
+        .await?;
+        sqlx::query("SELECT 1 FROM application_activities WHERE application_id = $1 FOR UPDATE")
+            .bind(app)
+            .fetch_one(&mut **tx)
+            .await?;
+        Ok(())
+    }
+
+    /// Save the development URL and the URL mappings. A change to the mappings withdraws the approval of the
+    /// reviewed bundle (the Activity is paused until it is reviewed again). The development URL is never
+    /// reviewed and is accepted only for an application in development. Saving the same values changes nothing.
     pub async fn save_config(&self, app: i64, input: ConfigInput) -> ActivityResult<ConfigView> {
-        let entry = input
-            .entry_url
+        let dev = input
+            .dev_entry_url
             .map(|u| u.trim().to_owned())
             .filter(|u| !u.is_empty());
-        if let Some(p) = entry.as_deref().and_then(rules::https_url_problem) {
-            return Err(ActivityError::Invalid("entry_url", p.to_owned()));
+        if let Some(p) = dev.as_deref().and_then(rules::https_url_problem) {
+            return Err(ActivityError::Invalid("dev_entry_url", p.to_owned()));
         }
         let mappings: Vec<UrlMapping> = input
             .url_mappings
@@ -144,82 +286,283 @@ impl ActivityService {
         rules::validate_mappings(&mappings)
             .map_err(|m| ActivityError::Invalid("url_mappings", m))?;
         let current = self.config(app).await?;
-        if current.entry_url == entry && current.url_mappings == mappings {
+        if current.dev_entry_url == dev && current.url_mappings == mappings {
             return Ok(current);
         }
+        if dev.is_some() && current.dev_entry_url != dev {
+            let state: Option<String> =
+                sqlx::query_scalar("SELECT release_state::text FROM applications WHERE id = $1")
+                    .bind(app)
+                    .fetch_optional(self.pool())
+                    .await?;
+            if state.as_deref() != Some("development") {
+                return Err(ActivityError::Invalid(
+                    "dev_entry_url",
+                    "Only an application in development can use a development URL.".to_owned(),
+                ));
+            }
+        }
+        let mut tx = self.pool().begin().await?;
+        Self::lock_row(&mut tx, app).await?;
         sqlx::query(
-            "INSERT INTO application_activities (application_id, entry_url, url_mappings) \
-             VALUES ($1, $2, $3) \
-             ON CONFLICT (application_id) DO UPDATE SET entry_url = $2, url_mappings = $3, \
-             review_state = 'draft', pinned_sha256 = NULL, reviewed_sha256 = NULL, \
-             reviewed_by = NULL, reviewed_at = NULL, review_note = NULL, updated_at = now()",
+            "UPDATE application_activities SET dev_entry_url = $2, url_mappings = $3 \
+             WHERE application_id = $1",
         )
         .bind(app)
-        .bind(&entry)
+        .bind(&dev)
         .bind(json!(mappings))
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        if current.url_mappings != mappings {
+            // The mappings are part of what staff approved: withdraw the approval.
+            sqlx::query(
+                "UPDATE application_activity_bundles SET state = 'superseded' \
+                 WHERE application_id = $1 AND state = 'approved'",
+            )
+            .bind(app)
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query(
+                "UPDATE application_activities SET reviewed_bundle_id = NULL, review_note = NULL \
+                 WHERE application_id = $1",
+            )
+            .bind(app)
+            .execute(&mut *tx)
+            .await?;
+        }
+        Self::refresh_state(&mut tx, app).await?;
+        tx.commit().await?;
         self.config(app).await
     }
 
-    /// Submit for review with the SHA-256 (lowercase hex) of the entry document as the application served it.
-    pub async fn submit(&self, app: i64, sha256: &str) -> ActivityResult<ConfigView> {
-        if !is_sha256_hex(sha256) {
-            return Err(ActivityError::Invalid(
-                "sha256",
-                "Not a SHA-256 digest.".to_owned(),
-            ));
-        }
-        let r = sqlx::query(
-            "UPDATE application_activities SET review_state = 'pending', pinned_sha256 = $2, \
-             review_note = NULL, updated_at = now() \
-             WHERE application_id = $1 AND entry_url IS NOT NULL \
-             AND review_state IN ('draft', 'rejected', 'pending')",
+    // ------------------------------------------------------------------ bundles
+
+    /// Store an uploaded zip as a new `draft` bundle. The zip is validated first (see [`bundle`]); every
+    /// earlier draft or rejected bundle is superseded. Uploading the same zip again returns the existing
+    /// bundle. The row is written before the objects, so the collector never deletes files of a live bundle.
+    pub async fn upload_bundle(
+        &self,
+        app: i64,
+        user: i64,
+        zip: Vec<u8>,
+    ) -> ActivityResult<BundleDetail> {
+        let storage = self.storage()?.clone();
+        let zip = Bytes::from(zip);
+        let zip_for_store = zip.clone();
+        let unpacked = tokio::task::spawn_blocking(move || bundle::unpack(&zip))
+            .await
+            .map_err(|e| ActivityError::Storage(e.to_string()))?
+            .map_err(|e| ActivityError::Invalid("bundle", e.text()))?;
+        let total = unpacked.total;
+        let manifest: Vec<BundleEntry> = unpacked
+            .files
+            .iter()
+            .map(|f| BundleEntry {
+                path: f.path.clone(),
+                size: i64::try_from(f.data.len()).unwrap_or(i64::MAX),
+                content_type: f.content_type.to_owned(),
+            })
+            .collect();
+        let sha = unpacked.sha256.clone();
+
+        let mut tx = self.pool().begin().await?;
+        Self::lock_row(&mut tx, app).await?;
+        let existing: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM application_activity_bundles \
+             WHERE application_id = $1 AND sha256 = $2 AND state <> 'superseded'",
         )
         .bind(app)
-        .bind(sha256)
-        .execute(self.pool())
+        .bind(&sha)
+        .fetch_optional(&mut *tx)
         .await?;
-        if r.rows_affected() == 0 {
-            return Err(ActivityError::Conflict(
-                "Set an entry URL before submitting. An approved Activity changes by editing it, which asks for a new review."
-                    .to_owned(),
-            ));
+        let (id, fresh) = match existing {
+            Some(id) => (id, false),
+            None => {
+                sqlx::query(
+                    "UPDATE application_activity_bundles SET state = 'superseded' \
+                     WHERE application_id = $1 AND state IN ('draft', 'rejected')",
+                )
+                .bind(app)
+                .execute(&mut *tx)
+                .await?;
+                let id = (self.inner.ids)();
+                sqlx::query(
+                    "INSERT INTO application_activity_bundles \
+                     (id, application_id, sha256, byte_size, entry_count, manifest, uploaded_by) \
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                )
+                .bind(id)
+                .bind(app)
+                .bind(&sha)
+                .bind(i64::try_from(total).unwrap_or(i64::MAX))
+                .bind(i32::try_from(unpacked.entries).unwrap_or(i32::MAX))
+                .bind(json!(manifest))
+                .bind(user)
+                .execute(&mut *tx)
+                .await?;
+                (id, true)
+            }
+        };
+        Self::refresh_state(&mut tx, app).await?;
+        tx.commit().await?;
+
+        // Objects second; a repeated upload writes them again, which repairs a half-written bundle.
+        let mut puts: Vec<(String, Bytes)> = unpacked
+            .files
+            .into_iter()
+            .map(|f| (object_key(app, &sha, &f.path), Bytes::from(f.data)))
+            .collect();
+        puts.push((zip_key(app, &sha), zip_for_store));
+        let written = stream::iter(puts.into_iter().map(|(key, data)| {
+            let storage = storage.clone();
+            async move { storage.put(&key, data).await }
+        }))
+        .buffer_unordered(PUT_CONCURRENCY)
+        .try_collect::<Vec<()>>()
+        .await;
+        if let Err(e) = written {
+            if fresh {
+                let _ = sqlx::query(
+                    "UPDATE application_activity_bundles SET state = 'superseded' WHERE id = $1",
+                )
+                .bind(id)
+                .execute(self.pool())
+                .await;
+            }
+            return Err(ActivityError::Storage(e.to_string()));
         }
+        self.bundle_detail(app, id).await
+    }
+
+    /// A bundle with its file listing.
+    pub async fn bundle_detail(&self, app: i64, id: i64) -> ActivityResult<BundleDetail> {
+        let sql = format!(
+            "SELECT {}, b.manifest FROM application_activity_bundles b \
+             WHERE b.application_id = $1 AND b.id = $2",
+            bundle_columns()
+        );
+        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(app)
+            .bind(id)
+            .fetch_optional(self.pool())
+            .await?
+            .ok_or(ActivityError::NotFound("bundle"))?;
+        let manifest: Value = row.try_get("manifest")?;
+        Ok(BundleDetail {
+            bundle: bundle_of(&row)?,
+            entries: serde_json::from_value(manifest).unwrap_or_default(),
+        })
+    }
+
+    /// The zip of a bundle as uploaded, for the reviewer: `(sha256, bytes)`.
+    pub async fn bundle_zip(&self, app: i64, id: i64) -> ActivityResult<(String, Bytes)> {
+        let storage = self.storage()?.clone();
+        let detail = self.bundle_detail(app, id).await?;
+        if detail.bundle.state == BundleState::Superseded {
+            return Err(ActivityError::NotFound("bundle"));
+        }
+        let key = zip_key(app, &detail.bundle.sha256);
+        let data = match storage.get(&key).await {
+            Ok(d) => d,
+            Err(StorageError::NotFound(_)) => return Err(ActivityError::NotFound("bundle")),
+            Err(e) => return Err(ActivityError::Storage(e.to_string())),
+        };
+        Ok((detail.bundle.sha256, data))
+    }
+
+    /// One file of a bundle, or `None` when the bundle has no such file.
+    pub async fn bundle_file(
+        &self,
+        app: i64,
+        sha256: &str,
+        path: &str,
+    ) -> ActivityResult<Option<Bytes>> {
+        let storage = self.storage()?;
+        match storage.get(&object_key(app, sha256, path)).await {
+            Ok(d) => Ok(Some(d)),
+            Err(StorageError::NotFound(_)) => Ok(None),
+            Err(e) => Err(ActivityError::Storage(e.to_string())),
+        }
+    }
+
+    /// Submit an uploaded draft for review. An earlier pending bundle is superseded; an approved one keeps
+    /// being served until staff decide.
+    pub async fn submit(&self, app: i64, bundle_id: i64) -> ActivityResult<ConfigView> {
+        let mut tx = self.pool().begin().await?;
+        Self::lock_row(&mut tx, app).await?;
+        let state: Option<String> = sqlx::query_scalar(
+            "SELECT state FROM application_activity_bundles \
+             WHERE id = $1 AND application_id = $2 FOR UPDATE",
+        )
+        .bind(bundle_id)
+        .bind(app)
+        .fetch_optional(&mut *tx)
+        .await?;
+        match state.as_deref().map(BundleState::parse) {
+            None => return Err(ActivityError::NotFound("bundle")),
+            Some(BundleState::Draft) => {}
+            Some(_) => {
+                return Err(ActivityError::Conflict(
+                    "Only an uploaded draft can be submitted. Upload the bundle again to change it."
+                        .to_owned(),
+                ));
+            }
+        }
+        sqlx::query(
+            "UPDATE application_activity_bundles SET state = 'superseded' \
+             WHERE application_id = $1 AND state = 'pending'",
+        )
+        .bind(app)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "UPDATE application_activity_bundles SET state = 'pending', note = NULL WHERE id = $1",
+        )
+        .bind(bundle_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "UPDATE application_activities SET review_note = NULL WHERE application_id = $1",
+        )
+        .bind(app)
+        .execute(&mut *tx)
+        .await?;
+        Self::refresh_state(&mut tx, app).await?;
+        tx.commit().await?;
         self.config(app).await
     }
 
     /// Staff: the submitted Activities, oldest first.
     pub async fn pending(&self, limit: i64) -> ActivityResult<Vec<PendingView>> {
-        let sql = format!(
-            "{}, applications a WHERE a.id = c.application_id AND c.review_state = 'pending' \
-             ORDER BY c.updated_at, c.application_id LIMIT $1",
-            config_select().replace(
-                "c.review_note,",
-                "c.review_note, a.name AS app_name, a.owner_id AS app_owner,"
-            )
-        );
-        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
-            .bind(limit.clamp(1, 100))
-            .fetch_all(self.pool())
-            .await?;
-        rows.iter()
-            .map(|r| {
-                Ok(PendingView {
-                    application_name: r.try_get("app_name")?,
-                    owner_id: r.try_get::<i64, _>("app_owner")?.to_string(),
-                    config: config_of(r)?,
-                })
-            })
-            .collect::<Result<_, sqlx::Error>>()
-            .map_err(Into::into)
+        let rows = sqlx::query(
+            "SELECT b.application_id, b.id, a.name AS app_name, a.owner_id AS app_owner \
+             FROM application_activity_bundles b JOIN applications a ON a.id = b.application_id \
+             WHERE b.state = 'pending' ORDER BY b.uploaded_at, b.id LIMIT $1",
+        )
+        .bind(limit.clamp(1, 100))
+        .fetch_all(self.pool())
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let app: i64 = r.try_get("application_id")?;
+            let id: i64 = r.try_get("id")?;
+            out.push(PendingView {
+                application_name: r.try_get("app_name")?,
+                owner_id: r.try_get::<i64, _>("app_owner")?.to_string(),
+                config: self.config(app).await?,
+                bundle: self.bundle_detail(app, id).await?,
+            });
+        }
+        Ok(out)
     }
 
-    /// Staff: approve (the proxy then serves the submitted entry document) or reject a pending Activity.
+    /// Staff: approve or reject the pending bundle `bundle_id`. Approving makes it the reviewed bundle (the
+    /// previously approved one is superseded); the proxy then serves it once the application is released.
     pub async fn decide(
         &self,
         app: i64,
         staff: i64,
+        bundle_id: i64,
         approve: bool,
         note: Option<&str>,
     ) -> ActivityResult<ConfigView> {
@@ -230,50 +573,104 @@ impl ActivityService {
                 "Must be 1000 characters or fewer.".to_owned(),
             ));
         }
-        let r = sqlx::query(
-            "UPDATE application_activities SET review_state = $2, \
-             reviewed_sha256 = CASE WHEN $2 = 'approved' THEN pinned_sha256 ELSE NULL END, \
-             reviewed_by = $3, reviewed_at = now(), review_note = $4, updated_at = now() \
-             WHERE application_id = $1 AND review_state = 'pending'",
+        let mut tx = self.pool().begin().await?;
+        Self::lock_row(&mut tx, app).await?;
+        let moved = sqlx::query(
+            "UPDATE application_activity_bundles SET state = $3, reviewed_by = $4, \
+             reviewed_at = now(), note = $5 \
+             WHERE id = $1 AND application_id = $2 AND state = 'pending'",
         )
+        .bind(bundle_id)
         .bind(app)
         .bind(if approve { "approved" } else { "rejected" })
         .bind(staff)
         .bind(note)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
-        if r.rows_affected() == 0 {
+        if moved.rows_affected() == 0 {
             return Err(ActivityError::Conflict(
-                "Only a submitted Activity can be decided.".to_owned(),
+                "Only the submitted bundle can be decided.".to_owned(),
             ));
         }
+        if approve {
+            sqlx::query(
+                "UPDATE application_activity_bundles SET state = 'superseded' \
+                 WHERE application_id = $1 AND state = 'approved' AND id <> $2",
+            )
+            .bind(app)
+            .bind(bundle_id)
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query(
+                "UPDATE application_activities SET reviewed_bundle_id = $2, review_note = $3 \
+                 WHERE application_id = $1",
+            )
+            .bind(app)
+            .bind(bundle_id)
+            .bind(note)
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            sqlx::query(
+                "UPDATE application_activities SET review_note = $2 WHERE application_id = $1",
+            )
+            .bind(app)
+            .bind(note)
+            .execute(&mut *tx)
+            .await?;
+        }
+        Self::refresh_state(&mut tx, app).await?;
+        tx.commit().await?;
         self.config(app).await
     }
 
-    /// What the proxy needs: the approved settings of a running (not suspended) application.
-    pub async fn approved(&self, app: i64) -> ActivityResult<Option<ConfigView>> {
-        let sql = format!(
-            "{} JOIN applications a ON a.id = c.application_id \
-             WHERE c.application_id = $1 AND c.review_state = 'approved' \
-             AND c.entry_url IS NOT NULL AND c.reviewed_sha256 IS NOT NULL \
-             AND a.release_state::text <> 'suspended'",
-            config_select()
-        );
-        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
-            .bind(app)
-            .fetch_optional(self.pool())
-            .await?;
-        Ok(row.as_ref().map(config_of).transpose()?)
+    /// What the proxy serves for `app` right now. A released application serves its reviewed bundle; an
+    /// application in development serves its live development URL; a suspended one nothing.
+    pub async fn lookup(&self, app: i64) -> ActivityResult<Lookup> {
+        let row = sqlx::query(
+            "SELECT c.url_mappings, c.dev_entry_url, b.sha256, a.release_state::text AS state \
+             FROM application_activities c JOIN applications a ON a.id = c.application_id \
+             LEFT JOIN application_activity_bundles b \
+               ON b.id = c.reviewed_bundle_id AND b.state = 'approved' \
+             WHERE c.application_id = $1",
+        )
+        .bind(app)
+        .fetch_optional(self.pool())
+        .await?;
+        let Some(r) = row else {
+            return Ok(Lookup::Unknown);
+        };
+        let state: String = r.try_get("state")?;
+        let sha: Option<String> = r.try_get("sha256")?;
+        let dev: Option<String> = r.try_get("dev_entry_url")?;
+        let mappings: Value = r.try_get("url_mappings")?;
+        let spec = |serving| {
+            Lookup::Ready(ServeSpec {
+                serving,
+                url_mappings: serde_json::from_value(mappings.clone()).unwrap_or_default(),
+            })
+        };
+        Ok(match (state.as_str(), sha, dev) {
+            ("suspended", _, _) => Lookup::Unknown,
+            ("released", Some(sha256), _) => spec(Serving::Bundle { sha256 }),
+            ("development", _, Some(url)) => spec(Serving::Dev { url }),
+            _ => Lookup::Paused,
+        })
     }
 
-    /// The launcher's shelf: approved Activities of applications that are not suspended.
-    pub async fn shelf(&self) -> ActivityResult<Vec<ShelfItem>> {
+    /// The launcher's shelf for `user`: released Activities with a reviewed bundle, and the development
+    /// builds of applications the user owns or tests.
+    pub async fn shelf(&self, user: i64) -> ActivityResult<Vec<ShelfItem>> {
         let rows = sqlx::query(
-            "SELECT a.id, a.name, a.description FROM application_activities c \
-             JOIN applications a ON a.id = c.application_id \
-             WHERE c.review_state = 'approved' AND c.reviewed_sha256 IS NOT NULL \
-             AND a.release_state::text <> 'suspended' ORDER BY lower(a.name), a.id LIMIT 100",
+            "SELECT a.id, a.name, a.description, (a.release_state::text = 'development') AS dev \
+             FROM application_activities c JOIN applications a ON a.id = c.application_id \
+             WHERE (a.release_state::text = 'released' AND c.reviewed_bundle_id IS NOT NULL) \
+                OR (a.release_state::text = 'development' AND c.dev_entry_url IS NOT NULL \
+                    AND (a.owner_id = $1 OR EXISTS (SELECT 1 FROM app_testers t \
+                         WHERE t.application_id = a.id AND t.account_id = $1 AND t.state = 'accepted'))) \
+             ORDER BY lower(a.name), a.id LIMIT 100",
         )
+        .bind(user)
         .fetch_all(self.pool())
         .await?;
         rows.iter()
@@ -282,10 +679,86 @@ impl ActivityService {
                     application_id: r.try_get::<i64, _>("id")?.to_string(),
                     name: r.try_get("name")?,
                     description: r.try_get("description")?,
+                    development: r.try_get("dev")?,
                 })
             })
             .collect::<Result<_, sqlx::Error>>()
             .map_err(Into::into)
+    }
+
+    /// Whether `user` may start `app` in a channel of `guild` (D-246): a released application with a
+    /// reviewed bundle for anybody, a development build only for its owner and testers in a small guild.
+    async fn may_start(&self, user: i64, app: i64, guild: i64) -> ActivityResult<bool> {
+        let row = sqlx::query(
+            "SELECT a.owner_id, a.release_state::text AS state, c.reviewed_bundle_id, c.dev_entry_url, \
+               EXISTS (SELECT 1 FROM app_testers t WHERE t.application_id = a.id \
+                       AND t.account_id = $2 AND t.state = 'accepted') AS tester \
+             FROM application_activities c JOIN applications a ON a.id = c.application_id \
+             WHERE c.application_id = $1",
+        )
+        .bind(app)
+        .bind(user)
+        .fetch_optional(self.pool())
+        .await?;
+        let Some(r) = row else { return Ok(false) };
+        let state: String = r.try_get("state")?;
+        let reviewed: Option<i64> = r.try_get("reviewed_bundle_id")?;
+        let dev: Option<String> = r.try_get("dev_entry_url")?;
+        match state.as_str() {
+            "released" => Ok(reviewed.is_some()),
+            "development" if dev.is_some() => {
+                let owner: i64 = r.try_get("owner_id")?;
+                let tester: bool = r.try_get("tester")?;
+                if owner != user && !tester {
+                    return Ok(false);
+                }
+                let members: i64 =
+                    sqlx::query_scalar("SELECT count(*) FROM guild_members WHERE guild_id = $1")
+                        .bind(guild)
+                        .fetch_one(self.pool())
+                        .await?;
+                Ok(members <= DEV_GUILD_MAX_MEMBERS)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    /// Delete the objects of bundles that are superseded (`activities.gc`). Returns the number of objects
+    /// deleted.
+    pub async fn gc(&self) -> ActivityResult<usize> {
+        let storage = self.storage()?.clone();
+        let live: HashSet<(i64, String)> = sqlx::query(
+            "SELECT application_id, sha256 FROM application_activity_bundles WHERE state <> 'superseded'",
+        )
+        .fetch_all(self.pool())
+        .await?
+        .iter()
+        .map(|r| Ok((r.try_get("application_id")?, r.try_get("sha256")?)))
+        .collect::<Result<_, sqlx::Error>>()?;
+        let objects = storage
+            .list("activities/")
+            .await
+            .map_err(|e| ActivityError::Storage(e.to_string()))?;
+        let mut removed = 0;
+        for o in objects {
+            let mut parts = o.key.strip_prefix("activities/").unwrap_or("").split('/');
+            let (Some(app), Some(second)) = (parts.next(), parts.next()) else {
+                continue;
+            };
+            let sha = second.strip_suffix(".zip").unwrap_or(second);
+            let Ok(app) = app.parse::<i64>() else {
+                continue;
+            };
+            if live.contains(&(app, sha.to_owned())) {
+                continue;
+            }
+            storage
+                .delete(&o.key)
+                .await
+                .map_err(|e| ActivityError::Storage(e.to_string()))?;
+            removed += 1;
+        }
+        Ok(removed)
     }
 
     // ------------------------------------------------------------------ instances
@@ -328,6 +801,8 @@ impl ActivityService {
             application_name: r.try_get("name")?,
             guild_id: r.try_get::<i64, _>("guild_id")?.to_string(),
             channel_id: r.try_get::<i64, _>("channel_id")?.to_string(),
+            channel_type: r.try_get("channel_type")?,
+            development: r.try_get("dev")?,
             started_by: r.try_get::<i64, _>("started_by")?.to_string(),
             created_at_ms: r.try_get("created_ms")?,
             participants: self.participants(id).await?,
@@ -336,7 +811,8 @@ impl ActivityService {
 
     fn instance_select() -> String {
         format!(
-            "SELECT i.id, i.application_id, a.name, i.guild_id, i.channel_id, i.started_by, \
+            "SELECT i.id, i.application_id, a.name, i.guild_id, i.channel_id, i.channel_type, \
+             i.started_by, (a.release_state::text = 'development') AS dev, \
              {} AS created_ms FROM activity_instances i \
              JOIN applications a ON a.id = i.application_id",
             ms("i.created_at")
@@ -369,7 +845,7 @@ impl ActivityService {
             .await;
     }
 
-    /// The activity running in a voice channel, for anybody who can see the channel.
+    /// The activity running in a channel, for anybody who can see the channel.
     pub async fn in_channel(
         &self,
         user: i64,
@@ -408,35 +884,44 @@ impl ActivityService {
         }
     }
 
-    /// Start an approved Activity in a voice channel. The starter joins it. Needs `CONNECT` and
-    /// `USE_EMBEDDED_ACTIVITIES` in the channel; one activity runs per channel.
+    /// Whether the permissions let a member take part: `CONNECT` and `USE_EMBEDDED_ACTIVITIES` in a voice
+    /// channel, `USE_EMBEDDED_ACTIVITIES` in a text channel (`VIEW_CHANNEL` is checked before).
+    fn may_take_part(p: &ChannelPerms) -> bool {
+        p.use_activities && (p.connect || !p.voice)
+    }
+
+    /// Start an Activity in a voice or text channel of a guild. The starter joins it. One Activity runs per
+    /// channel. The application must be released with a reviewed bundle, or be the caller's own development
+    /// build.
     pub async fn launch(&self, user: i64, app: i64, channel: i64) -> ActivityResult<InstanceView> {
         let p = self.perms(user, channel).await?;
         if !p.view {
             return Err(ActivityError::NotFound("channel"));
         }
-        if !p.voice {
+        if !p.voice && !p.text {
             return Err(ActivityError::Invalid(
                 "channel_id",
-                "Activities run in voice channels.".to_owned(),
+                "Activities run in voice and text channels.".to_owned(),
             ));
         }
-        if !(p.connect && p.use_activities) {
+        if !Self::may_take_part(&p) {
             return Err(ActivityError::Forbidden);
         }
-        if self.approved(app).await?.is_none() {
+        if !self.may_start(user, app, p.guild_id).await? {
             return Err(ActivityError::NotFound("activity"));
         }
         let id = (self.inner.ids)();
         let mut tx = self.pool().begin().await?;
         let inserted = sqlx::query(
-            "INSERT INTO activity_instances (id, application_id, guild_id, channel_id, started_by) \
-             VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
+            "INSERT INTO activity_instances \
+             (id, application_id, guild_id, channel_id, channel_type, started_by) \
+             VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING",
         )
         .bind(id)
         .bind(app)
         .bind(p.guild_id)
         .bind(channel)
+        .bind(if p.voice { "voice" } else { "text" })
         .bind(user)
         .execute(&mut *tx)
         .await?;
@@ -471,7 +956,7 @@ impl ActivityService {
         if !p.view {
             return Err(ActivityError::NotFound("activity"));
         }
-        if !(p.connect && p.use_activities) {
+        if !Self::may_take_part(&p) {
             return Err(ActivityError::Forbidden);
         }
         sqlx::query(
@@ -488,14 +973,15 @@ impl ActivityService {
         Ok(view)
     }
 
-    /// Leave an activity. The last participant leaving ends it.
-    pub async fn leave(&self, user: i64, instance: i64) -> ActivityResult<()> {
-        let row = self
-            .running_by_id(instance)
-            .await?
-            .ok_or(ActivityError::NotFound("activity"))?;
+    /// Mark `user` as gone from `instance`; the last one out ends it. Announces the change.
+    async fn remove_participant(
+        &self,
+        row: &PgRow,
+        instance: i64,
+        user: i64,
+    ) -> ActivityResult<()> {
         let channel: i64 = row.try_get("channel_id")?;
-        sqlx::query(
+        let gone = sqlx::query(
             "UPDATE activity_participants SET left_at = now() \
              WHERE instance_id = $1 AND user_id = $2 AND left_at IS NULL",
         )
@@ -517,11 +1003,49 @@ impl ActivityService {
             .execute(self.pool())
             .await?;
             self.announce(channel, None).await;
-        } else {
-            let view = self.view(&row).await?;
+        } else if gone.rows_affected() > 0 {
+            let view = self.view(row).await?;
             self.announce(channel, Some(&view)).await;
         }
         Ok(())
+    }
+
+    /// Leave an activity. The last participant leaving ends it.
+    pub async fn leave(&self, user: i64, instance: i64) -> ActivityResult<()> {
+        let row = self
+            .running_by_id(instance)
+            .await?
+            .ok_or(ActivityError::NotFound("activity"))?;
+        self.remove_participant(&row, instance, user).await
+    }
+
+    /// `user` is no longer in the voice channel `channel` (J-16, D-248): they leave the Activity running
+    /// there. A text-channel Activity is not tied to a call. Does nothing when they were not in it.
+    pub async fn voice_left(&self, user: i64, channel: i64) -> ActivityResult<()> {
+        let sql = format!(
+            "{} WHERE i.channel_id = $1 AND i.channel_type = 'voice' AND i.ended_at IS NULL",
+            Self::instance_select()
+        );
+        let Some(row) = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(channel)
+            .fetch_optional(self.pool())
+            .await?
+        else {
+            return Ok(());
+        };
+        let instance: i64 = row.try_get("id")?;
+        let was_in: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM activity_participants \
+             WHERE instance_id = $1 AND user_id = $2 AND left_at IS NULL)",
+        )
+        .bind(instance)
+        .bind(user)
+        .fetch_one(self.pool())
+        .await?;
+        if !was_in {
+            return Ok(());
+        }
+        self.remove_participant(&row, instance, user).await
     }
 
     /// End an activity for everybody: its starter, or anybody who manages the channel.

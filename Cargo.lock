@@ -5849,17 +5849,23 @@ name = "sr-activities"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "bytes",
+ "data-encoding",
+ "futures",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "sqlx",
  "sr-core",
  "sr-db",
  "sr-events",
+ "sr-storage",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
  "url",
  "utoipa",
+ "zip",
 ]
 
 [[package]]
