@@ -51,6 +51,8 @@ deny = [
     # `wrappers` lists the only crates allowed to depend on reqwest directly, or through
     # `oauth2` (fixed-URL Discord OAuth) and `object_store` (S3)). A new crate that
     # adds a reqwest dependency fails this check; add it here only with a decision.
+    # sr-sdk is the bot SDK: it connects to the server its operator names, never to an address a
+    # user supplied (p13 handoff, owner question).
     # sr-push, sr-storage, sr-transcoder and sr-unfurl are grandfathered: operator-configured
     # fixed endpoints (push services, S3, transcoder worker) or SafeClient transports.
     { crate = "reqwest", wrappers = [
