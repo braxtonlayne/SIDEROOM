@@ -135,6 +135,45 @@ export interface StoreState extends StoreData, StoreActions {
   connection: ConnectionStatus;
 }
 
+/**
+ * Read `sr_max_upload_bytes` again after `SR_ENTITLEMENT_UPDATE` (D-238): the `guild` shape names the server
+ * (`guild_id`); the `user` shape (a Patron perk granted or lost) touches every server and the DMs.
+ */
+async function refreshUploadLimits(data: unknown): Promise<void> {
+  const d = (data ?? {}) as { type?: string; guild_id?: string };
+  const keep = (id: string, limit: number | undefined) =>
+    useStore.setState((s) => {
+      const g = s.guilds[id];
+      return g ? { guilds: { ...s.guilds, [id]: { ...g, sr_max_upload_bytes: limit } } } : {};
+    });
+  const one = async (id: string) => {
+    try {
+      keep(id, (await rest.fetchGuild(id)).sr_max_upload_bytes);
+    } catch {
+      // Offline: the next visit to the server reads it again.
+    }
+  };
+  if (d.type === 'guild' && d.guild_id) {
+    await one(d.guild_id);
+    return;
+  }
+  const ids = Object.keys(useStore.getState().guilds);
+  for (let i = 0; i < ids.length; i += 4) await Promise.all(ids.slice(i, i + 4).map(one));
+  try {
+    const dms = await rest.fetchDmChannels();
+    useStore.setState((s) => {
+      const channels = { ...s.channels };
+      for (const c of dms) {
+        const cur = channels[c.id];
+        if (cur) channels[c.id] = { ...cur, sr_max_upload_bytes: c.sr_max_upload_bytes };
+      }
+      return { channels };
+    });
+  } catch {
+    // Same: read again when the conversation is opened.
+  }
+}
+
 let nonceCounter = 0;
 const newNonce = () => `${Date.now().toString(36)}${(nonceCounter++).toString(36)}`;
 
@@ -204,6 +243,8 @@ export const useStore = create<StoreState>()((set, get) => {
     applyDispatch: (event, data) => {
       set((s) => reduceDispatch(s, event, data));
       emitDispatch(event, data);
+      // D-238: the upload limit is REST-only, so a changed entitlement is fetched again.
+      if (event === 'SR_ENTITLEMENT_UPDATE') void refreshUploadLimits(data);
     },
     pruneTyping: (now = Date.now()) =>
       set((s) => {

@@ -107,7 +107,7 @@ pub async fn request_slots(
         ));
     }
 
-    let entitled = deps.upload_limit(user).await;
+    let entitled = deps.upload_limit(user, acc.channel.guild_id).await;
     let max_size = deps.size_policy.effective_limit(entitled);
     let now = deps.now_ms();
     // Validate everything before issuing any slot.
@@ -216,9 +216,10 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
         Err(StorageError::NotFound(_)) => return Err(bad("The file has not been uploaded.")),
         Err(e) => return Err(e.into()),
     };
+    let guild = deps.channel_guild(att.channel_id).await;
     let limit = deps
         .size_policy
-        .effective_limit(deps.upload_limit(att.uploader).await);
+        .effective_limit(deps.upload_limit(att.uploader, guild).await);
     if info.size != att.size || info.size > limit {
         let _ = deps.storage.delete(&att.key).await;
         return Err(bad("The uploaded file does not match the declared size."));

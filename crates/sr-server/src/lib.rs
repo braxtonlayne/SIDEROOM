@@ -31,6 +31,7 @@ pub mod search_jobs;
 pub mod settings_pg;
 pub mod staff_feed;
 pub mod tv_catalog;
+pub mod upload_limits;
 pub mod userfeat;
 pub mod userset_jobs;
 pub mod voice;

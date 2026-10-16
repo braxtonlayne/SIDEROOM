@@ -35,7 +35,7 @@ pub async fn list(
     let me = actor(&p)?;
     let dms = deps.service.list_dms(me).await?;
     let limit = match &messages {
-        Some(m) => Some(m.effective_upload_limit(me).await),
+        Some(m) => Some(m.effective_upload_limit(me, None).await),
         None => None,
     };
     let users = deps

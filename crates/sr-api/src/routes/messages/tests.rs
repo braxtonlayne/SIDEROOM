@@ -34,17 +34,24 @@ const BOB: u64 = 2;
 const CAROL: u64 = 3; // not a guild member
 const THUMBS_UP: &str = "%F0%9F%91%8D";
 
-/// The owner is a patron (500 MiB); everyone else gets the standard limit.
-struct Perks;
+/// The owner is a patron (500 MiB); everyone else gets the standard limit. With `.0` set the
+/// server is at level 2 (100 MiB for every member in it, D-238); DMs only ever see the perk.
+struct Perks(bool);
 
 #[async_trait]
 impl UploadEntitlements for Perks {
-    async fn max_upload_bytes(&self, user: UserId) -> u64 {
-        if user.get() == OWNER {
+    async fn max_upload_bytes(&self, user: UserId, guild: Option<GuildId>) -> u64 {
+        let perk = if user.get() == OWNER {
             500 * MIB
         } else {
             30 * MIB
-        }
+        };
+        let level = if self.0 && guild.is_some() {
+            100 * MIB
+        } else {
+            0
+        };
+        perk.max(level)
     }
 }
 
@@ -1040,7 +1047,7 @@ fn slot_key(ch: ChannelId, slot: &Value, filename: &str) -> String {
 
 #[tokio::test]
 async fn upload_slot_enforces_entitlement_limits() {
-    let e = env_with(Arc::new(Perks)).await;
+    let e = env_with(Arc::new(Perks(false))).await;
     let big = json!({"files": [{"filename": "movie.mkv", "file_size": 31 * MIB}]});
     let r = e.post("/attachments", "bob", big.clone()).await;
     assert_eq!(code(&r), (StatusCode::PAYLOAD_TOO_LARGE, Some(40005)));
@@ -1090,6 +1097,41 @@ async fn upload_slot_enforces_entitlement_limits() {
         )
         .await;
     assert_eq!(r.0, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn the_server_level_lifts_the_upload_limit_for_free_members_but_not_in_dms() {
+    let e = env_with(Arc::new(Perks(true))).await;
+    // A free member of a level-2 server may send 100 MiB there, and not a byte more.
+    let ok = json!({"files": [{"filename": "clip.mkv", "file_size": 100 * MIB}]});
+    let (s, v) = e.post("/attachments", "bob", ok).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["attachments"][0]["max_size"], 100 * MIB);
+    let over = json!({"files": [{"filename": "clip.mkv", "file_size": 101 * MIB}]});
+    let r = e.post("/attachments", "bob", over).await;
+    assert_eq!(code(&r), (StatusCode::PAYLOAD_TOO_LARGE, Some(40005)));
+    // The patron keeps the larger of the two.
+    let (_, v) = e
+        .post(
+            "/attachments",
+            "owner",
+            json!({"files": [{"filename": "a", "file_size": 200 * MIB}]}),
+        )
+        .await;
+    assert_eq!(v["attachments"][0]["max_size"], 500 * MIB);
+    // The advertised number follows the same rule: server level in the server, perk alone in DMs.
+    let bob = UserId::new(BOB);
+    assert_eq!(
+        e.deps.effective_upload_limit(bob, Some(e.guild)).await,
+        100 * MIB
+    );
+    assert_eq!(e.deps.effective_upload_limit(bob, None).await, 30 * MIB);
+    assert_eq!(
+        e.deps
+            .effective_upload_limit(UserId::new(OWNER), None)
+            .await,
+        500 * MIB
+    );
 }
 
 #[tokio::test]

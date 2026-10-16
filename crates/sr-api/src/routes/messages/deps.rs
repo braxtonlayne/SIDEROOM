@@ -15,7 +15,8 @@ use sr_chat::{
 use sr_core::permissions::Permissions;
 use sr_core::snowflake::SnowflakeError;
 use sr_core::{
-    AttachmentId, ChannelId, Clock, ErrorCode, MessageId, Snowflake, SnowflakeGenerator, UserId,
+    AttachmentId, ChannelId, Clock, ErrorCode, GuildId, MessageId, Snowflake, SnowflakeGenerator,
+    UserId,
 };
 use sr_events::{DomainEvent, EventBus, Topic};
 use sr_storage::ObjectStorage;
@@ -24,11 +25,12 @@ use sr_storage::upload::SizePolicy;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Per-user upload size entitlement (donor perks, doc 08). The result is clamped
+/// Upload size entitlement (donor perks and server level, doc 08, D-238). `guild` is the server
+/// of the channel, `None` in DMs and groups (the member's perk alone). The result is clamped
 /// to `SizePolicy` bounds by the caller.
 #[async_trait]
 pub trait UploadEntitlements: Send + Sync {
-    async fn max_upload_bytes(&self, user: UserId) -> u64;
+    async fn max_upload_bytes(&self, user: UserId, guild: Option<GuildId>) -> u64;
 }
 
 /// The same limit for everyone.
@@ -37,7 +39,7 @@ pub struct FixedEntitlements(pub u64);
 
 #[async_trait]
 impl UploadEntitlements for FixedEntitlements {
-    async fn max_upload_bytes(&self, _user: UserId) -> u64 {
+    async fn max_upload_bytes(&self, _user: UserId, _guild: Option<GuildId>) -> u64 {
         self.0
     }
 }
@@ -364,15 +366,31 @@ impl MessagesDeps {
         AttachmentId::from(self.ids.generate())
     }
 
-    pub async fn upload_limit(&self, user: UserId) -> u64 {
-        self.entitlements.max_upload_bytes(user).await
+    pub async fn upload_limit(&self, user: UserId, guild: Option<GuildId>) -> u64 {
+        self.entitlements.max_upload_bytes(user, guild).await
     }
 
-    /// The largest file `user` may upload: the same number the 413 check uses (the entitlement,
-    /// clamped to the size policy). Sent to clients as `sr_max_upload_bytes` (D-233).
-    pub async fn effective_upload_limit(&self, user: UserId) -> u64 {
+    /// The largest file `user` may upload in `guild` (`None`: DMs and groups): the same number
+    /// the 413 check uses (the entitlement, clamped to the size policy). Sent to clients as
+    /// `sr_max_upload_bytes` on `GET /guilds/{id}` and `GET /users/@me/channels` only (D-233,
+    /// D-238); a change arrives as `SR_ENTITLEMENT_UPDATE`.
+    pub async fn effective_upload_limit(&self, user: UserId, guild: Option<GuildId>) -> u64 {
         self.size_policy
-            .effective_limit(self.upload_limit(user).await)
+            .effective_limit(self.upload_limit(user, guild).await)
+    }
+
+    /// The server a channel belongs to (`None` for DMs, groups and unknown channels).
+    pub async fn channel_guild(&self, channel: ChannelId) -> Option<GuildId> {
+        match self.repo.get_channel(channel).await {
+            Ok(Some(c)) => c.guild_id,
+            _ => None,
+        }
+    }
+
+    /// Swap in the upload entitlement source (the composition root passes the payments-backed one).
+    pub fn with_upload_entitlements(mut self, e: Arc<dyn UploadEntitlements>) -> Self {
+        self.entitlements = e;
+        self
     }
 
     /// Publish to every topic the event routes to. Delivery is best effort: the

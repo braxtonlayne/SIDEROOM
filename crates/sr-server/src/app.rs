@@ -941,6 +941,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         storage: storage.clone(),
         clock: clock.clone(),
     });
+    // D-238: the upload limit follows the donations runtime (Patron perk, server level).
+    let messages = messages.with_upload_entitlements(Arc::new(
+        crate::upload_limits::PaymentsUploadLimits::new(
+            payments.entitlements.clone(),
+            sr_storage::upload::SizePolicy::default().standard_limit,
+        ),
+    ));
     let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
 
     // Web Push (LNG-NTF-003): the VAPID key lives in the database sealed with the server
