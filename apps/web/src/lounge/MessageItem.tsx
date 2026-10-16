@@ -591,7 +591,7 @@ function MessageItemImpl(props: MessageItemProps) {
                   <Avatar
                     name={m.author.displayName}
                     src={m.author.avatarUrl ?? null}
-                    size={20}
+                    size={24}
                     aria-hidden="true"
                     className="lng-compact-avatar"
                   />
