@@ -413,6 +413,7 @@ export function toLoungeMessage(m: S.Message): Message {
     author: {
       ...toLoungeUser(m.author),
       ...(flags & FLAG_SYSTEM_TAG ? { system: true } : {}),
+      ...(m.webhook_id ? { webhook: true, avatarUrl: m.author.avatar_url ?? null } : {}),
     },
     content: m.content,
     createdAt: m.timestamp,

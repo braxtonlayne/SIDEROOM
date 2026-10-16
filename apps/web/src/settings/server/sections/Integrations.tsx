@@ -15,7 +15,8 @@ import { cdnUrl, useChannels } from '../../../store';
 import * as api from '../api';
 import { useResource, type Viewer } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
-import { ActionStatus, Async, NotAvailable, SectionHeader, formatDate, useAction } from '../ui';
+import { ActionStatus, Async, SectionHeader, formatDate, useAction } from '../ui';
+import { AppDirectory } from './AppDirectory';
 import { ImageField } from './ImageField';
 
 const origin = () => globalThis.location?.origin ?? '';
@@ -53,7 +54,7 @@ export function IntegrationsSection({ guildId, viewer }: SectionProps) {
     {
       id: 'apps',
       label: t('settings.integrations.tabApps'),
-      content: <NotAvailable>{t('settings.integrations.appsNotAvailable')}</NotAvailable>,
+      content: <AppDirectory guildId={guildId} viewer={viewer} />,
     },
   ];
   return (

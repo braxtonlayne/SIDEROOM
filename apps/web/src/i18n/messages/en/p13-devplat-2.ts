@@ -1,0 +1,43 @@
+export default {
+  // Developer portal: tabs
+  'developers.appDetail.tabEmojis': 'Emojis',
+  'developers.appDetail.tabRichPresence': 'Rich Presence',
+
+  // Developer portal: application emoji and Rich Presence assets (DEV-PORT-003)
+  'developers.media.image': 'Image',
+  'developers.media.upload': 'Upload',
+  'developers.media.save': 'Save',
+  'developers.media.cancel': 'Cancel',
+  'developers.media.rename': 'Rename',
+  'developers.media.delete': 'Delete',
+  'developers.media.renameLabel': 'Rename {name}',
+  'developers.media.deleteLabel': 'Delete {name}',
+  'developers.media.chooseFile': 'Choose an image first.',
+  'developers.media.addFailed': 'Could not upload that image.',
+  'developers.media.renameFailed': 'Could not rename it.',
+  'developers.media.removeFailed': 'Could not delete it.',
+  'developers.media.unavailable': 'This server does not offer application media.',
+  'developers.media.emojis': 'emojis',
+  'developers.media.emojiHeading': 'Application emojis',
+  'developers.media.emojiIntro':
+    'These emojis belong to the application, not to a server. Upload PNG, JPEG, GIF or WebP files up to 256 KB; they are shrunk to 128 pixels. Using them in messages is not available yet.',
+  'developers.media.emojiName': 'Emoji name',
+  'developers.media.emojiNameHint': '2 to 32 letters, digits or underscores.',
+  'developers.media.emojiNone': 'No emojis yet.',
+  'developers.media.emojiListLabel': 'Application emojis',
+  'developers.media.emojiAdded': 'Added :{name}:',
+  'developers.media.emojiTooLarge': 'That file is larger than {kb} KB.',
+  'developers.media.assets': 'assets',
+  'developers.media.assetHeading': 'Rich Presence assets',
+  'developers.media.assetIntro':
+    'Named images an activity can show. Upload PNG, JPEG or WebP files up to 2 MB; they are shrunk to 1024 pixels.',
+  'developers.media.assetName': 'Asset name',
+  'developers.media.assetNameHint': '1 to 32 lowercase letters, digits, underscores or dashes.',
+  'developers.media.assetType': 'Type',
+  'developers.media.assetLarge': 'Large image',
+  'developers.media.assetSmall': 'Small image',
+  'developers.media.assetNone': 'No assets yet.',
+  'developers.media.assetListLabel': 'Rich Presence assets',
+  'developers.media.assetAdded': 'Added {name}',
+  'developers.media.assetTooLarge': 'That file is larger than {mb} MB.',
+} satisfies Record<string, string>;

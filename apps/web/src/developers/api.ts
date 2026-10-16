@@ -4,6 +4,8 @@
 import { ApiError, apiFetch, apiPost } from '../api/client';
 import type {
   AppCreated,
+  AppAsset,
+  AppEmoji,
   AppInstall,
   AppPatch,
   AppTester,
@@ -61,6 +63,26 @@ export const verifyEndpoint = (appId: string) =>
     interactions_endpoint_state: 'enabled' | 'disabled';
     verify_key: string | null;
   }>(`/applications/${id(appId)}/endpoint/verify`, {});
+
+// ---- emoji and Rich Presence assets (images go up as data URIs) ----
+export const listAppEmojis = (appId: string) =>
+  apiFetch<{ items: AppEmoji[] }>(`/applications/${id(appId)}/emojis`, ro).then((r) => r.items);
+export const createAppEmoji = (appId: string, name: string, image: string) =>
+  apiPost<AppEmoji>(`/applications/${id(appId)}/emojis`, { name, image });
+export const renameAppEmoji = (appId: string, emojiId: string, name: string) =>
+  apiFetch<AppEmoji>(`/applications/${id(appId)}/emojis/${id(emojiId)}`, {
+    method: 'PATCH',
+    json: { name },
+    ...ro,
+  });
+export const deleteAppEmoji = (appId: string, emojiId: string) =>
+  apiFetch<void>(`/applications/${id(appId)}/emojis/${id(emojiId)}`, { method: 'DELETE', ...ro });
+export const listAppAssets = (appId: string) =>
+  apiFetch<AppAsset[]>(`/applications/${id(appId)}/assets`, ro);
+export const createAppAsset = (appId: string, name: string, type: 1 | 2, image: string) =>
+  apiPost<AppAsset>(`/applications/${id(appId)}/assets`, { name, type, image });
+export const deleteAppAsset = (appId: string, assetId: string) =>
+  apiFetch<void>(`/applications/${id(appId)}/assets/${id(assetId)}`, { method: 'DELETE', ...ro });
 
 // ---- testers (D-204) ----
 export const listTesters = (appId: string) =>
@@ -121,6 +143,8 @@ export const keys = {
   app: (appId: string) => ['dev', 'app', appId] as const,
   installs: (appId: string) => ['dev', 'installs', appId] as const,
   testers: (appId: string) => ['dev', 'testers', appId] as const,
+  emojis: (appId: string) => ['dev', 'emojis', appId] as const,
+  assets: (appId: string) => ['dev', 'assets', appId] as const,
   versions: (appId: string) => ['dev', 'versions', appId] as const,
   status: ['dev', 'status'] as const,
 };

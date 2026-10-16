@@ -446,3 +446,19 @@
 .ss-badge-pick[aria-pressed='true'] {
   outline: 2px solid currentColor;
 }
+
+.ss-btn-link {
+  display: inline-flex;
+  align-items: center;
+  padding-block: 0.5rem;
+  padding-inline: 1rem;
+  border-radius: 6px;
+  background: var(--accent, #5865f2);
+  color: var(--accent-contrast, #fff);
+  font-weight: 600;
+  text-decoration: none;
+}
+.ss-btn-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

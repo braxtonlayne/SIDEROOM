@@ -206,3 +206,20 @@ export interface AppTester {
   state: 'invited' | 'accepted';
   created_at: string;
 }
+
+/** An emoji owned by an application (Emojis tab). `url` is a short-lived signed CDN path. */
+export interface AppEmoji {
+  id: string;
+  name: string;
+  animated: boolean;
+  url: string;
+  created_at: string;
+}
+
+/** A Rich Presence art asset: 1 large image, 2 small image. */
+export interface AppAsset {
+  id: string;
+  name: string;
+  type: 1 | 2;
+  url: string;
+}

@@ -39,6 +39,8 @@ export interface LoungeUser {
   tagColor?: number;
   /** The system user "SIDE ROOM" (message flag SYSTEM_TAG, D-188): shown with a SYSTEM badge. */
   system?: boolean;
+  /** Posted through a webhook (no profile to open). */
+  webhook?: boolean;
 }
 
 export interface Activity {

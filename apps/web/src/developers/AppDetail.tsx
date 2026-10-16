@@ -9,6 +9,7 @@ import { BotTab } from './tabs/Bot';
 import { CommandsTab } from './tabs/Commands';
 import { GeneralTab } from './tabs/General';
 import { InstallTab } from './tabs/Install';
+import { EmojisTab, RichPresenceTab } from './tabs/Media';
 import { ReviewTab } from './tabs/Review';
 import { parseTab, type AppTab } from './search';
 import { OAuth2Tab } from './tabs/OAuth2';
@@ -106,6 +107,16 @@ export function AppDetailPage({ appId, tab }: { appId: string; tab: AppTab }) {
             id: 'commands',
             label: t('developers.appDetail.tabCommands'),
             content: <CommandsTab app={app} />,
+          },
+          {
+            id: 'emojis',
+            label: t('developers.appDetail.tabEmojis'),
+            content: <EmojisTab app={app} />,
+          },
+          {
+            id: 'richpresence',
+            label: t('developers.appDetail.tabRichPresence'),
+            content: <RichPresenceTab app={app} />,
           },
           {
             id: 'review',
