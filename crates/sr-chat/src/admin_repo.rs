@@ -46,6 +46,19 @@ pub struct PruneCriteria {
     pub include_roles: Vec<RoleId>,
 }
 
+/// How a member joined (D-240): the stored source and a fact computed from the audit log.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberJoin {
+    pub user_id: UserId,
+    /// `invite`, `vanity`, `directory`, `application`, `creator`, `staff` or `bot`; `None` is unknown.
+    pub source: Option<String>,
+    pub invite_code: Option<String>,
+    /// The inviter (invite), the application (application) or the installing user (bot).
+    pub ref_id: Option<i64>,
+    /// An earlier kick, prune or ban-then-unban of this person in this server is in the audit log.
+    pub rejoined: bool,
+}
+
 #[async_trait]
 pub trait GuildAdminRepository: Send + Sync {
     /// Persist the editable guild columns.
@@ -86,6 +99,10 @@ pub trait GuildAdminRepository: Send + Sync {
     /// Remove many memberships (and role assignments) in one statement; returns how
     /// many rows were removed.
     async fn remove_members(&self, guild: GuildId, users: &[UserId]) -> RepoResult<u64>;
+
+    /// How each of `users` joined `guild` and whether this server removed them before (D-240).
+    /// Members without a stored source are returned with `source: None`.
+    async fn member_joins(&self, guild: GuildId, users: &[UserId]) -> RepoResult<Vec<MemberJoin>>;
 
     /// Set the `position` of the listed roles in one transaction.
     async fn set_role_positions(

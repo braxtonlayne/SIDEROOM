@@ -1256,6 +1256,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/directory/queue/{guild_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a listing would look like in the directory, as its draft stands (`MANAGE_DIRECTORY`).
+         *     The card is the public shape plus `pending: true` while the request waits. The admin queue's
+         *     Preview opens the server page in preview mode (banner, no join). The category list is a
+         *     constant; hiding a category is the `directory.hidden_categories` platform setting.
+         */
+        get: operations["admin_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/directory/{guild_id}": {
         parameters: {
             query?: never;
@@ -1523,14 +1545,36 @@ export interface paths {
         };
         get?: never;
         /**
-         * Set one copy block (`MANAGE_FEATURES`, fresh second factor). Audited with the key and length.
+         * Set one copy block (`MANAGE_ENTRANCE`, fresh second factor). Audited with the key and length.
          *     The text is stored as written; the Entrance renders it with the restricted entrance profile of
          *     the shared markdown renderer (no mentions, no custom emoji).
          */
         put: operations["put_copy"];
         post?: never;
-        /** Remove an override, so the client's default shows again (`MANAGE_FEATURES`, fresh second factor). */
+        /** Remove an override, so the client's default shows again (`MANAGE_ENTRANCE`, fresh second factor). */
         delete: operations["delete_copy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/entrance/hero": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the Entrance hero image (`MANAGE_ENTRANCE`, fresh second factor). The image is sniffed
+         *     (never trusted by its declared type), shrunk, re-encoded without metadata and stored at
+         *     `entrance/hero`. Audited.
+         */
+        put: operations["put_hero"];
+        post?: never;
+        /** Remove the hero image, so the shipped art shows again (`MANAGE_ENTRANCE`, fresh second factor). */
+        delete: operations["delete_hero"];
         options?: never;
         head?: never;
         patch?: never;
@@ -9014,6 +9058,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/entrance/hero": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The operator's Entrance hero image. Public (the Entrance is pre-login); 404 when none is set.
+         *     `ETag` from the content, `Cache-Control: public, max-age=3600`; `If-None-Match` gets 304.
+         */
+        get: operations["get_hero"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/features/flags": {
         parameters: {
             query?: never;
@@ -11585,6 +11649,8 @@ export interface components {
             id: string;
             /** Format: int64 */
             size: number;
+            /** @description The viewer's sensitive-media setting withheld the file: `url` is empty (D-230). */
+            sr_filtered?: boolean;
             /** @description Relative CDN path (`/cdn/attachments/...`); signing happens at the edge. */
             url: string;
             /** @description Voice messages: base64 waveform. */
@@ -13259,6 +13325,8 @@ export interface components {
             /** @description The caller already is a member. */
             joined: boolean;
             name: string;
+            /** @description Staff preview of a request that is still waiting (H-40); never set in the public list. */
+            pending?: boolean;
             preferred_locale: string;
             splash?: string | null;
             vanity_url_code?: string | null;
@@ -13529,6 +13597,15 @@ export interface components {
         EntranceCopyBody: {
             /** @description Markdown, at most 16 KiB. Blank removes the override. */
             markdown?: string | null;
+            reason?: string | null;
+        };
+        /** @description Body of `PUT /admin/entrance/hero`. */
+        EntranceHeroBody: {
+            /**
+             * @description `data:image/png;base64,...`: PNG, JPEG or WebP, at most 8 MiB; the longest side is shrunk
+             *     to 1600 px and the stored image may be at most 4 MiB.
+             */
+            image: string;
             reason?: string | null;
         };
         Episode: {
@@ -14948,6 +15025,15 @@ export interface components {
             open: components["schemas"]["MemberInvite"][];
             redeemed: components["schemas"]["MemberInvite"][];
         };
+        /** @description `sr_join` of a member object (D-240). */
+        MemberJoinObject: {
+            /** @description The invite or vanity code used. */
+            invite_code?: string | null;
+            /** @description Who made the invite (invite joins only). */
+            inviter_id?: string | null;
+            /** @description `invite`, `vanity`, `directory`, `application`, `creator`, `staff`, `bot` or `unknown`. */
+            source: string;
+        };
         MemberObject: {
             avatar?: string | null;
             /** @description Per-server avatar decoration slug. */
@@ -14972,6 +15058,9 @@ export interface components {
             /** @description Per-server pronouns (G-52). */
             pronouns?: string | null;
             roles: string[];
+            sr_join?: null | components["schemas"]["MemberJoinObject"];
+            /** @description Facts about the member: `new_account`, `rejoined`; only for callers with `MANAGE_GUILD`. */
+            sr_signals?: string[] | null;
             /** @description Per-server profile theme, `[primary, accent]` as 0xRRGGBB. */
             theme_colors?: number[] | null;
             user: components["schemas"]["UserRef"];
@@ -23202,6 +23291,52 @@ export interface operations {
             };
         };
     };
+    admin_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryGuildObject"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_decide: {
         parameters: {
             query?: never;
@@ -24058,6 +24193,84 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_hero: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntranceHeroBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_hero: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -40058,6 +40271,8 @@ export interface operations {
                 query?: string;
                 /** @description Only members holding this role snowflake */
                 role_id?: string;
+                /** @description true: only members with a signal (new_account, rejoined); needs MANAGE_GUILD */
+                signals?: boolean;
             };
             header?: never;
             path: {
@@ -40151,6 +40366,8 @@ export interface operations {
                 query: string;
                 /** @description 1 to 1000, default 1 */
                 limit?: number;
+                /** @description true: only members with a signal (new_account, rejoined); needs MANAGE_GUILD */
+                signals?: boolean;
             };
             header?: never;
             path: {
@@ -48664,6 +48881,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_hero: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": unknown;
+                };
+            };
+            /** @description Unchanged */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
             };
         };
     };

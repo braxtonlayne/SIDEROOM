@@ -9,6 +9,7 @@ DELETE	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
 DELETE	/admin/donations/entitlements/{grant_id}	authenticated	staff	deny	-
 DELETE	/admin/entrance/copy/{key}	authenticated	staff	deny	-
+DELETE	/admin/entrance/hero	authenticated	staff	deny	-
 DELETE	/admin/guilds/{guild_id}	authenticated	staff	deny	-
 DELETE	/admin/ingest-sources/{source_id}	authenticated	staff	deny	-
 DELETE	/admin/invites/{invite_id}	authenticated	staff	deny	-
@@ -134,6 +135,7 @@ GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
 GET	/admin/developers/requests	authenticated	staff	deny	-
 GET	/admin/developers/versions	authenticated	staff	deny	-
 GET	/admin/directory	authenticated	staff	deny	-
+GET	/admin/directory/queue/{guild_id}/preview	authenticated	staff	deny	-
 GET	/admin/donations/config	authenticated	staff	deny	-
 GET	/admin/donations/entitlements	authenticated	staff	deny	-
 GET	/admin/donations/invoices	authenticated	staff	deny	-
@@ -380,6 +382,7 @@ GET	/sr/csrf	authenticated	self	allow	-
 GET	/sr/emojis/{emoji_id}	authenticated	visibility	allow	-
 GET	/sr/emojis/{emoji_id}/url	authenticated	user	allow	-
 GET	/sr/entrance/copy	public	none	deny	-
+GET	/sr/entrance/hero	public	none	deny	-
 GET	/sr/features/flags	authenticated	user	deny	-
 GET	/sr/invites	authenticated	self	deny	-
 GET	/sr/profile-catalog	authenticated	user	deny	-
@@ -737,6 +740,7 @@ PUT	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
 PUT	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
 PUT	/admin/donations/wallet	authenticated	staff	deny	-
 PUT	/admin/entrance/copy/{key}	authenticated	staff	deny	-
+PUT	/admin/entrance/hero	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}/pages/{index}	authenticated	staff	deny	-

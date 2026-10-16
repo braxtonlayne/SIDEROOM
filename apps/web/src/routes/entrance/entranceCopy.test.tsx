@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../router';
 import { http, HttpResponse, server } from '../../test/server';
-import { EntranceMarkdown, setEntranceCopy } from './entranceCopy';
+import { EntranceMarkdown, resetEntranceHero, setEntranceCopy } from './entranceCopy';
 
 function at(path: string) {
   render(
@@ -72,5 +72,34 @@ describe('EntranceMarkdown', () => {
     expect(screen.queryByRole('link', { name: 'bad' })).toBeNull();
     expect(document.querySelector('img')).toBeNull();
     expect(screen.getByText(/<img src=x/)).toBeInTheDocument();
+  });
+});
+
+describe('operator hero image on the landing page (H-41)', () => {
+  it('shows the picture in the door slot when the server has one', async () => {
+    server.use(
+      http.get('*/api/v1/sr/entrance/copy', () =>
+        HttpResponse.json({ 'hero-alt': 'A door ajar in a library' }),
+      ),
+      http.get(
+        '*/api/v1/sr/entrance/hero',
+        () =>
+          new HttpResponse(new Uint8Array([137, 80, 78, 71]), {
+            headers: { 'content-type': 'image/png' },
+          }),
+      ),
+    );
+    resetEntranceHero();
+    at('/');
+    const img = await screen.findByAltText('A door ajar in a library');
+    expect(img).toHaveAttribute('src', '/api/v1/sr/entrance/hero');
+    expect(screen.getByTestId('door')).toHaveAttribute('data-hero', 'true');
+  });
+
+  it('keeps the shipped art without an image', async () => {
+    resetEntranceHero();
+    at('/');
+    expect(await screen.findByTestId('door')).not.toHaveAttribute('data-hero');
+    expect(document.querySelector('.ent-door-img')).toBeNull();
   });
 });

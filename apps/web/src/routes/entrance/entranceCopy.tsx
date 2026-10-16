@@ -5,7 +5,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { apiFetch } from '../../api/client';
 
-export type EntranceCopyKey = 'no-invitation' | 'house-notes' | 'landing-note';
+export type EntranceCopyKey = 'no-invitation' | 'house-notes' | 'landing-note' | 'hero-alt';
 export type EntranceCopy = Partial<Record<EntranceCopyKey, string>>;
 
 let cache: EntranceCopy | null = null;
@@ -151,4 +151,40 @@ export function EntranceMarkdown({ source }: { source: string }) {
   flushPara();
   flushList();
   return <div className="ent-copy">{out}</div>;
+}
+
+// ---- operator hero image (H-41, D-239) ----
+
+const HERO_URL = '/api/v1/sr/entrance/hero';
+let heroCache: boolean | null = null;
+
+/** Forget what the page knows about the hero image (the Admin editor calls this after a change). */
+export function resetEntranceHero() {
+  heroCache = null;
+}
+
+/**
+ * The operator's hero image URL when the server has one (`GET /sr/entrance/hero` answers 404
+ * otherwise), else null and the shipped art stays. The browser caches the image by ETag, so
+ * the `<img>` that follows costs no second download.
+ */
+export function useEntranceHero(): string | null {
+  const [has, setHas] = useState<boolean | null>(heroCache);
+  useEffect(() => {
+    if (heroCache !== null) return;
+    let live = true;
+    void fetch(HERO_URL, { credentials: 'omit' })
+      .then((res) => {
+        void res.body?.cancel().catch(() => undefined);
+        heroCache = res.ok;
+        if (live) setHas(res.ok);
+      })
+      .catch(() => {
+        // Offline or an old server: the shipped art stays; ask again on the next page.
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return has ? HERO_URL : null;
 }

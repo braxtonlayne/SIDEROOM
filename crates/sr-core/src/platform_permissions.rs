@@ -33,6 +33,8 @@ bitflags! {
         const MANAGE_CASES = 1 << 22;
         /// Takedown notices and their records (D-210).
         const MANAGE_TAKEDOWNS = 1 << 23;
+        /// The Entrance copy keys and the hero image (D-239); `MANAGE_FEATURES` no longer grants them.
+        const MANAGE_ENTRANCE = 1 << 24;
         /// Implicit for the Staff Server owner. Everything.
         const OWNER = 1 << 63;
     }

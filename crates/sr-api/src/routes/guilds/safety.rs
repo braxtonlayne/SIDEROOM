@@ -31,6 +31,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sr_chat::admin_rules::GuildPatch;
+use sr_core::permissions::Permissions;
 use sr_core::{ApiError, ChannelId, ErrorCode, GuildId, UserId};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -179,6 +180,108 @@ impl MfaGate {
 }
 
 impl MfaGate {
+    /// [`Self::require`] with the permission check first (H-11): a caller who lacks `needs`
+    /// in the server always gets `50013`, whatever their second-factor state; only a caller
+    /// who holds it meets the `900004` / `900123` refusals. Servers that do not demand 2FA
+    /// skip the lookup and leave the check to the handler.
+    pub async fn require_perm(
+        &self,
+        api: &dyn GuildBackend,
+        user: UserId,
+        guild: GuildId,
+        needs: Permissions,
+    ) -> Result<(), HttpError> {
+        self.perm_then_level(api, user, guild, needs, None).await
+    }
+
+    /// [`Self::require_perm`] for an owner-only action (server delete).
+    pub async fn require_owner(
+        &self,
+        api: &dyn GuildBackend,
+        user: UserId,
+        guild: GuildId,
+    ) -> Result<(), HttpError> {
+        if !self.applies() {
+            return Ok(());
+        }
+        let (g, _) = api.get_guild(user, guild).await.map_err(ce)?;
+        if g.mfa_level == 0 {
+            return Ok(());
+        }
+        if g.owner_id != user {
+            return Err(ApiError::new(ErrorCode::MissingPermissions).into());
+        }
+        self.check_level(user, g.mfa_level).await
+    }
+
+    /// [`Self::require_perm`] for a route addressed by channel id; `in_channel` evaluates
+    /// the permission with the channel's overwrites (overwrite edits, threads), otherwise at
+    /// guild level. DM channels are exempt.
+    pub async fn require_channel_perm(
+        &self,
+        api: &dyn GuildBackend,
+        user: UserId,
+        channel: ChannelId,
+        needs: Permissions,
+        in_channel: bool,
+    ) -> Result<(), HttpError> {
+        if !self.applies() {
+            return Ok(());
+        }
+        let view = api.get_channel(user, channel).await.map_err(ce)?;
+        let Some(guild) = view.channel.guild_id else {
+            return Ok(());
+        };
+        // A thread inherits the permissions of its parent channel.
+        let overwrites = match (in_channel, view.channel.parent_id) {
+            (true, Some(parent)) if view.channel.owner_id.is_some() => {
+                api.get_channel(user, parent).await.map_err(ce)?.overwrites
+            }
+            (true, _) => view.overwrites,
+            (false, _) => Vec::new(),
+        };
+        self.perm_then_level(
+            api,
+            user,
+            guild,
+            needs,
+            in_channel.then_some(overwrites.as_slice()),
+        )
+        .await
+    }
+
+    async fn perm_then_level(
+        &self,
+        api: &dyn GuildBackend,
+        user: UserId,
+        guild: GuildId,
+        needs: Permissions,
+        overwrites: Option<&[sr_core::permissions::Overwrite]>,
+    ) -> Result<(), HttpError> {
+        if !self.applies() {
+            return Ok(());
+        }
+        let (g, roles) = api.get_guild(user, guild).await.map_err(ce)?;
+        if g.mfa_level == 0 {
+            return Ok(());
+        }
+        let member = api.get_member(user, guild, user).await.map_err(ce)?;
+        let perms = match overwrites {
+            Some(ow) => sr_chat::perms::channel_permissions(
+                &g,
+                &member,
+                &roles,
+                ow,
+                self.now_secs.saturating_mul(1000),
+            ),
+            None => sr_chat::perms::guild_permissions(&g, &member, &roles),
+        };
+        if !perms.has(needs) {
+            return Err(ApiError::new(ErrorCode::MissingPermissions).into());
+        }
+        self.check_level(user, g.mfa_level).await
+    }
+
     /// [`Self::require`] for a route addressed by channel id (DM channels are exempt).
     pub async fn require_channel(
         &self,

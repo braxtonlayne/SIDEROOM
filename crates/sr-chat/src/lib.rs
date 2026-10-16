@@ -23,6 +23,7 @@ pub mod profile;
 pub mod repo;
 pub mod rich_repo;
 pub mod role_rules;
+pub mod sensitive;
 pub mod service;
 pub mod settings;
 pub mod social;

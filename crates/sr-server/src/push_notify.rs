@@ -273,6 +273,15 @@ impl PushNotifier {
             if access.require_view().is_err() {
                 continue;
             }
+            // H-12: a conversation in Message Requests sends no push (the Requests counter only).
+            if guild.is_none()
+                && matches!(
+                    self.social.service.request_state(user, *channel).await,
+                    Ok(Some(sr_chat::social::dm::RequestState::Pending))
+                )
+            {
+                continue;
+            }
             let roles = match guild {
                 Some(g) => self
                     .messages

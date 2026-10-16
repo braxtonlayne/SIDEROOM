@@ -229,6 +229,10 @@ export interface MemberObject {
   joined_at: string;
   pending?: boolean;
   communication_disabled_until: string | null;
+  /** How the member joined; only for callers with MANAGE_GUILD (D-240). */
+  sr_join?: { source: string; invite_code?: string; inviter_id?: string };
+  /** `new_account`, `rejoined`; only for callers with MANAGE_GUILD. */
+  sr_signals?: string[];
 }
 export const MEMBER_PAGE = 100;
 export interface MemberQuery {
@@ -239,6 +243,8 @@ export interface MemberQuery {
   query?: string;
   /** Only members holding this role (the @everyone role id matches all). */
   roleId?: string;
+  /** Only members with a signal ("unusual activity"); needs MANAGE_GUILD. */
+  signals?: boolean;
 }
 /** Cursor paging by user id (`after`), with the server-side `query` and `role_id` filters. */
 export const listMembers = (g: string, o: MemberQuery = {}) => {
@@ -246,6 +252,7 @@ export const listMembers = (g: string, o: MemberQuery = {}) => {
   if (o.after) p.set('after', o.after);
   if (o.query) p.set('query', o.query.slice(0, 64));
   if (o.roleId && o.roleId !== g) p.set('role_id', o.roleId);
+  if (o.signals) p.set('signals', 'true');
   return apiFetch<MemberObject[]>(`/guilds/${g}/members?${p}`, { retries: 0 });
 };
 export const getMember = (g: string, u: string) =>

@@ -224,6 +224,16 @@ impl MemoryAdminRepo {
         });
     }
 
+    /// Point a seeded server at another owner (tests whose chat store moved the ownership).
+    pub fn set_guild_owner(&self, id: i64, owner_id: i64) {
+        let mut s = self.s();
+        let name = s.acct(owner_id).map(|a| a.s.username.clone());
+        if let Some(g) = s.guilds.iter_mut().find(|g| g.id == id) {
+            g.owner_id = owner_id;
+            g.owner_username = name;
+        }
+    }
+
     pub fn add_account(
         &self,
         id: i64,

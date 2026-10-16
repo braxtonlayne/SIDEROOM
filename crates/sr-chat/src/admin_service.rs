@@ -142,6 +142,20 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         Ok(updated)
     }
 
+    /// How members joined (D-240): only for a caller with `MANAGE_GUILD`, otherwise nothing.
+    pub async fn member_joins(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        users: &[UserId],
+    ) -> ChatResult<Vec<crate::admin_repo::MemberJoin>> {
+        let c = self.ctx(actor, id).await?;
+        if !c.actor.perms.has(Permissions::MANAGE_GUILD) || users.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(self.repo.member_joins(id, users).await?)
+    }
+
     /// The vanity invite code of the guild (`MANAGE_GUILD`).
     pub async fn vanity_code(&self, actor: UserId, id: GuildId) -> ChatResult<Option<String>> {
         let c = self.ctx(actor, id).await?;

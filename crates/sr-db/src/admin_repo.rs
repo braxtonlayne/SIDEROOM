@@ -546,7 +546,7 @@ impl AdminRepository for PgAdminRepo {
             }
         })?;
         sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) \
+            "INSERT INTO guild_members (guild_id, user_id, join_source) VALUES ($1, $2, 'staff') \
              ON CONFLICT (guild_id, user_id) DO NOTHING",
         )
         .bind(guild)
@@ -685,7 +685,7 @@ impl AdminRepository for PgAdminRepo {
             .await
             .map_err(db)?;
         sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) \
+            "INSERT INTO guild_members (guild_id, user_id, join_source) VALUES ($1, $2, 'staff') \
              ON CONFLICT (guild_id, user_id) DO NOTHING",
         )
         .bind(guild)

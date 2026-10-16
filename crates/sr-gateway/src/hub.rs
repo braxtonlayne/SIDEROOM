@@ -863,6 +863,11 @@ impl Gateway {
             if name == "SR_USER_UPDATE" {
                 for s in self.user_sessions(user) {
                     s.clear_age_cache();
+                    s.clear_safety_cache();
+                }
+            } else if name.starts_with("RELATIONSHIP_") {
+                for s in self.user_sessions(user) {
+                    s.clear_safety_cache();
                 }
             }
             self.dispatch_user(user, name, payload.clone()).await;
@@ -1003,7 +1008,56 @@ impl Gateway {
             if gate && !self.session_age_confirmed(&s).await {
                 continue;
             }
-            deliver_to(&s, name, &data);
+            self.deliver_filtered(&s, name, &data, gate).await;
+        }
+    }
+
+    /// [`deliver_to`] after the viewer's sensitive-media settings (D-230): the same
+    /// `sr_chat::sensitive` function the REST decorators call. `restricted`: the channel is
+    /// age-restricted.
+    async fn deliver_filtered(&self, s: &Session, name: &str, data: &Value, restricted: bool) {
+        let has_files = matches!(name, "MESSAGE_CREATE" | "MESSAGE_UPDATE")
+            && data
+                .get("attachments")
+                .and_then(Value::as_array)
+                .is_some_and(|a| !a.is_empty());
+        if !has_files {
+            return deliver_to(s, name, data);
+        }
+        let view = match s.safety_cached() {
+            Some(v) => v,
+            None => {
+                let looked = self.inner.dir.sensitive_view(s.user).await;
+                s.set_safety_cached(looked)
+            }
+        };
+        let Some((prefs, friends)) = view.as_ref() else {
+            return deliver_to(s, name, data);
+        };
+        let author = data
+            .pointer("/author/id")
+            .and_then(Value::as_str)
+            .and_then(|a| a.parse::<u64>().ok())
+            .map(UserId::new);
+        let bot = data
+            .pointer("/author/bot")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let relation = match author {
+            Some(a) if a == s.user => sr_chat::sensitive::Relation::Exempt,
+            _ if bot => sr_chat::sensitive::Relation::Exempt,
+            Some(a) if friends.contains(&a) => sr_chat::sensitive::Relation::Friend,
+            _ => sr_chat::sensitive::Relation::Other,
+        };
+        let ctx = sr_chat::sensitive::ChannelCtx {
+            dm: data.get("guild_id").is_none_or(Value::is_null),
+            age_restricted: restricted,
+        };
+        let mut v = data.clone();
+        if sr_chat::sensitive::apply_to_message(prefs, relation, &ctx, &mut v) {
+            deliver_to(s, name, &v);
+        } else {
+            deliver_to(s, name, data);
         }
     }
 
@@ -1021,7 +1075,7 @@ impl Gateway {
     pub(crate) async fn dispatch_user(&self, user: UserId, name: &str, data: Value) {
         for s in self.user_sessions(user) {
             if s.wants(name) && s.owns_user_event(&data) {
-                deliver_to(&s, name, &data);
+                self.deliver_filtered(&s, name, &data, false).await;
             }
         }
     }

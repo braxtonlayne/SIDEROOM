@@ -83,6 +83,32 @@ struct World {
     admin_repo: Arc<MemoryAdminRepo>,
     tokens: HashMap<i64, String>,
     auth: Arc<MemoryAuthStore>,
+    threads: Arc<sr_api::routes::threads::ThreadsDeps>,
+    /// System DMs staff actions sent: recipient and text.
+    dms: Arc<SystemDms>,
+}
+
+/// Records the system DMs of staff actions on servers (H-36).
+#[derive(Default)]
+struct SystemDms(std::sync::Mutex<Vec<(i64, String)>>);
+
+impl SystemDms {
+    fn lock_for_test(&self) -> std::sync::MutexGuard<'_, Vec<(i64, String)>> {
+        self.0.lock().unwrap()
+    }
+}
+
+#[async_trait::async_trait]
+impl sr_admin::StaffNotifier for SystemDms {
+    async fn appointment_offer(&self, _: &sr_admin::StaffOffer) -> Option<(i64, i64)> {
+        None
+    }
+    async fn staff_notice(&self, _: &str) {}
+    fn broadcast_announcement(&self, _: &sr_admin::Announcement) {}
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.0.lock().unwrap().push((to, text.to_owned()));
+        true
+    }
 }
 
 /// Voice side of the event clock: occupancy, live stages and a log of stage calls.
@@ -147,6 +173,14 @@ async fn world() -> World {
     let storage = Arc::new(ObjectStoreStorage::in_memory());
     let svc = ChatService::new(repo.clone(), dyn_clock.clone(), ids, ChatLimits::default());
     let guild_api = guilds::GuildApi(guilds::backend::backend(svc, bus.clone()));
+    let threads = Arc::new(sr_api::routes::threads::ThreadsDeps::new(
+        sr_chat::threads::ThreadService::new(
+            repo.clone(),
+            dyn_clock.clone(),
+            SnowflakeGenerator::new(dyn_clock.clone(), 1, 2).unwrap(),
+        ),
+        bus.clone(),
+    ));
 
     // Chat users and their display fields.
     for (id, name) in [
@@ -227,7 +261,13 @@ async fn world() -> World {
     );
     admin_repo.add_role(2, "Basic", 1, P::STAFF_BASIC);
     admin_repo.set_owner(ADMIN_OWNER);
-    let admin_svc = AdminService::new(admin_repo.clone()).with_extras(admin_repo.clone());
+    for (id, name) in [(OWNER, "owner"), (BOB, "bob")] {
+        admin_repo.add_account(id, name, AccountState::Active, None, None);
+    }
+    let dms = Arc::new(SystemDms::default());
+    let admin_svc = AdminService::new(admin_repo.clone())
+        .with_extras(admin_repo.clone())
+        .with_notifier(dms.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
     admin_svc
         .appoint(&op, STAFF, &[1], Some("t"))
@@ -325,6 +365,7 @@ async fn world() -> World {
         .bots(Arc::new(MemoryBots::new()))
         .clock(dyn_clock)
         .extension(Arc::new(guild_api))
+        .extension(threads.clone())
         .extension(Arc::new(auth_service))
         .extension(settings_deps.clone())
         .extension(social_deps.clone())
@@ -343,7 +384,8 @@ async fn world() -> World {
             .merge(settings::router())
             .merge(social::router())
             .merge(directory::router())
-            .merge(admin::router()),
+            .merge(admin::router())
+            .merge(sr_api::routes::threads::router()),
     );
     World {
         app,
@@ -361,6 +403,8 @@ async fn world() -> World {
         admin_repo,
         tokens,
         auth: auth_store,
+        threads,
+        dms,
     }
 }
 
@@ -1211,6 +1255,27 @@ async fn server_directory_listing_approval_search_and_join() {
         w.get(STAFF, "/admin/directory?status=bogus").await.0,
         StatusCode::BAD_REQUEST
     );
+
+    // H-40: staff preview the pending draft in the public shape, with `pending: true`; nobody
+    // else may, and the public routes still hide it.
+    let preview = format!("/admin/directory/queue/{gid}/preview");
+    assert_eq!(w.get(BASIC, &preview).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(w.get(OWNER, &preview).await.0, StatusCode::FORBIDDEN);
+    let (s, card) = w.get(STAFF, &preview).await;
+    assert_eq!(s, StatusCode::OK, "{card}");
+    assert_eq!(card["id"], gid);
+    assert_eq!(card["name"], "Chess Club");
+    assert_eq!(card["category"], "gaming");
+    assert_eq!(card["description"], "Boards and clocks");
+    assert_eq!(card["pending"], true);
+    assert_eq!(card["joined"], false);
+    let missing = w
+        .get(
+            STAFF,
+            &format!("/admin/directory/queue/{}/preview", u64::MAX / 3),
+        )
+        .await;
+    assert_eq!(missing.0, StatusCode::NOT_FOUND);
     let decide = |body: Value| {
         let w = &w;
         let gid = gid.clone();
@@ -2520,6 +2585,19 @@ async fn staff_list_transfer_and_delete_servers_with_a_reason() {
     assert_eq!(s, StatusCode::OK, "{v}");
     let (_, g) = w.get(BOB, &format!("/guilds/{gid}")).await;
     assert_eq!(g["owner_id"], BOB.to_string());
+    // H-36: the previous owner here is the system account (deactivated, id 1), which is not
+    // messaged; the new owner is, without the staff reason.
+    {
+        let dms = w.dms.lock_for_test();
+        assert_eq!(dms.len(), 1, "{dms:?}");
+        assert_eq!(dms[0].0, BOB);
+        assert!(
+            dms[0]
+                .1
+                .starts_with("You are now the owner of `Chess Club`.")
+        );
+        assert!(!dms[0].1.contains("help desk"));
+    }
     // A non-member cannot become the owner.
     let (s, _) = w
         .post(
@@ -2549,4 +2627,353 @@ async fn staff_list_transfer_and_delete_servers_with_a_reason() {
         w.get(BOB, &format!("/guilds/{other}")).await.0,
         StatusCode::NOT_FOUND
     );
+    assert_eq!(
+        w.dms.lock_for_test().len(),
+        1,
+        "a deactivated owner is not messaged"
+    );
+}
+
+// ------------------------------------------------------------------ H-11 / H-13
+
+/// A 2FA server with a moderator (DAVE, every moderation permission through a role), a plain
+/// member (BOB, no permission) and a bystander (CAROL, the target of the actions).
+async fn strict_server(w: &World) -> (String, String, String) {
+    use sr_core::Permissions as Perm;
+    let (gid, general) = w.guild("Strict Club").await;
+    w.add_member(&gid, DAVE);
+    w.add_member(&gid, CAROL);
+    let bits = (Perm::KICK_MEMBERS
+        | Perm::BAN_MEMBERS
+        | Perm::MANAGE_ROLES
+        | Perm::MANAGE_CHANNELS
+        | Perm::MANAGE_GUILD
+        | Perm::MANAGE_THREADS
+        | Perm::MODERATE_MEMBERS)
+        .bits()
+        .to_string();
+    let (s, role) = w
+        .post(
+            OWNER,
+            &format!("/guilds/{gid}/roles"),
+            json!({ "name": "Mods", "permissions": bits }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{role}");
+    let rid = role["id"].as_str().unwrap().to_owned();
+    let (s, r) = w
+        .put(
+            OWNER,
+            &format!("/guilds/{gid}/members/{DAVE}/roles/{rid}"),
+            json!({}),
+        )
+        .await;
+    assert!(s.is_success(), "{r}");
+    w.enrol(OWNER).await;
+    let (s, m) = w
+        .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    w.clock.advance_ms(16 * 60 * 1000);
+    (gid, general, rid)
+}
+
+#[tokio::test]
+async fn permission_is_checked_before_the_second_factor_on_the_older_routes() {
+    let w = world().await;
+    let (gid, general, rid) = strict_server(&w).await;
+    let routes: Vec<(Method, String, Option<Value>)> = vec![
+        (
+            Method::DELETE,
+            format!("/guilds/{gid}/members/{CAROL}"),
+            None,
+        ),
+        (
+            Method::PUT,
+            format!("/guilds/{gid}/bans/{CAROL}"),
+            Some(json!({})),
+        ),
+        (Method::DELETE, format!("/guilds/{gid}/bans/{CAROL}"), None),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/bulk-ban"),
+            Some(json!({ "user_ids": [CAROL.to_string()] })),
+        ),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/prune"),
+            Some(json!({ "days": 7 })),
+        ),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/roles"),
+            Some(json!({ "name": "x" })),
+        ),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}/roles/{rid}"),
+            Some(json!({ "name": "Mods2" })),
+        ),
+        (
+            Method::PUT,
+            format!("/guilds/{gid}/members/{CAROL}/roles/{rid}"),
+            Some(json!({})),
+        ),
+        (Method::DELETE, format!("/guilds/{gid}/roles/{rid}"), None),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/channels"),
+            Some(json!({ "name": "new" })),
+        ),
+        (
+            Method::PATCH,
+            format!("/channels/{general}"),
+            Some(json!({ "name": "renamed" })),
+        ),
+        (
+            Method::PUT,
+            format!("/channels/{general}/permissions/{CAROL}"),
+            Some(json!({ "type": 1, "allow": "0", "deny": "0" })),
+        ),
+        (
+            Method::DELETE,
+            format!("/channels/{general}/permissions/{CAROL}"),
+            None,
+        ),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}/members/{CAROL}"),
+            Some(json!({ "communication_disabled_until": "2099-01-01T00:00:00.000000+00:00" })),
+        ),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}"),
+            Some(json!({ "name": "Renamed" })),
+        ),
+        (Method::DELETE, format!("/channels/{general}"), None),
+    ];
+
+    // No second factor anywhere: the member without the permission is told 50013, the
+    // moderator 900123.
+    for (m, p, b) in &routes {
+        let r = w.call(BOB, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 50013), "bob {m} {p}: {}", r.1);
+        let r = w.call(DAVE, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 900123), "dave {m} {p}: {}", r.1);
+    }
+    // Enrolled but stale: still 50013 for the member, 900004 for the moderator.
+    w.enrol(BOB).await;
+    w.enrol(DAVE).await;
+    for (m, p, b) in &routes {
+        let r = w.call(BOB, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 50013), "bob {m} {p}: {}", r.1);
+        let r = w.call(DAVE, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 900004), "dave {m} {p}: {}", r.1);
+    }
+    // Delete is owner only: the moderator gets 50013 even with a proved factor.
+    let del = format!("/guilds/{gid}");
+    let r = w.delete(DAVE, &del).await;
+    assert_eq!(mfa_code(&r), (403, 50013), "{}", r.1);
+    let r = w.delete(BOB, &del).await;
+    assert_eq!(mfa_code(&r), (403, 50013), "{}", r.1);
+    w.prove(100).await;
+    assert_eq!(w.delete(OWNER, &del).await.0, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn thread_edits_by_a_non_creator_meet_the_gate_but_the_creators_own_do_not() {
+    let w = world().await;
+    let (_gid, general, _rid) = strict_server(&w).await;
+    w.enrol(BOB).await;
+    w.enrol(DAVE).await;
+    let started = w
+        .threads
+        .ops
+        .start_standalone(
+            UserId::new(BOB as u64),
+            ChannelId::new(general.parse().unwrap()),
+            sr_chat::threads::StartThread {
+                name: "ideas".into(),
+                kind: Some(sr_chat::ChannelType::PublicThread),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let tid = started.view.channel.id.to_string();
+    let path = format!("/channels/{tid}");
+
+    // The creator edits, archives and may delete their own thread with a stale factor.
+    let r = w.patch(BOB, &path, json!({ "name": "ideas 2" })).await;
+    assert_eq!(r.0, StatusCode::OK, "{}", r.1);
+    // A moderator (not the creator) is gated: stale 900004.
+    let r = w.patch(DAVE, &path, json!({ "archived": true })).await;
+    assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
+    let r = w.delete(DAVE, &path).await;
+    assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
+    // Another member without MANAGE_THREADS: the permission error, never the gate.
+    let r = w.patch(CAROL, &path, json!({ "archived": true })).await;
+    assert_eq!(mfa_code(&r), (403, 50013), "{}", r.1);
+    // With a proved factor the moderator's edit goes through the service.
+    w.prove(103).await;
+    let r = w.patch(DAVE, &path, json!({ "archived": true })).await;
+    assert_eq!(r.0, StatusCode::OK, "{}", r.1);
+    let r = w.delete(DAVE, &path).await;
+    assert_eq!(r.0, StatusCode::OK, "{}", r.1);
+}
+
+#[tokio::test]
+async fn staff_transfer_and_delete_send_system_dms_to_the_owners() {
+    let w = world().await;
+    // DAVE owns the server (an active account); BOB is a member.
+    w.admin_repo
+        .add_account(DAVE, "dave", AccountState::Active, None, None);
+    let (s, g) = w
+        .post(DAVE, "/guilds", json!({ "name": "Book Club" }))
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{g}");
+    let gid = g["id"].as_str().unwrap().to_owned();
+    w.add_member(&gid, BOB);
+    w.admin_repo
+        .add_guild(gid.parse().unwrap(), "Book Club", DAVE, 2);
+    let path = format!("/admin/guilds/{gid}");
+
+    let (s, v) = w
+        .post(
+            STAFF,
+            &format!("{path}/transfer-ownership"),
+            json!({"new_owner_id": BOB.to_string(), "reason": "owner asked on the help desk"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    {
+        let dms = w.dms.lock_for_test();
+        assert_eq!(dms.len(), 2, "{dms:?}");
+        assert_eq!(dms[0].0, DAVE);
+        assert_eq!(
+            dms[0].1,
+            "Staff transferred ownership of `Book Club` to `bob`. If this looks wrong, contact staff."
+        );
+        assert_eq!(dms[1].0, BOB);
+        assert_eq!(
+            dms[1].1,
+            "You are now the owner of `Book Club`. If this looks wrong, contact staff."
+        );
+        assert!(dms.iter().all(|(_, t)| !t.contains("help desk")));
+    }
+
+    // Delete: the owner at that moment (BOB, now) hears it. The admin store is a seeded copy,
+    // so point it at BOB first.
+    w.admin_repo.set_guild_owner(gid.parse().unwrap(), BOB);
+    let (s, _) = w
+        .call(
+            STAFF,
+            Method::DELETE,
+            &path,
+            Some(json!({"reason": "illegal content, see case 4"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let dms = w.dms.lock_for_test();
+    let last = dms.last().unwrap();
+    assert_eq!(last.0, BOB);
+    assert_eq!(
+        last.1,
+        "Staff deleted `Book Club`. If this looks wrong, contact staff."
+    );
+}
+
+// ------------------------------------------------------------------ H-37
+
+#[tokio::test]
+async fn member_objects_show_the_join_source_and_signals_to_managers_only() {
+    use sr_chat::admin_repo::MemberJoin;
+    let w = world().await;
+    let (gid, _) = w.guild("Join Club").await;
+    let gid_n = GuildId::new(gid.parse().unwrap());
+    // A member whose account is minutes old, and one who was removed before.
+    let fresh = SnowflakeGenerator::new(w.clock.clone() as Arc<dyn Clock>, 5, 5)
+        .unwrap()
+        .generate()
+        .get() as i64;
+    w.add_member(&gid, fresh);
+    w.add_member(&gid, CAROL);
+    {
+        let mut s = w.repo.store.lock().unwrap();
+        s.joins.insert(
+            (gid_n, UserId::new(BOB as u64)),
+            MemberJoin {
+                user_id: UserId::new(BOB as u64),
+                source: Some("invite".into()),
+                invite_code: Some("abc123".into()),
+                ref_id: Some(OWNER),
+                rejoined: false,
+            },
+        );
+        s.joins.insert(
+            (gid_n, UserId::new(CAROL as u64)),
+            MemberJoin {
+                user_id: UserId::new(CAROL as u64),
+                source: Some("directory".into()),
+                invite_code: None,
+                ref_id: None,
+                rejoined: true,
+            },
+        );
+    }
+    let members = format!("/guilds/{gid}/members?limit=50");
+
+    // The owner (MANAGE_GUILD) sees both objects on every row.
+    let (s, list) = w.get(OWNER, &members).await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    let row = |who: &str| {
+        list.as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["user"]["id"] == who)
+            .unwrap_or_else(|| panic!("{who} in {list}"))
+            .clone()
+    };
+    let bob = row(&BOB.to_string());
+    assert_eq!(bob["sr_join"]["source"], "invite");
+    assert_eq!(bob["sr_join"]["invite_code"], "abc123");
+    assert_eq!(bob["sr_join"]["inviter_id"], OWNER.to_string());
+    assert_eq!(bob["sr_signals"], json!([]));
+    let carol = row(&CAROL.to_string());
+    assert_eq!(carol["sr_join"]["source"], "directory");
+    assert!(carol["sr_join"].get("inviter_id").is_none());
+    assert_eq!(carol["sr_signals"], json!(["rejoined"]));
+    let newbie = row(&fresh.to_string());
+    assert_eq!(newbie["sr_join"]["source"], "unknown");
+    assert_eq!(newbie["sr_signals"], json!(["new_account"]));
+
+    // "Unusual activity": only members with a signal, on the list and the search.
+    let (_, flagged) = w.get(OWNER, &format!("{members}&signals=true")).await;
+    let ids: Vec<String> = flagged
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["user"]["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(ids.len(), 2, "{flagged}");
+    assert!(ids.contains(&CAROL.to_string()) && ids.contains(&fresh.to_string()));
+    // A single member read carries them too.
+    let (_, one) = w
+        .get(OWNER, &format!("/guilds/{gid}/members/{CAROL}"))
+        .await;
+    assert_eq!(one["sr_join"]["source"], "directory");
+
+    // Bob has no MANAGE_GUILD: no sr_join, no sr_signals, and the filter is refused.
+    let (s, list) = w.get(BOB, &members).await;
+    assert_eq!(s, StatusCode::OK);
+    for m in list.as_array().unwrap() {
+        assert!(
+            m.get("sr_join").is_none() && m.get("sr_signals").is_none(),
+            "{m}"
+        );
+    }
+    let (_, one) = w.get(BOB, &format!("/guilds/{gid}/members/{CAROL}")).await;
+    assert!(one.get("sr_join").is_none(), "{one}");
+    let (s, _) = w.get(BOB, &format!("{members}&signals=true")).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
 }

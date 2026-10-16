@@ -1669,11 +1669,12 @@ impl ApplicationRepository for PgSettingsRepo {
         if approve {
             // The applicant may have joined another way meanwhile; the join is idempotent.
             sqlx::query(
-                "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) \
+                "INSERT INTO guild_members (guild_id, user_id, join_source, join_ref) VALUES ($1, $2, 'application', $3) \
                  ON CONFLICT DO NOTHING",
             )
             .bind(i(guild.get()))
             .bind(i(app.user_id.get()))
+            .bind(i(id))
             .execute(&mut *tx)
             .await
             .map_err(db)?;

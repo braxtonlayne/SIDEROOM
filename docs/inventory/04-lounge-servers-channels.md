@@ -80,7 +80,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [x] **LNG-FRM-001** [BE] Forum posts (thread + starter message), tags (available_tags, moderated tags), required tag, default reaction, sort order, layout, guidelines
 - [x] **LNG-FRM-002** [FE] Forum channel view: guidelines banner, "New Post" button, search posts, sort & view (list/gallery), tag filter chips *lounge/forum/ForumView.tsx: guidelines banner (channel topic), New Post, search, sort, list/gallery, tag chips.*
 - [ ] **LNG-FRM-003** [FE] Forum post card (title, tags, author, preview text, media thumbnail, reaction, message count, last activity) *Partial: card has title, tags, author, preview, thumbnail, message count and last activity. Reaction count is not shown.*
-- [ ] **LNG-FRM-004** [FE] New Post composer (title, tags picker, content, attachments) *Partial: title, tag picker (required-tag aware) and message. Attachments are refused by the server for forum posts.*
+- [x] **LNG-FRM-004** [FE] New Post composer (title, tags picker, content, attachments) *p13 H-38: the form has the upload tray (slots against the forum, attached to the starter message); test `p13forumFiles.test.tsx`.*
 - [x] **LNG-FRM-005** [FE] Media channel gallery view (thumbnail grid, filters) *Media channels use ForumView with the gallery layout by default and tag filters.*
 - [x] **LNG-FRM-006** [FE] Forum settings section (tags editor, default reaction, layout, sort, guidelines) *ForumSettings in settings/server/sections/ChannelTabs.tsx (Features tab of a forum/media channel): tags, default reaction, sort, layout; guidelines are the channel topic on Overview.*
 

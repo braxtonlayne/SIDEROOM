@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { onDispatch } from '../../store/events';
 
 /** Below this size no upload limit is worth looking up. */
 export const CHECK_FROM = 8 * 1024 * 1024;
@@ -14,6 +15,11 @@ let cached: Promise<UploadLimits | null> | null = null;
 export const resetUploadLimits = () => {
   cached = null;
 };
+
+// A changed entitlement (either shape) makes the cached Patron limits stale (D-238).
+onDispatch((event) => {
+  if (event === 'SR_ENTITLEMENT_UPDATE') resetUploadLimits();
+});
 
 /** `GET /donations/me`: the caller's effective upload size and whether they are a Patron. Read once. */
 function loadLimits(): Promise<UploadLimits | null> {

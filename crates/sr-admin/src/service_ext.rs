@@ -8,9 +8,9 @@ use crate::{
     ext::{
         AdminGuild, AdminGuildRef, AdminSession, Announcement, AnnouncementInput,
         AnnouncementPatch, AnnouncementSeverity, Delegation, ENTRANCE_COPY_KEYS,
-        ENTRANCE_COPY_MAX_CHARS, NewAnnouncement, NewOffer, OFFER_TTL_MS, OfferState,
-        PrivateChannel, PrivateMessagePage, StaffAlertRow, StaffExtrasRepository, StaffOffer,
-        SuspicionEvent,
+        ENTRANCE_COPY_MAX_CHARS, ENTRANCE_HERO_ALT_MAX, NewAnnouncement, NewOffer, OFFER_TTL_MS,
+        OfferState, PrivateChannel, PrivateMessagePage, StaffAlertRow, StaffExtrasRepository,
+        StaffOffer, SuspicionEvent,
     },
     model::{AccessKind, AccountState, AccountSummary, Caller, SystemCounts},
     rules,
@@ -1182,6 +1182,27 @@ impl AdminService {
         Ok((g, reason))
     }
 
+    /// DM `text` from the system user to an account (H-36). Skipped, returning false, when there is
+    /// no notifier or the account is not active (a deactivated owner is not messaged).
+    pub async fn system_dm(&self, to: i64, text: &str) -> bool {
+        let Some(n) = &self.notifier else {
+            return false;
+        };
+        match self.repo().account_detail(to).await {
+            Ok(Some(d)) if d.account.state == crate::AccountState::Active => {}
+            _ => return false,
+        }
+        n.system_dm(to, text).await
+    }
+
+    /// The username of an account, for the text of a system DM.
+    pub async fn username_of(&self, id: i64) -> Option<String> {
+        match self.repo().account_detail(id).await {
+            Ok(Some(d)) => Some(d.account.username),
+            _ => None,
+        }
+    }
+
     /// Record a server change made through the chat stack.
     pub async fn log_guild_action(
         &self,
@@ -1212,7 +1233,7 @@ impl AdminService {
         }
     }
 
-    /// Set (or with an empty `markdown` reset) one Entrance copy block (`MANAGE_FEATURES`). Audited
+    /// Set (or with an empty `markdown` reset) one Entrance copy block (`MANAGE_ENTRANCE`). Audited
     /// with the key and length, not the text.
     pub async fn set_entrance_copy(
         &self,
@@ -1221,11 +1242,17 @@ impl AdminService {
         markdown: Option<&str>,
         reason: Option<&str>,
     ) -> AdminResult<()> {
-        self.require(c, P::MANAGE_FEATURES, "entrance.copy").await?;
+        self.require(c, P::MANAGE_ENTRANCE, "entrance.copy").await?;
         if !ENTRANCE_COPY_KEYS.contains(&key) {
             return Err(AdminError::NotFound("copy block"));
         }
         let markdown = markdown.map(str::trim).filter(|m| !m.is_empty());
+        if key == "hero-alt" && markdown.is_some_and(|m| m.chars().count() > ENTRANCE_HERO_ALT_MAX)
+        {
+            return Err(AdminError::Invalid(format!(
+                "at most {ENTRANCE_HERO_ALT_MAX} characters"
+            )));
+        }
         if markdown.is_some_and(|m| m.len() > ENTRANCE_COPY_MAX_CHARS) {
             return Err(AdminError::Invalid(format!(
                 "at most {ENTRANCE_COPY_MAX_CHARS} bytes"

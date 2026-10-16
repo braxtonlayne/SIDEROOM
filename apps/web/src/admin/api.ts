@@ -697,11 +697,11 @@ export const listPrivateGuildChannels = (guildId: string, reason: string) =>
 
 // ---- Entrance copy (ENT-UI-010/025, ADM-PLT-003) ----
 
-export type EntranceCopyKey = 'no-invitation' | 'house-notes' | 'landing-note';
+export type EntranceCopyKey = 'no-invitation' | 'house-notes' | 'landing-note' | 'hero-alt';
 /** `GET /sr/entrance/copy` is public: the blocks staff overrode, `{}` when none. */
 export const getEntranceCopy = () =>
   apiFetch<Partial<Record<EntranceCopyKey, string>>>('/sr/entrance/copy', { retries: 0 });
-/** Needs a fresh second factor (`MANAGE_FEATURES`); a blank text removes the override. */
+/** Needs a fresh second factor (`MANAGE_ENTRANCE`); a blank text removes the override. */
 export const putEntranceCopy = (key: EntranceCopyKey, markdown: string, reason?: string) =>
   send<void>(`/admin/entrance/copy/${key}`, 'PUT', {
     markdown,
@@ -782,3 +782,52 @@ export const transferGuild = (id: string, new_owner_id: string, reason: string) 
   send<AdminGuild>(`/admin/guilds/${id}/transfer-ownership`, 'POST', { new_owner_id, reason });
 export const deleteAdminGuild = (id: string, reason: string) =>
   send<void>(`/admin/guilds/${id}`, 'DELETE', reasonBody(reason));
+
+// ---- Entrance hero image (H-41) ----
+
+/** Needs a fresh second factor (`MANAGE_ENTRANCE`); `image` is a PNG, JPEG or WebP data URI (at most 8 MiB). */
+export const putEntranceHero = (image: string, reason?: string) =>
+  send<void>('/admin/entrance/hero', 'PUT', { image, ...(reason ? { reason } : {}) });
+export const deleteEntranceHero = () => send<void>('/admin/entrance/hero', 'DELETE');
+
+// ---- Server Directory queue (ADM-COM-001, H-40) ----
+
+export type DirectoryStatus = 'pending' | 'approved' | 'rejected' | 'removed';
+export interface DirectoryListing {
+  guild_id: string;
+  status: DirectoryStatus;
+  category: string;
+  description: string;
+  featured: boolean;
+  requested_at: string;
+  decided_at: string | null;
+  decision_note: string | null;
+  guild_name: string | null;
+  requested_by: string;
+  approximate_member_count: number;
+  /** Community is still on; a listing of a server that switched it off stays hidden. */
+  community_enabled: boolean;
+}
+/** The listing's draft in the public directory card shape (`GET /admin/directory/queue/{id}/preview`). */
+export interface DirectoryPreview {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  banner: string | null;
+  category: string;
+  featured: boolean;
+  approximate_member_count: number;
+  preferred_locale: string;
+  vanity_url_code: string | null;
+  /** The request is still waiting for a decision. */
+  pending?: boolean;
+}
+export const listDirectoryQueue = (status: DirectoryStatus) =>
+  get<DirectoryListing[]>(`/admin/directory${qs({ status })}`);
+export const previewDirectoryListing = (guildId: string) =>
+  get<DirectoryPreview>(`/admin/directory/queue/${guildId}/preview`);
+export const decideDirectoryListing = (
+  guildId: string,
+  body: { decision: 'approve' | 'reject' | 'remove'; featured?: boolean; note?: string },
+) => send<DirectoryListing>(`/admin/directory/${guildId}`, 'PATCH', body);

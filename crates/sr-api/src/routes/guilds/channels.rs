@@ -184,7 +184,14 @@ async fn thread_gate(
     if view.channel.owner_id == Some(user) {
         return Ok(());
     }
-    gate.require_channel(api, user, cid).await
+    gate.require_channel_perm(
+        api,
+        user,
+        cid,
+        sr_core::permissions::Permissions::MANAGE_THREADS,
+        true,
+    )
+    .await
 }
 
 /// Channels of the guild that the caller can view.
@@ -225,7 +232,13 @@ pub async fn create_channel(
 ) -> ApiResult<(StatusCode, Json<ChannelObject>)> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_CHANNELS,
+    )
+    .await?;
     let kind = ChannelType::from_code(body.kind.unwrap_or(0))
         .ok_or_else(|| invalid("type", "ENUM_TYPE_INVALID", "Unknown channel type."))?;
     let room = if body.sr_watch_party_room == Some(true) {
@@ -400,7 +413,13 @@ pub async fn reorder_channels(
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_CHANNELS,
+    )
+    .await?;
     let mut moves = Vec::with_capacity(body.len());
     for (n, e) in body.into_iter().enumerate() {
         let cid: ChannelId = id(&format!("{n}.id"), &e.id)?;
@@ -462,7 +481,14 @@ pub async fn modify_channel(
         let obj = t.modify(user, cid, patch).await.map_err(ce)?;
         return Ok(Json(obj));
     }
-    gate.require_channel(&*api, user, cid).await?;
+    gate.require_channel_perm(
+        &*api,
+        user,
+        cid,
+        sr_core::permissions::Permissions::MANAGE_CHANNELS,
+        false,
+    )
+    .await?;
     let kind = match body.kind {
         None => None,
         Some(code) => Some(ChannelType::from_code(code).ok_or_else(|| {
@@ -514,7 +540,14 @@ pub async fn delete_channel(
         let obj = t.delete(user, cid).await.map_err(ce)?;
         return Ok(Json(obj));
     }
-    gate.require_channel(&*api, user, cid).await?;
+    gate.require_channel_perm(
+        &*api,
+        user,
+        cid,
+        sr_core::permissions::Permissions::MANAGE_CHANNELS,
+        false,
+    )
+    .await?;
     let view = api.delete_channel(user, cid).await.map_err(ce)?;
     Ok(Json(ChannelObject::from(&view)))
 }
@@ -540,7 +573,14 @@ pub async fn put_overwrite(
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
-    gate.require_channel(&*api, user, cid).await?;
+    gate.require_channel_perm(
+        &*api,
+        user,
+        cid,
+        sr_core::permissions::Permissions::MANAGE_ROLES,
+        true,
+    )
+    .await?;
     let target: Snowflake = id("overwrite_id", &overwrite_id)?;
     let ow = overwrite_from(target, &body)?;
     api.set_overwrite(user, cid, ow).await.map_err(ce)?;
@@ -566,7 +606,14 @@ pub async fn delete_overwrite(
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
-    gate.require_channel(&*api, user, cid).await?;
+    gate.require_channel_perm(
+        &*api,
+        user,
+        cid,
+        sr_core::permissions::Permissions::MANAGE_ROLES,
+        true,
+    )
+    .await?;
     let target: Snowflake = id("overwrite_id", &overwrite_id)?;
     api.delete_overwrite(user, cid, target).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)

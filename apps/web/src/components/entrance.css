@@ -777,3 +777,11 @@
 .ent-landing-note p {
   margin: 0;
 }
+
+/* Operator hero image in the door slot (H-41). */
+.ent-door-img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}

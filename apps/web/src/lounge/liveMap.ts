@@ -384,6 +384,7 @@ export function toLoungeAttachment(a: S.RawAttachment, now = Date.now()): Attach
     durationSecs: a.duration_secs ?? null,
     waveform: decodeWaveform(a.waveform),
     ...(a.expires_at && new Date(a.expires_at).getTime() <= now ? { expired: true } : {}),
+    ...(a.sr_filtered ? { filtered: true } : {}),
   };
 }
 

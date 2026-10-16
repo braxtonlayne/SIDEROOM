@@ -237,6 +237,8 @@ export interface Attachment {
   waveform?: number[] | null;
   /** Large file past its retention window ("This file has expired"). */
   expired?: boolean;
+  /** Hidden by the viewer's own sensitive-media setting (D-230); there is no URL. */
+  filtered?: boolean;
 }
 
 export interface Reaction {

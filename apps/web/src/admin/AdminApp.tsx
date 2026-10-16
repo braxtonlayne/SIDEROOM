@@ -217,7 +217,7 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     id: 'entrance',
     label: 'admin.adminApp.section.entrance',
     group: 'admin.adminApp.group.platform',
-    visible: (v) => v.can('MANAGE_FEATURES'),
+    visible: (v) => v.can('MANAGE_ENTRANCE'),
     component: EntranceSection,
   },
   {

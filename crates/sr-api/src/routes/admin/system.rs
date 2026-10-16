@@ -54,11 +54,17 @@ pub async fn patch_settings(
 ) -> ApiResult<Json<Vec<SettingView>>> {
     let r = reason(&headers, b.reason.as_deref());
     let values: Vec<(String, Value)> = b.values.into_iter().collect();
-    ctx.svc()
+    let views = ctx
+        .svc()
         .patch_settings(&ctx.caller, &values, r.as_deref())
         .await
-        .map(Json)
-        .map_err(map_err)
+        .map_err(map_err)?;
+    // H-39: the live HTTP limits follow the registry from the next request on.
+    if let Some(tx) = &ctx.deps.rate_config {
+        let next = crate::rate_limit::RateConfig::from_settings(&views);
+        tx.send_if_modified(|cur| std::mem::replace(cur, next) != next);
+    }
+    Ok(Json(views))
 }
 
 // ---- feature toggles -----------------------------------------------------

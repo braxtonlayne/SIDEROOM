@@ -46,6 +46,10 @@ pub struct AdminDeps {
     /// Sensitive actions need a second factor checked within the last 15 minutes
     /// (ADM-STF-009). Off by default so tests and development need no authenticator.
     pub require_reauth: bool,
+    /// Object storage for the Entrance hero image (H-41).
+    pub storage: Option<Arc<dyn sr_storage::ObjectStorage>>,
+    /// Where a saved rate-limit setting goes so the limiter sees it on the next request (H-39).
+    pub rate_config: Option<tokio::sync::watch::Sender<crate::rate_limit::RateConfig>>,
 }
 
 impl AdminDeps {
@@ -57,9 +61,25 @@ impl AdminDeps {
             voice_stats: None,
             integrations: Vec::new(),
             require_reauth: false,
+            storage: None,
+            rate_config: None,
         }
     }
 
+    /// The sender behind `RateLimitConfig::live`: `PATCH /admin/settings` updates it.
+    pub fn with_rate_config(
+        mut self,
+        tx: tokio::sync::watch::Sender<crate::rate_limit::RateConfig>,
+    ) -> Self {
+        self.rate_config = Some(tx);
+        self
+    }
+
+    /// Object storage for the Entrance hero image routes.
+    pub fn with_storage(mut self, s: Arc<dyn sr_storage::ObjectStorage>) -> Self {
+        self.storage = Some(s);
+        self
+    }
     /// Feature toggles are exposed through this service.
     pub fn with_features(mut self, f: FeatureService) -> Self {
         self.features = Some(f);

@@ -1919,13 +1919,14 @@ impl AppsRepository for PgAppsRepo {
         let mut role_id = prior_role;
         if req.with_bot {
             member_added = sqlx::query(
-                "INSERT INTO guild_members (guild_id, user_id, joined_at) \
-                 VALUES ($1, $2, to_timestamp($3::double precision / 1000.0)) \
+                "INSERT INTO guild_members (guild_id, user_id, joined_at, join_source, join_ref) \
+                 VALUES ($1, $2, to_timestamp($3::double precision / 1000.0), 'bot', $4) \
                  ON CONFLICT (guild_id, user_id) DO NOTHING",
             )
             .bind(req.guild_id)
             .bind(req.bot_user_id)
             .bind(req.now_ms)
+            .bind(req.application_id)
             .execute(&mut *tx)
             .await
             .map_err(db)?

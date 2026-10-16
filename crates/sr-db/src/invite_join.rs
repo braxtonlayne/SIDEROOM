@@ -171,16 +171,19 @@ impl InviteJoinRepository for PgInviteJoinRepo {
         // screening switched on admits the member as `pending` (LNG-GLD-008);
         // a temporary invite marks the membership (LNG-INV-005).
         let inserted = sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id, joined_at, temporary, pending) \
+            "INSERT INTO guild_members (guild_id, user_id, joined_at, temporary, pending, join_source, join_invite_code, join_ref) \
              VALUES ($1, $2, to_timestamp($3::double precision / 1000.0), $4, \
                      COALESCE((SELECT community_enabled AND screening_enabled \
-                               FROM guild_community WHERE guild_id = $1), FALSE)) \
+                               FROM guild_community WHERE guild_id = $1), FALSE), $5, $6, $7) \
              ON CONFLICT (guild_id, user_id) DO NOTHING RETURNING pending",
         )
         .bind(guild)
         .bind(uid)
         .bind(now_ms)
         .bind(inv.temporary)
+        .bind(if vanity { "vanity" } else { "invite" })
+        .bind(&inv.code)
+        .bind(i(inv.inviter_id.get()))
         .fetch_optional(&mut *tx)
         .await
         .map_err(db)?;
@@ -291,10 +294,10 @@ impl InviteJoinRepository for PgInviteJoinRepo {
             return Err(SettingsError::Banned);
         }
         let inserted = sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id, joined_at, pending) \
+            "INSERT INTO guild_members (guild_id, user_id, joined_at, pending, join_source) \
              VALUES ($1, $2, to_timestamp($3::double precision / 1000.0), \
                      COALESCE((SELECT community_enabled AND screening_enabled \
-                               FROM guild_community WHERE guild_id = $1), FALSE)) \
+                               FROM guild_community WHERE guild_id = $1), FALSE), 'directory') \
              ON CONFLICT (guild_id, user_id) DO NOTHING RETURNING pending",
         )
         .bind(g)

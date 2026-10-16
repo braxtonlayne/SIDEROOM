@@ -7,6 +7,7 @@ export const server = setupServer(
     HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
   ),
   http.get('*/api/v1/sr/entrance/copy', () => HttpResponse.json({})),
+  http.get('*/api/v1/sr/entrance/hero', () => new HttpResponse(null, { status: 404 })),
   http.get('*/api/v1/sr/emojis/:id/url', () =>
     HttpResponse.json({ message: 'Unknown emoji' }, { status: 404 }),
   ),

@@ -151,7 +151,7 @@ pub async fn get_guild(
     let (g, roles) = api.get_guild(user, gid).await.map_err(ce)?;
     let mut out = GuildObject::new(&g, Some(&roles), None);
     if let Some(m) = messages {
-        out.sr_max_upload_bytes = Some(m.effective_upload_limit(user).await);
+        out.sr_max_upload_bytes = Some(m.effective_upload_limit(user, Some(gid)).await);
     }
     if q.with_counts == Some(true)
         && let Some(s) = settings
@@ -193,7 +193,13 @@ pub async fn modify_guild(
 ) -> ApiResult<Json<GuildObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_GUILD,
+    )
+    .await?;
     let system_channel_id = match body.system_channel_id {
         None => None,
         Some(None) => Some(None),
@@ -316,7 +322,7 @@ pub async fn delete_guild(
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_owner(&*api, user, gid).await?;
     api.delete_guild(user, gid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
 }

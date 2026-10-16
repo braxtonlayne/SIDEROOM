@@ -938,7 +938,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         storage: storage.clone(),
         clock: clock.clone(),
     });
-    let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
+    // D-238: the upload limit follows the donations runtime (Patron perk, server level).
+    let messages = messages.with_upload_entitlements(Arc::new(
+        crate::upload_limits::PaymentsUploadLimits::new(
+            payments.entitlements.clone(),
+            sr_storage::upload::SizePolicy::default().standard_limit,
+        ),
+    ));
+    let messages = Arc::new(
+        messages
+            .with_dm_announcer(social_api.clone())
+            .with_viewer_safety(social_api.clone()),
+    );
 
     // Web Push (LNG-NTF-003): the VAPID key lives in the database sealed with the server
     // secret; without a configured secret it is per-boot (nothing could open it later).
@@ -1104,10 +1115,36 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         Ok("0" | "false" | "off")
     );
     let integrations = integration_status(&cfg, voice_setup.is_some());
+    // H-39: the live HTTP rate limits start from the stored settings and follow later edits.
+    let (rate_tx, rate_rx) = {
+        use sr_admin::settings as k;
+        let d = sr_api::rate_limit::RateConfig::default();
+        let get = |key: &str, default: u32| {
+            let svc = admin_service.clone();
+            let key = key.to_owned();
+            async move {
+                svc.setting_value_i64(&key)
+                    .await
+                    .ok()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .unwrap_or(default)
+            }
+        };
+        let start = sr_api::rate_limit::RateConfig {
+            ip: get(k::RATE_IP, d.ip).await,
+            session: get(k::RATE_SESSION, d.session).await,
+            bot: get(k::RATE_BOT, d.bot).await,
+            messages: get(k::RATE_MESSAGES, d.messages).await,
+            uploads: get(k::RATE_UPLOADS, d.uploads).await,
+        };
+        tokio::sync::watch::channel(start)
+    };
     let mut admin = routes::admin::AdminDeps::new(admin_service)
+        .with_rate_config(rate_tx)
         .with_features(features.clone())
         .with_integrations(integrations)
         .with_reauth(require_reauth)
+        .with_storage(storage.clone())
         .with_gateway_sessions({
             let gw = gateway.clone();
             Arc::new(move || gw.session_count())
@@ -1117,10 +1154,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         admin = admin.with_voice_stats(Arc::new(move || (live.rooms(), live.egress_bytes())));
     }
 
-    let settings = ApiSettings {
+    let mut settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,
         ..ApiSettings::for_public_url(&cfg.server.public_url)
     };
+    settings.rate_limit.live = Some(rate_rx);
     let readiness_timeout = settings.readiness_timeout;
     let state = AppState::builder()
         .settings(settings)

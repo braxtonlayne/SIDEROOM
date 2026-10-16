@@ -37,7 +37,7 @@ Discord's user-token automation ("self-bots") is not supported, and user session
 - Permission bits: **exactly Discord's bit positions** (`VIEW_CHANNEL = 1<<10`, `SEND_MESSAGES = 1<<11`, …). SIDE ROOM-only permissions use high bits starting at `1<<56` (see doc 07).
 - Attachments: when an upload slot is requested with `spoiler: true` the server prefixes the stored filename with `SPOILER_` (once; an already-prefixed name is not doubled), exactly like Discord, so `AttachmentObject.filename` carries the marker and there is no extra field (D-177). Embeds: `proxy_url` on `image`, `thumbnail`, `video`, `author.icon_url` and `footer.icon_url` is the only URL clients load. It points at `/cdn/external/{hmac}/{url_b64}`, the SSRF-safe, size- and time-limited, re-encoded image proxy; until that proxy exists `proxy_url` is absent and clients render text and offer a per-embed "Load image" action instead of fetching the original `url` (D-176).
 - **Snowflake epoch.** `SIDEROOM_EPOCH_MS` (1767225600000, 2026-01-01T00:00:00Z) is the one snowflake epoch. It is exported once from the Rust snowflake crate (through WASM or a generated constant); no TypeScript file holds its own copy, and nothing uses Discord's 2015 epoch (P13-MFA-5).
-- **Guild and DM upload limit (D-233).** `GET /guilds/{id}` and the DM and group channel objects of `GET /users/@me/channels` carry `sr_max_upload_bytes`: the effective per-file limit for the caller. As built it is the member's perk (the same function as the 413 check); the server's entitlement level has no source yet, and `GUILD_CREATE`/`GUILD_UPDATE` do not carry the field (broadcast payloads are not per viewer). The composer drops a larger file with a toast naming it, the upload tray warns with the Patron hint, and the 413 path stays for races.
+- **Guild and DM upload limit (D-233).** `GET /guilds/{id}` and the DM and group channel objects of `GET /users/@me/channels` carry `sr_max_upload_bytes`: the effective per-file limit for the caller. It is `Entitlements::limits(user, guild).upload_bytes` clamped by the size policy (D-238, the same function as the 413 check): `max(free, server level perk, Patron perk)` in a server, the Patron perk alone in DMs and groups. The number is REST-only: `GUILD_CREATE`, `GUILD_UPDATE` and READY `private_channels` do not carry it (broadcast payloads are not per viewer), and the client reads it again after `SR_ENTITLEMENT_UPDATE` of either shape. The composer drops a larger file with a toast naming it, the upload tray warns with the Patron hint, and the 413 path stays for races.
 - **Privacy fields (D-230).** `/users/@me/privacy` carries `sensitive_media {friends, others, servers}` (`show`, `blur`, `block`; defaults show, blur, show), `dm_spam_filter` (`off`, `non_friends` default, `all`) and `server_dm_overrides` (`{<guild_id>: bool}`, `null` removes one); `GET|DELETE /users/@me/age-confirmation` shows (`{confirmed_at, method}`) and resets (`current_password`) the age confirmation. The spam filter and the overrides are enforced when a DM is opened. Not built yet: applying `sensitive_media` per viewer (a blocked attachment arriving without a URL and with `sr_filtered: true`).
 - **Reaction shim (D-231).** Reaction objects carry Discord's burst fields as constants: `me_burst: false`, `count_details {normal, burst: 0}`, `burst_colors: []`; `?type=1` is accepted and treated as a normal reaction. Burst reactions are not built.
 - **Event creator (D-228).** The creator of a scheduled event (user session) is marked Interested on creation (`user_rsvp: true`, counted in `user_count`, `GUILD_SCHEDULED_EVENT_USER_ADD` after the create); bot-created events mark nobody.
@@ -230,8 +230,12 @@ any subset: `sensitive_media` is a partial object, `server_dm_overrides` maps a 
 when a DM is opened: `non_friends` sends a stranger's first DM to Message Requests whatever the `message_requests` toggle says,
 `all` also sends a friend's first DM there, `off` leaves it to the toggle; with `allow_server_member_dms` as the default, the
 recipient is reachable if at least one shared server allows DMs (its override, else the default). Server settings may only tighten
-the filter (D-224; not wired yet). The `sensitive_media` values are stored and returned, but the per-viewer attachment handling
-(`blur` as a spoiler flag, `block` as a URL-less attachment with `sr_filtered: true`) is not applied by the message pipeline yet.
+the filter (D-224; not wired yet). The `sensitive_media` values act per viewer (H-33) on image and video attachments, through the one function
+`sr_chat::sensitive::apply`: the signals are a DM from someone who is not a friend (`others`) and an age-restricted channel (`servers`);
+`friends` has no signal until a scanner hook exists. `blur` sets the spoiler flag (the `SPOILER_` file name), `block` delivers the
+attachment with an empty `url` and `sr_filtered: true`; nothing is deleted and the author and bots are never filtered. REST applies it
+in the message decorators (list, get, search, pins); the gateway applies it per session to `MESSAGE_CREATE` and `MESSAGE_UPDATE` with
+the session's cached settings and friend set (dropped on `SR_USER_UPDATE` and `RELATIONSHIP_*`).
 `SR_PRIVACY_UPDATE` carries the same object.
 
 **Age confirmation (LNG-USET-015).** `GET /users/@me/age-confirmation` (session) answers
@@ -253,8 +257,8 @@ image variant for any session (one hour, like the guild route), so custom emoji 
 
 **Upload limit (D-233).** `GET /guilds/{id}` carries `sr_max_upload_bytes` and each DM or group channel of
 `GET /users/@me/channels` carries the same field: the largest file the caller may upload there (the entitlement clamped by the size
-policy, the number the 413 check uses). Not yet on `GUILD_CREATE`/`GUILD_UPDATE` (those payloads are not per viewer) and the
-server entitlement level has no source yet, so the value is the member's perk.
+policy, the number the 413 check uses). It is `Entitlements::limits(user, guild).upload_bytes` (D-238): `max(free, server level perk, Patron perk)` in a server, the Patron perk alone in DMs and groups. Not on
+`GUILD_CREATE`/`GUILD_UPDATE`/READY `private_channels` (those payloads are not per viewer); the client refetches after `SR_ENTITLEMENT_UPDATE`.
 
 **Notification keywords.** `GET/PUT /users/@me/notification-keywords` with `{keywords: string[]}`. At most 50 entries of 100
 characters, each with a letter or digit; entries are trimmed, inner whitespace collapsed, blanks and duplicates (any case) dropped,
@@ -282,6 +286,30 @@ its Person's only one), `GET /admin/persons/{id}/suspicion-log` (`MANAGE_INVITES
 `GET /admin/system` lists `integrations` (`smtp`, `discord_oauth`, `voice`, `turn`, `gif`: `{id, configured, detail}`, never a secret) and
 `POST /admin/system/email-test` (`OPERATOR`, fresh second factor) mails a test message to the caller and answers `{sent_to}` with the
 local part masked.
+
+**Join source and member signals (D-240, H-37).** `guild_members.join_source`, `join_invite_code` and `join_ref` are set by every join
+path (invite, vanity, Server Directory, application approval, server creation, staff appointment and transfer, app install). For a caller
+with `MANAGE_GUILD`, `GET /guilds/{id}/members`, `/members/search` and `/members/{user_id}` add `sr_join {source, invite_code?, inviter_id?}`
+(`source` is `unknown` for rows older than migration 0874; `inviter_id` only for invites) and `sr_signals`, an array of `new_account` (the
+snowflake is younger than the server's `warn_new_account_days`, 0 reads as the default 7) and `rejoined` (an earlier kick, prune or
+ban-then-unban of this person is in the server's audit log). Everyone else gets neither field. `?signals=true` on the list and the search keeps only
+members with a signal (`50013` without `MANAGE_GUILD`; the list reads up to 5 pages of 200 to fill the limit).
+
+**Forum post files (H-38).** Upload slots can be requested against a forum or media channel (`POST /channels/{forum}/attachments`, `ATTACH_FILES`).
+`POST /channels/{forum}/threads` takes them as `message.attachments: [{id | uploaded_filename, description?}]`: the caller's own unused slots of that forum
+(anything else is `50035`), verified before the thread exists and attached to the starter message afterwards.
+
+**Entrance hero image (D-239, H-41).** `PUT /admin/entrance/hero {image, reason?}` (data URI, PNG, JPEG or WebP sniffed from the bytes, at most 8 MiB in,
+longest side shrunk to 1600 px, at most 4 MiB stored at `entrance/hero`) and `DELETE /admin/entrance/hero` need `MANAGE_ENTRANCE` and a fresh second
+factor and are audited (`entrance.hero`). `GET /sr/entrance/hero` is public, answers the image with an `ETag` and `Cache-Control: public, max-age=3600`
+(304 on `If-None-Match`) and 404 when none is set. The copy key `hero-alt` (plain text, 200 characters) holds its alt text.
+
+**Directory preview (H-40).** `GET /admin/directory/queue/{guild_id}/preview` (`MANAGE_DIRECTORY`) answers the listing as the public card
+(`DirectoryGuildObject`) with `pending: true` while the request waits; the admin queue's Preview shows it with a banner and no Join.
+
+**Live HTTP rate limits (H-39).** The registry settings `limits.rate.ip`, `.session`, `.bot` (60 to 60 000 requests a minute per identity; default 3 000),
+`.messages` (12 to 600 sends a minute per channel and caller; default 60) and `.uploads` (6 to 6 000 slot requests; default 240) are read by the limiter on
+every request; `PATCH /admin/settings` updates them without a restart. Gateway and voice limits stay static.
 
 ## 6. Gateway
 

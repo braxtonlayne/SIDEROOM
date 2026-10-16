@@ -235,6 +235,11 @@ impl AdminService {
         }
     }
 
+    /// The stored value of an integer setting, or its default (startup wiring of live limits).
+    pub async fn setting_value_i64(&self, key: &str) -> AdminResult<i64> {
+        self.setting_i64(key).await
+    }
+
     pub(crate) async fn setting_i64(&self, key: &str) -> AdminResult<i64> {
         let stored = self.repo.settings().await?;
         let def =

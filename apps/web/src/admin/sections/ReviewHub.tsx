@@ -1,11 +1,12 @@
 // Review Queues hub (ADM-CNT-001): one tab per queue the staff member may work. Library submissions are the
 // full reviewer workspace; Cinema is the report queue; Apps is developer applications and versions.
-// Packages and Directory have no server routes yet, so their tabs say so.
+// Directory is the Server Directory queue; Packages has no server routes yet, so its tab says so.
 import { EmptyState, Tabs, type TabItem } from '@sideroom/ui';
 import { useLocation } from '@tanstack/react-router';
 import { useT } from '../../i18n';
 import { SectionHeader, useAdminViewer } from '../ui';
 import { AppsReview } from './AppsReview';
+import { DirectoryQueue } from './DirectoryQueue';
 import { CinemaReports } from './CinemaReports';
 import { LibraryReviewPanel } from './Review';
 
@@ -42,12 +43,7 @@ export function ReviewHubSection() {
     items.push({
       id: 'directory',
       label: t('admin.reviewHub.tabDirectory'),
-      content: (
-        <EmptyState
-          title={t('admin.reviewHub.directoryTitle')}
-          description={t('admin.reviewHub.notBuilt')}
-        />
-      ),
+      content: <DirectoryQueue />,
     });
   return (
     <>
