@@ -2,8 +2,6 @@ export default {
   'settings.integrations.tabWebhooks': 'Webhooks',
   'settings.integrations.tabTemplate': 'Server Template',
   'settings.integrations.tabApps': 'Bots and Apps',
-  'settings.integrations.appsNotAvailable':
-    'Bots, followed channels and the App Directory ship with the developer platform.',
   'settings.integrations.title': 'Integrations',
   'settings.integrations.description': 'Connect webhooks and share a template of this server.',
   'settings.integrations.createWebhook': 'Create webhook',

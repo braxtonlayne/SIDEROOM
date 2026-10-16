@@ -322,7 +322,7 @@ pub const STICKER_PX: u32 = 320;
 /// decode (animated WebP or APNG, a truncated file) is stored as uploaded: the byte
 /// limits already applied, and the CDN re-validates every variant it serves. Returns the
 /// bytes to store and their file extension.
-fn fit_image(data: Bytes, fallback_ext: &'static str, px: u32) -> (Bytes, &'static str) {
+pub(crate) fn fit_image(data: Bytes, fallback_ext: &'static str, px: u32) -> (Bytes, &'static str) {
     use sr_storage::img::{Fit, Limits, normalize};
     match normalize(&data, Fit::Bound { w: px, h: px }, &Limits::default()) {
         Ok(n) => (Bytes::from(n.bytes), n.format.ext()),

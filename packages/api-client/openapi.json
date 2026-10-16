@@ -15330,6 +15330,158 @@
         ]
       }
     },
+    "/app-directory": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Search the App Directory.",
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Name, description or tag text",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "description": "One tag",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "From 0",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "At most 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/app-directory/tags": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "The tags (categories) in use.",
+        "operationId": "tags",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DirectoryTag"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/app-directory/{application_id}": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "The page of one listed application.",
+        "operationId": "app_page",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryAppPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/applications": {
       "get": {
         "tags": [
@@ -15590,6 +15742,180 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/assets": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Rich Presence assets of my application.",
+        "operationId": "list_assets",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppAssetObject"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Upload a Rich Presence asset.",
+        "operationId": "create_asset",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppAssetBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppAssetObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/assets/{asset_id}": {
+      "delete": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Delete a Rich Presence asset.",
+        "operationId": "delete_asset",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
           },
           "404": {
             "description": "",
@@ -16129,6 +16455,261 @@
         "security": [
           {
             "authorization": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/emojis": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Emoji of my application.",
+        "operationId": "list_emojis",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppEmojiList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Upload an emoji for my application.",
+        "operationId": "create_emoji",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppEmojiBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppEmojiObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/emojis/{emoji_id}": {
+      "delete": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Delete an emoji of my application.",
+        "operationId": "delete_emoji",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "emoji_id",
+            "in": "path",
+            "description": "Emoji snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Rename an emoji of my application.",
+        "operationId": "rename_emoji",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "emoji_id",
+            "in": "path",
+            "description": "Emoji snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameAppEmojiBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppEmojiObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
           }
         ]
       }
@@ -51766,7 +52347,7 @@
           {
             "name": "thread_id",
             "in": "query",
-            "description": "Not supported yet",
+            "description": "A thread of the webhook's channel to post into",
             "required": false,
             "schema": {
               "type": "string"
@@ -52702,6 +53283,74 @@
           },
           "value": {
             "type": "string"
+          }
+        }
+      },
+      "AppAssetObject": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 large image, 2 small image."
+          },
+          "url": {
+            "type": "string",
+            "description": "Relative signed CDN URL for the portal; expires."
+          }
+        }
+      },
+      "AppEmojiList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEmojiObject"
+            }
+          }
+        }
+      },
+      "AppEmojiObject": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "animated",
+          "url",
+          "created_at"
+        ],
+        "properties": {
+          "animated": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Relative signed CDN URL for the portal; expires."
           }
         }
       },
@@ -57180,6 +57829,45 @@
           }
         }
       },
+      "CreateAppAssetBody": {
+        "type": "object",
+        "required": [
+          "name",
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "`data:image/png;base64,...` (PNG, JPEG or WebP; at most 2 MiB)."
+          },
+          "name": {
+            "type": "string",
+            "description": "1 to 32 of lowercase letters, digits, `_` and `-`."
+          },
+          "type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 large image (default), 2 small image."
+          }
+        }
+      },
+      "CreateAppEmojiBody": {
+        "type": "object",
+        "required": [
+          "name",
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "`data:image/png;base64,...` (PNG, JPEG, GIF or WebP; at most 256 KiB)."
+          },
+          "name": {
+            "type": "string",
+            "description": "2 to 32 letters, digits and underscores."
+          }
+        }
+      },
       "CreateApplicationBody": {
         "type": "object",
         "required": [
@@ -58486,6 +59174,117 @@
           }
         }
       },
+      "DirectoryApp": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "bot_id",
+          "tags",
+          "installs"
+        ],
+        "properties": {
+          "bot_id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Icon hash, served at `/cdn/avatars/{bot_id}/{hash}.png`."
+          },
+          "id": {
+            "type": "string"
+          },
+          "installs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Servers the application is in."
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DirectoryAppPage": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DirectoryApp"
+          },
+          {
+            "type": "object",
+            "required": [
+              "install_scopes",
+              "install_permissions",
+              "commands"
+            ],
+            "properties": {
+              "commands": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DirectoryCommand"
+                },
+                "description": "Global commands, at most 100."
+              },
+              "install_permissions": {
+                "type": "string",
+                "description": "Decimal permission bits \"Add App\" asks for."
+              },
+              "install_scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Scopes \"Add App\" asks for."
+              },
+              "privacy_policy_url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "terms_of_service_url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "DirectoryCommand": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "type"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 slash command, 2 user menu, 3 message menu."
+          }
+        }
+      },
       "DirectoryGuildObject": {
         "type": "object",
         "description": "A server card in the directory.",
@@ -58563,6 +59362,41 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "DirectoryPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "has_more"
+        ],
+        "properties": {
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether another page follows."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectoryApp"
+            }
+          }
+        }
+      },
+      "DirectoryTag": {
+        "type": "object",
+        "required": [
+          "tag",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tag": {
+            "type": "string"
           }
         }
       },
@@ -59429,7 +60263,7 @@
               "string",
               "null"
             ],
-            "description": "Accepted; see the module docs (TODO(webhook-author))."
+            "description": "Shown instead of the webhook name for this message (1 to 80 characters)."
           }
         }
       },
@@ -63686,6 +64520,13 @@
           "type": {
             "type": "integer",
             "format": "int32"
+          },
+          "webhook_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set when the message was posted through a webhook (DEV-BOT-006); `author` is then the\nwebhook, not the person who created it."
           }
         }
       },
@@ -68066,6 +68907,17 @@
               "null"
             ],
             "description": "ISO 8601 time, 5 seconds to a year from now. Give this or `in_seconds`."
+          }
+        }
+      },
+      "RenameAppEmojiBody": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -73712,6 +74564,13 @@
           "id"
         ],
         "properties": {
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Webhook authors only (DEV-BOT-006): the per-message avatar, an image-proxy path."
+          },
           "bot": {
             "type": "boolean",
             "description": "Present (true) for bot accounts only."

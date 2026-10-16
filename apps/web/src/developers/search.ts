@@ -1,6 +1,15 @@
 // Route search parsing, kept apart from the page modules so the router can import it without pulling them in.
 
-export const APP_TABS = ['general', 'oauth2', 'bot', 'installation', 'commands', 'review'] as const;
+export const APP_TABS = [
+  'general',
+  'oauth2',
+  'bot',
+  'installation',
+  'commands',
+  'emojis',
+  'richpresence',
+  'review',
+] as const;
 export type AppTab = (typeof APP_TABS)[number];
 
 export const parseTab = (v: unknown): AppTab =>

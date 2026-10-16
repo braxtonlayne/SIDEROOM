@@ -265,6 +265,8 @@ pub struct Referenced {
     pub channels: Vec<i64>,
     /// `MENTIONABLE` ids (user or role; resolved by lookup).
     pub mentionables: Vec<i64>,
+    /// `ATTACHMENT` option ids: upload slots the invoker staged in the channel (DEV-BOT-008).
+    pub attachments: Vec<i64>,
 }
 
 /// What a client submitted, checked against the registered schema.
@@ -500,7 +502,10 @@ fn value_problem(
             refs.mentionables.push(id);
             None
         }),
-        ATTACHMENT => snowflake(v).map_or(Some("Must be an attachment id."), |_| None),
+        ATTACHMENT => snowflake(v).map_or(Some("Must be an attachment id."), |id| {
+            refs.attachments.push(id);
+            None
+        }),
         _ => Some("Not a value option."),
     }
 }

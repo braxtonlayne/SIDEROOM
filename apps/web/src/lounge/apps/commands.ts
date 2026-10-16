@@ -214,7 +214,7 @@ export function optionError(opt: CommandOption, raw: string | undefined): Option
   }
 }
 
-/** Option names with a problem for the current values (attachments are not supported yet). */
+/** Option names with a problem for the current values (an attachment option holds the file name until the upload id replaces it). */
 export function formErrors(
   command: AppCommand,
   path: SubPath,
@@ -222,10 +222,6 @@ export function formErrors(
 ): Record<string, OptionError> {
   const out: Record<string, OptionError> = {};
   for (const opt of leafOptions(command.options, path)) {
-    if (opt.type === OptionType.Attachment) {
-      if (opt.required) out[opt.name] = 'required';
-      continue;
-    }
     const e = optionError(opt, values[opt.name]);
     if (e) out[opt.name] = e;
   }
@@ -258,8 +254,6 @@ export function buildOptions(
       case OptionType.Boolean:
         value = raw === 'true';
         break;
-      case OptionType.Attachment:
-        continue;
       default:
         value = raw;
     }

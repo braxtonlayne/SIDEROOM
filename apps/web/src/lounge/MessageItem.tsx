@@ -235,6 +235,8 @@ function MessageItemImpl(props: MessageItemProps) {
     onJumpToChannelMessage,
     onOpenProfile,
   } = props;
+  // A webhook has no profile to open.
+  const openProfile = m.author.webhook ? undefined : onOpenProfile;
   const t = useT();
   const reportEntry = useReportEntry();
   const prefs = useSavedPrefs();
@@ -556,8 +558,8 @@ function MessageItemImpl(props: MessageItemProps) {
                 className="lng-avatar-btn"
                 aria-label={t('lounge.messageItem.openProfile', { name: m.author.displayName })}
                 aria-haspopup="dialog"
-                disabled={!onOpenProfile}
-                onClick={(e) => onOpenProfile?.(m.author.id, e.currentTarget)}
+                disabled={!openProfile}
+                onClick={(e) => openProfile?.(m.author.id, e.currentTarget)}
               >
                 <Avatar
                   name={m.author.displayName}
@@ -583,12 +585,12 @@ function MessageItemImpl(props: MessageItemProps) {
                       style={{ background: nameColor }}
                     />
                   )}
-                  {onOpenProfile ? (
+                  {openProfile ? (
                     <button
                       type="button"
                       className="lng-name-btn"
                       aria-haspopup="dialog"
-                      onClick={(e) => onOpenProfile(m.author.id, e.currentTarget)}
+                      onClick={(e) => openProfile(m.author.id, e.currentTarget)}
                     >
                       {m.author.displayName}
                     </button>

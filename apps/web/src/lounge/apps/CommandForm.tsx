@@ -22,6 +22,7 @@ import {
   type AutocompleteChoice,
   type Outcome,
 } from './interactions';
+import { uploadFiles, type PendingFile } from '../msg/upload';
 import { useReportOutcome } from './useReportOutcome';
 import './apps.css';
 
@@ -68,6 +69,8 @@ export function CommandForm({
   const [values, setValues] = useState<Record<string, string>>(prefill?.values ?? {});
   const [busy, setBusy] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [files, setFiles] = useState<Record<string, File>>({});
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const errors = formErrors(command, path, values);
   const complete = pathComplete(command.options, path);
   const opts = complete ? leafOptions(command.options, path) : [];
@@ -77,25 +80,59 @@ export function CommandForm({
     setTouched(true);
     if (blocked || busy) return;
     setBusy(true);
-    void sendInteraction({
-      type: 2,
-      application_id: command.application_id,
-      channel_id: channelId,
-      guild_id: guildId,
-      nonce: newNonce(),
-      data: { id: command.id, options: buildOptions(command, path, values) },
-    }).then((o) => {
+    setUploadError(null);
+    void (async () => {
+      // File options: upload each chosen file to this channel, then name the upload slot (DEV-BOT-008).
+      const sent = { ...values };
+      const chosen = opts.filter((o) => o.type === OptionType.Attachment && files[o.name]);
+      if (chosen.length > 0) {
+        const pending: PendingFile[] = chosen.map((o) => {
+          const file = files[o.name]!;
+          return {
+            id: o.name,
+            file,
+            name: file.name,
+            spoiler: false,
+            description: '',
+            progress: 0,
+            status: 'queued',
+          };
+        });
+        try {
+          const done = await uploadFiles(channelId, pending, {
+            onUpdate: () => undefined,
+            signal: new AbortController().signal,
+          });
+          chosen.forEach((o, i) => {
+            // `uploadedFilename` is `{upload id}/{filename}`; the server wants the upload id.
+            sent[o.name] = (done[i]?.uploadedFilename ?? '').split('/')[0] ?? '';
+          });
+        } catch (e) {
+          setBusy(false);
+          setUploadError(e instanceof Error ? e.message : '');
+          return;
+        }
+      }
+      const o = await sendInteraction({
+        type: 2,
+        application_id: command.application_id,
+        channel_id: channelId,
+        guild_id: guildId,
+        nonce: newNonce(),
+        data: { id: command.id, options: buildOptions(command, path, sent) },
+      });
       setBusy(false);
       report(o);
       onDone?.(o);
       // A modal opens from the app's answer; the form is done either way.
       if (o.ok || o.reason !== 'rejected') onClose();
-    });
+    })();
   };
 
   const choose = (level: number, name: string) => {
     setPath((p) => (name ? [...p.slice(0, level), name] : p.slice(0, level)));
     setValues({});
+    setFiles({});
   };
 
   // One select per sub-command level that still needs a choice.
@@ -170,8 +207,22 @@ export function CommandForm({
               )
             }
             onChange={(v) => setValues((cur) => ({ ...cur, [opt.name]: v }))}
+            onFile={(f) => {
+              setFiles((cur) => {
+                const next = { ...cur };
+                if (f) next[opt.name] = f;
+                else delete next[opt.name];
+                return next;
+              });
+              setValues((cur) => ({ ...cur, [opt.name]: f ? f.name : '' }));
+            }}
           />
         ))}
+        {uploadError !== null && (
+          <p role="alert" className="lng-appform-error">
+            {uploadError || t('lounge.apps.form.uploadFailed')}
+          </p>
+        )}
         {touched && !complete && (
           <p role="alert" className="lng-appform-error">
             {t('lounge.apps.form.pickSubcommand')}
@@ -211,9 +262,11 @@ interface FieldProps {
   guildId: Snowflake;
   autocomplete: (text: string) => Promise<AutocompleteChoice[]>;
   onChange: (v: string) => void;
+  /** The file of an attachment option (null when cleared). */
+  onFile: (f: File | null) => void;
 }
 
-function OptionField({ opt, value, error, guildId, autocomplete, onChange }: FieldProps) {
+function OptionField({ opt, value, error, guildId, autocomplete, onChange, onFile }: FieldProps) {
   const t = useT();
   const members = useMembers(guildId);
   const roles = useRoles(guildId);
@@ -259,9 +312,26 @@ function OptionField({ opt, value, error, guildId, autocomplete, onChange }: Fie
 
   if (opt.type === OptionType.Attachment) {
     return (
-      <p className="lng-appform-note" role="note">
-        {t('lounge.apps.form.attachmentUnsupported', { name: opt.name })}
-      </p>
+      <label className="lng-appform-field">
+        <span className="lng-appform-label">{label}</span>
+        <input
+          type="file"
+          className="lng-appform-file"
+          aria-invalid={errText ? true : undefined}
+          onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+        />
+        {value && (
+          <span className="lng-appform-hint">
+            {t('lounge.apps.form.fileChosen', { name: value })}
+          </span>
+        )}
+        <span className="lng-appform-hint">{hint}</span>
+        {errText && (
+          <span role="alert" className="lng-appform-error">
+            {errText}
+          </span>
+        )}
+      </label>
     );
   }
   if (opt.type === OptionType.Boolean) {

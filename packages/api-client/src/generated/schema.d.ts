@@ -2985,6 +2985,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app-directory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search the App Directory. */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app-directory/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The tags (categories) in use. */
+        get: operations["tags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app-directory/{application_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The page of one listed application. */
+        get: operations["app_page"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications": {
         parameters: {
             query?: never;
@@ -3037,6 +3088,41 @@ export interface paths {
         head?: never;
         /** Change my application's settings. */
         patch: operations["patch_app"];
+        trace?: never;
+    };
+    "/applications/{application_id}/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rich Presence assets of my application. */
+        get: operations["list_assets"];
+        put?: never;
+        /** Upload a Rich Presence asset. */
+        post: operations["create_asset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a Rich Presence asset. */
+        delete: operations["delete_asset"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/applications/{application_id}/audit-log": {
@@ -3126,6 +3212,42 @@ export interface paths {
         head?: never;
         /** Modify a global command. */
         patch: operations["patch_global"];
+        trace?: never;
+    };
+    "/applications/{application_id}/emojis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Emoji of my application. */
+        get: operations["list_emojis"];
+        put?: never;
+        /** Upload an emoji for my application. */
+        post: operations["create_emoji"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/emojis/{emoji_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete an emoji of my application. */
+        delete: operations["delete_emoji"];
+        options?: never;
+        head?: never;
+        /** Rename an emoji of my application. */
+        patch: operations["rename_emoji"];
         trace?: never;
     };
     "/applications/{application_id}/endpoint/verify": {
@@ -10490,6 +10612,28 @@ export interface components {
             question_id: string;
             value: string;
         };
+        AppAssetObject: {
+            id: string;
+            name: string;
+            /**
+             * Format: int32
+             * @description 1 large image, 2 small image.
+             */
+            type: number;
+            /** @description Relative signed CDN URL for the portal; expires. */
+            url: string;
+        };
+        AppEmojiList: {
+            items: components["schemas"]["AppEmojiObject"][];
+        };
+        AppEmojiObject: {
+            animated: boolean;
+            created_at: string;
+            id: string;
+            name: string;
+            /** @description Relative signed CDN URL for the portal; expires. */
+            url: string;
+        };
         /** @description A version in the staff queue. */
         AppVersionAdmin: components["schemas"]["AppVersionObject"] & {
             application: components["schemas"]["VersionApplication"];
@@ -11851,6 +11995,23 @@ export interface components {
             /** @description `data:image/jpeg;base64,...` or `data:image/png;base64,...`: one image of at most 2 MiB. */
             image: string;
         };
+        CreateAppAssetBody: {
+            /** @description `data:image/png;base64,...` (PNG, JPEG or WebP; at most 2 MiB). */
+            image: string;
+            /** @description 1 to 32 of lowercase letters, digits, `_` and `-`. */
+            name: string;
+            /**
+             * Format: int32
+             * @description 1 large image (default), 2 small image.
+             */
+            type?: number;
+        };
+        CreateAppEmojiBody: {
+            /** @description `data:image/png;base64,...` (PNG, JPEG, GIF or WebP; at most 256 KiB). */
+            image: string;
+            /** @description 2 to 32 letters, digits and underscores. */
+            name: string;
+        };
         CreateApplicationBody: {
             description?: string | null;
             name: string;
@@ -12260,6 +12421,39 @@ export interface components {
             is_developer: boolean;
             request?: null | components["schemas"]["DeveloperRequestObject"];
         };
+        DirectoryApp: {
+            bot_id: string;
+            description: string;
+            /** @description Icon hash, served at `/cdn/avatars/{bot_id}/{hash}.png`. */
+            icon?: string | null;
+            id: string;
+            /**
+             * Format: int64
+             * @description Servers the application is in.
+             */
+            installs: number;
+            name: string;
+            tags: string[];
+        };
+        DirectoryAppPage: components["schemas"]["DirectoryApp"] & {
+            /** @description Global commands, at most 100. */
+            commands: components["schemas"]["DirectoryCommand"][];
+            /** @description Decimal permission bits "Add App" asks for. */
+            install_permissions: string;
+            /** @description Scopes "Add App" asks for. */
+            install_scopes: string[];
+            privacy_policy_url?: string | null;
+            terms_of_service_url?: string | null;
+        };
+        DirectoryCommand: {
+            description: string;
+            name: string;
+            /**
+             * Format: int32
+             * @description 1 slash command, 2 user menu, 3 message menu.
+             */
+            type: number;
+        };
         /** @description A server card in the directory. */
         DirectoryGuildObject: {
             /** Format: int64 */
@@ -12283,6 +12477,16 @@ export interface components {
             preferred_locale: string;
             splash?: string | null;
             vanity_url_code?: string | null;
+        };
+        DirectoryPage: {
+            /** @description Whether another page follows. */
+            has_more: boolean;
+            items: components["schemas"]["DirectoryApp"][];
+        };
+        DirectoryTag: {
+            /** Format: int64 */
+            count: number;
+            tag: string;
         };
         Discover: {
             /** @description Tonight's feature carousel (display `hero`). */
@@ -12545,7 +12749,7 @@ export interface components {
             /** Format: int32 */
             flags?: number | null;
             tts?: boolean | null;
-            /** @description Accepted; see the module docs (TODO(webhook-author)). */
+            /** @description Shown instead of the webhook name for this message (1 to 80 characters). */
             username?: string | null;
         };
         /** @description An export request. */
@@ -13828,6 +14032,11 @@ export interface components {
             tts: boolean;
             /** Format: int32 */
             type: number;
+            /**
+             * @description Set when the message was posted through a webhook (DEV-BOT-006); `author` is then the
+             *     webhook, not the person who created it.
+             */
+            webhook_id?: string | null;
         };
         MessageReferenceIn: {
             /** @description Source channel of a forward (a reply stays in this channel). */
@@ -15208,6 +15417,9 @@ export interface components {
             note?: string | null;
             /** @description ISO 8601 time, 5 seconds to a year from now. Give this or `in_seconds`. */
             remind_at?: string | null;
+        };
+        RenameAppEmojiBody: {
+            name: string;
         };
         RenameBody: {
             /** @description New display name; `null` or empty clears it. Leave out to keep it. */
@@ -16889,6 +17101,8 @@ export interface components {
          *     lookup (open question 157); without a row only the id is known.
          */
         UserRef: {
+            /** @description Webhook authors only (DEV-BOT-006): the per-message avatar, an image-proxy path. */
+            avatar_url?: string | null;
             /** @description Present (true) for bot accounts only. */
             bot?: boolean;
             global_name?: string | null;
@@ -27564,6 +27778,91 @@ export interface operations {
             };
         };
     };
+    search: {
+        parameters: {
+            query?: {
+                /** @description Name, description or tag text */
+                query?: string;
+                /** @description One tag */
+                tag?: string;
+                /** @description From 0 */
+                page?: number;
+                /** @description At most 50 */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryTag"][];
+                };
+            };
+        };
+    };
+    app_page: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryAppPage"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_apps: {
         parameters: {
             query?: never;
@@ -27742,6 +28041,116 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_assets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppAssetObject"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_asset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAppAssetBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppAssetObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_asset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             404: {
                 headers: {
@@ -28049,6 +28458,168 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_emojis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppEmojiList"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_emoji: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAppEmojiBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppEmojiObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_emoji: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Emoji snowflake */
+                emoji_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rename_emoji: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Emoji snowflake */
+                emoji_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameAppEmojiBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppEmojiObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -50553,7 +51124,7 @@ export interface operations {
             query?: {
                 /** @description Return the created message */
                 wait?: boolean;
-                /** @description Not supported yet */
+                /** @description A thread of the webhook's channel to post into */
                 thread_id?: string;
             };
             header?: never;

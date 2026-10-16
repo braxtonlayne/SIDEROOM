@@ -1279,3 +1279,165 @@ async fn a_declined_invitation_blocks_a_new_one_for_a_day() {
         .await
         .unwrap();
 }
+
+// ---------------------------------------------------- DEV-PORT-003: emoji and assets
+fn new_emoji(
+    id: i64,
+    name: &str,
+    animated: bool,
+    size: i64,
+    key: &str,
+) -> sr_apps::service::NewAppEmoji {
+    sr_apps::service::NewAppEmoji {
+        id,
+        name: name.into(),
+        animated,
+        size_bytes: size,
+        media_key: key.into(),
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn application_emoji_and_assets_keep_names_unique_and_cascade() {
+    let f = fx().await;
+    let c = f.app().await;
+    let id = c.application.id;
+    let eid = f.svc.new_media_id();
+    let e = f
+        .svc
+        .add_app_emoji(
+            f.owner,
+            id,
+            new_emoji(
+                eid,
+                "Party",
+                false,
+                10,
+                &format!("emoji/app/{id}/{eid}.png"),
+            ),
+        )
+        .await
+        .unwrap();
+    assert_eq!(e.name, "Party");
+    // case-insensitive uniqueness, also on rename
+    assert!(matches!(
+        f.svc
+            .add_app_emoji(
+                f.owner,
+                id,
+                new_emoji(f.svc.new_media_id(), "party", false, 1, "k")
+            )
+            .await,
+        Err(AppsError::Conflict(_))
+    ));
+    let other = f.svc.new_media_id();
+    f.svc
+        .add_app_emoji(f.owner, id, new_emoji(other, "second", true, 1, "k2"))
+        .await
+        .unwrap();
+    assert!(matches!(
+        f.svc.rename_app_emoji(f.owner, id, other, "PARTY").await,
+        Err(AppsError::Conflict(_))
+    ));
+    assert_eq!(
+        f.svc
+            .rename_app_emoji(f.owner, id, other, "third")
+            .await
+            .unwrap()
+            .name,
+        "third"
+    );
+    assert_eq!(f.svc.list_app_emojis(f.owner, id).await.unwrap().len(), 2);
+    // a stranger sees nothing
+    assert!(f.svc.list_app_emojis(f.other, id).await.is_err());
+
+    let aid = f.svc.new_media_id();
+    f.svc
+        .add_app_asset(
+            f.owner,
+            id,
+            aid,
+            "logo",
+            1,
+            format!("emoji/app-assets/{id}/{aid}.png"),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        f.svc
+            .add_app_asset(f.owner, id, f.svc.new_media_id(), "logo", 2, "k".into())
+            .await,
+        Err(AppsError::Conflict(_))
+    ));
+    assert!(f.svc.delete_app_emoji(f.owner, id, other).await.is_ok());
+    assert!(f.svc.delete_app_emoji(f.owner, id, other).await.is_err());
+
+    // deleting the application removes both tables' rows
+    f.svc.delete_application(f.owner, id).await.unwrap();
+    let left: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM application_emojis WHERE application_id = $1) \
+              + (SELECT count(*) FROM application_assets WHERE application_id = $1)",
+    )
+    .bind(id)
+    .fetch_one(f.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(left, 0);
+}
+
+// ---------------------------------------------------------- DEV-BOT-012: App Directory
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_directory_lists_released_public_apps_and_escapes_search_text() {
+    let f = fx().await;
+    let a = f.app().await.application.id;
+    let b = f.app().await.application.id;
+    let draft = f.app().await.application.id;
+    sqlx::query(
+        "UPDATE applications SET release_state = 'released', bot_public = true, \
+         description = 'Plays 100% of songs', tags = ARRAY['Music','Fun'] WHERE id = $1",
+    )
+    .bind(a)
+    .execute(f.db.pool())
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE applications SET release_state = 'released', bot_public = false, \
+         tags = ARRAY['music'] WHERE id = $1",
+    )
+    .bind(b)
+    .execute(f.db.pool())
+    .await
+    .unwrap();
+    let ids = |rows: Vec<sr_apps::model::DirectoryEntry>| -> Vec<i64> {
+        rows.iter().map(|r| r.application.id).collect()
+    };
+    let all = ids(f.svc.directory(None, None, 0, 50).await.unwrap());
+    assert!(all.contains(&a) && !all.contains(&b) && !all.contains(&draft));
+    // text over description (the % is literal), tag exact and case-insensitive
+    assert_eq!(
+        ids(f.svc.directory(Some("100%"), None, 0, 50).await.unwrap()),
+        vec![a]
+    );
+    assert!(
+        f.svc
+            .directory(Some("100_"), None, 0, 50)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        ids(f.svc.directory(None, Some("MUSIC"), 0, 50).await.unwrap()),
+        vec![a]
+    );
+    assert_eq!(
+        ids(f.svc.directory(Some("fun"), None, 0, 50).await.unwrap()),
+        vec![a]
+    );
+    let tags = f.svc.directory_tags().await.unwrap();
+    assert!(tags.contains(&("music".to_owned(), 1)) && tags.contains(&("fun".to_owned(), 1)));
+    // the page carries one extra row when more follow
+    assert!(f.svc.directory(None, None, 0, 1).await.unwrap().len() <= 2);
+}

@@ -121,6 +121,7 @@ pub(super) struct Env {
     pub(super) bus: Arc<InProcessBus>,
     pub(super) tokens: HashMap<i64, String>,
     pub(super) dms: Arc<DmLog>,
+    pub(super) storage: Arc<ObjectStoreStorage>,
     pub(super) guild: GuildId,
     pub(super) ch: ChannelId,
     pub(super) auth: Option<Arc<crate::routes::auth::memory::MemoryAuthStore>>,
@@ -274,7 +275,7 @@ pub(super) async fn env_build(
     let messages = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
-        storage,
+        storage.clone(),
         bus.clone(),
         Arc::new(FixedEntitlements(30 * 1024 * 1024)),
         Arc::new(backend.clone()),
@@ -297,6 +298,10 @@ pub(super) async fn env_build(
         .settings(settings)
         .extension(Arc::new(dev))
         .extension(Arc::new(messages))
+        .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
+            storage.clone(),
+            sr_storage::cdn::CdnSigner::new(b"app-media-test-secret-0123456789".to_vec()),
+        )))
         .extension(Arc::new(AdminDeps::new(admin)));
     let mut auth_store = None;
     if with_auth {
@@ -335,6 +340,7 @@ pub(super) async fn env_build(
         auth_store = Some(store);
     }
     let state = builder.build();
+
     // Stands in for the settings module's `POST /webhooks/{id}/{token}`, which asks the
     // developer module first.
     let followups = Router::new().route(
@@ -356,6 +362,7 @@ pub(super) async fn env_build(
         bus,
         tokens,
         dms,
+        storage,
         guild,
         ch,
         auth: auth_store,

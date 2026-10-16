@@ -288,6 +288,12 @@ impl MessagesDeps {
         }
     }
 
+    /// The image-proxy path of a third-party image URL, or `None` without a signer or for a
+    /// URL that is not absolute http(s). The viewer never fetches the original directly.
+    pub fn proxy_external_image(&self, url: &str) -> Option<String> {
+        self.cdn.as_ref().and_then(|s| s.external_path(url))
+    }
+
     /// `path?ex=..&sig=..` valid for 24 hours from now, when a signer is installed.
     pub fn sign_attachment_url(&self, path: &str) -> String {
         match &self.cdn {

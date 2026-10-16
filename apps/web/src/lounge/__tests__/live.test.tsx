@@ -187,6 +187,29 @@ describe('toLoungeMessage', () => {
       author: { displayName: 'bob' },
     });
   });
+
+  it('shows a webhook as its name and avatar, without a profile (DEV-BOT-006)', () => {
+    const out = toLoungeMessage(
+      message('w1', {
+        webhook_id: '77',
+        author: {
+          id: '77',
+          username: 'Build Bot',
+          global_name: 'Build Bot',
+          bot: true,
+          avatar_url: '/cdn/external/t/u',
+        },
+      }),
+    );
+    expect(out.author).toMatchObject({
+      id: '77',
+      displayName: 'Build Bot',
+      bot: true,
+      webhook: true,
+      avatarUrl: '/cdn/external/t/u',
+    });
+    expect(toLoungeMessage(message('m1', {})).author.webhook).toBeUndefined();
+  });
 });
 
 describe('drafts', () => {

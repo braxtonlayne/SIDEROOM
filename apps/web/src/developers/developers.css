@@ -483,3 +483,26 @@
     flex: 1;
   }
 }
+
+.dev-media-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3, 0.75rem);
+  min-inline-size: 0;
+}
+.dev-emoji {
+  inline-size: 2rem;
+  block-size: 2rem;
+  object-fit: contain;
+}
+.dev-asset {
+  inline-size: 3rem;
+  block-size: 3rem;
+  object-fit: cover;
+  border-radius: var(--radius-sm, 4px);
+}
+.dev-file {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}

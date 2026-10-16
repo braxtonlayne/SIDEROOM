@@ -1703,3 +1703,90 @@ async fn channel_visible_responses_work_when_the_bot_may_send() {
         .await;
     assert_eq!(msgs.as_array().unwrap().len(), 1);
 }
+
+// ============================================================ attachment options (DEV-BOT-008)
+
+#[tokio::test]
+async fn an_attachment_option_resolves_to_the_invokers_own_staged_upload() {
+    use bytes::Bytes;
+    use sr_storage::ObjectStorage;
+    let f = fx().await;
+    let (s, v) =
+        f.e.post(
+            Who::Bot(&f.token),
+            &format!("/applications/{}/commands", f.app),
+            json!({"name": "scan", "description": "Scan a file", "options": [
+                {"type": 11, "name": "file", "description": "The file", "required": true}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let cmd = v["id"].as_str().unwrap().to_owned();
+
+    // Bob stages an upload in the channel (slot, PUT, no message yet).
+    let stage = |who: i64, name: &'static str| {
+        let f = &f;
+        async move {
+            let (s, v) =
+                f.e.post(
+                    Who::Session(who),
+                    &format!("/channels/{}/attachments", f.e.ch),
+                    json!({"files": [{"filename": name, "file_size": 5}]}),
+                )
+                .await;
+            assert_eq!(s, StatusCode::OK, "{v}");
+            let slot = v["attachments"][0].clone();
+            let key = format!(
+                "chat/{}/{}/{name}",
+                f.e.ch,
+                slot["upload_id"].as_str().unwrap()
+            );
+            f.e.storage
+                .put(&key, Bytes::from_static(b"hello"))
+                .await
+                .unwrap();
+            slot["upload_id"].as_str().unwrap().to_owned()
+        }
+    };
+    let bobs = stage(BOB, "notes.txt").await;
+    let owners = stage(OWNER, "other.txt").await;
+
+    let invoke = |who: i64, id: String| {
+        let f = &f;
+        let cmd = cmd.clone();
+        async move {
+            f.e.post(
+                Who::Session(who),
+                "/interactions",
+                json!({"type": 2, "application_id": f.app, "channel_id": f.e.ch.to_string(),
+                       "data": {"id": cmd, "options": [{"type": 11, "name": "file", "value": id}]}}),
+            )
+            .await
+        }
+    };
+
+    // Someone else's upload, or an id that is no upload, is refused.
+    for bad in [owners.clone(), "123456789".to_owned()] {
+        let (s, v) = invoke(BOB, bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{v}");
+    }
+
+    let mut bot_events = f.e.user_events(f.bot.parse().unwrap());
+    let (s, v) = invoke(BOB, bobs.clone()).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{v}");
+    let ev = next_named(&mut bot_events, "INTERACTION_CREATE").await;
+    assert_eq!(
+        ev["data"]["options"][0],
+        json!({"name": "file", "type": 11, "value": bobs})
+    );
+    let a = &ev["data"]["resolved"]["attachments"][bobs.as_str()];
+    assert_eq!(a["filename"], "notes.txt");
+    assert_eq!(a["size"], 5);
+    assert!(
+        a["content_type"].is_string(),
+        "sniffed at resolve time: {a}"
+    );
+    assert!(
+        a["url"].as_str().unwrap().starts_with("/cdn/attachments/"),
+        "{a}"
+    );
+}

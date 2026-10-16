@@ -1,0 +1,27 @@
+export default {
+  // Server settings: the App Directory (DEV-BOT-012)
+  'settings.appDirectory.intro':
+    'Find apps other people built and add them to this server. Only released apps are listed.',
+  'settings.appDirectory.search': 'Search apps',
+  'settings.appDirectory.categories': 'Categories',
+  'settings.appDirectory.all': 'All',
+  'settings.appDirectory.loading': 'apps',
+  'settings.appDirectory.emptyTitle': 'No apps found',
+  'settings.appDirectory.emptyDescription': 'Try another search or category.',
+  'settings.appDirectory.listLabel': 'Apps',
+  'settings.appDirectory.noDescription': 'No description.',
+  'settings.appDirectory.installs': '{n, plural, one {# server} other {# servers}}',
+  'settings.appDirectory.view': 'View',
+  'settings.appDirectory.viewLabel': 'View {name}',
+  'settings.appDirectory.previous': 'Previous',
+  'settings.appDirectory.next': 'Next',
+  'settings.appDirectory.appTitle': 'App',
+  'settings.appDirectory.close': 'Close',
+  'settings.appDirectory.addApp': 'Add App',
+  'settings.appDirectory.needsManageServer': 'You need the Manage Server permission to add apps.',
+  'settings.appDirectory.commands': 'Commands',
+  'settings.appDirectory.commandsLabel': 'Commands of this app',
+  'settings.appDirectory.noCommands': 'This app has no commands.',
+  'settings.appDirectory.privacy': 'Privacy policy',
+  'settings.appDirectory.terms': 'Terms of service',
+} satisfies Record<string, string>;

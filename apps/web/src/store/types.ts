@@ -7,6 +7,8 @@ export interface User {
   global_name?: string | null;
   avatar?: string | null;
   bot?: boolean;
+  /** Webhook authors only: the avatar of this message, an image-proxy path (DEV-BOT-006). */
+  avatar_url?: string | null;
   /** The server tag this person displays (LNG-SSET-012); the API sends it only while the server allows it. */
   primary_guild?: {
     identity_guild_id?: string | null;
@@ -106,6 +108,8 @@ export interface Message {
   content: string;
   timestamp: string;
   edited_timestamp?: string | null;
+  /** Set when the message was posted through a webhook; `author` is then the webhook (DEV-BOT-006). */
+  webhook_id?: string;
   pinned?: boolean;
   nonce?: string | number | null;
   mentions?: User[];

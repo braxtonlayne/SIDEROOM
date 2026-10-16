@@ -2,6 +2,8 @@
 // docs/11-extensibility-and-developer-platform.md; keep these short and link out to the generated OpenAPI
 // reference at /api/v1/openapi.json. `{origin}` is replaced with the site origin when rendered.
 
+import { SDK_PAGES } from './docsContent.sdks';
+
 export type Block =
   | { t: 'p'; text: string }
   | { t: 'h'; text: string }
@@ -214,7 +216,7 @@ export const DOC_PAGES: DocPage[] = [
     blocks: [
       {
         t: 'p',
-        text: 'Register commands over REST with your bot token; the Commands tab builds and checks the request. When someone uses one, your bot receives INTERACTION_CREATE on the gateway. There is no HTTP interactions endpoint yet.',
+        text: 'Register commands over REST with your bot token; the Commands tab builds and checks the request. When someone uses one, your bot receives INTERACTION_CREATE on the gateway. Or set an interactions endpoint URL in the General tab to receive signed HTTP requests instead.',
       },
       {
         t: 'ul',
@@ -235,5 +237,7 @@ export const DOC_PAGES: DocPage[] = [
     ],
   },
 ];
+
+DOC_PAGES.push(...SDK_PAGES);
 
 export const DOC_BY_ID = new Map(DOC_PAGES.map((p) => [p.id, p]));

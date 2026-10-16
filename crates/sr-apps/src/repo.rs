@@ -195,6 +195,59 @@ pub trait AppsRepository: Send + Sync {
     async fn declined_since(&self, app: i64, account: i64, since_ms: i64) -> AppsResult<bool>;
     /// Forget declines older than `before_ms`; returns how many.
     async fn purge_tester_declines(&self, before_ms: i64) -> AppsResult<u64>;
+
+    // ----- App Directory (DEV-BOT-012)
+    /// Released, non-suspended applications whose bot is public, most installed first, then by
+    /// id. `query` matches name, description and tags (case-insensitive substring), `tag`
+    /// matches one tag exactly (case-insensitive). `after` is the offset to continue from.
+    async fn directory(
+        &self,
+        query: Option<&str>,
+        tag: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> AppsResult<Vec<DirectoryEntry>>;
+    /// Tags of directory applications with the number of applications that use them, most
+    /// used first (at most 30).
+    async fn directory_tags(&self) -> AppsResult<Vec<(String, i64)>>;
+
+    // ----- application emoji and Rich Presence assets (DEV-PORT-003)
+    /// Emoji of an application, oldest first.
+    async fn app_emojis(&self, app: i64) -> AppsResult<Vec<AppEmoji>>;
+    /// One emoji of an application.
+    async fn app_emoji(&self, app: i64, id: i64) -> AppsResult<Option<AppEmoji>>;
+    /// Insert an emoji. `Conflict` when the name is taken or the application holds
+    /// [`MAX_APP_EMOJIS`].
+    async fn insert_app_emoji(&self, e: &AppEmoji, audit: AuditRow) -> AppsResult<AppEmoji>;
+    /// Rename; `Conflict` when the name is taken, `NotFound` for an unknown id.
+    async fn rename_app_emoji(
+        &self,
+        app: i64,
+        id: i64,
+        name: &str,
+        audit: AuditRow,
+    ) -> AppsResult<AppEmoji>;
+    /// Delete; returns the row so the image can be removed, `None` when unknown.
+    async fn delete_app_emoji(
+        &self,
+        app: i64,
+        id: i64,
+        audit: AuditRow,
+    ) -> AppsResult<Option<AppEmoji>>;
+    /// Assets of an application, oldest first.
+    async fn app_assets(&self, app: i64) -> AppsResult<Vec<AppAsset>>;
+    /// One asset.
+    async fn app_asset(&self, app: i64, id: i64) -> AppsResult<Option<AppAsset>>;
+    /// Insert an asset. `Conflict` when the name is taken or the application holds
+    /// [`MAX_APP_ASSETS`].
+    async fn insert_app_asset(&self, a: &AppAsset, audit: AuditRow) -> AppsResult<AppAsset>;
+    /// Delete; returns the row so the image can be removed.
+    async fn delete_app_asset(
+        &self,
+        app: i64,
+        id: i64,
+        audit: AuditRow,
+    ) -> AppsResult<Option<AppAsset>>;
     /// Replace the client secret.
     async fn rotate_secret(
         &self,

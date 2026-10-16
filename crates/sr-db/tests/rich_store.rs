@@ -395,3 +395,58 @@ async fn stickers_forwards_and_voice_metadata_round_trip() {
     let back = repo.get_message(general, reply.id).await.unwrap().unwrap();
     assert!(back.reference.unwrap().forward.is_none());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn webhook_author_overrides_round_trip() {
+    use sr_chat::rich_repo::WebhookAuthor;
+    let pool = pool().await;
+    let store = PgRichStore::new(pool);
+    let (a, b, none) = (
+        sr_core::MessageId::new(900_001),
+        sr_core::MessageId::new(900_002),
+        sr_core::MessageId::new(900_003),
+    );
+    let first = WebhookAuthor {
+        webhook_id: 77,
+        username: "Deploys".into(),
+        avatar_url: None,
+    };
+    store.set_webhook_author(a, &first).await.unwrap();
+    store
+        .set_webhook_author(
+            b,
+            &WebhookAuthor {
+                webhook_id: 77,
+                username: "Build Bot".into(),
+                avatar_url: Some("https://img.example/a.png".into()),
+            },
+        )
+        .await
+        .unwrap();
+    let got = store.webhook_authors(&[a, b, none]).await.unwrap();
+    assert_eq!(got.len(), 2, "messages without an override are omitted");
+    assert_eq!(got[&a], first);
+    assert_eq!(
+        got[&b].avatar_url.as_deref(),
+        Some("https://img.example/a.png")
+    );
+
+    // A second write for the same message replaces the first.
+    store
+        .set_webhook_author(
+            a,
+            &WebhookAuthor {
+                webhook_id: 77,
+                username: "Renamed".into(),
+                avatar_url: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        store.webhook_authors(&[a]).await.unwrap()[&a].username,
+        "Renamed"
+    );
+    assert!(store.webhook_authors(&[]).await.unwrap().is_empty());
+}

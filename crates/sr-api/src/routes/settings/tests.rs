@@ -208,7 +208,14 @@ async fn env_with(opts: Opts) -> Env {
         1,
         1,
     )
-    .unwrap();
+    .unwrap()
+    .with_rich(crate::routes::messages::rich::RichDeps {
+        store: Some(Arc::new(backend.clone())),
+        ..Default::default()
+    })
+    .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
+        b"webhook-avatar-test-secret-0123456".to_vec(),
+    ));
     let directory = Arc::new(sr_chat::settings::directory::MemoryDirectory::default());
     let mut builder = AppState::builder()
         .bots(bots)
@@ -3080,5 +3087,141 @@ async fn audit_log_can_be_filtered_by_target() {
     assert_eq!(
         e.get(&e.g("/audit-logs?target_id=abc"), "owner").await.0,
         StatusCode::BAD_REQUEST
+    );
+}
+
+// ---- webhook author (DEV-BOT-006) -------------------------------------------------
+
+#[tokio::test]
+async fn webhook_messages_show_the_webhook_or_the_per_call_override() {
+    let e = env().await;
+    let (_, wh) = e
+        .post(
+            &format!("/channels/{}/webhooks", e.ch),
+            "mod",
+            json!({"name": "Deploys"}),
+        )
+        .await;
+    let (id, token) = (wh["id"].as_str().unwrap(), wh["token"].as_str().unwrap());
+    let exec = format!("/webhooks/{id}/{token}?wait=true");
+
+    // No override: the webhook name, the webhook id as author id, marked as a bot.
+    let (s, m) = e
+        .call(Method::POST, &exec, None, Some(json!({"content": "plain"})))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["webhook_id"], id);
+    assert_eq!(m["author"]["id"], id);
+    assert_eq!(m["author"]["username"], "Deploys");
+    assert_eq!(m["author"]["bot"], true);
+    assert!(m["author"].get("avatar_url").is_none());
+
+    // Override name and avatar for one message; the avatar is served through the image proxy.
+    let (s, m) = e
+        .call(
+            Method::POST,
+            &exec,
+            None,
+            Some(json!({
+                "content": "custom",
+                "username": "  Build Bot ",
+                "avatar_url": "https://img.example/a.png"
+            })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["author"]["username"], "Build Bot");
+    assert_eq!(m["author"]["global_name"], "Build Bot");
+    let avatar = m["author"]["avatar_url"].as_str().unwrap();
+    assert!(avatar.starts_with("/cdn/external/"), "{avatar}");
+    assert!(
+        !avatar.contains("img.example"),
+        "never the raw URL: {avatar}"
+    );
+
+    // The history shows the same authors (also for a reader who is not the creator).
+    let (_, history) = e.get(&format!("/channels/{}/messages", e.ch), "bob").await;
+    let names: Vec<_> = history
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["author"]["username"].as_str().unwrap().to_owned())
+        .collect();
+    assert!(names.contains(&"Build Bot".to_owned()) && names.contains(&"Deploys".to_owned()));
+
+    // Bad overrides are refused before anything is posted.
+    for body in [
+        json!({"content": "x", "username": "n".repeat(81)}),
+        json!({"content": "x", "avatar_url": "http://img.example/a.png"}),
+        json!({"content": "x", "avatar_url": "javascript:alert(1)"}),
+    ] {
+        let (s, _) = e.call(Method::POST, &exec, None, Some(body)).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+    let (_, history) = e.get(&format!("/channels/{}/messages", e.ch), "bob").await;
+    assert_eq!(history.as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn a_webhook_posts_into_a_thread_of_its_channel() {
+    let e = env().await;
+    let (_, wh) = e
+        .post(
+            &format!("/channels/{}/webhooks", e.ch),
+            "mod",
+            json!({"name": "Deploys"}),
+        )
+        .await;
+    let (id, token) = (wh["id"].as_str().unwrap(), wh["token"].as_str().unwrap());
+    let thread = sr_core::ChannelId::new(7_700_001);
+    let other = sr_core::ChannelId::new(7_700_002);
+    {
+        let mut d = e.backend.data();
+        for (cid, parent) in [(thread, Some(e.ch)), (other, None)] {
+            let mut c =
+                sr_chat::Channel::new(cid, Some(e.guild), sr_chat::ChannelType::PublicThread);
+            c.name = Some("t".into());
+            c.parent_id = parent;
+            c.thread = Some(sr_chat::threads::model::ThreadInfo::new(T0, 1440));
+            d.channels.insert(cid, c);
+        }
+    }
+    let exec = |q: &str| format!("/webhooks/{id}/{token}?wait=true{q}");
+
+    // A thread of the webhook's channel: the message lands there, not in the channel.
+    let (s, m) = e
+        .call(
+            Method::POST,
+            &exec(&format!("&thread_id={thread}")),
+            None,
+            Some(json!({"content": "in thread", "username": "Build Bot"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["channel_id"], thread.to_string());
+    assert_eq!(m["author"]["username"], "Build Bot");
+    assert_eq!(m["webhook_id"], id);
+
+    // A thread of some other channel, a plain channel and junk are refused.
+    for bad in [
+        other.to_string(),
+        e.ch.to_string(),
+        "x".to_owned(),
+        "0".to_owned(),
+    ] {
+        let (s, v) = e
+            .call(
+                Method::POST,
+                &exec(&format!("&thread_id={bad}")),
+                None,
+                Some(json!({"content": "no"})),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{bad}: {v}");
+    }
+    let (_, history) = e.get(&format!("/channels/{}/messages", e.ch), "bob").await;
+    assert!(
+        history.as_array().unwrap().is_empty(),
+        "nothing leaked into the parent channel"
     );
 }
