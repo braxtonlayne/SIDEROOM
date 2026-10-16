@@ -216,7 +216,8 @@ async fn env_with(reauth: bool) -> Env {
         }])
         .with_features(features)
         .with_gateway_sessions(Arc::new(|| 7))
-        .with_reauth(reauth);
+        .with_reauth(reauth)
+        .with_storage(Arc::new(sr_storage::ObjectStoreStorage::in_memory()));
     // The account service behind the second-factor window: every test user exists there, and
     // the moderator has a confirmed authenticator.
     let auth = Arc::new(MemoryAuthStore::new(sessions.clone()));
@@ -2157,7 +2158,7 @@ async fn entrance_copy_is_public_to_read_and_staff_to_write() {
         let e = &e;
         async move { e.call(who, Method::PUT, &path, Some(body)).await }
     };
-    // Needs staff with MANAGE_FEATURES.
+    // Needs staff with MANAGE_ENTRANCE.
     assert_eq!(
         put(None, "house-notes", json!({"markdown": "x"})).await.0,
         StatusCode::UNAUTHORIZED
@@ -2168,6 +2169,45 @@ async fn entrance_copy_is_public_to_read_and_staff_to_write() {
             .0,
         StatusCode::FORBIDDEN
     );
+    // D-239: MANAGE_FEATURES alone no longer opens the Entrance copy (it needs MANAGE_ENTRANCE).
+    e.repo
+        .add_role(5, "Features", 2, P::STAFF_BASIC | P::MANAGE_FEATURES);
+    let op = Caller::operator(SYSTEM_USER_ID);
+    let svc = AdminService::new(e.repo.clone()).with_extras(e.repo.clone());
+    svc.set_staff_roles(&op, MODER, &[5], Some("test"))
+        .await
+        .unwrap();
+    assert_eq!(
+        put(Some(MODER), "house-notes", json!({"markdown": "x"}))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    e.repo
+        .add_role(6, "Entrance", 2, P::STAFF_BASIC | P::MANAGE_ENTRANCE);
+    svc.set_staff_roles(&op, MODER, &[6], Some("test"))
+        .await
+        .unwrap();
+    assert_eq!(
+        put(Some(MODER), "house-notes", json!({"markdown": "x"}))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        e.call(
+            Some(MODER),
+            Method::DELETE,
+            "/admin/entrance/copy/house-notes",
+            None
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    svc.set_staff_roles(&op, MODER, &[2], Some("test"))
+        .await
+        .unwrap();
     // Unknown keys and oversize text are refused.
     assert_eq!(
         put(Some(OWNER), "nope", json!({"markdown": "x"})).await.0,
@@ -2499,4 +2539,137 @@ async fn setup_checklist_lists_integrations_and_the_mail_test_reaches_the_caller
         !v.to_string().contains(&format!("u{OWNER}@")),
         "the address is masked"
     );
+}
+
+fn png_uri(w: u32, h: u32) -> String {
+    let img = image::RgbaImage::from_pixel(w, h, image::Rgba([10, 90, 160, 255]));
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(img)
+        .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(&out)
+    )
+}
+
+async fn raw_get(
+    e: &Env,
+    path: &str,
+    if_none_match: Option<&str>,
+) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let mut req = Request::builder()
+        .method(Method::GET)
+        .uri(format!("/api/v1{path}"));
+    if let Some(t) = if_none_match {
+        req = req.header("if-none-match", t);
+    }
+    let resp = e
+        .app
+        .clone()
+        .oneshot(req.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let (status, headers) = (resp.status(), resp.headers().clone());
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+#[tokio::test]
+async fn entrance_hero_image_is_sniffed_shrunk_served_with_an_etag_and_audited() {
+    let e = env().await;
+    let hero = "/admin/entrance/hero";
+    assert_eq!(
+        raw_get(&e, "/sr/entrance/hero", None).await.0,
+        StatusCode::NOT_FOUND
+    );
+
+    // Needs MANAGE_ENTRANCE: the moderator (accounts and bans) does not hold it.
+    let ok = png_uri(2000, 1200);
+    let (s, _) = e
+        .call(Some(MODER), Method::PUT, hero, Some(json!({ "image": ok })))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+
+    // A declared PNG that is not an image, a GIF, and an oversize upload are refused.
+    let fake = format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(b"<svg xmlns='http://www.w3.org/2000/svg'></svg>")
+    );
+    let gif = format!(
+        "data:image/gif;base64,{}",
+        data_encoding::BASE64.encode(b"GIF89a\x01\x00\x01\x00\x00\x00\x00;")
+    );
+    let big = format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(&vec![0u8; 8 * 1024 * 1024 + 1])
+    );
+    for bad in [fake, gif, big] {
+        let (s, b) = e
+            .call(
+                Some(OWNER),
+                Method::PUT,
+                hero,
+                Some(json!({ "image": bad })),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    }
+    assert_eq!(
+        raw_get(&e, "/sr/entrance/hero", None).await.0,
+        StatusCode::NOT_FOUND
+    );
+
+    // A valid image is shrunk to 1600 px on its longest side and served.
+    let (s, b) = e
+        .call(Some(OWNER), Method::PUT, hero, Some(json!({ "image": ok })))
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{b}");
+    let (s, h, body) = raw_get(&e, "/sr/entrance/hero", None).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(h["content-type"], "image/png");
+    assert_eq!(h["cache-control"], "public, max-age=3600");
+    let img = image::load_from_memory(&body).unwrap();
+    assert_eq!((img.width(), img.height()), (1600, 960));
+    let etag = h["etag"].to_str().unwrap().to_owned();
+    let (s, _, body) = raw_get(&e, "/sr/entrance/hero", Some(&etag)).await;
+    assert_eq!((s, body.len()), (StatusCode::NOT_MODIFIED, 0));
+
+    // Remove: 404 again. Both changes are in the access log.
+    assert_eq!(
+        e.call(Some(OWNER), Method::DELETE, hero, None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        raw_get(&e, "/sr/entrance/hero", None).await.0,
+        StatusCode::NOT_FOUND
+    );
+    let n = e
+        .repo
+        .log_rows()
+        .iter()
+        .filter(|r| r.action == "entrance.hero" && r.kind == sr_admin::AccessKind::AdminAction)
+        .count();
+    assert_eq!(n, 2);
+
+    // The alt text key: plain text, 200 characters.
+    let alt = "/admin/entrance/copy/hero-alt";
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::PUT,
+            alt,
+            Some(json!({ "markdown": "x".repeat(201) })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::PUT,
+            alt,
+            Some(json!({ "markdown": "A reading room at dusk" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
 }

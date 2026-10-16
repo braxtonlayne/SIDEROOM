@@ -437,7 +437,11 @@ pub trait StaffNotifier: Send + Sync {
 
 /// The Entrance copy blocks an operator may override (ENT-UI-025). The client serves its own
 /// default for any block that has no override.
-pub const ENTRANCE_COPY_KEYS: &[&str] = &["no-invitation", "house-notes", "landing-note"];
+pub const ENTRANCE_COPY_KEYS: &[&str] =
+    &["no-invitation", "house-notes", "landing-note", "hero-alt"];
+
+/// Longest `hero-alt` text (plain text, characters).
+pub const ENTRANCE_HERO_ALT_MAX: usize = 200;
 
 /// Longest copy block, in bytes (16 KiB).
 pub const ENTRANCE_COPY_MAX_CHARS: usize = 16_384;

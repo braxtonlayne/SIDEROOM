@@ -1110,6 +1110,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_features(features.clone())
         .with_integrations(integrations)
         .with_reauth(require_reauth)
+        .with_storage(storage.clone())
         .with_gateway_sessions({
             let gw = gateway.clone();
             Arc::new(move || gw.session_count())

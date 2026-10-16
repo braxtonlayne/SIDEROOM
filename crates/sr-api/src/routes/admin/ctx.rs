@@ -46,6 +46,8 @@ pub struct AdminDeps {
     /// Sensitive actions need a second factor checked within the last 15 minutes
     /// (ADM-STF-009). Off by default so tests and development need no authenticator.
     pub require_reauth: bool,
+    /// Object storage for the Entrance hero image (H-41).
+    pub storage: Option<Arc<dyn sr_storage::ObjectStorage>>,
 }
 
 impl AdminDeps {
@@ -57,9 +59,15 @@ impl AdminDeps {
             voice_stats: None,
             integrations: Vec::new(),
             require_reauth: false,
+            storage: None,
         }
     }
 
+    /// Object storage for the Entrance hero image routes.
+    pub fn with_storage(mut self, s: Arc<dyn sr_storage::ObjectStorage>) -> Self {
+        self.storage = Some(s);
+        self
+    }
     /// Feature toggles are exposed through this service.
     pub fn with_features(mut self, f: FeatureService) -> Self {
         self.features = Some(f);

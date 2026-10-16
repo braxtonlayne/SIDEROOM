@@ -1,5 +1,5 @@
 import { DisplayHeading, Eyebrow, GoldButton } from '@sideroom/ui';
-import { EntranceMarkdown, useEntranceCopy } from './entranceCopy';
+import { EntranceMarkdown, useEntranceCopy, useEntranceHero } from './entranceCopy';
 import { Link, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
@@ -44,7 +44,9 @@ const WORLDS: { n: string; Icon: typeof ChatIcon; title: MessageKey; copy: Messa
 ];
 
 export function Landing({ initialCode = '' }: { initialCode?: string }) {
-  const note = useEntranceCopy()['landing-note'];
+  const copy = useEntranceCopy();
+  const note = copy['landing-note'];
+  const hero = useEntranceHero();
   useRedirectIfLoggedIn();
   const t = useT();
   const router = useRouter();
@@ -172,7 +174,10 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
             )}
           </div>
           <div className="ent-hero-right">
-            <Door className="ent-door-bg" />
+            <Door
+              className="ent-door-bg"
+              {...(hero ? { image: { src: hero, alt: copy['hero-alt'] ?? '' } } : {})}
+            />
             <div className="ent-corner" aria-hidden="true">
               <span>{t('entrance.landing.est')}</span>
               <DoorIcon width={34} height={34} />

@@ -228,6 +228,13 @@ pub fn router() -> Router<AppState> {
             "/admin/entrance/copy/{key}",
             axum::routing::put(entrance::put_copy).delete(entrance::delete_copy),
         )
+        .route("/sr/entrance/hero", get(entrance::get_hero))
+        .route(
+            "/admin/entrance/hero",
+            axum::routing::put(entrance::put_hero)
+                .delete(entrance::delete_hero)
+                .layer(crate::routes::media::body_limit()),
+        )
         .route("/admin/alerts", get(announce::alerts))
         .route("/admin/alerts/{alert_id}/ack", post(announce::ack))
         .route("/admin/card-actions", post(announce::card_action))
@@ -266,6 +273,7 @@ pub fn router() -> Router<AppState> {
         announce::edit,
         announce::active,
         entrance::get_copy,
+        entrance::get_hero,
         system::email_test,
         people::sessions,
         people::account_guilds,
@@ -280,6 +288,8 @@ pub fn router() -> Router<AppState> {
         people::transfer_ownership,
         people::delete_guild,
         entrance::put_copy,
+        entrance::put_hero,
+        entrance::delete_hero,
         entrance::delete_copy,
         announce::alerts,
         announce::ack,
@@ -334,6 +344,7 @@ pub fn router() -> Router<AppState> {
         announce::AnnounceBody,
         announce::EditAnnouncementBody,
         entrance::EntranceCopyBody,
+        entrance::EntranceHeroBody,
         system::MailTestResult,
         ctx::IntegrationStatus,
         people::PersonNotesBody,

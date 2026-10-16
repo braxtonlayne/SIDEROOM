@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api';
 import { useT, type MessageKey } from '../../i18n';
 import { EntranceMarkdown, setEntranceCopy } from '../../routes/entrance/entranceCopy';
+import { HeroBlock } from './EntranceHero';
 import { ActionStatus, Async, ReasonDialog, SectionHeader, useAction, useResource } from '../ui';
 
 /** The server's limit (16 KiB of UTF-8). */
@@ -45,6 +46,13 @@ export function EntranceSection() {
       <Async res={res} label={t('admin.entrance.loading')}>
         {(copy) => (
           <div className="ss-form" style={{ maxWidth: 760 }}>
+            <HeroBlock
+              alt={copy['hero-alt']}
+              onAltSaved={(next) => {
+                setEntranceCopy({ ...copy, 'hero-alt': next });
+                void res.reload();
+              }}
+            />
             {BLOCKS.map((b) => (
               <CopyBlock
                 key={b.key}
