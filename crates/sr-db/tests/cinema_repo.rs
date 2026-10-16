@@ -2008,7 +2008,7 @@ async fn assets_are_authorized_through_their_catalog_owner() {
 async fn contributors_count_live_credits_for_the_title_and_its_episodes() {
     let w = world().await;
     let pool = w.db.pool().clone();
-    let (show, _s, eps) = w.series("Credited show", 3).await;
+    let (show, _s, eps) = w.series("Credited show", 4).await;
     w.publish(show.id).await;
     let other = w.film("Other film", |_| {}).await;
     let (a, b, c) = (
@@ -2036,7 +2036,7 @@ async fn contributors_count_live_credits_for_the_title_and_its_episodes() {
     credit(b, eps[1].id).await;
     credit(b, eps[2].id).await;
     credit(b, other.id).await; // another title: not counted here
-    credit(c, eps[0].id).await; // will be revoked
+    credit(c, eps[3].id).await; // will be revoked
 
     let repo = PgCinemaRepo::new(pool.clone());
     use sr_cinema::repo::CinemaRepository;
