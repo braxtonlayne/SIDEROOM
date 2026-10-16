@@ -40,7 +40,9 @@ pub mod thread_repo;
 mod tx;
 
 pub use error::{DbError, DbResult};
-pub use pool::{DbConfig, Health, connect, health_check, migrate};
+pub use pool::{
+    DbConfig, Health, MigrationStatus, connect, health_check, migrate, migration_status,
+};
 pub use tx::{BoxFuture, with_tx};
 
 pub use sqlx::{PgPool, Postgres, Transaction};

@@ -3,6 +3,7 @@
 
 mod commands;
 mod guilds;
+mod ops;
 
 use std::path::PathBuf;
 
@@ -56,6 +57,35 @@ pub enum Command {
     /// Theme packages: check one locally before submitting it (needs no server or database).
     #[command(subcommand)]
     Package(PackageCmd),
+    /// Dump the database to `<dir>/db/sideroom-<stamp>.dump` with a checksum manifest (needs pg_dump on PATH).
+    Backup {
+        /// Where dumps are written (the same layout deploy/scripts/backup.sh uses).
+        #[arg(long, default_value = "./backups")]
+        dir: PathBuf,
+    },
+    /// Load a dump made by `backup` into the configured database (needs pg_restore on PATH). The database
+    /// must be empty unless --force. Stop sr-server first.
+    Restore {
+        /// The `.dump` file; a `.dump.json` manifest next to it is verified.
+        file: PathBuf,
+        /// Drop existing objects first.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Queue a full rebuild of the message search index (a running sr-server does the work).
+    Reindex,
+    /// Check, back up and migrate: the safe way to move a database to this release.
+    Upgrade {
+        /// Show what would be applied and stop.
+        #[arg(long)]
+        dry_run: bool,
+        /// Do not take a pre-upgrade backup.
+        #[arg(long)]
+        no_backup: bool,
+        /// Where the pre-upgrade dump goes.
+        #[arg(long, default_value = "./backups")]
+        backup_dir: PathBuf,
+    },
     /// Insert development data. Refuses non-local instances without --force.
     Seed {
         /// Password for all seeded accounts.
