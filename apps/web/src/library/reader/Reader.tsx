@@ -410,7 +410,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         })
         .catch(() => undefined); // a restricted next chapter is asked about when it is opened
     }
-  }, [index, count, pages, stageWidth, strip, prefs.mode, nextId, qc]);
+  }, [index, count, pages, stageWidth, strip, prefs.mode, prefs.preloadCount, nextId, qc]);
 
   /* ------------------------------------------------- chapters + marks */
   const chapterList = useQuery({

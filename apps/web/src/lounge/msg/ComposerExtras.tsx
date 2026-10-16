@@ -32,9 +32,10 @@ export function StickerSuggestions({
 }) {
   const t = useT();
   const q = stickerQuery(text);
+  const wanted = q !== null;
   const [list, setList] = useState<GuildSticker[]>([]);
   useEffect(() => {
-    if (!guildId || !q) return;
+    if (!guildId || !wanted) return;
     let live = true;
     void loadGuildStickers(guildId)
       .then((l) => live && setList(l))
@@ -42,7 +43,7 @@ export function StickerSuggestions({
     return () => {
       live = false;
     };
-  }, [guildId, q !== null]);
+  }, [guildId, wanted]);
   if (!guildId || !q) return null;
   const lower = q.toLowerCase();
   const matches = pickableStickers(list, q)
