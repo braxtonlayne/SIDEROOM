@@ -59,6 +59,10 @@ then start a Postgres on that data directory (`pg_ctl -D <dir> start`, or point 
 
 With Docker Compose, run the same script from the host against the published or exec'd Postgres: `docker compose exec -T postgres pg_dump ...` also works, but the scripts expect a reachable `SR_DATABASE_URL`. The simplest route is to publish Postgres on `127.0.0.1` for the backup user only.
 
+## From the command line
+
+`sr-cli backup [--dir ./backups]` writes the same file and manifest as `backup.sh` (`db/sideroom-<stamp>.dump` + `.dump.json`), using `pg_dump` from `PATH` and the database in `SR_DATABASE__URL`; the password is passed in the environment, never as an argument. `sr-cli restore <dump> [--force]` verifies the manifest, refuses a non-empty database unless `--force`, and runs `pg_restore`. `sr-cli upgrade` takes this backup automatically before it migrates. Retention pruning stays with `backup.sh`.
+
 ## Retention
 
 `backup.sh` keeps the newest dump of each of the last 14 days, 8 ISO weeks and 12 months (`SR_BACKUP_KEEP=14,8,12`), and deletes the rest with their manifests. Run it more often than daily and only the newest of each day survives.

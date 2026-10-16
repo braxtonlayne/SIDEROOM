@@ -46,13 +46,9 @@ mv "$tmp" "$dest"
 log "wrote base-$stamp ($size bytes, first WAL segment $startwal)"
 
 # Retention: the newest $keep backups stay.
-count=0
-for b in $(ls -1d "$dir"/base/base-* 2>/dev/null | sort -r); do
-  count=$((count + 1))
-  if [ "$count" -gt "$keep" ]; then
-    log "pruning $(basename "$b")"
-    rm -rf -- "$b"
-  fi
+ls -1d "$dir"/base/base-* 2>/dev/null | sort -r | awk -v keep="$keep" 'NR > keep' | while read -r old; do
+  log "pruning $(basename "$old")"
+  rm -rf -- "$old"
 done
 
 # Archive trimming: nothing older than the oldest kept backup's first segment is ever needed.

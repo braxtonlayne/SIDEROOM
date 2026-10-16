@@ -2,7 +2,7 @@
 // Cheap structural checks for the operations files (XC-OPS-007, XC-OPS-001). Fails CI when
 //  - a Grafana dashboard is not valid JSON or queries a metric the server does not export,
 //  - an alert rule queries a metric the server does not export,
-//  - a shell script under deploy/scripts does not parse (`sh -n`),
+//  - a shell script under deploy/scripts (or deploy/install.sh) does not parse (`sh -n`),
 //  - the production Caddyfile lost a security-critical line.
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -51,11 +51,17 @@ for (const m of read('deploy/monitoring/alerts.yml').matchAll(/expr:\s*(.+)/g)) 
   checkExpr('alerts.yml', m[1]);
 }
 
-for (const f of readdirSync(join(root, 'deploy/scripts')).filter((x) => x.endsWith('.sh'))) {
+const shellScripts = [
+  ...readdirSync(join(root, 'deploy/scripts'))
+    .filter((x) => x.endsWith('.sh'))
+    .map((f) => `deploy/scripts/${f}`),
+  'deploy/install.sh',
+];
+for (const f of shellScripts) {
   try {
-    execFileSync('sh', ['-n', join(root, 'deploy/scripts', f)], { stdio: 'pipe' });
+    execFileSync('sh', ['-n', join(root, f)], { stdio: 'pipe' });
   } catch (e) {
-    problems.push(`deploy/scripts/${f}: ${e.stderr?.toString().trim() || 'does not parse'}`);
+    problems.push(`${f}: ${e.stderr?.toString().trim() || 'does not parse'}`);
   }
 }
 
