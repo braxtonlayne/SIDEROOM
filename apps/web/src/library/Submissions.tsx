@@ -36,6 +36,7 @@ import type {
   Upload,
 } from '../review/types';
 import { renderPdfCover } from './pdf/pdfjs';
+import { isZipName, precheckArchive } from './precheck';
 import { KIND_LABEL } from './ui';
 import type { SeriesKind } from './types';
 
@@ -767,6 +768,14 @@ function UploadCell({
     setError([]);
     setSending(true);
     try {
+      // A CBZ is read in the browser first (LIB-ING-009): a refusal the server would give anyway comes at once.
+      if (chapter.format === 'images' && isZipName(file.name)) {
+        const check = await precheckArchive(file);
+        if (!check.ok) {
+          setError([check.message]);
+          return;
+        }
+      }
       const slot = await rv.beginUpload(submissionId, chapter.id, {
         filename: file.name,
         size_bytes: file.size,

@@ -34,6 +34,8 @@ export interface ProgressInput {
   /** 0..100 */
   percent: number;
   completed: boolean;
+  /** EPUB position (LIB-RDR-010); omitted for image and PDF chapters. */
+  cfi?: string | null;
 }
 
 export interface RecentItem extends ProgressInput {
@@ -83,7 +85,12 @@ export const httpProgress: ProgressApi = {
   async save(p) {
     await apiFetch(`/library/chapters/${encodeURIComponent(p.chapterId)}/progress`, {
       method: 'PUT',
-      json: { page_index: p.pageIndex, percent: p.percent, completed: p.completed },
+      json: {
+        page_index: p.pageIndex,
+        percent: p.percent,
+        completed: p.completed,
+        ...(p.cfi ? { cfi: p.cfi } : {}),
+      },
       retries: 0,
     });
   },

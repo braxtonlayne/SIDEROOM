@@ -301,7 +301,7 @@ impl LibraryService {
         })
     }
 
-    fn can_see(c: &ChapterRecord, scope: Scope) -> bool {
+    pub(crate) fn can_see(c: &ChapterRecord, scope: Scope) -> bool {
         match scope {
             Scope::Staff => true,
             Scope::Public => c.published && c.series_published && !c.series_merged,

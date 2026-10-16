@@ -239,6 +239,12 @@ pub trait ReadingStateRepository: Send + Sync {
 #[async_trait]
 pub trait LibraryEvents: Send + Sync {
     async fn emit(&self, users: Vec<i64>, payload: Value);
+
+    /// SR_ACTIVITY_UPDATE (reading presence, LIB-RDR-017) to the given users. Sinks that do not
+    /// carry presence keep the default, which drops it.
+    async fn emit_activity(&self, users: Vec<i64>, payload: Value) {
+        let _ = (users, payload);
+    }
 }
 
 /// Validate a progress save against the chapter it belongs to.

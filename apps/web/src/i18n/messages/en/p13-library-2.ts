@@ -1,0 +1,105 @@
+export default {
+  // Comments (Comments.tsx)
+  'library.comments.section': 'Comments',
+  'library.comments.count': '{n, plural, one {# comment} other {# comments}}',
+  'library.comments.loadError': 'Could not load the comments.',
+  'library.comments.emptyTitle': 'No comments yet',
+  'library.comments.emptyDescription':
+    'Be the first to say something. Mark spoilers so others can skip them.',
+  'library.comments.loadMore': 'Load more comments',
+  'library.comments.bodyLabel': 'Add a comment',
+  'library.comments.replyLabel': 'Write a reply',
+  'library.comments.spoiler': 'Contains spoilers',
+  'library.comments.saveError': 'Could not save your comment.',
+  'library.comments.saveEdit': 'Save changes',
+  'library.comments.post': 'Post',
+  'library.comments.cancel': 'Cancel',
+  'library.comments.edited': '(edited)',
+  'library.comments.spoilerHidden': 'This comment contains spoilers.',
+  'library.comments.showSpoiler': 'Show',
+  'library.comments.likes': '{n, plural, one {# like} other {# likes}}',
+  'library.comments.reply': 'Reply',
+  'library.comments.edit': 'Edit',
+  'library.comments.delete': 'Delete',
+  'library.comments.report': 'Report',
+  'library.comments.reportReason': 'Why are you reporting this comment?',
+  'library.comments.reportError': 'Could not send your report.',
+  'library.comments.reportSend': 'Send report',
+  'library.comments.hideReplies': 'Hide replies',
+  'library.comments.showReplies': '{n, plural, one {Show # reply} other {Show # replies}}',
+  // Downloads (SeriesExtras.tsx, Patron perk, D-075)
+  'library.download.button': 'Download',
+  'library.download.left':
+    '{n, plural, one {# download left today} other {# downloads left today}}',
+  'library.download.limitReached': "You have used today's downloads. Try again tomorrow.",
+  'library.download.tooLarge': 'This chapter is too large to export.',
+  'library.download.failed': 'Could not prepare the download.',
+  // Series page
+  'library.series.shareToLounge': 'Share to Lounge',
+  'library.series.linkCopied': 'Link copied',
+  'library.series.linkCopiedBody': 'Paste it into a Lounge channel to share this series.',
+  'library.series.copyFailed': 'Could not copy the link',
+  'library.series.downloadChapter': 'Download chapter {n}',
+  'library.series.downloadChapterN': 'Download chapter {n}',
+  // Related and contributors tabs
+  'library.related.reasonTags': 'Similar genres and tags',
+  'library.related.reasonCoread': 'Read by people you know',
+  'library.related.loadError': 'Could not load related series.',
+  'library.related.emptyTitle': 'Nothing related yet',
+  'library.related.emptyDescription': 'Related series appear as the library grows.',
+  'library.contributors.loadError': 'Could not load the contributors.',
+  'library.contributors.emptyTitle': 'No contributors listed',
+  'library.contributors.emptyDescription':
+    'Credits appear once members publish chapters of this series.',
+  'library.contributors.members': 'Uploaded by',
+  'library.contributors.groups': 'Release groups',
+  'library.contributors.chapters': '{n, plural, one {# chapter} other {# chapters}}',
+  // Reader
+  'library.reader.comments': 'Comments ({n})',
+  'library.reader.commentsTitle': 'Chapter comments',
+  'library.reader.openComments': '{n, plural, one {# comment} other {# comments}}',
+  // Bell and history
+  'library.shell.bell.labelCount': 'Notifications, {n} new',
+  'library.pages.history.pause': 'Pause history',
+  'library.pages.history.pauseHint':
+    'Pausing stops sharing what you read with friends and in the Friends and People you know rankings. Your own progress is still saved.',
+  'library.pages.history.pausedNote':
+    'History is paused: what you read is not shared. Your own progress is still saved.',
+  'library.pages.history.pauseError': 'Could not change the setting.',
+  'library.pages.history.today': 'Today',
+  'library.pages.history.yesterday': 'Yesterday',
+  // Browse filters
+  'library.browse.sort.rating': 'Rating',
+  'library.browse.genres': 'Genres',
+  'library.browse.genresCycleHint': 'Press a genre once to include it, twice to leave it out.',
+  'library.browse.genreStateOff': '{genre}: not filtered. Press to include.',
+  'library.browse.genreStateInclude': '{genre}: included. Press to leave out.',
+  'library.browse.genreStateExclude': '{genre}: left out. Press to clear.',
+  'library.browse.addGenre': 'Add a genre',
+  'library.browse.addTag': 'Add a tag',
+  'library.browse.add': 'Add',
+  'library.browse.removeTag': 'Remove tag {tag}',
+  'library.browse.ratingMin': 'Rating',
+  'library.browse.ratingAtLeast': '{n} or higher',
+  // Reader: offline cache
+  'library.panels.settings.offline': 'Keep chapters for offline reading',
+  'library.panels.settings.offlineHint':
+    'Saves the chapter you are reading and the next one in this browser. Uses storage and data; turn it off on a metered connection.',
+  // Upload pre-checks (precheck.ts)
+  'library.precheck.avif':
+    'AVIF pages are not supported: {files}. Convert them to JPEG, PNG or WebP.',
+  'library.precheck.unsafePath': 'The archive has an unsafe file name: {files}.',
+  'library.precheck.encrypted': 'The archive is password protected ({files}).',
+  'library.precheck.entryTooLarge': 'A page is larger than the limit: {files}.',
+  'library.precheck.suspiciousRatio':
+    'A file compresses suspiciously well and was refused: {files}.',
+  'library.precheck.tooManyEntries': 'The archive has too many files.',
+  'library.precheck.tooLarge': 'The archive is larger than the upload limit.',
+  'library.precheck.noPages': 'The archive has no JPEG, PNG, WebP or GIF pages.',
+  'library.precheck.notAnArchive': 'This is not a ZIP, 7z or RAR archive.',
+  'library.precheck.unreadable': 'The archive could not be read.',
+  'library.precheck.badImage': 'The page {name} is not a readable image.',
+  'library.precheck.hugeImage': 'The page {name} is larger than the 60 megapixel limit.',
+  // Home: recommendations
+  'library.home.because.title': 'Because you read {title}',
+};

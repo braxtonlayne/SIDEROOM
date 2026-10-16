@@ -1636,6 +1636,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/library/comment-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open comment reports, oldest first (`REVIEW_READING`). */
+        get: operations["admin_library_comment_reports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/comment-reports/{report_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve a report: hide the comment or dismiss the report (`REVIEW_READING`). */
+        post: operations["admin_library_resolve_comment_report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/library/editions/{edition_id}": {
         parameters: {
             query?: never;
@@ -6988,6 +7022,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/chapters/{chapter_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Top-level comments on a chapter, newest first. `total` counts comments and replies. */
+        get: operations["library_chapter_comments"];
+        put?: never;
+        /** Comment on a chapter, or reply to one of its top-level comments (`parent_id`). */
+        post: operations["library_post_chapter_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/chapters/{chapter_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download a chapter: a signed link to the CBZ, PDF or EPUB. Counts against the daily limit. */
+        post: operations["library_download_chapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/chapters/{chapter_id}/pages": {
         parameters: {
             query?: never;
@@ -7003,6 +7072,27 @@ export interface paths {
          */
         get: operations["library_pages"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/chapters/{chapter_id}/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Reader heartbeat: the caller is reading this chapter. Send it on opening a chapter and about
+         *     every 30 seconds; the presence lapses after 90 seconds. Nothing is shared when the member turned
+         *     library sharing off or paused their history (D-190); age-restricted series are masked.
+         */
+        put: operations["library_reading_heartbeat"];
         post?: never;
         delete?: never;
         options?: never;
@@ -7062,6 +7152,93 @@ export interface paths {
         put?: never;
         /** Mark a chapter read or unread, and with `up_to` every earlier chapter of its edition. */
         post: operations["library_mark_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete one's own comment (its replies go with it). */
+        delete: operations["library_delete_comment"];
+        options?: never;
+        head?: never;
+        /** Edit one's own comment. */
+        patch: operations["library_edit_comment"];
+        trace?: never;
+    };
+    "/library/comments/{comment_id}/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Like a comment (idempotent). */
+        put: operations["library_like_comment"];
+        post?: never;
+        /** Take back a like. */
+        delete: operations["library_unlike_comment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/comments/{comment_id}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Replies to a top-level comment, oldest first. */
+        get: operations["library_comment_replies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/comments/{comment_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a comment for the curators. */
+        post: operations["library_report_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/friends/reading": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Friends who are reading something now and share it. */
+        get: operations["library_friends_reading"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7173,6 +7350,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/me/downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the caller may download chapters, and how many downloads are left today. */
+        get: operations["library_download_allowance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/me/follows": {
         parameters: {
             query?: never;
@@ -7202,6 +7396,57 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/me/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** New chapters of followed series (bell on) since the caller last opened the bell, capped at 99. */
+        get: operations["library_notification_count"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/me/notifications/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The caller opened the bell: everything so far counts as seen. */
+        post: operations["library_notifications_seen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/me/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** The caller stopped reading: end the presence now. */
+        delete: operations["library_reading_stop"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7250,6 +7495,23 @@ export interface paths {
         };
         /** Most read series for a period (global; an anonymous aggregate). */
         get: operations["library_rankings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** "Because you read X": up to three rows, one per recently read series. */
+        get: operations["library_recommendations"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7344,6 +7606,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/series/{series_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Top-level comments on a series, newest first. */
+        get: operations["library_series_comments"];
+        put?: never;
+        /** Comment on a series, or reply to one of its top-level comments (`parent_id`). */
+        post: operations["library_post_series_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/contributors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who uploaded and credited the chapters, and the release groups. */
+        get: operations["library_contributors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/series/{series_id}/follow": {
         parameters: {
             query?: never;
@@ -7392,6 +7689,23 @@ export interface paths {
          *     with the distribution of scores.
          */
         get: operations["library_series_ratings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Series like this one: shared genres and tags, and what the people you know read next. */
+        get: operations["library_related"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13070,10 +13384,130 @@ export interface components {
             /** @description `false` opts the caller out of XP in this server and deletes their XP. */
             enabled: boolean;
         };
+        LibraryBecauseBody: {
+            rows: components["schemas"]["LibraryBecauseEntry"][];
+        };
+        LibraryBecauseEntry: {
+            items: components["schemas"]["LibraryRelatedEntry"][];
+            seed_id: string;
+            seed_title: string;
+        };
+        /** @description A file ready to download. */
+        LibraryChapterExport: {
+            /** Format: int64 */
+            expires_at: number;
+            /** @description The suggested file name. */
+            filename: string;
+            /** @description `cbz`, `pdf` or `epub`. */
+            format: string;
+            /** Format: int64 */
+            size_bytes: number;
+            /** @description A signed link, valid for a few hours. */
+            url: string;
+        };
+        /** @description A comment on a series or one of its chapters. Replies are one level deep. */
+        LibraryComment: {
+            author_id: string;
+            author_name: string;
+            body: string;
+            /** @description `"0"` for a comment on the series itself. */
+            chapter_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int64 */
+            edited_at_ms?: number | null;
+            id: string;
+            /** Format: int32 */
+            like_count: number;
+            /** @description The caller liked it. */
+            liked: boolean;
+            mine: boolean;
+            parent_id?: string | null;
+            /** Format: int64 */
+            reply_count: number;
+            series_id: string;
+            spoiler: boolean;
+        };
+        LibraryCommentInput: {
+            body: string;
+            /** @description A top-level comment of the same target to reply to. */
+            parent_id?: string | null;
+            spoiler?: boolean | null;
+        };
+        LibraryCommentPage: {
+            items: components["schemas"]["LibraryComment"][];
+            next_before?: string | null;
+            /**
+             * Format: int64
+             * @description Visible top-level comments and replies on this target (series or chapter).
+             */
+            total: number;
+        };
+        LibraryCommentPatch: {
+            body?: string | null;
+            spoiler?: boolean | null;
+        };
+        /** @description A report waiting for a curator. */
+        LibraryCommentReport: {
+            comment?: null | components["schemas"]["LibraryComment"];
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            reason: string;
+            reporter_id: string;
+            status: string;
+        };
+        LibraryCommentReports: {
+            items: components["schemas"]["LibraryCommentReport"][];
+        };
+        LibraryContributor: {
+            /**
+             * Format: int64
+             * @description Credited chapters in this series.
+             */
+            chapters: number;
+            name: string;
+            user_id: string;
+        };
+        LibraryContributors: {
+            groups: components["schemas"]["LibraryReleaseGroup"][];
+            members: components["schemas"]["LibraryContributor"][];
+        };
         /** @description A count after a vote. */
         LibraryCountBody: {
             /** Format: int32 */
             count: number;
+        };
+        /** @description What the member may download. */
+        LibraryDownloadAllowance: {
+            /** @description Holds the Patron download perk. */
+            entitled: boolean;
+            /**
+             * Format: int32
+             * @description Downloads left in the rolling 24 hours.
+             */
+            left: number;
+            /** Format: int32 */
+            per_day: number;
+        };
+        /** @description A friend who is reading something now. */
+        LibraryFriendReading: {
+            chapter_id: string;
+            /** Format: double */
+            chapter_number: number;
+            /**
+             * Format: int64
+             * @description Drop the entry at this time unless refreshed.
+             */
+            expires_at_ms: number;
+            series_id: string;
+            series_title: string;
+            /** Format: int64 */
+            started_at_ms: number;
+            user_id: string;
+        };
+        LibraryFriendsReading: {
+            items: components["schemas"]["LibraryFriendReading"][];
         };
         LibraryListDetail: {
             items: components["schemas"]["ListItemView"][];
@@ -13095,6 +13529,14 @@ export interface components {
             name?: string | null;
             visibility?: null | components["schemas"]["LibraryVisibility"];
         };
+        /** @description The notifications bell: new chapters of followed series (bell on) since the member last opened it. */
+        LibraryNotificationCount: {
+            /**
+             * Format: int64
+             * @description Capped at 99.
+             */
+            unread: number;
+        };
         LibraryRatingAggregate: {
             /**
              * Format: double
@@ -13103,6 +13545,29 @@ export interface components {
             average?: number | null;
             /** Format: int64 */
             count: number;
+        };
+        LibraryRelatedBody: {
+            items: components["schemas"]["LibraryRelatedEntry"][];
+        };
+        LibraryRelatedEntry: {
+            /** @description `tags` and/or `coread`. */
+            reasons: string[];
+            /** Format: double */
+            score: number;
+            series: components["schemas"]["Series"];
+        };
+        LibraryReleaseGroup: {
+            /** Format: int64 */
+            chapters: number;
+            name: string;
+        };
+        LibraryReportBody: {
+            /** @description 1 to 500 characters. */
+            reason: string;
+        };
+        LibraryResolveReportBody: {
+            /** @description Hide the comment (true) or dismiss the report (false). */
+            hide: boolean;
         };
         LibraryReview: {
             author_id: string;
@@ -14540,9 +15005,16 @@ export interface components {
         };
         /** @enum {string} */
         RankingPeriod: "week" | "month" | "all";
+        /**
+         * @description Whose reading is counted: everyone (an anonymous aggregate), friends, or friends plus members
+         *     of shared servers ("people you know"). Scoped counts honour the activity settings (D-190).
+         * @enum {string}
+         */
+        RankingScope: "global" | "friends" | "known";
         RankingsBody: {
             items: components["schemas"]["RankingEntry"][];
             period: components["schemas"]["RankingPeriod"];
+            scope: components["schemas"]["RankingScope"];
         };
         RateSourceView: {
             /** Format: int64 */
@@ -15261,7 +15733,7 @@ export interface components {
          * @description Browse ordering.
          * @enum {string}
          */
-        SortKey: "newest" | "updated" | "title" | "followers";
+        SortKey: "newest" | "updated" | "title" | "followers" | "rating";
         /** @description A stored staff alert (what `#alerts` showed), kept for the dashboard. */
         StaffAlertRow: {
             /** Format: int64 */
@@ -22565,6 +23037,94 @@ export interface operations {
             };
             /** @description The chapter already has an upload being converted, or uploads are not available. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_comment_reports: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCommentReports"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_resolve_comment_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Report snowflake */
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryResolveReportBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -40804,6 +41364,173 @@ export interface operations {
             };
         };
     };
+    library_chapter_comments: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCommentPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_post_chapter_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryCommentInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryComment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_download_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryChapterExport"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a Patron, or the series needs age confirmation (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too large to export, or no file. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The daily limit is used up. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_pages: {
         parameters: {
             query?: never;
@@ -40833,6 +41560,51 @@ export interface operations {
                 };
             };
             /** @description Age-restricted series and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_reading_heartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -41181,6 +41953,294 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_delete_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_edit_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryCommentPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryComment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_like_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCountBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_unlike_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCountBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_comment_replies: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCommentPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_report_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryReportBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_friends_reading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryFriendsReading"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -41581,6 +42641,33 @@ export interface operations {
             };
         };
     };
+    library_download_allowance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryDownloadAllowance"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_my_follows: {
         parameters: {
             query?: {
@@ -41632,6 +42719,83 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ListsBody"];
                 };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_notification_count: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryNotificationCount"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_notifications_seen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_reading_stop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: {
                 headers: {
@@ -41717,6 +42881,11 @@ export interface operations {
             query?: {
                 /** @description `week` (default), `month` or `all`. */
                 period?: components["schemas"]["RankingPeriod"];
+                /**
+                 * @description `global` (default), `friends` or `known`; the scoped ones count only members who share
+                 *     their reading (D-190).
+                 */
+                scope?: components["schemas"]["RankingScope"];
                 /** @description Limit to one kind (`manga`, `manhwa`, ...). */
                 kind?: string;
                 /** @description 1 to 100, default 24. */
@@ -41734,6 +42903,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RankingsBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_recommendations: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryBecauseBody"];
                 };
             };
             401: {
@@ -41877,9 +43076,11 @@ export interface operations {
                 language?: string;
                 year_from?: number;
                 year_to?: number;
+                /** @description Minimum average rating, 1 to 10. */
+                rating_min?: number;
                 /** @description `include` (default), `hide` or `only`. Everyone may see restricted series; opening their pages needs age confirmation. A member who set `library.hide_age_restricted` gets `hide` as the default. */
                 age?: components["schemas"]["AgeFilter"];
-                /** @description `updated` (default), `newest`, `title` or `followers`. */
+                /** @description `updated` (default), `newest`, `title`, `followers` or `rating`. */
                 sort?: components["schemas"]["SortKey"];
                 /** @description `asc` or `desc`; default depends on the sort. */
                 order?: string;
@@ -41992,6 +43193,146 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_series_comments: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCommentPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_post_series_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryCommentInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryComment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_contributors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryContributors"];
                 };
             };
             401: {
@@ -42201,6 +43542,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesRatings"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_related: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryRelatedBody"];
                 };
             };
             401: {

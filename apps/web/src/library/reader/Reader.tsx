@@ -1,6 +1,6 @@
-// The Reader (LIB-RDR-001..009, 013): full-screen, auto-hiding chrome, paged (single and double) and long-strip
+// The Reader (LIB-RDR-001..009, 013, 014, 017): full-screen, auto-hiding chrome, paged (single and double) and long-strip
 // modes, keyboard and tap-zone navigation, zoom and fit, progress through the data layer, next/previous chapter.
-import { EmptyState, Icon, Slider, Spinner } from '@sideroom/ui';
+import { Drawer, EmptyState, Icon, Slider, Spinner } from '@sideroom/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,6 +8,9 @@ import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import { isAgeGateError, useAgeGate, withAgeGate } from '../../lib/ageGate';
 import { getChapters, getPages, getSeries } from '../api';
+import { CommentsSection } from '../Comments';
+import { commentKeys, getComments, readingHeartbeat, readingStop } from '../p13api';
+import { ChapterDownload } from '../SeriesExtras';
 import {
   resolveReaderPrefs,
   useReaderPrefsStore,
@@ -29,13 +32,19 @@ import {
   tapStep,
 } from './model';
 import { ChapterRate } from '../SeriesSocial';
+import { cacheChapter, readCachedManifest } from './offlineCache';
 import { PageImage } from './PageImage';
+import { EpubReader } from '../epub/EpubReader';
 import { PdfReader } from '../pdf/PdfReader';
 import { BookmarksPanel, SettingsPanel } from './Panels';
 import { useZoomPan } from './useZoomPan';
 
 const SAVE_DEBOUNCE_MS = 2000;
 const CHROME_HIDE_MS = 3000;
+/** How often the reader tells friends it is still reading (the server keeps it alive for 90 s). */
+const PRESENCE_MS = 30_000;
+/** In the long strip, pages farther than this from the current one render only a sized spacer. */
+const STRIP_WINDOW = 8;
 
 const isEditable = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
@@ -59,7 +68,18 @@ function ReaderLoader({ chapterId, page }: ReaderProps) {
   const manifest = useQuery({
     queryKey: ['library', 'pages', chapterId],
     // 403 900011 -> ask "Are you 18 or older?" -> on yes the manifest is fetched once more (D-184).
-    queryFn: () => withAgeGate(() => getPages(chapterId), ensureAdult),
+    // Offline (a network failure, not an API answer), a copy kept by the offline cache stands in (LIB-RDR-015).
+    queryFn: () =>
+      withAgeGate(
+        () =>
+          getPages(chapterId).catch(async (e: unknown) => {
+            if (e instanceof ApiError) throw e;
+            const cached = await readCachedManifest(chapterId);
+            if (cached) return cached;
+            throw e;
+          }),
+        ensureAdult,
+      ),
     retry: false,
     retryOnMount: false,
     // Signed URLs expire: refetch a few minutes before they stop working.
@@ -130,6 +150,22 @@ function ReaderLoader({ chapterId, page }: ReaderProps) {
         }}
       />
     );
+  // EPUB chapters: foliate-js reads the original in the browser (LIB-RDR-010).
+  if (manifest.data.chapter.format === 'epub' && manifest.data.source_url)
+    return (
+      <EpubReader
+        url={manifest.data.source_url}
+        title={manifest.data.chapter.title || series.data.series.title}
+        seriesId={series.data.series.id}
+        initialCfi={saved.data && !saved.data.completed ? (saved.data.cfi ?? null) : null}
+        chapter={{
+          id: manifest.data.chapter.id,
+          number: manifest.data.chapter.number,
+          seriesTitle: series.data.series.title,
+          coverUrl: series.data.series.cover_url,
+        }}
+      />
+    );
   const count = manifest.data.pages.length;
   const urlIndex = parsePageParam(page, count);
   const fromProgress =
@@ -161,7 +197,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
 
   const [index, setIndex] = useState(initialIndex); // 0..count; `count` is the end-of-chapter card
   const [chromeOn, setChromeOn] = useState(true);
-  const [panel, setPanel] = useState<null | 'settings' | 'bookmarks'>(null);
+  const [panel, setPanel] = useState<null | 'settings' | 'bookmarks' | 'comments'>(null);
   const [scrub, setScrub] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -296,6 +332,59 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
       flush(); // leaving the reader saves at once
     };
   }, [flush]);
+
+  /* ---------------------------------------------------- offline cache */
+  // Keep this chapter and the next in Cache Storage (LIB-RDR-015), a little after opening so it never
+  // competes with the pages being read. Off when the member turned it off in the reader settings.
+  const offline = prefs.offline;
+  const nextForCache = manifest.next_chapter_id;
+  useEffect(() => {
+    if (!offline) return;
+    const abort = new AbortController();
+    const timer = window.setTimeout(() => {
+      void cacheChapter(manifest, abort.signal)
+        .then(async () => {
+          if (!nextForCache || abort.signal.aborted) return;
+          const next = await qc.fetchQuery({
+            queryKey: ['library', 'pages', nextForCache],
+            queryFn: () => getPages(nextForCache),
+            staleTime: 5 * 60_000,
+          });
+          await cacheChapter(next, abort.signal);
+        })
+        .catch(() => undefined); // a restricted next chapter or a full cache: nothing to do
+    }, 2500);
+    return () => {
+      window.clearTimeout(timer);
+      abort.abort();
+    };
+  }, [offline, manifest, nextForCache, qc]);
+
+  /* ------------------------------------------------- presence + comments */
+  // "Reading" presence (LIB-RDR-017): a heartbeat while the reader is open and visible; the server decides who
+  // may see it (activity settings, D-190) and answers 204 either way.
+  useEffect(() => {
+    const beat = () => {
+      if (document.visibilityState === 'visible')
+        void readingHeartbeat(chapter.id).catch(() => undefined);
+    };
+    beat();
+    const timer = window.setInterval(beat, PRESENCE_MS);
+    document.addEventListener('visibilitychange', beat);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', beat);
+      void readingStop().catch(() => undefined);
+    };
+  }, [chapter.id]);
+  const commentTarget = { kind: 'chapter', id: chapter.id } as const;
+  const commentCount = useQuery({
+    queryKey: [...commentKeys.list(commentTarget), 'count'],
+    queryFn: () => getComments(commentTarget, { limit: 1 }),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const comments = commentCount.data?.total ?? 0;
 
   /* ------------------------------------------------------- preloading */
   const nextId = manifest.next_chapter_id;
@@ -507,6 +596,14 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         <button
           type="button"
           className="lib-icon-btn"
+          aria-label={t('library.reader.comments', { n: comments })}
+          onClick={() => setPanel('comments')}
+        >
+          <Icon name="message" size={20} />
+        </button>
+        <button
+          type="button"
+          className="lib-icon-btn"
           aria-label={t('library.reader.bookmarks')}
           onClick={() => setPanel('bookmarks')}
         >
@@ -541,12 +638,22 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
                 data-index={i}
                 className="lib-strip-item"
               >
-                <PageImage
-                  page={p}
-                  cssWidth={Math.min(stageWidth, p.width)}
-                  active={Math.abs(i - index) <= 4}
-                  alt={t('library.reader.pageAlt', { n: i + 1 })}
-                />
+                {Math.abs(i - index) <= STRIP_WINDOW ? (
+                  <PageImage
+                    page={p}
+                    cssWidth={Math.min(stageWidth, p.width)}
+                    crop={prefs.cropBorders}
+                    active={Math.abs(i - index) <= 4}
+                    alt={t('library.reader.pageAlt', { n: i + 1 })}
+                  />
+                ) : (
+                  // Virtualised: far pages are an empty box of the right height, so the scroll length holds.
+                  <div
+                    className="lib-page"
+                    data-virtual="true"
+                    style={{ aspectRatio: `${p.width} / ${p.height}` }}
+                  />
+                )}
               </div>
             ))}
             <EndCard
@@ -554,6 +661,8 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
               next={manifest.next_chapter_id}
               seriesId={series.id}
               onNext={leaveTo}
+              comments={comments}
+              onComments={() => setPanel('comments')}
             />
           </div>
         ) : showEnd ? (
@@ -562,6 +671,8 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
             next={manifest.next_chapter_id}
             seriesId={series.id}
             onNext={leaveTo}
+            comments={comments}
+            onComments={() => setPanel('comments')}
           />
         ) : (
           <div
@@ -577,6 +688,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
                 key={pages[i]!.index}
                 page={pages[i]!}
                 cssWidth={stageWidth / current.length}
+                crop={prefs.cropBorders}
                 alt={t('library.reader.pageAlt', { n: i + 1 })}
               />
             ))}
@@ -646,6 +758,14 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         seriesId={series.id}
         prefs={prefs as ReaderPrefs}
       />
+      <Drawer
+        open={panel === 'comments'}
+        onClose={() => setPanel(null)}
+        title={t('library.reader.commentsTitle')}
+        side="right"
+      >
+        {panel === 'comments' && <CommentsSection target={commentTarget} />}
+      </Drawer>
       <BookmarksPanel
         open={panel === 'bookmarks'}
         onClose={() => setPanel(null)}
@@ -691,11 +811,15 @@ function EndCard({
   next,
   seriesId,
   onNext,
+  comments,
+  onComments,
 }: {
   chapter: Chapter;
   next?: string | null;
   seriesId: string;
   onNext: (id: string, last: boolean) => void;
+  comments: number;
+  onComments: () => void;
 }) {
   const t = useT();
   return (
@@ -712,6 +836,11 @@ function EndCard({
       <Link className="lib-btn" to="/library/s/$seriesId" params={{ seriesId }}>
         {t('library.reader.backToSeries')}
       </Link>
+      <button type="button" className="lib-btn" onClick={onComments}>
+        <Icon name="message" size={16} />
+        {t('library.reader.openComments', { n: comments })}
+      </button>
+      <ChapterDownload chapterId={chapter.id} />
       <ChapterRate chapterId={chapter.id} />
     </section>
   );

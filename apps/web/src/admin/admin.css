@@ -297,3 +297,25 @@
   display: inline-block;
   width: 32px;
 }
+
+/* P13: chapter page editor */
+.adm-page-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.adm-page-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.adm-reconvert {
+  margin-block-start: 16px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--sr-line, #333);
+  display: grid;
+  gap: 8px;
+}

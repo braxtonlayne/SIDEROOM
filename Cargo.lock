@@ -5447,6 +5447,7 @@ dependencies = [
  "serde_json",
  "sevenz-rust2",
  "sr-core",
+ "sr-library-rules",
  "sr-review",
  "sr-storage",
  "tantivy",
@@ -5461,10 +5462,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-library-rules"
+version = "0.0.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "sr-library-social"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "moka",
  "serde",
  "serde_json",
  "sqlx",
@@ -5474,6 +5483,18 @@ dependencies = [
  "tokio",
  "tracing",
  "utoipa",
+]
+
+[[package]]
+name = "sr-library-wasm"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "sr-library",
+ "sr-library-rules",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "zip",
 ]
 
 [[package]]

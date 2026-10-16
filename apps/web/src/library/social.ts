@@ -202,8 +202,15 @@ export const reorderList = (listId: string, seriesIds: string[]) =>
 
 /* ------------------------------------------------------ rankings, unread */
 
-export const getRankings = (o: { period?: RankingPeriod; kind?: string; limit?: number } = {}) =>
-  apiFetch<{ period: RankingPeriod; items: RankingEntry[] }>(`/library/rankings${qs({ ...o })}`);
+/** `friends` and `known` count only members who share their reading (D-190). */
+export type RankingScope = 'global' | 'friends' | 'known';
+
+export const getRankings = (
+  o: { period?: RankingPeriod; scope?: RankingScope; kind?: string; limit?: number } = {},
+) =>
+  apiFetch<{ period: RankingPeriod; scope: RankingScope; items: RankingEntry[] }>(
+    `/library/rankings${qs({ ...o })}`,
+  );
 
 export const getUnread = () => apiFetch<{ items: UnreadCount[] }>('/library/me/unread');
 
@@ -214,7 +221,7 @@ export const socialKeys = {
   myLists: (series?: string) => ['library', 'lists', 'mine', series ?? null] as const,
   featured: () => ['library', 'lists', 'featured'] as const,
   list: (id: string) => ['library', 'lists', 'one', id] as const,
-  rankings: (period: RankingPeriod, kind?: string) =>
-    ['library', 'rankings', period, kind ?? null] as const,
+  rankings: (period: RankingPeriod, kind?: string, scope: RankingScope = 'global') =>
+    ['library', 'rankings', period, kind ?? null, scope] as const,
   unread: () => ['library', 'unread'] as const,
 };

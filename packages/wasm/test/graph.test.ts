@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
-import { loadGraph } from "../src/index.js";
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { loadGraph } from '../src/index.js';
 
 /**
  * ADM-GRAPH-002: the Invite Graph layout runs in the browser as WASM. The algorithm is tested
@@ -10,10 +10,10 @@ import { loadGraph } from "../src/index.js";
  * Set SR_WASM_REQUIRED=1 (wasm.yml does) to fail instead of skipping when the build is missing.
  */
 const here = dirname(fileURLToPath(import.meta.url));
-const wasmPath = join(here, "../dist/graph/graph_bg.wasm");
+const wasmPath = join(here, '../dist/graph/graph_bg.wasm');
 const built = existsSync(wasmPath);
 
-if (!built && process.env.SR_WASM_REQUIRED === "1") {
+if (!built && process.env.SR_WASM_REQUIRED === '1') {
   throw new Error(`missing ${wasmPath}; run pnpm --filter @sideroom/wasm build first`);
 }
 
@@ -21,8 +21,8 @@ function dist(p: Float32Array, a: number, b: number): number {
   return Math.hypot(p[2 * a]! - p[2 * b]!, p[2 * a + 1]! - p[2 * b + 1]!);
 }
 
-describe.runIf(built)("sr-graph-wasm layout", () => {
-  it("returns x/y pairs as a Float32Array, deterministic per seed", async () => {
+describe.runIf(built)('sr-graph-wasm layout', () => {
+  it('returns x/y pairs as a Float32Array, deterministic per seed', async () => {
     const g = await loadGraph(readFileSync(wasmPath));
     const edges = [0, 1, 1, 2, 2, 3, 3, 0, 3, 4];
     const a = g.layout(5, edges);
@@ -33,7 +33,7 @@ describe.runIf(built)("sr-graph-wasm layout", () => {
     expect(Array.from(g.layout(5, edges, { seed: 99 }))).not.toEqual(Array.from(a));
   });
 
-  it("pulls linked nodes together and keeps strangers apart", async () => {
+  it('pulls linked nodes together and keeps strangers apart', async () => {
     const g = await loadGraph(readFileSync(wasmPath));
     const edges: number[] = [];
     for (const base of [0, 5]) {
@@ -47,7 +47,7 @@ describe.runIf(built)("sr-graph-wasm layout", () => {
     expect(Array.from(p).every(Number.isFinite)).toBe(true);
   });
 
-  it("handles empty and single-node graphs and rejects dangling edges", async () => {
+  it('handles empty and single-node graphs and rejects dangling edges', async () => {
     const g = await loadGraph(readFileSync(wasmPath));
     expect(g.layout(0, []).length).toBe(0);
     expect(Array.from(g.layout(1, []))).toEqual([0, 0]);
@@ -56,7 +56,7 @@ describe.runIf(built)("sr-graph-wasm layout", () => {
     expect(g.defaults.iterations).toBe(300);
   });
 
-  it("lays out a few thousand nodes quickly", async () => {
+  it('lays out a few thousand nodes quickly', async () => {
     const g = await loadGraph(readFileSync(wasmPath));
     const n = 3000;
     const edges: number[] = [];

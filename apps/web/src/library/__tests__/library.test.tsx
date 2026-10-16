@@ -34,7 +34,7 @@ describe('Library home', () => {
       screen.getByRole('heading', { name: 'Finished stories, new beginnings' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Library footer' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Friends' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Friends' })).toBeEnabled();
     // restricted titles are shown with an 18+ badge (D-184)
     expect((await screen.findAllByText('Dark Tale')).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Age-restricted, 18 or older/).length).toBeGreaterThan(0);
@@ -148,13 +148,21 @@ describe('browse', () => {
     const { router } = renderAt('/library/browse');
     await screen.findByText('Frieren');
     await user.click(screen.getByRole('button', { name: /Filters/ }));
-    await user.type(await screen.findByLabelText('Genres to include'), 'action, fantasy');
+    // Genres cycle: once includes, twice leaves out. Tags are typed.
+    await user.click(await screen.findByRole('button', { name: /^Action: not filtered/ }));
+    await user.click(screen.getByRole('button', { name: /^Fantasy: not filtered/ }));
+    await user.click(screen.getByRole('button', { name: /^Fantasy: included/ }));
+    await user.type(screen.getByLabelText('Add a tag'), 'magic{Enter}');
+    await user.selectOptions(screen.getByLabelText('Rating'), '7');
     await user.selectOptions(screen.getByLabelText('Status'), 'completed');
     await user.selectOptions(screen.getByLabelText('Age-restricted titles'), 'only');
     await user.click(screen.getByRole('button', { name: 'Show results' }));
     await waitFor(() =>
       expect(router.state.location.search).toMatchObject({
-        genres: 'action, fantasy',
+        genres: 'action',
+        exclude: 'fantasy',
+        tags: 'magic',
+        rating_min: 7,
         status: 'completed',
         age: 'only',
       }),

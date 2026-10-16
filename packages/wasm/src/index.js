@@ -7,7 +7,7 @@ const once = (fn) => {
 };
 
 export const loadTheme = once(async (wasmUrl) => {
-  const m = await import("../dist/theme/theme.js");
+  const m = await import('../dist/theme/theme.js');
   await m.default({ module_or_path: wasmUrl });
   return {
     validate: (json) => JSON.parse(m.validateTheme(json)),
@@ -18,7 +18,7 @@ export const loadTheme = once(async (wasmUrl) => {
 });
 
 export const loadMarkdown = once(async (wasmUrl) => {
-  const m = await import("../dist/markdown/markdown.js");
+  const m = await import('../dist/markdown/markdown.js');
   await m.default({ module_or_path: wasmUrl });
   const maxChars = m.defaultMaxChars();
   const maxMentions = m.defaultMaxMentions();
@@ -36,7 +36,7 @@ export const loadMarkdown = once(async (wasmUrl) => {
 });
 
 export const loadPermissions = once(async (wasmUrl) => {
-  const m = await import("../dist/permissions/permissions.js");
+  const m = await import('../dist/permissions/permissions.js');
   await m.default({ module_or_path: wasmUrl });
   return {
     computeBase: (isOwner, everyone, roles) => m.computeBase(isOwner, everyone, roles),
@@ -48,7 +48,7 @@ export const loadPermissions = once(async (wasmUrl) => {
 });
 
 export const loadGraph = once(async (wasmUrl) => {
-  const m = await import("../dist/graph/graph.js");
+  const m = await import('../dist/graph/graph.js');
   await m.default({ module_or_path: wasmUrl });
   const [iterations, seed, , springLength] = m.layoutDefaults();
   return {
@@ -61,6 +61,18 @@ export const loadGraph = once(async (wasmUrl) => {
         options.springLength ?? 0,
       ),
     defaults: { iterations, seed, springLength },
+  };
+});
+
+export const loadLibrary = once(async (wasmUrl) => {
+  const m = await import('../dist/library/library.js');
+  await m.default({ module_or_path: wasmUrl });
+  const [maxArchive, maxEntries, maxEntry, maxTotal] = m.limitDefaults();
+  return {
+    precheck: (head, tail, fileLen, maxArchiveBytes = 0) =>
+      JSON.parse(m.precheckArchive(head, tail, fileLen, maxArchiveBytes)),
+    firstTail: m.firstTail(),
+    defaults: { maxArchive, maxEntries, maxEntry, maxTotal },
   };
 });
 

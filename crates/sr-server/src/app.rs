@@ -554,9 +554,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 pool.clone(),
             )))
             .with_social(
-                sr_library_social::LibrarySocial::new(pool.clone(), id_src.clone()).with_events(
-                    Arc::new(routes::library::BusLibraryEvents::new(bus.clone())),
-                ),
+                sr_library_social::LibrarySocial::new(pool.clone(), id_src.clone())
+                    .with_trending_cache(
+                        std::time::Duration::from_secs(3600),
+                        std::time::Duration::from_secs(600),
+                    )
+                    .with_events(Arc::new(routes::library::BusLibraryEvents::new(
+                        bus.clone(),
+                    ))),
             ),
     );
 

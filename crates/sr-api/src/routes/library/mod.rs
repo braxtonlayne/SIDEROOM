@@ -24,7 +24,11 @@
 //! Publishers additionally need [`AdminDeps`](crate::routes::admin::AdminDeps).
 
 mod admin;
+mod comments;
+mod discover;
+mod downloads;
 mod member;
+mod presence;
 mod reading;
 mod social;
 mod uploads;
@@ -47,7 +51,7 @@ use axum::{
     Router,
     extract::FromRequestParts,
     http::request::Parts,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use sr_core::{ApiError, ErrorCode, UserId};
 use sr_library::{Actor, LibraryError, LibraryService, Viewer};
@@ -237,14 +241,25 @@ impl BusLibraryEvents {
 
 #[async_trait::async_trait]
 impl sr_library::LibraryEvents for BusLibraryEvents {
+    async fn emit_activity(&self, users: Vec<i64>, payload: serde_json::Value) {
+        self.publish("SR_ACTIVITY_UPDATE", users, payload).await;
+    }
+
     async fn emit(&self, users: Vec<i64>, payload: serde_json::Value) {
+        self.publish(sr_library::reading::EVENT_NAME, users, payload)
+            .await;
+    }
+}
+
+impl BusLibraryEvents {
+    async fn publish(&self, name: &str, users: Vec<i64>, payload: serde_json::Value) {
         let users: Vec<UserId> = users
             .into_iter()
             .filter_map(|u| u64::try_from(u).ok().map(UserId::new))
             .collect();
         let ev = sr_events::DomainEvent::UserScoped {
             users: users.clone(),
-            name: sr_library::reading::EVENT_NAME.to_owned(),
+            name: name.to_owned(),
             payload,
         };
         for u in users {
@@ -253,7 +268,7 @@ impl sr_library::LibraryEvents for BusLibraryEvents {
                 .publish(sr_events::Topic::User(u), ev.clone())
                 .await
             {
-                tracing::warn!(error = %e, "publishing SR_LIBRARY_UPDATE failed");
+                tracing::warn!(error = %e, event = name, "publishing a library event failed");
             }
         }
     }
@@ -319,6 +334,58 @@ pub fn router() -> Router<AppState> {
         .route(
             "/library/reviews/{review_id}/helpful",
             put(social::helpful).delete(social::unhelpful),
+        )
+        .route(
+            "/library/series/{series_id}/comments",
+            get(comments::series_comments).post(comments::post_series_comment),
+        )
+        .route(
+            "/library/chapters/{chapter_id}/comments",
+            get(comments::chapter_comments).post(comments::post_chapter_comment),
+        )
+        .route(
+            "/library/comments/{comment_id}",
+            patch(comments::edit).delete(comments::delete),
+        )
+        .route(
+            "/library/comments/{comment_id}/replies",
+            get(comments::replies),
+        )
+        .route(
+            "/library/comments/{comment_id}/like",
+            put(comments::like).delete(comments::unlike),
+        )
+        .route(
+            "/library/comments/{comment_id}/report",
+            post(comments::report),
+        )
+        .route(
+            "/library/chapters/{chapter_id}/presence",
+            put(presence::heartbeat),
+        )
+        .route("/library/me/presence", delete(presence::stop))
+        .route("/library/friends/reading", get(presence::friends_reading))
+        .route(
+            "/library/me/notifications",
+            get(presence::notification_count),
+        )
+        .route(
+            "/library/me/notifications/seen",
+            post(presence::notifications_seen),
+        )
+        .route(
+            "/library/series/{series_id}/related",
+            get(discover::related),
+        )
+        .route(
+            "/library/series/{series_id}/contributors",
+            get(discover::contributors),
+        )
+        .route("/library/recommendations", get(discover::recommendations))
+        .route("/library/me/downloads", get(downloads::allowance))
+        .route(
+            "/library/chapters/{chapter_id}/download",
+            post(downloads::download),
         )
         .route("/library/me/lists", get(social::my_lists))
         .route("/library/lists", post(social::create_list))
@@ -410,6 +477,11 @@ pub fn router() -> Router<AppState> {
             "/admin/library/chapters/{chapter_id}/uploads",
             get(uploads::list).post(uploads::begin),
         )
+        .route("/admin/library/comment-reports", get(comments::reports))
+        .route(
+            "/admin/library/comment-reports/{report_id}/resolve",
+            post(comments::resolve),
+        )
         .route("/admin/library/uploads/{upload_id}", get(uploads::status))
         .route(
             "/admin/library/uploads/{upload_id}/complete",
@@ -488,6 +560,28 @@ pub fn router() -> Router<AppState> {
         uploads::complete,
         uploads::status,
         uploads::list,
+        discover::related,
+        discover::contributors,
+        discover::recommendations,
+        presence::heartbeat,
+        presence::stop,
+        presence::friends_reading,
+        presence::notification_count,
+        presence::notifications_seen,
+        downloads::allowance,
+        downloads::download,
+        comments::series_comments,
+        comments::post_series_comment,
+        comments::chapter_comments,
+        comments::post_chapter_comment,
+        comments::replies,
+        comments::edit,
+        comments::delete,
+        comments::like,
+        comments::unlike,
+        comments::report,
+        comments::reports,
+        comments::resolve,
     ),
     components(schemas(
         ErrorBody,
@@ -541,6 +635,26 @@ pub fn router() -> Router<AppState> {
         sr_library::reading::BookmarkEntry,
         sr_library::reading::BookmarkPage,
         social::CountBody,
+        discover::RelatedEntry,
+        discover::RelatedBody,
+        discover::BecauseEntry,
+        discover::BecauseBody,
+        sr_library_social::model::Contributor,
+        sr_library_social::model::ReleaseGroup,
+        sr_library_social::model::Contributors,
+        downloads::Allowance,
+        sr_library_social::model::FriendReading,
+        sr_library_social::model::FriendsReading,
+        sr_library_social::model::NotificationCount,
+        sr_library::exports::ChapterExport,
+        comments::ReportBody,
+        comments::ReportList,
+        comments::ResolveBody,
+        sr_library_social::model::Comment,
+        sr_library_social::model::CommentPage,
+        sr_library_social::model::CommentInput,
+        sr_library_social::model::CommentPatch,
+        sr_library_social::model::CommentReport,
         social::ListCard,
         social::ListsBody,
         social::ListItemView,
@@ -564,6 +678,7 @@ pub fn router() -> Router<AppState> {
         sr_library_social::model::ListItemInput,
         sr_library_social::model::ListOrderInput,
         sr_library_social::model::RankingPeriod,
+        sr_library_social::model::RankingScope,
         sr_library_social::model::UnreadCount,
         sr_library_social::model::UnreadCounts,
     ))

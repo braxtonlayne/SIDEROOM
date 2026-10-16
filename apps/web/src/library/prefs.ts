@@ -73,6 +73,10 @@ export interface ReaderPrefs {
   tapZones: boolean;
   /** Double page: show the first page alone (cover). */
   coverOffset: boolean;
+  /** Cut the borders the ingest found (pages without crop data show whole). */
+  cropBorders: boolean;
+  /** Keep the current and next chapter in the browser for offline reading (LIB-RDR-015). */
+  offline: boolean;
 }
 
 export const DEFAULT_READER_PREFS: ReaderPrefs = {
@@ -85,6 +89,8 @@ export const DEFAULT_READER_PREFS: ReaderPrefs = {
   brightness: 100,
   tapZones: true,
   coverOffset: true,
+  cropBorders: false,
+  offline: true,
 };
 
 const STORE_KEY = 'sr.library.reader.v1';
