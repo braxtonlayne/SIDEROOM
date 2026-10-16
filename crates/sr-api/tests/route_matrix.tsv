@@ -8,11 +8,13 @@ DELETE	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
 DELETE	/admin/donations/entitlements/{grant_id}	authenticated	staff	deny	-
+DELETE	/admin/ingest-sources/{source_id}	authenticated	staff	deny	-
 DELETE	/admin/invites/{invite_id}	authenticated	staff	deny	-
 DELETE	/admin/jobs/{job_id}	authenticated	staff	deny	-
 DELETE	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
 DELETE	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
 DELETE	/admin/library/series/{series_id}	authenticated	staff	deny	-
+DELETE	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-
 DELETE	/admin/library/volumes/{volume_id}	authenticated	staff	deny	-
 DELETE	/admin/staff/offers/{offer_id}	authenticated	staff	deny	-
 DELETE	/admin/staff/{account_id}	authenticated	staff	deny	-
@@ -83,6 +85,7 @@ DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
 DELETE	/sr/invites/{code}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
+DELETE	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	other	allow	-
 DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-
 DELETE	/users/@me/birthday	authenticated	self	deny	-
 DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
@@ -130,6 +133,7 @@ GET	/admin/donations/rates	authenticated	staff	deny	-
 GET	/admin/donations/report	authenticated	staff	deny	-
 GET	/admin/donations/status	authenticated	staff	deny	-
 GET	/admin/features	authenticated	staff	deny	-
+GET	/admin/ingest-sources	authenticated	staff	deny	-
 GET	/admin/invites	authenticated	staff	deny	-
 GET	/admin/jobs	authenticated	staff	deny	-
 GET	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
@@ -138,6 +142,8 @@ GET	/admin/library/series	authenticated	staff	deny	-
 GET	/admin/library/series/{series_id}	authenticated	staff	deny	-
 GET	/admin/library/series/{series_id}/chapters	authenticated	staff	deny	-
 GET	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-
+GET	/admin/library/uploads/{upload_id}/inspect	authenticated	staff	deny	-
+GET	/admin/library/uploads/{upload_id}/parts	authenticated	staff	deny	-
 GET	/admin/me	authenticated	staff	deny	-
 GET	/admin/persons/{person_id}	authenticated	staff	deny	-
 GET	/admin/private/accounts/{account_id}/dms	authenticated	staff	deny	-
@@ -147,7 +153,9 @@ GET	/admin/reauth	authenticated	staff	deny	-
 GET	/admin/review/queue	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}/credits	authenticated	staff	deny	-
+GET	/admin/review/submissions/{submission_id}/duplicates	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
+GET	/admin/review/submissions/{submission_id}/media	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}/preview	authenticated	staff	deny	-
 GET	/admin/settings	authenticated	staff	deny	-
 GET	/admin/staff	authenticated	staff	deny	-
@@ -351,13 +359,18 @@ GET	/stickers/{sticker_id}/url	authenticated	other	allow	-
 GET	/streams/{stream_key}/preview	authenticated	membership	allow	-
 GET	/submissions	authenticated	other	allow	-
 GET	/submissions/kinds	authenticated	other	allow	-
+GET	/submissions/lookup	authenticated	other	allow	-
+GET	/submissions/lookup/providers	authenticated	other	allow	-
 GET	/submissions/quota	authenticated	other	allow	-
 GET	/submissions/{submission_id}	authenticated	other	allow	-
 GET	/submissions/{submission_id}/credits	authenticated	other	allow	-
+GET	/submissions/{submission_id}/duplicates	authenticated	other	allow	-
 GET	/submissions/{submission_id}/library/chapters	authenticated	other	allow	-
 GET	/submissions/{submission_id}/library/chapters/{chapter_id}/pages	authenticated	other	allow	-
 GET	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	other	allow	-
 GET	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	other	allow	-
+GET	/submissions/{submission_id}/library/uploads/{upload_id}/inspect	authenticated	other	allow	-
+GET	/submissions/{submission_id}/library/uploads/{upload_id}/parts	authenticated	other	allow	-
 GET	/submissions/{submission_id}/preview	authenticated	other	allow	-
 GET	/tv/channels	authenticated	other	allow	-
 GET	/tv/channels/{channel_id}	authenticated	membership	allow	-
@@ -404,6 +417,7 @@ PATCH	/admin/announcements/{announcement_id}	authenticated	staff	deny	-
 PATCH	/admin/directory/{guild_id}	authenticated	staff	deny	-
 PATCH	/admin/donations/config	authenticated	staff	deny	-
 PATCH	/admin/features/{feature_id}	authenticated	staff	deny	-
+PATCH	/admin/ingest-sources/{source_id}	authenticated	staff	deny	-
 PATCH	/admin/settings	authenticated	staff	deny	-
 PATCH	/applications/{application_id}	authenticated	owner	deny	-
 PATCH	/applications/{application_id}/bot	authenticated	owner	deny	-
@@ -495,6 +509,9 @@ POST	/admin/donations/entitlements	authenticated	staff	deny	-
 POST	/admin/donations/invoices/{invoice_id}/resolve	authenticated	staff	deny	-
 POST	/admin/donations/leaderboard/hide	authenticated	staff	deny	-
 POST	/admin/donations/wallet/test	authenticated	staff	deny	-
+POST	/admin/ingest-sources	authenticated	staff	deny	-
+POST	/admin/ingest-sources/{source_id}/dry-run	authenticated	staff	deny	-
+POST	/admin/ingest-sources/{source_id}/scan	authenticated	staff	deny	-
 POST	/admin/jobs/{job_id}/retry	authenticated	staff	deny	-
 POST	/admin/library/chapters/{chapter_id}/publish	authenticated	staff	deny	-
 POST	/admin/library/chapters/{chapter_id}/unpublish	authenticated	staff	deny	-
@@ -673,6 +690,7 @@ PUT	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
 PUT	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
 PUT	/admin/library/series/{series_id}	authenticated	staff	deny	-
+PUT	/admin/review/submissions/{submission_id}/duplicate	authenticated	staff	deny	-
 PUT	/admin/review/submissions/{submission_id}/items/{item_id}	authenticated	staff	deny	-
 PUT	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-
 PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-

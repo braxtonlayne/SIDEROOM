@@ -5448,6 +5448,7 @@ dependencies = [
  "serde_json",
  "sevenz-rust2",
  "sr-core",
+ "sr-reader",
  "sr-review",
  "sr-storage",
  "tantivy",
