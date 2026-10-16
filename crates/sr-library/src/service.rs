@@ -85,6 +85,7 @@ pub struct LibraryService {
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) ids: IdSource,
     pub(crate) ingest: Option<crate::uploads::IngestWiring>,
+    pub(crate) multipart: Option<crate::multipart::MultipartWiring>,
     pub(crate) events: Option<Arc<dyn crate::reading::LibraryEvents>>,
     pub(crate) audit: Option<Arc<dyn crate::uploads::LibraryAudit>>,
 }
@@ -103,6 +104,7 @@ impl LibraryService {
             clock,
             ids,
             ingest: None,
+            multipart: None,
             events: None,
             audit: None,
         }

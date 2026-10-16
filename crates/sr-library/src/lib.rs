@@ -9,6 +9,7 @@
 pub mod error;
 pub mod ingest;
 pub mod model;
+pub mod multipart;
 pub mod reading;
 mod reading_service;
 pub mod repo;
@@ -17,8 +18,10 @@ pub mod search;
 pub mod service;
 pub mod submissions;
 pub mod uploads;
+mod uploads_multipart;
 
 pub use error::{LibraryError, LibraryResult};
+pub use multipart::{MemoryPartStore, MultipartWiring, PartStore};
 pub use reading::{LibraryEvents, ReadingStateRepository};
 pub use repo::LibraryRepository;
 pub use search::SeriesIndex;

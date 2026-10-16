@@ -664,12 +664,18 @@ pub struct UploadRequest {
     /// Original file name; its extension must fit the chapter's format.
     pub filename: String,
     pub size_bytes: u64,
+    /// Ask for a resumable multipart upload: parts of 64 MB sent in parallel, resumable after a
+    /// refresh. Without it the slot is one presigned `PUT`.
+    #[serde(default)]
+    pub multipart: bool,
 }
 
 /// A new upload slot: PUT the file to `upload_url`, then complete the upload.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 pub struct UploadSlot {
     pub upload: Upload,
+    /// Set for a multipart upload (then `upload_url` is empty).
+    pub multipart: Option<crate::multipart::MultipartSlot>,
     pub upload_url: String,
     /// Always `PUT`.
     pub upload_method: String,

@@ -346,6 +346,7 @@ async fn upload(w: &World, chapter: i64, name: &str, bytes: Vec<u8>) -> Result<i
             UploadRequest {
                 filename: name.into(),
                 size_bytes: bytes.len() as u64,
+                multipart: false,
             },
         )
         .await?;
@@ -904,7 +905,8 @@ async fn an_archive_upload_becomes_pages_and_a_replacement_is_collected() {
                 c,
                 UploadRequest {
                     filename: "again.cbz".into(),
-                    size_bytes: 10
+                    size_bytes: 10,
+                    multipart: false,
                 }
             )
             .await
@@ -1011,6 +1013,7 @@ async fn upload_requests_and_bad_files_are_refused_with_reasons() {
             UploadRequest {
                 filename: name.into(),
                 size_bytes: size,
+                multipart: false,
             },
         )
     };
@@ -1038,7 +1041,8 @@ async fn upload_requests_and_bad_files_are_refused_with_reasons() {
                 c,
                 UploadRequest {
                     filename: "a.cbz".into(),
-                    size_bytes: 1
+                    size_bytes: 1,
+                    multipart: false,
                 }
             )
             .await
@@ -1052,7 +1056,8 @@ async fn upload_requests_and_bad_files_are_refused_with_reasons() {
                 1,
                 UploadRequest {
                     filename: "a.cbz".into(),
-                    size_bytes: 1
+                    size_bytes: 1,
+                    multipart: false,
                 }
             )
             .await
@@ -1155,7 +1160,8 @@ async fn a_pdf_is_kept_as_the_chapters_source_and_replacing_it_collects_the_old_
                 c,
                 UploadRequest {
                     filename: "a.cbz".into(),
-                    size_bytes: 5
+                    size_bytes: 5,
+                    multipart: false,
                 }
             )
             .await
@@ -1318,6 +1324,7 @@ async fn abandoned_upload_slots_expire_and_are_cleaned() {
             UploadRequest {
                 filename: "a.cbz".into(),
                 size_bytes: 10,
+                multipart: false,
             },
         )
         .await
@@ -1382,6 +1389,7 @@ async fn abandoned_upload_slots_expire_and_are_cleaned() {
             UploadRequest {
                 filename: "a.cbz".into(),
                 size_bytes: 10,
+                multipart: false,
             },
         )
         .await
@@ -1394,6 +1402,7 @@ async fn abandoned_upload_slots_expire_and_are_cleaned() {
             UploadRequest {
                 filename: "b.cbz".into(),
                 size_bytes: 10,
+                multipart: false,
             },
         )
         .await
@@ -1485,4 +1494,65 @@ async fn publishing_a_chapter_notifies_followers_with_the_bell_on() {
             .types(bell.user_id)
             .contains(&"unfollow".to_owned())
     );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_multipart_upload_is_remembered_resumed_and_completed() {
+    use sr_library::{MemoryPartStore, MultipartWiring};
+    let w = world().await;
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 1.0, 1).await;
+    let parts = Arc::new(MemoryPartStore::new(w.storage.clone()));
+    let svc = w
+        .svc
+        .clone()
+        .with_multipart(MultipartWiring::new(parts.clone()).with_part_size(4));
+    let body = cbz(2);
+    let slot = svc
+        .begin_upload(
+            w.publisher,
+            c,
+            UploadRequest {
+                filename: "Ch 1.cbz".into(),
+                size_bytes: body.len() as u64,
+                multipart: true,
+            },
+        )
+        .await
+        .unwrap();
+    let m = slot.multipart.clone().expect("a multipart slot");
+    assert_eq!(m.part_size, 4);
+    assert_eq!(u64::from(m.part_count), (body.len() as u64).div_ceil(4));
+    let remembered: (String, i64) = sqlx::query_as(
+        "SELECT multipart_id, part_size FROM reading_upload_multipart WHERE upload_id = $1",
+    )
+    .bind(slot.upload.id)
+    .fetch_one(&w.pool)
+    .await
+    .unwrap();
+    assert_eq!(remembered.1, 4);
+
+    // Send every part but the first, as a browser that refreshed halfway would have.
+    for (i, chunk) in body.chunks(4).enumerate().skip(1) {
+        parts.put_part(&remembered.0, i as u32 + 1, Bytes::copy_from_slice(chunk));
+    }
+    let resume = svc.upload_parts(w.publisher, slot.upload.id).await.unwrap();
+    assert_eq!(resume.missing.len(), 1);
+    assert_eq!(resume.missing[0].part_number, 1);
+    assert!(
+        svc.complete_upload(w.publisher, slot.upload.id)
+            .await
+            .is_err()
+    );
+    parts.put_part(&remembered.0, 1, Bytes::copy_from_slice(&body[..4]));
+    let up = svc
+        .complete_upload(w.publisher, slot.upload.id)
+        .await
+        .unwrap();
+    assert_eq!(up.status.as_str(), "queued");
+    assert_eq!(w.queue.0.lock().unwrap().as_slice(), [slot.upload.id]);
+    // The slot is spent: no parts to resume, nothing to cancel.
+    assert!(svc.upload_parts(w.publisher, slot.upload.id).await.is_err());
+    assert!(svc.abort_upload(w.publisher, slot.upload.id).await.is_err());
 }

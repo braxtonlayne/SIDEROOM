@@ -410,7 +410,14 @@ pub fn router() -> Router<AppState> {
             "/admin/library/chapters/{chapter_id}/uploads",
             get(uploads::list).post(uploads::begin),
         )
-        .route("/admin/library/uploads/{upload_id}", get(uploads::status))
+        .route(
+            "/admin/library/uploads/{upload_id}",
+            get(uploads::status).delete(uploads::abort),
+        )
+        .route(
+            "/admin/library/uploads/{upload_id}/parts",
+            get(uploads::parts),
+        )
         .route(
             "/admin/library/uploads/{upload_id}/complete",
             post(uploads::complete),
@@ -487,6 +494,8 @@ pub fn router() -> Router<AppState> {
         uploads::begin,
         uploads::complete,
         uploads::status,
+        uploads::parts,
+        uploads::abort,
         uploads::list,
     ),
     components(schemas(
@@ -527,6 +536,8 @@ pub fn router() -> Router<AppState> {
         sr_library::model::Upload,
         sr_library::model::UploadRequest,
         sr_library::model::UploadSlot,
+        sr_library::multipart::MultipartSlot,
+        sr_library::multipart::PartUrl,
         sr_library::model::UploadList,
         sr_library::reading::ProgressInput,
         sr_library::reading::Progress,

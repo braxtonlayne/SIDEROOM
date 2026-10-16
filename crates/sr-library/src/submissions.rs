@@ -318,6 +318,28 @@ impl LibraryDraftOps {
         self.own_upload(s, user, upload).await
     }
 
+    /// Resume a multipart upload: the parts that arrived and URLs for the rest.
+    pub async fn upload_parts(
+        &self,
+        s: &Submission,
+        user: i64,
+        upload: i64,
+    ) -> ReviewResult<crate::multipart::UploadParts> {
+        self.own_upload(s, user, upload).await?;
+        Ok(self.svc.upload_parts(sponsor(user), upload).await?)
+    }
+
+    /// Cancel an upload that was not completed.
+    pub async fn abort_upload(
+        &self,
+        s: &Submission,
+        user: i64,
+        upload: i64,
+    ) -> ReviewResult<Upload> {
+        self.own_upload(s, user, upload).await?;
+        Ok(self.svc.abort_upload(sponsor(user), upload).await?)
+    }
+
     pub async fn chapter_uploads(
         &self,
         s: &Submission,

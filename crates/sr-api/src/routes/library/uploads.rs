@@ -107,3 +107,47 @@ pub async fn list(
         .map(Json)
         .map_err(map_err)
 }
+
+/// Resume a multipart upload: the parts that arrived and fresh URLs for the missing ones
+/// (`PUBLISH_READING`).
+#[utoipa::path(
+    get, path = "/admin/library/uploads/{upload_id}/parts", operation_id = "admin_library_upload_parts",
+    params(("upload_id" = String, Path, description = "Upload snowflake")),
+    responses((status = 200, body = sr_library::multipart::UploadParts), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody),
+              (status = 409, body = ErrorBody, description = "Not a multipart upload, or no longer awaiting its file.")),
+    security(("session" = []))
+)]
+pub async fn parts(
+    ctx: PublisherCtx,
+    Path(upload_id): Path<String>,
+) -> ApiResult<Json<sr_library::multipart::UploadParts>> {
+    ctx.svc()
+        .upload_parts(ctx.actor(), id(&upload_id, "upload")?)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// Cancel an upload that was not completed and free its parts (`PUBLISH_READING`).
+#[utoipa::path(
+    delete, path = "/admin/library/uploads/{upload_id}", operation_id = "admin_library_abort_upload",
+    params(("upload_id" = String, Path, description = "Upload snowflake")),
+    responses((status = 200, body = Upload), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn abort(ctx: PublisherCtx, Path(upload_id): Path<String>) -> ApiResult<Json<Upload>> {
+    let up = ctx
+        .svc()
+        .abort_upload(ctx.actor(), id(&upload_id, "upload")?)
+        .await
+        .map_err(map_err)?;
+    ctx.audit(
+        "library.upload.abort",
+        ("chapter", up.chapter_id),
+        json!({ "upload": up.id.to_string() }),
+    )
+    .await;
+    Ok(Json(up))
+}

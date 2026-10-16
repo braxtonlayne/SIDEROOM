@@ -542,6 +542,21 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         pool.clone(),
         id_src.clone(),
     )));
+    // Resumable multipart uploads of chapter files (REV-UP-001) need part-level presigning, which
+    // only the S3 API offers; with `SR_MEDIA_SINGLE_PUT=1` they are off and slots are one PUT.
+    let library_service = if std::env::var("SR_MEDIA_SINGLE_PUT").is_ok_and(|v| v == "1") {
+        library_service
+    } else {
+        let s3 = sr_storage::s3multipart::S3Multipart::new(
+            &s.endpoint,
+            &s.bucket,
+            &s.region,
+            s.access_key.expose(),
+            s.secret_key.expose(),
+        )
+        .context("configuring library multipart uploads")?;
+        library_service.with_multipart(sr_library::MultipartWiring::new(Arc::new(s3)))
+    };
     let indexed = library_service
         .reindex_all()
         .await

@@ -587,6 +587,35 @@ impl UploadRepository for PgLibraryRepo {
         rows.iter().map(upload_from).collect()
     }
 
+    async fn set_multipart(
+        &self,
+        upload: i64,
+        multipart_id: &str,
+        part_size: u64,
+    ) -> LibraryResult<()> {
+        sqlx::query(
+            "INSERT INTO reading_upload_multipart (upload_id, multipart_id, part_size) \n             VALUES ($1, $2, $3) \n             ON CONFLICT (upload_id) DO UPDATE SET multipart_id = EXCLUDED.multipart_id, \n               part_size = EXCLUDED.part_size",
+        )
+        .bind(upload)
+        .bind(multipart_id)
+        .bind(i64::try_from(part_size).unwrap_or(i64::MAX))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn get_multipart(&self, upload: i64) -> LibraryResult<Option<(String, u64)>> {
+        let row: Option<(String, i64)> = sqlx::query_as(
+            "SELECT multipart_id, part_size FROM reading_upload_multipart WHERE upload_id = $1",
+        )
+        .bind(upload)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(row.map(|(id, size)| (id, u64::try_from(size).unwrap_or(0))))
+    }
+
     async fn queue_gc(&self, keys: &[String], chapter: Option<i64>) -> LibraryResult<()> {
         if keys.is_empty() {
             return Ok(());
