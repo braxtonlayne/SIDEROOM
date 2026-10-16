@@ -118,7 +118,10 @@ async fn fx() -> Fx {
             23,
             23,
         )
-        .unwrap(),
+        .unwrap()
+        .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
+            b"staff-feed-test-secret-0123456789".to_vec(),
+        )),
     );
     let voice = Arc::new(StaffVoice::new(pool.clone(), messages, "https://sr.test"));
     let next = Arc::new(std::sync::atomic::AtomicI64::new(

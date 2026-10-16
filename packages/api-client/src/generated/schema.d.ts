@@ -48840,7 +48840,7 @@ export interface operations {
             query?: {
                 /** @description Power of two, 16 to 4096 */
                 size?: number;
-                /** @description png, jpg, webp or gif */
+                /** @description png, jpg, webp, gif or avif (answers webp) */
                 format?: string;
             };
             header?: never;

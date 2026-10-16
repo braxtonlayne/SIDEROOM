@@ -53,7 +53,6 @@ async fn account(pool: &PgPool, ids: &Ids, name: &str) -> i64 {
 struct Fx {
     db: TestDb,
     svc: AppsService,
-    repo: Arc<PgAppsRepo>,
     ids: Arc<Ids>,
     owner: i64,
     other: i64,
@@ -84,7 +83,6 @@ async fn fx() -> Fx {
         guild: bp.guild.id.get() as i64,
         db,
         svc,
-        repo,
         ids,
         owner,
         other,
@@ -1073,13 +1071,12 @@ async fn the_signing_seed_is_sealed_at_rest_and_rotates_with_the_key() {
 
     // the sealed column holds neither the seed nor anything shaped like it (the plaintext
     // column is gone, migration 0803)
-    let (sealed,): (Option<Vec<u8>>,) = sqlx::query_as(
-        "SELECT interactions_signing_seed_sealed FROM applications WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(f.db.pool())
-    .await
-    .unwrap();
+    let (sealed,): (Option<Vec<u8>>,) =
+        sqlx::query_as("SELECT interactions_signing_seed_sealed FROM applications WHERE id = $1")
+            .bind(id)
+            .fetch_one(f.db.pool())
+            .await
+            .unwrap();
     let sealed = sealed.expect("sealed");
     assert!(sealed.len() > 32 + 12);
     assert!(!sealed.windows(32).any(|w| w == seed.as_bytes().as_slice()));

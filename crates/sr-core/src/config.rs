@@ -689,7 +689,6 @@ impl Config {
 mod tests {
     use super::*;
 
-
     #[test]
     fn ingest_roots_accept_a_list_or_a_comma_separated_string() {
         let load = |toml: &str| {
@@ -702,7 +701,10 @@ mod tests {
         };
         assert!(load("").is_empty());
         assert_eq!(load("[ingest]\nroots = [\"/a\", \"/b\"]"), ["/a", "/b"]);
-        assert_eq!(load("[ingest]\nroots = \"/srv/sideroom/ingest\""), ["/srv/sideroom/ingest"]);
+        assert_eq!(
+            load("[ingest]\nroots = \"/srv/sideroom/ingest\""),
+            ["/srv/sideroom/ingest"]
+        );
         assert_eq!(load("[ingest]\nroots = \"/a, /b,\""), ["/a", "/b"]);
         assert!(load("[ingest]\nroots = \"\"").is_empty());
     }

@@ -39,7 +39,8 @@ const AMBER: u32 = 0xF1C40F;
 const BLUE: u32 = 0x3498DB;
 /// How long the signed cover on a review card stays valid (H-47): the card is rewritten on every
 /// state change, and each rewrite signs again, but a card can sit in the queue for days.
-pub const REVIEW_CARD_IMAGE_TTL: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
+pub const REVIEW_CARD_IMAGE_TTL: std::time::Duration =
+    std::time::Duration::from_secs(7 * 24 * 60 * 60);
 const GREEN: u32 = 0x2ECC71;
 
 /// Button styles (Discord).

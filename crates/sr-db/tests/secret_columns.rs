@@ -52,9 +52,16 @@ fn dropped_columns(dir: &Path) -> std::collections::HashSet<String> {
         for line in std::fs::read_to_string(&path).unwrap().lines() {
             let words: Vec<&str> = line.split_whitespace().collect();
             for (i, w) in words.iter().enumerate() {
-                if w.eq_ignore_ascii_case("COLUMN") && i > 0 && words[i - 1].eq_ignore_ascii_case("DROP") {
+                if w.eq_ignore_ascii_case("COLUMN")
+                    && i > 0
+                    && words[i - 1].eq_ignore_ascii_case("DROP")
+                {
                     let rest = &words[i + 1..];
-                    let skip = if rest.len() > 1 && rest[0].eq_ignore_ascii_case("IF") { 2 } else { 0 };
+                    let skip = if rest.len() > 1 && rest[0].eq_ignore_ascii_case("IF") {
+                        2
+                    } else {
+                        0
+                    };
                     if let Some(n) = rest.get(skip) {
                         out.insert(n.trim_end_matches([',', ';']).to_owned());
                     }
