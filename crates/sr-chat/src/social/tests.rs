@@ -1622,6 +1622,9 @@ async fn open_dm_routes_by_protection_and_spoilers_follow_the_media_filter() {
             u(2),
             super::user_settings::PrivacyUpdate {
                 message_requests: Some(false),
+                // D-230's default (`non_friends`) would route every stranger; this test is about the
+                // server Protection settings alone.
+                dm_spam_filter: Some(super::safety::SpamFilter::Off),
                 ..Default::default()
             },
         )

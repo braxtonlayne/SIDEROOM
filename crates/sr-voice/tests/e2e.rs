@@ -778,18 +778,28 @@ fn free_port_pair() -> u16 {
 }
 
 async fn start_sharded(shards: usize, tcp: bool) -> Server {
-    let p = free_port_pair();
-    let handle = sr_voice::start(SfuConfig {
-        bind_ip: [127, 0, 0, 1].into(),
-        udp_port_min: p,
-        udp_port_max: p + 1,
-        tcp_port: tcp.then_some(0),
-        token_secret: SECRET.to_vec(),
-        shards,
-        ..SfuConfig::default()
-    })
-    .await
-    .unwrap();
+    // The shard count is capped by the sockets actually bound. Another test running in parallel can
+    // take the second port between `free_port_pair` and `start`, so try again with a fresh pair.
+    let mut attempt = 0;
+    let handle = loop {
+        let p = free_port_pair();
+        let handle = sr_voice::start(SfuConfig {
+            bind_ip: [127, 0, 0, 1].into(),
+            udp_port_min: p,
+            udp_port_max: p + 1,
+            tcp_port: tcp.then_some(0),
+            token_secret: SECRET.to_vec(),
+            shards,
+            ..SfuConfig::default()
+        })
+        .await
+        .unwrap();
+        attempt += 1;
+        if handle.shard_count() == shards || attempt >= 20 {
+            break handle;
+        }
+        handle.shutdown().await;
+    };
     assert_eq!(handle.shard_count(), shards);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
