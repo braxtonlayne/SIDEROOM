@@ -20,6 +20,29 @@ pub struct VoiceMeta {
     pub waveform: Vec<u8>,
 }
 
+/// K-01: whether the client's own recording can stand in for the packet-size envelope.
+///
+/// The measured duration stays authoritative. A declared waveform of 1 to
+/// [`MAX_WAVEFORM_BYTES`] decoded bytes is kept when the declared duration is within 2 percent
+/// or 100 ms (the larger) of the measured one: the client then saw the same audio, and its
+/// envelope is taken from real samples, so it is truer than the packet-size estimate.
+#[must_use]
+pub fn declared_waveform_is_consistent(
+    measured_ms: u32,
+    declared_secs: Option<f64>,
+    declared_len: usize,
+) -> bool {
+    if declared_len == 0 || declared_len > MAX_WAVEFORM_BYTES {
+        return false;
+    }
+    let Some(d) = declared_secs.filter(|d| d.is_finite() && *d > 0.0) else {
+        return false;
+    };
+    let measured = f64::from(measured_ms);
+    let tolerance = (measured * 0.02).max(100.0);
+    (d * 1000.0 - measured).abs() <= tolerance
+}
+
 /// Opus always counts granule positions at 48 kHz.
 const OPUS_RATE: u64 = 48_000;
 
@@ -205,5 +228,21 @@ mod tests {
         let mut headers = page(7, 0, &[head(0)]);
         headers.extend(page(7, 0, &[b"OpusTags".to_vec()]));
         assert!(analyze_ogg_opus(&headers).is_none());
+    }
+
+    #[test]
+    fn declared_waveform_is_kept_only_when_consistent() {
+        // Within 2 percent of 60 s (1.2 s) is kept; beyond it is not.
+        assert!(declared_waveform_is_consistent(60_000, Some(61.0), 64));
+        assert!(!declared_waveform_is_consistent(60_000, Some(62.0), 64));
+        // Short clips get the 100 ms floor.
+        assert!(declared_waveform_is_consistent(2_000, Some(2.09), 10));
+        assert!(!declared_waveform_is_consistent(2_000, Some(2.2), 10));
+        // Malformed lengths and missing or odd durations are replaced.
+        assert!(!declared_waveform_is_consistent(2_000, Some(2.0), 0));
+        assert!(!declared_waveform_is_consistent(2_000, Some(2.0), 257));
+        assert!(declared_waveform_is_consistent(2_000, Some(2.0), 256));
+        assert!(!declared_waveform_is_consistent(2_000, None, 10));
+        assert!(!declared_waveform_is_consistent(2_000, Some(f64::NAN), 10));
     }
 }

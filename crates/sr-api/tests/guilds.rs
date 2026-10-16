@@ -1683,6 +1683,9 @@ async fn role_colour_gradients_use_discords_colors_object_and_are_audited() {
     for bad in [
         json!({ "colors": { "primary_color": 1, "tertiary_color": 2 } }),
         json!({ "colors": { "primary_color": 1, "secondary_color": 16777216 } }),
+        // K-02: a tertiary stop is only valid as the exact holographic triple.
+        json!({ "colors": { "primary_color": 1, "secondary_color": 2, "tertiary_color": 3 } }),
+        json!({ "colors": { "primary_color": 11127295, "secondary_color": 16759788, "tertiary_color": 1 } }),
     ] {
         let (s, e) = patch(&f, &uri, "owner", bad).await;
         assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");

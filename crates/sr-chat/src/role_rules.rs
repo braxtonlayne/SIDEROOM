@@ -47,6 +47,14 @@ pub fn validate_colors(c: RoleColors) -> ChatResult<RoleColors> {
             "A tertiary color needs a secondary color.",
         ));
     }
+    // K-02: Discord accepts a tertiary stop only as the fixed holographic triple.
+    if c.tertiary.is_some() && c != HOLOGRAPHIC {
+        return Err(ChatError::invalid(
+            "colors.tertiary_color",
+            "TERTIARY_COLOR_HOLOGRAPHIC_ONLY",
+            "tertiary_color is only valid for the holographic style",
+        ));
+    }
     Ok(c)
 }
 
@@ -575,6 +583,17 @@ mod tests {
                 primary: 1,
                 secondary: Some(2),
                 tertiary: Some(0x0100_0000),
+            },
+            // Any tertiary stop other than the exact holographic triple (K-02).
+            RoleColors {
+                primary: 1,
+                secondary: Some(2),
+                tertiary: Some(3),
+            },
+            RoleColors {
+                primary: 11_127_295,
+                secondary: Some(16_759_788),
+                tertiary: Some(16_761_761),
             },
             RoleColors {
                 primary: 0x0100_0000,
