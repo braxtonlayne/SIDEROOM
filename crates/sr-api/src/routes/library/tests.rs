@@ -1647,3 +1647,23 @@ async fn an_uploaded_archive_can_be_listed_before_it_is_converted() {
     let (s, _) = e.call(Some(MEMBER), Method::GET, inspect, None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn ingest_source_routes_need_staff_and_a_scanner() {
+    let e = env().await;
+    let paths = [
+        (Method::GET, "/admin/ingest-sources"),
+        (Method::POST, "/admin/ingest-sources/7/dry-run"),
+        (Method::POST, "/admin/ingest-sources/7/scan"),
+        (Method::DELETE, "/admin/ingest-sources/7"),
+    ];
+    for (m, p) in paths {
+        let (s, _) = e.call(None, m.clone(), p, None).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED, "{m} {p}");
+        let (s, _) = e.call(Some(MEMBER), m.clone(), p, None).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{m} {p}");
+        // A curator is allowed in, but this server has no scanner configured.
+        let (s, b) = e.call(Some(CURATOR), m.clone(), p, None).await;
+        assert_eq!(s, StatusCode::CONFLICT, "{m} {p}: {b}");
+    }
+}

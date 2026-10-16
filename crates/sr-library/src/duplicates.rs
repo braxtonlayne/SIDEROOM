@@ -75,6 +75,34 @@ impl LibraryService {
         self
     }
 
+    /// The published series whose title (or an alternative title) equals `title` once case,
+    /// punctuation and bracketed tags are ignored. The most followed one wins a tie.
+    pub async fn find_series_exact(&self, title: &str) -> LibraryResult<Option<i64>> {
+        let Some(index) = &self.index else {
+            return Ok(None);
+        };
+        let want = sr_review::similar::normalize_title(title);
+        if want.is_empty() {
+            return Ok(None);
+        }
+        let ids: Vec<i64> = index
+            .search(title, true, TITLE_CANDIDATES)?
+            .into_iter()
+            .map(|h| h.id)
+            .collect();
+        let rows = self.repo.series_by_ids(&ids, Scope::Staff).await?;
+        Ok(rows
+            .iter()
+            .filter(|r| r.published && r.merged_into.is_none())
+            .filter(|r| {
+                std::iter::once(&r.title)
+                    .chain(r.alt_titles.iter())
+                    .any(|t| sr_review::similar::normalize_title(t) == want)
+            })
+            .max_by_key(|r| r.follower_count)
+            .map(|r| r.id))
+    }
+
     async fn cover_hash(&self, key: &str) -> Option<u64> {
         let w = self.ingest.as_ref()?;
         let bytes = w.storage.get(key).await.ok()?;

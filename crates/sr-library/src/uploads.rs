@@ -486,6 +486,15 @@ impl LibraryService {
         Ok(to_upload(queued))
     }
 
+    /// The storage key of an upload slot's file (for server-side imports that fill the slot).
+    pub(crate) async fn upload_object_key(&self, id: i64) -> LibraryResult<String> {
+        self.repo
+            .get_upload(id)
+            .await?
+            .map(|r| r.object_key)
+            .ok_or(LibraryError::NotFound("upload"))
+    }
+
     /// Pre-inspection (REV-UP-004): list the archive of an upload slot without converting it.
     /// Works from the moment the file is in storage until the conversion has run.
     pub async fn inspect_upload(

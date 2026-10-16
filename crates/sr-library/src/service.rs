@@ -92,6 +92,11 @@ pub struct LibraryService {
 }
 
 impl LibraryService {
+    /// A fresh snowflake from the service's id source.
+    pub fn next_id(&self) -> i64 {
+        (self.ids)()
+    }
+
     pub fn new(
         repo: Arc<dyn LibraryRepository>,
         signer: CdnSigner,

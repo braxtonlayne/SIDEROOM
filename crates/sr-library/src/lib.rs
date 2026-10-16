@@ -17,6 +17,7 @@ pub mod repo;
 pub mod rules;
 pub mod search;
 pub mod service;
+pub mod sources;
 pub mod submissions;
 pub mod uploads;
 mod uploads_multipart;

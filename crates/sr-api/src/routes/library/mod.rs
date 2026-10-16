@@ -27,6 +27,7 @@ mod admin;
 mod member;
 mod reading;
 mod social;
+mod sources;
 mod uploads;
 
 #[cfg(test)]
@@ -47,7 +48,7 @@ use axum::{
     Router,
     extract::FromRequestParts,
     http::request::Parts,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use sr_core::{ApiError, ErrorCode, UserId};
 use sr_library::{Actor, LibraryError, LibraryService, Viewer};
@@ -79,6 +80,8 @@ pub struct LibraryDeps {
     prefs: Arc<dyn LibraryPrefs>,
     /// Ratings, reviews, lists, rankings (`sr-library-social`); the routes answer 500 without it.
     pub social: Option<sr_library_social::LibrarySocial>,
+    /// Watched folders and storage imports (ADM-CNT-005); the routes answer 409 without it.
+    pub sources: Option<sr_library::sources::SourceScanner>,
 }
 
 impl LibraryDeps {
@@ -88,7 +91,14 @@ impl LibraryDeps {
             age: Arc::new(NoAgeConfirmed),
             prefs: Arc::new(NoLibraryPrefs),
             social: None,
+            sources: None,
         }
+    }
+
+    /// The ingest source scanner (REV-UP-005/006).
+    pub fn with_sources(mut self, sources: sr_library::sources::SourceScanner) -> Self {
+        self.sources = Some(sources);
+        self
     }
 
     /// The social backend (LIB-SOC-001/003/006, LIB-BRW-002).
@@ -426,6 +436,22 @@ pub fn router() -> Router<AppState> {
             "/admin/library/uploads/{upload_id}/complete",
             post(uploads::complete),
         )
+        .route(
+            "/admin/ingest-sources",
+            get(sources::list).post(sources::create),
+        )
+        .route(
+            "/admin/ingest-sources/{source_id}",
+            patch(sources::update).delete(sources::remove),
+        )
+        .route(
+            "/admin/ingest-sources/{source_id}/dry-run",
+            post(sources::dry_run),
+        )
+        .route(
+            "/admin/ingest-sources/{source_id}/scan",
+            post(sources::scan),
+        )
 }
 
 /// OpenAPI fragment for the Library endpoints.
@@ -499,6 +525,12 @@ pub fn router() -> Router<AppState> {
         uploads::complete,
         uploads::status,
         uploads::parts,
+        sources::list,
+        sources::create,
+        sources::update,
+        sources::remove,
+        sources::dry_run,
+        sources::scan,
         uploads::inspect,
         uploads::abort,
         uploads::list,
@@ -541,6 +573,15 @@ pub fn router() -> Router<AppState> {
         sr_library::model::Upload,
         sr_library::model::UploadRequest,
         sr_library::model::UploadSlot,
+        sources::IngestSourceList,
+        sr_library::sources::IngestSource,
+        sr_library::sources::SourceKind,
+        sr_library::sources::Backend,
+        sr_library::sources::SourceInput,
+        sr_library::sources::SourcePatch,
+        sr_library::sources::ScanReport,
+        sr_library::sources::PlannedSeries,
+        sr_library::sources::PlannedChapter,
         sr_library::ingest::inspect::ArchiveReport,
         sr_library::ingest::inspect::FolderGroup,
         sr_library::ingest::inspect::ComicInfoFacts,

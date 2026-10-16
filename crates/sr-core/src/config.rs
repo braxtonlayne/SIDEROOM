@@ -305,6 +305,16 @@ impl GifConfig {
     }
 }
 
+/// `[ingest]`: folders the server may read for watched folders and imports (REV-UP-005). A staff
+/// member can only point an ingest source at a directory under one of these roots; with none
+/// listed, local folders are off (storage prefixes below `imports/` still work).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IngestConfig {
+    /// Absolute directories, for example a mounted Storage Box.
+    pub roots: Vec<String>,
+}
+
 /// `[lookup]`: metadata lookup providers behind the submission editor's "Fetch details"
 /// (REV-ED-005). Everything is off by default: a provider is used only when the operator turns it
 /// on here (and gave its key, where it needs one) AND the platform setting
@@ -416,6 +426,7 @@ pub struct Config {
     pub unfurl: UnfurlConfig,
     pub gif: GifConfig,
     pub lookup: LookupConfig,
+    pub ingest: IngestConfig,
     pub voice: VoiceConfig,
 }
 
