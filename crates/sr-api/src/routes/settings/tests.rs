@@ -3338,3 +3338,25 @@ async fn a_webhook_posts_into_a_thread_of_its_channel() {
         "nothing leaked into the parent channel"
     );
 }
+
+#[tokio::test]
+async fn following_a_channel_posts_a_follow_added_notice_in_the_receiving_channel() {
+    let e = env().await;
+    let news = add_channel(&e, 7_101, sr_chat::ChannelType::Announcement, "news", 0);
+    let (s, f) = e
+        .post(
+            &format!("/channels/{news}/followers"),
+            "owner",
+            json!({ "webhook_channel_id": e.ch.to_string() }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{f}");
+    let notices: Vec<Value> = history(&e, e.ch)
+        .await
+        .into_iter()
+        .filter(|m| m["type"] == 12)
+        .collect();
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0]["content"], "news");
+    assert_eq!(notices[0]["author"]["id"], OWNER.to_string());
+}

@@ -208,6 +208,7 @@ async fn set_title_published(
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = CinemaMergeBody)]
 pub struct MergeBody {
     /// The title that stays; this one is merged into it.
     pub target_id: String,

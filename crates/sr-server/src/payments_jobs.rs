@@ -22,7 +22,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::json;
-use sr_api::routes::donations::BusPaymentEvents;
+use sr_api::routes::donations::{BusPaymentEvents, ChatSlot};
 use sr_db::{
     DbResult, PgPool,
     auth_repo::IdSource,
@@ -72,6 +72,8 @@ struct RateSpec {
 pub struct PaymentsRuntime {
     pub service: Arc<PaymentService>,
     pub entitlements: Arc<EntitlementService>,
+    /// Fill with the chat module once built so a server-level payment posts its notice.
+    pub chat: ChatSlot,
 }
 
 fn now_ms() -> i64 {
@@ -84,6 +86,7 @@ fn now_ms() -> i64 {
 /// Build the service from the environment. Misconfiguration is logged, never fatal: donations
 /// simply stay off.
 pub async fn build(pool: &PgPool, ids: IdSource, bus: Arc<dyn EventBus>) -> PaymentsRuntime {
+    let chat = ChatSlot::default();
     let repo: Arc<dyn PaymentRepo> = Arc::new(PgPaymentRepo::new(pool.clone(), ids.clone()));
     let clock: Arc<dyn Fn() -> i64 + Send + Sync> = Arc::new(now_ms);
     let allow_private = std::env::var("SR_PAYMENTS_ALLOW_PRIVATE_HOSTS")
@@ -125,7 +128,7 @@ pub async fn build(pool: &PgPool, ids: IdSource, bus: Arc<dyn EventBus>) -> Paym
             repo.clone(),
             chain,
             rates,
-            Arc::new(BusPaymentEvents::new(bus)),
+            Arc::new(BusPaymentEvents::new(bus).with_chat_slot(chat.clone())),
             entitlements.clone(),
             clock,
             ids,
@@ -139,6 +142,7 @@ pub async fn build(pool: &PgPool, ids: IdSource, bus: Arc<dyn EventBus>) -> Paym
     PaymentsRuntime {
         service,
         entitlements,
+        chat,
     }
 }
 

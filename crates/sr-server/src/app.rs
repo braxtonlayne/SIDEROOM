@@ -770,6 +770,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // The review pipeline (REV-*): submissions of the Library kinds, reviewed by staff with
     // REVIEW_READING and published through the same Library service. The submitter hears
     // about every step as SR_SUBMISSION_UPDATE.
+    let review_dm = routes::review::DmSlot::default();
     let review_deps = Arc::new(
         routes::review::ReviewDeps::new(
             sr_review::ReviewService::new(
@@ -792,7 +793,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 clock.clone(),
                 id_src.clone(),
             )
-            .with_events(Arc::new(routes::review::BusReviewEvents::new(bus.clone())))
+            .with_events(Arc::new(
+                routes::review::BusReviewEvents::new(bus.clone()).with_dm_slot(review_dm.clone()),
+            ))
             .with_allowance(Arc::new(crate::review_jobs::PlatformAllowance::new(
                 pool.clone(),
             ))),
@@ -934,6 +937,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_dm_announcer(social_api.clone())
             .with_viewer_safety(social_api.clone()),
     );
+    // Server-level payments post their "supported this server" notice through the chat module.
+    let _ = payments.chat.set(messages.clone());
 
     // Web Push (LNG-NTF-003): the VAPID key lives in the database sealed with the server
     // secret; without a configured secret it is per-boot (nothing could open it later).
@@ -1057,6 +1062,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     ));
     // Tester invitations and endpoint warnings reach developers as system DMs.
     dev_deps.set_system_dm(staff_voice.clone());
+    // Review decisions reach the submitter as a system DM too (REV-CORE-007).
+    let _ = review_dm.set(staff_voice.clone());
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
         .with_extras(admin_repo)
         .with_notifier(staff_voice.clone())

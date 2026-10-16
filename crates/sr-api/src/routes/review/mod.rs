@@ -325,18 +325,42 @@ pub(crate) fn now_ms() -> i64 {
 }
 
 /// Delivers `SR_SUBMISSION_UPDATE` to the sessions of an account over the event bus.
+/// Late-bound sender of system DMs (the Staff Server voice is built after the review service).
+pub type DmSlot = Arc<std::sync::OnceLock<Arc<dyn crate::routes::developer::SystemDm>>>;
+
 pub struct BusReviewEvents {
     bus: Arc<dyn sr_events::EventBus>,
+    dm: DmSlot,
 }
 
 impl BusReviewEvents {
     pub fn new(bus: Arc<dyn sr_events::EventBus>) -> Self {
-        Self { bus }
+        Self {
+            bus,
+            dm: DmSlot::default(),
+        }
+    }
+
+    /// Share the slot the composition root fills with the DM sender once it exists.
+    #[must_use]
+    pub fn with_dm_slot(mut self, dm: DmSlot) -> Self {
+        self.dm = dm;
+        self
     }
 }
 
 #[async_trait::async_trait]
 impl sr_review::ReviewEvents for BusReviewEvents {
+    async fn dm(&self, user: i64, text: String) {
+        if let Some(sender) = self.dm.get() {
+            let card = crate::routes::developer::SystemCard {
+                content: text,
+                ..Default::default()
+            };
+            sender.dm(user, card).await;
+        }
+    }
+
     async fn card(&self, submission_id: i64, outcome: Option<&str>) {
         let ev = sr_events::DomainEvent::ReviewCard {
             submission_id,

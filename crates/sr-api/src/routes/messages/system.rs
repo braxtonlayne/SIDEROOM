@@ -1,4 +1,5 @@
-//! System messages posted by other subsystems: "X joined the server" (LNG-GLD-008).
+//! System messages posted by other subsystems: "X joined the server" (LNG-GLD-008), a followed
+//! announcement channel and a server-level contribution (LNG-MSG-016).
 
 use super::deps::MessagesDeps;
 use super::error::MsgResult;
@@ -32,6 +33,85 @@ async fn try_post_user_join(deps: &MessagesDeps, guild: GuildId, user: UserId) -
     if g.system_channel_flags & sr_chat::domain::system_flags::SUPPRESS_JOIN_NOTIFICATIONS != 0 {
         return Ok(());
     }
+    store_and_announce(deps, channel_id, user, MessageType::UserJoin, String::new()).await
+}
+
+/// The system message type for a server level (Discord's boost types: 8 for the first
+/// contribution, 9 to 11 when it brings the server to level 1 to 3).
+#[must_use]
+pub fn support_type(level: Option<u8>) -> MessageType {
+    match level {
+        Some(1) => MessageType::ServerSupportLevel1,
+        Some(2) => MessageType::ServerSupportLevel2,
+        Some(3) => MessageType::ServerSupportLevel3,
+        _ => MessageType::ServerSupport,
+    }
+}
+
+/// Post "X supported this server" (LNG-MSG-016) in the system channel after a server-level
+/// contribution was credited. `level` is the server's level after it. Nothing happens
+/// without a system channel or when "boost" notices are switched off (G-36 flag bit 1).
+/// Failures are logged: the payment is already credited.
+pub async fn post_server_support(
+    deps: &MessagesDeps,
+    guild: GuildId,
+    user: UserId,
+    level: Option<u8>,
+) {
+    if let Err(e) = try_post_server_support(deps, guild, user, level).await {
+        tracing::warn!(guild = guild.get(), "support notice failed: {e:?}");
+    }
+}
+
+async fn try_post_server_support(
+    deps: &MessagesDeps,
+    guild: GuildId,
+    user: UserId,
+    level: Option<u8>,
+) -> MsgResult<()> {
+    let Some(g) = deps.repo.get_guild(guild).await? else {
+        return Ok(());
+    };
+    let Some(channel_id) = g.system_channel_id else {
+        return Ok(());
+    };
+    if g.system_channel_flags & sr_chat::domain::system_flags::SUPPRESS_PREMIUM_SUBSCRIPTIONS != 0 {
+        return Ok(());
+    }
+    let content = level.map(|l| l.to_string()).unwrap_or_default();
+    store_and_announce(deps, channel_id, user, support_type(level), content).await
+}
+
+/// Post "X added <channel> to this channel" (type 12) in the channel that now receives an
+/// announcement channel's posts. `source_name` is the followed channel's name. Failures are
+/// logged: the follow already exists.
+pub async fn post_follow_added(
+    deps: &MessagesDeps,
+    target: sr_core::ChannelId,
+    user: UserId,
+    source_name: &str,
+) {
+    if let Err(e) = store_and_announce(
+        deps,
+        target,
+        user,
+        MessageType::ChannelFollowAdd,
+        source_name.to_owned(),
+    )
+    .await
+    {
+        tracing::warn!(channel = target.get(), "follow notice failed: {e:?}");
+    }
+}
+
+/// Store a system message of `kind` in `channel_id` and announce it like any message.
+async fn store_and_announce(
+    deps: &MessagesDeps,
+    channel_id: sr_core::ChannelId,
+    user: UserId,
+    kind: MessageType,
+    content: String,
+) -> MsgResult<()> {
     let Some(ch) = deps.repo.get_channel(channel_id).await? else {
         return Ok(());
     };
@@ -40,8 +120,8 @@ async fn try_post_user_join(deps: &MessagesDeps, guild: GuildId, user: UserId) -
         channel_id,
         guild_id: ch.guild_id,
         author_id: user,
-        kind: MessageType::UserJoin,
-        content: String::new(),
+        kind,
+        content,
         flags: 0,
         edited_at_ms: None,
         reference: None,
@@ -71,4 +151,22 @@ async fn try_post_user_join(deps: &MessagesDeps, guild: GuildId, user: UserId) -
     })
     .await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn support_notices_follow_the_server_level() {
+        let codes: Vec<i16> = [None, Some(0), Some(1), Some(2), Some(3)]
+            .into_iter()
+            .map(|l| support_type(l).code())
+            .collect();
+        assert_eq!(codes, [8, 8, 9, 10, 11]);
+        for c in 8..=12 {
+            assert_eq!(MessageType::from_code(c).map(MessageType::code), Some(c));
+            assert!(MessageType::from_code(c).unwrap().is_system());
+        }
+    }
 }

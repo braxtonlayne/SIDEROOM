@@ -836,6 +836,7 @@ pub async fn admin_preview(
 
 /// Body of `PATCH /admin/directory/{guild_id}`.
 #[derive(Debug, Default, Deserialize, ToSchema)]
+#[schema(as = DirectoryDecisionBody)]
 pub struct DecisionBody {
     /// `approve`, `reject` or `remove`.
     pub decision: String,

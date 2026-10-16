@@ -717,3 +717,83 @@ async fn previews_keep_bot_embeds_and_honour_suppression() {
         UnfurlOutcome::Unchanged
     );
 }
+
+/// A minimal Ogg Opus file: head, tags, then audio packets of the given sizes on one page.
+fn opus_ogg(sizes: &[u8], granule: i64) -> Vec<u8> {
+    fn page(granule: i64, packets: &[Vec<u8>]) -> Vec<u8> {
+        let mut out = b"OggS\0\0".to_vec();
+        out.extend_from_slice(&granule.to_le_bytes());
+        out.extend_from_slice(&[7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        out.push(packets.len() as u8);
+        out.extend(packets.iter().map(|p| p.len() as u8));
+        for p in packets {
+            out.extend_from_slice(p);
+        }
+        out
+    }
+    let mut head = b"OpusHead\x01\x01".to_vec();
+    head.extend_from_slice(&[0, 0, 0x80, 0xbb, 0, 0, 0, 0, 0]);
+    let mut f = page(0, &[head]);
+    f.extend(page(0, &[b"OpusTags".to_vec()]));
+    let audio: Vec<Vec<u8>> = sizes.iter().map(|&n| vec![1u8; n.into()]).collect();
+    f.extend(page(granule, &audio));
+    f
+}
+
+#[tokio::test]
+async fn voice_duration_and_waveform_are_measured_from_the_file() {
+    let e = env().await;
+    // 3 seconds of Opus; the client claims 9.9 s and sends a different waveform.
+    let file = opus_ogg(&[8, 40, 90, 8], 3 * 48_000);
+    let slot = upload(&e, "bob", "voice-message.ogg", file).await;
+    let (s, m) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"flags": 1 << 13, "attachments": [{
+                "id": slot["upload_id"], "uploaded_filename": slot["upload_filename"],
+                "duration_secs": 9.9, "waveform": data_encoding::BASE64.encode(&[1u8, 2]),
+            }]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["attachments"][0]["duration_secs"], 3.0);
+    let wave = data_encoding::BASE64
+        .decode(m["attachments"][0]["waveform"].as_str().unwrap().as_bytes())
+        .unwrap();
+    assert_eq!(wave, vec![0, 99, 255, 0]);
+    // No declared values at all is fine once the server can measure them.
+    let slot = upload(&e, "bob", "v3.ogg", opus_ogg(&[10, 20], 48_000)).await;
+    let (s, m) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"flags": 1 << 13, "attachments": [{
+                "id": slot["upload_id"], "uploaded_filename": slot["upload_filename"],
+            }]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["attachments"][0]["duration_secs"], 1.0);
+}
+
+#[tokio::test]
+async fn spoilered_links_get_a_spoiler_preview() {
+    let e = env().await;
+    e.web.page("https://news.test/a", &article("Alpha"));
+    e.web.page("https://news.test/b", &article("Beta"));
+    let m = e
+        .say("bob", "||https://news.test/a|| and https://news.test/b")
+        .await;
+    let id = id_of(&m);
+    rich_jobs::run_unfurl(&e.deps, e.ch, id.parse().unwrap())
+        .await
+        .unwrap();
+    let (_, got) = e.get(&format!("/messages/{id}"), "owner").await;
+    let embeds = got["embeds"].as_array().unwrap();
+    assert_eq!(embeds.len(), 2);
+    assert_eq!(embeds[0]["title"], "Alpha");
+    assert_eq!(embeds[0]["sr_spoiler"], true);
+    assert_eq!(embeds[1]["title"], "Beta");
+    assert!(embeds[1].get("sr_spoiler").is_none());
+}

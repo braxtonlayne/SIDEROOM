@@ -89,14 +89,15 @@ pub async fn run_unfurl(
         .cloned()
         .collect();
     if msg.flags & message_flags::SUPPRESS_EMBEDS == 0 {
-        let links = sr_markdown::extract_preview_links(&sr_markdown::parse(&msg.content));
+        let links = sr_markdown::extract_preview_links_marked(&sr_markdown::parse(&msg.content));
         for link in links.iter().take(MAX_PREVIEW_LINKS) {
-            match unfurler.unfurl(link).await {
+            match unfurler.unfurl(&link.url).await {
                 Ok(Some(preview)) => {
                     let embed = serde_json::to_value(&preview)
                         .ok()
                         .and_then(|v| serde_json::from_value::<Embed>(v).ok());
-                    if let Some(e) = embed {
+                    if let Some(mut e) = embed {
+                        e.sr_spoiler = link.spoiler;
                         next.push(e);
                     }
                 }

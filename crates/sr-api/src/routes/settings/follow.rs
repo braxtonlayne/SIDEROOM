@@ -8,8 +8,8 @@
 
 use super::deps::{SettingsDeps, actor, id, se};
 use super::events::SettingsEvent;
-use crate::routes::Ext;
 use crate::routes::messages::error::ApiJson;
+use crate::routes::{Ext, MaybeExt};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{Json, Router, extract::Path, routing::post};
 use serde::{Deserialize, Serialize};
@@ -57,6 +57,7 @@ pub struct FollowedChannelObject {
 pub async fn follow_channel(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(messages): MaybeExt<crate::routes::messages::MessagesDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<FollowBody>,
 ) -> ApiResult<Json<FollowedChannelObject>> {
@@ -93,6 +94,16 @@ pub async fn follow_channel(
         channel: target,
     })
     .await;
+    // "X added #announcements to this channel" in the receiving channel (LNG-MSG-016).
+    if let Some(m) = &messages {
+        crate::routes::messages::system::post_follow_added(
+            m,
+            target,
+            user,
+            src.channel.name.as_deref().unwrap_or("announcements"),
+        )
+        .await;
+    }
     Ok(Json(FollowedChannelObject {
         channel_id: source.to_string(),
         webhook_id: webhook.id.to_string(),

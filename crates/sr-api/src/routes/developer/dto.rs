@@ -50,6 +50,7 @@ pub struct InstallParamsObject {
 
 /// An application. The client secret is never part of it.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = DeveloperApplicationObject)]
 pub struct ApplicationObject {
     pub id: String,
     pub name: String,
@@ -227,6 +228,7 @@ pub struct ResetTokenResult {
 
 /// One row of an application's audit trail.
 #[derive(Debug, Serialize, ToSchema)]
+#[schema(as = DeveloperAuditEntryObject)]
 pub struct AuditEntryObject {
     pub id: String,
     pub actor_id: String,

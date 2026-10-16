@@ -1,6 +1,7 @@
 // /support/leaderboards (DON-LB-002): top donors and top supporting servers, last 30 days or lifetime.
 // Names and amounts follow each donor's privacy choices; the server already left out what must not be shown.
 import {
+  Avatar,
   Badge,
   Button,
   EmptyState,
@@ -12,12 +13,35 @@ import {
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT, type MessageKey } from '../i18n';
+import { cdnUrl } from '../store/cdn';
 import { useResource } from '../settings/server/hooks';
 import { Async } from '../settings/server/ui';
 import * as api from './api';
 import { usd, type Board, type ContributorBoard, type ContributorKind } from './api';
 import './support.css';
 import '../settings/user/user-settings.css';
+
+/** The picture of a board row; a hidden or missing one falls back to the initials. Decorative: the name is next to it. */
+function RowAvatar({
+  kind,
+  owner,
+  hash,
+  name,
+}: {
+  kind: 'avatars' | 'icons';
+  owner: string | null;
+  hash: string | null;
+  name: string;
+}) {
+  return (
+    <Avatar
+      name={name}
+      size={32}
+      src={owner ? cdnUrl(kind, owner, hash, { size: 64 }) : null}
+      aria-hidden="true"
+    />
+  );
+}
 
 function BoardList({ board, mine }: { board: Board; mine: boolean }) {
   const t = useT();
@@ -45,6 +69,12 @@ function BoardList({ board, mine }: { board: Board; mine: boolean }) {
         {board.items.map((i) => (
           <li key={`${i.rank}-${i.user_id ?? i.guild_id ?? i.name}`}>
             <span className="sup-rank">#{i.rank}</span>
+            <RowAvatar
+              kind={board.board === 'servers' ? 'icons' : 'avatars'}
+              owner={board.board === 'servers' ? i.guild_id : i.user_id}
+              hash={i.avatar}
+              name={i.name}
+            />
             <span className="sup-name">{i.name}</span>
             {i.anonymous && <Badge variant="neutral">{t('support.leaderboards.hidden')}</Badge>}
             <span className="sup-muted">
@@ -83,6 +113,7 @@ function ContributorList({ board }: { board: ContributorBoard }) {
         {board.items.map((i) => (
           <li key={i.user_id}>
             <span className="sup-rank">#{i.rank}</span>
+            <RowAvatar kind="avatars" owner={i.user_id} hash={i.avatar} name={i.name} />
             <span className="sup-name">{i.name}</span>
             <span className="sup-muted">
               {t(`support.leaderboards.count.${board.kind}` as MessageKey, { count: i.count })}
