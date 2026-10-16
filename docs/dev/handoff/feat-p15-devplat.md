@@ -38,8 +38,8 @@ Branch `feat/p15-devplat`, based on `integration/phase15` (= main). Migrations `
 - `sr-packages`: 15 unit tests; Postgres suite `tests/db.rs` (5: review gating, enablements and theme replacement, updates, pack files, profile documents, pages, guestbook and rate limit, layouts) in a scratch database (`--include-ignored --test-threads=1`).
 - `sr-api`: 2 new lib tests (recipe checks against the real module registry); `route_matrix` (5) and `openapi_names` (2).
 - `sr-cli`: `package_validate` (7, 3 new). `sr-sdk --features voice-e2ee --test voice_e2ee` (4). `sr-db` (Postgres): `account_deletion`, `data_export`, `secret_columns`.
-- `cargo fmt --check`, `cargo clippy -D warnings` on `sr-packages sr-api sr-cli sr-sdk sr-db sr-server`: see the final line of this section.
-- Web: `tsc`; `eslint` and `prettier --check` on everything touched; vitest `src/profilepage src/packages src/developers src/admin/__tests__/packagesReview.test.tsx src/settings` (all green), plus `src/styles src/i18n src/a11y src/security`; `vite build` and the bundle budget script.
+- `cargo fmt --check` and `cargo clippy -D warnings --all-targets` on `sr-packages sr-api sr-cli sr-db sr-server`, and on `sr-sdk --features voice-e2ee`; `cargo deny --offline check bans licenses sources`.
+- Web: `tsc`, `eslint .`, `prettier --check src`; the whole vitest suite with `--maxWorkers=2` (2,221 of 2,223 pass; the two failures, `src/test/vitestVersion.test.ts` and the `.rejects.toThrow` case in `src/review/__tests__/uploadManager.test.ts`, are the known vitest 2.x versus 3 mix-up of this worktree's runner and touch no file of mine); `vite build` and `scripts/check-bundle-budget.mjs` (lounge 407.3 of 600 KB, settings 281.0 of 600, developers 226.7 of 400, entrance 223.3 of 300).
 - No Playwright, no server started (ports are shared). The upload route was tested with MSW and the services with Postgres; a real browser drag on the editor grid was not exercised (jsdom has no layout: the pure grid arithmetic and the keyboard path are tested).
 
 ## Decisions and owner questions

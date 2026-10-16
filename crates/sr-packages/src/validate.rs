@@ -74,13 +74,18 @@ impl PackageKind {
     }
 }
 
+/// A check of one recipe entry: the feature id and its settings; the error is the reason it is refused.
+pub type RecipeCheck = dyn Fn(&str, &Map<String, Value>) -> Result<(), String> + Send + Sync;
+/// A check of a server template snapshot.
+pub type TemplateCheck = dyn Fn(&Value) -> Result<(), String> + Send + Sync;
+
 /// Checks that need the running server. Each returns the reason it refuses.
 pub struct Checks<'a> {
     /// A recipe entry: the feature id with its settings. Must know the feature, accept the settings against
     /// its schema and refuse settings that name a channel or role (a recipe is shared across servers).
-    pub recipe_feature: &'a (dyn Fn(&str, &Map<String, Value>) -> Result<(), String> + Send + Sync),
+    pub recipe_feature: &'a RecipeCheck,
     /// The `serialized_source_guild` of a server template.
-    pub template: &'a (dyn Fn(&Value) -> Result<(), String> + Send + Sync),
+    pub template: &'a TemplateCheck,
 }
 
 impl Checks<'static> {

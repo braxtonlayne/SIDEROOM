@@ -442,7 +442,7 @@ pub async fn apply_recipe(
         .unwrap_or_default();
     let scope = ScopeRef::Guild { guild: g };
     // Validate everything first, so a recipe never applies halfway.
-    let mut plan: Vec<(String, Option<bool>, Option<Map<String, Value>>)> = Vec::new();
+    let mut plan: Vec<PlannedEntry> = Vec::new();
     for e in &entries {
         let fid = e
             .get("id")
@@ -535,6 +535,9 @@ pub async fn apply_recipe(
     }))
 }
 
+/// One recipe entry ready to apply: the feature id, the on/off switch and the merged settings.
+type PlannedEntry = (String, Option<bool>, Option<Map<String, Value>>);
+
 fn invalid_feature(fid: &str, why: &str) -> MsgError {
     ApiError::invalid_form()
         .field("features", "SETTING_INVALID", format!("{fid}: {why}"))
@@ -588,7 +591,7 @@ pub async fn create_guild(
     let bp = api
         .create_guild_from_snapshot(owner, body.name.trim(), &snapshot)
         .await
-        .map_err(|e| MsgError::from(e))?;
+        .map_err(MsgError::from)?;
     Ok(crate::routes::guilds::guild::created(&bp))
 }
 
