@@ -34,6 +34,27 @@ pub struct Fetched {
 #[async_trait]
 pub trait ActivityFetcher: Send + Sync {
     async fn get(&self, url: &str, max_bytes: usize) -> Result<Fetched, String>;
+    /// Forward a `POST`, `PUT`, `PATCH` or `DELETE` (J-17): only the body and `Content-Type` are sent, a
+    /// redirect is never followed and the answer is returned whatever its status.
+    async fn forward(
+        &self,
+        method: &axum::http::Method,
+        url: &str,
+        content_type: Option<String>,
+        body: Vec<u8>,
+        max_bytes: usize,
+    ) -> Result<Forwarded, String> {
+        let _ = (method, url, content_type, body, max_bytes);
+        Err("forwarding is not available".to_owned())
+    }
+}
+
+/// The answer of the application's server to a forwarded write.
+#[derive(Debug, Clone)]
+pub struct Forwarded {
+    pub status: u16,
+    pub content_type: Option<String>,
+    pub body: Vec<u8>,
 }
 
 /// Largest document or file the proxy relays.
@@ -124,6 +145,14 @@ pub fn router() -> Router<AppState> {
     use handlers as h;
     Router::new()
         .route(
+            "/applications/{application_id}/activity/bundles",
+            post(h::upload_bundle).layer(axum::extract::DefaultBodyLimit::max(h::MAX_UPLOAD)),
+        )
+        .route(
+            "/applications/{application_id}/activity/bundles/{bundle_id}",
+            get(h::get_bundle),
+        )
+        .route(
             "/applications/{application_id}/activity",
             get(h::get_config).put(h::put_config),
         )
@@ -132,6 +161,10 @@ pub fn router() -> Router<AppState> {
             post(h::submit),
         )
         .route("/admin/developers/activities", get(h::admin_pending))
+        .route(
+            "/admin/developers/activities/{application_id}/bundles/{bundle_id}/download",
+            get(h::admin_download),
+        )
         .route(
             "/admin/developers/activities/{application_id}/decision",
             post(h::admin_decide),
@@ -156,6 +189,9 @@ pub fn router() -> Router<AppState> {
         handlers::get_config,
         handlers::put_config,
         handlers::submit,
+        handlers::upload_bundle,
+        handlers::get_bundle,
+        handlers::admin_download,
         handlers::admin_pending,
         handlers::admin_decide,
         handlers::shelf,
@@ -171,12 +207,17 @@ pub fn router() -> Router<AppState> {
         sr_activities::model::ReviewState,
         sr_activities::model::ConfigView,
         sr_activities::model::ConfigInput,
+        sr_activities::model::BundleState,
+        sr_activities::model::BundleView,
+        sr_activities::model::BundleEntry,
+        sr_activities::model::BundleDetail,
         sr_activities::model::PendingView,
         sr_activities::model::ShelfItem,
         sr_activities::model::ParticipantView,
         sr_activities::model::InstanceView,
         handlers::ConfigResponse,
         handlers::DecisionBody,
+        handlers::SubmitBody,
         handlers::LaunchBody,
         handlers::ShelfResponse,
         handlers::ChannelActivity,

@@ -94,6 +94,47 @@ pub struct PostResponse {
     pub body: Vec<u8>,
 }
 
+/// Methods the Activity proxy forwards to an application's own server (J-17, D-248).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ForwardMethod {
+    Post,
+    Put,
+    Patch,
+    Delete,
+}
+
+impl ForwardMethod {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Post => "POST",
+            Self::Put => "PUT",
+            Self::Patch => "PATCH",
+            Self::Delete => "DELETE",
+        }
+    }
+}
+
+/// One forwarded write. `addrs` are validated; the transport must not resolve the host. Nothing but the
+/// body and `Content-Type` is sent.
+#[derive(Debug, Clone)]
+pub struct ForwardRequest {
+    pub method: ForwardMethod,
+    pub url: Url,
+    pub addrs: Vec<SocketAddr>,
+    pub content_type: Option<String>,
+    pub body: Vec<u8>,
+    /// Hard cap on the response body read.
+    pub max_bytes: usize,
+}
+
+/// The answer to a forwarded write, whatever its status.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ForwardResponse {
+    pub status: u16,
+    pub content_type: Option<String>,
+    pub body: Vec<u8>,
+}
+
 /// Performs a single request without following redirects.
 #[async_trait]
 pub trait HttpTransport: Send + Sync {
@@ -104,6 +145,13 @@ pub trait HttpTransport: Send + Sync {
     async fn send(&self, req: &ApiHop) -> Result<HopResponse, NetError> {
         let _ = req;
         Err(NetError::Http("this transport only supports GET".into()))
+    }
+
+    /// Forward a write once. Transports that cannot keep this default.
+    async fn forward(&self, _req: &ForwardRequest) -> Result<ForwardResponse, NetError> {
+        Err(NetError::Http(
+            "forwarding writes is not supported by this transport".into(),
+        ))
     }
 
     /// POST a JSON body. Transports that cannot POST keep this default.
@@ -229,6 +277,38 @@ impl HttpTransport for ReqwestTransport {
         if !(200..300).contains(&out.status) {
             return Ok(out);
         }
+        while let Some(chunk) = resp.chunk().await.map_err(|e| http_err(&e.without_url()))? {
+            if out.body.len() + chunk.len() > req.max_bytes {
+                return Err(NetError::TooLarge);
+            }
+            out.body.extend_from_slice(&chunk);
+        }
+        Ok(out)
+    }
+
+    async fn forward(&self, req: &ForwardRequest) -> Result<ForwardResponse, NetError> {
+        let client = pinned_builder(&self.user_agent, &req.url, &req.addrs)
+            .build()
+            .map_err(|e| NetError::Http(e.to_string()))?;
+        let method = reqwest::Method::from_bytes(req.method.as_str().as_bytes())
+            .map_err(|e| NetError::Http(e.to_string()))?;
+        let mut builder = client.request(method, req.url.clone()).body(req.body.clone());
+        if let Some(ct) = &req.content_type {
+            builder = builder.header(reqwest::header::CONTENT_TYPE, ct.as_str());
+        }
+        let mut resp = builder
+            .send()
+            .await
+            .map_err(|e| http_err(&e.without_url()))?;
+        let mut out = ForwardResponse {
+            status: resp.status().as_u16(),
+            content_type: resp
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned),
+            body: Vec::new(),
+        };
         while let Some(chunk) = resp.chunk().await.map_err(|e| http_err(&e.without_url()))? {
             if out.body.len() + chunk.len() > req.max_bytes {
                 return Err(NetError::TooLarge);
@@ -404,6 +484,35 @@ impl SafeClient {
                 .await
         };
         tokio::time::timeout(timeout.min(TOTAL_TIMEOUT), work)
+            .await
+            .map_err(|_| NetError::Timeout)?
+    }
+
+    /// Forward a write (`POST`, `PUT`, `PATCH`, `DELETE`) once under the SSRF policy. Redirects are never
+    /// followed (a 3xx comes back as a plain status) and any status is returned. Only the body and the
+    /// content type are sent. Bounded by [`TOTAL_TIMEOUT`].
+    pub async fn forward(
+        &self,
+        method: ForwardMethod,
+        url: &Url,
+        content_type: Option<String>,
+        body: Vec<u8>,
+        max_bytes: usize,
+    ) -> Result<ForwardResponse, NetError> {
+        let work = async {
+            let addrs = resolve_validated(&self.policy, &*self.resolver, url).await?;
+            self.transport
+                .forward(&ForwardRequest {
+                    method,
+                    url: url.clone(),
+                    addrs,
+                    content_type,
+                    body,
+                    max_bytes,
+                })
+                .await
+        };
+        tokio::time::timeout(TOTAL_TIMEOUT, work)
             .await
             .map_err(|_| NetError::Timeout)?
     }
@@ -889,5 +998,62 @@ mod tests {
                 .unwrap_err(),
             NetError::TooLarge
         );
+    }
+
+    /// Records forwarded writes.
+    struct FwScript(Mutex<Vec<ForwardRequest>>);
+    #[async_trait]
+    impl HttpTransport for FwScript {
+        async fn get(&self, _req: &HopRequest) -> Result<HopResponse, NetError> {
+            Err(NetError::Http("get not scripted".into()))
+        }
+        async fn forward(&self, req: &ForwardRequest) -> Result<ForwardResponse, NetError> {
+            self.0.lock().unwrap().push(req.clone());
+            Ok(ForwardResponse {
+                status: 201,
+                content_type: Some("application/json".into()),
+                body: b"{}".to_vec(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn forwarded_writes_are_pinned_checked_and_carry_only_the_body() {
+        let script = Arc::new(FwScript(Mutex::default()));
+        let table = HashMap::from([
+            ("api.example.com".to_owned(), vec![ips(&["93.184.216.34"])]),
+            ("evil.example.com".to_owned(), vec![ips(&["10.0.0.5"])]),
+        ]);
+        let c = SafeClient::new(
+            Policy::default(),
+            Arc::new(Table(Mutex::new(table))),
+            script.clone(),
+        );
+        let url = Url::parse("https://api.example.com/v1/rooms").unwrap();
+        let r = c
+            .forward(
+                ForwardMethod::Patch,
+                &url,
+                Some("application/json".into()),
+                b"{\"a\":1}".to_vec(),
+                1024,
+            )
+            .await
+            .unwrap();
+        assert_eq!(r.status, 201);
+        {
+            let seen = script.0.lock().unwrap();
+            assert_eq!(seen[0].method, ForwardMethod::Patch);
+            assert_eq!(seen[0].addrs[0].ip().to_string(), "93.184.216.34");
+            assert_eq!(seen[0].body, b"{\"a\":1}");
+        }
+        // A host that resolves to a private address is refused before anything is sent.
+        let bad = Url::parse("https://evil.example.com/x").unwrap();
+        assert!(
+            c.forward(ForwardMethod::Post, &bad, None, vec![], 1024)
+                .await
+                .is_err()
+        );
+        assert_eq!(script.0.lock().unwrap().len(), 1);
     }
 }

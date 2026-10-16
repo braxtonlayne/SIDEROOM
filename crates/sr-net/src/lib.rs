@@ -17,7 +17,8 @@ pub mod policy;
 pub mod resolve;
 
 pub use client::{
-    ApiCall, ApiHop, ApiMethod, CONNECT_TIMEOUT, HopRequest, HopResponse, HttpTransport,
+    ApiCall, ApiHop, ApiMethod, CONNECT_TIMEOUT, ForwardMethod, ForwardRequest, ForwardResponse,
+    HopRequest, HopResponse, HttpTransport,
     MAX_REDIRECTS, NetError, PostRequest, PostResponse, ReqwestTransport, SafeClient, SafeResponse,
     TOTAL_TIMEOUT, is_redirect, pinned_builder,
 };

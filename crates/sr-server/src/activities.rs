@@ -5,13 +5,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use sr_activities::{ChannelAccess, ChannelPerms};
-use sr_api::routes::activities::{ActivityFetcher, Fetched};
+use sr_api::routes::activities::{ActivityFetcher, Fetched, Forwarded};
 use sr_chat::repo::ChatRepository;
 use sr_chat::threads::access::guild_channel_permissions;
 use sr_chat::{ChannelType, perms};
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, Clock, UserId};
-use sr_net::{NetError, Policy, SafeClient};
+use sr_net::{ForwardMethod, NetError, Policy, SafeClient};
 use url::Url;
 
 /// [`ActivityFetcher`] over [`SafeClient`]: public addresses only, every redirect hop validated again.
@@ -54,6 +54,34 @@ impl ActivityFetcher for SafeActivityFetcher {
             body: r.body,
         })
     }
+
+    async fn forward(
+        &self,
+        method: &axum::http::Method,
+        url: &str,
+        content_type: Option<String>,
+        body: Vec<u8>,
+        max_bytes: usize,
+    ) -> Result<Forwarded, String> {
+        let method = match *method {
+            axum::http::Method::POST => ForwardMethod::Post,
+            axum::http::Method::PUT => ForwardMethod::Put,
+            axum::http::Method::PATCH => ForwardMethod::Patch,
+            axum::http::Method::DELETE => ForwardMethod::Delete,
+            _ => return Err("this method is not forwarded".to_owned()),
+        };
+        let url = Url::parse(url).map_err(|_| "the URL is not valid".to_owned())?;
+        let r = self
+            .0
+            .forward(method, &url, content_type, body, max_bytes)
+            .await
+            .map_err(|e| reason(&e))?;
+        Ok(Forwarded {
+            status: r.status,
+            content_type: r.content_type,
+            body: r.body,
+        })
+    }
 }
 
 /// [`ChannelAccess`] over the chat repository.
@@ -91,6 +119,7 @@ impl<R: ChatRepository + 'static> ChannelAccess for ChatActivityChannels<R> {
             return Ok(None);
         };
         let voice = matches!(ch.kind, ChannelType::Voice);
+        let text = matches!(ch.kind, ChannelType::Text | ChannelType::Announcement);
         let Some(guild) = self.repo.get_guild(gid).await.map_err(|e| e.to_string())? else {
             return Ok(None);
         };
@@ -119,6 +148,7 @@ impl<R: ChatRepository + 'static> ChannelAccess for ChatActivityChannels<R> {
         Ok(Some(ChannelPerms {
             guild_id: i64::try_from(gid.get()).unwrap_or(0),
             voice,
+            text,
             view: true,
             connect: p.has(Permissions::CONNECT),
             use_activities: p.has(Permissions::USE_EMBEDDED_ACTIVITIES),

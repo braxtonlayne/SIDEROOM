@@ -142,6 +142,16 @@ impl AppsService {
     /// Validate the parameters of an authorize request. Nothing here redirects: an invalid
     /// client or redirect URI must be shown as an error page, never followed.
     pub async fn validate_authorize(&self, p: &AuthorizeParams) -> AppsResult<ValidatedAuthorize> {
+        self.validate_authorize_with(p, &[]).await
+    }
+
+    /// Like [`Self::validate_authorize`], with redirect URIs that are accepted without being stored in the
+    /// application: the implicit Activity redirect URI (J-13, D-248). The caller decides which apply.
+    pub async fn validate_authorize_with(
+        &self,
+        p: &AuthorizeParams,
+        implicit_redirects: &[String],
+    ) -> AppsResult<ValidatedAuthorize> {
         let client = p
             .client_id
             .parse::<i64>()
@@ -191,7 +201,12 @@ impl AppsService {
             ));
         }
         let redirect_uri = match p.redirect_uri.as_deref().filter(|r| !r.is_empty()) {
-            Some(r) if authoauth::redirect_registered(&app.redirect_uris, r) => Some(r.to_owned()),
+            Some(r)
+                if authoauth::redirect_registered(&app.redirect_uris, r)
+                    || authoauth::redirect_registered(implicit_redirects, r) =>
+            {
+                Some(r.to_owned())
+            }
             Some(_) => {
                 problems.push(FieldProblem::new(
                     "redirect_uri",

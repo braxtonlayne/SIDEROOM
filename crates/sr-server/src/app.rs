@@ -775,13 +775,22 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 PgChatRepo::new(pool.clone()),
                 clock.clone(),
             )))
-            .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone()))),
+            .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone())))
+            .with_storage(storage.clone()),
         cfg.activities.enabled,
         &cfg.server.public_url,
         Some(Arc::new(
             crate::activities::SafeActivityFetcher::production(),
         )),
     ));
+    // J-16: participants follow the voice call (a leave from the channel removes them from the Activity).
+    if cfg.activities.enabled {
+        sr_activities::VoiceFollower::new(
+            activities_deps.service.clone(),
+            sr_activities::voice::DEFAULT_DEBOUNCE,
+        )
+        .spawn(bus.clone());
+    }
 
     // The review pipeline (REV-*): submissions of the Library kinds, reviewed by staff with
     // REVIEW_READING and published through the same Library service. The submitter hears
@@ -1315,6 +1324,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
+    let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
@@ -1353,6 +1363,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::admin_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
+    crate::activities_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::library_jobs::schedule_sources(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
