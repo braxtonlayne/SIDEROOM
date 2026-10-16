@@ -1121,7 +1121,7 @@ impl ReviewService {
         kind: &dyn SubmissionKind,
     ) -> ReviewResult<DuplicateReport> {
         let mut matches = kind.duplicates(s).await?;
-        matches.sort_by(|a, b| b.score.cmp(&a.score));
+        matches.sort_by_key(|a| std::cmp::Reverse(a.score));
         matches.truncate(10);
         let events = self.repo.events(s.id).await?;
         Ok(DuplicateReport {

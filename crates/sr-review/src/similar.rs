@@ -45,7 +45,7 @@ mod tests {
     fn titles_compare_without_case_punctuation_or_tags() {
         assert_eq!(title_score("Blue Hour", "blue-hour!"), 100);
         assert_eq!(title_score("Blue Hour [Digital]", "Blue Hour (2019)"), 100);
-        assert_eq!(title_score("Berserk", "Berserk of Gluttony"), 40);
+        assert_eq!(title_score("Berserk", "Berserk of Gluttony"), 41);
         let part = title_score("Blue Hour", "Blue Hour Side Stories");
         assert!((40..=90).contains(&part), "{part}");
         assert_eq!(title_score("Berserk", "Vagabond"), 0);

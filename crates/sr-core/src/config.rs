@@ -320,7 +320,7 @@ pub struct IngestConfig {
 /// on here (and gave its key, where it needs one) AND the platform setting
 /// `review.lookup.enabled` is on. Requests go out from this server under the SSRF-safe client; the
 /// member's browser never contacts a provider.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LookupConfig {
     /// AniList (manga and anime), no key needed.
@@ -335,18 +335,6 @@ pub struct LookupConfig {
     /// ComicVine (comics): the API key. Empty switches ComicVine off.
     /// Treat as a secret (`SR_LOOKUP__COMICVINE_API_KEY_FILE` works).
     pub comicvine_api_key: Secret,
-}
-
-impl Default for LookupConfig {
-    fn default() -> Self {
-        Self {
-            anilist: false,
-            mangadex: false,
-            mangaupdates: false,
-            tmdb_api_key: Secret::default(),
-            comicvine_api_key: Secret::default(),
-        }
-    }
 }
 
 /// `[search]`: the message search index (open questions 131-138).

@@ -88,3 +88,12 @@ What `sr-review` ships today, so the other kinds can plug in. Status per invento
 **Limits.** A member may have 5 open submissions (staff are exempt) and 10 open requests. Bytes per day (REV-CORE-008) is not enforced yet; uploads are bounded by `library.ingest.max_upload_mb`.
 
 **Not built yet.** Cinema, app and package kinds; contribution credits (section 6); the system-user DM on decisions and the Staff Server `#review-queue` card; the purge and stale-draft jobs; resumable multipart uploads; duplicate detection; metadata lookup; the requests board UI.
+
+## 10. Phase 13 additions
+- **Resumable uploads (section 3).** `UploadRequest.multipart = true` opens a multipart session (parts of 64 MB, parallelism 4 in the browser, URLs valid 6 hours). `GET /admin/library/uploads/{id}/parts` and `GET /submissions/{id}/library/uploads/{id}/parts` report what arrived and give fresh URLs for the rest; `DELETE` cancels. `complete` asks the store for its parts, checks their sizes against the announced size and assembles the object, so the browser never reads ETags. The browser ledger is IndexedDB (`review/uploadManager.ts`). Off with `SR_MEDIA_SINGLE_PUT=1`.
+- **Archive pre-inspection.** `GET .../uploads/{id}/inspect` lists an archive without converting it (`sr_library::ingest::inspect`).
+- **Ingest sources.** `[ingest] roots` lists the folders staff may point a source at; `/admin/ingest-sources` (CRUD, `dry-run`, `scan`); job `library.sources` polls watched folders every 30 s (each source has its own interval). Imports create draft submissions for the source owner; nothing is published.
+- **Metadata lookup.** `[lookup]` turns providers on (`anilist`, `mangadex`, `mangaupdates` need no key; `tmdb_api_key`, `comicvine_api_key`), the platform setting `review.lookup.enabled` gates them at run time; `GET /submissions/lookup/providers`, `GET /submissions/lookup`.
+- **Duplicates.** `GET /submissions/{id}/duplicates`, `GET /admin/review/submissions/{id}/duplicates`, `PUT /admin/review/submissions/{id}/duplicate`.
+- **Review media.** `GET /admin/review/submissions/{id}/media` gives the signed 480p proxy per video.
+- **Review card.** The `#review-queue` card shows the cover or poster and has a Request changes button (`sr:review-changes:<id>`).

@@ -53,7 +53,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [x] **ADM-CNT-002** [FE] Cinema Catalog editor (→ CIN-ADM) _(built as CIN-ADM-001 in `admin/cinema/`)_
 - [ ] **ADM-CNT-003** [FE] Library Catalog editor (→ LIB-ADM) _(partly built: `admin/library/`: series form, editions, chapters, publish, merge, delete; page reorder/replace/re-convert are not built)_
 - [ ] **ADM-CNT-004** [FE] Collections & Spotlight: curated rows CRUD (name, items, order, section, schedule), hero picks with carousel order, reading lists featured
-- [ ] **ADM-CNT-005** [FE] Ingest Sources: watched folders (path, owner account, kind, enabled, last scan), storage imports wizard, naming tester
+- [x] **ADM-CNT-005** [FE] Ingest Sources: watched folders (path, owner account, kind, enabled, last scan), storage imports wizard, naming tester _(phase 13: `admin/sections/IngestSources.tsx`, `/admin/ingest-sources` routes, dry run report, naming tester; REV-UP-005/006)_
 - [x] **ADM-CNT-006** [FE] Transcoding: workers list (name, GPU, status, throughput), create/revoke worker tokens, queue with priorities, failed jobs with logs, re-run _(`admin/cinema/TranscodingSection.tsx` now talks to the real `/admin/transcode/*` routes and shows queue counts and priority; worker throughput is not reported by the API)_
 
 ## ADM-COM — Community
