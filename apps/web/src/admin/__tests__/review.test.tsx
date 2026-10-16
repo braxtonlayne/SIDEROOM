@@ -38,6 +38,10 @@ function useReviewApi(
         pages: [0, 1].map((i) => ({ index: i, width: 100, height: 150, url: `/cdn/p${i}.webp` })),
       }),
     ),
+    http.get('*/api/v1/admin/review/submissions/:id/duplicates', () =>
+      HttpResponse.json({ matches: [], resolution: null }),
+    ),
+    http.get('*/api/v1/admin/review/submissions/:id/media', () => HttpResponse.json({ items: [] })),
     act('claim'),
     act('release'),
     act('approve'),

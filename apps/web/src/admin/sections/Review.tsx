@@ -19,6 +19,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatTime, type MessageKey, useT } from '../../i18n';
 import * as rv from '../../review/api';
 import {
+  DuplicatePanel,
+  ManifestDiff,
+  PackagePreview,
+  VideoProxyPlayer,
+} from '../../review/ReviewExtras';
+import {
   ChangeList,
   ItemChip,
   PreviewFacts,
@@ -49,6 +55,18 @@ import {
 } from '../ui';
 
 const PAGE = 25;
+
+/** The `manifest` an app or package kind puts in its preview, if any. */
+const manifestOf = (p: unknown): unknown =>
+  p && typeof p === 'object' ? (p as Record<string, unknown>).manifest : undefined;
+
+/** The theme CSS a package kind puts in its preview (`package.theme_css`), if any. */
+const packageCss = (p: unknown): string | undefined => {
+  const pkg = p && typeof p === 'object' ? (p as Record<string, unknown>).package : undefined;
+  const css =
+    pkg && typeof pkg === 'object' ? (pkg as Record<string, unknown>).theme_css : undefined;
+  return typeof css === 'string' && css ? css : undefined;
+};
 
 type TFn = ReturnType<typeof useT>;
 type OptionKeys = { value: string; label: MessageKey }[];
@@ -553,6 +571,13 @@ function ReviewDetail({
                 )}
               </Async>
             </section>
+
+            <DuplicatePanel id={id} canResolve={canDecide} />
+            <VideoProxyPlayer id={id} />
+            {manifestOf(last) !== undefined && (
+              <ManifestDiff before={manifestOf(prev)} after={manifestOf(last)} />
+            )}
+            {packageCss(preview.data) && <PackagePreview css={packageCss(preview.data)!} />}
 
             <section className="rv-panel" aria-labelledby="rv-items-h">
               <h3 id="rv-items-h">{t('admin.review.chapters', { count: items.length })}</h3>
