@@ -20,7 +20,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - uses: extractions/setup-just@v2
+      - uses: extractions/setup-just@v4
       - run: just gen-api
       - name: Fail if generated client differs from committed
         run: git diff --exit-code -- packages/api-client
