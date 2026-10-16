@@ -21,11 +21,13 @@ use tower::ServiceExt;
 const SHA: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const APP: i64 = 77;
 
+type Sent = (String, String, Option<String>, Vec<u8>);
+
 #[derive(Default)]
 struct FakeFetcher {
     asked: Mutex<Vec<String>>,
     /// `(method, url, content type, body)` of every forwarded write.
-    sent: Mutex<Vec<(String, String, Option<String>, Vec<u8>)>>,
+    sent: Mutex<Vec<Sent>>,
 }
 
 #[async_trait]

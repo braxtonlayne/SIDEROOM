@@ -125,7 +125,7 @@ pub struct ConfigView {
     pub review_state: ReviewState,
     /// The bundle staff approved; the proxy serves only this one.
     pub reviewed_bundle: Option<BundleView>,
-    /// Recent bundles, newest first, with the superseded ones left out.
+    /// Recent bundles (the review history), newest first, superseded ones included.
     pub bundles: Vec<BundleView>,
     pub review_note: Option<String>,
     pub updated_at_ms: i64,
