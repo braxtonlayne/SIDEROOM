@@ -268,6 +268,17 @@ pub struct PrivateEdit {
     pub previous_content: String,
 }
 
+/// The webhook a message was posted through (D-235): staff views list the message under its
+/// creator (`author_id`) with this marker, "via webhook <name>".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct WebhookMarker {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    /// The name the message was posted under (the per-call override or the webhook name).
+    pub name: String,
+}
+
 /// A message as staff see it: also removed ones, with the edit history.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct PrivateMessage {
@@ -286,6 +297,9 @@ pub struct PrivateMessage {
     pub deleted_at_ms: Option<i64>,
     pub attachment_count: i32,
     pub edits: Vec<PrivateEdit>,
+    /// Set when the message was posted through a webhook; `author_*` is then its creator.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub webhook: Option<WebhookMarker>,
 }
 
 /// A page of a private conversation, newest first.

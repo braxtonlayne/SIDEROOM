@@ -377,12 +377,20 @@ pub async fn delete_message(
     .await;
     // Discord logs a delete only when someone other than the author removed it.
     if let Some(author) = author.filter(|a| *a != user) {
+        let mut options = serde_json::json!({ "channel_id": channel_id.to_string(), "count": 1 });
+        // A webhook message is listed under its creator; the entry says which webhook (D-235).
+        if let Some(store) = &deps.rich.store
+            && let Ok(found) = store.webhook_authors(&[message_id]).await
+            && let Some(w) = found.get(&message_id)
+        {
+            options["webhook_id"] = serde_json::json!(w.webhook_id.to_string());
+        }
         deps.audit(
             guild,
             user,
             AuditAction::MessageDelete,
             Some(author.get()),
-            serde_json::json!({ "channel_id": channel_id.to_string(), "count": 1 }),
+            options,
         )
         .await;
     }

@@ -1773,6 +1773,7 @@ fn private_dm(e: &Env) {
                 deleted_at_ms: deleted,
                 attachment_count: 0,
                 edits: vec![],
+                webhook: None,
             },
         );
     }

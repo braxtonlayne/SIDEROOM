@@ -84,9 +84,13 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         return true;
     }
     // The application portal (owner management) is session-only; the bot routes are
-    // `/applications/@me` and everything under `/commands`.
+    // `/applications/@me`, everything under `/commands` and the application's own emoji
+    // (D-237; the handler refuses another application's bot with 403).
     if p.starts_with("/applications") {
-        return !(p == "/applications/@me" || p.contains("/commands"));
+        return !(p == "/applications/@me"
+            || p.contains("/commands")
+            || p.ends_with("/emojis")
+            || p.contains("/emojis/"));
     }
     // Interactions are created by people; a bot answers them through the token routes.
     if p == "/interactions" {
@@ -178,6 +182,8 @@ mod tests {
                 "/applications/{application_id}/bot/reset-token",
             ),
             (Method::GET, "/applications/{application_id}/audit-log"),
+            (Method::GET, "/applications/{application_id}/assets"),
+            (Method::POST, "/applications/{application_id}/assets"),
             (Method::POST, "/applications/{application_id}/versions"),
             (Method::POST, "/guilds"),
             (Method::POST, "/interactions"),
@@ -194,6 +200,16 @@ mod tests {
             (Method::GET, "/users/@me"),
             (Method::GET, "/gateway/bot"),
             (Method::GET, "/applications/@me"),
+            (Method::GET, "/applications/{application_id}/emojis"),
+            (Method::POST, "/applications/{application_id}/emojis"),
+            (
+                Method::PATCH,
+                "/applications/{application_id}/emojis/{emoji_id}",
+            ),
+            (
+                Method::DELETE,
+                "/applications/{application_id}/emojis/{emoji_id}",
+            ),
             (Method::PUT, "/applications/{application_id}/commands"),
             (
                 Method::POST,

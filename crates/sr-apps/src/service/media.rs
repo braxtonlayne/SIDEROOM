@@ -5,7 +5,7 @@
 use super::AppsService;
 use crate::{
     error::{AppsError, AppsResult},
-    model::{AppAsset, AppEmoji, MAX_APP_ASSETS, MAX_APP_EMOJIS},
+    model::{AppAsset, AppEmoji, Application, MAX_APP_ASSETS, MAX_APP_EMOJIS},
 };
 use serde_json::json;
 
@@ -48,6 +48,16 @@ impl AppsService {
     pub async fn list_app_emojis(&self, owner: i64, app: i64) -> AppsResult<Vec<AppEmoji>> {
         let app = self.owned(owner, app).await?;
         self.repo.app_emojis(app.id).await
+    }
+
+    /// An application emoji by id, for the popout and the image route (D-237). Anyone may ask:
+    /// the emoji of an application is public wherever its bot used it.
+    pub async fn public_app_emoji(&self, id: i64) -> AppsResult<Option<(AppEmoji, Application)>> {
+        let Some(e) = self.repo.find_app_emoji(id).await? else {
+            return Ok(None);
+        };
+        let app = self.repo.application(e.application_id).await?;
+        Ok(app.map(|a| (e, a)))
     }
 
     /// One emoji of an owned application.
@@ -137,6 +147,13 @@ impl AppsService {
             .delete_app_emoji(app.id, id, audit)
             .await?
             .ok_or(AppsError::NotFound("emoji"))
+    }
+
+    /// Rich Presence assets of any application: the art keys an activity names are not secret
+    /// (D-237: the list is readable by any session; writes stay with the owner).
+    pub async fn public_app_assets(&self, app: i64) -> AppsResult<Vec<AppAsset>> {
+        let app = self.application(app).await?;
+        self.repo.app_assets(app.id).await
     }
 
     /// Rich Presence assets of an owned application.

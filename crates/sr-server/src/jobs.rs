@@ -765,7 +765,11 @@ mod hold_guard_tests {
                 .fetch_all(pool)
                 .await
                 .expect("authors");
-        assert_eq!(authors, vec![kept], "the released message's row goes with it");
+        assert_eq!(
+            authors,
+            vec![kept],
+            "the released message's row goes with it"
+        );
         db.cleanup().await.expect("cleanup");
     }
 

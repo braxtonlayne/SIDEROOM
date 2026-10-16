@@ -20,7 +20,7 @@ export default {
   'developers.media.emojis': 'emojis',
   'developers.media.emojiHeading': 'Application emojis',
   'developers.media.emojiIntro':
-    'These emojis belong to the application, not to a server. Upload PNG, JPEG, GIF or WebP files up to 256 KB; they are shrunk to 128 pixels. Using them in messages is not available yet.',
+    'These emojis belong to the application, not to a server. Upload PNG, JPEG, GIF or WebP files up to 256 KB; they are shrunk to 128 pixels. Your bot can use them in its own messages, and its token can manage them through the API.',
   'developers.media.emojiName': 'Emoji name',
   'developers.media.emojiNameHint': '2 to 32 letters, digits or underscores.',
   'developers.media.emojiNone': 'No emojis yet.',

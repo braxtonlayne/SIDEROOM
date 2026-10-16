@@ -159,8 +159,12 @@ async fn the_owner_manages_rich_presence_assets() {
 
     let (_, list) = e.get(Who::Session(OWNER), &base).await;
     assert_eq!(list.as_array().unwrap().len(), 2);
+    // The list is readable by any session (D-237); the writes stay with the owner.
+    assert_eq!(e.get(Who::Session(BOB), &base).await.0, StatusCode::OK);
     assert_eq!(
-        e.get(Who::Session(BOB), &base).await.0,
+        e.post(Who::Session(BOB), &base, json!({"name": "x", "image": PNG}))
+            .await
+            .0,
         StatusCode::NOT_FOUND
     );
 
@@ -175,17 +179,95 @@ async fn the_owner_manages_rich_presence_assets() {
 }
 
 #[tokio::test]
-async fn bots_cannot_reach_the_application_media_routes() {
+async fn bots_cannot_reach_the_asset_routes() {
     let e = env().await;
     let (app, _bot, token, _) = e.new_app().await;
-    for path in [
-        format!("/applications/{app}/emojis"),
-        format!("/applications/{app}/assets"),
+    let (s, _) = e
+        .get(Who::Bot(&token), &format!("/applications/{app}/assets"))
+        .await;
+    assert!(
+        matches!(s, StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED),
+        "{s}"
+    );
+}
+
+/// D-237: the bot token of an application manages that application's emoji, and nobody else's.
+#[tokio::test]
+async fn a_bot_manages_the_emoji_of_its_own_application_only() {
+    let e = env().await;
+    let (app, _bot, token, _) = e.new_app().await;
+    let base = format!("/applications/{app}/emojis");
+
+    let (s, v) = e
+        .post(
+            Who::Bot(&token),
+            &base,
+            json!({"name": "party", "image": PNG}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let id = v["id"].as_str().unwrap().to_owned();
+    let (s, list) = e.get(Who::Bot(&token), &base).await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    assert_eq!(list["items"].as_array().unwrap().len(), 1);
+    // The owner sees the same emoji.
+    let (_, list) = e.get(Who::Session(OWNER), &base).await;
+    assert_eq!(list["items"][0]["id"], id);
+    let (s, v) = e
+        .patch(
+            Who::Bot(&token),
+            &format!("{base}/{id}"),
+            json!({"name": "party2"}),
+        )
+        .await;
+    assert_eq!((s, v["name"].as_str()), (StatusCode::OK, Some("party2")));
+
+    // Another application's bot: 403, on every verb.
+    let (s, v) = e
+        .post(
+            Who::Session(BOB),
+            "/applications",
+            json!({"name": "Other", "description": "x"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let other = v["bot_token"].as_str().unwrap().to_owned();
+    for (s, what) in [
+        (e.get(Who::Bot(&other), &base).await.0, "list"),
+        (
+            e.post(
+                Who::Bot(&other),
+                &base,
+                json!({"name": "mine", "image": PNG}),
+            )
+            .await
+            .0,
+            "create",
+        ),
+        (
+            e.patch(
+                Who::Bot(&other),
+                &format!("{base}/{id}"),
+                json!({"name": "x1"}),
+            )
+            .await
+            .0,
+            "rename",
+        ),
+        (
+            e.delete(Who::Bot(&other), &format!("{base}/{id}"), None)
+                .await
+                .0,
+            "delete",
+        ),
     ] {
-        let (s, _) = e.get(Who::Bot(&token), &path).await;
-        assert!(
-            matches!(s, StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED),
-            "{path}: {s}"
-        );
+        assert_eq!(s, StatusCode::FORBIDDEN, "{what}");
     }
+
+    assert_eq!(
+        e.delete(Who::Bot(&token), &format!("{base}/{id}"), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
 }

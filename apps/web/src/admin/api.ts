@@ -674,6 +674,8 @@ export interface PrivateMessage {
   edits: PrivateEdit[];
   /** `visible`, `user_deleted` or `staff_removed`. */
   visibility: string;
+  /** Set when the message was posted through a webhook; `author_*` is then its creator (D-235). */
+  webhook?: { id: string; name: string } | null;
 }
 export interface PrivateMessagePage {
   channel: PrivateChannelRef;

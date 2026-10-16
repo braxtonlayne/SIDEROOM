@@ -352,6 +352,7 @@ pub fn router() -> Router<AppState> {
         sr_admin::PrivateChannel,
         sr_admin::PrivateEdit,
         sr_admin::PrivateMessage,
+        sr_admin::WebhookMarker,
         sr_admin::PrivateMessagePage,
         sr_admin::CardActionResult,
         accounts::BanBody,

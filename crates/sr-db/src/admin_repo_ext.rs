@@ -8,7 +8,7 @@ use sr_admin::{
     AccountRef, AdminError, AdminGuild, AdminGuildRef, AdminResult, AdminSession, Announcement,
     AnnouncementPatch, AnnouncementSeverity, AuditEntry, NewAnnouncement, NewOffer, OfferState,
     PrivateChannel, PrivateEdit, PrivateMessage, StaffAlertRow, StaffExtrasRepository, StaffOffer,
-    SuspicionEvent,
+    SuspicionEvent, WebhookMarker,
 };
 
 use crate::admin_repo::{PgAdminRepo, db, is_unique, ms};
@@ -911,8 +911,10 @@ impl StaffExtrasRepository for PgAdminRepo {
             "SELECT m.id, m.author_id, COALESCE(a.display_name, a.username::text) AS author_name, \
                     m.content, {created} AS created_ms, {edited} AS edited_ms, \
                     m.visibility::text AS visibility, {deleted} AS deleted_ms, \
-                    (SELECT count(*) FROM attachments att WHERE att.message_id = m.id)::int AS attachments \
+                    (SELECT count(*) FROM attachments att WHERE att.message_id = m.id)::int AS attachments, \
+                    w.webhook_id AS webhook_id, w.username AS webhook_name \
              FROM messages m LEFT JOIN accounts a ON a.id = m.author_id \
+                  LEFT JOIN message_webhook_authors w ON w.message_id = m.id \
              WHERE m.channel_id = $1 AND ($2::bigint IS NULL OR m.id < $2) \
                AND (m.visibility = 'visible' \
                     OR m.deleted_at > now() - make_interval(days => $3::int) \
@@ -966,6 +968,13 @@ impl StaffExtrasRepository for PgAdminRepo {
                 deleted_at_ms: r.try_get("deleted_ms").map_err(db)?,
                 attachment_count: r.try_get("attachments").map_err(db)?,
                 edits,
+                webhook: match r.try_get::<Option<i64>, _>("webhook_id").map_err(db)? {
+                    Some(id) => Some(WebhookMarker {
+                        id,
+                        name: r.try_get("webhook_name").map_err(db)?,
+                    }),
+                    None => None,
+                },
             });
         }
         Ok(out)

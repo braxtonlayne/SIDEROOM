@@ -216,6 +216,8 @@ pub trait AppsRepository: Send + Sync {
     async fn app_emojis(&self, app: i64) -> AppsResult<Vec<AppEmoji>>;
     /// One emoji of an application.
     async fn app_emoji(&self, app: i64, id: i64) -> AppsResult<Option<AppEmoji>>;
+    /// An emoji by id alone, whichever application owns it (D-237: `GET /sr/emojis/{id}`).
+    async fn find_app_emoji(&self, id: i64) -> AppsResult<Option<AppEmoji>>;
     /// Insert an emoji. `Conflict` when the name is taken or the application holds
     /// [`MAX_APP_EMOJIS`].
     async fn insert_app_emoji(&self, e: &AppEmoji, audit: AuditRow) -> AppsResult<AppEmoji>;

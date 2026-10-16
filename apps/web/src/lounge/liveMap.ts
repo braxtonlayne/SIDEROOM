@@ -20,13 +20,11 @@ import type {
   Snowflake,
 } from './data';
 import { cdnUrl } from '../store/cdn';
+import { SIDEROOM_EPOCH_MS } from './epoch.generated';
 import { cmpId } from '../store/reducer';
 import { canOpenSettingsFromBits } from '../settings/server/permissions';
 import type * as S from '../store/types';
 import type { PermEngine } from './permEngine';
-
-/** SIDEROOM_EPOCH_MS in sr-core snowflake.rs (2026-01-01T00:00:00Z), not Discord's 2015 epoch. */
-export const SIDEROOM_EPOCH_MS = 1_767_225_600_000n;
 
 /** Creation time encoded in a snowflake, as ISO text; '' when the id is not a snowflake. */
 export function snowflakeTime(id: string | null | undefined): string {
@@ -50,6 +48,7 @@ export const PERM = {
   MANAGE_CHANNELS: 1n << 4n,
   MANAGE_GUILD: 1n << 5n,
   SEND_MESSAGES: 1n << 11n,
+  EMBED_LINKS: 1n << 14n,
   VIEW_CHANNEL: 1n << 10n,
   MANAGE_MESSAGES: 1n << 13n,
   MENTION_EVERYONE: 1n << 17n,
@@ -122,6 +121,13 @@ export function computeChannelPermissions(
   engine: PermEngine,
   i: ChannelPermInput,
 ): ChannelPermissions | undefined {
+  const bits = computeChannelBits(engine, i);
+  if (bits === undefined) return undefined;
+  return permissionsFromBits(bits);
+}
+
+/** The raw channel permission bits (same computation as [`computeChannelPermissions`]). */
+export function computeChannelBits(engine: PermEngine, i: ChannelPermInput): bigint | undefined {
   const isOwner = !!i.ownerId && i.ownerId === i.viewerId;
   if (!i.viewer && !isOwner) return undefined;
   const roleIds = (i.viewer?.roles ?? []).filter((id) => id !== i.guildId);
@@ -150,6 +156,10 @@ export function computeChannelPermissions(
   } catch {
     return undefined;
   }
+  return bits;
+}
+
+function permissionsFromBits(bits: bigint): ChannelPermissions {
   const has = (bit: bigint) => (bits & bit) === bit;
   return {
     view: has(PERM.VIEW_CHANNEL),
@@ -485,5 +495,6 @@ export function toLoungeMessage(m: S.Message): Message {
     ...(flags & FLAG_VOICE ? { voice: true } : {}),
     ...(flags & FLAG_EPHEMERAL ? { ephemeral: true } : {}),
     ...(flags & FLAG_SUPPRESS_EMBEDS ? { suppressEmbeds: true } : {}),
+    ...(m.sr_text_emoji?.length ? { textEmoji: m.sr_text_emoji } : {}),
   };
 }

@@ -111,6 +111,37 @@ impl RichStore for PgRichStore {
         Ok(out)
     }
 
+    async fn app_emoji_owners(&self, emoji: &[u64]) -> StoreResult<HashMap<u64, i64>> {
+        if emoji.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let ids: Vec<i64> = emoji.iter().map(|e| i(*e)).collect();
+        let rows: Vec<(i64, i64)> =
+            sqlx::query_as("SELECT id, application_id FROM application_emojis WHERE id = ANY($1)")
+                .bind(ids)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(sdb)?;
+        Ok(rows.into_iter().map(|(e, a)| (u(e), a)).collect())
+    }
+
+    async fn bot_applications(&self, users: &[UserId]) -> StoreResult<HashMap<UserId, i64>> {
+        if users.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let ids: Vec<i64> = users.iter().map(|x| i(x.get())).collect();
+        let rows: Vec<(i64, i64)> =
+            sqlx::query_as("SELECT bot_user_id, id FROM applications WHERE bot_user_id = ANY($1)")
+                .bind(ids)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(sdb)?;
+        Ok(rows
+            .into_iter()
+            .map(|(b, a)| (UserId::new(u(b)), a))
+            .collect())
+    }
+
     async fn set_embeds(&self, message: MessageId, embeds: &[Embed]) -> StoreResult<()> {
         let json = serde_json::to_value(embeds).map_err(|e| StoreError(e.to_string()))?;
         sqlx::query("UPDATE messages SET embeds = $2 WHERE id = $1")

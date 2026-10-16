@@ -138,6 +138,20 @@ function MessageBody({
   const showCards = linkPreviews && !m.suppressEmbeds;
   const inviteCode = useMemo(() => findInviteCode(m.content, location.origin), [m.content]);
   const messageLinks = useMemo(() => findMessageLinks(m.content, location.origin), [m.content]);
+  // Application emoji the author may not use stay plain `:name:` text (D-237).
+  const bodyResolvers = useMemo(() => {
+    const hidden = m.textEmoji;
+    if (!hidden?.length) return resolvers;
+    return {
+      ...resolvers,
+      customEmoji: (e: { id: string; name: string; animated: boolean }) =>
+        hidden.includes(e.id) ? (
+          <span className="sr-md-emoji-fallback">{`:${e.name}:`}</span>
+        ) : (
+          resolvers?.customEmoji?.(e)
+        ),
+    };
+  }, [resolvers, m.textEmoji]);
   return (
     <>
       {m.content && (
@@ -145,7 +159,7 @@ function MessageBody({
           nodes={nodes}
           jumbo={isJumbo(m.content)}
           revealSpoilers={spoilers === 'always'}
-          resolvers={resolvers}
+          resolvers={bodyResolvers}
           {...(onMentionClick ? { onMentionClick } : {})}
         />
       )}
