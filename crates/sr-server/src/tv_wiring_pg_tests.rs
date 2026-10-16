@@ -441,6 +441,11 @@ async fn reminders_are_stored_replaced_taken_once_and_follow_the_account() {
     assert!(!repo.delete_reminder(who, 2).await.unwrap());
     // Deleting the account removes what is left.
     repo.put_reminder(&r(3, 1)).await.unwrap();
+    sqlx::query("DELETE FROM user_settings WHERE user_id = $1")
+        .bind(who)
+        .execute(db.pool())
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM accounts WHERE id = $1")
         .bind(who)
         .execute(db.pool())

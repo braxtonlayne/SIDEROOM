@@ -209,8 +209,10 @@ impl LibrarySocial {
                         AND EXISTS (SELECT 1 FROM guild_members g1 JOIN guild_members g2 \
                                       ON g2.guild_id = g1.guild_id \
                                     WHERE g1.user_id = $1 AND g2.user_id = p.user_id) \
-                        AND NOT EXISTS (SELECT 1 FROM relationships b WHERE b.user_id = p.user_id \
-                                          AND b.target_id = $1 AND b.type IN (2, 6)))) \
+                        AND NOT EXISTS (SELECT 1 FROM relationships b \
+                                        WHERE ((b.user_id = p.user_id AND b.target_id = $1) \
+                                            OR (b.user_id = $1 AND b.target_id = p.user_id)) \
+                                          AND b.type IN (2, 6)))) \
                AND NOT (p.restricted AND activity_hides_restricted(p.user_id)) \
                AND ($2 OR NOT p.restricted) \
              ORDER BY p.started_at DESC LIMIT 60",
