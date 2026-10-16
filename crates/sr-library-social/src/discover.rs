@@ -2,7 +2,9 @@
 //!
 //! Rankings are an anonymous global aggregate: distinct readers over the period, plus twice the
 //! chapter completions (spec library-reader section 4). The `all` period ranks by followers.
-//! Friends and "people you know" scopes wait for a reading-privacy setting (open question).
+//! The friends and known scopes (G-96, D-190) count only members who share their reading
+//! (`activity_shares(uid, 'library')`), leave out age-restricted series for members who hide them,
+//! and have a floor of one reader (the Cinema scopes' floor); the global aggregate is unchanged.
 
 use sqlx::Row;
 
@@ -19,7 +21,62 @@ impl LibrarySocial {
         kind: Option<String>,
         limit: Option<u32>,
     ) -> SocialResult<Rankings> {
+        self.rankings_scoped(v, RankingScope::Global, period, kind, limit)
+            .await
+    }
+
+    pub async fn rankings_scoped(
+        &self,
+        v: Viewer,
+        scope: RankingScope,
+        period: RankingPeriod,
+        kind: Option<String>,
+        limit: Option<u32>,
+    ) -> SocialResult<Rankings> {
         let limit = i64::from(rules::limit(limit));
+        // The caches are keyed by everything that changes the answer; the member only counts for the
+        // scoped scopes (their friends are theirs).
+        let cache = self.trending.as_ref().map(|c| {
+            let who = if scope == RankingScope::Global {
+                0
+            } else {
+                v.user_id
+            };
+            let key = format!(
+                "{scope:?}|{period:?}|{}|{limit}|{}|{who}",
+                kind.as_deref().unwrap_or(""),
+                v.hide_restricted
+            );
+            let store = if scope == RankingScope::Global {
+                &c.global
+            } else {
+                &c.scoped
+            };
+            (store.clone(), key)
+        });
+        if let Some((store, key)) = &cache
+            && let Some(hit) = store.get(key).await
+        {
+            return Ok(hit);
+        }
+        let fresh = self.compute_rankings(v, scope, period, kind, limit).await?;
+        if let Some((store, key)) = cache {
+            store.insert(key, fresh.clone()).await;
+        }
+        Ok(fresh)
+    }
+
+    async fn compute_rankings(
+        &self,
+        v: Viewer,
+        scope: RankingScope,
+        period: RankingPeriod,
+        kind: Option<String>,
+        limit: i64,
+    ) -> SocialResult<Rankings> {
+        if scope != RankingScope::Global {
+            return self.scoped_rankings(v, scope, period, kind, limit).await;
+        }
         let source = match period {
             RankingPeriod::All => {
                 "SELECT s.id AS series_id, s.follower_count::bigint AS readers, \
@@ -69,7 +126,55 @@ impl LibrarySocial {
                 rating_count: r.try_get::<Option<i64>, _>("rating_count")?.unwrap_or(0),
             });
         }
-        Ok(Rankings { period, items })
+        Ok(Rankings {
+            period,
+            scope: RankingScope::Global,
+            items,
+        })
+    }
+
+    async fn scoped_rankings(
+        &self,
+        v: Viewer,
+        scope: RankingScope,
+        period: RankingPeriod,
+        kind: Option<String>,
+        limit: i64,
+    ) -> SocialResult<Rankings> {
+        let window = match period {
+            RankingPeriod::Week => "7 days",
+            RankingPeriod::Month => "30 days",
+            RankingPeriod::All => "36500 days",
+        };
+        let rows = sqlx::query(
+            "WITH scope_users AS (                SELECT target_id AS uid FROM relationships                 WHERE user_id = $1 AND type = 1 AND activity_shares(target_id, 'library')                UNION                SELECT gm2.user_id FROM guild_members gm1                  JOIN guild_members gm2 ON gm2.guild_id = gm1.guild_id AND gm2.user_id <> $1                 WHERE $2::text = 'known' AND gm1.user_id = $1                   AND activity_shares(gm2.user_id, 'library')              ), x AS (                SELECT p.series_id, count(DISTINCT p.user_id) AS readers,                       (count(DISTINCT p.user_id) + 2 * count(*) FILTER (WHERE p.completed))::float8 AS score                  FROM reading_progress p                  JOIN reading_series s ON s.id = p.series_id AND s.published AND s.merged_into IS NULL                   AND (NOT $3 OR NOT s.age_restricted) AND ($4::text IS NULL OR s.kind = $4)                 WHERE p.updated_at > now() - ($5::text)::interval                   AND p.user_id IN (SELECT uid FROM scope_users)                   AND NOT (s.age_restricted AND activity_hides_restricted(p.user_id))                 GROUP BY p.series_id              )              SELECT x.series_id, x.readers, x.score, rt.n AS rating_count, rt.a AS rating_avg                FROM x LEFT JOIN LATERAL (SELECT count(*) AS n, avg(score)::float8 AS a                                     FROM reading_ratings WHERE series_id = x.series_id) rt ON TRUE               WHERE x.readers >= 1               ORDER BY x.score DESC, rt.a DESC NULLS LAST, x.series_id DESC LIMIT $6",
+        )
+        .bind(v.user_id)
+        .bind(if scope == RankingScope::Known { "known" } else { "friends" })
+        .bind(v.hide_restricted)
+        .bind(kind)
+        .bind(window)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut items = Vec::with_capacity(rows.len());
+        for (i, r) in rows.iter().enumerate() {
+            items.push(RankingItem {
+                series_id: r.try_get("series_id")?,
+                rank: u32::try_from(i + 1).unwrap_or(u32::MAX),
+                score: r.try_get("score")?,
+                readers: r.try_get("readers")?,
+                rating_average: r
+                    .try_get::<Option<f64>, _>("rating_avg")?
+                    .map(rules::round1),
+                rating_count: r.try_get::<Option<i64>, _>("rating_count")?.unwrap_or(0),
+            });
+        }
+        Ok(Rankings {
+            period,
+            scope,
+            items,
+        })
     }
 
     /// Unread published chapters of every series the caller follows. A chapter number counts as

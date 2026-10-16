@@ -12,12 +12,12 @@ import {
   Select,
   Skeleton,
   Tabs,
-  useToast,
   type MenuEntry,
 } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
 import { ApiError } from '../api/client';
+import { ShareToLoungeDialog } from '../lib/ShareToLounge';
 import { useT } from '../i18n';
 import { ReportButton } from '../moderation/reports';
 import {
@@ -86,7 +86,6 @@ function Header({
   const my = useMy();
   const t = mergeMy(d.title, my);
   const open = useOpen();
-  const toast = useToast();
   const qc = useQueryClient();
   const [trailer, setTrailer] = useState(false);
   const [download, setDownload] = useState(false);
@@ -129,18 +128,7 @@ function Header({
       : []),
   ];
 
-  const share = async () => {
-    const url = `${window.location.origin}/cinema/t/${t.id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.show({
-        title: tr('cinema.title.linkCopied'),
-        description: tr('cinema.title.linkCopiedBody'),
-      });
-    } catch {
-      toast.show({ title: tr('cinema.title.copyFailed'), variant: 'warning' });
-    }
-  };
+  const [sharing, setSharing] = useState(false);
 
   return (
     <header className="cin-title-head">
@@ -196,7 +184,7 @@ function Header({
           <Button variant="secondary" onClick={() => setTogether(true)}>
             <Icon name="users" size={16} /> {tr('cinema.title.watchTogether')}
           </Button>
-          <Button variant="secondary" onClick={() => void share()}>
+          <Button variant="secondary" onClick={() => setSharing(true)}>
             <Icon name="link" size={16} /> {tr('cinema.title.shareToLounge')}
           </Button>
           <Button
@@ -223,6 +211,18 @@ function Header({
         </div>
         {t.age_restricted && <p className="cin-muted">{tr('cinema.title.adultNote')}</p>}
       </div>
+      {sharing && (
+        <ShareToLoungeDialog
+          open
+          onClose={() => setSharing(false)}
+          target={{
+            url: `${window.location.origin}/cinema/t/${t.id}`,
+            card: `<cinema:${t.id}>`,
+            title: t.title,
+            kind: tr('share.kindCinema'),
+          }}
+        />
+      )}
       <DownloadModal
         open={download}
         onClose={() => setDownload(false)}

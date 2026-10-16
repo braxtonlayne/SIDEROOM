@@ -53,7 +53,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-MSGUI-015** [FE] Expired large-file chip ("This file has expired")
 - [x] **LNG-MSGUI-016** [FE] Embed renderer (color bar, author, title, description md, fields inline/block, image, thumbnail, footer, timestamp, video/provider)
 - [x] **LNG-MSGUI-017** [FE] Click-to-load third-party embeds (YouTube etc.) with privacy notice
-- [ ] **LNG-MSGUI-018** [FE] Cinema/Library rich cards (poster, title, meta, Watch/Read, Watch together)
+- [x] **LNG-MSGUI-018** [FE] Cinema/Library rich cards (poster, title, meta, Watch/Read, Watch together) *Built: lounge/msg/RichCards.tsx (cinema and library resolvers wired in MessageList: poster/cover, title, meta, Watch / Read, Watch together via the watch-party dialog); test lounge/__tests__/p13RichCards.test.tsx.*
 - [x] **LNG-MSGUI-019** [FE] Server invite embed, message link preview *Message links only; Cinema/Library cards are LNG-MSGUI-018.*
 - [x] **LNG-MSGUI-020** [FE] Sticker render (PNG/APNG/Lottie-free GIF/WebP), sticker tooltip
 - [x] **LNG-MSGUI-021** [FE] Poll widget (answers with emoji, vote select, multi, results bars, %, voters list modal, time left, End Poll)
@@ -75,7 +75,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-CMP-002** [FE] Enter to send / Shift+Enter newline, markdown shortcuts, paste plain-text rules
 - [x] **LNG-CMP-003** [FE] Autocomplete: `@` users/roles/everyone, `#` channels, `:` emoji (fuzzy), `/` commands (built-in + apps), keyboard navigation
 - [x] **LNG-CMP-004** [FE] "+" menu: Upload a File, Create Thread, Create Poll, Use Apps, Share from Cinema, Share from Library *Use Apps, Share from Cinema and Share from Library are listed but disabled until those features exist.*
-- [ ] **LNG-CMP-005** [FE] Upload queue tray: per-file thumbnail, edit (filename, spoiler, alt/description), remove; size check with Patron hint; multi-file ≤ 10
+- [x] **LNG-CMP-005** [FE] Upload queue tray: per-file thumbnail, edit (filename, spoiler, alt/description), remove; size check with Patron hint; multi-file ≤ 10 *Built: lounge/msg/UploadTray.tsx (thumbnail, rename, spoiler, alt text, remove, per-file progress, max 10) plus the size check against GET /donations/me limits with a Patron hint (uploadLimit.ts); test p13UploadTray.test.tsx. The check warns only, the server decides.*
 - [x] **LNG-CMP-006** [FE] Paste image/file from clipboard; drag-and-drop to composer
 - [ ] **LNG-CMP-007** [FE] Upload progress (per file), cancel, resumable for > 64 MB (multipart) *Partial: Progress and cancel are built. Resumable multipart for files over 64 MB is not: the API only hands out one presigned PUT per file (no multipart endpoints), so the client has nothing to resume against.*
 - [x] **LNG-CMP-008** [FE] Create Poll modal (question, answers 2–10 with emoji, duration, allow multiple)
@@ -100,8 +100,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-EXP-008** [FE] Sticker picker (packs, search, server sections) *Current server's stickers with search; no default packs yet (LNG-EXP-004).*
 - [x] **LNG-EXP-009** [FE] GIF picker (trending categories grid, search, favorites star) *lounge/components/GifPicker.tsx (trending, categories, search, favorites in localStorage).*
 - [x] **LNG-EXP-010** [FE] Expression picker tabs container (GIFs / Stickers / Emoji) *The GIF tab explains that no GIF provider is connected.*
-- [ ] **LNG-EXP-011** [FE] Emoji tooltip/popout on click (name, source server, "Join server" if public)
-- [ ] **LNG-EXP-012** [FE] Super/burst reaction picker variant + animations
+- [x] **LNG-EXP-011** [FE] Emoji tooltip/popout on click (name, source server, "Join server" if public) _p13 web: `lounge/msg/CustomEmoji.tsx` (clickable custom emoji drawn from /sr/emojis/{id}/url, popout with name, source server and Join over /directory/{id}/join), wired through the new `customEmoji` resolver in markdown-react; test `p13WebUi2.test.tsx`._
+- [x] **LNG-EXP-012** [FE] Super/burst reaction picker variant + animations — won't build (D-231: shim only)
 
 ## LNG-SRC — Search
 - [x] **LNG-SRC-001** [BE] Tantivy message index schema (content, author, channel, guild, has-flags, timestamps, pinned, author type, mentions)
@@ -113,11 +113,11 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 
 ## LNG-NTF — Notifications & inbox
 - [x] **LNG-NTF-001** [BE] Notification settings model (guild/category/channel overrides, mute with expiry, suppress everyone/roles/highlights, mobile push)
-- [x] **LNG-NTF-002** [BE] Notification decision engine (mentions, replies, DMs, keyword highlights, thread follows) *sr-chat social/notifications.rs decide() plus SocialService::decide_notification; keyword highlights are supported by the engine but there is no per-user keyword list yet.*
+- [x] **LNG-NTF-002** [BE] Notification decision engine (mentions, replies, DMs, keyword highlights, thread follows) *sr-chat social/notifications.rs decide() plus SocialService::decide_notification; keyword highlights are supported by the engine but there is no per-user keyword list yet.* *(p13: the per-user keyword list is `GET/PUT /users/@me/notification-keywords`, and the push notifier now passes the hits to the engine)*
 - [x] **LNG-NTF-003** [BE] Web Push (VAPID) subscription management + delivery (`web-push` crate) with collapse keys *crates/sr-push (VAPID, RFC 8291, SSRF-safe sender, RFC test vector), routes/push.rs, sr-server push_notify.rs fan-out with collapse keys. Own implementation on RustCrypto instead of the web-push crate.*
 - [x] **LNG-NTF-004** [FE] Notification Settings modal (server: All / Only @mentions / Nothing; suppress toggles; mobile push; channel overrides list) *NotificationDialog: suppress everyone/roles/highlights, mobile push, channel overrides list with reset.*
 - [x] **LNG-NTF-005** [FE] Channel bell menu (Use Category Default / All / Only @mentions / Nothing, Mute ▸) *header/NotifyButton.tsx: Use category default / All / Only @mentions / Nothing plus Mute.*
-- [ ] **LNG-NTF-006** [FE] Inbox popout: Mentions (filters: all servers / include roles / include everyone), Unreads (mark all read per channel), For You (friend requests, library updates, submission decisions, invites redeemed) *Partial: Mentions (GET /users/@me/mentions with role/everyone/server filters) and Unreads (mark read) are built in lounge/inbox; the For You tab is not.*
+- [x] **LNG-NTF-006** [FE] Inbox popout: Mentions (filters: all servers / include roles / include everyone), Unreads (mark all read per channel), For You (friend requests, library updates, submission decisions, invites redeemed) *Partial: Mentions (GET /users/@me/mentions with role/everyone/server filters) and Unreads (mark read) are built in lounge/inbox; the For You tab is not.* *Built: lounge/inbox/ForYou.tsx (friend requests with Accept/Decline, followed-series chapters, submission decisions, redeemed invites) beside the existing Mentions and Unreads tabs; test p13Inbox.test.tsx.*
 - [x] **LNG-NTF-007** [FE] Desktop notifications (Notification API) + sounds + DND suppression *lounge/shell/desktopNotify.ts: Notification API, Web Audio blips, DND and focus suppression.*
 - [x] **LNG-NTF-008** [FE] Unread title/favicon badge + PWA Badging API *pwa/titleBadge.ts (title prefix, favicon dot) plus the existing Badging API hook.*
-- [ ] **LNG-NTF-009** [FE] In-app toasts for DMs when not focused on that DM (optional)
+- [x] **LNG-NTF-009** [FE] In-app toasts for DMs when not focused on that DM (optional) *Built: lounge/shell/DmToasts.tsx (follows the desktop-notification rules, only with the window focused on another channel) and the "Pop-up for direct messages" switch; test p13DmToasts.test.tsx.*

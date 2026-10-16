@@ -5,6 +5,8 @@ import type { TouchEvent } from 'react';
 import { useT } from '../i18n';
 import { useAppBadge } from '../pwa/useAppBadge';
 import { useDesktopNotify } from './shell/desktopNotify';
+import { DmToasts } from './shell/DmToasts';
+import { Welcome } from './shell/Welcome';
 import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
 import { useVisualViewport } from './useVisualViewport';
 import { ChannelSidebar } from './ChannelSidebar';
@@ -47,6 +49,7 @@ import { matchCustomShortcut } from './shortcuts';
 import { usePrefsStore } from '../settings/user/prefs';
 import { RIGHT_PANEL_MAX, RIGHT_PANEL_MIN, useLoungeUi } from './store';
 import { UserPanel } from './UserPanel';
+import { EventAlerts } from './events/EventAlerts';
 import './lounge.css';
 
 type Pane = 'list' | 'chat' | 'members';
@@ -297,7 +300,10 @@ function Shell() {
       data-pane={isMobile ? pane : undefined}
     >
       <ToastProvider>
+        <DmToasts />
+        <Welcome />
         <SectionBar />
+        <EventAlerts />
         {!isMobile && <TitleStrip title={title} />}
         <ConnectionBanner />
         <NoticesBar />

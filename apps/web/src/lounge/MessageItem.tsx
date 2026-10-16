@@ -15,6 +15,8 @@ import { useDeveloperMode, useSavedPrefs } from '../settings/user/prefs';
 import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
 import { isJumbo, parseMarkdown, useMarkdownReady } from './markdown';
+import { showRawSuspiciousLinks } from './suspiciousLinks';
+import { useStore } from '../store';
 import { AttachmentList } from './msg/Attachments';
 import { EphemeralNote } from './apps/EphemeralNote';
 import { useAppsMenu } from './apps/useAppsMenu';
@@ -120,12 +122,36 @@ function MessageBody({
   useMarkdownReady();
   const t = useT();
   const { linkPreviews, showEmbeds, spoilers } = useSavedPrefs();
-  const nodes = parseMarkdown(m.content);
+  const hideSuspicious = useStore((s) =>
+    guildId ? s.guilds[guildId]?.hide_suspicious_links : false,
+  );
+  const parsed = parseMarkdown(m.content);
+  const nodes = useMemo(
+    () =>
+      hideSuspicious
+        ? showRawSuspiciousLinks(parsed, (host) => t('lounge.links.suspiciousWarning', { host }))
+        : parsed,
+    [hideSuspicious, parsed, t],
+  );
   // Link previews (everything built from a pasted link) and embeds posted by apps are separate switches.
   const embeds = (m.embeds ?? []).filter((e) => (e.type === 'rich' ? showEmbeds : linkPreviews));
   const showCards = linkPreviews && !m.suppressEmbeds;
   const inviteCode = useMemo(() => findInviteCode(m.content, location.origin), [m.content]);
   const messageLinks = useMemo(() => findMessageLinks(m.content, location.origin), [m.content]);
+  // Application emoji the author may not use stay plain `:name:` text (D-237).
+  const bodyResolvers = useMemo(() => {
+    const hidden = m.textEmoji;
+    if (!hidden?.length) return resolvers;
+    return {
+      ...resolvers,
+      customEmoji: (e: { id: string; name: string; animated: boolean }) =>
+        hidden.includes(e.id) ? (
+          <span className="sr-md-emoji-fallback">{`:${e.name}:`}</span>
+        ) : (
+          resolvers?.customEmoji?.(e)
+        ),
+    };
+  }, [resolvers, m.textEmoji]);
   return (
     <>
       {m.content && (
@@ -133,7 +159,7 @@ function MessageBody({
           nodes={nodes}
           jumbo={isJumbo(m.content)}
           revealSpoilers={spoilers === 'always'}
-          resolvers={resolvers}
+          resolvers={bodyResolvers}
           {...(onMentionClick ? { onMentionClick } : {})}
         />
       )}
@@ -223,6 +249,8 @@ function MessageItemImpl(props: MessageItemProps) {
     onJumpToChannelMessage,
     onOpenProfile,
   } = props;
+  // A webhook has no profile to open.
+  const openProfile = m.author.webhook ? undefined : onOpenProfile;
   const t = useT();
   const reportEntry = useReportEntry();
   const prefs = useSavedPrefs();
@@ -278,14 +306,14 @@ function MessageItemImpl(props: MessageItemProps) {
         label: t('lounge.messageItem.speakMessage'),
         onSelect: () => {
           speechSynthesis.cancel();
-          speechSynthesis.speak(
-            new SpeechSynthesisUtterance(
-              t('lounge.messageItem.speechText', {
-                name: m.author.displayName,
-                content: m.content,
-              }),
-            ),
+          const utterance = new SpeechSynthesisUtterance(
+            t('lounge.messageItem.speechText', {
+              name: m.author.displayName,
+              content: m.content,
+            }),
           );
+          utterance.rate = prefs.ttsRate / 100;
+          speechSynthesis.speak(utterance);
         },
       });
     if (onMarkUnread && !m.pending)
@@ -333,6 +361,7 @@ function MessageItemImpl(props: MessageItemProps) {
     return entries;
   }, [
     t,
+    prefs.ttsRate,
     developerMode,
     m,
     isOwn,
@@ -543,8 +572,8 @@ function MessageItemImpl(props: MessageItemProps) {
                 className="lng-avatar-btn"
                 aria-label={t('lounge.messageItem.openProfile', { name: m.author.displayName })}
                 aria-haspopup="dialog"
-                disabled={!onOpenProfile}
-                onClick={(e) => onOpenProfile?.(m.author.id, e.currentTarget)}
+                disabled={!openProfile}
+                onClick={(e) => openProfile?.(m.author.id, e.currentTarget)}
               >
                 <Avatar
                   name={m.author.displayName}
@@ -570,12 +599,12 @@ function MessageItemImpl(props: MessageItemProps) {
                       style={{ background: nameColor }}
                     />
                   )}
-                  {onOpenProfile ? (
+                  {openProfile ? (
                     <button
                       type="button"
                       className="lng-name-btn"
                       aria-haspopup="dialog"
-                      onClick={(e) => onOpenProfile(m.author.id, e.currentTarget)}
+                      onClick={(e) => openProfile(m.author.id, e.currentTarget)}
                     >
                       {m.author.displayName}
                     </button>

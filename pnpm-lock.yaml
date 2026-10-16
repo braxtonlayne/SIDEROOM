@@ -32,6 +32,9 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.10.9
         version: 3.14.15(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      foliate-js:
+        specifier: 1.0.1
+        version: 1.0.1
       hls.js:
         specifier: 1.7.3
         version: 1.7.3
@@ -129,7 +132,7 @@ importers:
         version: 9.39.5
       msw:
         specifier: ^3.0.3
-        version: 3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.5))
+        version: 3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@6.4.4(@types/node@22.20.5))
       openapi-typescript:
         specifier: ^7.6.1
         version: 7.13.0(typescript@5.9.3)
@@ -141,7 +144,28 @@ importers:
         version: 8.71.1(eslint@9.39.5)(typescript@5.9.3)
       vitest:
         specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.20.5)(jsdom@25.0.1)(msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.5)))
+        version: 2.1.9(@types/node@22.20.5)(jsdom@25.0.1)(msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@6.4.4(@types/node@22.20.5)))
+
+  packages/bot:
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.17.0
+        version: 9.39.5
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      eslint:
+        specifier: ^9.17.0
+        version: 9.39.5
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.19.0
+        version: 8.71.1(eslint@9.39.5)(typescript@5.9.3)
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.5)(jsdom@25.0.1)(msw@2.15.0(@types/node@22.20.5)(typescript@5.9.3))
 
   packages/markdown-react:
     dependencies:
@@ -1750,6 +1774,9 @@ packages:
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
 
+  construct-style-sheets-polyfill@3.1.0:
+    resolution: {integrity: sha512-HBLKP0chz8BAY6rBdzda11c3wAZeCZ+kIG4weVC2NM3AXzxx09nhe8t0SQNdloAvg5GLuHwq/0SPOOSPvtCcKw==}
+
   content-disposition@0.5.4:
     resolution: {integrity: sha512-FveZTNuGw04cxlAiWbzi6zTAL/lhehaWbTtgluJh4/E95DqMwTmha3KZN1aAWA8cFIhHzMZUvLevkw5Rqk+tSQ==}
     engines: {node: '>= 0.6'}
@@ -2133,6 +2160,9 @@ packages:
 
   flatted@3.4.4:
     resolution: {integrity: sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==}
+
+  foliate-js@1.0.1:
+    resolution: {integrity: sha512-Cj4h2ub5aVA+yUgbhvVhCyxwi0GPF4pyNBa6Lw9+6WKY1ReBxipItn2kEBO6u7Vu/xYXjK711R74+t+yW/0u5w==}
 
   for-each@0.3.5:
     resolution: {integrity: sha512-dKx12eRCVIzqCxFGplyFKJMPvLEWgmNtUrpTiJIR5u97zEhRG8ySrtboPHZXx7daLxQVrl643cTzbab2tkQjxg==}
@@ -5111,13 +5141,13 @@ snapshots:
       msw: 2.15.0(@types/node@26.6.5)(typescript@5.9.3)
       vite: 5.4.21(@types/node@26.6.5)
 
-  '@vitest/mocker@2.1.9(msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.5)))(vite@5.4.21(@types/node@22.20.5))':
+  '@vitest/mocker@2.1.9(msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@6.4.4(@types/node@22.20.5)))(vite@5.4.21(@types/node@22.20.5))':
     dependencies:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      msw: 3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.5))
+      msw: 3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@6.4.4(@types/node@22.20.5))
       vite: 5.4.21(@types/node@22.20.5)
 
   '@vitest/mocker@3.2.7(msw@3.0.3(@types/node@26.6.5)(graphql@16.14.2)(typescript@5.6.3)(vite@6.4.4(@types/node@26.6.5)))(vite@6.4.4(@types/node@26.6.5))':
@@ -5440,6 +5470,8 @@ snapshots:
   commander@12.1.0: {}
 
   concat-map@0.0.1: {}
+
+  construct-style-sheets-polyfill@3.1.0: {}
 
   content-disposition@0.5.4:
     dependencies:
@@ -5937,6 +5969,10 @@ snapshots:
       keyv: 4.5.4
 
   flatted@3.4.4: {}
+
+  foliate-js@1.0.1:
+    dependencies:
+      construct-style-sheets-polyfill: 3.1.0
 
   for-each@0.3.5:
     dependencies:
@@ -7074,7 +7110,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.5)):
+  msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@6.4.4(@types/node@22.20.5)):
     dependencies:
       '@inquirer/confirm': 6.3.3(@types/node@22.20.5)
       '@msw/url': 0.1.2
@@ -7091,7 +7127,7 @@ snapshots:
     optionalDependencies:
       graphql: 16.14.2
       typescript: 5.9.3
-      vite: 5.4.21(@types/node@22.20.5)
+      vite: 6.4.4(@types/node@22.20.5)
     transitivePeerDependencies:
       - '@types/node'
       - supports-color
@@ -8067,6 +8103,19 @@ snapshots:
       '@types/node': 26.6.5
       fsevents: 2.3.3
 
+  vite@6.4.4(@types/node@22.20.5):
+    dependencies:
+      esbuild: 0.25.12
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
+      postcss: 8.5.29
+      rollup: 4.64.5
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 22.20.5
+      fsevents: 2.3.3
+    optional: true
+
   vite@6.4.4(@types/node@26.6.5):
     dependencies:
       esbuild: 0.25.12
@@ -8115,10 +8164,10 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@22.20.5)(jsdom@25.0.1)(msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.5))):
+  vitest@2.1.9(@types/node@22.20.5)(jsdom@25.0.1)(msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@6.4.4(@types/node@22.20.5))):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.5)))(vite@5.4.21(@types/node@22.20.5))
+      '@vitest/mocker': 2.1.9(msw@3.0.3(@types/node@22.20.5)(graphql@16.14.2)(typescript@5.9.3)(vite@6.4.4(@types/node@22.20.5)))(vite@5.4.21(@types/node@22.20.5))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9

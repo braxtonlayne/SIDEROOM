@@ -407,6 +407,32 @@ async fn reminders_are_stored_replaced_taken_once_and_follow_the_account() {
     repo.put_reminder(&r(2, 9_000)).await.unwrap();
     // Setting it again replaces the row.
     repo.put_reminder(&r(1, 2_000)).await.unwrap();
+    // H-01: the list is the caller's, soonest start first.
+    let listed = repo.list_reminders(who).await.unwrap();
+    assert_eq!(listed, vec![r(1, 2_000), r(2, 9_000)]);
+    assert!(repo.list_reminders(who + 1).await.unwrap().is_empty());
+    // H-01: the lead setting is read from the blob only when it is a number.
+    assert_eq!(repo.reminder_lead_setting(who).await.unwrap(), None);
+    for (blob, want) in [
+        (r#"{"tv":{"reminder_lead_minutes":15}}"#, Some(15)),
+        (r#"{"tv":{"reminder_lead_minutes":"15"}}"#, None),
+        (r#"{"tv":{}}"#, None),
+    ] {
+        sqlx::query(
+            "INSERT INTO user_settings (user_id, settings) VALUES ($1, $2::jsonb) \
+             ON CONFLICT (user_id) DO UPDATE SET settings = EXCLUDED.settings",
+        )
+        .bind(who)
+        .bind(blob)
+        .execute(db.pool())
+        .await
+        .unwrap();
+        assert_eq!(
+            repo.reminder_lead_setting(who).await.unwrap(),
+            want,
+            "{blob}"
+        );
+    }
     assert!(repo.take_due_reminders(500, 10).await.unwrap().is_empty());
     let due = repo.take_due_reminders(5_000, 10).await.unwrap();
     assert_eq!(due, vec![r(1, 2_000)]);
@@ -415,6 +441,11 @@ async fn reminders_are_stored_replaced_taken_once_and_follow_the_account() {
     assert!(!repo.delete_reminder(who, 2).await.unwrap());
     // Deleting the account removes what is left.
     repo.put_reminder(&r(3, 1)).await.unwrap();
+    sqlx::query("DELETE FROM user_settings WHERE user_id = $1")
+        .bind(who)
+        .execute(db.pool())
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM accounts WHERE id = $1")
         .bind(who)
         .execute(db.pool())

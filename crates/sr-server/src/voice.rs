@@ -17,7 +17,7 @@ use sr_core::config::Config;
 use sr_core::{ChannelId, GuildId, UserId};
 use sr_gateway::{
     CallError, Gateway, ModAction, ModError, ModPatch, PreviewError, SelfStagePatch, SoundPlay,
-    SoundPlayError, StageError, StageInstance, VoiceConfig as GatewayVoice,
+    SoundPlayError, StageError, StageInstance, StatusError, VoiceConfig as GatewayVoice,
 };
 use sr_voice_proto::{TokenSigner, TurnConfig, derive_secret};
 
@@ -83,6 +83,7 @@ pub async fn start(cfg: &Config, master_key: &[u8; 32]) -> anyhow::Result<VoiceS
         token_secret: secret.clone(),
         egress_budget_mbps: f64::from(v.egress_budget_mbps),
         video_bwe: v.video_bwe,
+        shards: v.shards,
     })
     .await
     .context("starting the voice SFU")?;
@@ -220,6 +221,17 @@ fn stage_err(e: StageError) -> VoiceError {
     }
 }
 
+fn status_err(e: StatusError) -> VoiceError {
+    match e {
+        StatusError::Unavailable => VoiceError::Unavailable,
+        StatusError::UnknownChannel => VoiceError::UnknownChannel,
+        StatusError::NotVoiceChannel => VoiceError::NotVoiceChannel,
+        StatusError::MissingPermissions => VoiceError::MissingPermissions,
+        StatusError::NotInVoice => VoiceError::NotInVoice,
+        StatusError::InvalidStatus => VoiceError::InvalidStatus,
+    }
+}
+
 fn preview_err(e: PreviewError) -> VoiceError {
     match e {
         PreviewError::Unavailable => VoiceError::Unavailable,
@@ -342,6 +354,19 @@ impl VoiceBackend for ServerVoice {
             .stage_end(actor, channel)
             .await
             .map_err(stage_err)
+    }
+
+    async fn voice_status_set(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+        status: Option<String>,
+    ) -> Result<(), VoiceError> {
+        self.gateway
+            .voice_status_set(actor, channel, status.as_deref())
+            .await
+            .map(|_| ())
+            .map_err(status_err)
     }
 
     async fn stage_self(

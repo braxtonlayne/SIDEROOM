@@ -80,6 +80,11 @@ impl PartyService {
         if cmd != Command::Ended && !rules::allowed(row.shared_control, standing) {
             return Err(PartyError::Forbidden);
         }
+        if row.is_idle() {
+            return Err(PartyError::Conflict(
+                "Pick something to watch first.".to_owned(),
+            ));
+        }
         let now = self.now();
         let state = row.playback();
         state.check_version(input.expected_version, now)?;

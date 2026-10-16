@@ -77,6 +77,18 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
   },
   {
     section: 'privacy',
+    card: 'us-dm-filter',
+    label: 'DM spam filter and server DMs',
+    keywords: 'direct messages per server override',
+  },
+  {
+    section: 'privacy',
+    card: 'us-age',
+    label: 'Age confirmation',
+    keywords: '18 adult re-confirm reset',
+  },
+  {
+    section: 'privacy',
     card: 'us-filters',
     label: 'Sensitive media filters',
     keywords: 'nsfw age restricted explicit',
@@ -170,6 +182,12 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
     card: 'us-notify-default',
     label: 'Default notification level',
     keywords: 'mentions all messages',
+  },
+  {
+    section: 'notifications',
+    card: 'us-keywords',
+    label: 'Notification keywords',
+    keywords: 'highlight words',
   },
   {
     section: 'notifications',

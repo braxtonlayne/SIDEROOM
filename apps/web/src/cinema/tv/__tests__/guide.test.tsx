@@ -167,6 +167,41 @@ describe('Live TV guide', () => {
     expect(await within(dialog).findByRole('button', { name: 'Reminder set' })).toBeInTheDocument();
   });
 
+  it('shows Reminder set after a reload and lists My reminders with Remove (H-01)', async () => {
+    useTvApi({ reminders: ['champloo'] });
+    renderAt('/cinema/tv');
+    const user = userEvent.setup();
+    const mine = await screen.findByRole('region', { name: 'My reminders' });
+    expect(await within(mine).findByText('Reminder champloo')).toBeInTheDocument();
+    await user.click(await cell(/^Samurai Champloo/));
+    const dialog = await screen.findByRole('dialog', { name: 'Samurai Champloo' });
+    expect(await within(dialog).findByRole('button', { name: 'Reminder set' })).toBeInTheDocument();
+    await user.click(within(mine).getByRole('button', { name: 'Remove' }));
+    expect(await within(mine).findByText('No reminders set.')).toBeInTheDocument();
+  });
+
+  it('saves the reminder lead into the settings blob (H-01)', async () => {
+    useTvApi();
+    const { server, http, HttpResponse } = await import('../../../test/server');
+    const patches: unknown[] = [];
+    server.use(
+      http.get('*/api/v1/users/@me/settings', () =>
+        HttpResponse.json({ version: 1, settings: { tv: { reminder_lead_minutes: 15 } } }),
+      ),
+      http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
+        const body = (await request.json()) as { settings: unknown };
+        patches.push(body.settings);
+        return HttpResponse.json({ version: 2, settings: body.settings });
+      }),
+    );
+    renderAt('/cinema/tv');
+    const mine = await screen.findByRole('region', { name: 'My reminders' });
+    const select = within(mine).getByRole('combobox');
+    await waitFor(() => expect(select).toHaveValue('15'));
+    await userEvent.selectOptions(select, '30');
+    await waitFor(() => expect(patches).toEqual([{ tv: { reminder_lead_minutes: 30 } }]));
+  });
+
   it('says reminders are not available yet when the server has no such route', async () => {
     useTvApi();
     const { server, http } = await import('../../../test/server');

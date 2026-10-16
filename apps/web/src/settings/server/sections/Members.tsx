@@ -53,6 +53,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   /** `query` after a short pause: this is what the server is asked for. */
   const [applied, setApplied] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [unusual, setUnusual] = useState(false);
   const [page, setPage] = useState(0);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [details, setDetails] = useState<api.MemberObject | null>(null);
@@ -82,6 +83,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
         ...(cursor ? { after: cursor } : {}),
         ...(applied ? { query: applied } : {}),
         ...(roleFilter ? { roleId: roleFilter } : {}),
+        ...(unusual ? { signals: true } : {}),
       });
       if (mine !== generation.current) return;
       setMembers((cur) => {
@@ -98,7 +100,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
         setLoading(false);
       }
     }
-  }, [guildId, applied, roleFilter, t]);
+  }, [guildId, applied, roleFilter, unusual, t]);
   const membersRef = useRef(members);
   membersRef.current = members;
 
@@ -274,6 +276,13 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
               ))}
           </select>
         </div>
+        {viewer.can('MANAGE_GUILD') && (
+          <Checkbox
+            label={t('settings.members.unusual')}
+            checked={unusual}
+            onChange={(e) => setUnusual(e.target.checked)}
+          />
+        )}
         <div>
           <label className="ss-field-label" htmlFor="ss-member-sort">
             {t('settings.members.sortBy')}
@@ -371,6 +380,12 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
                 </th>
                 <th scope="col">{t('settings.members.colName')}</th>
                 <th scope="col">{t('settings.members.colSince')}</th>
+                {viewer.can('MANAGE_GUILD') && (
+                  <>
+                    <th scope="col">{t('settings.members.colJoined')}</th>
+                    <th scope="col">{t('settings.members.colSignals')}</th>
+                  </>
+                )}
                 <th scope="col">{t('settings.members.colRoles')}</th>
                 <th scope="col">{t('settings.members.colActions')}</th>
               </tr>
@@ -494,6 +509,32 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   );
 }
 
+/** "Joined via": the source, with the code for an invite or a vanity link (D-240). */
+function joinLabel(m: api.MemberObject, t: ReturnType<typeof useT>): string {
+  const j = m.sr_join;
+  if (!j) return '';
+  switch (j.source) {
+    case 'invite':
+      return j.invite_code
+        ? t('settings.members.joinInviteCode', { code: j.invite_code })
+        : t('settings.members.joinInvite');
+    case 'vanity':
+      return t('settings.members.joinVanity', { code: j.invite_code ?? '' });
+    case 'directory':
+      return t('settings.members.joinDirectory');
+    case 'application':
+      return t('settings.members.joinApplication');
+    case 'creator':
+      return t('settings.members.joinCreator');
+    case 'staff':
+      return t('settings.members.joinStaff');
+    case 'bot':
+      return t('settings.members.joinBot');
+    default:
+      return t('settings.members.joinUnknown');
+  }
+}
+
 function MemberRow({
   member,
   roleById,
@@ -571,6 +612,24 @@ function MemberRow({
         </span>
       </td>
       <td>{formatDate(member.joined_at)}</td>
+      {viewer.can('MANAGE_GUILD') && (
+        <>
+          <td>{joinLabel(member, t)}</td>
+          <td>
+            <span className="ss-chips">
+              {(member.sr_signals ?? []).map((sig) => (
+                <span key={sig} className="ss-role-chip">
+                  {t(
+                    sig === 'rejoined'
+                      ? 'settings.members.signalRejoined'
+                      : 'settings.members.signalNew',
+                  )}
+                </span>
+              ))}
+            </span>
+          </td>
+        </>
+      )}
       <td>
         <span className="ss-chips">
           {member.roles.map((rid) => {

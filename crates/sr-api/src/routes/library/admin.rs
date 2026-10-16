@@ -529,6 +529,49 @@ pub async fn pages(
         .map_err(map_err)
 }
 
+/// Body of `PUT /admin/library/chapters/{id}/pages/{index}`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ReplacePageBody {
+    /// `data:image/<type>;base64,...`: one PNG, JPEG, WebP, GIF or AVIF image of at most 16 MiB.
+    pub image: String,
+}
+
+/// Largest request body of the single-page route: 16 MiB as base64 plus the JSON around it.
+pub const REPLACE_PAGE_BODY_LIMIT: usize = 22 * 1024 * 1024;
+
+/// Replace one page of an image chapter with a new image (`PUBLISH_READING`). The image is converted like
+/// an archive page (limits, dimensions, crop data, sized variants); the page keeps its position and
+/// double-spread flag, and the page list changes key, so the offline cache and the CBZ export follow.
+#[utoipa::path(
+    put, path = "/admin/library/chapters/{chapter_id}/pages/{index}", operation_id = "admin_library_replace_page", request_body = ReplacePageBody,
+    params(("chapter_id" = String, Path, description = "Chapter snowflake"),
+           ("index" = i32, Path, description = "Page index from 0")),
+    responses((status = 200, body = Chapter), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn replace_page(
+    ctx: PublisherCtx,
+    Path((chapter_id, index)): Path<(String, i32)>,
+    Json(b): Json<ReplacePageBody>,
+) -> ApiResult<Json<Chapter>> {
+    let cid = id(&chapter_id, "chapter")?;
+    let bytes = crate::routes::settings::expressions::decode_data_uri("image", &b.image)?;
+    let size = bytes.len();
+    let c = ctx
+        .svc()
+        .replace_page(ctx.actor(), cid, index, bytes.to_vec())
+        .await
+        .map_err(map_err)?;
+    ctx.audit(
+        "library.page.replace",
+        ("chapter", cid),
+        json!({ "index": index, "bytes": size }),
+    )
+    .await;
+    Ok(Json(c))
+}
+
 /// Replace the whole page list of an image chapter: this is how pages are reordered,
 /// replaced and removed (`PUBLISH_READING`). Object keys must live under
 /// `library/{series_id}/{chapter_id}/`.

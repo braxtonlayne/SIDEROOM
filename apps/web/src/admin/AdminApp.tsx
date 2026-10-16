@@ -24,6 +24,7 @@ import { AnnouncementsSection } from './sections/Announcements';
 import { AuditLogSection } from './sections/AuditLog';
 import { CatalogSection } from './cinema/CatalogSection';
 import { LibraryCatalogSection } from './library/LibraryCatalogSection';
+import { IngestSourcesSection } from './sections/IngestSources';
 import { CollectionsSection } from './cinema/CollectionsSection';
 import { TranscodingSection } from './cinema/TranscodingSection';
 import { LiveTvSection } from './cinema/tv/LiveTvSection';
@@ -35,10 +36,12 @@ import { AccountsSection } from './sections/Accounts';
 import { BansSection } from './sections/Bans';
 import { CliParitySection } from './sections/CliParity';
 import { DashboardSection } from './sections/Dashboard';
+import { EntranceSection } from './sections/Entrance';
 import { FeaturesSection } from './sections/Features';
 import { InviteGraphSection } from './sections/InviteGraph';
 import { InvitesSection } from './sections/Invites';
 import { LimitsSection } from './sections/Limits';
+import { ServersSection } from './sections/Servers';
 import { StaffSection } from './sections/Staff';
 import { ReviewHubSection } from './sections/ReviewHub';
 import { PrivateContentSection } from './sections/PrivateContent';
@@ -90,6 +93,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     component: InviteGraphSection,
   },
   {
+    id: 'servers',
+    label: 'admin.adminApp.section.servers',
+    group: 'admin.adminApp.group.people',
+    visible: (v) => v.can('MANAGE_GUILDS_GLOBAL'),
+    component: ServersSection,
+  },
+  {
     id: 'staff',
     label: 'admin.adminApp.section.staff',
     group: 'admin.adminApp.group.people',
@@ -118,6 +128,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.content',
     visible: (v) => v.can('MANAGE_TRANSCODE'),
     component: JobsSection,
+  },
+  {
+    id: 'ingest-sources',
+    label: 'admin.adminApp.section.ingestSources',
+    group: 'admin.adminApp.group.content',
+    visible: (v) => v.can('PUBLISH_READING'),
+    component: IngestSourcesSection,
   },
   {
     id: 'library-catalog',
@@ -195,6 +212,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.platform',
     visible: (v) => v.can('MANAGE_FEATURES'),
     component: LimitsSection,
+  },
+  {
+    id: 'entrance',
+    label: 'admin.adminApp.section.entrance',
+    group: 'admin.adminApp.group.platform',
+    visible: (v) => v.can('MANAGE_ENTRANCE'),
+    component: EntranceSection,
   },
   {
     id: 'announcements',

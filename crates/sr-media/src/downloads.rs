@@ -2,8 +2,7 @@
 //! rendition, cached for 7 days and shared between members, or the original when staff allow it.
 //!
 //! * Entitlement: [`DownloadEntitlements`] says who may download and how many times a day. The
-//!   donations work (perks, doc 08) does not exist yet; the Postgres implementation reads the
-//!   `cinema_download_grants` table, which that work (or staff) fills.
+//!   server reads the Patron perk from the donations entitlements (doc 08).
 //! * A request creates a `cinema_downloads` row (that is what the daily limit counts) and, for a
 //!   rendition nobody prepared yet, a `remux` transcode job planned by [`crate::remux`]. The
 //!   workers run it; when it completes the cache entry turns `ready` (see the Postgres job
@@ -249,6 +248,12 @@ impl DownloadService {
             .allowance(user)
             .await?
             .ok_or_else(|| MediaError::Forbidden("Downloads are for Patrons.".into()))
+    }
+
+    /// Downloads per day of a member who holds the perk; `None` for everybody else. Library
+    /// chapter downloads count against their own table with this allowance (D-075).
+    pub async fn per_day(&self, user: i64) -> MediaResult<Option<u32>> {
+        Ok(self.entitlements.allowance(user).await?.map(|a| a.per_day))
     }
 
     /// Fails with `Forbidden` unless the member holds the download perk.

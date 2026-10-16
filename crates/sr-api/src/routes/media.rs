@@ -87,12 +87,21 @@ impl MediaDeps {
             .map_err(|_| sr_core::ErrorCode::SrInternal)?;
         let limits = self.limits;
         let prepared = tokio::task::spawn_blocking(move || {
-            let raw = media::parse_data_uri(&uri, media::MAX_UPLOAD_BYTES)?;
-            media::prepare_bytes_scoped(kind, &raw, &limits, scope)
+            let raw = media::parse_data_uri(&uri, kind.max_upload())?;
+            let prepared = media::prepare_bytes_scoped(kind, &raw, &limits, scope)?;
+            if !kind.accepts_webp()
+                && (prepared.format == sr_storage::img::ImgFormat::Webp
+                    || uri
+                        .get(..15)
+                        .is_some_and(|p| p.eq_ignore_ascii_case("data:image/webp")))
+            {
+                return Err(MediaError::BadType);
+            }
+            Ok::<_, MediaError>(prepared)
         })
         .await
         .map_err(|_| sr_core::ErrorCode::SrInternal)?
-        .map_err(|e| media_error(field, e))?;
+        .map_err(|e| media_error(field, e, kind))?;
         drop(permit);
         let key = media::object_key(kind, owner, &prepared.hash);
         self.storage
@@ -135,12 +144,16 @@ fn invalid(field: &str, code: &str, message: &str) -> HttpError {
     HttpError(ApiError::invalid_form().field(field, code, message))
 }
 
-fn media_error(field: &str, e: MediaError) -> HttpError {
+fn media_error(field: &str, e: MediaError, kind: MediaKind) -> HttpError {
     match e {
         MediaError::TooLarge => invalid(
             field,
             "BINARY_TYPE_MAX_SIZE",
-            "File cannot be larger than 8 MiB, or have more than 24 million pixels.",
+            if kind == MediaKind::EventCover {
+                "File cannot be larger than 2 MiB, or have more than 24 million pixels."
+            } else {
+                "File cannot be larger than 8 MiB, or have more than 24 million pixels."
+            },
         ),
         MediaError::NotDataUri | MediaError::BadBase64 => {
             invalid(field, "IMAGE_INVALID", "Expected a base64 image data URI.")
@@ -148,7 +161,11 @@ fn media_error(field: &str, e: MediaError) -> HttpError {
         MediaError::BadType | MediaError::Invalid => invalid(
             field,
             "IMAGE_INVALID",
-            "Must be a valid PNG, JPEG, GIF or WebP image.",
+            if kind.accepts_webp() {
+                "Must be a valid PNG, JPEG, GIF or WebP image."
+            } else {
+                "Must be a valid PNG, JPEG or GIF image."
+            },
         ),
     }
 }

@@ -13,6 +13,7 @@
 //! | `avatars`     | `avatars/`        | user avatars/banners (`avatars/{user}/{hash}`) |
 //! | `icons`       | `icons/`          | guild icon/banner/splash (`icons/{guild}/{hash}`) |
 //! | `channel-icons` | `channel-icons/` | group DM icons (`channel-icons/{channel}/{hash}`) |
+//! | `guild-events` | `guild-events/`  | scheduled event covers (`guild-events/{event}/{hash}`) |
 //! | `library`     | `library/`        | Library covers and reader pages (`library/{series}/{chapter}/{page}.webp`), signed |
 //! | `cinema`      | `cinema/`         | Cinema artwork (`cinema/{title}/poster.webp`, stills), signed |
 //! | `originals`   | `originals/`      | Cinema originals (`originals/{asset}/source.mkv`), signed, handed to workers and Patron downloads |
@@ -33,6 +34,7 @@ pub const KINDS: &[(&str, &str)] = &[
     ("avatars", "avatars"),
     ("icons", "icons"),
     ("channel-icons", "channel-icons"),
+    ("guild-events", "guild-events"),
     ("library", "library"),
     ("cinema", "cinema"),
     ("originals", "originals"),
@@ -74,7 +76,7 @@ pub struct CdnPath {
 }
 
 /// Kinds addressed by an unguessable content hash (see the module docs).
-pub const PUBLIC_KINDS: &[&str] = &["avatars", "icons", "channel-icons"];
+pub const PUBLIC_KINDS: &[&str] = &["avatars", "icons", "channel-icons", "guild-events"];
 
 /// Percent-encode one path segment, leaving only `A-Z a-z 0-9 - . _ ~`.
 pub fn encode_segment(s: &str) -> String {

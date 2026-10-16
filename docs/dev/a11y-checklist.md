@@ -16,7 +16,7 @@ Signed-in screens are covered in jsdom by `apps/web/src/a11y/signedInRoutes.test
 
 - Every page has one `<main>`; `SkipLink` (in `EntranceShell`; mount it in the other shells) targets it.
 - Announce changes with `announce(text)` from `apps/web/src/a11y/announcer.tsx` (polite for new messages and saves, assertive for dropped calls). One pair of live regions exists for the whole app (`<LiveRegions />` in `main.tsx`).
-- Never rely on colour alone. Muted text must reach 4.5:1: entrance copy uses `--ent-muted` because `--sr-text-3` is about 3.6:1 (see `components/entrance.css`).
+- Never rely on colour alone. Muted text must reach 4.5:1: entrance copy uses `--sr-entrance-text-muted` because `--sr-text-3` is about 3.6:1 (see `components/entrance.css`).
 - New icon-only buttons get an `aria-label` from the i18n catalog, never a hard-coded string.
 - Respect `prefers-reduced-motion`; the global rule in `styles/a11y.css` is a safety net, not a licence to animate.
 

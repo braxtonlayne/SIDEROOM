@@ -25,6 +25,7 @@ import {
 } from './model';
 import { NowPanel } from './NowPanel';
 import { ProgramPopover } from './ProgramPopover';
+import { RemindersCard } from './RemindersCard';
 import type { TvBlock } from './types';
 import './tv.css';
 
@@ -406,6 +407,8 @@ function GuideContent() {
       )}
 
       {body}
+
+      <RemindersCard tz={null} />
 
       <footer className="tv-footer">
         <span className="tv-legend">

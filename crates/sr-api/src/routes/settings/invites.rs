@@ -4,6 +4,7 @@
 use super::deps::{ChannelAccess, SettingsDeps, actor, id, re, se};
 use super::events::SettingsEvent;
 use crate::routes::guilds::dto::{UserRef, iso8601};
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::social::SocialDeps;
 use crate::routes::social::group_invites;
 use crate::routes::{Ext, MaybeExt};
@@ -69,8 +70,8 @@ pub struct InviteObject {
     #[serde(rename = "type")]
     pub kind: u8,
     pub code: String,
-    /// The server; absent on group DM invites.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The server; `null` on group DM invites (D-221).
+    #[schema(nullable = true)]
     pub guild: Option<InviteGuild>,
     pub channel: InviteChannel,
     pub inviter: UserRef,
@@ -471,6 +472,7 @@ pub async fn get_invite(
 )]
 pub async fn delete_invite(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     MaybeExt(social): MaybeExt<SocialDeps>,
     headers: axum::http::HeaderMap,
@@ -491,6 +493,9 @@ pub async fn delete_invite(
         && ch.perms.has(Permissions::MANAGE_CHANNELS)
     {
         perms |= Permissions::MANAGE_GUILD;
+    }
+    if perms.has(Permissions::MANAGE_GUILD) {
+        gate.check_level(user, guild.guild.mfa_level).await?;
     }
     let reason = super::deps::audit_reason(&headers);
     deps.service

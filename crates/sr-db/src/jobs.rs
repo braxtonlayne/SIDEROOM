@@ -220,15 +220,19 @@ pub fn delay_until_daily_utc(now_unix_ms: i64, hour: u32, minute: u32) -> Durati
 }
 
 /// Return jobs stuck in `running` longer than `older_than` (crashed workers) to the queue.
-pub async fn reap_stale<'e>(ex: impl PgExecutor<'e>, older_than: Duration) -> DbResult<u64> {
-    let r = sqlx::query(
+/// Returns the `(id, kind)` of every job it returned, so the caller can log each one.
+pub async fn reap_stale<'e>(
+    ex: impl PgExecutor<'e>,
+    older_than: Duration,
+) -> DbResult<Vec<(i64, String)>> {
+    Ok(sqlx::query_as::<_, (i64, String)>(
         "UPDATE jobs SET state = 'queued', locked_at = NULL, locked_by = NULL, updated_at = now() \
-         WHERE state = 'running' AND locked_at < now() - make_interval(secs => $1)",
+         WHERE state = 'running' AND locked_at < now() - make_interval(secs => $1) \
+         RETURNING id, kind",
     )
     .bind(older_than.as_secs_f64())
-    .execute(ex)
-    .await?;
-    Ok(r.rows_affected())
+    .fetch_all(ex)
+    .await?)
 }
 
 /// List dead-lettered jobs, newest first.
@@ -242,6 +246,29 @@ pub async fn list_dead<'e>(ex: impl PgExecutor<'e>, limit: i64) -> DbResult<Vec<
         .bind(limit)
         .fetch_all(ex)
         .await?)
+}
+
+/// Kind of the scheduled-events clock (G-92).
+pub const SCHEDULED_EVENTS_TICK_KIND: &str = "scheduled_events.tick";
+/// Reserved singleton id of the scheduled-events clock.
+pub const SCHEDULED_EVENTS_TICK_JOB_ID: i64 = 820;
+/// How far ahead the clock re-enqueues itself.
+pub const SCHEDULED_EVENTS_TICK_INTERVAL: Duration = Duration::from_secs(30);
+
+/// Seed the `scheduled_events.tick` singleton if no node has yet. A row that is `queued` or
+/// `running` is left alone, so any number of nodes may call this at startup: the claim
+/// (`FOR UPDATE SKIP LOCKED`) then lets exactly one runner advance events per turn, and the
+/// handler re-enqueues the job [`SCHEDULED_EVENTS_TICK_INTERVAL`] ahead. Returns `true` when
+/// a row was inserted or re-armed.
+pub async fn seed_scheduled_events_tick<'e>(ex: impl PgExecutor<'e>) -> DbResult<bool> {
+    schedule_singleton(
+        ex,
+        SCHEDULED_EVENTS_TICK_JOB_ID,
+        SCHEDULED_EVENTS_TICK_KIND,
+        &serde_json::json!({}),
+        Duration::ZERO,
+    )
+    .await
 }
 
 #[cfg(test)]

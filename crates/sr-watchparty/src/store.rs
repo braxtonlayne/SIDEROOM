@@ -62,10 +62,11 @@ impl PartyRow {
             guild_id: r.try_get("guild_id")?,
             channel_id: r.try_get("channel_id")?,
             invite_code: r.try_get("invite_code")?,
-            title_id: r.try_get("title_id")?,
+            // An empty room (D-227) stores NULL; in memory it is 0, which no real title or channel has.
+            title_id: r.try_get::<Option<i64>, _>("title_id")?.unwrap_or(0),
             episode_id: r.try_get("episode_id")?,
             variant_id: r.try_get("variant_id")?,
-            asset_id: r.try_get("asset_id")?,
+            asset_id: r.try_get::<Option<i64>, _>("asset_id")?.unwrap_or(0),
             title_name: r.try_get("title_name")?,
             episode_label: r.try_get("episode_label")?,
             duration_ms: r.try_get("duration_ms")?,
@@ -103,8 +104,17 @@ impl PartyRow {
         }
     }
 
-    pub fn media(&self) -> MediaView {
-        MediaView {
+    /// A party without media: an empty watch party room waiting for its host to pick something.
+    pub fn is_idle(&self) -> bool {
+        self.title_id == 0
+    }
+
+    /// What is playing; `None` for an idle room.
+    pub fn media(&self) -> Option<MediaView> {
+        if self.is_idle() {
+            return None;
+        }
+        Some(MediaView {
             title_id: self.title_id,
             episode_id: self.episode_id,
             variant_id: self.variant_id,
@@ -114,7 +124,7 @@ impl PartyRow {
             duration_ms: self.duration_ms,
             age_restricted: self.age_restricted,
             live: self.live,
-        }
+        })
     }
 
     pub fn settings(&self) -> SettingsView {

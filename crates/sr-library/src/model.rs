@@ -135,6 +135,7 @@ str_enum!(
         Updated => "updated",
         Title => "title",
         Followers => "followers",
+        Rating => "rating",
     }
 );
 
@@ -553,6 +554,8 @@ pub struct BrowseQuery {
     pub language: Option<String>,
     pub year_from: Option<i16>,
     pub year_to: Option<i16>,
+    /// Series whose average rating (1 to 10) is at least this.
+    pub rating_min: Option<i16>,
     pub age: AgeFilter,
     pub sort: SortKey,
     /// Overrides the natural direction of `sort`.
@@ -576,6 +579,7 @@ impl Default for BrowseQuery {
             language: None,
             year_from: None,
             year_to: None,
+            rating_min: None,
             age: AgeFilter::Include,
             sort: SortKey::Updated,
             descending: None,
@@ -664,12 +668,18 @@ pub struct UploadRequest {
     /// Original file name; its extension must fit the chapter's format.
     pub filename: String,
     pub size_bytes: u64,
+    /// Ask for a resumable multipart upload: parts of 64 MB sent in parallel, resumable after a
+    /// refresh. Without it the slot is one presigned `PUT`.
+    #[serde(default)]
+    pub multipart: bool,
 }
 
 /// A new upload slot: PUT the file to `upload_url`, then complete the upload.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 pub struct UploadSlot {
     pub upload: Upload,
+    /// Set for a multipart upload (then `upload_url` is empty).
+    pub multipart: Option<crate::multipart::MultipartSlot>,
     pub upload_url: String,
     /// Always `PUT`.
     pub upload_method: String,

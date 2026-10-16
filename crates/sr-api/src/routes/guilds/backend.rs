@@ -186,6 +186,13 @@ pub trait GuildBackend: Send + Sync {
         after: Option<UserId>,
         limit: usize,
     ) -> ChatResult<Vec<Member>>;
+    /// How members joined (D-240); empty unless the actor holds `MANAGE_GUILD`.
+    async fn member_joins(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        users: &[UserId],
+    ) -> ChatResult<Vec<sr_chat::admin_repo::MemberJoin>>;
     async fn list_role_members(
         &self,
         actor: UserId,
@@ -843,6 +850,15 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         self.svc
             .list_members(actor, guild, filter, after, limit)
             .await
+    }
+
+    async fn member_joins(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        users: &[UserId],
+    ) -> ChatResult<Vec<sr_chat::admin_repo::MemberJoin>> {
+        self.svc.member_joins(actor, guild, users).await
     }
 
     async fn list_role_members(

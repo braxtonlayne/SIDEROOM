@@ -3,7 +3,7 @@
 use super::{PgMediaRepo, be, is_unique_violation, jobs::insert_job};
 use async_trait::async_trait;
 use serde_json::Value;
-use sqlx::{PgPool, Row, postgres::PgRow};
+use sqlx::{Row, postgres::PgRow};
 use sr_media::assets::{MediaError, MediaResult};
 use sr_media::downloads::*;
 use sr_media::remux::{RemuxFile, RemuxRequest, RemuxTrack};
@@ -307,51 +307,16 @@ impl DownloadRepository for PgMediaRepo {
     }
 }
 
-/// Reads the download perk from `cinema_download_grants`.
-pub struct PgDownloadEntitlements {
-    pool: PgPool,
-}
-
-impl PgDownloadEntitlements {
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
-    }
-}
-
-#[async_trait]
-impl DownloadEntitlements for PgDownloadEntitlements {
-    async fn allowance(&self, user: i64) -> MediaResult<Option<Allowance>> {
-        let per_day: Option<i32> = sqlx::query_scalar(
-            "SELECT per_day FROM cinema_download_grants \
-             WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > now())",
-        )
-        .bind(user)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(be)?;
-        Ok(per_day.map(|p| Allowance {
-            per_day: u32::try_from(p).unwrap_or(0),
-        }))
-    }
-}
-
-/// The Patron download perk from the donations entitlements (DON-ENT-006), with the legacy
-/// `cinema_download_grants` table as an optional fallback during the cutover. Server levels never
-/// unlock downloads (D-075): only the member's own Patron perks count, so no guild is passed.
+/// The Patron download perk from the donations entitlements (DON-ENT-006). Server levels never
+/// unlock downloads (D-075): only the member's own Patron perks count, so no guild is passed. The
+/// legacy `cinema_download_grants` table and its fallback are gone (migration 0871).
 pub struct EntitlementDownloads {
     entitlements: Arc<dyn sr_payments::Entitlements>,
-    legacy: Option<PgDownloadEntitlements>,
 }
 
 impl EntitlementDownloads {
-    pub fn new(
-        entitlements: Arc<dyn sr_payments::Entitlements>,
-        legacy: Option<PgDownloadEntitlements>,
-    ) -> Self {
-        Self {
-            entitlements,
-            legacy,
-        }
+    pub fn new(entitlements: Arc<dyn sr_payments::Entitlements>) -> Self {
+        Self { entitlements }
     }
 }
 
@@ -363,14 +328,8 @@ impl DownloadEntitlements for EntitlementDownloads {
             .limits(user, None)
             .await
             .map_err(|e| MediaError::Backend(e.to_string()))?;
-        if limits.downloads_per_day > 0 {
-            return Ok(Some(Allowance {
-                per_day: limits.downloads_per_day,
-            }));
-        }
-        match &self.legacy {
-            Some(l) => l.allowance(user).await,
-            None => Ok(None),
-        }
+        Ok((limits.downloads_per_day > 0).then_some(Allowance {
+            per_day: limits.downloads_per_day,
+        }))
     }
 }

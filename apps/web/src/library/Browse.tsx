@@ -15,7 +15,9 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { useT, type MessageKey } from '../i18n';
-import { browseSeries, searchLibrary } from './api';
+import { browseSeries, keys, searchLibrary } from './api';
+import { GenrePicker, TagField } from './BrowseFilters';
+import { VirtualGrid } from './VirtualGrid';
 import { defaultAgeFilter, useLibrarySettings } from './prefs';
 import type { AgeFilter, BrowseParams, SeriesKind, SeriesStatus, SortKey } from './types';
 import { AgeBadge, KIND_LABEL, label, SeriesCard, STATUS_LABEL } from './ui';
@@ -30,6 +32,7 @@ export interface BrowseSearch {
   language?: string;
   year_from?: number;
   year_to?: number;
+  rating_min?: number;
   age?: AgeFilter;
   sort?: SortKey;
   order?: 'asc' | 'desc';
@@ -43,9 +46,22 @@ const SORTS: { value: SortKey; labelKey: MessageKey }[] = [
   { value: 'newest', labelKey: 'library.browse.sort.newest' },
   { value: 'title', labelKey: 'library.browse.sort.title' },
   { value: 'followers', labelKey: 'library.browse.sort.followers' },
+  { value: 'rating', labelKey: 'library.browse.sort.rating' },
 ];
 const AGES: AgeFilter[] = ['include', 'hide', 'only'];
 const PAGE = 24;
+const DEFAULT_GENRES = [
+  'action',
+  'adventure',
+  'comedy',
+  'drama',
+  'fantasy',
+  'horror',
+  'mystery',
+  'romance',
+  'slice of life',
+  'sci-fi',
+];
 
 const oneOf = <T extends string>(v: unknown, all: readonly T[]): T | undefined =>
   typeof v === 'string' && (all as readonly string[]).includes(v) ? (v as T) : undefined;
@@ -70,6 +86,10 @@ export function validateBrowseSearch(s: Record<string, unknown>): BrowseSearch {
   set('language', str(s.language));
   set('year_from', num(s.year_from));
   set('year_to', num(s.year_to));
+  set(
+    'rating_min',
+    ((n) => (n !== undefined && n >= 1 && n <= 10 ? n : undefined))(num(s.rating_min)),
+  );
   set('age', oneOf(s.age, AGES));
   set(
     'sort',
@@ -101,6 +121,7 @@ export function toParams(s: BrowseSearch): BrowseParams {
     language: s.language,
     year_from: s.year_from,
     year_to: s.year_to,
+    rating_min: s.rating_min,
     age: s.age,
     sort: s.sort,
     order: s.order,
@@ -130,6 +151,7 @@ export function Browse({ search }: { search: BrowseSearch }) {
     'language',
     'year_from',
     'year_to',
+    'rating_min',
     'age',
   ].filter((k) => search[k as keyof BrowseSearch] !== undefined).length;
 
@@ -361,11 +383,7 @@ function SeriesList({ items, view }: { items: import('./types').Series[]; view: 
   return (
     <>
       {heading}
-      <div className="lib-grid" data-testid="browse-grid">
-        {items.map((s) => (
-          <SeriesCard key={s.id} series={s} />
-        ))}
-      </div>
+      <VirtualGrid items={items} keyOf={(s) => s.id} render={(s) => <SeriesCard series={s} />} />
     </>
   );
 }
@@ -399,6 +417,16 @@ function FilterDrawer({
 }) {
   const t = useT();
   const [draft, setDraft] = useState<Record<string, string>>({});
+  // Suggested genres: the common ones plus those on the most followed series.
+  const popular = useQuery({
+    queryKey: keys.browse({ sort: 'followers', limit: 24 }),
+    queryFn: () => browseSeries({ sort: 'followers', limit: 24 }),
+    enabled: open,
+    staleTime: 5 * 60_000,
+  });
+  const suggestions = [
+    ...new Set([...DEFAULT_GENRES, ...(popular.data?.items ?? []).flatMap((s) => s.genres)]),
+  ];
   useEffect(() => {
     if (open)
       setDraft({
@@ -408,6 +436,7 @@ function FilterDrawer({
         language: search.language ?? '',
         year_from: search.year_from?.toString() ?? '',
         year_to: search.year_to?.toString() ?? '',
+        rating_min: search.rating_min?.toString() ?? '',
         status: search.status ?? '',
         age: search.age ?? ageDefault,
       });
@@ -425,6 +454,7 @@ function FilterDrawer({
       language: draft.language,
       year_from: draft.year_from,
       year_to: draft.year_to,
+      rating_min: draft.rating_min,
       status: draft.status,
       age: draft.age === ageDefault ? undefined : draft.age,
     });
@@ -435,6 +465,7 @@ function FilterDrawer({
       language: v.language,
       year_from: v.year_from,
       year_to: v.year_to,
+      rating_min: v.rating_min,
       status: v.status,
       age: v.age,
     });
@@ -455,13 +486,13 @@ function FilterDrawer({
       }
     >
       <div className="lib-filters">
-        <TextInput
-          label={t('library.browse.genresInclude')}
-          hint={t('library.browse.genresHint')}
-          {...field('genres')}
+        <GenrePicker
+          include={draft.genres ?? ''}
+          exclude={draft.exclude ?? ''}
+          options={suggestions}
+          onChange={(n) => setDraft((d) => ({ ...d, genres: n.genres, exclude: n.exclude }))}
         />
-        <TextInput label={t('library.browse.genresExclude')} {...field('exclude')} />
-        <TextInput label={t('library.browse.tags')} {...field('tags')} />
+        <TagField value={draft.tags ?? ''} onChange={(tags) => setDraft((d) => ({ ...d, tags }))} />
         <label className="lib-select lib-select-block">
           <span>{t('library.browse.status')}</span>
           <select
@@ -489,6 +520,20 @@ function FilterDrawer({
           />
           <TextInput label={t('library.browse.yearTo')} inputMode="numeric" {...field('year_to')} />
         </div>
+        <label className="lib-select lib-select-block">
+          <span>{t('library.browse.ratingMin')}</span>
+          <select
+            value={draft.rating_min ?? ''}
+            onChange={(e) => setDraft((d) => ({ ...d, rating_min: e.target.value }))}
+          >
+            <option value="">{t('library.browse.any')}</option>
+            {[5, 6, 7, 8, 9].map((n) => (
+              <option key={n} value={n}>
+                {t('library.browse.ratingAtLeast', { n })}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="lib-select lib-select-block">
           <span>{t('library.browse.ageRestricted')}</span>
           <select

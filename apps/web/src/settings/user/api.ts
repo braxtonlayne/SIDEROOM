@@ -56,6 +56,13 @@ export const revokeTrustedDevice = (id: string) =>
     retries: 0,
   });
 
+/** `GET /sr/auth/login-alerts`: whether a mail goes out when a new device signs in (default on). */
+export const getLoginAlerts = () =>
+  apiFetch<{ enabled: boolean }>('/sr/auth/login-alerts', { retries: 0 });
+/** `PUT /sr/auth/login-alerts` (204). */
+export const setLoginAlerts = (enabled: boolean) =>
+  apiFetch<void>('/sr/auth/login-alerts', { method: 'PUT', json: { enabled }, retries: 0 });
+
 export const resendVerification = () => apiPost<void>('/sr/auth/verify-email/resend');
 /** The emailed reset link (for people who forgot the current password). */
 export const sendPasswordReset = (email: string) => apiPost<void>('/sr/auth/forgot', { email });
@@ -141,6 +148,9 @@ export interface OwnProfile {
     banner: string | null;
     accent_color: number | null;
     profile_effect?: string | null;
+    avatar_decoration?: string | null;
+    /** Profile theme as two 0xRRGGBB colours, primary first. */
+    theme_colors?: [number, number] | null;
   };
   connected_accounts: Connection[];
   /** Platform badges (`staff` and `owner` only while `staff.show_badge` is on). */
@@ -164,6 +174,10 @@ export interface ProfilePatch {
   custom_status?: { text: string | null } | null;
   /** A slug from `GET /sr/profile-catalog`; null removes the effect. */
   profile_effect?: string | null;
+  /** A slug from `GET /sr/profile-catalog` decorations; null removes it. */
+  avatar_decoration?: string | null;
+  /** The profile theme: [primary, accent] as 0xRRGGBB; null clears it. */
+  theme_colors?: [number, number] | null;
 }
 export interface ProfileCatalog {
   effects: { slug: string; label_key: string }[];
@@ -254,9 +268,51 @@ export interface PrivacySettings {
   allow_server_member_dms: boolean;
   /** DMs from non-friends land in Message Requests. */
   message_requests: boolean;
+  /** Per audience: how sensitive attachments are handled (D-230). */
+  sensitive_media: SensitiveMediaPrefs;
+  /** `off` leaves it to the Message Requests toggle, `all` also screens friends' first DMs. */
+  dm_spam_filter: DmSpamFilter;
+  /** Server id to allow (true) or refuse (false) DMs; absent means `allow_server_member_dms`. */
+  server_dm_overrides: Record<string, boolean>;
 }
+export type SensitiveMediaMode = 'show' | 'blur' | 'block';
+export type SensitiveMediaAudience = 'friends' | 'others' | 'servers';
+export type SensitiveMediaPrefs = Record<SensitiveMediaAudience, SensitiveMediaMode>;
+export type DmSpamFilter = 'off' | 'non_friends' | 'all';
+/** PATCH body: partial everywhere; a `null` override puts a server back to the default. */
+export type PrivacyPatch = Partial<
+  Omit<PrivacySettings, 'sensitive_media' | 'server_dm_overrides'>
+> & {
+  sensitive_media?: Partial<SensitiveMediaPrefs>;
+  server_dm_overrides?: Record<string, boolean | null>;
+};
+
+/** `GET/DELETE /users/@me/age-confirmation` (LNG-USET-015). */
+export interface AgeConfirmation {
+  confirmed_at: string | null;
+  method: string | null;
+}
+export const getAgeConfirmation = () =>
+  apiFetch<AgeConfirmation>('/users/@me/age-confirmation', { retries: 0 });
+/** Forgets the stored answer; needs the account password. */
+export const resetAgeConfirmation = (current_password: string) =>
+  apiFetch<void>('/users/@me/age-confirmation', {
+    method: 'DELETE',
+    json: { current_password },
+    retries: 0,
+  });
+
+/** `GET/PUT /users/@me/notification-keywords`: words that notify like a mention. */
+export const getNotificationKeywords = () =>
+  apiFetch<{ keywords: string[] }>('/users/@me/notification-keywords', { retries: 0 });
+export const putNotificationKeywords = (keywords: string[]) =>
+  apiFetch<{ keywords: string[] }>('/users/@me/notification-keywords', {
+    method: 'PUT',
+    json: { keywords },
+    retries: 0,
+  });
 export const getPrivacy = () => apiFetch<PrivacySettings>('/users/@me/privacy', { retries: 0 });
-export const patchPrivacy = (body: Partial<PrivacySettings>) =>
+export const patchPrivacy = (body: PrivacyPatch) =>
   apiFetch<PrivacySettings>('/users/@me/privacy', { method: 'PATCH', json: body, retries: 0 });
 
 /** `GET/PATCH /users/@me/notification-defaults`: 0 all messages, 1 only mentions, 2 nothing, null per server. */
@@ -430,3 +486,66 @@ export const createMemberInvite = (note: string) =>
   apiPost<MemberInvite>('/sr/invites', { note: note.trim() || undefined }, { retries: 0 });
 export const revokeMemberInvite = (code: string) =>
   apiFetch<void>(`/sr/invites/${encodeURIComponent(code)}`, { method: 'DELETE', retries: 0 });
+
+// ---- connections (LNG-USET-023, `/users/@me/connections`) ----
+
+export interface ConnectionRow {
+  type: string;
+  id: string;
+  name: string;
+  verified: boolean;
+  /** Link to the account's public page, when known. */
+  url?: string | null;
+  /** Shown on the profile; hidden ones are listed to their owner only. */
+  visible: boolean;
+  /** Whether the stats line shows. */
+  show_activity: boolean;
+  stats: Record<string, unknown>;
+}
+export interface ConnectionProvider {
+  id: string;
+  name: string;
+  /** `true` when linking proves the account (OAuth); `false` for a typed link. */
+  verified: boolean;
+  /** `false` when the operator has not set the provider up. */
+  available: boolean;
+  /** Link-only providers that need an `https://` address (websites). */
+  requires_url: boolean;
+}
+export interface ConnectionsResponse {
+  connections: ConnectionRow[];
+  providers: ConnectionProvider[];
+}
+export const listConnections = () =>
+  apiFetch<ConnectionsResponse>('/users/@me/connections', { retries: 0 });
+/** Starts the OAuth flow; send the browser to the returned `url`. */
+export const authorizeConnection = (provider: string) =>
+  apiPost<{ url: string }>(`/users/@me/connections/${encodeURIComponent(provider)}/authorize`);
+export const putConnectionLink = (body: { provider: string; name?: string; url?: string }) =>
+  apiFetch<ConnectionRow>('/users/@me/connections/link', { method: 'PUT', json: body, retries: 0 });
+const connPath = (c: { type: string; id: string }) =>
+  `/users/@me/connections/${encodeURIComponent(c.type)}/${encodeURIComponent(c.id)}`;
+export const patchConnection = (
+  c: { type: string; id: string },
+  body: { visible?: boolean; show_activity?: boolean; name?: string },
+) => apiFetch<ConnectionRow>(connPath(c), { method: 'PATCH', json: body, retries: 0 });
+export const removeConnection = (c: { type: string; id: string }) =>
+  apiFetch<void>(connPath(c), { method: 'DELETE', retries: 0 });
+export const refreshConnection = (c: { type: string; id: string }) =>
+  apiPost<ConnectionRow>(`${connPath(c)}/refresh`);
+
+// ---- data export (LNG-USET-019, `/users/@me/data-export`) ----
+
+export type DataExportState = 'none' | 'pending' | 'building' | 'ready' | 'failed' | 'expired';
+export interface DataExport {
+  state: DataExportState;
+  id?: string | null;
+  requested_at?: string | null;
+  ready_at?: string | null;
+  expires_at?: string | null;
+  size_bytes?: number | null;
+  /** API path of the zip, present while `ready`. */
+  download_url?: string | null;
+}
+export const getDataExport = () => apiFetch<DataExport>('/users/@me/data-export', { retries: 0 });
+export const requestDataExport = () => apiPost<DataExport>('/users/@me/data-export');

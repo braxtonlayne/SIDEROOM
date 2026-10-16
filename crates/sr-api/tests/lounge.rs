@@ -23,6 +23,10 @@ use sr_api::{
     build_router,
     routes::{
         admin::{self, AdminDeps},
+        auth::{
+            AccountRecord, AccountState as AuthAccountState, AuthService, AuthStore,
+            mail::MemoryMailer, memory::MemoryAuthStore,
+        },
         directory::{self, DirectoryDeps},
         guilds, settings,
         social::{self, DynRepo as SocialDynRepo, SocialDeps},
@@ -36,9 +40,10 @@ use sr_chat::memory::MemoryRepo;
 use sr_chat::repo::UserSummary;
 use sr_chat::settings::directory::MemoryDirectory;
 use sr_chat::settings::memory::{MemoryInviteJoin, MemorySettingsRepo};
+use sr_chat::social::repo::DmRepository;
 use sr_chat::{ChatLimits, ChatService, Member};
 use sr_core::PlatformPermissions as P;
-use sr_core::{Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
+use sr_core::{ChannelId, Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
 use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
 use sr_storage::{ObjectStorage, ObjectStoreStorage};
 use std::collections::HashMap;
@@ -71,8 +76,92 @@ struct World {
     features: sr_features::FeatureService,
     social: Arc<SocialDeps>,
     settings_deps: Arc<settings::SettingsDeps>,
+    voice: Arc<FakeVoice>,
+    notified: Arc<Notified>,
     clock: Arc<ManualClock>,
+    /// The platform admin store (staff, and the server list behind `/admin/guilds`).
+    admin_repo: Arc<MemoryAdminRepo>,
     tokens: HashMap<i64, String>,
+    auth: Arc<MemoryAuthStore>,
+    threads: Arc<sr_api::routes::threads::ThreadsDeps>,
+    /// System DMs staff actions sent: recipient and text.
+    dms: Arc<SystemDms>,
+}
+
+/// Records the system DMs of staff actions on servers (H-36).
+#[derive(Default)]
+struct SystemDms(std::sync::Mutex<Vec<(i64, String)>>);
+
+impl SystemDms {
+    fn lock_for_test(&self) -> std::sync::MutexGuard<'_, Vec<(i64, String)>> {
+        self.0.lock().unwrap()
+    }
+}
+
+#[async_trait::async_trait]
+impl sr_admin::StaffNotifier for SystemDms {
+    async fn appointment_offer(&self, _: &sr_admin::StaffOffer) -> Option<(i64, i64)> {
+        None
+    }
+    async fn staff_notice(&self, _: &str) {}
+    fn broadcast_announcement(&self, _: &sr_admin::Announcement) {}
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.0.lock().unwrap().push((to, text.to_owned()));
+        true
+    }
+}
+
+/// Voice side of the event clock: occupancy, live stages and a log of stage calls.
+#[derive(Default)]
+struct FakeVoice {
+    occupants: std::sync::Mutex<HashMap<ChannelId, usize>>,
+    live: std::sync::Mutex<Vec<ChannelId>>,
+    log: std::sync::Mutex<Vec<String>>,
+}
+
+#[async_trait::async_trait]
+impl settings::EventWorld for FakeVoice {
+    async fn view(&self, _channels: &[ChannelId]) -> settings::event_world::VoiceView {
+        settings::event_world::VoiceView {
+            occupants: self.occupants.lock().unwrap().clone(),
+            live_stages: self.live.lock().unwrap().iter().copied().collect(),
+            ..Default::default()
+        }
+    }
+    async fn start_stage(
+        &self,
+        _guild: GuildId,
+        channel: ChannelId,
+        topic: &str,
+        _by: UserId,
+        _event_id: u64,
+    ) -> Result<(), String> {
+        self.log.lock().unwrap().push(format!("start {topic}"));
+        self.live.lock().unwrap().push(channel);
+        Ok(())
+    }
+    async fn end_stage(&self, channel: ChannelId) {
+        self.log.lock().unwrap().push("end".into());
+        self.live.lock().unwrap().retain(|c| *c != channel);
+    }
+}
+
+/// Records the start notifications: event name and the members told.
+#[derive(Default)]
+struct Notified(std::sync::Mutex<Vec<(String, Vec<UserId>)>>);
+
+#[async_trait::async_trait]
+impl settings::EventStartNotifier for Notified {
+    async fn event_started(
+        &self,
+        event: &sr_chat::settings::scheduled_events::ScheduledEvent,
+        interested: &[UserId],
+    ) {
+        self.0
+            .lock()
+            .unwrap()
+            .push((event.name.clone(), interested.to_vec()));
+    }
 }
 
 async fn world() -> World {
@@ -84,6 +173,14 @@ async fn world() -> World {
     let storage = Arc::new(ObjectStoreStorage::in_memory());
     let svc = ChatService::new(repo.clone(), dyn_clock.clone(), ids, ChatLimits::default());
     let guild_api = guilds::GuildApi(guilds::backend::backend(svc, bus.clone()));
+    let threads = Arc::new(sr_api::routes::threads::ThreadsDeps::new(
+        sr_chat::threads::ThreadService::new(
+            repo.clone(),
+            dyn_clock.clone(),
+            SnowflakeGenerator::new(dyn_clock.clone(), 1, 2).unwrap(),
+        ),
+        bus.clone(),
+    ));
 
     // Chat users and their display fields.
     for (id, name) in [
@@ -122,6 +219,8 @@ async fn world() -> World {
         Arc::new(repo.clone()),
         bus.clone(),
     ));
+    let voice = Arc::new(FakeVoice::default());
+    let notified = Arc::new(Notified::default());
     let settings_deps = Arc::new(
         settings::SettingsDeps::new(
             settings_repo.clone(),
@@ -136,7 +235,9 @@ async fn world() -> World {
         .with_events(Arc::new(settings::events::BusSettingsEvents::new(
             bus.clone(),
         )))
-        .with_joiner(joiner.clone()),
+        .with_joiner(joiner.clone())
+        .with_event_world(voice.clone())
+        .with_event_notifier(notified.clone()),
     );
 
     // Staff: STAFF may manage the directory, BASIC may not.
@@ -152,10 +253,21 @@ async fn world() -> World {
     for (id, name) in [(STAFF, "staff"), (BASIC, "basic")] {
         admin_repo.add_account(id, name, AccountState::Active, None, Some(ADMIN_OWNER));
     }
-    admin_repo.add_role(1, "Directory", 2, P::STAFF_BASIC | P::MANAGE_DIRECTORY);
+    admin_repo.add_role(
+        1,
+        "Directory",
+        2,
+        P::STAFF_BASIC | P::MANAGE_DIRECTORY | P::MANAGE_GUILDS_GLOBAL,
+    );
     admin_repo.add_role(2, "Basic", 1, P::STAFF_BASIC);
     admin_repo.set_owner(ADMIN_OWNER);
-    let admin_svc = AdminService::new(admin_repo.clone());
+    for (id, name) in [(OWNER, "owner"), (BOB, "bob")] {
+        admin_repo.add_account(id, name, AccountState::Active, None, None);
+    }
+    let dms = Arc::new(SystemDms::default());
+    let admin_svc = AdminService::new(admin_repo.clone())
+        .with_extras(admin_repo.clone())
+        .with_notifier(dms.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
     admin_svc
         .appoint(&op, STAFF, &[1], Some("t"))
@@ -188,6 +300,36 @@ async fn world() -> World {
             .unwrap();
         tokens.insert(uid, t.expose().to_owned());
     }
+
+    // Accounts and the auth service, for the server 2FA requirement (G-94).
+    let auth_store = Arc::new(MemoryAuthStore::new(sessions.clone()));
+    for (uid, name) in [
+        (OWNER, "owner"),
+        (BOB, "bob"),
+        (CAROL, "carol"),
+        (DAVE, "dave"),
+    ] {
+        auth_store.add_account(AccountRecord {
+            id: uid,
+            person_id: uid,
+            username: name.to_owned(),
+            display_name: None,
+            email: format!("{name}@x.test"),
+            email_verified: true,
+            password_hash: "unused".into(),
+            state: AuthAccountState::Active,
+            age_confirmed: None,
+            age_confirmed_at: None,
+            locale: "en-US".into(),
+            flags: 0,
+        });
+    }
+    let auth_ids = Arc::new(AtomicU64::new(50_000));
+    let auth_service = AuthService::new(
+        auth_store.clone(),
+        Arc::new(MemoryMailer::new()),
+        Arc::new(move || i64::try_from(auth_ids.fetch_add(1, Ordering::SeqCst)).unwrap()),
+    );
 
     // Direct messages: group DM invites (G-47) and icons (G-50).
     let social_repo = Arc::new(sr_chat::social::memory::MemoryRepo::default());
@@ -223,6 +365,8 @@ async fn world() -> World {
         .bots(Arc::new(MemoryBots::new()))
         .clock(dyn_clock)
         .extension(Arc::new(guild_api))
+        .extension(threads.clone())
+        .extension(Arc::new(auth_service))
         .extension(settings_deps.clone())
         .extension(social_deps.clone())
         .extension(Arc::new(
@@ -240,7 +384,8 @@ async fn world() -> World {
             .merge(settings::router())
             .merge(social::router())
             .merge(directory::router())
-            .merge(admin::router()),
+            .merge(admin::router())
+            .merge(sr_api::routes::threads::router()),
     );
     World {
         app,
@@ -252,8 +397,14 @@ async fn world() -> World {
         features,
         social: social_deps,
         settings_deps,
+        voice,
+        notified,
         clock,
+        admin_repo,
         tokens,
+        auth: auth_store,
+        threads,
+        dms,
     }
 }
 
@@ -337,6 +488,21 @@ impl World {
             bio: None,
             extras: Default::default(),
         });
+    }
+
+    /// Give `user` a confirmed authenticator (a second factor on the account).
+    async fn enrol(&self, user: i64) {
+        self.auth.totp_put_pending(user, &[7u8; 20]).await.unwrap();
+        self.auth.totp_confirm(user, 0).await.unwrap();
+    }
+
+    /// `user` proves the second factor on their session now (sessions are numbered from 100).
+    async fn prove(&self, session: i64) {
+        let now = self.clock.now_unix_ms() / 1000;
+        self.auth
+            .session_mark_mfa_verified(session, now)
+            .await
+            .unwrap();
     }
 
     fn is_member(&self, gid: &str, user: i64) -> bool {
@@ -1089,6 +1255,27 @@ async fn server_directory_listing_approval_search_and_join() {
         w.get(STAFF, "/admin/directory?status=bogus").await.0,
         StatusCode::BAD_REQUEST
     );
+
+    // H-40: staff preview the pending draft in the public shape, with `pending: true`; nobody
+    // else may, and the public routes still hide it.
+    let preview = format!("/admin/directory/queue/{gid}/preview");
+    assert_eq!(w.get(BASIC, &preview).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(w.get(OWNER, &preview).await.0, StatusCode::FORBIDDEN);
+    let (s, card) = w.get(STAFF, &preview).await;
+    assert_eq!(s, StatusCode::OK, "{card}");
+    assert_eq!(card["id"], gid);
+    assert_eq!(card["name"], "Chess Club");
+    assert_eq!(card["category"], "gaming");
+    assert_eq!(card["description"], "Boards and clocks");
+    assert_eq!(card["pending"], true);
+    assert_eq!(card["joined"], false);
+    let missing = w
+        .get(
+            STAFF,
+            &format!("/admin/directory/queue/{}/preview", u64::MAX / 3),
+        )
+        .await;
+    assert_eq!(missing.0, StatusCode::NOT_FOUND);
     let decide = |body: Value| {
         let w = &w;
         let gid = gid.clone();
@@ -1333,7 +1520,11 @@ async fn group_dm_invites_create_resolve_join_and_revoke() {
         .await;
     assert_eq!(s, StatusCode::OK, "{inv}");
     assert_eq!(inv["type"], 1);
-    assert!(inv.get("guild").is_none(), "no server behind a group link");
+    assert!(inv["guild"].is_null(), "no server behind a group link");
+    assert!(
+        inv.as_object().unwrap().contains_key("guild"),
+        "guild is null, not absent"
+    );
     assert_eq!(inv["channel"]["id"], dm.as_str());
     assert_eq!(inv["channel"]["type"], 3);
     assert_eq!(inv["max_age"], 86_400);
@@ -1539,6 +1730,12 @@ async fn server_safety_fields_widget_and_mfa_level() {
             .0,
         StatusCode::BAD_REQUEST
     );
+    // Switching it on needs the owner to have a second factor of their own.
+    let (s, m) = w
+        .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{m}");
+    w.enrol(OWNER).await;
     let (s, m) = w
         .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
         .await;
@@ -1637,7 +1834,7 @@ async fn scheduled_events_validate_and_follow_discord_shapes() {
     assert_eq!(ev["creator_id"], BOB.to_string());
     assert_eq!(ev["creator"]["username"], "bob");
     assert!(ev["channel_id"].is_null());
-    assert_eq!(ev["user_count"], 0);
+    assert_eq!(ev["user_count"], 1, "the creator is Interested");
 
     // Validation: past start, ends before it starts, external without location or end time, a
     // channel on an external event, a text channel for a voice event, a bad privacy level.
@@ -1690,7 +1887,10 @@ async fn scheduled_events_validate_and_follow_discord_shapes() {
         .map(|e| e["name"].as_str().unwrap())
         .collect();
     assert_eq!(names, ["Park meetup", "Movie night"]);
-    assert_eq!(list[0]["user_count"], 0);
+    assert_eq!(
+        list[0]["user_count"], 1,
+        "the creator is interested (D-228)"
+    );
     let (_, plain) = w.get(BOB, &path).await;
     assert!(plain[0].get("user_count").is_none());
 }
@@ -1837,6 +2037,62 @@ async fn scheduled_event_rsvp_status_and_permissions() {
 }
 
 #[tokio::test]
+async fn the_creator_of_an_event_is_marked_interested_and_can_unmark_themselves() {
+    // D-228. Everybody here is a person with a browser session, so this covers the user path; a bot
+    // creator marks nobody (the `AuthKind::Bot` branch of `create_event`).
+    let w = world().await;
+    let (gid, _) = w.guild("Interest Club").await;
+    let mut bus = w.events(&gid);
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let (s, ev) = w
+        .post(
+            BOB,
+            &path,
+            json!({
+                "name": "Quiz", "entity_type": 3, "entity_metadata": { "location": "online" },
+                "scheduled_start_time": at(HOUR), "scheduled_end_time": at(2 * HOUR)
+            }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ev}");
+    assert_eq!(ev["user_rsvp"], true, "returned already interested");
+    assert_eq!(ev["user_count"], 1);
+    let one = format!("{path}/{}", ev["id"].as_str().unwrap());
+    let (_, got) = w.get(OWNER, &format!("{one}?with_user_count=true")).await;
+    assert_eq!(
+        (got["user_count"].as_u64(), got["user_rsvp"].as_bool()),
+        (Some(1), Some(false))
+    );
+    // CREATE first, then USER_ADD for the creator.
+    let mut seen = Vec::new();
+    while let Ok(Some(e)) = tokio::time::timeout(Duration::from_millis(50), bus.next()).await {
+        if let DomainEvent::ScheduledEvent { kind, payload, .. } = e {
+            seen.push((
+                kind.dispatch_name(),
+                payload["user_id"].as_str().map(str::to_owned),
+            ));
+        }
+    }
+    assert_eq!(
+        seen,
+        [
+            ("GUILD_SCHEDULED_EVENT_CREATE", None),
+            ("GUILD_SCHEDULED_EVENT_USER_ADD", Some(BOB.to_string())),
+        ]
+    );
+    // They can un-mark themselves.
+    assert_eq!(
+        w.delete(BOB, &format!("{one}/users/@me")).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, got) = w.get(BOB, &format!("{one}?with_user_count=true")).await;
+    assert_eq!(
+        (got["user_count"].as_u64(), got["user_rsvp"].as_bool()),
+        (Some(0), Some(false))
+    );
+}
+
+#[tokio::test]
 async fn scheduled_events_start_and_end_by_the_clock_and_are_audited() {
     let w = world().await;
     let (gid, _) = w.guild("Clock Club").await;
@@ -1871,4 +2127,853 @@ async fn scheduled_events_start_and_end_by_the_clock_and_are_audited() {
         .filter_map(|e| e["action_type"].as_u64())
         .collect();
     assert!(actions.contains(&100), "{log}");
+}
+
+#[tokio::test]
+async fn group_dm_invite_is_refused_to_a_joiner_who_blocks_or_is_blocked_by_the_owner() {
+    let w = world().await;
+    let dm = group_dm(&w).await;
+    let (_, inv) = w
+        .post(OWNER, &format!("/channels/{dm}/invites"), json!({}))
+        .await;
+    let code = inv["code"].as_str().unwrap().to_owned();
+    let (owner, dave) = (UserId::new(OWNER as u64), UserId::new(DAVE as u64));
+
+    // The joiner blocked the owner: the link does not exist for them.
+    w.social.service.block(dave, owner).await.unwrap();
+    let (s, _) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // So does the other direction.
+    w.social.service.unblock(dave, owner).await.unwrap();
+    w.social.service.block(owner, dave).await.unwrap();
+    let (s, _) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // Nobody joined meanwhile; once the block is gone the same link works.
+    w.social.service.unblock(owner, dave).await.unwrap();
+    let (s, joined) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{joined}");
+    assert_eq!(joined["approximate_member_count"], 4);
+}
+
+#[tokio::test]
+async fn group_dm_invite_stops_at_ten_recipients() {
+    let w = world().await;
+    let dm = group_dm(&w).await;
+    let (_, inv) = w
+        .post(OWNER, &format!("/channels/{dm}/invites"), json!({}))
+        .await;
+    let code = inv["code"].as_str().unwrap().to_owned();
+    // Seven more seats fill the group (owner, Bob, Carol and seven).
+    let fillers: Vec<UserId> = (100..107).map(UserId::new).collect();
+    let dm_id: ChannelId = dm.parse().unwrap();
+    w.social
+        .service
+        .repo()
+        .add_recipients(dm_id, &fillers)
+        .await
+        .unwrap();
+    let (s, body) = w.post(DAVE, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    let (_, mine) = w.get(DAVE, "/users/@me/channels").await;
+    assert!(
+        !mine
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == dm.as_str()),
+        "no seat was taken"
+    );
+}
+
+async fn stage_channel(w: &World, gid: &str) -> String {
+    let (s, c) = w
+        .post(
+            OWNER,
+            &format!("/guilds/{gid}/channels"),
+            json!({ "name": "town-hall", "type": 13 }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{c}");
+    c["id"].as_str().unwrap().to_owned()
+}
+
+async fn audit_actions(w: &World, gid: &str) -> Vec<u64> {
+    let (_, log) = w.get(OWNER, &format!("/guilds/{gid}/audit-logs")).await;
+    log["audit_log_entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|e| e["action_type"].as_u64())
+        .collect()
+}
+
+#[tokio::test]
+async fn event_cover_is_stored_replaced_and_removed_with_the_event() {
+    let w = world().await;
+    let (gid, _) = w.guild("Cover Club").await;
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let body = |image: Value| {
+        json!({
+            "name": "Picnic", "entity_type": 3, "entity_metadata": { "location": "park" },
+            "scheduled_start_time": at(HOUR), "scheduled_end_time": at(2 * HOUR), "image": image
+        })
+    };
+    // Only JPEG, PNG and GIF, 2 MiB at most, and it must be an image.
+    for bad in [
+        json!("data:image/webp;base64,AAAA"),
+        json!("data:text/plain;base64,aGk="),
+        json!("not-a-data-uri"),
+        json!(format!("data:image/png;base64,{}", "A".repeat(3_000_000))),
+    ] {
+        let (s, e) = w.post(BOB, &path, body(bad.clone())).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{bad} -> {e}");
+        assert!(e["errors"]["image"].is_object(), "{e}");
+    }
+    let (s, ev) = w.post(BOB, &path, body(json!(PNG))).await;
+    assert_eq!(s, StatusCode::OK, "{ev}");
+    let eid = ev["id"].as_str().unwrap().to_owned();
+    let hash = ev["image"].as_str().unwrap().to_owned();
+    let key = format!("guild-events/{eid}/{hash}");
+    assert!(w.storage.get(&key).await.is_ok(), "stored under {key}");
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["image"], hash);
+
+    // A second cover replaces the first object; null removes the cover.
+    let png2 = "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACwAAAAAAQABAAACAkQBADs=";
+    let (s, ev2) = w
+        .patch(BOB, &format!("{path}/{eid}"), json!({ "image": png2 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ev2}");
+    let hash2 = ev2["image"].as_str().unwrap().to_owned();
+    assert_ne!(hash, hash2);
+    assert!(w.storage.get(&key).await.is_err(), "the old cover is gone");
+    let key2 = format!("guild-events/{eid}/{hash2}");
+    assert!(w.storage.get(&key2).await.is_ok());
+    // A bad cover on an edit changes nothing.
+    let (s, _) = w
+        .patch(BOB, &format!("{path}/{eid}"), json!({ "image": "nope" }))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["image"], hash2);
+    let (_, cleared) = w
+        .patch(BOB, &format!("{path}/{eid}"), json!({ "image": null }))
+        .await;
+    assert!(cleared["image"].is_null(), "{cleared}");
+    assert!(w.storage.get(&key2).await.is_err());
+
+    // Deleting an event takes its cover along.
+    let (_, ev3) = w.post(BOB, &path, body(json!(PNG))).await;
+    let eid3 = ev3["id"].as_str().unwrap().to_owned();
+    let key3 = format!("guild-events/{eid3}/{}", ev3["image"].as_str().unwrap());
+    assert!(w.storage.get(&key3).await.is_ok());
+    assert_eq!(
+        w.delete(BOB, &format!("{path}/{eid3}")).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert!(w.storage.get(&key3).await.is_err());
+}
+
+#[tokio::test]
+async fn a_member_joining_the_voice_channel_starts_the_event_and_interested_members_are_told() {
+    let w = world().await;
+    let (gid, _) = w.guild("Voice Club").await;
+    w.add_member(&gid, CAROL);
+    let voice = voice_channel(&w, &gid).await;
+    let (g, ch) = (
+        GuildId::new(gid.parse().unwrap()),
+        ChannelId::new(voice.parse().unwrap()),
+    );
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let (_, ev) = w
+        .post(
+            BOB,
+            &path,
+            json!({
+                "name": "Movie night", "entity_type": 2, "channel_id": voice,
+                "scheduled_start_time": at(HOUR)
+            }),
+        )
+        .await;
+    let eid = ev["id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        w.put(CAROL, &format!("{path}/{eid}/users/@me"), json!({}))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    let mut events = w.events(&gid);
+
+    // Before the start time a join does nothing, and the clock never starts a voice event.
+    settings::scheduled_events::on_voice_joined(&w.settings_deps, g, ch).await;
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 1);
+    w.clock.advance_ms(HOUR);
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 1);
+    assert!(w.notified.0.lock().unwrap().is_empty());
+
+    // The first join at the start time starts it: UPDATE dispatched, audit 101, the creator and Carol told.
+    settings::scheduled_events::on_voice_joined(&w.settings_deps, g, ch).await;
+    let (_, now) = w.get(BOB, &format!("{path}/{eid}")).await;
+    assert_eq!(now["status"], 2, "{now}");
+    let mut saw_update = false;
+    while let Ok(Some(ev)) = tokio::time::timeout(Duration::from_millis(50), events.next()).await {
+        if let DomainEvent::ScheduledEvent { kind, payload, .. } = ev
+            && kind.dispatch_name() == "GUILD_SCHEDULED_EVENT_UPDATE"
+            && payload["status"] == 2
+        {
+            saw_update = true;
+        }
+    }
+    assert!(saw_update, "GUILD_SCHEDULED_EVENT_UPDATE with status 2");
+    assert!(audit_actions(&w, &gid).await.contains(&101));
+    let told = w.notified.0.lock().unwrap().clone();
+    assert_eq!(
+        told,
+        vec![(
+            "Movie night".to_owned(),
+            vec![UserId::new(BOB as u64), UserId::new(CAROL as u64)]
+        )]
+    );
+
+    // A second join announces nothing more; an empty channel ends it after 15 minutes.
+    settings::scheduled_events::on_voice_joined(&w.settings_deps, g, ch).await;
+    assert_eq!(w.notified.0.lock().unwrap().len(), 1);
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    w.clock.advance_ms(15 * 60_000);
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 3);
+}
+
+#[tokio::test]
+async fn a_stage_event_opens_its_stage_instance_and_ends_with_it() {
+    let w = world().await;
+    let (gid, _) = w.guild("Stage Club").await;
+    let stage = stage_channel(&w, &gid).await;
+    w.add_member(&gid, CAROL);
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let (s, ev) = w
+        .post(
+            OWNER,
+            &path,
+            json!({
+                "name": "Town hall", "entity_type": 1, "channel_id": stage,
+                "scheduled_start_time": at(HOUR)
+            }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ev}");
+    let eid = ev["id"].as_str().unwrap().to_owned();
+    assert!(ev["entity_id"].is_null());
+    // Carol is interested; she is told when it starts.
+    w.put(CAROL, &format!("{path}/{eid}/users/@me"), json!({}))
+        .await;
+
+    // Starting by hand opens the stage (topic = event name) and links it as entity_id.
+    let (s, started) = w
+        .patch(OWNER, &format!("{path}/{eid}"), json!({ "status": 2 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{started}");
+    assert_eq!(started["entity_id"], stage.as_str());
+    assert_eq!(w.voice.log.lock().unwrap().as_slice(), ["start Town hall"]);
+    assert_eq!(w.notified.0.lock().unwrap().len(), 1);
+
+    // Someone is in the channel; the event runs. The stage instance goes: the event completes.
+    w.voice
+        .occupants
+        .lock()
+        .unwrap()
+        .insert(ChannelId::new(stage.parse().unwrap()), 2);
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    assert_eq!(w.get(OWNER, &format!("{path}/{eid}")).await.1["status"], 2);
+    w.voice.live.lock().unwrap().clear();
+    settings::scheduled_events::advance(&w.settings_deps).await;
+    let (_, done) = w.get(OWNER, &format!("{path}/{eid}")).await;
+    assert_eq!(done["status"], 3, "{done}");
+    assert!(done["entity_id"].is_null());
+
+    // Ending a running stage event by hand deletes its instance too.
+    let (_, ev2) = w
+        .post(
+            OWNER,
+            &path,
+            json!({
+                "name": "Q and A", "entity_type": 1, "channel_id": stage,
+                "scheduled_start_time": at(2 * HOUR)
+            }),
+        )
+        .await;
+    let eid2 = ev2["id"].as_str().unwrap().to_owned();
+    w.patch(OWNER, &format!("{path}/{eid2}"), json!({ "status": 2 }))
+        .await;
+    assert_eq!(w.voice.live.lock().unwrap().len(), 1);
+    let (s, _) = w
+        .patch(OWNER, &format!("{path}/{eid2}"), json!({ "status": 3 }))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(w.voice.live.lock().unwrap().is_empty());
+    assert_eq!(w.voice.log.lock().unwrap().last().unwrap(), "end");
+}
+
+/// Both error codes of the server 2FA requirement, as `(status, code)`.
+fn mfa_code(r: &(StatusCode, Value)) -> (u16, i64) {
+    (r.0.as_u16(), r.1["code"].as_i64().unwrap_or(-1))
+}
+
+#[tokio::test]
+async fn elevated_routes_need_a_second_factor_on_a_2fa_server() {
+    let w = world().await;
+    let (gid, general) = w.guild("Strict Club").await;
+    w.add_member(&gid, DAVE);
+    // Make the requirement apply (the owner enrols first, as the route demands).
+    w.enrol(OWNER).await;
+    let (s, m) = w
+        .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    w.clock.advance_ms(16 * 60 * 1000);
+    // Remove the owner's authenticator again for the "not enrolled" half.
+    w.auth.totp_delete(OWNER).await.unwrap();
+    let (_, inv) = w
+        .post(OWNER, &format!("/channels/{general}/invites"), json!({}))
+        .await;
+    let code = inv["code"].as_str().unwrap().to_owned();
+
+    let routes: Vec<(Method, String, Option<Value>)> = vec![
+        (
+            Method::DELETE,
+            format!("/guilds/{gid}/members/{DAVE}"),
+            None,
+        ),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}/members/{BOB}"),
+            Some(json!({ "communication_disabled_until": "2099-01-01T00:00:00.000000+00:00" })),
+        ),
+        (
+            Method::POST,
+            format!("/channels/{general}/webhooks"),
+            Some(json!({ "name": "hook" })),
+        ),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/emojis"),
+            Some(json!({ "name": "blob", "image": PNG })),
+        ),
+        (Method::DELETE, format!("/guilds/{gid}/emojis/1"), None),
+        (Method::DELETE, format!("/guilds/{gid}/stickers/1"), None),
+        (
+            Method::DELETE,
+            format!("/guilds/{gid}/soundboard-sounds/1"),
+            None,
+        ),
+        (
+            Method::DELETE,
+            format!("/guilds/{gid}/auto-moderation/rules/1"),
+            None,
+        ),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}/sr/community"),
+            Some(json!({ "dm_spam_filter": true })),
+        ),
+        (Method::DELETE, format!("/invites/{code}"), None),
+    ];
+
+    // No second factor on the account: 900123 everywhere.
+    for (m, p, b) in &routes {
+        let r = w.call(OWNER, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 900123), "{m} {p}: {}", r.1);
+    }
+    // Members without the permission still get the plain permission error where the route
+    // checks the permission first.
+    let r = w
+        .call(
+            BOB,
+            Method::PATCH,
+            &format!("/guilds/{gid}/sr/community"),
+            Some(json!({ "dm_spam_filter": true })),
+        )
+        .await;
+    assert_eq!(mfa_code(&r).1, 50013, "{}", r.1);
+
+    // Enrolled but not proved on this session: 900004.
+    w.enrol(OWNER).await;
+    for (m, p, b) in &routes {
+        let r = w.call(OWNER, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 900004), "{m} {p}: {}", r.1);
+    }
+
+    // Proved: none of them is refused for the second factor any more.
+    w.prove(100).await;
+    for (m, p, b) in &routes {
+        let r = w.call(OWNER, m.clone(), p, b.clone()).await;
+        assert!(
+            !matches!(mfa_code(&r).1, 900004 | 900123),
+            "{m} {p}: {}",
+            r.1
+        );
+    }
+
+    // Webhook edit and delete are gated too once the window closes.
+    let (s, hook) = w
+        .post(
+            OWNER,
+            &format!("/channels/{general}/webhooks"),
+            json!({ "name": "again" }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{hook}");
+    let hid = hook["id"].as_str().unwrap().to_owned();
+    w.clock.advance_ms(16 * 60 * 1000);
+    let r = w
+        .patch(OWNER, &format!("/webhooks/{hid}"), json!({ "name": "x" }))
+        .await;
+    assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
+    let r = w.delete(OWNER, &format!("/webhooks/{hid}")).await;
+    assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
+}
+
+#[tokio::test]
+async fn guild_counts_come_with_with_counts_only() {
+    let w = world().await;
+    let (gid, _) = w.guild("Chess Club").await;
+    let (s, plain) = w.get(OWNER, &format!("/guilds/{gid}")).await;
+    assert_eq!(s, StatusCode::OK, "{plain}");
+    assert!(plain.get("approximate_member_count").is_none());
+    let (s, counted) = w
+        .get(OWNER, &format!("/guilds/{gid}?with_counts=true"))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{counted}");
+    assert_eq!(counted["approximate_member_count"], 2, "owner and bob");
+    // No presence source is wired in this world, so no online count.
+    assert!(counted.get("approximate_presence_count").is_none());
+}
+
+#[tokio::test]
+async fn staff_list_transfer_and_delete_servers_with_a_reason() {
+    let w = world().await;
+    let (gid, _) = w.guild("Chess Club").await;
+    let id: i64 = gid.parse().unwrap();
+    w.admin_repo.add_guild(id, "Chess Club", OWNER, 2);
+    let path = format!("/admin/guilds/{gid}");
+
+    // Only staff with MANAGE_GUILDS_GLOBAL see the list.
+    assert_eq!(w.get(BASIC, "/admin/guilds").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(w.get(OWNER, "/admin/guilds").await.0, StatusCode::FORBIDDEN);
+    let (s, page) = w.get(STAFF, "/admin/guilds?q=chess").await;
+    assert_eq!(s, StatusCode::OK, "{page}");
+    assert_eq!(page["items"][0]["id"], gid.as_str());
+
+    // A reason is required for both changes.
+    let (s, _) = w
+        .post(
+            STAFF,
+            &format!("{path}/transfer-ownership"),
+            json!({"new_owner_id": BOB.to_string()}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(w.delete(STAFF, &path).await.0, StatusCode::BAD_REQUEST);
+
+    // Transfer to a member: the chat stack now says BOB owns it.
+    let (s, v) = w
+        .post(
+            STAFF,
+            &format!("{path}/transfer-ownership"),
+            json!({"new_owner_id": BOB.to_string(), "reason": "owner asked on the help desk"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let (_, g) = w.get(BOB, &format!("/guilds/{gid}")).await;
+    assert_eq!(g["owner_id"], BOB.to_string());
+    // H-36: the previous owner here is the system account (deactivated, id 1), which is not
+    // messaged; the new owner is, without the staff reason.
+    {
+        let dms = w.dms.lock_for_test();
+        assert_eq!(dms.len(), 1, "{dms:?}");
+        assert_eq!(dms[0].0, BOB);
+        assert!(
+            dms[0]
+                .1
+                .starts_with("You are now the owner of `Chess Club`.")
+        );
+        assert!(!dms[0].1.contains("help desk"));
+    }
+    // A non-member cannot become the owner.
+    let (s, _) = w
+        .post(
+            STAFF,
+            &format!("{path}/transfer-ownership"),
+            json!({"new_owner_id": CAROL.to_string(), "reason": "test"}),
+        )
+        .await;
+    assert_ne!(s, StatusCode::OK);
+
+    // Delete acts as the owner (the admin store here is a seeded copy, so use a fresh server)
+    // and the server is gone for its members.
+    let (other, _) = w.guild("Gardening").await;
+    w.admin_repo
+        .add_guild(other.parse().unwrap(), "Gardening", OWNER, 2);
+    let other_path = format!("/admin/guilds/{other}");
+    let (s, _) = w
+        .call(
+            STAFF,
+            Method::DELETE,
+            &other_path,
+            Some(json!({"reason": "illegal content, see case 4"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert_eq!(
+        w.get(BOB, &format!("/guilds/{other}")).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        w.dms.lock_for_test().len(),
+        1,
+        "a deactivated owner is not messaged"
+    );
+}
+
+// ------------------------------------------------------------------ H-11 / H-13
+
+/// A 2FA server with a moderator (DAVE, every moderation permission through a role), a plain
+/// member (BOB, no permission) and a bystander (CAROL, the target of the actions).
+async fn strict_server(w: &World) -> (String, String, String) {
+    use sr_core::Permissions as Perm;
+    let (gid, general) = w.guild("Strict Club").await;
+    w.add_member(&gid, DAVE);
+    w.add_member(&gid, CAROL);
+    let bits = (Perm::KICK_MEMBERS
+        | Perm::BAN_MEMBERS
+        | Perm::MANAGE_ROLES
+        | Perm::MANAGE_CHANNELS
+        | Perm::MANAGE_GUILD
+        | Perm::MANAGE_THREADS
+        | Perm::MODERATE_MEMBERS)
+        .bits()
+        .to_string();
+    let (s, role) = w
+        .post(
+            OWNER,
+            &format!("/guilds/{gid}/roles"),
+            json!({ "name": "Mods", "permissions": bits }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{role}");
+    let rid = role["id"].as_str().unwrap().to_owned();
+    let (s, r) = w
+        .put(
+            OWNER,
+            &format!("/guilds/{gid}/members/{DAVE}/roles/{rid}"),
+            json!({}),
+        )
+        .await;
+    assert!(s.is_success(), "{r}");
+    w.enrol(OWNER).await;
+    let (s, m) = w
+        .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 1 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    w.clock.advance_ms(16 * 60 * 1000);
+    (gid, general, rid)
+}
+
+#[tokio::test]
+async fn permission_is_checked_before_the_second_factor_on_the_older_routes() {
+    let w = world().await;
+    let (gid, general, rid) = strict_server(&w).await;
+    let routes: Vec<(Method, String, Option<Value>)> = vec![
+        (
+            Method::DELETE,
+            format!("/guilds/{gid}/members/{CAROL}"),
+            None,
+        ),
+        (
+            Method::PUT,
+            format!("/guilds/{gid}/bans/{CAROL}"),
+            Some(json!({})),
+        ),
+        (Method::DELETE, format!("/guilds/{gid}/bans/{CAROL}"), None),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/bulk-ban"),
+            Some(json!({ "user_ids": [CAROL.to_string()] })),
+        ),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/prune"),
+            Some(json!({ "days": 7 })),
+        ),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/roles"),
+            Some(json!({ "name": "x" })),
+        ),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}/roles/{rid}"),
+            Some(json!({ "name": "Mods2" })),
+        ),
+        (
+            Method::PUT,
+            format!("/guilds/{gid}/members/{CAROL}/roles/{rid}"),
+            Some(json!({})),
+        ),
+        (Method::DELETE, format!("/guilds/{gid}/roles/{rid}"), None),
+        (
+            Method::POST,
+            format!("/guilds/{gid}/channels"),
+            Some(json!({ "name": "new" })),
+        ),
+        (
+            Method::PATCH,
+            format!("/channels/{general}"),
+            Some(json!({ "name": "renamed" })),
+        ),
+        (
+            Method::PUT,
+            format!("/channels/{general}/permissions/{CAROL}"),
+            Some(json!({ "type": 1, "allow": "0", "deny": "0" })),
+        ),
+        (
+            Method::DELETE,
+            format!("/channels/{general}/permissions/{CAROL}"),
+            None,
+        ),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}/members/{CAROL}"),
+            Some(json!({ "communication_disabled_until": "2099-01-01T00:00:00.000000+00:00" })),
+        ),
+        (
+            Method::PATCH,
+            format!("/guilds/{gid}"),
+            Some(json!({ "name": "Renamed" })),
+        ),
+        (Method::DELETE, format!("/channels/{general}"), None),
+    ];
+
+    // No second factor anywhere: the member without the permission is told 50013, the
+    // moderator 900123.
+    for (m, p, b) in &routes {
+        let r = w.call(BOB, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 50013), "bob {m} {p}: {}", r.1);
+        let r = w.call(DAVE, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 900123), "dave {m} {p}: {}", r.1);
+    }
+    // Enrolled but stale: still 50013 for the member, 900004 for the moderator.
+    w.enrol(BOB).await;
+    w.enrol(DAVE).await;
+    for (m, p, b) in &routes {
+        let r = w.call(BOB, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 50013), "bob {m} {p}: {}", r.1);
+        let r = w.call(DAVE, m.clone(), p, b.clone()).await;
+        assert_eq!(mfa_code(&r), (403, 900004), "dave {m} {p}: {}", r.1);
+    }
+    // Delete is owner only: the moderator gets 50013 even with a proved factor.
+    let del = format!("/guilds/{gid}");
+    let r = w.delete(DAVE, &del).await;
+    assert_eq!(mfa_code(&r), (403, 50013), "{}", r.1);
+    let r = w.delete(BOB, &del).await;
+    assert_eq!(mfa_code(&r), (403, 50013), "{}", r.1);
+    w.prove(100).await;
+    assert_eq!(w.delete(OWNER, &del).await.0, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn thread_edits_by_a_non_creator_meet_the_gate_but_the_creators_own_do_not() {
+    let w = world().await;
+    let (_gid, general, _rid) = strict_server(&w).await;
+    w.enrol(BOB).await;
+    w.enrol(DAVE).await;
+    let started = w
+        .threads
+        .ops
+        .start_standalone(
+            UserId::new(BOB as u64),
+            ChannelId::new(general.parse().unwrap()),
+            sr_chat::threads::StartThread {
+                name: "ideas".into(),
+                kind: Some(sr_chat::ChannelType::PublicThread),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let tid = started.view.channel.id.to_string();
+    let path = format!("/channels/{tid}");
+
+    // The creator edits, archives and may delete their own thread with a stale factor.
+    let r = w.patch(BOB, &path, json!({ "name": "ideas 2" })).await;
+    assert_eq!(r.0, StatusCode::OK, "{}", r.1);
+    // A moderator (not the creator) is gated: stale 900004.
+    let r = w.patch(DAVE, &path, json!({ "archived": true })).await;
+    assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
+    let r = w.delete(DAVE, &path).await;
+    assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
+    // Another member without MANAGE_THREADS: the permission error, never the gate.
+    let r = w.patch(CAROL, &path, json!({ "archived": true })).await;
+    assert_eq!(mfa_code(&r), (403, 50013), "{}", r.1);
+    // With a proved factor the moderator's edit goes through the service.
+    w.prove(103).await;
+    let r = w.patch(DAVE, &path, json!({ "archived": true })).await;
+    assert_eq!(r.0, StatusCode::OK, "{}", r.1);
+    let r = w.delete(DAVE, &path).await;
+    assert_eq!(r.0, StatusCode::OK, "{}", r.1);
+}
+
+#[tokio::test]
+async fn staff_transfer_and_delete_send_system_dms_to_the_owners() {
+    let w = world().await;
+    // DAVE owns the server (an active account); BOB is a member.
+    w.admin_repo
+        .add_account(DAVE, "dave", AccountState::Active, None, None);
+    let (s, g) = w
+        .post(DAVE, "/guilds", json!({ "name": "Book Club" }))
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{g}");
+    let gid = g["id"].as_str().unwrap().to_owned();
+    w.add_member(&gid, BOB);
+    w.admin_repo
+        .add_guild(gid.parse().unwrap(), "Book Club", DAVE, 2);
+    let path = format!("/admin/guilds/{gid}");
+
+    let (s, v) = w
+        .post(
+            STAFF,
+            &format!("{path}/transfer-ownership"),
+            json!({"new_owner_id": BOB.to_string(), "reason": "owner asked on the help desk"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    {
+        let dms = w.dms.lock_for_test();
+        assert_eq!(dms.len(), 2, "{dms:?}");
+        assert_eq!(dms[0].0, DAVE);
+        assert_eq!(
+            dms[0].1,
+            "Staff transferred ownership of `Book Club` to `bob`. If this looks wrong, contact staff."
+        );
+        assert_eq!(dms[1].0, BOB);
+        assert_eq!(
+            dms[1].1,
+            "You are now the owner of `Book Club`. If this looks wrong, contact staff."
+        );
+        assert!(dms.iter().all(|(_, t)| !t.contains("help desk")));
+    }
+
+    // Delete: the owner at that moment (BOB, now) hears it. The admin store is a seeded copy,
+    // so point it at BOB first.
+    w.admin_repo.set_guild_owner(gid.parse().unwrap(), BOB);
+    let (s, _) = w
+        .call(
+            STAFF,
+            Method::DELETE,
+            &path,
+            Some(json!({"reason": "illegal content, see case 4"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let dms = w.dms.lock_for_test();
+    let last = dms.last().unwrap();
+    assert_eq!(last.0, BOB);
+    assert_eq!(
+        last.1,
+        "Staff deleted `Book Club`. If this looks wrong, contact staff."
+    );
+}
+
+// ------------------------------------------------------------------ H-37
+
+#[tokio::test]
+async fn member_objects_show_the_join_source_and_signals_to_managers_only() {
+    use sr_chat::admin_repo::MemberJoin;
+    let w = world().await;
+    let (gid, _) = w.guild("Join Club").await;
+    let gid_n = GuildId::new(gid.parse().unwrap());
+    // A member whose account is minutes old, and one who was removed before.
+    let fresh = SnowflakeGenerator::new(w.clock.clone() as Arc<dyn Clock>, 5, 5)
+        .unwrap()
+        .generate()
+        .get() as i64;
+    w.add_member(&gid, fresh);
+    w.add_member(&gid, CAROL);
+    {
+        let mut s = w.repo.store.lock().unwrap();
+        s.joins.insert(
+            (gid_n, UserId::new(BOB as u64)),
+            MemberJoin {
+                user_id: UserId::new(BOB as u64),
+                source: Some("invite".into()),
+                invite_code: Some("abc123".into()),
+                ref_id: Some(OWNER),
+                rejoined: false,
+            },
+        );
+        s.joins.insert(
+            (gid_n, UserId::new(CAROL as u64)),
+            MemberJoin {
+                user_id: UserId::new(CAROL as u64),
+                source: Some("directory".into()),
+                invite_code: None,
+                ref_id: None,
+                rejoined: true,
+            },
+        );
+    }
+    let members = format!("/guilds/{gid}/members?limit=50");
+
+    // The owner (MANAGE_GUILD) sees both objects on every row.
+    let (s, list) = w.get(OWNER, &members).await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    let row = |who: &str| {
+        list.as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["user"]["id"] == who)
+            .unwrap_or_else(|| panic!("{who} in {list}"))
+            .clone()
+    };
+    let bob = row(&BOB.to_string());
+    assert_eq!(bob["sr_join"]["source"], "invite");
+    assert_eq!(bob["sr_join"]["invite_code"], "abc123");
+    assert_eq!(bob["sr_join"]["inviter_id"], OWNER.to_string());
+    assert_eq!(bob["sr_signals"], json!([]));
+    let carol = row(&CAROL.to_string());
+    assert_eq!(carol["sr_join"]["source"], "directory");
+    assert!(carol["sr_join"].get("inviter_id").is_none());
+    assert_eq!(carol["sr_signals"], json!(["rejoined"]));
+    let newbie = row(&fresh.to_string());
+    assert_eq!(newbie["sr_join"]["source"], "unknown");
+    assert_eq!(newbie["sr_signals"], json!(["new_account"]));
+
+    // "Unusual activity": only members with a signal, on the list and the search.
+    let (_, flagged) = w.get(OWNER, &format!("{members}&signals=true")).await;
+    let ids: Vec<String> = flagged
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["user"]["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(ids.len(), 2, "{flagged}");
+    assert!(ids.contains(&CAROL.to_string()) && ids.contains(&fresh.to_string()));
+    // A single member read carries them too.
+    let (_, one) = w
+        .get(OWNER, &format!("/guilds/{gid}/members/{CAROL}"))
+        .await;
+    assert_eq!(one["sr_join"]["source"], "directory");
+
+    // Bob has no MANAGE_GUILD: no sr_join, no sr_signals, and the filter is refused.
+    let (s, list) = w.get(BOB, &members).await;
+    assert_eq!(s, StatusCode::OK);
+    for m in list.as_array().unwrap() {
+        assert!(
+            m.get("sr_join").is_none() && m.get("sr_signals").is_none(),
+            "{m}"
+        );
+    }
+    let (_, one) = w.get(BOB, &format!("/guilds/{gid}/members/{CAROL}")).await;
+    assert!(one.get("sr_join").is_none(), "{one}");
+    let (s, _) = w.get(BOB, &format!("{members}&signals=true")).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
 }

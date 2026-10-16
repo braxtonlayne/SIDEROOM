@@ -250,6 +250,7 @@ This archive holds the data tied to your account, as JSON files.\n\
   security.json       signed-in sessions and recent sign-in attempts\n\
   attachments.json    an index of files you uploaded (the files themselves are not included)\n\
   messages/           the messages you wrote that you have not deleted, one file per channel\n\
+                      (a message sent through a webhook you made has \"webhook\": its id and name)\n\
 \n\
 Passwords, tokens and keys are never part of this package.\n\
 Messages you deleted are hidden from everyone and are not listed.\n\
@@ -379,7 +380,9 @@ pub async fn build_package<W: Write + Seek>(
                 "SELECT id, jsonb_build_object('id', id::text, 'channel_id', channel_id::text, \
                    'guild_id', guild_id::text, 'type', type, 'content', content, \
                    'timestamp', created_at, 'edited_timestamp', edited_at, 'pinned', pinned, \
-                   'reference', reference, 'embeds', embeds, 'flags', flags) \
+                   'reference', reference, 'embeds', embeds, 'flags', flags, \
+                   'webhook', (SELECT jsonb_build_object('id', w.webhook_id::text, 'name', w.username) \
+                               FROM message_webhook_authors w WHERE w.message_id = messages.id)) \
                  FROM messages WHERE author_id = $1 AND channel_id = $2 AND deleted_at IS NULL \
                    AND id > $3 ORDER BY id LIMIT $4",
             )

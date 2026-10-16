@@ -25,6 +25,7 @@ export const AP = {
   OPERATOR: 21,
   MANAGE_CASES: 22,
   MANAGE_TAKEDOWNS: 23,
+  MANAGE_ENTRANCE: 24,
   OWNER: 63,
 } as const;
 

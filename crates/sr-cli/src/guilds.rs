@@ -305,15 +305,6 @@ pub async fn seed_dev_guild(
 mod tests {
     use super::*;
 
-    async fn pool() -> PgPool {
-        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
-        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
-            .await
-            .expect("connect");
-        sr_db::migrate(&pool).await.expect("migrate");
-        pool
-    }
-
     async fn account(pool: &PgPool, snow: &SnowflakeGenerator<SystemClock>) -> i64 {
         let person = i64::try_from(snow.generate().get()).unwrap();
         let id = i64::try_from(snow.generate().get()).unwrap();
@@ -341,11 +332,13 @@ mod tests {
     #[tokio::test]
     #[ignore = "needs SR_TEST_DATABASE_URL"]
     async fn staff_roles_are_created_once_and_repaired_on_rerun() {
-        let pool = pool().await;
+        // A clone of the migrated template database, like the other Postgres suites: a Staff Server
+        // left by an earlier run cannot collide with this one (unique `guilds_staff_guild_uidx`).
+        let db = sr_db::testing::TestDb::new().await.expect("test db");
+        let pool = db.pool().clone();
         let server = ServerConfig::default();
         let snow = snowflakes(&server).unwrap();
         let owner = account(&pool, &snow).await;
-        // Other tests may have made a Staff Server; this one only inspects its own guild.
         let guild = create_staff_guild(&pool, &server, owner, 1_800_000_000_000)
             .await
             .unwrap();
@@ -419,5 +412,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(color, 1);
+        drop(pool);
+        db.cleanup().await.expect("cleanup");
     }
 }

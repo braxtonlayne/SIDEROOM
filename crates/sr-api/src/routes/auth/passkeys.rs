@@ -625,6 +625,7 @@ pub async fn register_finish(
     } else {
         None
     };
+    svc.notify_security(p.user_id, "A passkey was added").await;
     Ok(Json(RegisterFinishResponse {
         passkey: view(&rec),
         recovery_codes,
@@ -984,6 +985,8 @@ pub async fn remove(
     if !totp && !svc.has_passkeys(account.id).await? {
         svc.store.recovery_replace_all(account.id, &[]).await?;
     }
+    svc.notify_security(account.id, "A passkey was removed")
+        .await;
     Ok(StatusCode::NO_CONTENT)
 }
 

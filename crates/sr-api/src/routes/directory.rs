@@ -12,6 +12,7 @@
 //! data comes from the chat repository inside [`SettingsDeps`].
 
 use crate::routes::admin::{StaffCtx, map_err as admin_err};
+use crate::routes::developer::DevDeps;
 use crate::routes::guilds::dto::{MemberObject, iso8601};
 use crate::routes::guilds::util::{actor, id};
 use crate::routes::messages::error::{ApiJson, ApiQuery};
@@ -20,7 +21,7 @@ use crate::routes::{Ext, MaybeExt};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
-    extract::Path,
+    extract::{Path, State},
     http::StatusCode,
     routing::{get, post},
 };
@@ -73,6 +74,8 @@ impl DirectoryDeps {
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/sr/emojis/{emoji_id}", get(get_emoji_info))
+        .route("/sr/emojis/{emoji_id}/url", get(get_emoji_url))
         .route("/directory/categories", get(list_categories))
         .route("/directory", get(search))
         .route("/directory/{guild_id}", get(get_listed))
@@ -84,6 +87,10 @@ pub fn router() -> Router<AppState> {
                 .delete(withdraw_listing),
         )
         .route("/admin/directory", get(admin_list))
+        .route(
+            "/admin/directory/queue/{guild_id}/preview",
+            get(admin_preview),
+        )
         .route(
             "/admin/directory/{guild_id}",
             axum::routing::patch(admin_decide),
@@ -113,6 +120,9 @@ pub struct DirectoryGuildObject {
     pub vanity_url_code: Option<String>,
     /// The caller already is a member.
     pub joined: bool,
+    /// Staff preview of a request that is still waiting (H-40); never set in the public list.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pending: bool,
 }
 
 /// A server's own listing request.
@@ -164,13 +174,24 @@ async fn card(
     entry: &DirectoryEntry,
     viewer: sr_core::UserId,
 ) -> ApiResult<Option<DirectoryGuildObject>> {
+    build_card(deps, entry, viewer, false).await
+}
+
+/// The card of a listing. `preview` skips the visibility rule (staff look at requests that are
+/// not public yet) and leaves out the presence count.
+async fn build_card(
+    deps: &SettingsDeps,
+    entry: &DirectoryEntry,
+    viewer: sr_core::UserId,
+    preview: bool,
+) -> ApiResult<Option<DirectoryGuildObject>> {
     let community = deps
         .service
         .repo()
         .get_community(entry.guild_id)
         .await
         .map_err(re)?;
-    if !directory::is_visible(entry, community.community_enabled) {
+    if !preview && !directory::is_visible(entry, community.community_enabled) {
         return Ok(None);
     }
     let Some(g) = deps.chat.get_guild(entry.guild_id).await.map_err(re)? else {
@@ -184,7 +205,7 @@ async fn card(
         .map_err(re)?
         .is_some();
     let presence = match deps.presence() {
-        Some(p) if members <= 1000 => {
+        Some(p) if members <= 1000 && !preview => {
             let page = deps.chat.page_members(g.id, None, 1000).await.map_err(re)?;
             let ids: Vec<_> = page.iter().map(|m| m.user_id).collect();
             Some(p.count_online(&ids))
@@ -207,6 +228,7 @@ async fn card(
         preferred_locale: g.preferred_locale.clone(),
         vanity_url_code: g.vanity_code.clone(),
         joined,
+        pending: preview && entry.status == DirectoryStatus::Pending,
     }))
 }
 
@@ -222,6 +244,179 @@ fn unknown_listing() -> HttpError {
     HttpError(ApiError::with_message(
         ErrorCode::UnknownGuild,
         "This server is not listed in the directory.",
+    ))
+}
+
+// ------------------------------------------------------------------ emoji popout
+
+/// What the emoji popout shows (D-232).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EmojiInfoObject {
+    pub id: String,
+    pub name: String,
+    pub animated: bool,
+    /// The owning server, only when the caller is a member or it has an approved Server Directory
+    /// listing; otherwise `null` and the popout says the emoji is from a private server.
+    pub guild: Option<EmojiGuildObject>,
+    /// Set instead of `guild` for an application emoji (D-237): the popout says "Emoji of
+    /// <application>" and offers no join action.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub application: Option<EmojiApplicationObject>,
+}
+
+/// The application an application emoji belongs to.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EmojiApplicationObject {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
+}
+
+/// The server an emoji belongs to.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EmojiGuildObject {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
+    /// The id `POST /directory/{id}/join` takes, when the server is listed; `null` for a member's
+    /// own unlisted server.
+    pub listing: Option<String>,
+}
+
+/// A server emoji by id, if there is one.
+async fn find_emoji(
+    deps: &SettingsDeps,
+    emoji_id: &str,
+) -> ApiResult<Option<sr_chat::settings::expressions::Emoji>> {
+    use sr_chat::settings::repo::ExpressionRepository;
+    let eid: sr_core::EmojiId = id("emoji_id", emoji_id)?;
+    deps.service.repo().find_emoji(eid).await.map_err(re)
+}
+
+/// An application emoji by id, looked up after the server emoji (D-237).
+async fn find_app_emoji(
+    dev: &Option<Arc<DevDeps>>,
+    emoji_id: &str,
+) -> ApiResult<Option<(sr_apps::model::AppEmoji, sr_apps::model::Application)>> {
+    let eid: u64 = id("emoji_id", emoji_id)?;
+    let (Some(dev), Ok(eid)) = (dev, i64::try_from(eid)) else {
+        return Ok(None);
+    };
+    dev.apps
+        .public_app_emoji(eid)
+        .await
+        .map_err(|_| ErrorCode::SrInternal.into())
+}
+
+/// An emoji by id, for any signed-in caller (the popout on a cross-server custom emoji, D-232).
+#[utoipa::path(
+    get,
+    path = "/sr/emojis/{emoji_id}",
+    params(("emoji_id" = String, Path, description = "Emoji snowflake")),
+    responses((status = 200, body = EmojiInfoObject), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_emoji_info(
+    p: Principal,
+    Ext(dir): Ext<DirectoryDeps>,
+    Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(dev): MaybeExt<DevDeps>,
+    Path(emoji_id): Path<String>,
+) -> ApiResult<Json<EmojiInfoObject>> {
+    let user = actor(&p)?;
+    let Some(emoji) = find_emoji(&deps, &emoji_id).await? else {
+        let (e, app) = find_app_emoji(&dev, &emoji_id)
+            .await?
+            .ok_or(ErrorCode::UnknownEmoji)?;
+        return Ok(Json(EmojiInfoObject {
+            id: e.id.to_string(),
+            name: e.name,
+            animated: e.animated,
+            guild: None,
+            application: Some(EmojiApplicationObject {
+                id: app.id.to_string(),
+                name: app.name,
+                icon: app.icon_key,
+            }),
+        }));
+    };
+    let joined = deps
+        .chat
+        .get_member(emoji.guild_id, user)
+        .await
+        .map_err(re)?
+        .is_some();
+    let listed = match dir.repo.get_listing(emoji.guild_id).await.map_err(re)? {
+        Some(entry) if !dir.hidden_categories().await.contains(&entry.category) => {
+            let community = deps
+                .service
+                .repo()
+                .get_community(entry.guild_id)
+                .await
+                .map_err(re)?;
+            directory::is_visible(&entry, community.community_enabled)
+        }
+        _ => false,
+    };
+    let guild = if joined || listed {
+        deps.chat
+            .get_guild(emoji.guild_id)
+            .await
+            .map_err(re)?
+            .map(|g| EmojiGuildObject {
+                id: g.id.to_string(),
+                name: g.name.clone(),
+                icon: g.icon_key.clone(),
+                listing: listed.then(|| g.id.to_string()),
+            })
+    } else {
+        None
+    };
+    Ok(Json(EmojiInfoObject {
+        id: emoji.id.to_string(),
+        name: emoji.name,
+        animated: emoji.animated,
+        guild,
+        application: None,
+    }))
+}
+
+/// A short-lived signed CDN URL for an emoji image, for any signed-in caller: custom emoji are
+/// drawable wherever they appear (D-232).
+#[utoipa::path(
+    get,
+    path = "/sr/emojis/{emoji_id}/url",
+    params(
+        ("emoji_id" = String, Path, description = "Emoji snowflake"),
+        ("size" = Option<u32>, Query, description = "Power of two, 16 to 4096"),
+        ("format" = Option<String>, Query, description = "png, jpg, webp or gif"),
+    ),
+    responses((status = 200, body = crate::routes::settings::expressions::SignedUrlObject),
+              (status = 400, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_emoji_url(
+    p: Principal,
+    State(state): State<AppState>,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
+    MaybeExt(dev): MaybeExt<DevDeps>,
+    Path(emoji_id): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<crate::routes::settings::expressions::UrlQuery>,
+) -> ApiResult<Json<crate::routes::settings::expressions::SignedUrlObject>> {
+    actor(&p)?;
+    let key = match find_emoji(&deps, &emoji_id).await? {
+        Some(emoji) => emoji.media_key,
+        None => {
+            find_app_emoji(&dev, &emoji_id)
+                .await?
+                .ok_or(ErrorCode::UnknownEmoji)?
+                .0
+                .media_key
+        }
+    };
+    Ok(Json(
+        crate::routes::settings::expressions::signed_media_url(&state, &cdn, &key, &q)?,
     ))
 }
 
@@ -604,6 +799,41 @@ pub async fn admin_list(
     Ok(Json(out))
 }
 
+/// What a listing would look like in the directory, as its draft stands (`MANAGE_DIRECTORY`).
+/// The card is the public shape plus `pending: true` while the request waits. The admin queue's
+/// Preview opens the server page in preview mode (banner, no join). The category list is a
+/// constant; hiding a category is the `directory.hidden_categories` platform setting.
+#[utoipa::path(
+    get,
+    path = "/admin/directory/queue/{guild_id}/preview",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 200, body = DirectoryGuildObject), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn admin_preview(
+    ctx: StaffCtx,
+    Ext(dir): Ext<DirectoryDeps>,
+    Ext(deps): Ext<SettingsDeps>,
+    Path(guild_id): Path<String>,
+) -> ApiResult<Json<DirectoryGuildObject>> {
+    ctx.svc()
+        .authorize(&ctx.caller, P::MANAGE_DIRECTORY, "directory.preview")
+        .await
+        .map_err(admin_err)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    let entry = dir
+        .repo
+        .get_listing(gid)
+        .await
+        .map_err(re)?
+        .ok_or_else(unknown_listing)?;
+    let staff = sr_core::UserId::new(u64::try_from(ctx.caller.user_id).unwrap_or(0));
+    build_card(&deps, &entry, staff, true)
+        .await?
+        .map(Json)
+        .ok_or_else(unknown_listing)
+}
+
 /// Body of `PATCH /admin/directory/{guild_id}`.
 #[derive(Debug, Default, Deserialize, ToSchema)]
 pub struct DecisionBody {
@@ -694,15 +924,21 @@ pub async fn admin_decide(
         list_categories,
         search,
         get_listed,
+        get_emoji_info,
+        get_emoji_url,
         join,
         get_own_listing,
         request_listing,
         withdraw_listing,
         admin_list,
+        admin_preview,
         admin_decide,
     ),
     components(schemas(
         DirectoryGuildObject,
+        EmojiInfoObject,
+        EmojiApplicationObject,
+        EmojiGuildObject,
         ListingObject,
         AdminListingObject,
         ListingBody,

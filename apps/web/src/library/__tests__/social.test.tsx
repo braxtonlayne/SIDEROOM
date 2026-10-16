@@ -266,6 +266,32 @@ describe('rankings', () => {
     await waitFor(() => expect(seen.some((s) => s.includes('kind=manhwa'))).toBe(true));
   });
 
+  it('asks for the friends and known scopes from the scope picker (G-96)', async () => {
+    useLibraryApi();
+    const seen: string[] = [];
+    server.use(
+      http.get('*/api/v1/library/rankings', ({ request }) => {
+        const u = new URL(request.url);
+        seen.push(u.search);
+        return HttpResponse.json({
+          period: 'week',
+          scope: u.searchParams.get('scope') ?? 'global',
+          items: [
+            { rank: 1, score: 2, readers: 1, rating_average: null, rating_count: 0, series: A },
+          ],
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/library/rankings');
+    await screen.findByRole('list', { name: 'Ranked series' });
+    await user.click(screen.getByRole('radio', { name: 'Friends' }));
+    await waitFor(() => expect(seen.some((s) => s.includes('scope=friends'))).toBe(true));
+    expect(await screen.findByText(/people who share their reading/)).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'People you know' }));
+    await waitFor(() => expect(seen.some((s) => s.includes('scope=known'))).toBe(true));
+  });
+
   it('says so when nothing is ranked', async () => {
     useLibraryApi();
     server.use(

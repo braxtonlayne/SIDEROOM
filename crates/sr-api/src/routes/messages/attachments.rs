@@ -9,6 +9,8 @@ use super::model::{AttachmentObject, UploadSlot, UploadSlotsBody, UploadSlotsRes
 use super::render::actor;
 use super::store::{Attachment, UploadState};
 use crate::routes::Ext;
+use crate::routes::MaybeExt;
+use crate::routes::social::SocialDeps;
 use crate::{Principal, openapi::ErrorBody};
 use axum::{Json, extract::Path};
 use sr_chat::ChatError;
@@ -79,6 +81,7 @@ pub fn upload_filename(a: &Attachment) -> String {
 pub async fn request_slots(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
+    MaybeExt(social): MaybeExt<SocialDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<UploadSlotsBody>,
 ) -> MsgResult<Json<UploadSlotsResponse>> {
@@ -86,7 +89,8 @@ pub async fn request_slots(
     let channel_id: ChannelId = parse_id(&channel_id, ErrorCode::UnknownChannel)?;
     let acc = deps.access(user, channel_id).await?;
     acc.require(Permissions::ATTACH_FILES)?;
-    if !acc.channel.kind.accepts_messages() {
+    // Forum and media channels take slots too: the starter message of a post carries the files (H-38).
+    if !acc.channel.kind.accepts_messages() && !acc.channel.kind.is_forum_like() {
         return Err(invalid(
             "channel_id",
             "CHANNEL_TYPE_INVALID",
@@ -104,7 +108,7 @@ pub async fn request_slots(
         ));
     }
 
-    let entitled = deps.upload_limit(user).await;
+    let entitled = deps.upload_limit(user, acc.channel.guild_id).await;
     let max_size = deps.size_policy.effective_limit(entitled);
     let now = deps.now_ms();
     // Validate everything before issuing any slot.
@@ -129,13 +133,24 @@ pub async fn request_slots(
         }
     }
 
+    // A conversation in someone's Message Requests under `explicit_media_filter_dms` delivers
+    // every attachment with the spoiler flag; nothing is scanned (D-224).
+    let force_spoiler = match (&social, acc.channel.guild_id) {
+        (Some(s), None) => s
+            .service
+            .spoiler_attachments(user, channel_id)
+            .await
+            .unwrap_or(false),
+        _ => false,
+    };
     let mut slots = Vec::with_capacity(body.files.len());
     for (f, d) in body.files.iter().zip(decisions) {
         let id = deps.next_attachment_id();
         // Discord's convention: a `SPOILER_` name is a spoiler, and `spoiler: true`
         // adds the prefix (D-177), so `AttachmentObject.filename` carries it.
         let name = sanitize_filename(&f.filename);
-        let spoiler = f.spoiler.unwrap_or(false) || name.starts_with(SPOILER_PREFIX);
+        let spoiler =
+            force_spoiler || f.spoiler.unwrap_or(false) || name.starts_with(SPOILER_PREFIX);
         let filename = if spoiler {
             spoiler_filename(&name)
         } else {
@@ -202,9 +217,10 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
         Err(StorageError::NotFound(_)) => return Err(bad("The file has not been uploaded.")),
         Err(e) => return Err(e.into()),
     };
+    let guild = deps.channel_guild(att.channel_id).await;
     let limit = deps
         .size_policy
-        .effective_limit(deps.upload_limit(att.uploader).await);
+        .effective_limit(deps.upload_limit(att.uploader, guild).await);
     if info.size != att.size || info.size > limit {
         let _ = deps.storage.delete(&att.key).await;
         return Err(bad("The uploaded file does not match the declared size."));

@@ -1,7 +1,7 @@
-import { SegmentedControl, Switch } from '@sideroom/ui';
+import { SegmentedControl, Slider, Switch } from '@sideroom/ui';
 import { useT } from '../../../i18n';
 import { Card, SectionTitle } from '../parts';
-import type { Animation, RoleColors, UserPrefs } from '../prefs';
+import { TTS_RATE_RANGE, type Animation, type RoleColors, type UserPrefs } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
 
 const animationOptions = (t: ReturnType<typeof useT>) => [
@@ -77,6 +77,16 @@ export function AccessibilitySection({ prefs, setPrefs }: PrefsFormProps) {
             description={t('settings.accessibility.dyslexiaDesc')}
             checked={prefs.dyslexiaFont}
             onChange={(e) => setPrefs({ dyslexiaFont: e.target.checked })}
+          />
+          <Slider
+            label={t('settings.accessibility.ttsRate')}
+            min={TTS_RATE_RANGE[0]}
+            max={TTS_RATE_RANGE[1]}
+            step={10}
+            value={prefs.ttsRate}
+            showValue
+            formatValue={(v) => `${v}%`}
+            onValueChange={(v) => setPrefs({ ttsRate: v })}
           />
           <Switch
             label={t('settings.accessibility.sendButton')}

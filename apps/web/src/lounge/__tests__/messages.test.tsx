@@ -275,6 +275,7 @@ function handlers() {
     http.get('*/api/v1/channels/:cid/messages', () => HttpResponse.json([])),
     http.get('*/api/v1/invites/abc123', () =>
       HttpResponse.json({
+        type: 0,
         code: 'abc123',
         guild: { id: 'g2', name: 'Book Club' },
         channel: { id: 'c9', type: 0 },

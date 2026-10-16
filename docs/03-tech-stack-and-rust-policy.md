@@ -13,85 +13,86 @@ Applied as rules:
 
 ## 2. Backend stack
 
-| Concern | Choice | Rust? | Notes |
-|---|---|---|---|
-| Async runtime | `tokio` | ✅ | |
-| HTTP/REST | `axum` 0.8 + `tower`/`tower-http` | ✅ | Compression, CORS, tracing, timeouts as tower layers |
-| WebSocket | `axum::extract::ws` (tungstenite) | ✅ | |
-| OpenAPI | `utoipa` + `utoipa-axum` | ✅ | Generates `openapi.json` → TS client |
-| Serialization | `serde`, `serde_json`, `rmp-serde` (msgpack, later) | ✅ | |
-| Database driver | `sqlx` 0.9 (Postgres, compile-time checked queries) | ✅ | |
-| Database | **PostgreSQL 17** | ❌ C | See ADR-0001. SurrealDB evaluated and rejected for the system of record |
-| Cache | `moka` | ✅ | In-process. No Redis |
-| Job queue | Postgres `SKIP LOCKED` in `sr-db::jobs` | ✅ | |
-| Search | `tantivy` | ✅ | Embedded. Index dir on local NVMe |
-| Object storage | **Garage** (S3-compatible) | ✅ | ADR-0002. Client: `object_store` crate (S3) |
-| Password hashing | `argon2` (argon2id) | ✅ | |
-| 2FA | `totp-rs` | ✅ | |
-| Passkeys (WebAuthn RP) | own verifier in `sr-auth::webauthn` on `p256`, `ed25519-dalek`, `crypto-bigint`, `ciborium` | ✅ | D-161: `webauthn-rs` is not used (it links C `openssl`). Feature `webauthn`; see `docs/dev/passkey-spike-report.md` |
-| OAuth (Discord login) | `oauth2` | ✅ | |
-| Rate limiting | `governor` | ✅ | |
-| Validation | `validator` / `garde` | ✅ | |
-| Errors | `thiserror` (libs), `anyhow` (bins) | ✅ | |
-| Observability | `tracing`, `metrics`, `metrics-exporter-prometheus` | ✅ | |
-| Config | `figment` (TOML + env) | ✅ | |
-| WebRTC SFU | `str0m` (sans-IO) inside our `sr-voice` | ✅ | ADR-0003. `webrtc-rs` is the fallback |
-| TURN | **coturn** | ❌ C | ADR-0004. Revisit if a maintained Rust TURN server appears |
-| E2EE key agreement | `openmls` (MLS, RFC 9420) | ✅ | Also compiled to WASM |
-| Frame crypto | `aes-gcm` (RustCrypto) | ✅ | Also WASM |
-| Video transcoding | `ffmpeg-next` bindings → FFmpeg + NVENC | ⚠️ C libs, Rust orchestration | ADR-0005. `rav1e` (Rust AV1) is optional for an AV1 rung later |
-| Media probing | `ffmpeg-next` | ⚠️ | |
-| Audio (soundboard/voice msgs) | `symphonia` (decode, when needed). No `opus` bindings: files are stored as uploaded and decoded by the browser (D-201) | ✅ | |
-| Images | `image`, `fast_image_resize`, `webp` (libwebp bindings, lossy) | ✅/⚠️ | Manga pages → WebP |
-| Archives | `zip`, `unrar` bindings, `sevenz-rust`, `pdfium-render` (PDF raster) | ✅/⚠️ | |
-| EPUB | `epub` crate (metadata, spine). Rendered client-side | ✅ | |
-| Bitcoin | In-house watch-only derivation on `secp256k1`, `bitcoin_hashes`, `bech32` (BIP-32/84/380) and an Esplora client; `bdk_wallet` and `bdk_esplora` are not used (D-207) | ✅ | ADR-0006 and its addendum |
-| Time zones | `jiff` (bundled tz database, `tzdb-bundle-always`; MIT/Unlicense) | ✅ | P8-TV-4, Live TV channel zones |
-| Lightning (later) | LDK (`lightning`, `ldk-node`) | ✅ | |
-| Email (verification, recovery) | `lettre` (SMTP) | ✅ | Operator supplies SMTP |
-| Reverse proxy | **Caddy** | ❌ Go | Only for TLS/HTTP3/static. Optional. `sr-server` can serve TLS itself via `rustls` |
+| Concern                        | Choice                                                                                                                                                               | Rust?                         | Notes                                                                                                               |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Async runtime                  | `tokio`                                                                                                                                                              | ✅                            |                                                                                                                     |
+| HTTP/REST                      | `axum` 0.8 + `tower`/`tower-http`                                                                                                                                    | ✅                            | Compression, CORS, tracing, timeouts as tower layers                                                                |
+| Library crates outside the server | `sr-sdk`: plain `reqwest` (rustls) and `tokio-tungstenite` | ✅ | D-234: runs in an operators bot, follows only the base host, an allow-listed host (`allow_gateway_host`) and its own gateway URL; never fetches message-content URLs. In the server `SafeClient` stays mandatory (D-203) |
+| WebSocket                      | `axum::extract::ws` (tungstenite)                                                                                                                                    | ✅                            |                                                                                                                     |
+| OpenAPI                        | `utoipa` + `utoipa-axum`                                                                                                                                             | ✅                            | Generates `openapi.json` → TS client                                                                                |
+| Serialization                  | `serde`, `serde_json`, `rmp-serde` (msgpack, later)                                                                                                                  | ✅                            |                                                                                                                     |
+| Database driver                | `sqlx` 0.9 (Postgres, compile-time checked queries)                                                                                                                  | ✅                            |                                                                                                                     |
+| Database                       | **PostgreSQL 17**                                                                                                                                                    | ❌ C                          | See ADR-0001. SurrealDB evaluated and rejected for the system of record                                             |
+| Cache                          | `moka`                                                                                                                                                               | ✅                            | In-process. No Redis                                                                                                |
+| Job queue                      | Postgres `SKIP LOCKED` in `sr-db::jobs`                                                                                                                              | ✅                            |                                                                                                                     |
+| Search                         | `tantivy`                                                                                                                                                            | ✅                            | Embedded. Index dir on local NVMe                                                                                   |
+| Object storage                 | **Garage** (S3-compatible)                                                                                                                                           | ✅                            | ADR-0002. Client: `object_store` crate (S3)                                                                         |
+| Password hashing               | `argon2` (argon2id)                                                                                                                                                  | ✅                            |                                                                                                                     |
+| 2FA                            | `totp-rs`                                                                                                                                                            | ✅                            |                                                                                                                     |
+| Passkeys (WebAuthn RP)         | own verifier in `sr-auth::webauthn` on `p256`, `ed25519-dalek`, `crypto-bigint`, `ciborium`                                                                          | ✅                            | D-161: `webauthn-rs` is not used (it links C `openssl`). Feature `webauthn`; see `docs/dev/passkey-spike-report.md` |
+| OAuth (Discord login)          | `oauth2`                                                                                                                                                             | ✅                            |                                                                                                                     |
+| Rate limiting                  | `governor`                                                                                                                                                           | ✅                            |                                                                                                                     |
+| Validation                     | `validator` / `garde`                                                                                                                                                | ✅                            |                                                                                                                     |
+| Errors                         | `thiserror` (libs), `anyhow` (bins)                                                                                                                                  | ✅                            |                                                                                                                     |
+| Observability                  | `tracing`, `metrics`, `metrics-exporter-prometheus`                                                                                                                  | ✅                            |                                                                                                                     |
+| Config                         | `figment` (TOML + env)                                                                                                                                               | ✅                            |                                                                                                                     |
+| WebRTC SFU                     | `str0m` (sans-IO) inside our `sr-voice`                                                                                                                              | ✅                            | ADR-0003. `webrtc-rs` is the fallback                                                                               |
+| TURN                           | **coturn**                                                                                                                                                           | ❌ C                          | ADR-0004. Revisit if a maintained Rust TURN server appears                                                          |
+| E2EE key agreement             | `openmls` (MLS, RFC 9420)                                                                                                                                            | ✅                            | Also compiled to WASM                                                                                               |
+| Frame crypto                   | `aes-gcm` (RustCrypto)                                                                                                                                               | ✅                            | Also WASM                                                                                                           |
+| Video transcoding              | `ffmpeg-next` bindings → FFmpeg + NVENC                                                                                                                              | ⚠️ C libs, Rust orchestration | ADR-0005. `rav1e` (Rust AV1) is optional for an AV1 rung later                                                      |
+| Media probing                  | `ffmpeg-next`                                                                                                                                                        | ⚠️                            |                                                                                                                     |
+| Audio (soundboard/voice msgs)  | `symphonia` (decode, when needed). No `opus` bindings: files are stored as uploaded and decoded by the browser (D-201)                                               | ✅                            |                                                                                                                     |
+| Images                         | `image`, `fast_image_resize`, `webp` (libwebp bindings, lossy)                                                                                                       | ✅/⚠️                         | Manga pages → WebP                                                                                                  |
+| Archives                       | `zip`, `unrar` bindings, `sevenz-rust`, `pdfium-render` (PDF raster)                                                                                                 | ✅/⚠️                         |                                                                                                                     |
+| EPUB                           | `epub` crate (metadata, spine). Rendered client-side                                                                                                                 | ✅                            |                                                                                                                     |
+| Bitcoin                        | In-house watch-only derivation on `secp256k1`, `bitcoin_hashes`, `bech32` (BIP-32/84/380) and an Esplora client; `bdk_wallet` and `bdk_esplora` are not used (D-207) | ✅                            | ADR-0006 and its addendum                                                                                           |
+| Time zones                     | `jiff` (bundled tz database, `tzdb-bundle-always`; MIT/Unlicense)                                                                                                    | ✅                            | P8-TV-4, Live TV channel zones                                                                                      |
+| Lightning (later)              | LDK (`lightning`, `ldk-node`)                                                                                                                                        | ✅                            |                                                                                                                     |
+| Email (verification, recovery) | `lettre` (SMTP)                                                                                                                                                      | ✅                            | Operator supplies SMTP                                                                                              |
+| Reverse proxy                  | **Caddy**                                                                                                                                                            | ❌ Go                         | Only for TLS/HTTP3/static. Optional. `sr-server` can serve TLS itself via `rustls`                                  |
 
 ## 3. Frontend stack
 
-| Concern | Choice |
-|---|---|
-| Language | TypeScript (strict) |
-| UI | React 19 |
-| Build | Vite |
-| Routing | TanStack Router |
-| Server state | TanStack Query (REST) + gateway-driven normalized store |
-| Client state | Zustand |
-| Styling | CSS Modules + CSS custom properties (design tokens). No Tailwind in the Lounge kit, to keep Discord-like precision |
-| Virtualized lists | TanStack Virtual (message list, member list, grids) |
-| Video player | hls.js (Safari uses native HLS) |
-| Reader | Custom canvas/IMG reader. `pdfjs-dist` (pdf.js) for PDFs, rendered in the browser with its own worker (D-217). `foliate-js` for EPUB |
-| PWA | `vite-plugin-pwa` (Workbox). Web Push via VAPID (Rust `web-push` crate server-side) |
-| Tests | Vitest + Testing Library. Playwright e2e |
-| Lint/format | ESLint + Prettier (or Biome) |
-| Package manager | pnpm workspaces |
+| Concern           | Choice                                                                                                                                                                                                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language          | TypeScript (strict)                                                                                                                                                                                                                                                                     |
+| UI                | React 19                                                                                                                                                                                                                                                                                |
+| Build             | Vite                                                                                                                                                                                                                                                                                    |
+| Routing           | TanStack Router                                                                                                                                                                                                                                                                         |
+| Server state      | TanStack Query (REST) + gateway-driven normalized store                                                                                                                                                                                                                                 |
+| Client state      | Zustand                                                                                                                                                                                                                                                                                 |
+| Styling           | CSS Modules + CSS custom properties (design tokens). No Tailwind in the Lounge kit, to keep Discord-like precision                                                                                                                                                                      |
+| Virtualized lists | TanStack Virtual (message list, member list, grids)                                                                                                                                                                                                                                     |
+| Video player      | hls.js (Safari uses native HLS)                                                                                                                                                                                                                                                         |
+| Reader            | Custom canvas/IMG reader. `pdfjs-dist` (pdf.js) for PDFs, rendered in the browser with its own worker (D-217). `foliate-js` for EPUB (npm `foliate-js@1.0.1`, MIT, pinned in `apps/web/package.json` and lazy-loaded so it stays out of first-load bundles; approved by the owner, P13) |
+| PWA               | `vite-plugin-pwa` (Workbox). Web Push via VAPID (Rust `web-push` crate server-side)                                                                                                                                                                                                     |
+| Tests             | Vitest + Testing Library. Playwright e2e                                                                                                                                                                                                                                                |
+| Lint/format       | ESLint + Prettier (or Biome)                                                                                                                                                                                                                                                            |
+| Package manager   | pnpm workspaces                                                                                                                                                                                                                                                                         |
 
 **Rust → WASM modules on the client**
 
-| Module | Why Rust |
-|---|---|
-| `sr-markdown` | The same parser on server and client means identical rendering, mention extraction, and limits |
-| `sr-e2ee` | MLS + frame encryption in an `RTCRtpScriptTransform` worker. Crypto must match the server-side test vectors |
-| `sr-theme` | Validates and compiles theme packages exactly as the server does before upload |
+| Module           | Why Rust                                                                                                             |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `sr-markdown`    | The same parser on server and client means identical rendering, mention extraction, and limits                       |
+| `sr-e2ee`        | MLS + frame encryption in an `RTCRtpScriptTransform` worker. Crypto must match the server-side test vectors          |
+| `sr-theme`       | Validates and compiles theme packages exactly as the server does before upload                                       |
 | `sr-image-tools` | Client-side resize/convert before upload (avatars, manga pages), EXIF stripping, perceptual hash for duplicate hints |
-| `sr-permissions` | The same permission computation as the server, for instant UI greying-out |
+| `sr-permissions` | The same permission computation as the server, for instant UI greying-out                                            |
 
 ## 4. Allowed non-Rust components
 
 These are the **only** non-Rust runtime components. Adding another needs an ADR.
 
-| Component | Language | Reason | ADR |
-|---|---|---|---|
-| PostgreSQL | C | No Rust relational DB is mature enough to be the system of record | 0001 |
-| FFmpeg libs (via bindings) | C | No Rust equivalent for full decode/scale/H.264 NVENC | 0005 |
-| libwebp, pdfium, unrar (via bindings) | C/C++ | Format support. pdfium: approved, not used: PDFs are rendered client-side (D-217) | 0005 |
-| coturn | C | No maintained Rust TURN server | 0004 |
-| Caddy (optional) | Go | Convenience. Can be replaced by rustls in `sr-server` | — |
-| Browser JS ecosystem | TS | Frontend (D-151) | — |
+| Component                             | Language | Reason                                                                            | ADR  |
+| ------------------------------------- | -------- | --------------------------------------------------------------------------------- | ---- |
+| PostgreSQL                            | C        | No Rust relational DB is mature enough to be the system of record                 | 0001 |
+| FFmpeg libs (via bindings)            | C        | No Rust equivalent for full decode/scale/H.264 NVENC                              | 0005 |
+| libwebp, pdfium, unrar (via bindings) | C/C++    | Format support. pdfium: approved, not used: PDFs are rendered client-side (D-217) | 0005 |
+| coturn                                | C        | No maintained Rust TURN server                                                    | 0004 |
+| Caddy (optional)                      | Go       | Convenience. Can be replaced by rustls in `sr-server`                             | —    |
+| Browser JS ecosystem                  | TS       | Frontend (D-151)                                                                  | —    |
 
 ## 5. Toolchain
 

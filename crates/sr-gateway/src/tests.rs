@@ -32,10 +32,24 @@ struct FakeDir {
     sync: Mutex<HashMap<(UserId, GuildId), Value>>,
     lists: Mutex<HashMap<(GuildId, ChannelId), member_list::MemberListSource>>,
     offline: Mutex<Vec<UserId>>,
+    restricted: Mutex<HashSet<ChannelId>>,
+    safety: Mutex<HashMap<UserId, (sr_chat::social::safety::SensitiveMedia, HashSet<UserId>)>>,
 }
 
 #[async_trait]
 impl GuildDirectory for FakeDir {
+    async fn age_confirmed(&self, _user: UserId) -> bool {
+        true
+    }
+    async fn channel_age_restricted(&self, channel: ChannelId) -> bool {
+        self.restricted.lock().unwrap().contains(&channel)
+    }
+    async fn sensitive_view(
+        &self,
+        user: UserId,
+    ) -> Option<(sr_chat::social::safety::SensitiveMedia, HashSet<UserId>)> {
+        self.safety.lock().unwrap().get(&user).cloned()
+    }
     async fn guilds_for_user(&self, user: UserId) -> Vec<GuildId> {
         self.guilds
             .lock()
@@ -411,6 +425,75 @@ async fn fan_out_is_permission_filtered_per_recipient() {
     emit(&e.bus, msg(G1, OPEN, 102)).await;
     assert_eq!(b.expect_event("MESSAGE_CREATE").await["d"]["id"], "102");
     a.silent().await;
+}
+
+#[tokio::test]
+async fn sensitive_media_is_filtered_per_session() {
+    use sr_chat::social::safety::{MediaFilter, SensitiveMedia};
+    let e = env();
+    e.dir.guilds.lock().unwrap().insert(u(4), vec![G1]);
+    e.dir.restricted.lock().unwrap().insert(OPEN);
+    let setting = |servers| SensitiveMedia {
+        friends: MediaFilter::Show,
+        others: MediaFilter::Show,
+        servers,
+    };
+    e.dir
+        .safety
+        .lock()
+        .unwrap()
+        .insert(u(2), (setting(MediaFilter::Blur), HashSet::new()));
+    e.dir
+        .safety
+        .lock()
+        .unwrap()
+        .insert(u(4), (setting(MediaFilter::Block), HashSet::new()));
+    // The author has the strictest setting and must still see their own file.
+    e.dir
+        .safety
+        .lock()
+        .unwrap()
+        .insert(u(1), (setting(MediaFilter::Block), HashSet::new()));
+    let mut author = connect(&e);
+    author
+        .identify("bot:1:32768", GUILDS_MSGS | intents::MESSAGE_CONTENT, 1)
+        .await;
+    let mut blurred = connect(&e);
+    blurred
+        .identify("bot:2:32768", GUILDS_MSGS | intents::MESSAGE_CONTENT, 1)
+        .await;
+    let mut blocked = connect(&e);
+    blocked
+        .identify("bot:4:32768", GUILDS_MSGS | intents::MESSAGE_CONTENT, 1)
+        .await;
+
+    let with_file = |channel: ChannelId, id: u64| DomainEvent::MessageSent {
+        guild: Some(G1),
+        channel,
+        message_id: id,
+        author: u(1),
+        data: json!({
+            "id": id.to_string(), "channel_id": channel.to_string(),
+            "guild_id": G1.to_string(), "author": { "id": "1" },
+            "content": "look", "mentions": [],
+            "attachments": [{"id": "9", "filename": "cat.png", "content_type": "image/png", "url": "/cdn/x"}],
+        }),
+    };
+    emit(&e.bus, with_file(OPEN, 200)).await;
+    let a = author.expect_event("MESSAGE_CREATE").await;
+    assert_eq!(a["d"]["attachments"][0]["filename"], "cat.png");
+    assert_eq!(a["d"]["attachments"][0]["url"], "/cdn/x");
+    let b = blurred.expect_event("MESSAGE_CREATE").await;
+    assert_eq!(b["d"]["attachments"][0]["filename"], "SPOILER_cat.png");
+    assert_eq!(b["d"]["attachments"][0]["url"], "/cdn/x");
+    let k = blocked.expect_event("MESSAGE_CREATE").await;
+    assert_eq!(k["d"]["attachments"][0]["url"], "");
+    assert_eq!(k["d"]["attachments"][0]["sr_filtered"], true);
+
+    // An ordinary channel is not a signal: the same message arrives untouched.
+    emit(&e.bus, with_file(ChannelId::new(12), 202)).await;
+    let plain = blocked.expect_event("MESSAGE_CREATE").await;
+    assert_eq!(plain["d"]["attachments"][0]["url"], "/cdn/x");
 }
 
 #[tokio::test]

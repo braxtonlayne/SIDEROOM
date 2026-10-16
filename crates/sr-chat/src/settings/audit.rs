@@ -206,6 +206,8 @@ pub struct AuditQuery {
     /// Entries by this actor.
     pub actor_id: Option<UserId>,
     pub action: Option<AuditAction>,
+    /// Entries about this user or object (the entry's target).
+    pub target_id: Option<u64>,
     /// Only entries with an id below this (pagination cursor).
     pub before: Option<u64>,
     pub limit: usize,
@@ -217,6 +219,7 @@ impl AuditQuery {
             guild_id,
             actor_id: None,
             action: None,
+            target_id: None,
             before: None,
             limit: DEFAULT_PAGE,
         }
@@ -230,6 +233,7 @@ impl AuditQuery {
         e.guild_id == self.guild_id
             && self.actor_id.is_none_or(|a| a == e.actor_id)
             && self.action.is_none_or(|a| a == e.action)
+            && self.target_id.is_none_or(|t| e.target_id == Some(t))
             && self.before.is_none_or(|b| e.id < b)
     }
 }

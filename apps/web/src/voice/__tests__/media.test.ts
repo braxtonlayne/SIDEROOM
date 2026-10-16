@@ -102,6 +102,49 @@ describe('MicPipeline', () => {
     expect(track.enabled).toBe(true);
   });
 
+  it('mixes a soundboard sound into the outgoing audio even while the voice gate is shut (VOX-SB-003)', async () => {
+    const w = fakeAudio();
+    const p = new MicPipeline(w.deps);
+    p.setGate(false);
+    const track = (await p.start(mic)) as unknown as { enabled: boolean };
+    const ctx = w.contexts[0]!;
+    // gains: input volume, then the gate that closes the microphone path.
+    const gate = ctx.gains[1]!;
+    expect(gate.gain.value).toBe(0);
+    expect(track.enabled).toBe(false);
+    expect(await p.playSound(new ArrayBuffer(8), 0.5)).toBe(true);
+    const src = ctx.bufferSources[0]!;
+    expect(src.started).toBe(true);
+    // The track carries the sound, the microphone path stays shut, and the sound joins the destination.
+    expect(track.enabled).toBe(true);
+    expect(gate.gain.value).toBe(0);
+    expect(ctx.gains[2]!.gain.value).toBe(0.5);
+    expect(ctx.gains[2]!.connected).toContain(ctx.dests[0]);
+    src.finish();
+    expect(track.enabled).toBe(false);
+    // Opening the gate opens the voice; a sound ending then does not close it.
+    p.setGate(true);
+    expect(gate.gain.value).toBe(1);
+    await p.playSound(new ArrayBuffer(8), 1);
+    ctx.bufferSources[1]!.finish();
+    expect(track.enabled).toBe(true);
+  });
+
+  it('does not play a sound that does not decode, without a microphone or after the call ended', async () => {
+    const w = fakeAudio();
+    const p = new MicPipeline(w.deps);
+    expect(await p.playSound(new ArrayBuffer(8), 1)).toBe(false);
+    await p.start(mic);
+    expect(await p.playSound(new ArrayBuffer(0), 1)).toBe(false);
+    const late = p.playSound(new ArrayBuffer(8), 1);
+    p.stop();
+    expect(await late).toBe(false);
+    const noAudio = fakeAudio({ webAudio: false });
+    const q = new MicPipeline(noAudio.deps);
+    await q.start(mic);
+    expect(await q.playSound(new ArrayBuffer(8), 1)).toBe(false);
+  });
+
   it('samples the level on an interval and stops cleanly', async () => {
     const w = fakeAudio();
     const p = new MicPipeline(w.deps);

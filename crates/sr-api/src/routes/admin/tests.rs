@@ -1,7 +1,7 @@
 //! Endpoint tests over the in-memory admin repository: 401/403 matrices for every
 //! route plus the main flows, driven through the real router with tower `oneshot`.
 
-use super::{AdminDeps, router};
+use super::{AdminDeps, IntegrationStatus, router};
 use crate::routes::auth::{
     AccountRecord, AccountState as AuthState, AuthConfig, AuthService, AuthStore,
     mail::MemoryMailer, memory::MemoryAuthStore,
@@ -95,6 +95,7 @@ struct Notes {
     offers: Mutex<Vec<StaffOffer>>,
     notices: Mutex<Vec<String>>,
     broadcasts: Mutex<Vec<Announcement>>,
+    dms: Mutex<Vec<(i64, String)>>,
 }
 
 #[async_trait]
@@ -109,6 +110,10 @@ impl StaffNotifier for Notes {
     fn broadcast_announcement(&self, a: &Announcement) {
         self.broadcasts.lock().unwrap().push(a.clone());
     }
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.dms.lock().unwrap().push((to, text.to_owned()));
+        true
+    }
 }
 
 const T0: i64 = 1_800_000_000_000;
@@ -121,6 +126,8 @@ struct Env {
     notes: Arc<Notes>,
     clock: Arc<ManualClock>,
     auth: Arc<MemoryAuthStore>,
+    mailer: Arc<MemoryMailer>,
+    rate_rx: tokio::sync::watch::Receiver<crate::rate_limit::RateConfig>,
 }
 
 async fn env() -> Env {
@@ -207,10 +214,18 @@ async fn env_with(reauth: bool) -> Env {
         Arc::new(InMemorySettingsStore::new()),
         None,
     );
+    let (rate_tx, rate_rx) = tokio::sync::watch::channel(crate::rate_limit::RateConfig::default());
     let deps = AdminDeps::new(svc)
+        .with_integrations(vec![IntegrationStatus {
+            id: "smtp".into(),
+            configured: true,
+            detail: Some("mail.example.test:587".into()),
+        }])
         .with_features(features)
         .with_gateway_sessions(Arc::new(|| 7))
-        .with_reauth(reauth);
+        .with_reauth(reauth)
+        .with_rate_config(rate_tx)
+        .with_storage(Arc::new(sr_storage::ObjectStoreStorage::in_memory()));
     // The account service behind the second-factor window: every test user exists there, and
     // the moderator has a confirmed authenticator.
     let auth = Arc::new(MemoryAuthStore::new(sessions.clone()));
@@ -231,6 +246,7 @@ async fn env_with(reauth: bool) -> Env {
             password_hash: hasher.hash("pw").unwrap(),
             state: AuthState::Active,
             age_confirmed: None,
+            age_confirmed_at: None,
             locale: "en-US".into(),
             flags: 0,
         });
@@ -242,10 +258,11 @@ async fn env_with(reauth: bool) -> Env {
         auth.totp_confirm(uid, 1).await.unwrap();
     }
     let next = Arc::new(std::sync::atomic::AtomicI64::new(50_000));
+    let mailer = Arc::new(MemoryMailer::new());
     let auth_svc = Arc::new(
         AuthService::new(
             auth.clone(),
-            Arc::new(MemoryMailer::new()),
+            mailer.clone(),
             Arc::new(move || next.fetch_add(1, std::sync::atomic::Ordering::SeqCst)),
         )
         .with_hasher(hasher)
@@ -270,6 +287,8 @@ async fn env_with(reauth: bool) -> Env {
         notes,
         clock,
         auth,
+        mailer,
+        rate_rx,
     }
 }
 
@@ -518,6 +537,73 @@ fn endpoints() -> Vec<(Method, String, Option<&'static str>, Option<Value>)> {
         ),
         (Method::GET, "/admin/stats".into(), None, None),
         (Method::GET, "/admin/system".into(), Some("OPERATOR"), None),
+        (
+            Method::POST,
+            "/admin/system/email-test".into(),
+            Some("OPERATOR"),
+            None,
+        ),
+        // ---- phase 13
+        (
+            Method::GET,
+            format!("/admin/accounts/{ALICE}/sessions"),
+            Some("MANAGE_ACCOUNTS"),
+            None,
+        ),
+        (
+            Method::GET,
+            format!("/admin/accounts/{ALICE}/guilds"),
+            Some("MANAGE_ACCOUNTS"),
+            None,
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/freeze-invites"),
+            Some("MANAGE_INVITES"),
+            reason(),
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/unfreeze-invites"),
+            Some("MANAGE_INVITES"),
+            reason(),
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/unlink"),
+            Some("MANAGE_ACCOUNTS"),
+            reason(),
+        ),
+        (
+            Method::PUT,
+            format!("/admin/persons/{}/notes", ALICE + 500_000),
+            Some("MANAGE_ACCOUNTS"),
+            Some(json!({ "notes": "n" })),
+        ),
+        (
+            Method::POST,
+            format!("/admin/persons/{}/link", BOB + 500_000),
+            Some("MANAGE_ACCOUNTS"),
+            Some(json!({ "account_id": ALICE.to_string(), "reason": "r" })),
+        ),
+        (
+            Method::GET,
+            format!("/admin/persons/{}/suspicion-log", ALICE + 500_000),
+            Some("MANAGE_INVITES"),
+            None,
+        ),
+        (
+            Method::GET,
+            "/admin/guilds".into(),
+            Some("MANAGE_GUILDS_GLOBAL"),
+            None,
+        ),
+        (
+            Method::GET,
+            "/admin/guilds/900".into(),
+            Some("MANAGE_GUILDS_GLOBAL"),
+            None,
+        ),
         (
             Method::GET,
             "/admin/jobs".into(),
@@ -1697,6 +1783,7 @@ fn private_dm(e: &Env) {
                 deleted_at_ms: deleted,
                 attachment_count: 0,
                 edits: vec![],
+                webhook: None,
             },
         );
     }
@@ -2068,4 +2155,581 @@ async fn accepting_an_appointment_needs_a_second_factor() {
         )
         .await;
     assert_eq!((s, b["state"].as_str()), (StatusCode::OK, Some("declined")));
+}
+
+#[tokio::test]
+async fn entrance_copy_is_public_to_read_and_staff_to_write() {
+    let e = env().await;
+    let (s, v) = e.call(None, Method::GET, "/sr/entrance/copy", None).await;
+    assert_eq!((s, v), (StatusCode::OK, json!({})));
+
+    let put = |who: Option<i64>, key: &str, body: Value| {
+        let path = format!("/admin/entrance/copy/{key}");
+        let e = &e;
+        async move { e.call(who, Method::PUT, &path, Some(body)).await }
+    };
+    // Needs staff with MANAGE_ENTRANCE.
+    assert_eq!(
+        put(None, "house-notes", json!({"markdown": "x"})).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        put(Some(MODER), "house-notes", json!({"markdown": "x"}))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    // D-239: MANAGE_FEATURES alone no longer opens the Entrance copy (it needs MANAGE_ENTRANCE).
+    e.repo
+        .add_role(5, "Features", 2, P::STAFF_BASIC | P::MANAGE_FEATURES);
+    let op = Caller::operator(SYSTEM_USER_ID);
+    let svc = AdminService::new(e.repo.clone()).with_extras(e.repo.clone());
+    svc.set_staff_roles(&op, MODER, &[5], Some("test"))
+        .await
+        .unwrap();
+    assert_eq!(
+        put(Some(MODER), "house-notes", json!({"markdown": "x"}))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    e.repo
+        .add_role(6, "Entrance", 2, P::STAFF_BASIC | P::MANAGE_ENTRANCE);
+    svc.set_staff_roles(&op, MODER, &[6], Some("test"))
+        .await
+        .unwrap();
+    assert_eq!(
+        put(Some(MODER), "house-notes", json!({"markdown": "x"}))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        e.call(
+            Some(MODER),
+            Method::DELETE,
+            "/admin/entrance/copy/house-notes",
+            None
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    svc.set_staff_roles(&op, MODER, &[2], Some("test"))
+        .await
+        .unwrap();
+    // Unknown keys and oversize text are refused.
+    assert_eq!(
+        put(Some(OWNER), "nope", json!({"markdown": "x"})).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        put(
+            Some(OWNER),
+            "house-notes",
+            json!({"markdown": "x".repeat(16_385)})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+
+    assert_eq!(
+        put(
+            Some(OWNER),
+            "no-invitation",
+            json!({"markdown": "  # Ask a friend\n\nInvites are personal.  "})
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, v) = e.call(None, Method::GET, "/sr/entrance/copy", None).await;
+    assert_eq!(
+        v,
+        json!({"no-invitation": "# Ask a friend\n\nInvites are personal."})
+    );
+    // DELETE and a blank body both reset to the default (the key disappears); GET is cacheable.
+    assert_eq!(
+        e.call(
+            Some(OWNER),
+            Method::DELETE,
+            "/admin/entrance/copy/no-invitation",
+            None
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        e.call(None, Method::GET, "/sr/entrance/copy", None).await.1,
+        json!({})
+    );
+    put(Some(OWNER), "no-invitation", json!({"markdown": "again"})).await;
+    assert_eq!(
+        put(Some(OWNER), "no-invitation", json!({"markdown": "  "}))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, v) = e.call(None, Method::GET, "/sr/entrance/copy", None).await;
+    assert_eq!(v, json!({}));
+}
+
+#[tokio::test]
+async fn people_views_notes_links_freeze_and_server_list() {
+    let e = env().await;
+    let call = |who: i64, m: Method, p: &str, b: Option<Value>| {
+        let (e, p) = (&e, p.to_owned());
+        async move { e.call(Some(who), m, &p, b).await }
+    };
+
+    // Sessions and servers: MANAGE_ACCOUNTS; the drawer read is logged.
+    let (s, v) = call(
+        MODER,
+        Method::GET,
+        &format!("/admin/accounts/{ALICE}/sessions"),
+        None,
+    )
+    .await;
+    assert_eq!((s, v), (StatusCode::OK, json!([])));
+    assert_eq!(
+        call(
+            MODER,
+            Method::GET,
+            &format!("/admin/accounts/{ALICE}/guilds"),
+            None
+        )
+        .await
+        .1,
+        json!([])
+    );
+    assert_eq!(
+        call(
+            BASIC,
+            Method::GET,
+            &format!("/admin/accounts/{ALICE}/sessions"),
+            None
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Search by login IP: validated, and the lookup is logged.
+    let (s, _) = call(MODER, Method::GET, "/admin/accounts?ip=not-an-ip", None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, v) = call(
+        MODER,
+        Method::GET,
+        "/admin/accounts?ip=203.0.113.9&discord_id=1",
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+
+    // Person notes: replace, cap, permission.
+    let person = |uid: i64| uid + 500_000;
+    let notes = format!("/admin/persons/{}/notes", person(ALICE));
+    let (s, _) = call(
+        MODER,
+        Method::PUT,
+        &notes,
+        Some(json!({"notes": "knows Bob"})),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (_, p) = call(
+        MODER,
+        Method::GET,
+        &format!("/admin/persons/{}", person(ALICE)),
+        None,
+    )
+    .await;
+    assert_eq!(p["notes"], "knows Bob");
+    let long = "n".repeat(4_001);
+    assert_eq!(
+        call(MODER, Method::PUT, &notes, Some(json!({"notes": long})))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        call(BASIC, Method::PUT, &notes, Some(json!({"notes": "x"})))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Link needs a reason; the emptied Person is merged (notes carry over).
+    let link = format!("/admin/persons/{}/link", person(BOB));
+    let body = |reason: Option<&str>| json!({"account_id": ALICE.to_string(), "reason": reason});
+    assert_eq!(
+        call(MODER, Method::POST, &link, Some(body(None))).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        call(
+            MODER,
+            Method::POST,
+            &link,
+            Some(body(Some("same household")))
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, p) = call(
+        MODER,
+        Method::GET,
+        &format!("/admin/persons/{}", person(BOB)),
+        None,
+    )
+    .await;
+    assert_eq!(p["accounts"].as_array().map(Vec::len), Some(2));
+    assert_eq!(p["notes"], "knows Bob");
+    assert_eq!(
+        call(
+            MODER,
+            Method::GET,
+            &format!("/admin/persons/{}", person(ALICE)),
+            None
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    // Linking to the Person it is already in is a conflict.
+    assert_eq!(
+        call(MODER, Method::POST, &link, Some(body(Some("again"))))
+            .await
+            .0,
+        StatusCode::CONFLICT
+    );
+
+    // Unlink gives the account a Person of its own; the last account of a Person cannot split.
+    let unlink = format!("/admin/accounts/{ALICE}/unlink");
+    let (s, v) = call(
+        MODER,
+        Method::POST,
+        &unlink,
+        Some(json!({"reason": "mistake"})),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let new_person = v["person_id"].as_str().unwrap().to_owned();
+    assert_ne!(new_person, person(BOB).to_string());
+    assert_eq!(
+        call(
+            MODER,
+            Method::POST,
+            &unlink,
+            Some(json!({"reason": "again"}))
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+
+    // Manual invite freeze: MANAGE_INVITES, reported on the drawer.
+    let freeze = format!("/admin/accounts/{ALICE}/freeze-invites");
+    assert_eq!(
+        call(
+            MODER,
+            Method::POST,
+            &freeze,
+            Some(json!({"reason": "spam"}))
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            OWNER,
+            Method::POST,
+            &freeze,
+            Some(json!({"reason": "spam"}))
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, d) = call(
+        OWNER,
+        Method::GET,
+        &format!("/admin/accounts/{ALICE}"),
+        None,
+    )
+    .await;
+    assert_eq!(d["invites_frozen"], true);
+    assert_eq!(
+        call(
+            OWNER,
+            Method::POST,
+            &format!("/admin/accounts/{ALICE}/unfreeze-invites"),
+            Some(json!({"reason": "resolved"}))
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, d) = call(
+        OWNER,
+        Method::GET,
+        &format!("/admin/accounts/{ALICE}"),
+        None,
+    )
+    .await;
+    assert_eq!(d["invites_frozen"], false);
+    assert_eq!(
+        call(
+            OWNER,
+            Method::GET,
+            &format!("/admin/persons/{new_person}/suspicion-log"),
+            None
+        )
+        .await
+        .1,
+        json!([])
+    );
+
+    // Server list: MANAGE_GUILDS_GLOBAL, search and cursor.
+    e.repo.add_guild(900, "Chess Club", OWNER, 5);
+    e.repo.add_guild(901, "Chessboxing", OWNER, 2);
+    e.repo.add_guild(902, "Gardening", OWNER, 9);
+    assert_eq!(
+        call(MODER, Method::GET, "/admin/guilds", None).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (s, page) = call(OWNER, Method::GET, "/admin/guilds?q=chess", None).await;
+    assert_eq!(s, StatusCode::OK, "{page}");
+    assert_eq!(page["items"].as_array().map(Vec::len), Some(2));
+    assert_eq!(page["items"][0]["owner_username"], "owner");
+    let (_, page) = call(OWNER, Method::GET, "/admin/guilds?limit=2", None).await;
+    assert_eq!(page["next_after"], "901");
+    let (_, page) = call(OWNER, Method::GET, "/admin/guilds?limit=2&after=901", None).await;
+    assert_eq!(page["items"][0]["name"], "Gardening");
+    let (s, g) = call(OWNER, Method::GET, "/admin/guilds/900", None).await;
+    assert_eq!((s, g["member_count"].as_i64()), (StatusCode::OK, Some(5)));
+    assert_eq!(
+        call(OWNER, Method::GET, "/admin/guilds/12345", None)
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn setup_checklist_lists_integrations_and_the_mail_test_reaches_the_caller() {
+    let e = env().await;
+    let (s, v) = e
+        .call(Some(OWNER), Method::GET, "/admin/system", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["integrations"][0]["id"], "smtp");
+    assert_eq!(v["integrations"][0]["configured"], true);
+
+    // OPERATOR only: a moderator is refused and nothing is sent.
+    let (s, _) = e
+        .call(Some(MODER), Method::POST, "/admin/system/email-test", None)
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert!(e.mailer.sent().is_empty());
+
+    let (s, v) = e
+        .call(Some(OWNER), Method::POST, "/admin/system/email-test", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["sent_to"], "u***@x.test");
+    let sent = e.mailer.sent();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, format!("u{OWNER}@x.test"));
+    assert!(
+        !v.to_string().contains(&format!("u{OWNER}@")),
+        "the address is masked"
+    );
+}
+
+fn png_uri(w: u32, h: u32) -> String {
+    let img = image::RgbaImage::from_pixel(w, h, image::Rgba([10, 90, 160, 255]));
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(img)
+        .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(&out)
+    )
+}
+
+async fn raw_get(
+    e: &Env,
+    path: &str,
+    if_none_match: Option<&str>,
+) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let mut req = Request::builder()
+        .method(Method::GET)
+        .uri(format!("/api/v1{path}"));
+    if let Some(t) = if_none_match {
+        req = req.header("if-none-match", t);
+    }
+    let resp = e
+        .app
+        .clone()
+        .oneshot(req.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let (status, headers) = (resp.status(), resp.headers().clone());
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+#[tokio::test]
+async fn entrance_hero_image_is_sniffed_shrunk_served_with_an_etag_and_audited() {
+    let e = env().await;
+    let hero = "/admin/entrance/hero";
+    assert_eq!(
+        raw_get(&e, "/sr/entrance/hero", None).await.0,
+        StatusCode::NOT_FOUND
+    );
+
+    // Needs MANAGE_ENTRANCE: the moderator (accounts and bans) does not hold it.
+    let ok = png_uri(2000, 1200);
+    let (s, _) = e
+        .call(Some(MODER), Method::PUT, hero, Some(json!({ "image": ok })))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+
+    // A declared PNG that is not an image, a GIF, and an oversize upload are refused.
+    let fake = format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(b"<svg xmlns='http://www.w3.org/2000/svg'></svg>")
+    );
+    let gif = format!(
+        "data:image/gif;base64,{}",
+        data_encoding::BASE64.encode(b"GIF89a\x01\x00\x01\x00\x00\x00\x00;")
+    );
+    let big = format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(&vec![0u8; 8 * 1024 * 1024 + 1])
+    );
+    for bad in [fake, gif, big] {
+        let (s, b) = e
+            .call(
+                Some(OWNER),
+                Method::PUT,
+                hero,
+                Some(json!({ "image": bad })),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    }
+    assert_eq!(
+        raw_get(&e, "/sr/entrance/hero", None).await.0,
+        StatusCode::NOT_FOUND
+    );
+
+    // A valid image is shrunk to 1600 px on its longest side and served.
+    let (s, b) = e
+        .call(Some(OWNER), Method::PUT, hero, Some(json!({ "image": ok })))
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{b}");
+    let (s, h, body) = raw_get(&e, "/sr/entrance/hero", None).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(h["content-type"], "image/png");
+    assert_eq!(h["cache-control"], "public, max-age=3600");
+    let img = image::load_from_memory(&body).unwrap();
+    assert_eq!((img.width(), img.height()), (1600, 960));
+    let etag = h["etag"].to_str().unwrap().to_owned();
+    let (s, _, body) = raw_get(&e, "/sr/entrance/hero", Some(&etag)).await;
+    assert_eq!((s, body.len()), (StatusCode::NOT_MODIFIED, 0));
+
+    // Remove: 404 again. Both changes are in the access log.
+    assert_eq!(
+        e.call(Some(OWNER), Method::DELETE, hero, None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        raw_get(&e, "/sr/entrance/hero", None).await.0,
+        StatusCode::NOT_FOUND
+    );
+    let n = e
+        .repo
+        .log_rows()
+        .iter()
+        .filter(|r| r.action == "entrance.hero" && r.kind == sr_admin::AccessKind::AdminAction)
+        .count();
+    assert_eq!(n, 2);
+
+    // The alt text key: plain text, 200 characters.
+    let alt = "/admin/entrance/copy/hero-alt";
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::PUT,
+            alt,
+            Some(json!({ "markdown": "x".repeat(201) })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::PUT,
+            alt,
+            Some(json!({ "markdown": "A reading room at dusk" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn live_rate_limits_are_bounded_and_reach_the_limiter() {
+    let e = env().await;
+    let patch = |v: Value| {
+        e.call(
+            Some(OWNER),
+            Method::PATCH,
+            "/admin/settings",
+            Some(json!({ "values": v })),
+        )
+    };
+    assert_eq!(
+        *e.rate_rx.borrow(),
+        crate::rate_limit::RateConfig::default()
+    );
+
+    // Outside the declared floor or ceiling the whole patch is refused and nothing changes.
+    for bad in [
+        json!({ "limits.rate.messages": 11 }),
+        json!({ "limits.rate.messages": 601 }),
+        json!({ "limits.rate.ip": 59 }),
+        json!({ "limits.rate.uploads": 6_001 }),
+        json!({ "limits.rate.session": 120, "limits.rate.bot": 60_001 }),
+    ] {
+        let (s, b) = patch(bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    }
+    assert_eq!(
+        *e.rate_rx.borrow(),
+        crate::rate_limit::RateConfig::default()
+    );
+
+    // A valid change is visible to the limiter at once, and the other figures stay.
+    let (s, b) = patch(json!({ "limits.rate.messages": 120, "limits.rate.ip": 600 })).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let now = *e.rate_rx.borrow();
+    assert_eq!((now.messages, now.ip, now.session), (120, 600, 3_000));
+    // Staff without MANAGE_FEATURES change nothing.
+    let (s, _) = e
+        .call(
+            Some(BASIC),
+            Method::PATCH,
+            "/admin/settings",
+            Some(json!({ "values": { "limits.rate.messages": 12 } })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_eq!(e.rate_rx.borrow().messages, 120);
 }

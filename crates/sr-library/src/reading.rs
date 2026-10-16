@@ -10,7 +10,7 @@ use crate::error::{LibraryError, LibraryResult};
 use crate::model::{Chapter, ChapterRecord, Series, SeriesRecord, id};
 
 pub const MAX_NOTE: usize = 1000;
-pub const MAX_CFI: usize = 2000;
+pub const MAX_CFI: usize = 1024;
 /// Bookmarks one account may keep in one chapter.
 pub const MAX_BOOKMARKS_PER_CHAPTER: i64 = 200;
 /// Gateway event name for Library state changes.
@@ -239,6 +239,12 @@ pub trait ReadingStateRepository: Send + Sync {
 #[async_trait]
 pub trait LibraryEvents: Send + Sync {
     async fn emit(&self, users: Vec<i64>, payload: Value);
+
+    /// SR_ACTIVITY_UPDATE (reading presence, LIB-RDR-017) to the given users. Sinks that do not
+    /// carry presence keep the default, which drops it.
+    async fn emit_activity(&self, users: Vec<i64>, payload: Value) {
+        let _ = (users, payload);
+    }
 }
 
 /// Validate a progress save against the chapter it belongs to.

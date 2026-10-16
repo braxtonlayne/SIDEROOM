@@ -1,6 +1,6 @@
-// Person record (ADM-PPL-004): the chain of accounts one human holds, ban state, notes, suspicion and the
-// access-log history for the person. Linking accounts and editing notes need routes that do not exist yet.
-import { Badge, Button, Drawer, Notice } from '@sideroom/ui';
+// Person record (ADM-PPL-004): the chain of accounts one human holds, ban state, notes (editable), linking an
+// account, suspicion with its log, and the access-log history for the person.
+import { Badge, Button, Drawer, Notice, TextArea, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
 import { useT } from '../../i18n';
@@ -15,7 +15,13 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
     async () =>
       viewer.can('VIEW_ACCESS_LOG') ? api.listAccessLog({ target_id: personId, limit: 20 }) : null,
   );
-  const [pending, setPending] = useState<'clear' | 'unban' | null>(null);
+  const suspicion = useResource(
+    `person-susp:${personId}:${viewer.can('MANAGE_INVITES')}`,
+    async () => (viewer.can('MANAGE_INVITES') ? api.listSuspicionLog(personId) : null),
+  );
+  const [pending, setPending] = useState<'clear' | 'unban' | 'notes' | 'link' | null>(null);
+  const [notes, setNotes] = useState('');
+  const [linkId, setLinkId] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
   return (
@@ -54,6 +60,28 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
                 <dd>{p.notes || t('admin.person.noNotes')}</dd>
               </dl>
               <div className="adm-actions">
+                {viewer.can('MANAGE_ACCOUNTS') && (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setNotes(p.notes);
+                        setPending('notes');
+                      }}
+                    >
+                      {t('admin.person.editNotes')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setLinkId('');
+                        setPending('link');
+                      }}
+                    >
+                      {t('admin.person.linkAccount')}
+                    </Button>
+                  </>
+                )}
                 {viewer.can('MANAGE_INVITES') && p.suspicion_level > 0 && (
                   <Button variant="secondary" onClick={() => setPending('clear')}>
                     {t('admin.person.clearSuspicion')}
@@ -82,8 +110,33 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
                     </li>
                   ))}
                 </ol>
-                <p className="ss-sub">{t('admin.person.linkGap')}</p>
               </section>
+              {suspicion.data && (
+                <section className="ss-card" aria-labelledby="adm-susp-h">
+                  <h2 id="adm-susp-h">{t('admin.person.suspicionLogTitle')}</h2>
+                  {suspicion.data.length === 0 ? (
+                    <p className="ss-sub">{t('admin.person.noSuspicionLog')}</p>
+                  ) : (
+                    <ul className="ss-list" aria-label={t('admin.person.suspicionLogTitle')}>
+                      {suspicion.data.map((e) => (
+                        <li key={e.id} className="ss-row">
+                          <div className="ss-grow">
+                            <div className="ss-name">
+                              {t('admin.person.suspicionStep', {
+                                delta: e.delta > 0 ? `+${e.delta}` : String(e.delta),
+                                level: e.level_after,
+                              })}
+                            </div>
+                            <div className="ss-meta">
+                              {fmtMs(e.created_at_ms)} · {e.reason}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
               {history.data && (
                 <section className="ss-card" aria-labelledby="adm-phist-h">
                   <h2 id="adm-phist-h">{t('admin.person.historyTitle')}</h2>
@@ -106,6 +159,50 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
                   )}
                 </section>
               )}
+              <ReasonDialog
+                open={pending === 'notes'}
+                title={t('admin.person.editNotes')}
+                description={t('admin.person.notesDescription')}
+                confirmLabel={t('admin.person.saveNotes')}
+                reasonOptional
+                valid={notes.length <= 4000}
+                onCancel={() => setPending(null)}
+                onConfirm={async (reason) => {
+                  await api.setPersonNotes(personId, notes, reason);
+                  setPending(null);
+                  setNotice(t('admin.person.notesSaved'));
+                  await res.reload();
+                }}
+              >
+                <TextArea
+                  label={t('admin.person.dtNotes')}
+                  value={notes}
+                  rows={6}
+                  maxLength={4000}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </ReasonDialog>
+              <ReasonDialog
+                open={pending === 'link'}
+                title={t('admin.person.linkAccount')}
+                description={t('admin.person.linkDescription')}
+                confirmLabel={t('admin.person.linkConfirm')}
+                valid={/^\d+$/.test(linkId.trim())}
+                onCancel={() => setPending(null)}
+                onConfirm={async (reason) => {
+                  await api.linkAccount(personId, linkId.trim(), reason);
+                  setPending(null);
+                  setNotice(t('admin.person.linked'));
+                  await Promise.all([res.reload(), suspicion.reload()]);
+                }}
+              >
+                <TextInput
+                  label={t('admin.person.linkAccountId')}
+                  value={linkId}
+                  inputMode="numeric"
+                  onChange={(e) => setLinkId(e.target.value)}
+                />
+              </ReasonDialog>
               <ReasonDialog
                 open={pending === 'clear'}
                 title={t('admin.person.clearSuspicion')}

@@ -2,14 +2,20 @@ import { Link } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { EntranceShell } from '../../components/EntranceShell';
 import { useT } from '../../i18n/react';
+import { EntranceMarkdown, useEntranceCopy } from './entranceCopy';
 
 export function NoInvitation() {
   const t = useT();
+  const custom = useEntranceCopy()['no-invitation'];
   return (
     <EntranceShell nav="member-access" footerRight="House notes">
       <main className="ent-prose">
         <h1>{t('entrance.static.noInvitation.title')}</h1>
-        <p>{t('entrance.static.noInvitation.body')}</p>
+        {custom ? (
+          <EntranceMarkdown source={custom} />
+        ) : (
+          <p>{t('entrance.static.noInvitation.body')}</p>
+        )}
       </main>
     </EntranceShell>
   );
@@ -30,46 +36,56 @@ function useScrollToHash() {
  */
 export function HouseNotes() {
   const t = useT();
+  const custom = useEntranceCopy()['house-notes'];
   useScrollToHash();
   return (
     <EntranceShell nav="member-access" footerRight="House notes">
       <main className="ent-prose ent-notes">
         <h1>{t('entrance.houseNotes.title')}</h1>
-        <p>{t('entrance.houseNotes.intro')}</p>
-
-        <section id="rules" aria-labelledby="notes-rules">
-          <h2 id="notes-rules">{t('entrance.houseNotes.rules.title')}</h2>
-          <ol>
-            <li>{t('entrance.houseNotes.rules.1')}</li>
-            <li>{t('entrance.houseNotes.rules.2')}</li>
-            <li>{t('entrance.houseNotes.rules.3')}</li>
-            <li>{t('entrance.houseNotes.rules.4')}</li>
-            <li>{t('entrance.houseNotes.rules.5')}</li>
-          </ol>
-        </section>
-
-        <section id="privacy" aria-labelledby="notes-privacy">
-          <h2 id="notes-privacy">{t('entrance.houseNotes.privacy.title')}</h2>
-          <p>{t('entrance.houseNotes.privacy.body1')}</p>
-          <p>{t('entrance.houseNotes.privacy.body2')}</p>
-          <p>{t('entrance.houseNotes.privacy.body3')}</p>
-        </section>
-
-        <section id="terms" aria-labelledby="notes-terms">
-          <h2 id="notes-terms">{t('entrance.houseNotes.terms.title')}</h2>
-          <p>{t('entrance.houseNotes.terms.body')}</p>
-        </section>
-
-        <section id="image-credits" aria-labelledby="notes-credits">
-          <h2 id="notes-credits">{t('entrance.houseNotes.credits.title')}</h2>
-          <p>{t('entrance.houseNotes.credits.door')}</p>
-          <p>
-            {t('entrance.houseNotes.credits.fonts')}{' '}
-            <a href="/fonts/README.md">{t('entrance.houseNotes.credits.licences')}</a>
-          </p>
-        </section>
+        {custom ? <EntranceMarkdown source={custom} /> : <DefaultHouseNotes />}
       </main>
     </EntranceShell>
+  );
+}
+
+function DefaultHouseNotes() {
+  const t = useT();
+  return (
+    <>
+      <p>{t('entrance.houseNotes.intro')}</p>
+
+      <section id="rules" aria-labelledby="notes-rules">
+        <h2 id="notes-rules">{t('entrance.houseNotes.rules.title')}</h2>
+        <ol>
+          <li>{t('entrance.houseNotes.rules.1')}</li>
+          <li>{t('entrance.houseNotes.rules.2')}</li>
+          <li>{t('entrance.houseNotes.rules.3')}</li>
+          <li>{t('entrance.houseNotes.rules.4')}</li>
+          <li>{t('entrance.houseNotes.rules.5')}</li>
+        </ol>
+      </section>
+
+      <section id="privacy" aria-labelledby="notes-privacy">
+        <h2 id="notes-privacy">{t('entrance.houseNotes.privacy.title')}</h2>
+        <p>{t('entrance.houseNotes.privacy.body1')}</p>
+        <p>{t('entrance.houseNotes.privacy.body2')}</p>
+        <p>{t('entrance.houseNotes.privacy.body3')}</p>
+      </section>
+
+      <section id="terms" aria-labelledby="notes-terms">
+        <h2 id="notes-terms">{t('entrance.houseNotes.terms.title')}</h2>
+        <p>{t('entrance.houseNotes.terms.body')}</p>
+      </section>
+
+      <section id="image-credits" aria-labelledby="notes-credits">
+        <h2 id="notes-credits">{t('entrance.houseNotes.credits.title')}</h2>
+        <p>{t('entrance.houseNotes.credits.door')}</p>
+        <p>
+          {t('entrance.houseNotes.credits.fonts')}{' '}
+          <a href="/fonts/README.md">{t('entrance.houseNotes.credits.licences')}</a>
+        </p>
+      </section>
+    </>
   );
 }
 

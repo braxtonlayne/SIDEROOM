@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { Button, Icon, Notice, Tooltip } from '@sideroom/ui';
 import { useT, type MessageKey } from '../../i18n';
 import { useOpenUserSettings } from '../../settings/user/nav';
-import { voiceController } from '../../voice/controller';
+import { DM_GUILD_ID, voiceController } from '../../voice/controller';
 import { useVideoLimits } from '../../voice/limits';
 import { isInVoice, useVoiceSession, type SessionStatus } from '../../voice/session';
 import { QUALITY_LABEL } from '../../voice/quality';
@@ -12,6 +12,7 @@ import { useGuild } from '../data';
 import { PingGraph } from './PingGraph';
 import { QualityBars } from './QualityBars';
 import { ScreenSharePicker } from './ScreenSharePicker';
+import { SoundboardButton } from './SoundboardPopover';
 import './voice-p10.css';
 
 const STATUS_TEXT: Record<SessionStatus, MessageKey | ''> = {
@@ -162,6 +163,9 @@ export function VoicePanel() {
             <Icon name="screen-share" size={20} />
           </button>
         </Tooltip>
+        {s.guildId && s.channelId && s.guildId !== DM_GUILD_ID && (
+          <SoundboardButton guildId={s.guildId} channelId={s.channelId} compact />
+        )}
       </div>
       {s.notice && (
         <Notice variant="info" role="status" onDismiss={() => controller.dismissNotice()}>

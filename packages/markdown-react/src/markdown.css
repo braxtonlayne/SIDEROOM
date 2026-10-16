@@ -19,7 +19,7 @@ img.sr-md-emoji {
 }
 .sr-md-code,
 .sr-md-codeblock {
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   background: var(--sr-code-bg, rgb(127 127 127 / 0.15));
   border-radius: 4px;
 }
@@ -44,16 +44,16 @@ img.sr-md-emoji {
   margin: 0.25em 0;
   padding-inline-start: 1.5em;
 }
-.sr-md-spoiler[data-revealed="false"] {
+.sr-md-spoiler[data-revealed='false'] {
   cursor: pointer;
   background: var(--sr-spoiler-bg, #202225);
   border-radius: 3px;
 }
-.sr-md-spoiler[data-revealed="false"] .sr-md-spoiler-content {
+.sr-md-spoiler[data-revealed='false'] .sr-md-spoiler-content {
   opacity: 0;
   pointer-events: none;
 }
-.sr-md-spoiler[data-revealed="true"] {
+.sr-md-spoiler[data-revealed='true'] {
   background: var(--sr-spoiler-revealed-bg, rgb(127 127 127 / 0.2));
   border-radius: 3px;
 }
@@ -73,10 +73,10 @@ button.sr-md-mention {
   color: var(--shiki-light, inherit);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .sr-md-codeblock .sr-md-tok {
+  :root:not([data-theme='light']) .sr-md-codeblock .sr-md-tok {
     color: var(--shiki-dark, inherit);
   }
 }
-:root[data-theme="dark"] .sr-md-codeblock .sr-md-tok {
+:root[data-theme='dark'] .sr-md-codeblock .sr-md-tok {
   color: var(--shiki-dark, inherit);
 }

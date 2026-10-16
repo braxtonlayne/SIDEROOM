@@ -2,9 +2,11 @@
  * Microphone capture: getUserMedia (echo cancellation + AGC by choice, never noise suppression), an input
  * gain stage, a level meter for the voice-activity gate and the settings test, and an on/off transmit gate.
  *
- * Graph: MediaStreamSource -> Analyser (meter) -> Gain (input volume) -> MediaStreamDestination.
- * The destination track is what the peer connection sends; disabling it is the "gate". Without WebAudio the
- * raw track is sent and only the gate works.
+ * Graph: MediaStreamSource -> Analyser (meter) -> Gain (input volume) -> Gate gain -> MediaStreamDestination,
+ * with soundboard sounds joining at the destination (VOX-SB-003).
+ * The destination track is what the peer connection sends; disabling it is the "gate". The gate gain closes the
+ * microphone path itself, so a sound can still go out (the track is enabled while it plays) while the voice
+ * stays shut. Without WebAudio the raw track is sent and only the gate works.
  */
 import { micConstraints, toMicError, type AudioDeps } from './deps';
 import { rmsDb, SILENCE_DB } from './vad';
@@ -25,6 +27,9 @@ export class MicPipeline {
   private source: MediaStreamAudioSourceNode | null = null;
   private analyser: AnalyserNode | null = null;
   private gain: GainNode | null = null;
+  private gateGain: GainNode | null = null;
+  /** Sounds playing into the outgoing audio; the track stays enabled while any does. */
+  private sounds = 0;
   private dest: MediaStreamAudioDestinationNode | null = null;
   private out: MediaStreamTrack | null = null;
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -94,16 +99,19 @@ export class MicPipeline {
       this.buf = new Float32Array(this.analyser.fftSize);
       this.gain = ctx.createGain();
       this.gain.gain.value = o.inputVolume / 100;
+      this.gateGain = ctx.createGain();
+      this.gateGain.gain.value = this.gateOpen ? 1 : 0;
       this.dest = ctx.createMediaStreamDestination();
       this.source.connect(this.analyser);
       this.analyser.connect(this.gain);
-      this.gain.connect(this.dest);
+      this.gain.connect(this.gateGain);
+      this.gateGain.connect(this.dest);
       this.out = this.dest.stream.getAudioTracks()[0] ?? raw;
       void ctx.resume?.();
     } else {
       this.out = raw;
     }
-    this.out.enabled = this.gateOpen;
+    this.out.enabled = this.gateOpen || this.sounds > 0;
     this.timer = setInterval(this.sample, METER_INTERVAL_MS);
     return this.out;
   }
@@ -122,7 +130,45 @@ export class MicPipeline {
   /** Open or close the transmit gate (mute, push-to-talk, voice activity). */
   setGate(open: boolean): void {
     this.gateOpen = open;
-    if (this.out) this.out.enabled = open;
+    if (this.gateGain) this.gateGain.gain.value = open ? 1 : 0;
+    if (this.out) this.out.enabled = open || this.sounds > 0;
+  }
+
+  /**
+   * Decode a sound file and mix it into the outgoing audio at `volume` (0 to 1), whether or not the voice gate is
+   * open. Resolves false when there is no WebAudio, no open microphone or the file does not decode.
+   */
+  async playSound(data: ArrayBuffer, volume: number): Promise<boolean> {
+    const ctx = this.ctx;
+    const dest = this.dest;
+    if (!ctx || !dest || !ctx.decodeAudioData) return false;
+    let buffer: AudioBuffer;
+    try {
+      buffer = await ctx.decodeAudioData(data);
+    } catch {
+      return false;
+    }
+    if (this.ctx !== ctx) return false; // the call ended while decoding
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const level = ctx.createGain();
+    level.gain.value = Math.min(1, Math.max(0, volume));
+    src.connect(level);
+    level.connect(dest);
+    this.sounds++;
+    if (this.out) this.out.enabled = true;
+    src.onended = () => {
+      this.sounds = Math.max(0, this.sounds - 1);
+      if (this.out) this.out.enabled = this.gateOpen || this.sounds > 0;
+      try {
+        src.disconnect();
+        level.disconnect();
+      } catch {
+        /* already disconnected */
+      }
+    };
+    src.start();
+    return true;
   }
 
   setInputVolume(percent: number): void {
@@ -139,11 +185,14 @@ export class MicPipeline {
       this.source?.disconnect();
       this.analyser?.disconnect();
       this.gain?.disconnect();
+      this.gateGain?.disconnect();
     } catch {
       /* already disconnected */
     }
     void this.ctx?.close?.().catch(() => undefined);
     this.stream = this.ctx = this.source = this.analyser = this.gain = this.dest = this.out = null;
+    this.gateGain = null;
+    this.sounds = 0;
     this.buf = null;
     this.lastDb = SILENCE_DB;
   }

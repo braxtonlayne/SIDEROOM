@@ -163,3 +163,45 @@ async fn abort_sends_a_signed_delete() {
             .contains("authorization: aws4-hmac-sha256")
     );
 }
+
+#[tokio::test]
+async fn list_parts_follows_the_marker_and_sorts() {
+    let page1 = "<ListPartsResult><IsTruncated>true</IsTruncated><NextPartNumberMarker>2</NextPartNumberMarker>\
+        <Part><PartNumber>2</PartNumber><ETag>&quot;b&quot;</ETag><Size>67108864</Size></Part>\
+        <Part><PartNumber>1</PartNumber><ETag>&quot;a&quot;</ETag><Size>67108864</Size></Part></ListPartsResult>";
+    let page2 = "<ListPartsResult><IsTruncated>false</IsTruncated>\
+        <Part><PartNumber>3</PartNumber><ETag>&quot;c&quot;</ETag><Size>10</Size></Part></ListPartsResult>";
+    let (m, server) = setup(vec![
+        ("HTTP/1.1 200 OK", page1.into()),
+        ("HTTP/1.1 200 OK", page2.into()),
+    ])
+    .await;
+    let parts = m.list_parts("k/o.bin", "up1").await.unwrap();
+    let seen = server.await.unwrap();
+    assert_eq!(
+        parts.iter().map(|p| p.number).collect::<Vec<_>>(),
+        vec![1, 2, 3]
+    );
+    assert_eq!(parts[0].etag, "\"a\"");
+    assert_eq!(parts[2].size, 10);
+    assert!(
+        seen[0].starts_with("GET /sideroom/k/o.bin?uploadId=up1 HTTP/1.1"),
+        "{}",
+        seen[0]
+    );
+    assert!(
+        seen[1].starts_with("GET /sideroom/k/o.bin?part-number-marker=2&uploadId=up1 HTTP/1.1"),
+        "{}",
+        seen[1]
+    );
+}
+
+#[tokio::test]
+async fn list_parts_rejects_a_garbled_answer() {
+    let (m, _server) = setup(vec![(
+        "HTTP/1.1 200 OK",
+        "<ListPartsResult><Part><PartNumber>x</PartNumber></Part></ListPartsResult>".into(),
+    )])
+    .await;
+    assert!(m.list_parts("k/o.bin", "up1").await.is_err());
+}

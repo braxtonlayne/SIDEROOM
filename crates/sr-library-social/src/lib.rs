@@ -7,12 +7,17 @@
 //!   [`lists`] and [`discover`].
 //! * [`rules`]: validation and pure logic (unit tested without a database).
 
+pub mod comments;
 pub mod discover;
+pub mod downloads;
 pub mod error;
 pub mod ids;
 pub mod lists;
 pub mod model;
+pub mod notifications;
+pub mod presence;
 pub mod ratings;
+pub mod recommend;
 pub mod reviews;
 pub mod rules;
 pub mod service;

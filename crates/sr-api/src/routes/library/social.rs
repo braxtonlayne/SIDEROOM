@@ -21,7 +21,7 @@ use sr_library_social::{LibrarySocial, SocialError};
 use std::collections::HashMap;
 use utoipa::{IntoParams, ToSchema};
 
-fn social_err(e: SocialError) -> HttpError {
+pub(super) fn social_err(e: SocialError) -> HttpError {
     match e {
         SocialError::NotFound(w) => {
             ApiError::with_message(ErrorCode::SrNotFound, format!("Unknown {w}")).into()
@@ -37,14 +37,14 @@ fn social_err(e: SocialError) -> HttpError {
 }
 
 impl MemberCtx {
-    fn social(&self) -> ApiResult<&LibrarySocial> {
+    pub(super) fn social(&self) -> ApiResult<&LibrarySocial> {
         self.deps.social.as_ref().ok_or_else(|| {
             tracing::error!("library social service is not configured");
             ErrorCode::SrInternal.into()
         })
     }
 
-    fn sviewer(&self) -> Viewer {
+    pub(super) fn sviewer(&self) -> Viewer {
         Viewer {
             user_id: self.viewer.user_id,
             adult: self.viewer.adult,
@@ -327,7 +327,7 @@ pub struct ListDetail {
     pub items: Vec<ListItemView>,
 }
 
-async fn cards_for(ctx: &MemberCtx, ids: &[i64]) -> ApiResult<HashMap<i64, Series>> {
+pub(super) async fn cards_for(ctx: &MemberCtx, ids: &[i64]) -> ApiResult<HashMap<i64, Series>> {
     Ok(ctx
         .deps
         .service
@@ -636,6 +636,9 @@ pub async fn feature_list(
 pub struct RankingParams {
     /// `week` (default), `month` or `all`.
     pub period: Option<RankingPeriod>,
+    /// `global` (default), `friends` or `known`; the scoped ones count only members who share
+    /// their reading (D-190).
+    pub scope: Option<RankingScope>,
     /// Limit to one kind (`manga`, `manhwa`, ...).
     pub kind: Option<String>,
     /// 1 to 100, default 24.
@@ -655,6 +658,7 @@ pub struct RankingEntry {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RankingsBody {
     pub period: RankingPeriod,
+    pub scope: RankingScope,
     pub items: Vec<RankingEntry>,
 }
 
@@ -670,8 +674,9 @@ pub async fn rankings(
 ) -> ApiResult<Json<RankingsBody>> {
     let r = ctx
         .social()?
-        .rankings(
+        .rankings_scoped(
             ctx.sviewer(),
+            p.scope.unwrap_or_default(),
             p.period.unwrap_or_default(),
             p.kind.filter(|k| !k.is_empty()),
             p.limit,
@@ -696,6 +701,7 @@ pub async fn rankings(
         .collect();
     Ok(Json(RankingsBody {
         period: r.period,
+        scope: r.scope,
         items,
     }))
 }

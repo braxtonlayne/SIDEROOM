@@ -9,7 +9,7 @@ import {
   unblockUser,
   unignoreUser,
   useResource,
-  type PrivacySettings,
+  type PrivacyPatch,
   type UserLite,
 } from '../api';
 import {
@@ -18,7 +18,9 @@ import {
   useLoadRemoteImages,
 } from '../../../lounge/msg/remoteImages';
 import { useT, type MessageKey } from '../../../i18n';
-import { Card, displayOf, Loaded, SectionTitle, Unavailable } from '../parts';
+import { DataExportCard } from './DataExport';
+import { Card, displayOf, Loaded, SectionTitle } from '../parts';
+import { AgeConfirmationCard, applyPatch, DmSafetyCard, SensitiveMediaCard } from './SafetyCards';
 
 function UserList({
   users,
@@ -143,7 +145,14 @@ export function RemoteImagesCard() {
   );
 }
 
-const FRIEND_SOURCES: { key: keyof PrivacySettings; label: MessageKey; hint: MessageKey }[] = [
+const FRIEND_SOURCES: {
+  key:
+    | 'friend_requests_everyone'
+    | 'friend_requests_friends_of_friends'
+    | 'friend_requests_server_members';
+  label: MessageKey;
+  hint: MessageKey;
+}[] = [
   {
     key: 'friend_requests_everyone',
     label: 'settings.privacy.friendEveryone',
@@ -167,10 +176,10 @@ function ReachCard() {
   const toast = useToast();
   const res = useResource(getPrivacy);
   const [error, setError] = useState<string | null>(null);
-  const set = async (patch: Partial<PrivacySettings>) => {
+  const set = async (patch: PrivacyPatch) => {
     setError(null);
     const before = res.data;
-    res.setData((d) => (d ? { ...d, ...patch } : d));
+    res.setData((d) => (d ? applyPatch(d, patch) : d));
     try {
       res.setData(await patchPrivacy(patch));
       toast.show({ title: t('settings.privacy.updated'), duration: 1500 });
@@ -232,26 +241,13 @@ export function PrivacySection() {
     <>
       <SectionTitle>{t('settings.privacy.title')}</SectionTitle>
       <ReachCard />
-      <Card
-        id="us-filters"
-        title={t('settings.privacy.sensitiveTitle')}
-        description={t('settings.privacy.sensitiveDesc')}
-      >
-        <Unavailable>{t('settings.privacy.sensitiveUnavailable')}</Unavailable>
-      </Card>
+      <DmSafetyCard />
+      <SensitiveMediaCard />
+      <AgeConfirmationCard />
       <RemoteImagesCard />
       <BlockedCard />
       <IgnoredCard />
-      <Card
-        id="us-data"
-        title={t('settings.privacy.dataTitle')}
-        description={t('settings.privacy.dataDesc')}
-      >
-        <Button variant="secondary" disabled>
-          {t('settings.privacy.dataTitle')}
-        </Button>
-        <Unavailable>{t('settings.privacy.dataUnavailable')}</Unavailable>
-      </Card>
+      <DataExportCard />
     </>
   );
 }

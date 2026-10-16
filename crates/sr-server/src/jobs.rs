@@ -52,7 +52,8 @@ LIMIT $2";
 /// statement, re-checking the due and hold conditions against `$1` (Unix ms) so a hold
 /// placed after the selection still wins. `message_edits` has no foreign key to the
 /// partitioned `messages` table, so it is deleted explicitly by the same statement
-/// (open question 94). The data-modifying CTEs commit together; attachment rows go
+/// (open question 94); `message_webhook_authors` has none either and goes the same way
+/// (D-235). The data-modifying CTEs commit together; attachment rows go
 /// with the message by cascade, after their stored objects were removed.
 pub(crate) const PURGE_SQL: &str = "\
 WITH doomed AS ( \
@@ -64,7 +65,10 @@ WITH doomed AS ( \
     RETURNING id), \
 edits AS ( \
     DELETE FROM message_edits WHERE message_id IN (SELECT id FROM doomed) \
-    RETURNING id) \
+    RETURNING id), \
+webhook_authors AS ( \
+    DELETE FROM message_webhook_authors WHERE message_id IN (SELECT id FROM doomed) \
+    RETURNING message_id) \
 SELECT (SELECT count(*) FROM doomed)";
 
 /// Hard-deletes soft-deleted guilds (LNG-SSET-073) whose messages are all gone. Held
@@ -471,6 +475,43 @@ pub async fn schedule_audit_purge(pool: &PgPool) -> DbResult<()> {
     Ok(())
 }
 
+/// Reserved singleton id for `jobs.reap`.
+pub const REAP_JOB_ID: i64 = 6;
+/// Kind of the hourly return of crashed jobs to the queue (H-15).
+pub const REAP_KIND: &str = "jobs.reap";
+const REAP_INTERVAL: Duration = Duration::from_secs(3600);
+/// A job `running` longer than this belongs to a crashed worker.
+pub const REAP_THRESHOLD: Duration = Duration::from_secs(30 * 60);
+
+/// Return jobs left `running` by a crashed node to the queue, logging each one.
+pub async fn reap_stale_jobs(pool: &PgPool) -> DbResult<usize> {
+    let reaped = jobs::reap_stale(pool, REAP_THRESHOLD).await?;
+    for (id, kind) in &reaped {
+        tracing::warn!(job_id = id, kind = %kind, "returned a stale running job to the queue");
+    }
+    Ok(reaped.len())
+}
+
+async fn reap_handler(pool: PgPool, job: Job) -> Result<(), HandlerError> {
+    reap_stale_jobs(&pool).await?;
+    jobs::reschedule_running(&pool, job.id, REAP_INTERVAL).await?;
+    Ok(())
+}
+
+/// Register the hourly `jobs.reap` singleton on `runner`. Pair with [`schedule_reap`].
+pub fn register_reap(runner: JobRunner, pool: &PgPool) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(REAP_KIND, 1, move |job| {
+        Box::pin(reap_handler(pool.clone(), job))
+    })
+}
+
+/// Create or re-arm the reap singleton. Call only when [`register_reap`] is on the runner.
+pub async fn schedule_reap(pool: &PgPool) -> DbResult<()> {
+    jobs::schedule_singleton(pool, REAP_JOB_ID, REAP_KIND, &json!({}), REAP_INTERVAL).await?;
+    Ok(())
+}
+
 /// Reserved singleton id for `insights.daily`.
 pub const INSIGHTS_JOB_ID: i64 = 630;
 /// Kind of the daily Server Insights computation (LNG-SSET-068).
@@ -695,6 +736,15 @@ mod hold_guard_tests {
         )
         .await;
 
+        for id in [plain, held, kept] {
+            exec(
+                pool,
+                "INSERT INTO message_webhook_authors (message_id, webhook_id, username) \
+                 VALUES ($1, 5, 'Deploys')",
+                &[id],
+            )
+            .await;
+        }
         let purged = purge_deleted_messages(
             pool,
             &sr_storage::ObjectStoreStorage::in_memory(),
@@ -703,6 +753,16 @@ mod hold_guard_tests {
         .await
         .expect("purge");
         assert_eq!(purged, 1, "only the plain, due, unheld message goes");
+        let authors: Vec<i64> =
+            sqlx::query_scalar("SELECT message_id FROM message_webhook_authors ORDER BY 1")
+                .fetch_all(pool)
+                .await
+                .expect("authors");
+        assert_eq!(
+            authors,
+            vec![held, kept],
+            "the purged message loses its webhook author row (D-235), the others keep theirs"
+        );
         let left: Vec<i64> = sqlx::query_scalar("SELECT id FROM messages ORDER BY id")
             .fetch_all(pool)
             .await
@@ -736,6 +796,16 @@ mod hold_guard_tests {
             .await
             .expect("purge"),
             2
+        );
+        let authors: Vec<i64> =
+            sqlx::query_scalar("SELECT message_id FROM message_webhook_authors ORDER BY 1")
+                .fetch_all(pool)
+                .await
+                .expect("authors");
+        assert_eq!(
+            authors,
+            vec![kept],
+            "the released message's row goes with it"
         );
         db.cleanup().await.expect("cleanup");
     }

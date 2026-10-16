@@ -30,17 +30,28 @@ use sr_storage::media::MediaKind;
 pub async fn list(
     p: Principal,
     Ext(deps): Ext<SocialDeps>,
+    MaybeExt(messages): MaybeExt<crate::routes::messages::MessagesDeps>,
 ) -> MsgResult<Json<Vec<DmChannelObject>>> {
     let me = actor(&p)?;
     let dms = deps.service.list_dms(me).await?;
+    let limit = match &messages {
+        Some(m) => Some(m.effective_upload_limit(me, None).await),
+        None => None,
+    };
     let users = deps
         .summaries(dms.iter().flat_map(|d| d.recipients.iter().copied()))
         .await?;
     let mut out = Vec::with_capacity(dms.len());
     for dm in &dms {
         let mut obj = DmChannelObject::new(dm, me, &users);
+        obj.sr_max_upload_bytes = limit;
         if deps.service.request_state(me, dm.id).await? == Some(RequestState::Pending) {
             obj.is_message_request = Some(true);
+            obj.sr_request_reason = deps
+                .service
+                .request_reason(me, dm.id)
+                .await?
+                .map(|r| r.as_str().to_owned());
         }
         out.push(obj);
     }
@@ -383,6 +394,34 @@ async fn remove_member(
     Ok(())
 }
 
+/// The viewer's sensitive-media settings and friends for the message pipeline (D-230).
+#[async_trait::async_trait]
+impl crate::routes::messages::ViewerSafety for SocialDeps {
+    async fn sensitive_view(
+        &self,
+        viewer: UserId,
+    ) -> (
+        sr_chat::social::safety::SensitiveMedia,
+        std::collections::HashSet<UserId>,
+    ) {
+        let prefs = match self.service.privacy(viewer).await {
+            Ok(p) => p.safety.sensitive_media,
+            Err(e) => {
+                tracing::warn!(error = %e, "reading sensitive-media settings failed");
+                Default::default()
+            }
+        };
+        let friends = match self.service.audience(viewer).await {
+            Ok(a) => a.friends.into_iter().collect(),
+            Err(e) => {
+                tracing::warn!(error = %e, "reading friends failed");
+                Default::default()
+            }
+        };
+        (prefs, friends)
+    }
+}
+
 /// The message path tells recipients about a DM when its first message (or the first
 /// after they closed it) reaches them. `acc.channel` carried `last_message_id`.
 #[async_trait::async_trait]
@@ -426,8 +465,18 @@ pub(crate) async fn announce(
 ) -> MsgResult<()> {
     let users = deps.summaries(dm.recipients.iter().copied()).await?;
     for user in to {
-        let payload: Value =
-            serde_json::to_value(DmChannelObject::new(dm, *user, &users)).unwrap_or(Value::Null);
+        let mut obj = DmChannelObject::new(dm, *user, &users);
+        // H-12: a conversation that opens into this recipient's Message Requests says so (and
+        // why); the sender's own object never carries either field.
+        if deps.service.request_state(*user, dm.id).await? == Some(RequestState::Pending) {
+            obj.is_message_request = Some(true);
+            obj.sr_request_reason = deps
+                .service
+                .request_reason(*user, dm.id)
+                .await?
+                .map(|r| r.as_str().to_owned());
+        }
+        let payload: Value = serde_json::to_value(obj).unwrap_or(Value::Null);
         deps.emit(SocialEvent::new(name, vec![*user], payload).for_channel(dm.id))
             .await;
     }

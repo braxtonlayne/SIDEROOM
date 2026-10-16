@@ -3,9 +3,17 @@
 # Run from the repo root after `docker compose -f deploy/compose/dev.yml up -d`.
 set -euo pipefail
 
-COMPOSE=(docker compose -f deploy/compose/dev.yml)
-ENV_FILE="deploy/compose/.env"
-[ -f "$ENV_FILE" ] || ENV_FILE="deploy/compose/.env.example"
+# The production installer (deploy/install.sh) reuses this script with SR_COMPOSE_FILE=prod.yml,
+# SR_ENV_FILE=.env.prod, SR_GARAGE_CAPACITY (layout capacity) and SR_SKIP_CORS=1 (the installer applies the CORS
+# rule through the sr-cli that ships in the server image).
+COMPOSE=(docker compose -f "${SR_COMPOSE_FILE:-deploy/compose/dev.yml}")
+if [ -n "${SR_ENV_FILE:-}" ]; then
+  ENV_FILE="$SR_ENV_FILE"
+  COMPOSE+=(--env-file "$ENV_FILE")
+else
+  ENV_FILE="deploy/compose/.env"
+  [ -f "$ENV_FILE" ] || ENV_FILE="deploy/compose/.env.example"
+fi
 set -a; . "$ENV_FILE"; set +a
 
 garage() { "${COMPOSE[@]}" exec -T garage /garage "$@"; }
@@ -16,16 +24,17 @@ garage status >/dev/null
 
 NODE_ID="$(garage node id -q 2>/dev/null | cut -d@ -f1)"
 if ! garage status | grep -q "$NODE_ID.*dc1"; then
-  garage layout assign -z dc1 -c 1G "$NODE_ID"
+  garage layout assign -z dc1 -c "${SR_GARAGE_CAPACITY:-1G}" "$NODE_ID"
   garage layout apply --version 1
 fi
 
 garage key info "$GARAGE_ACCESS_KEY" >/dev/null 2>&1 \
-  || garage key import --yes -n sideroom-dev "$GARAGE_ACCESS_KEY" "$GARAGE_SECRET_KEY"
+  || garage key import --yes -n "${SR_GARAGE_KEY_NAME:-sideroom-dev}" "$GARAGE_ACCESS_KEY" "$GARAGE_SECRET_KEY"
 garage bucket info "$GARAGE_BUCKET" >/dev/null 2>&1 || garage bucket create "$GARAGE_BUCKET"
 garage bucket allow --read --write --owner "$GARAGE_BUCKET" --key "$GARAGE_ACCESS_KEY"
 
 echo "Garage ready: bucket=$GARAGE_BUCKET endpoint=http://127.0.0.1:3900 region=garage"
+if [ "${SR_SKIP_CORS:-0}" = "1" ]; then exit 0; fi
 
 # D-175: browsers PUT uploads straight to the bucket, so the bucket needs a CORS rule for the app
 # origin(s). Uses sr-cli when one is available (SR_CLI, a built binary, or PATH); otherwise prints

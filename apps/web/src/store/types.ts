@@ -7,6 +7,8 @@ export interface User {
   global_name?: string | null;
   avatar?: string | null;
   bot?: boolean;
+  /** Webhook authors only: the avatar of this message, an image-proxy path (DEV-BOT-006). */
+  avatar_url?: string | null;
   /** The server tag this person displays (LNG-SSET-012); the API sends it only while the server allows it. */
   primary_guild?: {
     identity_guild_id?: string | null;
@@ -31,6 +33,10 @@ export interface Guild {
   rules_channel_id?: string | null;
   public_updates_channel_id?: string | null;
   safety_alerts_channel_id?: string | null;
+  /** Server Protection (D-224): links whose text names another host show their raw target and a warning. */
+  hide_suspicious_links?: boolean;
+  /** Largest file the viewer may upload in this server, in bytes (D-233); absent until `GET /guilds/{id}` is read. */
+  sr_max_upload_bytes?: number;
 }
 
 export interface Channel {
@@ -61,6 +67,8 @@ export interface Channel {
   nsfw?: boolean;
   /** Per-channel role/member overwrites (type 0 role, 1 member; allow/deny are decimal strings). */
   permission_overwrites?: { id: string; type: number; allow: string; deny: string }[];
+  /** DM and group DM channels: the largest file the viewer may upload there, in bytes (D-233). */
+  sr_max_upload_bytes?: number;
 }
 
 export interface Role {
@@ -100,6 +108,10 @@ export interface Message {
   content: string;
   timestamp: string;
   edited_timestamp?: string | null;
+  /** Set when the message was posted through a webhook; `author` is then the webhook (DEV-BOT-006). */
+  webhook_id?: string;
+  /** Application emoji ids in `content` that stay text because the author is not that application's bot (D-237). */
+  sr_text_emoji?: string[];
   pinned?: boolean;
   nonce?: string | number | null;
   mentions?: User[];
@@ -159,6 +171,8 @@ export interface RawAttachment {
   /** BlurHash placeholder (images), declared by the uploader. */
   blurhash?: string | null;
   expires_at?: string | null;
+  /** The viewer's sensitive-media setting withheld the file; `url` is empty (D-230). */
+  sr_filtered?: boolean;
 }
 
 export interface RawEmbed {
@@ -268,6 +282,8 @@ export interface VoiceState {
   self_stream?: boolean;
   /** Stage channels: suppressed = audience. */
   suppress?: boolean;
+  /** Stage channels: when the member raised their hand (ISO 8601), null when not asking to speak. */
+  request_to_speak_timestamp?: string | null;
 }
 
 /** An ICE server as delivered in `VOICE_SERVER_UPDATE` (RTCIceServer shape). */

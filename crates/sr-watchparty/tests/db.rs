@@ -277,6 +277,7 @@ impl Env {
 
 fn create(title: i64) -> CreateInput {
     CreateInput {
+        empty: false,
         title_id: title,
         tv_channel_id: None,
         episode_id: None,
@@ -333,8 +334,8 @@ async fn a_private_party_needs_its_invite_code() {
     let party = e.svc.create(e.v(host).await, create(1)).await.unwrap();
     assert_eq!(party.binding, Binding::Private);
     assert!(party.invite_code.is_some());
-    assert_eq!(party.media.title, "Akira");
-    assert_eq!(party.media.asset_id, 501);
+    assert_eq!(party.media.as_ref().unwrap().title, "Akira");
+    assert_eq!(party.media.as_ref().unwrap().asset_id, 501);
     assert!(!party.playback.playing);
     assert_eq!(party.participants.len(), 1);
     assert!(party.participants[0].is_host);
@@ -397,8 +398,11 @@ async fn only_playable_published_titles_start_a_party() {
     let mut episode = create(5);
     episode.episode_id = Some(11);
     let party = e.svc.create(e.v(host).await, episode).await.unwrap();
-    assert_eq!(party.media.episode_label.as_deref(), Some("S1 E1"));
-    assert_eq!(party.media.episode_id, 11);
+    assert_eq!(
+        party.media.as_ref().unwrap().episode_label.as_deref(),
+        Some("S1 E1")
+    );
+    assert_eq!(party.media.as_ref().unwrap().episode_id, 11);
 }
 
 #[tokio::test]
@@ -961,6 +965,94 @@ async fn persistent_channel_parties_survive_being_empty_and_the_first_joiner_hos
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_empty_room_has_no_media_until_its_first_host_picks_one() {
+    let e = env().await;
+    let (creator, next, other) = (e.user().await, e.user().await, e.user().await);
+    let channel = e
+        .channel(creator, &[next, other], creator, ChannelKind::Voice)
+        .await;
+    let empty_in = |channel: Option<i64>, persistent: bool| CreateInput {
+        empty: true,
+        title_id: 0,
+        channel_id: channel,
+        settings: persistent.then(|| SettingsInput {
+            persistent: Some(true),
+            ..SettingsInput::default()
+        }),
+        ..create(0)
+    };
+    // Only a persistent server channel party can be empty.
+    for bad in [empty_in(None, false), empty_in(Some(channel), false)] {
+        assert!(matches!(
+            e.svc.create(e.v(creator).await, bad).await,
+            Err(PartyError::Invalid(_))
+        ));
+    }
+    let party = e
+        .svc
+        .create(e.v(creator).await, empty_in(Some(channel), true))
+        .await
+        .unwrap();
+    assert!(party.media.is_none());
+    assert!(!party.playback.playing);
+    e.svc.leave(e.v(creator).await, party.id).await.unwrap();
+    // The first joiner hosts; nothing plays and no command is accepted yet.
+    let joined = e
+        .svc
+        .join(e.v(next).await, party.id, JoinInput::default())
+        .await
+        .unwrap();
+    assert_eq!(joined.host_id, next);
+    assert!(joined.media.is_none());
+    assert!(matches!(
+        e.svc
+            .command(e.v(next).await, party.id, cmd(Action::Play))
+            .await,
+        Err(PartyError::Conflict(_))
+    ));
+    // Picking media runs the play gate and lands paused at the start.
+    let picked = e
+        .svc
+        .change_media(
+            e.v(next).await,
+            party.id,
+            ChangeMediaInput {
+                title_id: 1,
+                tv_channel_id: None,
+                episode_id: None,
+                variant_id: None,
+                start_ms: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(picked.media.as_ref().unwrap().title, "Akira");
+    assert!(!picked.playback.playing);
+    e.svc
+        .command(e.v(next).await, party.id, cmd(Action::Play))
+        .await
+        .unwrap();
+    // An unplayable title is refused by the same gate.
+    assert!(
+        e.svc
+            .change_media(
+                e.v(next).await,
+                party.id,
+                ChangeMediaInput {
+                    title_id: 999,
+                    tv_channel_id: None,
+                    episode_id: None,
+                    variant_id: None,
+                    start_ms: None,
+                },
+            )
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn silent_participants_are_dropped_by_the_sweep() {
     let e = env().await;
     let (host, ghost) = (e.user().await, e.user().await);
@@ -998,7 +1090,7 @@ async fn restricted_titles_need_age_confirmation_from_everyone() {
     );
     // Nor can an unconfirmed account join a restricted party.
     let party = e.svc.create(av, create(3)).await.unwrap();
-    assert!(party.media.age_restricted);
+    assert!(party.media.as_ref().unwrap().age_restricted);
     assert_eq!(
         e.svc
             .join(
@@ -1041,7 +1133,7 @@ async fn restricted_titles_need_age_confirmation_from_everyone() {
         )
         .await
         .unwrap();
-    assert!(view.media.age_restricted);
+    assert!(view.media.as_ref().unwrap().age_restricted);
     assert_eq!(view.participants.len(), 1);
     assert!(e.svc.mine(e.v(minor).await).await.is_err());
     let removed = e.events.named("WATCH_PARTY_UPDATE");
@@ -1060,8 +1152,8 @@ async fn restricted_party_cards_are_masked_for_unconfirmed_channel_viewers() {
     input.channel_id = Some(channel);
     e.svc.create(e.v(adult).await, input).await.unwrap();
     let seen = e.svc.in_channel(e.v(minor).await, channel).await.unwrap();
-    assert_eq!(seen.media.title, "Age-restricted content");
-    assert_eq!(seen.media.asset_id, 0);
+    assert_eq!(seen.media.as_ref().unwrap().title, "Age-restricted content");
+    assert_eq!(seen.media.as_ref().unwrap().asset_id, 0);
     // The created event reached the channel's viewers masked, the host unmasked.
     let evs = e.events.named("WATCH_PARTY_UPDATE");
     let to_minor = evs.iter().find(|(u, _)| u.contains(&minor)).unwrap();
@@ -1157,7 +1249,7 @@ async fn the_queue_adds_reorders_removes_and_advances() {
     // Skip: the first entry starts, paused-state reset, version moves on.
     let before = view.playback.version;
     let view = e.svc.next(hv, party.id).await.unwrap();
-    assert_eq!(view.media.episode_id, 12);
+    assert_eq!(view.media.as_ref().unwrap().episode_id, 12);
     assert_eq!(view.queue.len(), 2);
     assert!(view.playback.version > before);
     assert!(view.playback.playing);
@@ -1172,7 +1264,7 @@ async fn the_queue_adds_reorders_removes_and_advances() {
         .unwrap();
     assert!(p.version > before);
     let view = e.svc.get(hv, party.id).await.unwrap();
-    assert_eq!(view.media.asset_id, 502);
+    assert_eq!(view.media.as_ref().unwrap().asset_id, 502);
     assert_eq!(view.queue.len(), 1);
     // An `ended` report that is not at the end changes nothing.
     let v1 = e.svc.get(hv, party.id).await.unwrap().playback.version;
@@ -1450,6 +1542,7 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
     let (host, minor) = (e.adult().await, e.user().await);
     let v = e.v(host).await;
     let live = |channel: i64| CreateInput {
+        empty: false,
         tv_channel_id: Some(channel),
         ..create(0)
     };
@@ -1463,6 +1556,7 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
             .create(
                 v,
                 CreateInput {
+                    empty: false,
                     tv_channel_id: Some(77),
                     ..create(1)
                 }
@@ -1481,8 +1575,8 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
     );
 
     let party = e.svc.create(v, live(77)).await.unwrap();
-    assert!(party.media.live && party.playback.live);
-    assert_eq!(party.media.title_id, 77);
+    assert!(party.media.as_ref().unwrap().live && party.playback.live);
+    assert_eq!(party.media.as_ref().unwrap().title_id, 77);
     assert!(
         party.playback.playing,
         "a live party starts on the live edge"
@@ -1512,7 +1606,7 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
         )
         .await
         .unwrap();
-    assert!(!film.media.live);
+    assert!(!film.media.as_ref().unwrap().live);
     let back = e
         .svc
         .change_media(
@@ -1528,5 +1622,5 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
         )
         .await
         .unwrap();
-    assert!(back.media.live);
+    assert!(back.media.as_ref().unwrap().live);
 }

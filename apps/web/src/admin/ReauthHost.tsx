@@ -7,7 +7,8 @@ import { useT } from '../i18n';
 import { passkeyVerifyBegin } from '../api/passkeys';
 import { getPasskey, isCancelled, passkeysSupported } from '../lib/webauthn';
 import * as api from './api';
-import { registerReauthPrompt } from './reauth';
+import { onEnrollmentRequired, registerReauthPrompt } from './reauth';
+import { useOpenUserSettings } from '../settings/user/nav';
 
 type Method = 'totp' | 'recovery';
 
@@ -20,6 +21,9 @@ export function ReauthHost() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const resolver = useRef<((ok: boolean) => void) | null>(null);
+  const [enrol, setEnrol] = useState(false);
+  const openSettings = useOpenUserSettings();
+  useEffect(() => onEnrollmentRequired(() => setEnrol(true)), []);
 
   const finish = useCallback((ok: boolean) => {
     resolver.current?.(ok);
@@ -85,75 +89,103 @@ export function ReauthHost() {
   const minutes = Math.round((status?.window_secs ?? 900) / 60);
   const blocked = status !== null && !status.enrolled;
   return (
-    <Modal
-      open={open}
-      onClose={() => (busy ? undefined : finish(false))}
-      title={t('admin.reauth.title')}
-      description={t('admin.reauth.description', { minutes })}
-      size="sm"
-      footer={
-        <>
-          <Button variant="ghost" disabled={busy} onClick={() => finish(false)}>
-            {t('admin.ui.cancel')}
-          </Button>
-          {!blocked && (
+    <>
+      <Modal
+        open={enrol}
+        onClose={() => setEnrol(false)}
+        title={t('admin.reauth.enrolTitle')}
+        description={t('admin.reauth.enrolDescription')}
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEnrol(false)}>
+              {t('admin.ui.cancel')}
+            </Button>
             <Button
-              disabled={code.trim().length === 0}
-              loading={busy}
-              onClick={() => void prove(method, code.trim())}
+              onClick={() => {
+                setEnrol(false);
+                openSettings('account');
+              }}
             >
-              {t('admin.reauth.confirm')}
+              {t('admin.reauth.enrolOpen')}
             </Button>
-          )}
-        </>
-      }
-    >
-      {blocked ? (
+          </>
+        }
+      >
         <Notice variant="warning" role="alert">
-          {t('admin.reauth.notEnrolled')}
+          {t('admin.reauth.enrolNotice')}
         </Notice>
-      ) : (
-        <form
-          className="adm-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (code.trim()) void prove(method, code.trim());
-          }}
-        >
-          <SegmentedControl
-            label={t('admin.reauth.method')}
-            value={method}
-            onValueChange={(v) => {
-              setMethod(v as Method);
-              setCode('');
-            }}
-            options={[
-              { value: 'totp', label: t('admin.reauth.totp') },
-              { value: 'recovery', label: t('admin.reauth.recovery') },
-            ]}
-          />
-          <TextInput
-            label={
-              method === 'totp' ? t('admin.reauth.totpLabel') : t('admin.reauth.recoveryLabel')
-            }
-            value={code}
-            autoComplete="one-time-code"
-            inputMode={method === 'totp' ? 'numeric' : 'text'}
-            autoFocus
-            onChange={(e) => setCode(e.target.value)}
-          />
-          {passkeysSupported() && (
-            <Button variant="secondary" disabled={busy} onClick={() => void passkey()}>
-              {t('admin.reauth.passkey')}
+      </Modal>
+      <Modal
+        open={open}
+        onClose={() => (busy ? undefined : finish(false))}
+        title={t('admin.reauth.title')}
+        description={t('admin.reauth.description', { minutes })}
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" disabled={busy} onClick={() => finish(false)}>
+              {t('admin.ui.cancel')}
             </Button>
-          )}
-          {error && (
-            <Notice variant="danger" role="alert">
-              {error}
-            </Notice>
-          )}
-        </form>
-      )}
-    </Modal>
+            {!blocked && (
+              <Button
+                disabled={code.trim().length === 0}
+                loading={busy}
+                onClick={() => void prove(method, code.trim())}
+              >
+                {t('admin.reauth.confirm')}
+              </Button>
+            )}
+          </>
+        }
+      >
+        {blocked ? (
+          <Notice variant="warning" role="alert">
+            {t('admin.reauth.notEnrolled')}
+          </Notice>
+        ) : (
+          <form
+            className="adm-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (code.trim()) void prove(method, code.trim());
+            }}
+          >
+            <SegmentedControl
+              label={t('admin.reauth.method')}
+              value={method}
+              onValueChange={(v) => {
+                setMethod(v as Method);
+                setCode('');
+              }}
+              options={[
+                { value: 'totp', label: t('admin.reauth.totp') },
+                { value: 'recovery', label: t('admin.reauth.recovery') },
+              ]}
+            />
+            <TextInput
+              label={
+                method === 'totp' ? t('admin.reauth.totpLabel') : t('admin.reauth.recoveryLabel')
+              }
+              value={code}
+              autoComplete="one-time-code"
+              inputMode={method === 'totp' ? 'numeric' : 'text'}
+              autoFocus
+              onChange={(e) => setCode(e.target.value)}
+            />
+            {passkeysSupported() && (
+              <Button variant="secondary" disabled={busy} onClick={() => void passkey()}>
+                {t('admin.reauth.passkey')}
+              </Button>
+            )}
+            {error && (
+              <Notice variant="danger" role="alert">
+                {error}
+              </Notice>
+            )}
+          </form>
+        )}
+      </Modal>
+    </>
   );
 }

@@ -83,8 +83,45 @@ pub struct StickerPack {
     pub stickers: Vec<PackSticker>,
 }
 
+/// How a webhook-posted message is shown (DEV-BOT-006): the webhook id replaces the author id
+/// and the name and avatar can be overridden per execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WebhookAuthor {
+    pub webhook_id: u64,
+    pub username: String,
+    pub avatar_url: Option<String>,
+}
+
 #[async_trait]
 pub trait RichStore: Send + Sync {
+    /// Remember who a webhook message is shown as. The default does nothing, so a store
+    /// without the table keeps rendering the webhook creator.
+    async fn set_webhook_author(
+        &self,
+        _message: MessageId,
+        _author: &WebhookAuthor,
+    ) -> StoreResult<()> {
+        Ok(())
+    }
+
+    /// Display overrides of webhook messages among `messages` (others are omitted).
+    async fn webhook_authors(
+        &self,
+        _messages: &[MessageId],
+    ) -> StoreResult<HashMap<MessageId, WebhookAuthor>> {
+        Ok(HashMap::new())
+    }
+
+    /// Which of these emoji ids are application emoji (D-237), with the owning application.
+    async fn app_emoji_owners(&self, _emoji: &[u64]) -> StoreResult<HashMap<u64, i64>> {
+        Ok(HashMap::new())
+    }
+
+    /// The application each of these users is the bot of (users that are not bots are omitted).
+    async fn bot_applications(&self, _users: &[UserId]) -> StoreResult<HashMap<UserId, i64>> {
+        Ok(HashMap::new())
+    }
+
     /// Replace the embeds of a message (link previews arriving after the send).
     async fn set_embeds(&self, message: MessageId, embeds: &[Embed]) -> StoreResult<()>;
 

@@ -19,13 +19,19 @@ RUN set -eux; \
         *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     rustup target add "$target"; \
-    cargo zigbuild --release --locked --target "$target" -p sr-server; \
-    install -D "target/$target/release/sr-server" /out/sr-server
+    cargo zigbuild --release --locked --target "$target" -p sr-server -p sr-cli; \
+    install -D "target/$target/release/sr-server" /out/sr-server; \
+    install -D "target/$target/release/sr-cli" /out/sr-cli
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/sr-server /usr/local/bin/sr-server
+# The operator tool ships in the image too, so a compose install runs it with
+# `docker compose run --rm --entrypoint /usr/local/bin/sr-cli sr-server migrate` and needs no host binary.
+COPY --from=build /out/sr-cli /usr/local/bin/sr-cli
 # Config: SR_CONFIG (TOML path) plus SR_* env vars (docs/dev/server.md).
 EXPOSE 8080
+# No shell or curl in this image: the binary probes its own /readyz (SR_* env as for `serve`).
+HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=4 CMD ["/usr/local/bin/sr-server", "healthcheck"]
 # /internal/metrics binds to 127.0.0.1:9100 inside the container by default.
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/local/bin/sr-server"]

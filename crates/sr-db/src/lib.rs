@@ -18,6 +18,7 @@ pub mod data_export;
 pub mod directory_repo;
 mod error;
 mod guild_admin_repo;
+pub mod ingest_sources_repo;
 pub mod invite_join;
 pub mod jobs;
 pub mod library_repo;
@@ -40,7 +41,9 @@ pub mod thread_repo;
 mod tx;
 
 pub use error::{DbError, DbResult};
-pub use pool::{DbConfig, Health, connect, health_check, migrate};
+pub use pool::{
+    DbConfig, Health, MigrationStatus, connect, health_check, migrate, migration_status,
+};
 pub use tx::{BoxFuture, with_tx};
 
 pub use sqlx::{PgPool, Postgres, Transaction};

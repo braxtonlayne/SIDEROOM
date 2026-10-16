@@ -698,7 +698,7 @@ impl sr_review::SubmissionKind for OneItemKind {
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn a_submission_gets_a_review_queue_card_that_approves_once() {
-    use sr_api::routes::admin::press_review_button;
+    use sr_api::routes::admin::{ReviewPress, press_review_button};
     use sr_core::PlatformPermissions as P;
     use sr_review::{Caller, KindRegistry, ReviewService, model::CreateSubmission};
 
@@ -763,9 +763,12 @@ async fn a_submission_gets_a_review_queue_card_that_approves_once() {
     let comps: Value = card.get("components");
     let row = comps[0]["components"].as_array().unwrap();
     assert_eq!(row[0]["custom_id"], format!("sr:review-approve:{sub}"));
-    assert_eq!(row[1]["custom_id"], format!("sr:review-reject:{sub}"));
+    assert_eq!(row[1]["custom_id"], format!("sr:review-changes:{sub}"));
+    assert_eq!(row[1]["label"], "Request changes");
+    assert_eq!(row[2]["custom_id"], format!("sr:review-reject:{sub}"));
+    assert!(embeds[0]["image"].is_null(), "no cover, no image");
     assert_eq!(
-        row[2]["url"],
+        row[3]["url"],
         format!("https://sr.test/admin/review?submission={sub}")
     );
 
@@ -775,7 +778,7 @@ async fn a_submission_gets_a_review_queue_card_that_approves_once() {
         permissions: P::STAFF_BASIC,
     };
     assert!(
-        press_review_button(&review, nobody, true, sub, 0)
+        press_review_button(&review, nobody, ReviewPress::Approve, sub, 0)
             .await
             .is_err()
     );
@@ -789,7 +792,7 @@ async fn a_submission_gets_a_review_queue_card_that_approves_once() {
         .unwrap_or(0);
 
     // Reject only answers with a link; the submission is untouched.
-    let (reject, audit) = press_review_button(&review, staff, false, sub, now)
+    let (reject, audit) = press_review_button(&review, staff, ReviewPress::Reject, sub, now)
         .await
         .unwrap();
     assert!(reject.ok && audit.is_none());
@@ -797,9 +800,18 @@ async fn a_submission_gets_a_review_queue_card_that_approves_once() {
         reject.link.as_deref(),
         Some(format!("/admin/review?submission={sub}&reject=1").as_str())
     );
+    // Request changes is the same: a link with the changes flag, no state change.
+    let (changes, audit) = press_review_button(&review, staff, ReviewPress::Changes, sub, now)
+        .await
+        .unwrap();
+    assert!(changes.ok && audit.is_none());
+    assert_eq!(
+        changes.link.as_deref(),
+        Some(format!("/admin/review?submission={sub}&changes=1").as_str())
+    );
 
     // Approve claims and approves once; the card turns into its outcome without buttons.
-    let (done, audit) = press_review_button(&review, staff, true, sub, now)
+    let (done, audit) = press_review_button(&review, staff, ReviewPress::Approve, sub, now)
         .await
         .unwrap();
     assert!(done.ok, "{}", done.message);
@@ -830,10 +842,48 @@ async fn a_submission_gets_a_review_queue_card_that_approves_once() {
     );
 
     // A second press answers "already decided" and changes nothing.
-    let (again, audit) = press_review_button(&review, staff, true, sub, now)
+    let (again, audit) = press_review_button(&review, staff, ReviewPress::Approve, sub, now)
         .await
         .unwrap();
     assert!(!again.ok && audit.is_none());
     assert_eq!(again.message, "Already decided.");
+
+    // A submission with a cover shows it on its card as a signed CDN URL.
+    sqlx::query("INSERT INTO reading_series (id, kind, title, cover_key) VALUES (777001, 'manga', 'Covered', 'library/777001/cover.jpg')")
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    let covered = review
+        .create(
+            Caller::member(submitter),
+            CreateSubmission {
+                kind: "library.series".into(),
+                payload: serde_json::json!({ "title": "Covered" }),
+                title: None,
+                summary: String::new(),
+            },
+        )
+        .await
+        .unwrap()
+        .submission
+        .id;
+    sqlx::query("UPDATE submissions SET ref_id = 777001 WHERE id = $1")
+        .bind(covered)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    review.submit(submitter, covered).await.unwrap();
+    assert!(wait_for(|| async { messages_in(&f.pool, queue).await.len() == 2 }).await);
+    let rows = messages_in(&f.pool, queue).await;
+    let image = rows
+        .iter()
+        .map(|r| r.get::<Value, _>("embeds"))
+        .find(|e| e[0]["title"] == "Review: Covered")
+        .map(|e| e[0]["image"]["url"].as_str().unwrap_or_default().to_owned())
+        .unwrap();
+    assert!(
+        image.starts_with("https://sr.test/cdn/library/777001/cover.jpg"),
+        "{image}"
+    );
     f.db.cleanup().await.unwrap();
 }

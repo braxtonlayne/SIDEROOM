@@ -1,6 +1,6 @@
 //! Platform settings, feature toggles, system status, the job queue and the access log.
 
-use super::ctx::{ReasonBody, StaffCtx, id, map_err, reason};
+use super::ctx::{IntegrationStatus, ReasonBody, StaffCtx, id, map_err, reason};
 use crate::{error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json,
@@ -54,11 +54,17 @@ pub async fn patch_settings(
 ) -> ApiResult<Json<Vec<SettingView>>> {
     let r = reason(&headers, b.reason.as_deref());
     let values: Vec<(String, Value)> = b.values.into_iter().collect();
-    ctx.svc()
+    let views = ctx
+        .svc()
         .patch_settings(&ctx.caller, &values, r.as_deref())
         .await
-        .map(Json)
-        .map_err(map_err)
+        .map_err(map_err)?;
+    // H-39: the live HTTP limits follow the registry from the next request on.
+    if let Some(tx) = &ctx.deps.rate_config {
+        let next = crate::rate_limit::RateConfig::from_settings(&views);
+        tx.send_if_modified(|cur| std::mem::replace(cur, next) != next);
+    }
+    Ok(Json(views))
 }
 
 // ---- feature toggles -----------------------------------------------------
@@ -262,6 +268,8 @@ pub struct SystemView {
     pub probes: Vec<ProbeView>,
     /// Open gateway sessions, when the gateway is attached.
     pub gateway_sessions: Option<usize>,
+    /// Which optional integrations are configured (SMTP, Discord sign-in, voice, TURN, GIF search).
+    pub integrations: Vec<IntegrationStatus>,
 }
 
 /// System status: version, readiness probes, gateway sessions, queue depth (`OPERATOR`).
@@ -290,7 +298,41 @@ pub async fn system(State(state): State<AppState>, ctx: StaffCtx) -> ApiResult<J
         counts,
         probes,
         gateway_sessions: ctx.deps.gateway_sessions.as_ref().map(|f| f()),
+        integrations: ctx.deps.integrations.clone(),
     }))
+}
+
+/// Result of the mail test.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct MailTestResult {
+    /// The caller's address with the local part masked.
+    pub sent_to: String,
+}
+
+/// Send a test message to your own address through the configured mailer (`OPERATOR`, fresh second
+/// factor). A 500 with code 900001 means the mailer refused; the log has the reason, the response does not.
+#[utoipa::path(
+    post, path = "/admin/system/email-test",
+    responses((status = 200, body = MailTestResult), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn email_test(ctx: StaffCtx) -> ApiResult<Json<MailTestResult>> {
+    ctx.svc()
+        .authorize(&ctx.caller, P::OPERATOR, "system.email_test")
+        .await
+        .map_err(map_err)?;
+    ctx.require_reauth().await?;
+    let sent_to = ctx.send_test_mail().await?;
+    ctx.svc()
+        .record_action(
+            &ctx.caller,
+            "system.email_test",
+            None,
+            json!({ "sent_to": sent_to }),
+        )
+        .await
+        .map_err(map_err)?;
+    Ok(Json(MailTestResult { sent_to }))
 }
 
 // ---- job queue -----------------------------------------------------------

@@ -125,6 +125,8 @@ pub async fn verify(
     svc.account_lock.clear(&key);
     svc.store.totp_confirm(account.id, step).await?;
     let codes = issue_recovery_codes(&svc, account.id).await?;
+    svc.notify_security(account.id, "An authenticator app was added")
+        .await;
     Ok(Json(json!({ "recovery_codes": codes })))
 }
 
@@ -150,5 +152,7 @@ pub async fn disable(
     if !svc.has_passkeys(account.id).await? {
         svc.store.recovery_replace_all(account.id, &[]).await?;
     }
+    svc.notify_security(account.id, "The authenticator app was removed")
+        .await;
     Ok(StatusCode::NO_CONTENT)
 }

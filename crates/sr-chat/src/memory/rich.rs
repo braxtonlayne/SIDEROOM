@@ -13,6 +13,42 @@ use std::collections::HashMap;
 
 #[async_trait]
 impl RichStore for MemoryBackend {
+    async fn set_webhook_author(
+        &self,
+        message: MessageId,
+        author: &crate::rich_repo::WebhookAuthor,
+    ) -> StoreResult<()> {
+        self.data().webhook_authors.insert(message, author.clone());
+        Ok(())
+    }
+
+    async fn webhook_authors(
+        &self,
+        messages: &[MessageId],
+    ) -> StoreResult<HashMap<MessageId, crate::rich_repo::WebhookAuthor>> {
+        let d = self.data();
+        Ok(messages
+            .iter()
+            .filter_map(|m| d.webhook_authors.get(m).map(|a| (*m, a.clone())))
+            .collect())
+    }
+
+    async fn app_emoji_owners(&self, emoji: &[u64]) -> StoreResult<HashMap<u64, i64>> {
+        let d = self.data();
+        Ok(emoji
+            .iter()
+            .filter_map(|e| d.app_emojis.get(e).map(|a| (*e, *a)))
+            .collect())
+    }
+
+    async fn bot_applications(&self, users: &[UserId]) -> StoreResult<HashMap<UserId, i64>> {
+        let d = self.data();
+        Ok(users
+            .iter()
+            .filter_map(|u| d.bot_apps.get(u).map(|a| (*u, *a)))
+            .collect())
+    }
+
     async fn set_embeds(&self, message: MessageId, embeds: &[Embed]) -> StoreResult<()> {
         if let Some(m) = self.data().messages.iter_mut().find(|m| m.id == message) {
             m.embeds = embeds.to_vec();

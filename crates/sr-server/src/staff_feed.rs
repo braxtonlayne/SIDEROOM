@@ -235,7 +235,14 @@ pub fn announcement_card(a: &Announcement) -> Card {
 }
 
 /// title, kind, submitter name, item count and the name of whoever decided it.
-type ReviewInfoRow = (String, String, Option<String>, i64, Option<String>);
+type ReviewInfoRow = (
+    String,
+    String,
+    Option<String>,
+    i64,
+    Option<String>,
+    Option<String>,
+);
 
 /// What the `#review-queue` card shows about a submission.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -247,6 +254,8 @@ pub struct ReviewCardInfo {
     pub items: i64,
     /// Name of the reviewer who decided it, for the outcome card.
     pub decided_by: Option<String>,
+    /// Signed CDN URL of the submission's cover or poster, when it has one (H-04).
+    pub image: Option<String>,
 }
 
 fn kind_label(kind: &str) -> &str {
@@ -283,10 +292,19 @@ pub fn review_card(i: &ReviewCardInfo, base_url: &str) -> Card {
                 text: format!("#{}", i.id),
                 ..Default::default()
             }),
+            image: i.image.clone().map(|url| sr_chat::message::EmbedMedia {
+                url: Some(url),
+                ..Default::default()
+            }),
             ..Embed::default()
         }),
         buttons: vec![
             button(SUCCESS, "Approve", format!("sr:review-approve:{}", i.id)),
+            button(
+                SECONDARY,
+                "Request changes",
+                format!("sr:review-changes:{}", i.id),
+            ),
             button(DANGER, "Reject", format!("sr:review-reject:{}", i.id)),
             link_button("Open review page", page),
         ],
@@ -372,6 +390,12 @@ impl StaffVoice {
 
     pub fn base_url(&self) -> &str {
         &self.base_url
+    }
+
+    /// An absolute, signed CDN URL for a stored object (the signer attachments use).
+    pub fn signed_image(&self, key: &str) -> String {
+        let signed = self.messages.sign_attachment_url(&format!("/cdn/{key}"));
+        format!("{}{signed}", self.base_url)
     }
 
     fn system() -> UserId {
@@ -596,6 +620,18 @@ impl StaffNotifier for StaffVoice {
         .await;
     }
 
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.dm(
+            to,
+            Card {
+                content: clip(text, 1900),
+                ..Card::default()
+            },
+        )
+        .await
+        .is_some()
+    }
+
     fn broadcast_announcement(&self, a: &Announcement) {
         let (pool, messages, base) = (
             self.pool.clone(),
@@ -708,7 +744,7 @@ impl StaffFeed {
 
     async fn review_info(&self, id: i64) -> Option<ReviewCardInfo> {
         let row: Option<ReviewInfoRow> = sqlx::query_as(
-            "SELECT s.title, s.kind, a.username::text,                     (SELECT count(*) FROM submission_items i WHERE i.submission_id = s.id),                     d.username::text              FROM submissions s              LEFT JOIN accounts a ON a.id = s.submitter_id              LEFT JOIN accounts d ON d.id = s.decided_by              WHERE s.id = $1",
+            "SELECT s.title, s.kind, a.username::text,                     (SELECT count(*) FROM submission_items i WHERE i.submission_id = s.id),                     d.username::text,                     CASE WHEN s.kind LIKE 'library.%' THEN (SELECT r.cover_key FROM reading_series r WHERE r.id = s.ref_id)                          WHEN s.kind LIKE 'cinema.%' THEN (SELECT v.poster_key FROM video_titles v WHERE v.id = s.ref_id) END              FROM submissions s              LEFT JOIN accounts a ON a.id = s.submitter_id              LEFT JOIN accounts d ON d.id = s.decided_by              WHERE s.id = $1",
         )
         .bind(id)
         .fetch_optional(&self.voice.pool)
@@ -716,13 +752,14 @@ impl StaffFeed {
         .ok()
         .flatten();
         row.map(
-            |(title, kind, submitter, items, decided_by)| ReviewCardInfo {
+            |(title, kind, submitter, items, decided_by, cover)| ReviewCardInfo {
                 id,
                 title,
                 kind,
                 submitter: submitter.unwrap_or_else(|| "deleted account".into()),
                 items,
                 decided_by,
+                image: cover.map(|key| self.voice.signed_image(&key)),
             },
         )
     }

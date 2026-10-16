@@ -3,7 +3,7 @@
 //! pick the in-memory fake. Every method forwards to the wrapped repository.
 
 use async_trait::async_trait;
-use sr_chat::social::dm::{DmChannel, GroupInvite, RequestState};
+use sr_chat::social::dm::{DmChannel, GroupInvite, RequestReason, RequestState, SharedProtection};
 use sr_chat::social::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::PresencePrefs;
 use sr_chat::social::profile::{Connection, Profile};
@@ -151,6 +151,24 @@ impl DmRepository for DynRepo {
         state: RequestState,
     ) -> RepoResult<()> {
         self.0.set_request_state(user, id, state).await
+    }
+    async fn get_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+    ) -> RepoResult<Option<RequestReason>> {
+        self.0.get_request_reason(user, id).await
+    }
+    async fn set_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+        reason: Option<RequestReason>,
+    ) -> RepoResult<()> {
+        self.0.set_request_reason(user, id, reason).await
+    }
+    async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection> {
+        self.0.shared_protection(a, b).await
     }
     async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()> {
         self.0.insert_group_invite(invite).await
@@ -302,5 +320,11 @@ impl UserSettingsRepository for DynRepo {
         level: Option<NotificationLevel>,
     ) -> RepoResult<()> {
         self.0.put_default_notification_level(user, level).await
+    }
+    async fn get_notification_keywords(&self, user: UserId) -> RepoResult<Vec<String>> {
+        self.0.get_notification_keywords(user).await
+    }
+    async fn put_notification_keywords(&self, user: UserId, keywords: &[String]) -> RepoResult<()> {
+        self.0.put_notification_keywords(user, keywords).await
     }
 }

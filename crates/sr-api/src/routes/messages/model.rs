@@ -47,6 +47,9 @@ pub struct UserRef {
     /// The server tag the author displays (LNG-SSET-012).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub primary_guild: Option<crate::routes::social::model::PrimaryGuildObject>,
+    /// Webhook authors only (DEV-BOT-006): the per-message avatar, an image-proxy path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
 }
 
 impl UserRef {
@@ -65,6 +68,7 @@ impl UserRef {
                 .get(&id)
                 .and_then(|u| u.primary_guild.as_ref())
                 .map(crate::routes::social::model::PrimaryGuildObject::of),
+            avatar_url: None,
         }
     }
 }
@@ -94,6 +98,25 @@ pub struct AttachmentObject {
     /// BlurHash placeholder to show until the image loads.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blurhash: Option<String>,
+    /// The viewer's sensitive-media setting withheld the file: `url` is empty (D-230).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sr_filtered: bool,
+}
+
+impl sr_chat::sensitive::Attachment for AttachmentObject {
+    fn content_type(&self) -> Option<&str> {
+        self.content_type.as_deref()
+    }
+    fn filename(&self) -> &str {
+        &self.filename
+    }
+    fn blur(&mut self) {
+        self.filename = sr_chat::sensitive::spoiler_name(&self.filename);
+    }
+    fn block(&mut self) {
+        self.url.clear();
+        self.sr_filtered = true;
+    }
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -107,6 +130,19 @@ pub struct ReactionObject {
     pub emoji: PartialEmoji,
     pub count: u32,
     pub me: bool,
+    /// Discord parity shim (D-231): burst reactions are not built, so always false.
+    pub me_burst: bool,
+    /// Always `{normal: count, burst: 0}`.
+    pub count_details: ReactionCountDetails,
+    /// Always empty.
+    pub burst_colors: Vec<String>,
+}
+
+/// Normal vs burst counts; burst is always 0 (D-231).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ReactionCountDetails {
+    pub burst: u32,
+    pub normal: u32,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -164,6 +200,14 @@ pub struct MessageObject {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<Object>)]
     pub call: Option<serde_json::Value>,
+    /// Set when the message was posted through a webhook (DEV-BOT-006); `author` is then the
+    /// webhook, not the person who created it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_id: Option<String>,
+    /// Ids of `<:name:id>` tokens in `content` that resolve to an application emoji but were not
+    /// sent by that application's bot: clients show them as `:name:` text (D-237).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sr_text_emoji: Vec<String>,
 }
 
 impl MessageObject {
@@ -213,6 +257,12 @@ impl MessageObject {
                     },
                     count: r.count,
                     me: r.me,
+                    me_burst: false,
+                    count_details: ReactionCountDetails {
+                        burst: 0,
+                        normal: r.count,
+                    },
+                    burst_colors: Vec::new(),
                 })
                 .collect(),
             nonce,
@@ -237,6 +287,8 @@ impl MessageObject {
             sticker_items: Vec::new(),
             message_snapshots: Vec::new(),
             call,
+            webhook_id: None,
+            sr_text_emoji: Vec::new(),
         }
     }
 
@@ -262,6 +314,7 @@ pub fn attachment_object(a: &Attachment) -> AttachmentObject {
         width: a.width,
         height: a.height,
         blurhash: a.blurhash.clone(),
+        sr_filtered: false,
     }
 }
 
@@ -375,6 +428,16 @@ pub struct ListMessagesQuery {
 pub struct ReactionUsersQuery {
     pub limit: Option<u32>,
     pub after: Option<String>,
+    /// 0 or 1. Burst reactions are not built (D-231): 1 answers an empty list.
+    #[serde(rename = "type")]
+    pub kind: Option<u8>,
+}
+
+/// Query of the add and remove reaction routes; `type` is accepted and ignored (D-231).
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+pub struct ReactionTypeQuery {
+    #[serde(rename = "type")]
+    pub kind: Option<u8>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]

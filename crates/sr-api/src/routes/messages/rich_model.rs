@@ -3,7 +3,7 @@
 
 use super::deps::MessagesDeps;
 use super::error::MsgResult;
-use super::model::{AttachmentObject, MessageObject, iso};
+use super::model::{AttachmentObject, MessageObject, UserRef, iso};
 use serde_json::{Value, json};
 use sr_chat::Message;
 use sr_chat::message::{ForwardSnapshot, Poll};
@@ -73,6 +73,7 @@ fn snapshot_value(deps: &MessagesDeps, f: &ForwardSnapshot) -> Value {
                 width: a.width,
                 height: a.height,
                 blurhash: a.blurhash.clone(),
+                sr_filtered: false,
             };
             serde_json::to_value(o).unwrap_or(Value::Null)
         })
@@ -146,7 +147,80 @@ pub async fn decorate(
             o.message_snapshots = vec![snapshot_value(deps, f)];
         }
     }
+    // Webhook-posted messages show the webhook (or the per-call override) as the author.
+    if let Some(store) = &deps.rich.store {
+        let ids: Vec<_> = msgs.iter().map(|m| m.id).collect();
+        let authors = store.webhook_authors(&ids).await?;
+        if !authors.is_empty() {
+            for (m, o) in msgs.iter().zip(objs.iter_mut()) {
+                let Some(a) = authors.get(&m.id) else {
+                    continue;
+                };
+                o.webhook_id = Some(a.webhook_id.to_string());
+                o.author = UserRef {
+                    id: a.webhook_id.to_string(),
+                    username: Some(a.username.clone()),
+                    global_name: Some(a.username.clone()),
+                    bot: true,
+                    primary_guild: None,
+                    avatar_url: a
+                        .avatar_url
+                        .as_deref()
+                        .and_then(|u| deps.proxy_external_image(u)),
+                };
+            }
+        }
+    }
+    // Application emoji render only in messages of their own application's bot (D-237).
+    if let Some(store) = &deps.rich.store {
+        let per_msg: Vec<Vec<u64>> = msgs.iter().map(|m| custom_emoji_ids(&m.content)).collect();
+        let mut all: Vec<u64> = per_msg.iter().flatten().copied().collect();
+        all.sort_unstable();
+        all.dedup();
+        if !all.is_empty() {
+            let owners = store.app_emoji_owners(&all).await?;
+            if !owners.is_empty() {
+                let authors: Vec<UserId> = msgs
+                    .iter()
+                    .zip(&per_msg)
+                    .filter(|(_, ids)| ids.iter().any(|i| owners.contains_key(i)))
+                    .map(|(m, _)| m.author_id)
+                    .collect();
+                let bots = store.bot_applications(&authors).await?;
+                for ((m, o), ids) in msgs.iter().zip(objs.iter_mut()).zip(&per_msg) {
+                    for id in ids {
+                        if let Some(app) = owners.get(id)
+                            && bots.get(&m.author_id) != Some(app)
+                            && !o.sr_text_emoji.contains(&id.to_string())
+                        {
+                            o.sr_text_emoji.push(id.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
     Ok(())
+}
+
+/// Ids of the `<:name:id>` and `<a:name:id>` tokens in `content`.
+pub fn custom_emoji_ids(content: &str) -> Vec<u64> {
+    let mut out = Vec::new();
+    let mut rest = content;
+    while let Some(start) = rest.find('<') {
+        rest = &rest[start + 1..];
+        let Some(end) = rest.find('>') else { break };
+        let body = &rest[..end];
+        let body = body.strip_prefix('a').unwrap_or(body);
+        if let Some(inner) = body.strip_prefix(':')
+            && let Some((name, id)) = inner.rsplit_once(':')
+            && !name.is_empty()
+            && let Ok(id) = id.parse::<u64>()
+        {
+            out.push(id);
+        }
+    }
+    out
 }
 
 #[cfg(test)]

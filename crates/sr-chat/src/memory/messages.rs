@@ -40,6 +40,12 @@ pub struct Data {
     pub sticker_rows: HashMap<u64, crate::rich_repo::StickerRecord>,
     /// Published sticker packs (tests).
     pub sticker_packs: Vec<crate::rich_repo::StickerPack>,
+    /// Webhook author overrides (DEV-BOT-006).
+    pub webhook_authors: HashMap<MessageId, crate::rich_repo::WebhookAuthor>,
+    /// Application emoji id to owning application (test seed, D-237).
+    pub app_emojis: HashMap<u64, i64>,
+    /// Bot user to application (test seed, D-237).
+    pub bot_apps: HashMap<UserId, i64>,
 }
 
 /// Cheap-to-clone handle over shared state.

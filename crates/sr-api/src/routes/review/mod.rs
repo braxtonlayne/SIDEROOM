@@ -20,7 +20,15 @@
 //! ```
 //! Reviewers additionally need [`AdminDeps`](crate::routes::admin::AdminDeps).
 
+mod duplicates;
 mod library;
+mod lookup;
+mod media;
+pub use lookup::{
+    AniList, ComicVine, LookupCandidate, LookupDeps, LookupError, LookupProvider, LookupSwitch,
+    MangaDex, MangaUpdates, RawCandidate, Section, Tmdb,
+};
+pub use media::ReviewMedia;
 mod member;
 mod requests;
 mod reviewer;
@@ -56,6 +64,8 @@ pub struct ReviewDeps {
     pub service: ReviewService,
     /// Draft content operations of the Library kinds (absent when the Library is off).
     pub library: Option<LibraryDraftOps>,
+    /// Review proxies of Cinema videos (absent when Cinema media is off).
+    pub media: Option<ReviewMedia>,
 }
 
 impl ReviewDeps {
@@ -63,7 +73,13 @@ impl ReviewDeps {
         Self {
             service,
             library: None,
+            media: None,
         }
+    }
+
+    pub fn with_media(mut self, media: ReviewMedia) -> Self {
+        self.media = Some(media);
+        self
     }
 
     pub fn with_library(mut self, ops: LibraryDraftOps) -> Self {
@@ -367,6 +383,10 @@ pub fn router() -> Router<AppState> {
         )
         .route("/submissions/{submission_id}/preview", get(member::preview))
         .route("/submissions/{submission_id}/credits", get(member::credits))
+        .route(
+            "/submissions/{submission_id}/duplicates",
+            get(duplicates::mine),
+        )
         .route("/submissions/{submission_id}/submit", post(member::submit))
         .route(
             "/submissions/{submission_id}/withdraw",
@@ -399,7 +419,15 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/submissions/{submission_id}/library/uploads/{upload_id}",
-            get(library::upload_status),
+            get(library::upload_status).delete(library::abort_upload),
+        )
+        .route(
+            "/submissions/{submission_id}/library/uploads/{upload_id}/parts",
+            get(library::upload_parts),
+        )
+        .route(
+            "/submissions/{submission_id}/library/uploads/{upload_id}/inspect",
+            get(library::inspect_upload),
         )
         .route(
             "/submissions/{submission_id}/library/uploads/{upload_id}/complete",
@@ -481,9 +509,22 @@ pub fn router() -> Router<AppState> {
             post(reviewer::revoke_credits),
         )
         .route(
+            "/admin/review/submissions/{submission_id}/media",
+            get(media::list),
+        )
+        .route(
+            "/admin/review/submissions/{submission_id}/duplicates",
+            get(duplicates::review),
+        )
+        .route(
+            "/admin/review/submissions/{submission_id}/duplicate",
+            put(duplicates::resolve),
+        )
+        .route(
             "/admin/review/requests/{request_id}/decline",
             post(requests::decline),
         )
+        .merge(lookup::router())
 }
 
 /// OpenAPI fragment for the review endpoints.
@@ -502,6 +543,12 @@ pub fn router() -> Router<AppState> {
         member::quota,
         member::naming_parse,
         member::credits,
+        duplicates::mine,
+        duplicates::review,
+        duplicates::resolve,
+        media::list,
+        lookup::providers,
+        lookup::search,
         library::update_series,
         library::set_cover,
         library::chapters,
@@ -512,6 +559,9 @@ pub fn router() -> Router<AppState> {
         library::uploads,
         library::begin_upload,
         library::upload_status,
+        library::upload_parts,
+        library::inspect_upload,
+        library::abort_upload,
         library::complete_upload,
         library::review_pages,
         requests::list,
@@ -582,7 +632,26 @@ pub fn router() -> Router<AppState> {
         sr_library::model::PageManifest,
         sr_library::model::Upload,
         sr_library::model::UploadRequest,
+        sr_review::model::DuplicateMatch,
+        sr_review::model::DuplicateAction,
+        sr_review::model::DuplicateResolution,
+        sr_review::model::DuplicateResolutionInput,
+        sr_review::model::DuplicateReport,
+        lookup::LookupCandidate,
+        lookup::LookupProviderInfo,
+        lookup::LookupProviders,
+        lookup::LookupResults,
+        media::MediaItem,
+        media::MediaList,
+        sr_review::model::MediaRef,
         sr_library::model::UploadSlot,
+        sr_library::multipart::MultipartSlot,
+        sr_library::multipart::PartUrl,
+        sr_library::multipart::ReceivedPart,
+        sr_library::multipart::UploadParts,
+        sr_library::ingest::inspect::ArchiveReport,
+        sr_library::ingest::inspect::FolderGroup,
+        sr_library::ingest::inspect::ComicInfoFacts,
         sr_library::model::UploadList,
     ))
 )]

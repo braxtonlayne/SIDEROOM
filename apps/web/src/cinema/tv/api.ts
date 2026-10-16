@@ -14,6 +14,7 @@ export const tvKeys = {
   guide: (from: number, to: number) => ['cinema', 'tv', 'guide', from, to] as const,
   now: (id: string) => ['cinema', 'tv', 'now', id] as const,
   settings: () => ['cinema', 'tv', 'settings-blob'] as const,
+  reminders: () => ['cinema', 'tv', 'reminders'] as const,
   info: (titleId: string) => ['cinema', 'tv', 'title-info', titleId] as const,
 };
 
@@ -218,6 +219,19 @@ export const setReminder = (blockId: string, on: boolean) =>
     method: on ? 'PUT' : 'DELETE',
     retries: 0,
   });
+
+/** One pending reminder of the caller (`GET /tv/reminders`, H-01). `title` is null once the programme left the guide. */
+export interface TvReminder {
+  block_id: string;
+  channel_id: string;
+  title: string | null;
+  starts_at: number;
+  remind_at: number;
+  lead_minutes: number;
+}
+
+export const listReminders = async () =>
+  (await apiFetch<{ items: TvReminder[] }>(`${BASE}/reminders`, { retries: 0 })).items;
 
 /* ------------------------------------------- catalog details for a block */
 

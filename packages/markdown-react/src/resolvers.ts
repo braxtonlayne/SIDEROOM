@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import type { LinkKind } from "./ast";
+import type { ReactNode } from 'react';
+import type { LinkKind } from './ast';
 
 export interface ResolvedName {
   name: string;
@@ -17,6 +17,11 @@ export interface Resolvers {
   channel?: (id: string) => ResolvedName | undefined;
   /** Image URL for a custom emoji. Without it the emoji renders as `:name:`. */
   customEmojiUrl?: (id: string, animated: boolean) => string | undefined;
+  /**
+   * Replaces the whole rendering of a custom emoji (the web app draws a clickable emoji with a popout). Return
+   * `undefined` to fall back to `customEmojiUrl` and the `:name:` text.
+   */
+  customEmoji?: (emoji: { id: string; name: string; animated: boolean }) => ReactNode | undefined;
   /** Rich card for `<cinema:id>`. Without it a plain chip is shown. */
   cinema?: (id: string) => ReactNode;
   /** Rich card for `<library:id>`. Without it a plain chip is shown. */
@@ -40,7 +45,7 @@ export interface MarkdownHooks {
    */
   confirmLink?: (link: LinkInfo) => boolean | Promise<boolean>;
   /** Called when a mention chip is clicked (profile popout, channel jump, ...). */
-  onMentionClick?: (target: { kind: "user" | "role" | "channel"; id: string }) => void;
+  onMentionClick?: (target: { kind: 'user' | 'role' | 'channel'; id: string }) => void;
   /** Syntax highlighting seam for code blocks (e.g. a lazy-loaded highlighter). */
   renderCodeBlock?: (block: { lang: string | null; code: string }) => ReactNode;
 }

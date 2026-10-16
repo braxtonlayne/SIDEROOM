@@ -10,6 +10,7 @@ import { ChatPanel } from './ChatPanel';
 import { ControlBar } from './ControlBar';
 import { GestureButton, ReactionsOverlay, ReadyCheck, WaitingBanner } from './Overlays';
 import { PeoplePanel } from './PeoplePanel';
+import { PickMedia } from './PickMedia';
 import { QueuePanel } from './QueuePanel';
 import { partyController, useParty } from './runtime';
 import { ShareDialog } from './ShareDialog';
@@ -81,13 +82,13 @@ export function Theatre({ onExit }: { onExit: () => void }) {
           <Icon name="close" size={20} />
         </Button>
         <div className="wp-titleblock">
-          <h1 className="wp-title">{media.title}</h1>
-          {media.episode_label && <p className="wp-sub">{media.episode_label}</p>}
+          <h1 className="wp-title">{media?.title ?? tr('watchparty.empty.theatreTitle')}</h1>
+          {media?.episode_label && <p className="wp-sub">{media.episode_label}</p>}
         </div>
         <Badge variant="accent">
           {tr('watchparty.theatre.watching', { n: party.participants.length })}
         </Badge>
-        {media.age_restricted && <Badge variant="danger">18+</Badge>}
+        {media?.age_restricted && <Badge variant="danger">18+</Badge>}
         <span className="wp-spacer" />
         <Button size="sm" variant="secondary" onClick={() => setShare(true)}>
           {tr('watchparty.theatre.invite')}
@@ -105,6 +106,7 @@ export function Theatre({ onExit }: { onExit: () => void }) {
       <div className="wp-body">
         <section className="wp-stage-wrap" aria-label={tr('watchparty.theatre.sharedPlayer')}>
           <div ref={stageRef} className="wp-stage" />
+          {!media && <PickMedia />}
           <ReactionsOverlay />
           <WaitingBanner />
           <GestureButton />

@@ -73,6 +73,24 @@ impl PlatformAllowance {
 
 #[async_trait::async_trait]
 impl sr_review::service::AllowanceSource for PlatformAllowance {
+    async fn max_open_per_member(&self) -> i64 {
+        let stored: Result<Option<serde_json::Value>, _> =
+            sqlx::query_scalar("SELECT value FROM platform_settings WHERE key = $1")
+                .bind("submissions.max_open_per_member")
+                .fetch_optional(&self.pool)
+                .await;
+        match stored {
+            Ok(Some(v)) => v
+                .as_i64()
+                .unwrap_or(sr_review::service::MAX_OPEN_PER_MEMBER),
+            Ok(None) => sr_review::service::MAX_OPEN_PER_MEMBER,
+            Err(e) => {
+                tracing::warn!(error = %e, "reading submissions.max_open_per_member failed");
+                sr_review::service::MAX_OPEN_PER_MEMBER
+            }
+        }
+    }
+
     async fn daily_upload_bytes(&self) -> i64 {
         let stored: Result<Option<serde_json::Value>, _> =
             sqlx::query_scalar("SELECT value FROM platform_settings WHERE key = $1")

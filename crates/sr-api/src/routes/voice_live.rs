@@ -5,6 +5,7 @@
 //! * `POST /stage-instances`, `GET|PATCH|DELETE /stage-instances/{channel_id}`,
 //!   `GET /guilds/{guild_id}/stage-instances` (SIDE ROOM list, Discord has none).
 //! * `POST|GET /streams/{stream_key}/preview`: the streamer's thumbnail.
+//! * `PUT /channels/{channel_id}/voice-status`: the status line of a voice channel (VOX-UI-015).
 //! * `GET /channels/{id}/call`, `POST /channels/{id}/call/ring`,
 //!   `POST /channels/{id}/call/stop-ringing`.
 
@@ -18,7 +19,7 @@ use axum::{
     extract::Path,
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use serde::Deserialize;
 use sr_core::{ApiError, ChannelId, GuildId, UserId};
@@ -41,6 +42,7 @@ pub fn router() -> Router<AppState> {
             "/streams/{stream_key}/preview",
             post(upload_stream_preview).get(get_stream_preview),
         )
+        .route("/channels/{channel_id}/voice-status", put(set_voice_status))
         .route("/channels/{channel_id}/call", get(get_call))
         .route("/channels/{channel_id}/call/ring", post(ring_call))
         .route(
@@ -272,6 +274,42 @@ pub async fn get_stream_preview(
     Ok(resp)
 }
 
+// ---- voice channel status ---------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct VoiceStatusBody {
+    /// The new status, at most 500 characters. `null` or an empty string clears it.
+    pub status: Option<String>,
+}
+
+/// Set or clear the status line of a voice or stage channel (Discord's voice channel status).
+/// Needs `SET_VOICE_CHANNEL_STATUS` and a seat in the channel, or `MANAGE_CHANNELS`. It ends
+/// when the last member leaves. Announced as `VOICE_CHANNEL_STATUS_UPDATE`.
+#[utoipa::path(
+    put,
+    path = "/channels/{channel_id}/voice-status",
+    params(("channel_id" = String, Path, description = "Voice or stage channel snowflake")),
+    request_body = VoiceStatusBody,
+    responses(
+        (status = 204, description = "Applied"),
+        (status = 400, description = "Not a voice channel, or longer than 500 characters", body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+    ),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn set_voice_status(
+    p: Principal,
+    Ext(api): Ext<VoiceApi>,
+    Path(channel_id): Path<String>,
+    Json(body): Json<VoiceStatusBody>,
+) -> ApiResult<StatusCode> {
+    let me = actor(&p)?;
+    let channel: ChannelId = id("channel_id", &channel_id)?;
+    api.0.voice_status_set(me, channel, body.status).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ---- DM calls ---------------------------------------------------------------------------------
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -369,6 +407,7 @@ pub async fn stop_ringing_call(
         delete_stage_instance,
         upload_stream_preview,
         get_stream_preview,
+        set_voice_status,
         get_call,
         ring_call,
         stop_ringing_call
@@ -378,6 +417,7 @@ pub async fn stop_ringing_call(
         ModifyStageInstanceBody,
         StageInstanceObject,
         StreamPreviewBody,
+        VoiceStatusBody,
         CallRecipientsBody
     ))
 )]

@@ -144,3 +144,113 @@ export const createChapter = (
 export const deleteChapter = (id: string) => send<void>(`/admin/library/chapters/${id}`, 'DELETE');
 export const setChapterPublished = (id: string, published: boolean) =>
   send<Chapter>(`/admin/library/chapters/${id}/${published ? 'publish' : 'unpublish'}`, 'POST');
+
+/* ------------------------------------------------ pages, uploads, credits (P13) */
+
+export interface AdminPage {
+  index: number;
+  width: number;
+  height: number;
+  is_double_spread: boolean;
+  blurhash?: string | null;
+  crop?: { left: number; top: number; right: number; bottom: number } | null;
+  /** Signed URL of the full-size page; its path after /cdn/ is the storage key. */
+  url: string;
+  variants: { width: number; url: string }[];
+}
+export interface AdminManifest {
+  chapter: Chapter;
+  pages: AdminPage[];
+}
+export interface PageInput {
+  key: string;
+  variants: Record<string, string>;
+  width: number;
+  height: number;
+  is_double_spread: boolean;
+  blurhash?: string | null;
+  crop?: AdminPage['crop'];
+}
+
+/** The storage key inside a signed /cdn/{key}?... URL. */
+export const keyOfUrl = (url: string) => {
+  const path = url.split('?')[0] ?? '';
+  const at = path.indexOf('/cdn/');
+  return at >= 0 ? decodeURIComponent(path.slice(at + 5)) : path;
+};
+
+/** A page as the PUT pages body wants it. */
+export const toPageInput = (p: AdminPage): PageInput => ({
+  key: keyOfUrl(p.url),
+  variants: Object.fromEntries(p.variants.map((v) => [String(v.width), keyOfUrl(v.url)])),
+  width: p.width,
+  height: p.height,
+  is_double_spread: p.is_double_spread,
+  blurhash: p.blurhash ?? null,
+  crop: p.crop ?? null,
+});
+
+export const getPages = (chapterId: string) =>
+  get<AdminManifest>(`/admin/library/chapters/${chapterId}/pages`);
+export const replacePages = (chapterId: string, pages: PageInput[]) =>
+  send<Chapter>(`/admin/library/chapters/${chapterId}/pages`, 'PUT', pages);
+
+/** `PUT /admin/library/chapters/{id}/pages/{index}`: swap one page for a new image (a data URI). */
+export const replacePage = (chapterId: string, index: number, image: string) =>
+  send<Chapter>(`/admin/library/chapters/${chapterId}/pages/${index}`, 'PUT', { image });
+
+export type UploadStatus = 'awaiting_upload' | 'queued' | 'running' | 'done' | 'failed' | 'expired';
+export interface Upload {
+  id: string;
+  chapter_id: string;
+  filename: string;
+  status: UploadStatus;
+  error?: string | null;
+  warnings: string[];
+  page_count?: number | null;
+}
+export interface UploadSlot {
+  upload: Upload;
+  upload_url: string;
+  upload_method: string;
+  max_bytes: number;
+}
+export const beginUpload = (chapterId: string, file: { name: string; size: number }) =>
+  send<UploadSlot>(`/admin/library/chapters/${chapterId}/uploads`, 'POST', {
+    filename: file.name,
+    size_bytes: file.size,
+  });
+export const completeUpload = (uploadId: string) =>
+  send<Upload>(`/admin/library/uploads/${uploadId}/complete`, 'POST');
+export const uploadStatus = (uploadId: string) => get<Upload>(`/admin/library/uploads/${uploadId}`);
+
+export interface Credit {
+  id: string;
+  section: string;
+  ref_id: string;
+  user_id?: string | null;
+  submission_id?: string | null;
+  label: string;
+  granted_at_ms: number;
+  revoked_at_ms?: number | null;
+  revoke_reason?: string | null;
+}
+export const listCredits = (submissionId: string) =>
+  get<Credit[]>(`/admin/review/submissions/${submissionId}/credits`);
+export const revokeCredits = (submissionId: string, reason: string) =>
+  send<{ revoked: number }>(`/admin/review/submissions/${submissionId}/revoke-credits`, 'POST', {
+    reason,
+  });
+
+export interface CommentReport {
+  id: string;
+  reporter_id: string;
+  reason: string;
+  status: string;
+  created_at_ms: number;
+  comment?: { id: string; body: string; author_name: string; series_id: string } | null;
+}
+export const listCommentReports = () =>
+  get<{ items: CommentReport[] }>('/admin/library/comment-reports');
+export const resolveCommentReport = (id: string, hide: boolean) =>
+  send<void>(`/admin/library/comment-reports/${id}/resolve`, 'POST', { hide });

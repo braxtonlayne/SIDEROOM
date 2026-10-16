@@ -426,6 +426,12 @@ impl LibraryRepository for PgLibraryRepo {
         if let Some(y) = q.year_to {
             qb.push(" AND s.year <= ").push_bind(y);
         }
+        if let Some(r) = q.rating_min {
+            qb.push(
+                " AND (SELECT avg(rr.score) FROM reading_ratings rr WHERE rr.series_id = s.id) >= ",
+            )
+            .push_bind(r);
+        }
         if scope == Scope::Staff {
             if let Some(p) = q.published {
                 qb.push(" AND s.published = ").push_bind(p);
@@ -440,6 +446,10 @@ impl LibraryRepository for PgLibraryRepo {
             SortKey::Updated => ("s.last_chapter_at", true),
             SortKey::Title => ("lower(s.title)", false),
             SortKey::Followers => ("s.follower_count", true),
+            SortKey::Rating => (
+                "(SELECT avg(rr.score) FROM reading_ratings rr WHERE rr.series_id = s.id)",
+                true,
+            ),
         };
         let dir = if q.descending.unwrap_or(natural_desc) {
             "DESC"

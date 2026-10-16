@@ -530,6 +530,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         id_src.clone(),
     )
     .with_index(library_index)
+    .with_cover_hashes(Arc::new(sr_db::library_repo::PgLibraryRepo::new(
+        pool.clone(),
+    )))
     .with_events(Arc::new(routes::library::BusLibraryEvents::new(
         bus.clone(),
     )))
@@ -542,23 +545,41 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         pool.clone(),
         id_src.clone(),
     )));
+    // Resumable multipart uploads of chapter files (REV-UP-001) need part-level presigning, which
+    // only the S3 API offers; with `SR_MEDIA_SINGLE_PUT=1` they are off and slots are one PUT.
+    let library_service = if std::env::var("SR_MEDIA_SINGLE_PUT").is_ok_and(|v| v == "1") {
+        library_service
+    } else {
+        let s3 = sr_storage::s3multipart::S3Multipart::new(
+            &s.endpoint,
+            &s.bucket,
+            &s.region,
+            s.access_key.expose(),
+            s.secret_key.expose(),
+        )
+        .context("configuring library multipart uploads")?;
+        library_service.with_multipart(sr_library::MultipartWiring::new(Arc::new(s3)))
+    };
     let indexed = library_service
         .reindex_all()
         .await
         .map_err(|e| anyhow::anyhow!("indexing the library catalog: {e}"))?;
     tracing::info!(series = indexed, "library search index rebuilt");
-    let library_deps = Arc::new(
-        routes::library::LibraryDeps::new(library_service.clone())
-            .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
-            .with_prefs(Arc::new(crate::settings_pg::PgLibraryPrefs::new(
-                pool.clone(),
-            )))
-            .with_social(
-                sr_library_social::LibrarySocial::new(pool.clone(), id_src.clone()).with_events(
-                    Arc::new(routes::library::BusLibraryEvents::new(bus.clone())),
-                ),
-            ),
-    );
+    let library_deps = routes::library::LibraryDeps::new(library_service.clone())
+        .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
+        .with_prefs(Arc::new(crate::settings_pg::PgLibraryPrefs::new(
+            pool.clone(),
+        )))
+        .with_social(
+            sr_library_social::LibrarySocial::new(pool.clone(), id_src.clone())
+                .with_trending_cache(
+                    std::time::Duration::from_secs(3600),
+                    std::time::Duration::from_secs(600),
+                )
+                .with_events(Arc::new(routes::library::BusLibraryEvents::new(
+                    bus.clone(),
+                ))),
+        );
 
     // The Cinema catalog (CIN-DATA-*): Postgres repository, signed artwork URLs (the same CDN
     // signer), and a title search index in `<search dir>/cinema`, rebuilt from the database at
@@ -700,15 +721,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         media_service
     };
     // Donations (DON-*): watch-only Bitcoin payments, entitlements, and the Patron download perk
-    // on top of them (the legacy `cinema_download_grants` table is a fallback until the cutover).
+    // on top of them (the legacy `cinema_download_grants` fallback is gone, migration 0871).
     let payments = crate::payments_jobs::build(&pool, id_src.clone(), bus.clone()).await;
-    let download_entitlements: Arc<dyn sr_media::downloads::DownloadEntitlements> =
-        Arc::new(sr_db::media_repo::EntitlementDownloads::new(
-            payments.entitlements.clone(),
-            payments
-                .legacy_fallback
-                .then(|| sr_db::media_repo::PgDownloadEntitlements::new(pool.clone())),
-        ));
+    let download_entitlements: Arc<dyn sr_media::downloads::DownloadEntitlements> = Arc::new(
+        sr_db::media_repo::EntitlementDownloads::new(payments.entitlements.clone()),
+    );
     let download_service = Arc::new(sr_media::downloads::DownloadService::new(
         media_repo.clone(),
         media_repo.clone(),
@@ -798,9 +815,29 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .with_library(sr_library::submissions::LibraryDraftOps::new(
             library_service.clone(),
+        ))
+        .with_media(routes::review::ReviewMedia::new(
+            media_repo.clone(),
+            cdn_signer.clone(),
         )),
     );
 
+    // Watched folders and storage imports (REV-UP-005/006): draft submissions of staff-owned
+    // sources. Local folders are limited to the roots in `[ingest] roots`.
+    let source_scanner = sr_library::sources::SourceScanner::new(
+        Arc::new(sr_db::library_repo::PgLibraryRepo::new(pool.clone())),
+        Arc::new(sr_library::sources::FsAndStorageFiles::new(
+            cfg.ingest
+                .roots
+                .iter()
+                .map(std::path::PathBuf::from)
+                .collect(),
+            storage.clone(),
+        )),
+        library_service.clone(),
+        review_deps.service.clone(),
+        clock.clone(),
+    );
     // Index jobs for every message event, DMs included, and search cache
     // invalidation, from one firehose subscription (see `search_jobs`).
     let search_consumer = {
@@ -849,6 +886,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         bus.clone(),
     );
     gateway.start();
+    // The event clock reads voice occupancy and stage instances from the gateway (G-91).
+    settings_deps.set_event_world(Arc::new(crate::events_jobs::GatewayEventWorld(
+        gateway.clone(),
+        bus.is_single_node(),
+    )));
     gateway_presence.attach(gateway.clone());
     temporary_members.attach(gateway.clone());
     temporary_members.schedule_startup_sweep(pool.clone());
@@ -896,7 +938,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         storage: storage.clone(),
         clock: clock.clone(),
     });
-    let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
+    // D-238: the upload limit follows the donations runtime (Patron perk, server level).
+    let messages = messages.with_upload_entitlements(Arc::new(
+        crate::upload_limits::PaymentsUploadLimits::new(
+            payments.entitlements.clone(),
+            sr_storage::upload::SizePolicy::default().standard_limit,
+        ),
+    ));
+    let messages = Arc::new(
+        messages
+            .with_dm_announcer(social_api.clone())
+            .with_viewer_safety(social_api.clone()),
+    );
 
     // Web Push (LNG-NTF-003): the VAPID key lives in the database sealed with the server
     // secret; without a configured secret it is per-boot (nothing could open it later).
@@ -938,22 +991,41 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         gif_source,
         Some(cdn_signer.clone()),
     ));
+    // Metadata lookup for the submission editor (REV-ED-005): off unless `[lookup]` enables a
+    // provider and the platform setting `review.lookup.enabled` is on.
+    let lookup_deps = Arc::new(routes::review::LookupDeps::new(
+        crate::lookup_wiring::providers_from(&cfg.lookup),
+        Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
+        Some(cdn_signer.clone()),
+    ));
     let push_subject = if cfg.server.public_url.starts_with("https://") {
         cfg.server.public_url.trim_end_matches('/').to_owned()
     } else {
         "mailto:admin@localhost.invalid".to_owned()
     };
+    let push_sender: Arc<dyn sr_push::PushSender> = Arc::new(sr_push::WebPushClient::new(
+        vapid,
+        push_subject,
+        sr_net::Policy::default(),
+    ));
+    // Interested members hear when a scheduled event starts (G-93).
+    settings_deps.set_event_notifier(Arc::new(crate::events_jobs::EventStartPush {
+        bus: bus.clone(),
+        social: social_api.clone(),
+        chat: Arc::new(PgChatRepo::new(pool.clone())),
+        store: push_store.clone(),
+        sender: push_sender.clone(),
+        activity: Some(Arc::new(gateway.clone())),
+    }));
+    let events_voice_listener =
+        crate::events_jobs::spawn_voice_listener(lag_bus.tap(), settings_deps.clone());
     let push_consumer = crate::push_notify::spawn(
         lag_bus.tap(),
         Arc::new(crate::push_notify::PushNotifier {
             messages: messages.clone(),
             social: social_api.clone(),
             store: push_store,
-            sender: Arc::new(sr_push::WebPushClient::new(
-                vapid,
-                push_subject,
-                sr_net::Policy::default(),
-            )),
+            sender: push_sender,
             pool: pool.clone(),
             activity: Some(Arc::new(gateway.clone())),
         }),
@@ -1028,6 +1100,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             )
             .with_voice(Arc::new(crate::feature_actions::GatewayVoice(
                 gateway.clone(),
+                bus.is_single_node(),
             ))),
         ),
         state: Arc::new(crate::features_store::PgFeatureState::new(pool.clone())),
@@ -1041,9 +1114,37 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         std::env::var("SR_ADMIN_REQUIRE_REAUTH").as_deref(),
         Ok("0" | "false" | "off")
     );
+    let integrations = integration_status(&cfg, voice_setup.is_some());
+    // H-39: the live HTTP rate limits start from the stored settings and follow later edits.
+    let (rate_tx, rate_rx) = {
+        use sr_admin::settings as k;
+        let d = sr_api::rate_limit::RateConfig::default();
+        let get = |key: &str, default: u32| {
+            let svc = admin_service.clone();
+            let key = key.to_owned();
+            async move {
+                svc.setting_value_i64(&key)
+                    .await
+                    .ok()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .unwrap_or(default)
+            }
+        };
+        let start = sr_api::rate_limit::RateConfig {
+            ip: get(k::RATE_IP, d.ip).await,
+            session: get(k::RATE_SESSION, d.session).await,
+            bot: get(k::RATE_BOT, d.bot).await,
+            messages: get(k::RATE_MESSAGES, d.messages).await,
+            uploads: get(k::RATE_UPLOADS, d.uploads).await,
+        };
+        tokio::sync::watch::channel(start)
+    };
     let mut admin = routes::admin::AdminDeps::new(admin_service)
+        .with_rate_config(rate_tx)
         .with_features(features.clone())
+        .with_integrations(integrations)
         .with_reauth(require_reauth)
+        .with_storage(storage.clone())
         .with_gateway_sessions({
             let gw = gateway.clone();
             Arc::new(move || gw.session_count())
@@ -1053,10 +1154,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         admin = admin.with_voice_stats(Arc::new(move || (live.rooms(), live.egress_bytes())));
     }
 
-    let settings = ApiSettings {
+    let mut settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,
         ..ApiSettings::for_public_url(&cfg.server.public_url)
     };
+    settings.rate_limit.live = Some(rate_rx);
     let readiness_timeout = settings.readiness_timeout;
     let state = AppState::builder()
         .settings(settings)
@@ -1089,6 +1191,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(export_deps)
         .extension(push_deps)
         .extension(gif_deps)
+        .extension(lookup_deps)
         .extension(Arc::new(routes::inbox::InboxDeps::new(Arc::new(
             crate::inbox_pg::PgMentionSource::new(pool.clone()),
         ))))
@@ -1101,7 +1204,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         ))
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
-        .extension(library_deps)
+        .extension(Arc::new(library_deps.with_sources(source_scanner.clone())))
         .extension(cinema_deps)
         .extension(tv_deps)
         .extension(media_deps)
@@ -1184,15 +1287,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }
     });
 
-    // Scheduled events start and end by the clock (P12 lounge events).
-    let events_task = tokio::spawn(async move {
-        let mut tick = tokio::time::interval(Duration::from_secs(30));
-        loop {
-            tick.tick().await;
-            routes::settings::scheduled_events::advance(&events_deps).await;
-        }
-    });
-
+    // Jobs a crashed node left `running` go back to the queue now, and hourly (H-15).
+    if let Err(e) = crate::jobs::reap_stale_jobs(&pool).await {
+        tracing::warn!(error = %e, "could not reap stale jobs at startup");
+    }
     let (job_tx, job_rx) = watch::channel(false);
     let runner = crate::jobs::register(
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
@@ -1202,6 +1300,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
+    let runner = crate::jobs::register_reap(runner, &pool);
     let runner = crate::jobs::register_insights(runner, &pool);
     let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
@@ -1209,10 +1308,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
+    let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::apps_jobs::register(runner, &pool, (*apps_service).clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
+    // The event clock is a leased singleton job: one node advances events (G-92).
+    let runner = crate::events_jobs::register(runner, &pool, events_deps.clone());
     let tv_reminders = Arc::new(crate::userfeat::TvReminders {
         tv: tv_deps_for_reminders,
         poster: system_poster_for_tv,
@@ -1236,6 +1338,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
+    crate::jobs::schedule_reap(&pool).await?;
     crate::jobs::schedule_insights(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
@@ -1243,10 +1346,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
+    crate::library_jobs::schedule_sources(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
     crate::apps_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
+    crate::events_jobs::schedule(&pool).await?;
     crate::userfeat::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
     crate::userset_jobs::schedule(&pool).await?;
@@ -1335,7 +1440,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     gauge_task.abort();
     seen_task.abort();
     apps_gc_task.abort();
-    events_task.abort();
+    events_voice_listener.abort();
     metrics_task.abort();
     search_consumer.abort();
     push_consumer.abort();
@@ -1373,6 +1478,42 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     // library feed, watch party announcer, poll templates, suggestions, tickets (docs/inventory/09).
     sr_userfeat::register_all(&mut registry).context("registering the user feature modules")?;
     Ok(registry)
+}
+
+/// What the operator configured, for the Setup checklist (ADM-DASH-003). Notes carry no secrets.
+fn integration_status(
+    cfg: &sr_core::config::Config,
+    voice: bool,
+) -> Vec<routes::admin::IntegrationStatus> {
+    let item =
+        |id: &str, configured: bool, detail: Option<String>| routes::admin::IntegrationStatus {
+            id: id.to_owned(),
+            configured,
+            detail,
+        };
+    vec![
+        item(
+            "smtp",
+            !cfg.smtp.host.is_empty(),
+            (!cfg.smtp.host.is_empty()).then(|| format!("{}:{}", cfg.smtp.host, cfg.smtp.port)),
+        ),
+        item("discord_oauth", !cfg.discord.client_id.is_empty(), None),
+        item("voice", voice, None),
+        item(
+            "turn",
+            !cfg.voice.turn.urls.is_empty(),
+            Some(if cfg.voice.turn.secret.expose().is_empty() {
+                "STUN only".to_owned()
+            } else {
+                "TURN credentials".to_owned()
+            }),
+        ),
+        item(
+            "gif",
+            cfg.gif.enabled(),
+            (!cfg.gif.provider.is_empty()).then(|| cfg.gif.provider.clone()),
+        ),
+    ]
 }
 
 #[cfg(test)]

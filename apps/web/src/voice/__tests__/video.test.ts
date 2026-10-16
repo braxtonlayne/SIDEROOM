@@ -257,8 +257,8 @@ describe('controller capture', () => {
     expect(useLocalVideo.getState().camera).toBeNull();
   });
 
-  it('does not announce video in the voice state while the SFU cannot forward it', async () => {
-    const { c, sent } = harness(undefined, videoDeps());
+  it('does not announce video in the voice state when publishing is off', async () => {
+    const { c, sent } = harness(false, videoDeps());
     const before = sent.length;
     await c.startCamera(FREE_PROFILES);
     await c.startScreenShare({ preset, source: 'screen', audio: false, hint: 'motion' });

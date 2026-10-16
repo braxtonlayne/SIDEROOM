@@ -163,6 +163,11 @@ export function PrivateContentSection() {
                 <div className="ss-grow">
                   <div className="ss-name">
                     {m.author_name} <span className="ss-meta">{fmtMs(m.created_at_ms)}</span>{' '}
+                    {m.webhook && (
+                      <Badge variant="neutral">
+                        {t('admin.private.viaWebhook', { name: m.webhook.name })}
+                      </Badge>
+                    )}
                     {m.visibility !== 'visible' && (
                       <Badge variant="danger">
                         {m.visibility === 'staff_removed'

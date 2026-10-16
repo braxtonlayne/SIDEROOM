@@ -18,12 +18,12 @@ pub mod comicinfo;
 pub mod crop;
 pub mod epub;
 pub mod image;
+pub mod inspect;
 pub mod pdf;
 pub mod pipeline;
 pub mod series_json;
 
 use sr_storage::img::ImgError;
-use std::cmp::Ordering;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -81,45 +81,19 @@ fn list_files(files: &[String]) -> String {
     format!(": {}{tail}", shown.join(", "))
 }
 
-/// Compare file names the way people read them: case-insensitively, with digit runs
-/// ordered by value (`page2` before `page10`). Ties fall back to a plain comparison so
-/// the order is total and deterministic.
-pub fn natural_cmp(a: &str, b: &str) -> Ordering {
-    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
-    loop {
-        match (x.peek().copied(), y.peek().copied()) {
-            (None, None) => return a.cmp(b),
-            (None, Some(_)) => return Ordering::Less,
-            (Some(_), None) => return Ordering::Greater,
-            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
-                let run = |it: &mut std::iter::Peekable<std::str::Chars<'_>>| {
-                    let mut s = String::new();
-                    while let Some(&ch) = it.peek() {
-                        if !ch.is_ascii_digit() {
-                            break;
-                        }
-                        s.push(ch);
-                        it.next();
-                    }
-                    s
-                };
-                let (na, nb) = (run(&mut x), run(&mut y));
-                let (ta, tb) = (na.trim_start_matches('0'), nb.trim_start_matches('0'));
-                // Longer significant run is the bigger number; equal lengths compare as text.
-                let ord = ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb));
-                if ord != Ordering::Equal {
-                    return ord;
-                }
-            }
-            (Some(c), Some(d)) => {
-                let (lc, ld) = (c.to_lowercase().next(), d.to_lowercase().next());
-                let ord = lc.cmp(&ld);
-                if ord != Ordering::Equal {
-                    return ord;
-                }
-                x.next();
-                y.next();
-            }
+pub use sr_library_rules::natural_cmp;
+
+impl From<sr_library_rules::RuleError> for IngestError {
+    fn from(e: sr_library_rules::RuleError) -> Self {
+        use sr_library_rules::RuleError as R;
+        match e {
+            R::TooLarge(w) => Self::TooLarge(w),
+            R::TooManyEntries => Self::TooManyEntries,
+            R::EntryTooLarge(n) => Self::EntryTooLarge(n),
+            R::SuspiciousRatio(n) => Self::SuspiciousRatio(n),
+            R::UnsafePath(n) => Self::UnsafePath(n),
+            R::Encrypted(n) => Self::Encrypted(n),
+            R::UnsupportedFormat { what, files } => Self::UnsupportedFormat { what, files },
         }
     }
 }
@@ -127,6 +101,7 @@ pub fn natural_cmp(a: &str, b: &str) -> Ordering {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cmp::Ordering;
 
     fn sorted(mut v: Vec<&str>) -> Vec<&str> {
         v.sort_by(|a, b| natural_cmp(a, b));

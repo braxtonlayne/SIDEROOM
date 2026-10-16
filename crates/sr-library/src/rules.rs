@@ -287,6 +287,11 @@ pub fn browse(mut q: BrowseQuery) -> LibraryResult<BrowseQuery> {
     {
         return invalid("year_from must not exceed year_to");
     }
+    if let Some(r) = q.rating_min
+        && !(1..=10).contains(&r)
+    {
+        return invalid("rating_min must be between 1 and 10");
+    }
     let (limit, offset) = paging(Some(q.limit), Some(q.offset));
     q.limit = limit;
     q.offset = offset;

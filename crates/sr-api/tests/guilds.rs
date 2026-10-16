@@ -1554,7 +1554,20 @@ async fn the_watch_party_room_preset_is_validated_before_anything_is_created() {
     assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
     assert!(body["errors"]["sr_watch_party_room"].is_object(), "{body}");
 
-    // It starts with a title.
+    // D-227: the title is optional, but an episode alone is not a media.
+    let (s, body) = post(
+        &f,
+        &path,
+        "owner",
+        json!({"name": "Movie night", "type": 2, "sr_watch_party_room": true, "sr_watch_party_episode_id": "9"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body["errors"]["sr_watch_party_episode_id"].is_object(),
+        "{body}"
+    );
+    // An empty room request passes validation (this fixture's callers are bots, so it stops at the bot rule).
     let (s, body) = post(
         &f,
         &path,
@@ -1562,11 +1575,7 @@ async fn the_watch_party_room_preset_is_validated_before_anything_is_created() {
         json!({"name": "Movie night", "type": 2, "sr_watch_party_room": true}),
     )
     .await;
-    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
-    assert!(
-        body["errors"]["sr_watch_party_title_id"].is_object(),
-        "{body}"
-    );
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
 
     // The preset is for people (this fixture's callers are bots), and it is refused before anything is made.
     let (s, body) = post(

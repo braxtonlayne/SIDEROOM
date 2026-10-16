@@ -6,8 +6,15 @@ export const server = setupServer(
   http.get('*/api/v1/users/@me', () =>
     HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
   ),
+  http.get('*/api/v1/sr/entrance/copy', () => HttpResponse.json({})),
+  http.get('*/api/v1/sr/entrance/hero', () => new HttpResponse(null, { status: 404 })),
+  http.get('*/api/v1/sr/emojis/:id/url', () =>
+    HttpResponse.json({ message: 'Unknown emoji' }, { status: 404 }),
+  ),
   http.get('*/api/v1/sr/auth/discord/pending', () => HttpResponse.json(null)),
   http.get('*/api/v1/sr/auth/passkeys', () => HttpResponse.json([])),
+  // Settings > Devices: new-device sign-in alerts start on.
+  http.get('*/api/v1/sr/auth/login-alerts', () => HttpResponse.json({ enabled: true })),
   // Home screen loads: nobody to befriend, no templates, online with no custom status.
   http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
   http.get('*/api/v1/guilds/templates/builtin', () => HttpResponse.json([])),
@@ -34,8 +41,15 @@ export const server = setupServer(
       friend_requests_server_members: true,
       allow_server_member_dms: true,
       message_requests: true,
+      sensitive_media: { friends: 'show', others: 'blur', servers: 'show' },
+      dm_spam_filter: 'non_friends',
+      server_dm_overrides: {},
     }),
   ),
+  http.get('*/api/v1/users/@me/age-confirmation', () =>
+    HttpResponse.json({ confirmed_at: null, method: null }),
+  ),
+  http.get('*/api/v1/users/@me/notification-keywords', () => HttpResponse.json({ keywords: [] })),
   http.get('*/api/v1/users/@me/notification-defaults', () =>
     HttpResponse.json({ message_notifications: null }),
   ),

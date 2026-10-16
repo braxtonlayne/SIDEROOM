@@ -9,6 +9,7 @@ use super::deps::{GuildAccess, SettingsDeps, actor, id, invalid, re, se};
 use super::events::SettingsEvent;
 use crate::routes::Ext;
 use crate::routes::guilds::dto::GuildObject;
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::messages::error::ApiJson;
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{Json, Router, extract::Path, routing::get};
@@ -136,6 +137,10 @@ async fn publish_guild_update(deps: &SettingsDeps, acc: &GuildAccess) {
         o.insert(
             "safety_alerts_channel_id".into(),
             serde_json::json!(ch(settings.safety_alerts_channel_id)),
+        );
+        o.insert(
+            "hide_suspicious_links".into(),
+            serde_json::json!(settings.hide_suspicious_links),
         );
         o.insert(
             "preferred_locale".into(),
@@ -283,6 +288,7 @@ pub async fn get_community(
 )]
 pub async fn modify_community(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<ModifyCommunityBody>,
@@ -290,6 +296,8 @@ pub async fn modify_community(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
     let mut s = deps.service.community(acc.perms, gid).await.map_err(se)?;
     if let Some(v) = body.community_enabled {
         s.community_enabled = v;
@@ -542,6 +550,7 @@ pub async fn get_onboarding(
 )]
 pub async fn put_onboarding(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<OnboardingDto>,
@@ -549,6 +558,8 @@ pub async fn put_onboarding(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
     let mut referenced: Vec<ChannelId> = ids_of("default_channel_ids", &body.default_channel_ids)?;
     let mut prompts = Vec::with_capacity(body.prompts.len());
     for p in &body.prompts {
@@ -688,6 +699,7 @@ pub async fn get_welcome_screen(
 )]
 pub async fn modify_welcome_screen(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<ModifyWelcomeScreenBody>,
@@ -695,6 +707,8 @@ pub async fn modify_welcome_screen(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
     let mut w = deps.service.welcome_screen(gid).await.map_err(se)?;
     w.guild_id = gid;
     if let Some(v) = body.enabled {

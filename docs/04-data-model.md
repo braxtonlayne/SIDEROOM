@@ -79,7 +79,7 @@ id, name, icon_key, banner_key, splash_key, owner_id, description, `features tex
 Roles are a join table, `member_roles (guild_id, user_id, role_id)`, not an array column. Foreign keys cascade on role or member delete. The API still exposes `roles: [role ids]` on the member object.
 
 ### `guild_directory`
-One row per server that asked to be listed (migration 0620, D-012): `guild_id` pk, `status` (`pending`, `approved`, `rejected`, `removed`), `category` (slug), `description` (blurb, 300), `featured`, `requested_by`, `requested_at`, `decided_by`, `decided_at`, `decision_note`. `guild_community` also holds the membership screening form: `screening_enabled`, `screening_description`, `screening_rules jsonb` (at most 16 strings).
+One row per server that asked to be listed (migration 0620, D-012): `guild_id` pk, `status` (`pending`, `approved`, `rejected`, `removed`), `category` (slug), `description` (blurb, 300), `featured`, `requested_by`, `requested_at`, `decided_by`, `decided_at`, `decision_note`. `guild_community` also holds the membership screening form: `screening_enabled`, `screening_description`, `screening_rules jsonb` (at most 16 strings). It also holds the Server Protection settings (migration 0795, enforced by D-224): `dm_spam_filter`, `explicit_media_filter_dms`, `hide_suspicious_links` (booleans, default off) and `warn_new_account_days` (0 to 365, default 0).
 
 ### `roles`
 id, guild_id, name, color, secondary_color, icon_key, unicode_emoji, hoist, position, permissions (bigint, Discord bit layout), mentionable, managed, tags jsonb.
@@ -96,6 +96,7 @@ As in Discord.
 ### `channel_recipients`
 For DMs and group DMs. Per-recipient columns:
 - `request_state` (`accepted`, `pending`, `ignored`, `spam`; default `accepted`). A non-friend's first DM lands as `pending` on the recipient's row when their message-requests setting allows it (migration 0072).
+- `request_reason` (null, `server_filter` or `new_account`; migration 0825, D-224): set with `request_state = pending` when a shared server's Protection settings, not the recipient's own, sent the conversation to Message Requests.
 - `hidden_at` (the recipient closed the DM; a new message reopens it) and `seq` (join order, used for ownership hand-over). Migration 0021.
 
 ## 3. Messages
@@ -149,7 +150,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 ## 5. Expression
 
-`emojis` (guild_id, name, key, animated, roles allowed, available), `stickers`, `sticker_packs`, `soundboard_sounds`, `guild_templates`, `scheduled_events`, `scheduled_event_users`, `stage_instances`, `automod_rules`, `onboarding` (prompts, options, default channels), `welcome_screens`, `webhooks`, `invites` (server invites: code, guild_id, channel_id, inviter_id, max_age, max_uses, uses, temporary, single_use_external default per D-022).
+`emojis` (guild_id, name, key, animated, roles allowed, available), `stickers`, `sticker_packs`, `soundboard_sounds`, `guild_templates`, `guild_scheduled_events` (with `image_key`, `entity_id` and `empty_since`, migration 0820), `guild_scheduled_event_users`, `stage_instances`, `automod_rules`, `onboarding` (prompts, options, default channels), `welcome_screens`, `webhooks`, `invites` (server invites: code, guild_id, channel_id, inviter_id, max_age, max_uses, uses, temporary, single_use_external default per D-022).
 
 ## 6. Applications and developer platform
 

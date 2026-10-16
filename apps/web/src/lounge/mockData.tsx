@@ -412,6 +412,16 @@ function MockDataSource({ children, now, historySize = HISTORY_TOTAL }: MockData
     () => ({
       '2011': [{ userId: '1' }, { userId: '2', speaking: true }, { userId: '3', muted: true }],
       '2012': [{ userId: '5', video: true, streaming: true }],
+      // Stages (tests): 9001 has one speaker, two hands up and a listener; in 9002 you listen.
+      '9002': [{ userId: '2' }, { userId: '1', suppressed: true }],
+      // A DM call (tests): you are alone and the other person is ringing.
+      '9003': [{ userId: '1' }],
+      '9001': [
+        { userId: '1' },
+        { userId: '2', suppressed: true, handRaisedAt: 2000 },
+        { userId: '3', suppressed: true },
+        { userId: '5', suppressed: true, handRaisedAt: 1000 },
+      ],
     }),
     [],
   );

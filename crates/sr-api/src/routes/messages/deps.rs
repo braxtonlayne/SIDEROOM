@@ -15,7 +15,8 @@ use sr_chat::{
 use sr_core::permissions::Permissions;
 use sr_core::snowflake::SnowflakeError;
 use sr_core::{
-    AttachmentId, ChannelId, Clock, ErrorCode, MessageId, Snowflake, SnowflakeGenerator, UserId,
+    AttachmentId, ChannelId, Clock, ErrorCode, GuildId, MessageId, Snowflake, SnowflakeGenerator,
+    UserId,
 };
 use sr_events::{DomainEvent, EventBus, Topic};
 use sr_storage::ObjectStorage;
@@ -24,11 +25,26 @@ use sr_storage::upload::SizePolicy;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Per-user upload size entitlement (donor perks, doc 08). The result is clamped
+/// Upload size entitlement (donor perks and server level, doc 08, D-238). `guild` is the server
+/// of the channel, `None` in DMs and groups (the member's perk alone). The result is clamped
 /// to `SizePolicy` bounds by the caller.
 #[async_trait]
 pub trait UploadEntitlements: Send + Sync {
-    async fn max_upload_bytes(&self, user: UserId) -> u64;
+    async fn max_upload_bytes(&self, user: UserId, guild: Option<GuildId>) -> u64;
+}
+
+/// What the message pipeline needs to know about a viewer to apply their safety settings
+/// (D-230): the `sensitive_media` preferences and who their friends are. Implemented by the
+/// social routes so the message path need not know about `SocialService`.
+#[async_trait]
+pub trait ViewerSafety: Send + Sync {
+    async fn sensitive_view(
+        &self,
+        viewer: UserId,
+    ) -> (
+        sr_chat::social::safety::SensitiveMedia,
+        std::collections::HashSet<UserId>,
+    );
 }
 
 /// The same limit for everyone.
@@ -37,7 +53,7 @@ pub struct FixedEntitlements(pub u64);
 
 #[async_trait]
 impl UploadEntitlements for FixedEntitlements {
-    async fn max_upload_bytes(&self, _user: UserId) -> u64 {
+    async fn max_upload_bytes(&self, _user: UserId, _guild: Option<GuildId>) -> u64 {
         self.0
     }
 }
@@ -158,6 +174,7 @@ pub struct MessagesDeps {
     dm_announcer: Option<Arc<dyn DmAnnouncer>>,
     /// Source of the 18+ confirmation for age-restricted channels (D-032).
     age: Option<Arc<dyn crate::routes::search::AgeGate>>,
+    safety: Option<Arc<dyn ViewerSafety>>,
     audit: Option<Arc<dyn crate::routes::guilds::backend::AuditSink>>,
     pub limits: ChatLimits,
     pub size_policy: SizePolicy,
@@ -208,6 +225,7 @@ impl MessagesDeps {
             cdn: None,
             dm_announcer: None,
             age: None,
+            safety: None,
             audit: None,
             limits,
             size_policy: SizePolicy::default(),
@@ -288,6 +306,12 @@ impl MessagesDeps {
         }
     }
 
+    /// The image-proxy path of a third-party image URL, or `None` without a signer or for a
+    /// URL that is not absolute http(s). The viewer never fetches the original directly.
+    pub fn proxy_external_image(&self, url: &str) -> Option<String> {
+        self.cdn.as_ref().and_then(|s| s.external_path(url))
+    }
+
     /// `path?ex=..&sig=..` valid for 24 hours from now, when a signer is installed.
     pub fn sign_attachment_url(&self, path: &str) -> String {
         match &self.cdn {
@@ -358,8 +382,95 @@ impl MessagesDeps {
         AttachmentId::from(self.ids.generate())
     }
 
-    pub async fn upload_limit(&self, user: UserId) -> u64 {
-        self.entitlements.max_upload_bytes(user).await
+    pub async fn upload_limit(&self, user: UserId, guild: Option<GuildId>) -> u64 {
+        self.entitlements.max_upload_bytes(user, guild).await
+    }
+
+    /// The largest file `user` may upload in `guild` (`None`: DMs and groups): the same number
+    /// the 413 check uses (the entitlement, clamped to the size policy). Sent to clients as
+    /// `sr_max_upload_bytes` on `GET /guilds/{id}` and `GET /users/@me/channels` only (D-233,
+    /// D-238); a change arrives as `SR_ENTITLEMENT_UPDATE`.
+    pub async fn effective_upload_limit(&self, user: UserId, guild: Option<GuildId>) -> u64 {
+        self.size_policy
+            .effective_limit(self.upload_limit(user, guild).await)
+    }
+
+    /// The server a channel belongs to (`None` for DMs, groups and unknown channels).
+    pub async fn channel_guild(&self, channel: ChannelId) -> Option<GuildId> {
+        match self.repo.get_channel(channel).await {
+            Ok(Some(c)) => c.guild_id,
+            _ => None,
+        }
+    }
+
+    /// The viewer-safety source (sensitive-media settings and friends, D-230).
+    pub fn with_viewer_safety(mut self, s: Arc<dyn ViewerSafety>) -> Self {
+        self.safety = Some(s);
+        self
+    }
+
+    /// Apply the viewer's sensitive-media settings to rendered messages (REST list, get, search,
+    /// pins): the same `sr_chat::sensitive::apply` the gateway uses per session.
+    pub async fn apply_sensitive(
+        &self,
+        viewer: UserId,
+        msgs: &[sr_chat::Message],
+        out: &mut [super::model::MessageObject],
+    ) {
+        let Some(safety) = &self.safety else { return };
+        if !out.iter().any(|o| !o.attachments.is_empty()) {
+            return;
+        }
+        let (prefs, friends) = safety.sensitive_view(viewer).await;
+        let mut restricted: std::collections::HashMap<sr_core::ChannelId, bool> =
+            std::collections::HashMap::new();
+        for (m, o) in msgs.iter().zip(out.iter_mut()) {
+            if o.attachments.is_empty() {
+                continue;
+            }
+            let relation = if m.author_id == viewer || o.author.bot {
+                sr_chat::sensitive::Relation::Exempt
+            } else if friends.contains(&m.author_id) {
+                sr_chat::sensitive::Relation::Friend
+            } else {
+                sr_chat::sensitive::Relation::Other
+            };
+            let dm = m.guild_id.is_none();
+            let age_restricted = if dm {
+                false
+            } else if let Some(v) = restricted.get(&m.channel_id) {
+                *v
+            } else {
+                let v = self.channel_age_restricted(m.channel_id).await;
+                restricted.insert(m.channel_id, v);
+                v
+            };
+            let ctx = sr_chat::sensitive::ChannelCtx { dm, age_restricted };
+            sr_chat::sensitive::apply(&prefs, relation, &ctx, &mut o.attachments);
+        }
+    }
+
+    /// Whether the channel, or a thread's parent, is age-restricted.
+    async fn channel_age_restricted(&self, channel: sr_core::ChannelId) -> bool {
+        let Ok(Some(c)) = self.repo.get_channel(channel).await else {
+            return false;
+        };
+        if c.nsfw {
+            return true;
+        }
+        match c.parent_id {
+            Some(p) if c.kind.is_thread() => matches!(
+                self.repo.get_channel(p).await,
+                Ok(Some(parent)) if parent.nsfw
+            ),
+            _ => false,
+        }
+    }
+
+    /// Swap in the upload entitlement source (the composition root passes the payments-backed one).
+    pub fn with_upload_entitlements(mut self, e: Arc<dyn UploadEntitlements>) -> Self {
+        self.entitlements = e;
+        self
     }
 
     /// Publish to every topic the event routes to. Delivery is best effort: the
@@ -494,5 +605,25 @@ impl MessagesDeps {
     }
     pub async fn unpin(&self, u: UserId, c: ChannelId, m: MessageId) -> ChatResult<()> {
         self.chat.unpin(u, c, m).await
+    }
+}
+
+impl MessagesDeps {
+    /// Second-factor requirement of the server (D-223) for an elevated action in `guild`
+    /// (`MANAGE_MESSAGES`: deleting another member's message, bulk delete, pins). Direct
+    /// messages have no server and pass.
+    pub(super) async fn require_mfa(
+        &self,
+        gate: &crate::routes::guilds::safety::MfaGate,
+        user: UserId,
+        guild: Option<sr_core::GuildId>,
+    ) -> super::error::MsgResult<()> {
+        let (true, Some(guild)) = (gate.applies(), guild) else {
+            return Ok(());
+        };
+        if let Some(g) = self.repo.get_guild(guild).await? {
+            gate.check_level(user, g.mfa_level).await?;
+        }
+        Ok(())
     }
 }

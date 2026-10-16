@@ -14,6 +14,7 @@ use sr_db::{
     library_repo::PgLibraryRepo,
 };
 use sr_library::model::*;
+use sr_library::reading::ProgressInput;
 use sr_library::{Actor, LibraryError, LibraryService, SeriesIndex, Viewer};
 use sr_storage::cdn::CdnSigner;
 
@@ -74,6 +75,7 @@ fn service(pool: &PgPool) -> LibraryService {
 
 struct World {
     svc: LibraryService,
+    pool: PgPool,
     publisher: Actor,
     member: Viewer,
     adult: Viewer,
@@ -89,6 +91,7 @@ async fn world() -> World {
     let a = account(&pool).await;
     World {
         svc,
+        pool,
         publisher: Actor {
             user_id: p,
             permissions: P::PUBLISH_READING | P::DELETE_CONTENT,
@@ -419,6 +422,55 @@ async fn neighbours_and_reordering_pages() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn epub_progress_keeps_the_cfi_beside_the_page_index() {
+    let w = world().await;
+    let (_, _, ch) = w.published("Cfi", false, 1.0).await;
+    let input = |cfi: Option<&str>, page: i32| ProgressInput {
+        page_index: page,
+        percent: 12.5,
+        cfi: cfi.map(str::to_owned),
+        completed: None,
+        base_updated_at_ms: None,
+        force: None,
+    };
+    let cfi = "epubcfi(/6/14[chap05]!/4/2/16/1:0)";
+    let saved = w
+        .svc
+        .save_progress(w.member, ch, input(Some(cfi), 2))
+        .await
+        .unwrap();
+    assert!(saved.applied);
+    assert_eq!(
+        (saved.progress.page_index, saved.progress.cfi.as_deref()),
+        (2, Some(cfi))
+    );
+    // It comes back on read and in the chapter list; either may be null.
+    let got = w.svc.progress(w.member, ch).await.unwrap();
+    assert_eq!(got.cfi.as_deref(), Some(cfi));
+    let none = w
+        .svc
+        .save_progress(w.member, ch, input(None, 1))
+        .await
+        .unwrap();
+    assert_eq!((none.progress.page_index, none.progress.cfi), (1, None));
+    // Over 1024 characters is refused by the service, and by the column check beneath it.
+    let long = "x".repeat(1025);
+    assert!(matches!(
+        w.svc
+            .save_progress(w.member, ch, input(Some(&long), 1))
+            .await,
+        Err(LibraryError::Invalid(_))
+    ));
+    let direct = sqlx::query("UPDATE reading_progress SET cfi = $1 WHERE chapter_id = $2")
+        .bind(&long)
+        .bind(ch)
+        .execute(&w.pool)
+        .await;
+    assert!(direct.is_err(), "the 0873 check holds below the service");
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn publishers_need_the_right_permissions() {
     let w = world().await;
     let nobody = Actor {
@@ -652,6 +704,28 @@ async fn browse_filters_sort_and_pagination() {
     })
     .await;
     assert_eq!(titles(&years), [ids[1]]);
+    // Ratings: sort by average and filter by a minimum.
+    for (series, score) in [(ids[0], 9_i16), (ids[1], 4)] {
+        sqlx::query("INSERT INTO reading_ratings (user_id, series_id, score) VALUES ($1, $2, $3)")
+            .bind(w.member.user_id)
+            .bind(series)
+            .bind(score)
+            .execute(&w.pool)
+            .await
+            .unwrap();
+    }
+    let best = run(BrowseQuery {
+        sort: SortKey::Rating,
+        ..w.browse()
+    })
+    .await;
+    assert_eq!(titles(&best)[..2], [ids[0], ids[1]]);
+    let good = run(BrowseQuery {
+        rating_min: Some(6),
+        ..w.browse()
+    })
+    .await;
+    assert_eq!(titles(&good), [ids[0]]);
     let mut q = w.browse();
     q.genres.push(format!("romance{}", w.genre));
     let rom = run(BrowseQuery {

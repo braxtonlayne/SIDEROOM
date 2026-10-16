@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore } from 'react';
 
 /** Relative timestamps re-render once a minute (Q91). */
 export const RELATIVE_TICK_MS = 60_000;
@@ -37,7 +37,11 @@ function noSubscribe(): () => void {
  * `fixed` (the `now` option) wins and never ticks.
  */
 export function useRelativeNow(enabled: boolean, fixed?: number): number | undefined {
-  useSyncExternalStore(enabled && fixed === undefined ? subscribe : noSubscribe, minuteSnapshot, minuteSnapshot);
+  useSyncExternalStore(
+    enabled && fixed === undefined ? subscribe : noSubscribe,
+    minuteSnapshot,
+    minuteSnapshot,
+  );
   if (fixed !== undefined) return fixed;
   return enabled ? Date.now() : undefined;
 }

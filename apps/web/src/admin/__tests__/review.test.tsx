@@ -38,6 +38,10 @@ function useReviewApi(
         pages: [0, 1].map((i) => ({ index: i, width: 100, height: 150, url: `/cdn/p${i}.webp` })),
       }),
     ),
+    http.get('*/api/v1/admin/review/submissions/:id/duplicates', () =>
+      HttpResponse.json({ matches: [], resolution: null }),
+    ),
+    http.get('*/api/v1/admin/review/submissions/:id/media', () => HttpResponse.json({ items: [] })),
     act('claim'),
     act('release'),
     act('approve'),
@@ -135,6 +139,20 @@ describe('review queue', () => {
     // The reviewer holds the claim by now and the reject dialog is open, asking for a reason.
     const dialog = await screen.findByRole('dialog', { name: 'Reject this submission' });
     expect(within(dialog).getByRole('button', { name: 'Reject' })).toBeDisabled();
+  });
+
+  it("opens the request-changes dialog a card's Request changes button links to (H-04)", async () => {
+    useReviewApi({
+      detail: () => detail({ id: '7', title: 'Linked series', state: 'submitted' }),
+      onPost: (path) =>
+        path === 'claim'
+          ? detail({ id: '7', title: 'Linked series', state: 'in_review', ...lease() })
+          : undefined,
+    });
+    openAdmin('review?submission=7&changes=1');
+    expect(await screen.findByRole('heading', { name: 'Linked series' })).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Request changes' });
+    expect(within(dialog).getByRole('button', { name: 'Send back' })).toBeDisabled();
   });
 
   it('says so when nothing waits', async () => {

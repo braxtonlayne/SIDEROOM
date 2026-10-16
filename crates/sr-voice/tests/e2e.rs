@@ -62,11 +62,15 @@ async fn start_server_with(tcp: bool, resume_window: Duration) -> Server {
 }
 
 fn token(user: u64, exp: u64, speak: bool) -> String {
+    token_in(user, CHANNEL, exp, speak)
+}
+
+fn token_in(user: u64, channel: u64, exp: u64, speak: bool) -> String {
     sr_voice_proto::TokenSigner::new(SECRET.to_vec())
         .sign(&JoinClaims {
             user_id: UserId::new(user),
             guild_id: Some(GuildId::new(9)),
-            channel_id: ChannelId::new(CHANNEL),
+            channel_id: ChannelId::new(channel),
             session_id: format!("gw-{user}"),
             exp,
             speak,
@@ -109,10 +113,14 @@ struct Vc {
 
 impl Vc {
     async fn connect(server: &Server, user: u64, tcp_only: bool) -> Vc {
+        Self::connect_in(server, user, CHANNEL, tcp_only).await
+    }
+
+    async fn connect_in(server: &Server, user: u64, channel: u64, tcp_only: bool) -> Vc {
         let (mut ws, _) = tokio_tungstenite::connect_async(&server.ws_url)
             .await
             .unwrap();
-        let ready = Self::identify(&mut ws, &token(user, unix_now() + 60, true)).await;
+        let ready = Self::identify(&mut ws, &token_in(user, channel, unix_now() + 60, true)).await;
         let mut vc = Self::with_ws(server, user, ws, tcp_only).await;
         vc.ready = Some(ready);
         vc
@@ -752,5 +760,181 @@ async fn a_participant_whose_websocket_never_returns_is_reported_lost() {
         .await;
     both(&mut a, &mut b, Duration::from_millis(500)).await;
     assert!(events.try_recv().is_err());
+    server.handle.shutdown().await;
+}
+
+// ---- sharded media actors (VOX-SFU-011) -------------------------------------------------------
+
+/// A UDP port `p` such that `p` and `p + 1` can both be bound right now.
+fn free_port_pair() -> u16 {
+    for _ in 0..50 {
+        let a = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        let p = a.local_addr().unwrap().port();
+        if p < u16::MAX && std::net::UdpSocket::bind(("127.0.0.1", p + 1)).is_ok() {
+            return p;
+        }
+    }
+    panic!("no pair of free UDP ports");
+}
+
+async fn start_sharded(shards: usize, tcp: bool) -> Server {
+    // The shard count is capped by the sockets actually bound. Another test running in parallel can
+    // take the second port between `free_port_pair` and `start`, so try again with a fresh pair.
+    let mut attempt = 0;
+    let handle = loop {
+        let p = free_port_pair();
+        let handle = sr_voice::start(SfuConfig {
+            bind_ip: [127, 0, 0, 1].into(),
+            udp_port_min: p,
+            udp_port_max: p + 1,
+            tcp_port: tcp.then_some(0),
+            token_secret: SECRET.to_vec(),
+            shards,
+            ..SfuConfig::default()
+        })
+        .await
+        .unwrap();
+        attempt += 1;
+        if handle.shard_count() == shards || attempt >= 20 {
+            break handle;
+        }
+        handle.shutdown().await;
+    };
+    assert_eq!(handle.shard_count(), shards);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let app = sr_voice::router(handle.clone());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    Server {
+        handle,
+        ws_url: format!("ws://{addr}/voice/ws"),
+    }
+}
+
+/// Two channel ids that live on different shards.
+fn channels_on_both_shards(server: &Server) -> (u64, u64) {
+    let first = 7_000u64;
+    let s0 = server.handle.shard_of_channel(ChannelId::new(first));
+    let second = (first + 1..first + 200)
+        .find(|c| server.handle.shard_of_channel(ChannelId::new(*c)) != s0)
+        .expect("a channel on the other shard");
+    (first, second)
+}
+
+async fn four(a: &mut Vc, b: &mut Vc, c: &mut Vc, d: &mut Vc, ms: u64) {
+    let t = Duration::from_millis(ms);
+    tokio::join!(a.run_for(t), b.run_for(t), c.run_for(t), d.run_for(t));
+}
+
+async fn settle_four(a: &mut Vc, b: &mut Vc, c: &mut Vc, d: &mut Vc) {
+    for _ in 0..40 {
+        four(a, b, c, d, 250).await;
+        if [&*a, &*b, &*c, &*d].iter().all(|v| v.rtc.is_connected()) {
+            four(a, b, c, d, 1000).await;
+            return;
+        }
+    }
+    panic!("clients did not connect");
+}
+
+#[tokio::test]
+async fn rooms_on_different_shards_both_carry_audio_and_stay_apart() {
+    let server = start_sharded(2, false).await;
+    let (x, y) = channels_on_both_shards(&server);
+    let mut a = Vc::connect_in(&server, 1, x, false).await;
+    let mut b = Vc::connect_in(&server, 2, x, false).await;
+    let mut c = Vc::connect_in(&server, 3, y, false).await;
+    let mut d = Vc::connect_in(&server, 4, y, false).await;
+    settle_four(&mut a, &mut b, &mut c, &mut d).await;
+
+    a.talk = Some(-28);
+    c.talk = Some(-28);
+    four(&mut a, &mut b, &mut c, &mut d, 1500).await;
+    a.talk = None;
+    c.talk = None;
+    four(&mut a, &mut b, &mut c, &mut d, 600).await;
+
+    assert!(b.frames_from(1) >= 40, "B heard {}", b.frames_from(1));
+    assert!(d.frames_from(3) >= 40, "D heard {}", d.frames_from(3));
+    // Rooms are apart: nobody hears the other channel.
+    assert_eq!(b.frames_from(3) + d.frames_from(1), 0);
+    assert!(a.heard.is_empty() && c.heard.is_empty());
+    server.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn joining_a_channel_on_another_shard_replaces_the_old_session() {
+    let server = start_sharded(2, false).await;
+    let (x, y) = channels_on_both_shards(&server);
+    let mut first = Vc::connect_in(&server, 1, x, false).await;
+    let mut other = Vc::connect_in(&server, 2, x, false).await;
+    settle(&mut first, &mut other).await;
+    let _second = Vc::connect_in(&server, 1, y, false).await;
+    both(&mut first, &mut other, Duration::from_millis(500)).await;
+    assert_eq!(first.closed, Some(close::SESSION_REPLACED));
+    server.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn resume_finds_its_shard_and_control_commands_follow_the_channel() {
+    let server = start_sharded(2, false).await;
+    let (x, y) = channels_on_both_shards(&server);
+    // Whatever shard y lives on, resume must reach the shard that issued the session.
+    for channel in [x, y] {
+        let user = channel; // unique per iteration
+        let mut a = Vc::connect_in(&server, user, channel, false).await;
+        let mut b = Vc::connect_in(&server, user + 10_000, channel, false).await;
+        settle(&mut a, &mut b).await;
+        let ready = a.ready.clone().unwrap();
+        a.ws.close(None).await.ok();
+        let (mut ws2, _) = tokio_tungstenite::connect_async(&server.ws_url)
+            .await
+            .unwrap();
+        send(
+            &mut ws2,
+            Message::new(
+                op::RESUME,
+                wire::Resume {
+                    session_id: ready.session_id.clone(),
+                    resume_token: ready.resume_token.clone(),
+                },
+            ),
+        )
+        .await;
+        let resumed = recv(&mut ws2).await.expect("RESUMED");
+        assert_eq!(resumed.op, op::RESUMED, "channel {channel}");
+        a.ws = ws2;
+        a.closed = None;
+        // A moderator disconnect addressed by channel reaches the right shard.
+        server
+            .handle
+            .apply(VoiceCommand::Disconnect {
+                channel: ChannelId::new(channel),
+                user: UserId::new(user),
+            })
+            .await;
+        both(&mut a, &mut b, Duration::from_millis(500)).await;
+        assert_eq!(a.closed, Some(close::DISCONNECTED), "channel {channel}");
+    }
+    server.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn ice_tcp_reaches_the_shard_that_owns_the_participant() {
+    let server = start_sharded(2, true).await;
+    let (x, y) = channels_on_both_shards(&server);
+    for (n, channel) in [x, y].into_iter().enumerate() {
+        let base = 100 * (n as u64 + 1);
+        let mut a = Vc::connect_in(&server, base + 1, channel, true).await;
+        let mut b = Vc::connect_in(&server, base + 2, channel, true).await;
+        settle(&mut a, &mut b).await;
+        a.talk = Some(-28);
+        both(&mut a, &mut b, Duration::from_millis(1500)).await;
+        assert!(
+            b.frames_from(base + 1) >= 30,
+            "channel {channel}: B heard {} frames over TCP",
+            b.frames_from(base + 1)
+        );
+    }
     server.handle.shutdown().await;
 }

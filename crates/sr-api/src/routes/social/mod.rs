@@ -113,6 +113,11 @@ pub fn router() -> Router<AppState> {
             get(user_settings::get_privacy).patch(user_settings::patch_privacy),
         )
         .route(
+            "/users/@me/notification-keywords",
+            get(user_settings::get_notification_keywords)
+                .put(user_settings::put_notification_keywords),
+        )
+        .route(
             "/users/@me/guilds/{guild_id}/settings",
             get(notifications::get_settings).patch(notifications::patch_settings),
         )
@@ -159,6 +164,8 @@ pub fn router() -> Router<AppState> {
         user_settings::patch_notification_defaults,
         user_settings::get_privacy,
         user_settings::patch_privacy,
+        user_settings::get_notification_keywords,
+        user_settings::put_notification_keywords,
     ),
     components(schemas(
         ErrorBody,
@@ -171,6 +178,7 @@ pub fn router() -> Router<AppState> {
         user_settings::PatchNotificationDefaultsBody,
         user_settings::PrivacyObject,
         user_settings::PatchPrivacyBody,
+        user_settings::NotificationKeywordsObject,
         model::RelationshipObject,
         model::PutRelationshipBody,
         model::AddRelationshipBody,

@@ -36,5 +36,7 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    // Skips the first-run welcome modal (apps/web/src/lounge/shell/Welcome.tsx): every e2e account is new.
+    env: { VITE_SR_E2E: '1' },
   },
 });

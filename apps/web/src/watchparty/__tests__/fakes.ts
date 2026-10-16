@@ -126,7 +126,7 @@ export class FakeServer {
   constructor(
     public now: () => number,
     me = '1',
-    o: { host?: boolean; control?: boolean; media?: PartyMedia } = {},
+    o: { host?: boolean; control?: boolean; media?: PartyMedia | null } = {},
   ) {
     const t = now();
     this.pb = {

@@ -1,9 +1,21 @@
-import { Switch } from '@sideroom/ui';
+import { Select, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
-import { saveActivity, useActivitySettings, type ActivitySettings } from '../activitySettings';
+import {
+  saveActivity,
+  saveShareReading,
+  useActivitySettings,
+  useShareReading,
+  type ActivitySettings,
+  type ShareReading,
+} from '../activitySettings';
 import { Card, SectionTitle, Unavailable } from '../parts';
-import { CinemaDefaultsCard, CinemaHistoryCard, LibraryDefaultsCard } from './ActivityHistory';
+import {
+  CinemaDefaultsCard,
+  CinemaHistoryCard,
+  LibraryDefaultsCard,
+  ReadingHistoryCard,
+} from './ActivityHistory';
 import type { PrefsFormProps } from './Appearance';
 
 /**
@@ -15,6 +27,7 @@ import type { PrefsFormProps } from './Appearance';
 export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
   const t = useT();
   const activity = useActivitySettings();
+  const shareReading = useShareReading();
   const [failed, setFailed] = useState(false);
   const toggle = (key: keyof ActivitySettings) => (e: { target: { checked: boolean } }) => {
     setFailed(false);
@@ -44,6 +57,32 @@ export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
             checked={activity.share_library}
             onChange={toggle('share_library')}
           />
+          <label className="us-muted" id="us-share-reading-label">
+            {t('settings.activity.readingAudience')}
+          </label>
+          <Select
+            aria-labelledby="us-share-reading-label"
+            value={shareReading}
+            disabled={!activity.share_library}
+            options={[
+              { value: 'off', label: t('settings.activity.readingOff') },
+              { value: 'friends', label: t('settings.activity.readingFriends') },
+              { value: 'everyone', label: t('settings.activity.readingEveryone') },
+            ]}
+            onValueChange={(v) => {
+              setFailed(false);
+              saveShareReading(v as ShareReading).catch(() => setFailed(true));
+            }}
+          />
+          <p className="us-muted">
+            {t(
+              !activity.share_library || shareReading === 'off'
+                ? 'settings.activity.readingAudienceOff'
+                : shareReading === 'everyone'
+                  ? 'settings.activity.readingAudienceEveryone'
+                  : 'settings.activity.readingAudienceFriends',
+            )}
+          </p>
           <Switch
             label={t('settings.activity.hideAge')}
             description={t('settings.activity.hideAgeDesc')}
@@ -79,6 +118,7 @@ export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
       </Card>
       <CinemaHistoryCard />
       <CinemaDefaultsCard />
+      <ReadingHistoryCard />
       <LibraryDefaultsCard />
     </>
   );

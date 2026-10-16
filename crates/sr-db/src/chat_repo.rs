@@ -88,7 +88,7 @@ pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key
     vanity_code::text AS vanity_code, mfa_level, system_channel_flags, widget_enabled, \
     widget_channel_id, rules_channel_id, public_updates_channel_id, \
     (SELECT gc.safety_alerts_channel_id FROM guild_community gc WHERE gc.guild_id = guilds.id) \
-    AS safety_alerts_channel_id";
+    AS safety_alerts_channel_id, \n    COALESCE((SELECT gc.hide_suspicious_links FROM guild_community gc WHERE gc.guild_id = guilds.id), \n    FALSE) AS hide_suspicious_links";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
     Ok(Guild {
@@ -132,6 +132,7 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
         safety_alerts_channel_id: r
             .try_get::<Option<i64>, _>("safety_alerts_channel_id")?
             .map(|v| ChannelId::new(u(v))),
+        hide_suspicious_links: r.try_get("hide_suspicious_links")?,
     })
 }
 
@@ -429,8 +430,8 @@ impl GuildRepository for PgChatRepo {
 
         let m = &bp.owner_member;
         sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id, joined_at) \
-             VALUES ($1, $2, to_timestamp($3::double precision / 1000.0))",
+            "INSERT INTO guild_members (guild_id, user_id, joined_at, join_source) \
+             VALUES ($1, $2, to_timestamp($3::double precision / 1000.0), 'creator')",
         )
         .bind(i(m.guild_id.get()))
         .bind(i(m.user_id.get()))

@@ -24,9 +24,14 @@
 //! Publishers additionally need [`AdminDeps`](crate::routes::admin::AdminDeps).
 
 mod admin;
+mod comments;
+mod discover;
+mod downloads;
 mod member;
+mod presence;
 mod reading;
 mod social;
+mod sources;
 mod uploads;
 
 #[cfg(test)]
@@ -47,7 +52,7 @@ use axum::{
     Router,
     extract::FromRequestParts,
     http::request::Parts,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use sr_core::{ApiError, ErrorCode, UserId};
 use sr_library::{Actor, LibraryError, LibraryService, Viewer};
@@ -79,6 +84,8 @@ pub struct LibraryDeps {
     prefs: Arc<dyn LibraryPrefs>,
     /// Ratings, reviews, lists, rankings (`sr-library-social`); the routes answer 500 without it.
     pub social: Option<sr_library_social::LibrarySocial>,
+    /// Watched folders and storage imports (ADM-CNT-005); the routes answer 409 without it.
+    pub sources: Option<sr_library::sources::SourceScanner>,
 }
 
 impl LibraryDeps {
@@ -88,7 +95,14 @@ impl LibraryDeps {
             age: Arc::new(NoAgeConfirmed),
             prefs: Arc::new(NoLibraryPrefs),
             social: None,
+            sources: None,
         }
+    }
+
+    /// The ingest source scanner (REV-UP-005/006).
+    pub fn with_sources(mut self, sources: sr_library::sources::SourceScanner) -> Self {
+        self.sources = Some(sources);
+        self
     }
 
     /// The social backend (LIB-SOC-001/003/006, LIB-BRW-002).
@@ -237,14 +251,25 @@ impl BusLibraryEvents {
 
 #[async_trait::async_trait]
 impl sr_library::LibraryEvents for BusLibraryEvents {
+    async fn emit_activity(&self, users: Vec<i64>, payload: serde_json::Value) {
+        self.publish("SR_ACTIVITY_UPDATE", users, payload).await;
+    }
+
     async fn emit(&self, users: Vec<i64>, payload: serde_json::Value) {
+        self.publish(sr_library::reading::EVENT_NAME, users, payload)
+            .await;
+    }
+}
+
+impl BusLibraryEvents {
+    async fn publish(&self, name: &str, users: Vec<i64>, payload: serde_json::Value) {
         let users: Vec<UserId> = users
             .into_iter()
             .filter_map(|u| u64::try_from(u).ok().map(UserId::new))
             .collect();
         let ev = sr_events::DomainEvent::UserScoped {
             users: users.clone(),
-            name: sr_library::reading::EVENT_NAME.to_owned(),
+            name: name.to_owned(),
             payload,
         };
         for u in users {
@@ -253,7 +278,7 @@ impl sr_library::LibraryEvents for BusLibraryEvents {
                 .publish(sr_events::Topic::User(u), ev.clone())
                 .await
             {
-                tracing::warn!(error = %e, "publishing SR_LIBRARY_UPDATE failed");
+                tracing::warn!(error = %e, event = name, "publishing a library event failed");
             }
         }
     }
@@ -319,6 +344,58 @@ pub fn router() -> Router<AppState> {
         .route(
             "/library/reviews/{review_id}/helpful",
             put(social::helpful).delete(social::unhelpful),
+        )
+        .route(
+            "/library/series/{series_id}/comments",
+            get(comments::series_comments).post(comments::post_series_comment),
+        )
+        .route(
+            "/library/chapters/{chapter_id}/comments",
+            get(comments::chapter_comments).post(comments::post_chapter_comment),
+        )
+        .route(
+            "/library/comments/{comment_id}",
+            patch(comments::edit).delete(comments::delete),
+        )
+        .route(
+            "/library/comments/{comment_id}/replies",
+            get(comments::replies),
+        )
+        .route(
+            "/library/comments/{comment_id}/like",
+            put(comments::like).delete(comments::unlike),
+        )
+        .route(
+            "/library/comments/{comment_id}/report",
+            post(comments::report),
+        )
+        .route(
+            "/library/chapters/{chapter_id}/presence",
+            put(presence::heartbeat),
+        )
+        .route("/library/me/presence", delete(presence::stop))
+        .route("/library/friends/reading", get(presence::friends_reading))
+        .route(
+            "/library/me/notifications",
+            get(presence::notification_count),
+        )
+        .route(
+            "/library/me/notifications/seen",
+            post(presence::notifications_seen),
+        )
+        .route(
+            "/library/series/{series_id}/related",
+            get(discover::related),
+        )
+        .route(
+            "/library/series/{series_id}/contributors",
+            get(discover::contributors),
+        )
+        .route("/library/recommendations", get(discover::recommendations))
+        .route("/library/me/downloads", get(downloads::allowance))
+        .route(
+            "/library/chapters/{chapter_id}/download",
+            post(downloads::download),
         )
         .route("/library/me/lists", get(social::my_lists))
         .route("/library/lists", post(social::create_list))
@@ -407,13 +484,51 @@ pub fn router() -> Router<AppState> {
             get(admin::pages).put(admin::replace_pages),
         )
         .route(
+            "/admin/library/chapters/{chapter_id}/pages/{index}",
+            axum::routing::put(admin::replace_page).layer(axum::extract::DefaultBodyLimit::max(
+                admin::REPLACE_PAGE_BODY_LIMIT,
+            )),
+        )
+        .route(
             "/admin/library/chapters/{chapter_id}/uploads",
             get(uploads::list).post(uploads::begin),
         )
-        .route("/admin/library/uploads/{upload_id}", get(uploads::status))
+        .route("/admin/library/comment-reports", get(comments::reports))
+        .route(
+            "/admin/library/comment-reports/{report_id}/resolve",
+            post(comments::resolve),
+        )
+        .route(
+            "/admin/library/uploads/{upload_id}",
+            get(uploads::status).delete(uploads::abort),
+        )
+        .route(
+            "/admin/library/uploads/{upload_id}/parts",
+            get(uploads::parts),
+        )
+        .route(
+            "/admin/library/uploads/{upload_id}/inspect",
+            get(uploads::inspect),
+        )
         .route(
             "/admin/library/uploads/{upload_id}/complete",
             post(uploads::complete),
+        )
+        .route(
+            "/admin/ingest-sources",
+            get(sources::list).post(sources::create),
+        )
+        .route(
+            "/admin/ingest-sources/{source_id}",
+            patch(sources::update).delete(sources::remove),
+        )
+        .route(
+            "/admin/ingest-sources/{source_id}/dry-run",
+            post(sources::dry_run),
+        )
+        .route(
+            "/admin/ingest-sources/{source_id}/scan",
+            post(sources::scan),
         )
 }
 
@@ -484,10 +599,42 @@ pub fn router() -> Router<AppState> {
         admin::unpublish_chapter,
         admin::pages,
         admin::replace_pages,
+        admin::replace_page,
         uploads::begin,
         uploads::complete,
         uploads::status,
+        uploads::parts,
+        sources::list,
+        sources::create,
+        sources::update,
+        sources::remove,
+        sources::dry_run,
+        sources::scan,
+        uploads::inspect,
+        uploads::abort,
         uploads::list,
+        discover::related,
+        discover::contributors,
+        discover::recommendations,
+        presence::heartbeat,
+        presence::stop,
+        presence::friends_reading,
+        presence::notification_count,
+        presence::notifications_seen,
+        downloads::allowance,
+        downloads::download,
+        comments::series_comments,
+        comments::post_series_comment,
+        comments::chapter_comments,
+        comments::post_chapter_comment,
+        comments::replies,
+        comments::edit,
+        comments::delete,
+        comments::like,
+        comments::unlike,
+        comments::report,
+        comments::reports,
+        comments::resolve,
     ),
     components(schemas(
         ErrorBody,
@@ -513,6 +660,7 @@ pub fn router() -> Router<AppState> {
         sr_library::model::ChapterProgress,
         sr_library::model::ChapterList,
         sr_library::model::PageInput,
+        admin::ReplacePageBody,
         sr_library::model::PageVariant,
         sr_library::model::PageEntry,
         sr_library::model::PageManifest,
@@ -527,6 +675,20 @@ pub fn router() -> Router<AppState> {
         sr_library::model::Upload,
         sr_library::model::UploadRequest,
         sr_library::model::UploadSlot,
+        sources::IngestSourceList,
+        sr_library::sources::IngestSource,
+        sr_library::sources::SourceKind,
+        sr_library::sources::Backend,
+        sr_library::sources::SourceInput,
+        sr_library::sources::SourcePatch,
+        sr_library::sources::ScanReport,
+        sr_library::sources::PlannedSeries,
+        sr_library::sources::PlannedChapter,
+        sr_library::ingest::inspect::ArchiveReport,
+        sr_library::ingest::inspect::FolderGroup,
+        sr_library::ingest::inspect::ComicInfoFacts,
+        sr_library::multipart::MultipartSlot,
+        sr_library::multipart::PartUrl,
         sr_library::model::UploadList,
         sr_library::reading::ProgressInput,
         sr_library::reading::Progress,
@@ -541,6 +703,26 @@ pub fn router() -> Router<AppState> {
         sr_library::reading::BookmarkEntry,
         sr_library::reading::BookmarkPage,
         social::CountBody,
+        discover::RelatedEntry,
+        discover::RelatedBody,
+        discover::BecauseEntry,
+        discover::BecauseBody,
+        sr_library_social::model::Contributor,
+        sr_library_social::model::ReleaseGroup,
+        sr_library_social::model::Contributors,
+        downloads::Allowance,
+        sr_library_social::model::FriendReading,
+        sr_library_social::model::FriendsReading,
+        sr_library_social::model::NotificationCount,
+        sr_library::exports::ChapterExport,
+        comments::ReportBody,
+        comments::ReportList,
+        comments::ResolveBody,
+        sr_library_social::model::Comment,
+        sr_library_social::model::CommentPage,
+        sr_library_social::model::CommentInput,
+        sr_library_social::model::CommentPatch,
+        sr_library_social::model::CommentReport,
         social::ListCard,
         social::ListsBody,
         social::ListItemView,
@@ -564,6 +746,7 @@ pub fn router() -> Router<AppState> {
         sr_library_social::model::ListItemInput,
         sr_library_social::model::ListOrderInput,
         sr_library_social::model::RankingPeriod,
+        sr_library_social::model::RankingScope,
         sr_library_social::model::UnreadCount,
         sr_library_social::model::UnreadCounts,
     ))

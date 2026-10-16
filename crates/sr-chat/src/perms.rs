@@ -29,6 +29,7 @@ pub fn default_everyone_permissions() -> Permissions {
         | P::USE_EMBEDDED_ACTIVITIES
         | P::USE_SOUNDBOARD
         | P::USE_EXTERNAL_SOUNDS
+        | P::SET_VOICE_CHANNEL_STATUS
         | P::CREATE_EVENTS
         | P::SEND_VOICE_MESSAGES
         | P::SEND_POLLS
@@ -175,6 +176,7 @@ pub(crate) mod fixtures {
             rules_channel_id: None,
             public_updates_channel_id: None,
             safety_alerts_channel_id: None,
+            hide_suspicious_links: false,
             owner_id: UserId::new(OWNER),
             is_staff_guild: false,
             system_channel_id: None,

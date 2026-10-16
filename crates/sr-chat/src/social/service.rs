@@ -2,7 +2,7 @@
 
 use super::dm::{
     self, AddPlan, DmAccess, DmChannel, DmKind, GroupEdit, GroupInvite, InviteJoinPlan,
-    RequestState, dm_access,
+    RequestReason, RequestState, dm_access_protected,
 };
 use super::notifications::{
     self, ChannelOverride, MentionKind, Mute, MuteDuration, NotificationLevel, ScopeSettings,
@@ -42,6 +42,8 @@ pub struct OpenedDm {
     pub created: bool,
     /// `Request` means it lands in the recipient's Message Requests.
     pub access: DmAccess,
+    /// The server setting that sent it there, if one did (D-224).
+    pub reason: Option<RequestReason>,
 }
 
 /// Mutual context between a profile's viewer and its owner.
@@ -276,6 +278,41 @@ impl<R: SocialRepository> SocialService<R> {
         Ok(out)
     }
 
+    /// Whether DMs are welcome through at least one server both users are in: each shared
+    /// server uses the recipient's per-server override, or `default_allow` without one.
+    async fn shared_guild_allows(
+        &self,
+        sender: UserId,
+        recipient: UserId,
+        default_allow: bool,
+        safety: &super::safety::SafetyPrefs,
+    ) -> SocialResult<bool> {
+        let theirs: Vec<_> = self
+            .repo
+            .list_guild_memberships(recipient)
+            .await?
+            .into_iter()
+            .map(|m| m.guild)
+            .collect();
+        let mut any_shared = false;
+        for m in self.repo.list_guild_memberships(sender).await? {
+            if !theirs.contains(&m.guild) {
+                continue;
+            }
+            any_shared = true;
+            let allowed = safety
+                .server_dm_overrides
+                .get(&m.guild.get())
+                .copied()
+                .unwrap_or(default_allow);
+            if allowed {
+                return Ok(true);
+            }
+        }
+        // Memberships we could not enumerate (test doubles): keep the default.
+        Ok(if any_shared { false } else { default_allow })
+    }
+
     /// Find or create the 1:1 DM with `target` (`POST /users/@me/channels`).
     pub async fn open_dm(&self, me: UserId, target: UserId) -> SocialResult<OpenedDm> {
         if me == target {
@@ -283,10 +320,32 @@ impl<R: SocialRepository> SocialService<R> {
         }
         self.require_user(target).await?;
         let st = self.pair_state(me, target).await?;
-        let privacy = self.repo.get_privacy(target).await?.dms;
+        let full = self.repo.get_privacy(target).await?;
+        let mut privacy = full.dms;
         let shares = self.repo.shares_guild(me, target).await?;
+        if shares && !full.safety.server_dm_overrides.is_empty() {
+            privacy.allow_server_member_dms = self
+                .shared_guild_allows(me, target, privacy.allow_server_member_dms, &full.safety)
+                .await?;
+        }
         let existing = self.repo.find_dm(me, target).await?;
-        let access = dm_access(st, &privacy, shares);
+        let protection = self.repo.shared_protection(me, target).await?;
+        let age_days =
+            (self.now() - sr_core::Snowflake::new(me.get()).unix_ms()).max(0) / 86_400_000;
+        // D-224: the shared servers' Protection settings (with the reason shown to the recipient).
+        let (mut access, reason) = dm_access_protected(st, &privacy, shares, &protection, age_days);
+        let spam = full.safety.dm_spam_filter;
+        if existing.is_none() && access != DmAccess::Denied {
+            // D-230: `non_friends` always routes a stranger's first DM to requests; `all` also routes
+            // a friend's; `off` leaves it to the message_requests toggle.
+            let friends = st.mine == Some(RelationshipKind::Friend)
+                && st.theirs == Some(RelationshipKind::Friend);
+            if spam == super::safety::SpamFilter::All
+                || (spam == super::safety::SpamFilter::NonFriends && !friends)
+            {
+                access = DmAccess::Request;
+            }
+        }
         // Friends/blocks decide; an existing conversation stays reachable unless blocked.
         if access == DmAccess::Denied && (existing.is_none() || dm_blocked(st)) {
             return Err(SocialError::DmNotAllowed);
@@ -302,6 +361,7 @@ impl<R: SocialRepository> SocialService<R> {
                     } else {
                         access
                     },
+                    reason: None,
                 })
             }
             None => {
@@ -312,6 +372,7 @@ impl<R: SocialRepository> SocialService<R> {
                     self.repo
                         .set_request_state(target, id, RequestState::Pending)
                         .await?;
+                    self.repo.set_request_reason(target, id, reason).await?;
                 }
                 let channel = self
                     .repo
@@ -322,6 +383,7 @@ impl<R: SocialRepository> SocialService<R> {
                     channel,
                     created: true,
                     access,
+                    reason,
                 })
             }
         }
@@ -489,6 +551,14 @@ impl<R: SocialRepository> SocialService<R> {
     ) -> SocialResult<(DmChannel, bool)> {
         let (inv, ch) = self.group_invite(code).await?;
         let groups = self.repo.count_groups(user).await?;
+        // A joiner and the group owner who block each other (either way) see no link at all
+        // (D-221); members already inside are not affected.
+        if let Some(owner) = ch.owner.filter(|o| *o != user && !ch.has(user)) {
+            let st = self.pair_state(user, owner).await?;
+            if dm_blocked(st) {
+                return Err(SocialError::UnknownInvite);
+            }
+        }
         let plan = dm::plan_group_invite_join(user, &ch, &inv, self.now(), groups, &self.limits)?;
         if plan == InviteJoinPlan::AlreadyMember {
             return Ok((ch, false));
@@ -547,6 +617,43 @@ impl<R: SocialRepository> SocialService<R> {
         channel: ChannelId,
     ) -> SocialResult<Option<RequestState>> {
         Ok(self.repo.get_request_state(user, channel).await?)
+    }
+
+    /// The server setting that put `user`'s pending request in Message Requests, if any.
+    pub async fn request_reason(
+        &self,
+        user: UserId,
+        channel: ChannelId,
+    ) -> SocialResult<Option<RequestReason>> {
+        Ok(self.repo.get_request_reason(user, channel).await?)
+    }
+
+    /// Should attachments `sender` uploads to `channel` carry the spoiler flag? True in a
+    /// 1:1 conversation sitting in the other person's Message Requests when a server the
+    /// two share has `explicit_media_filter_dms` on (D-224; nothing is scanned).
+    pub async fn spoiler_attachments(
+        &self,
+        sender: UserId,
+        channel: ChannelId,
+    ) -> SocialResult<bool> {
+        let Some(dm) = self.repo.get_dm(channel).await? else {
+            return Ok(false);
+        };
+        if dm.kind != DmKind::Dm || !dm.has(sender) {
+            return Ok(false);
+        }
+        for other in dm.recipients.iter().filter(|u| **u != sender) {
+            if self.repo.get_request_state(*other, channel).await? == Some(RequestState::Pending)
+                && self
+                    .repo
+                    .shared_protection(sender, *other)
+                    .await?
+                    .explicit_media_any
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Move a pending request to accepted, ignored or spam. `Pending` cannot be

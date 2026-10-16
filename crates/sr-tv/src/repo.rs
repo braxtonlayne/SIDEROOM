@@ -57,6 +57,10 @@ pub trait TvRepository: Send + Sync {
     /// Remove and return up to `limit` reminders due at `now_ms`, oldest first. Each is handed out once
     /// (concurrent callers never get the same row).
     async fn take_due_reminders(&self, now_ms: i64, limit: i64) -> TvResult<Vec<ReminderRecord>>;
+    /// The member's pending reminders, soonest first.
+    async fn list_reminders(&self, account_id: i64) -> TvResult<Vec<ReminderRecord>>;
+    /// The member's `tv.reminder_lead_minutes` setting (user settings blob) when it is a number.
+    async fn reminder_lead_setting(&self, account_id: i64) -> TvResult<Option<i64>>;
 }
 
 #[derive(Default)]
@@ -64,6 +68,7 @@ struct State {
     channels: Vec<ChannelRecord>,
     blocks: Vec<BlockRecord>,
     reminders: Vec<ReminderRecord>,
+    leads: Vec<(i64, i64)>,
 }
 
 /// In-memory repository.
@@ -75,6 +80,13 @@ pub struct MemoryTvRepo {
 impl MemoryTvRepo {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Test helper: the member's `tv.reminder_lead_minutes` setting.
+    pub fn set_lead_setting(&self, account_id: i64, minutes: i64) {
+        let mut s = self.lock();
+        s.leads.retain(|(a, _)| *a != account_id);
+        s.leads.push((account_id, minutes));
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, State> {
@@ -286,5 +298,26 @@ impl TvRepository for MemoryTvRepo {
         due.truncate(usize::try_from(limit).unwrap_or(0));
         s.reminders.retain(|x| !due.contains(x));
         Ok(due)
+    }
+
+    async fn list_reminders(&self, account_id: i64) -> TvResult<Vec<ReminderRecord>> {
+        let mut v: Vec<ReminderRecord> = self
+            .lock()
+            .reminders
+            .iter()
+            .filter(|r| r.account_id == account_id)
+            .cloned()
+            .collect();
+        v.sort_by_key(|r| (r.start_ms, r.block_id));
+        Ok(v)
+    }
+
+    async fn reminder_lead_setting(&self, account_id: i64) -> TvResult<Option<i64>> {
+        Ok(self
+            .lock()
+            .leads
+            .iter()
+            .find(|(a, _)| *a == account_id)
+            .map(|(_, m)| *m))
     }
 }

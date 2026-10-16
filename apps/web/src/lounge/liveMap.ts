@@ -20,17 +20,16 @@ import type {
   Snowflake,
 } from './data';
 import { cdnUrl } from '../store/cdn';
+import { SIDEROOM_EPOCH_MS } from './epoch.generated';
 import { cmpId } from '../store/reducer';
 import { canOpenSettingsFromBits } from '../settings/server/permissions';
 import type * as S from '../store/types';
 import type { PermEngine } from './permEngine';
 
-const SNOWFLAKE_EPOCH_MS = 1420070400000n;
-
 /** Creation time encoded in a snowflake, as ISO text; '' when the id is not a snowflake. */
 export function snowflakeTime(id: string | null | undefined): string {
   if (!id || !/^\d+$/.test(id)) return '';
-  return new Date(Number((BigInt(id) >> 22n) + SNOWFLAKE_EPOCH_MS)).toISOString();
+  return new Date(Number((BigInt(id) >> 22n) + SIDEROOM_EPOCH_MS)).toISOString();
 }
 
 /** Discord permission bits used by the Lounge (sr-core permissions.rs). */
@@ -42,10 +41,14 @@ export const PERM = {
   DEAFEN_MEMBERS: 1n << 23n,
   MOVE_MEMBERS: 1n << 24n,
   USE_VAD: 1n << 25n,
+  USE_SOUNDBOARD: 1n << 42n,
+  REQUEST_TO_SPEAK: 1n << 32n,
+  SET_VOICE_CHANNEL_STATUS: 1n << 48n,
   ADMINISTRATOR: 1n << 3n,
   MANAGE_CHANNELS: 1n << 4n,
   MANAGE_GUILD: 1n << 5n,
   SEND_MESSAGES: 1n << 11n,
+  EMBED_LINKS: 1n << 14n,
   VIEW_CHANNEL: 1n << 10n,
   MANAGE_MESSAGES: 1n << 13n,
   MENTION_EVERYONE: 1n << 17n,
@@ -118,6 +121,13 @@ export function computeChannelPermissions(
   engine: PermEngine,
   i: ChannelPermInput,
 ): ChannelPermissions | undefined {
+  const bits = computeChannelBits(engine, i);
+  if (bits === undefined) return undefined;
+  return permissionsFromBits(bits);
+}
+
+/** The raw channel permission bits (same computation as [`computeChannelPermissions`]). */
+export function computeChannelBits(engine: PermEngine, i: ChannelPermInput): bigint | undefined {
   const isOwner = !!i.ownerId && i.ownerId === i.viewerId;
   if (!i.viewer && !isOwner) return undefined;
   const roleIds = (i.viewer?.roles ?? []).filter((id) => id !== i.guildId);
@@ -146,6 +156,10 @@ export function computeChannelPermissions(
   } catch {
     return undefined;
   }
+  return bits;
+}
+
+function permissionsFromBits(bits: bigint): ChannelPermissions {
   const has = (bit: bigint) => (bits & bit) === bit;
   return {
     view: has(PERM.VIEW_CHANNEL),
@@ -160,6 +174,9 @@ export function computeChannelPermissions(
     connect: has(PERM.CONNECT),
     speak: has(PERM.SPEAK),
     useVad: has(PERM.USE_VAD),
+    useSoundboard: has(PERM.USE_SOUNDBOARD),
+    requestToSpeak: has(PERM.REQUEST_TO_SPEAK),
+    setVoiceStatus: has(PERM.SET_VOICE_CHANNEL_STATUS),
     muteMembers: has(PERM.MUTE_MEMBERS),
     deafenMembers: has(PERM.DEAFEN_MEMBERS),
     moveMembers: has(PERM.MOVE_MEMBERS),
@@ -377,6 +394,7 @@ export function toLoungeAttachment(a: S.RawAttachment, now = Date.now()): Attach
     durationSecs: a.duration_secs ?? null,
     waveform: decodeWaveform(a.waveform),
     ...(a.expires_at && new Date(a.expires_at).getTime() <= now ? { expired: true } : {}),
+    ...(a.sr_filtered ? { filtered: true } : {}),
   };
 }
 
@@ -413,6 +431,7 @@ export function toLoungeMessage(m: S.Message): Message {
     author: {
       ...toLoungeUser(m.author),
       ...(flags & FLAG_SYSTEM_TAG ? { system: true } : {}),
+      ...(m.webhook_id ? { webhook: true, avatarUrl: m.author.avatar_url ?? null } : {}),
     },
     content: m.content,
     createdAt: m.timestamp,
@@ -477,5 +496,6 @@ export function toLoungeMessage(m: S.Message): Message {
     ...(flags & FLAG_VOICE ? { voice: true } : {}),
     ...(flags & FLAG_EPHEMERAL ? { ephemeral: true } : {}),
     ...(flags & FLAG_SUPPRESS_EMBEDS ? { suppressEmbeds: true } : {}),
+    ...(m.sr_text_emoji?.length ? { textEmoji: m.sr_text_emoji } : {}),
   };
 }

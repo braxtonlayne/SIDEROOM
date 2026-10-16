@@ -189,25 +189,6 @@ describe('Authorized Apps and Connections', () => {
     expect(await screen.findByText(/cannot authorize third-party apps yet/)).toBeInTheDocument();
     expect(await axeViolations(document.body)).toEqual([]);
   });
-
-  it('shows Discord and the other connections, and says linking is not available', async () => {
-    server.use(
-      http.get('*/api/v1/users/@me/profile', () =>
-        HttpResponse.json({
-          ...PROFILE,
-          connected_accounts: [
-            { type: 'discord', id: '9', name: 'alice#0', verified: true },
-            { type: 'github', id: '3', name: 'alice-gh', verified: false },
-          ],
-        }),
-      ),
-    );
-    openSettings('connections');
-    expect(await screen.findByText('alice#0')).toBeInTheDocument();
-    expect(screen.getByText('alice-gh')).toBeInTheDocument();
-    expect(screen.getByText(/no routes to link, unlink or refresh/)).toBeInTheDocument();
-    expect(await axeViolations(document.body)).toEqual([]);
-  });
 });
 
 describe('Devices', () => {
@@ -242,6 +223,49 @@ describe('Devices', () => {
     await waitFor(() => expect(revoked.sort()).toEqual(['11', '12']));
     await waitFor(() => expect(screen.queryByText('Device 11')).toBeNull());
     expect(screen.getByText('Device 10')).toBeInTheDocument();
+  });
+});
+
+describe('Sign-in alerts (ENT-AUTH-015)', () => {
+  it('shows the switch from the server and saves a change', async () => {
+    let sent: unknown;
+    server.use(
+      http.get('*/api/v1/sr/auth/sessions', () => HttpResponse.json([])),
+      http.get('*/api/v1/sr/auth/trusted-devices', () => HttpResponse.json([])),
+      http.get('*/api/v1/sr/auth/login-alerts', () => HttpResponse.json({ enabled: true })),
+      http.put('*/api/v1/sr/auth/login-alerts', async ({ request }) => {
+        sent = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    openSettings('devices');
+    const sw = await screen.findByRole('switch', {
+      name: 'Email me about sign-ins from new devices',
+    });
+    expect(sw).toBeChecked();
+    await user.click(sw);
+    await waitFor(() => expect(sent).toEqual({ enabled: false }));
+    await waitFor(() => expect(sw).not.toBeChecked());
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it('says so when the change is refused and leaves the switch where it was', async () => {
+    server.use(
+      http.get('*/api/v1/sr/auth/sessions', () => HttpResponse.json([])),
+      http.get('*/api/v1/sr/auth/trusted-devices', () => HttpResponse.json([])),
+      http.put('*/api/v1/sr/auth/login-alerts', () =>
+        HttpResponse.json({ message: 'Nope.' }, { status: 500 }),
+      ),
+    );
+    const user = userEvent.setup();
+    openSettings('devices');
+    const sw = await screen.findByRole('switch', {
+      name: 'Email me about sign-ins from new devices',
+    });
+    await user.click(sw);
+    expect(await screen.findByText('Could not change the setting')).toBeInTheDocument();
+    expect(sw).toBeChecked();
   });
 });
 

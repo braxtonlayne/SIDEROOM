@@ -16,6 +16,7 @@ import { RovingNav } from '../a11y/RovingNav';
 import { useT } from '../i18n';
 import { useVoiceSession } from '../voice/session';
 import { useJoinVoice } from './voice/actions';
+import { ChannelStatusLine } from './voice/VoiceStatusBar';
 import './voice/voice-p10.css';
 import { useVoicePerms } from './voice/perms';
 import { useVoiceUserMenu } from './voice/useVoiceUserMenu';
@@ -230,6 +231,7 @@ function ChannelRow({
                 </span>
               ) : null}
             </button>
+            <ChannelStatusLine channelId={channel.id} />
             <VoiceMembers channel={channel} onError={onError} />
           </>
         ) : (

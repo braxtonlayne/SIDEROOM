@@ -22,6 +22,10 @@ Use Discord's bits 0–50 with identical semantics (CREATE_INSTANT_INVITE … SE
 | 58 | `USE_LIBRARY_EMBEDS` | Post rich Cinema/Library cards |
 | 59 | `MANAGE_EXTENSIONS` | Enable or disable approved extensions/themes for the server |
 
+### Server 2FA requirement (D-223)
+
+With a server's `mfa_level` set to 1 (owner only, `POST /guilds/{id}/mfa`), every action behind the elevated guild permissions needs a second factor proved on the session in the last 15 minutes: `KICK_MEMBERS`, `BAN_MEMBERS`, `ADMINISTRATOR`, `MANAGE_CHANNELS`, `MANAGE_GUILD`, `MANAGE_MESSAGES`, `MANAGE_ROLES`, `MANAGE_WEBHOOKS`, `MANAGE_THREADS`, `MANAGE_GUILD_EXPRESSIONS` and `MODERATE_MEMBERS` (AutoMod, community and safety settings and invite deletion included; invite creation and a member's own content excluded). A session that has a second factor and has not proved it gets `403 900004`; an account with no TOTP and no passkey gets `403 900123 MFA_ENROLLMENT_REQUIRED`. Bots pass when the owner of the application has a second factor enrolled and get `900123` otherwise. The route list is in doc 05 (server safety fields).
+
 ## 3. Platform permissions
 
 Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions`, only meaningful when `guild.is_staff_guild`).
@@ -52,6 +56,7 @@ Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions
 | 21 | `OPERATOR` | Infrastructure settings: storage, wallet, SMTP, backups |
 | 22 | `MANAGE_CASES` | Open, assign, act on and close moderation cases; place and release holds (D-210, D-213) |
 | 23 | `MANAGE_TAKEDOWNS` | The takedown register and the data-request queue (D-210) |
+| 24 | `MANAGE_ENTRANCE` | The Entrance copy keys and the hero image, behind a fresh second factor (D-239); `MANAGE_FEATURES` no longer grants them, `OWNER` implies it |
 | 63 | `OWNER` | Implicit for the Staff Server owner. Everything |
 
 "High-level platform staff" (D-125) = any role holding `READ_PRIVATE_CONTENT`. Only the Owner can grant that bit.
@@ -71,7 +76,7 @@ Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions
 | Library Curator | 85 | STAFF_BASIC, REVIEW_READING, PUBLISH_READING, MANAGE_COLLECTIONS |
 | Media Curator | 203 | STAFF_BASIC, REVIEW_MEDIA, PUBLISH_MEDIA, MANAGE_COLLECTIONS, MANAGE_TV |
 | Moderator | 4201473 | STAFF_BASIC, MANAGE_DIRECTORY, MANAGE_ACCOUNTS, PLATFORM_BAN, MANAGE_CASES (D-210; was 7169, migration 0793) |
-| Senior Staff | 14401535 | Everything except OWNER, MANAGE_DONATIONS, VIEW_ACCESS_LOG and OPERATOR (so it includes APPOINT_STAFF, READ_PRIVATE_CONTENT, MANAGE_CASES and MANAGE_TAKEDOWNS; was 1818623, migration 0793) |
+| Senior Staff | 31178751 | Everything except OWNER, MANAGE_DONATIONS, VIEW_ACCESS_LOG and OPERATOR (so it includes APPOINT_STAFF, READ_PRIVATE_CONTENT, MANAGE_CASES, MANAGE_TAKEDOWNS and MANAGE_ENTRANCE; was 14401535, migration 0875; 1818623 before 0793) |
 | Owner | bit 63 | OWNER |
 
 Enforcement rules built on these (also the default, D-162): only the Owner may grant `READ_PRIVATE_CONTENT`, `APPOINT_STAFF`, `VIEW_ACCESS_LOG` or `OPERATOR`; a delegate can grant only bits they hold; the Owner role is never assignable (transfer is `sr-cli staff transfer-owner`); only the Owner can suspend, ban or reset 2FA of a staff account.

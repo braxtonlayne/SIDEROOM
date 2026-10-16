@@ -33,31 +33,50 @@ import { StaffBadgeCard } from './AccountSwitchCards';
 import { BirthdayCard } from './BirthdayCard';
 import { ServerTagCard } from './ServerTagCard';
 
-/** The profile effects the server approves (`GET /sr/profile-catalog`); hidden when there are none. */
-function EffectPicker({ value, onChange }: { value: string; onChange: (slug: string) => void }) {
+/**
+ * The profile effects or avatar decorations the server approves (`GET /sr/profile-catalog`); hidden while the
+ * catalogue has none.
+ */
+function CatalogPicker({
+  kind,
+  value,
+  onChange,
+}: {
+  kind: 'effects' | 'decorations';
+  value: string;
+  onChange: (slug: string) => void;
+}) {
   const tt = useT();
-  const [effects, setEffects] = useState<string[]>([]);
+  const [slugs, setSlugs] = useState<string[]>([]);
   useEffect(() => {
     let live = true;
     getProfileCatalog().then(
-      (c) => live && setEffects(c.effects.map((e) => e.slug)),
+      (c) => live && setSlugs(c[kind].map((e) => e.slug)),
       () => undefined,
     );
     return () => {
       live = false;
     };
-  }, []);
-  if (effects.length === 0) return null;
+  }, [kind]);
+  if (slugs.length === 0) return null;
+  const id = `us-${kind}-label`;
   return (
     <div>
-      <label className="us-label" id="us-effect-label">
-        {tt('settings.profile.effect')}
+      <label className="us-label" id={id}>
+        {tt(kind === 'effects' ? 'settings.profile.effect' : 'settings.profile.decoration')}
       </label>
       <Select
-        aria-labelledby="us-effect-label"
+        aria-labelledby={id}
         options={[
-          { value: '', label: tt('settings.profile.effectNone') },
-          ...effects.map((slug) => ({ value: slug, label: effectLabel(slug) })),
+          {
+            value: '',
+            label: tt(
+              kind === 'effects'
+                ? 'settings.profile.effectNone'
+                : 'settings.profile.decorationNone',
+            ),
+          },
+          ...slugs.map((slug) => ({ value: slug, label: effectLabel(slug) })),
         ]}
         value={value}
         onValueChange={onChange}
@@ -83,6 +102,10 @@ export interface ProfileDraft {
   status: string;
   /** Profile effect slug from the catalogue; '' for none. */
   effect?: string;
+  /** Avatar decoration slug from the catalogue; '' for none. */
+  decoration?: string;
+  /** Profile theme (primary, accent) as `#rrggbb`; null for none. */
+  themeColors?: [string, string] | null;
   /** A new picture as a data URI, null to remove it, absent to leave it alone. */
   avatar?: string | null;
   banner?: string | null;
@@ -120,6 +143,12 @@ export function diffProfile(saved: ProfileDraft, draft: ProfileDraft): ProfilePa
     patch.custom_status = draft.status.trim() === '' ? null : { text: draft.status };
   if ((draft.effect ?? '') !== (saved.effect ?? ''))
     patch.profile_effect = draft.effect ? draft.effect : null;
+  if ((draft.decoration ?? '') !== (saved.decoration ?? ''))
+    patch.avatar_decoration = draft.decoration ? draft.decoration : null;
+  if (JSON.stringify(draft.themeColors ?? null) !== JSON.stringify(saved.themeColors ?? null))
+    patch.theme_colors = draft.themeColors
+      ? [fromHex(draft.themeColors[0]), fromHex(draft.themeColors[1])]
+      : null;
   if (draft.avatar !== undefined) patch.avatar = draft.avatar;
   if (draft.banner !== undefined) patch.banner = draft.banner;
   return patch;
@@ -160,6 +189,10 @@ export function useProfileForm(active: boolean): ProfileForm {
           accent: toHex(p.user_profile.accent_color),
           status: presence.custom_status?.text ?? '',
           effect: p.user_profile.profile_effect ?? '',
+          decoration: p.user_profile.avatar_decoration ?? '',
+          themeColors: p.user_profile.theme_colors
+            ? [toHex(p.user_profile.theme_colors[0])!, toHex(p.user_profile.theme_colors[1])!]
+            : null,
         };
         setProfile(p);
         setSaved(d);
@@ -545,9 +578,15 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
                         {bioLen}/{BIO_MAX}
                       </p>
                     </div>
-                    <EffectPicker
+                    <CatalogPicker
+                      kind="effects"
                       value={form.draft.effect ?? ''}
                       onChange={(effect) => form.setDraft({ effect })}
+                    />
+                    <CatalogPicker
+                      kind="decorations"
+                      value={form.draft.decoration ?? ''}
+                      onChange={(decoration) => form.setDraft({ decoration })}
                     />
                     <TextInput
                       label={t('settings.profile.customStatus')}
@@ -568,6 +607,35 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
                           onClick={() => form.setDraft({ accent: null })}
                         >
                           {t('settings.profile.clearAccent')}
+                        </Button>
+                      )}
+                    </div>
+                    <div className="us-stack">
+                      <ColorPicker
+                        label={t('settings.profile.themePrimary')}
+                        value={form.draft.themeColors?.[0] ?? '#202020'}
+                        onValueChange={(hex) =>
+                          form.setDraft({
+                            themeColors: [hex, form.draft.themeColors?.[1] ?? '#c2b08f'],
+                          })
+                        }
+                      />
+                      <ColorPicker
+                        label={t('settings.profile.themeAccent')}
+                        value={form.draft.themeColors?.[1] ?? '#c2b08f'}
+                        onValueChange={(hex) =>
+                          form.setDraft({
+                            themeColors: [form.draft.themeColors?.[0] ?? '#202020', hex],
+                          })
+                        }
+                      />
+                      {form.draft.themeColors && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() => form.setDraft({ themeColors: null })}
+                        >
+                          {t('settings.profile.clearTheme')}
                         </Button>
                       )}
                     </div>

@@ -13,6 +13,7 @@ use super::deps::{SettingsDeps, actor, id, invalid, re, se};
 use super::events::SettingsEvent;
 use crate::routes::Ext;
 use crate::routes::guilds::dto::{MemberObject, iso8601};
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::messages::error::{ApiJson, ApiQuery};
 use crate::routes::social::model::UserObject;
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
@@ -157,6 +158,7 @@ pub async fn get_form(
 )]
 pub async fn put_form(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<PutFormBody>,
@@ -164,6 +166,8 @@ pub async fn put_form(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
     let mut questions = Vec::with_capacity(body.questions.len());
     for q in body.questions {
         questions.push(Question {
@@ -407,6 +411,7 @@ pub struct DecisionBody {
 )]
 pub async fn decide_application(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, application_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<DecisionBody>,
@@ -415,6 +420,8 @@ pub async fn decide_application(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let app_id: u64 = id("application_id", &application_id)?;
     let acc = deps.guild_access(reviewer, gid).await?;
+    acc.require_mfa(&gate, reviewer, Permissions::MANAGE_GUILD)
+        .await?;
     let app = deps
         .service
         .decide_application(

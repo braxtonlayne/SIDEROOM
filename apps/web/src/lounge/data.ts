@@ -39,6 +39,8 @@ export interface LoungeUser {
   tagColor?: number;
   /** The system user "SIDE ROOM" (message flag SYSTEM_TAG, D-188): shown with a SYSTEM badge. */
   system?: boolean;
+  /** Posted through a webhook (no profile to open). */
+  webhook?: boolean;
 }
 
 export interface Activity {
@@ -135,6 +137,12 @@ export interface ChannelPermissions {
   muteMembers?: boolean;
   deafenMembers?: boolean;
   moveMembers?: boolean;
+  /** USE_SOUNDBOARD: play sounds into the call. */
+  useSoundboard?: boolean;
+  /** REQUEST_TO_SPEAK: raise a hand in a stage. */
+  requestToSpeak?: boolean;
+  /** SET_VOICE_CHANNEL_STATUS: the status line of a voice channel. */
+  setVoiceStatus?: boolean;
 }
 
 export interface Channel {
@@ -184,6 +192,10 @@ export interface VoiceMember {
   serverDeafened?: boolean;
   video?: boolean;
   streaming?: boolean;
+  /** Stage channels: in the audience. */
+  suppressed?: boolean;
+  /** Stage channels: when the hand went up (ms since the epoch), null when it is down. */
+  handRaisedAt?: number | null;
 }
 
 export interface Role {
@@ -225,6 +237,8 @@ export interface Attachment {
   waveform?: number[] | null;
   /** Large file past its retention window ("This file has expired"). */
   expired?: boolean;
+  /** Hidden by the viewer's own sensitive-media setting (D-230); there is no URL. */
+  filtered?: boolean;
 }
 
 export interface Reaction {
@@ -329,6 +343,8 @@ export interface Message {
   /** Ephemeral app reply (flag 1 << 6): only this viewer sees it and it is never stored. */
   ephemeral?: boolean;
   suppressEmbeds?: boolean;
+  /** Ids of application emoji in the text that this message's author may not render (D-237): shown as `:name:`. */
+  textEmoji?: string[];
   /** Buttons and selects on app messages. */
   components?: import('../store/types').RawComponent[];
   /** `message_reference.channel_id`: the thread of a thread-created row, the origin of a thread's first row. */

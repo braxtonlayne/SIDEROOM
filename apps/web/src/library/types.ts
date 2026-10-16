@@ -5,7 +5,7 @@ export type SeriesKind = 'manga' | 'manhwa' | 'manhua' | 'webtoon' | 'comic' | '
 export type SeriesStatus = 'ongoing' | 'completed' | 'hiatus' | 'cancelled';
 export type ReadingDirection = 'rtl' | 'ltr' | 'vertical';
 export type AgeFilter = 'hide' | 'include' | 'only';
-export type SortKey = 'newest' | 'updated' | 'title' | 'followers';
+export type SortKey = 'newest' | 'updated' | 'title' | 'followers' | 'rating';
 export type Shelf = 'reading' | 'plan_to_read' | 'completed' | 'on_hold' | 'dropped';
 export type ChapterFormat = 'images' | 'pdf' | 'epub';
 
@@ -64,6 +64,8 @@ export interface ChapterProgress {
   page_index: number;
   percent: number;
   completed: boolean;
+  /** EPUB position, when the chapter is an EPUB. */
+  cfi?: string | null;
   updated_at_ms?: number;
 }
 
@@ -108,6 +110,8 @@ export interface PageEntry {
   url: string;
   variants: PageVariant[];
   blurhash?: string | null;
+  /** Borders the reader may cut off (pixels of the full-size page; LIB-ING-007). */
+  crop?: { left: number; top: number; right: number; bottom: number } | null;
 }
 
 export interface PageManifest {
@@ -168,6 +172,8 @@ export interface BrowseParams {
   language?: string;
   year_from?: number;
   year_to?: number;
+  /** Minimum average rating, 1 to 10. */
+  rating_min?: number;
   age?: AgeFilter;
   sort?: SortKey;
   order?: 'asc' | 'desc';

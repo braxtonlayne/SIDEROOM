@@ -6,10 +6,11 @@
   font-family: var(--sr-font-body);
   background: var(--sr-bg-1);
   --ent-pad: clamp(20px, 5.3vw, 90px);
-  /* XC-A11Y: --sr-text-3 (#6f6c60) is about 3.6:1 on the entrance background, under the 4.5:1 AA floor
-     for small text. The token stays as calibrated; entrance copy that must be read uses this value
-     (about 5.4:1) instead. */
-  --ent-muted: #8c8878;
+  /* OQ-XC-6, XC-A11Y: --sr-text-3 (#6f6c60) is about 3.6:1 on the entrance background (--sr-bg-1, #161613),
+     under the 4.5:1 AA floor for small text. The token stays as calibrated; entrance copy that must be
+     read uses this scoped token. #8c8878 on #161613 measures 5.1:1 (WCAG relative luminance 0.245 vs
+     0.0079). Documented in docs/10 section 2. */
+  --sr-entrance-text-muted: #8c8878;
 }
 .ent-root a {
   color: inherit;
@@ -43,7 +44,7 @@
   font-size: 12px;
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
   text-align: center;
 }
 .ent-nav {
@@ -74,14 +75,14 @@
   margin: 0;
   font-family: var(--sr-font-display);
   font-size: 20px;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 .ent-footer-meta {
   margin: 0;
   display: flex;
   gap: 24px;
   font-size: 13px;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 .ent-footer-meta a {
   text-decoration: none;
@@ -196,7 +197,7 @@
 }
 .ent-invite input::placeholder {
   letter-spacing: normal;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 .ent-shake {
   animation: ent-shake 0.4s;
@@ -242,7 +243,7 @@
   align-items: center;
 }
 .ent-helper a {
-  border-bottom: 1px solid var(--ent-muted);
+  border-bottom: 1px solid var(--sr-entrance-text-muted);
   text-decoration: none;
 }
 .ent-hero-right {
@@ -263,7 +264,7 @@
   font-size: 11px;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 .ent-vertical {
   position: absolute;
@@ -330,7 +331,7 @@
   margin: 0;
   font-size: 13px;
   letter-spacing: 0.1em;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 .ent-worlds {
   list-style: none;
@@ -364,7 +365,7 @@
   gap: 16px;
   align-items: center;
   font-size: 12px;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 .ent-worlds h3 {
   margin: 28px 0 8px;
@@ -374,7 +375,7 @@
 }
 .ent-worlds p {
   margin: 0;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 
 /* Split (login/register) */
@@ -425,7 +426,7 @@
   font-size: 12px;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 .ent-split-right {
   background: var(--sr-bg-1);
@@ -483,7 +484,7 @@
   gap: 16px;
   margin: 22px 0 6px;
   font-size: 13px;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 .ent-divider::before,
 .ent-divider::after {
@@ -501,7 +502,7 @@
 .ent-row a {
   color: var(--sr-text-2);
   text-decoration: none;
-  border-bottom: 1px solid var(--ent-muted);
+  border-bottom: 1px solid var(--sr-entrance-text-muted);
 }
 .ent-notice {
   margin: 0;
@@ -546,7 +547,7 @@
 .ent-footnote {
   margin: 8px 0 0;
   font-size: 13px;
-  color: var(--ent-muted);
+  color: var(--sr-entrance-text-muted);
 }
 .ent-otp {
   display: flex;
@@ -748,4 +749,39 @@
     min-height: 78px;
     font-size: 17px;
   }
+}
+
+/* Operator-edited copy (ENT-UI-010/025) */
+.ent-copy h2,
+.ent-copy h3,
+.ent-copy h4 {
+  margin-block: 2rem 0.5rem;
+  font-family: var(--sr-font-display);
+  font-weight: 400;
+  color: var(--sr-text);
+}
+.ent-copy a {
+  color: var(--sr-text);
+}
+.ent-copy ul,
+.ent-copy ol {
+  padding-inline-start: 1.5rem;
+}
+.ent-landing-note {
+  max-inline-size: 36rem;
+  margin-block-start: 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--sr-text-2);
+}
+.ent-landing-note p {
+  margin: 0;
+}
+
+/* Operator hero image in the door slot (H-41). */
+.ent-door-img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
 }

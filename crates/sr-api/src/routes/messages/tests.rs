@@ -34,17 +34,24 @@ const BOB: u64 = 2;
 const CAROL: u64 = 3; // not a guild member
 const THUMBS_UP: &str = "%F0%9F%91%8D";
 
-/// The owner is a patron (500 MiB); everyone else gets the standard limit.
-struct Perks;
+/// The owner is a patron (500 MiB); everyone else gets the standard limit. With `.0` set the
+/// server is at level 2 (100 MiB for every member in it, D-238); DMs only ever see the perk.
+struct Perks(bool);
 
 #[async_trait]
 impl UploadEntitlements for Perks {
-    async fn max_upload_bytes(&self, user: UserId) -> u64 {
-        if user.get() == OWNER {
+    async fn max_upload_bytes(&self, user: UserId, guild: Option<GuildId>) -> u64 {
+        let perk = if user.get() == OWNER {
             500 * MIB
         } else {
             30 * MIB
-        }
+        };
+        let level = if self.0 && guild.is_some() {
+            100 * MIB
+        } else {
+            0
+        };
+        perk.max(level)
     }
 }
 
@@ -99,6 +106,15 @@ async fn env_full(
     entitlements: Arc<dyn UploadEntitlements>,
     gate: Option<crate::routes::settings::AutoModGateHandle>,
     age: Option<Arc<dyn crate::routes::search::AgeGate>>,
+) -> Env {
+    env_build(entitlements, gate, age, None).await
+}
+
+async fn env_build(
+    entitlements: Arc<dyn UploadEntitlements>,
+    gate: Option<crate::routes::settings::AutoModGateHandle>,
+    age: Option<Arc<dyn crate::routes::search::AgeGate>>,
+    safety: Option<Arc<dyn super::ViewerSafety>>,
 ) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
@@ -157,6 +173,10 @@ async fn env_full(
     .with_audit(audit.clone());
     let deps = match age {
         Some(a) => deps.with_age_gate(a),
+        None => deps,
+    };
+    let deps = match safety {
+        Some(sf) => deps.with_viewer_safety(sf),
         None => deps,
     };
     let jobs = Arc::new(rich_tests::RecordingScheduler::default());
@@ -894,6 +914,46 @@ async fn reaction_limits_and_permissions() {
 }
 
 #[tokio::test]
+async fn reaction_objects_carry_the_burst_shim_and_ignore_type() {
+    let e = env().await;
+    let id = id_of(&e.say("owner", "shim").await);
+    let base = format!("/messages/{id}/reactions/{THUMBS_UP}");
+    // `type` is accepted on every reaction route and treated as a normal reaction (D-231).
+    assert_eq!(
+        e.status(Method::PUT, &format!("{base}/@me?type=1"), "bob")
+            .await,
+        StatusCode::NO_CONTENT
+    );
+    let (_, one) = e.get(&format!("/messages/{id}"), "bob").await;
+    let r = &one["reactions"][0];
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["me"], true);
+    assert_eq!(r["me_burst"], false);
+    assert_eq!(
+        r["count_details"],
+        serde_json::json!({"burst": 0, "normal": 1})
+    );
+    assert_eq!(r["burst_colors"], serde_json::json!([]));
+    assert_eq!(
+        e.get(&format!("{base}?type=1"), "bob").await.1,
+        serde_json::json!([])
+    );
+    assert_eq!(
+        e.get(&format!("{base}?type=0"), "bob")
+            .await
+            .1
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &format!("{base}/@me?type=1"), "bob")
+            .await,
+        StatusCode::NO_CONTENT
+    );
+}
+
+#[tokio::test]
 async fn pins_flow() {
     let e = env().await;
     let id = id_of(&e.say("bob", "pin me").await);
@@ -1000,7 +1060,7 @@ fn slot_key(ch: ChannelId, slot: &Value, filename: &str) -> String {
 
 #[tokio::test]
 async fn upload_slot_enforces_entitlement_limits() {
-    let e = env_with(Arc::new(Perks)).await;
+    let e = env_with(Arc::new(Perks(false))).await;
     let big = json!({"files": [{"filename": "movie.mkv", "file_size": 31 * MIB}]});
     let r = e.post("/attachments", "bob", big.clone()).await;
     assert_eq!(code(&r), (StatusCode::PAYLOAD_TOO_LARGE, Some(40005)));
@@ -1050,6 +1110,136 @@ async fn upload_slot_enforces_entitlement_limits() {
         )
         .await;
     assert_eq!(r.0, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn the_server_level_lifts_the_upload_limit_for_free_members_but_not_in_dms() {
+    let e = env_with(Arc::new(Perks(true))).await;
+    // A free member of a level-2 server may send 100 MiB there, and not a byte more.
+    let ok = json!({"files": [{"filename": "clip.mkv", "file_size": 100 * MIB}]});
+    let (s, v) = e.post("/attachments", "bob", ok).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["attachments"][0]["max_size"], 100 * MIB);
+    let over = json!({"files": [{"filename": "clip.mkv", "file_size": 101 * MIB}]});
+    let r = e.post("/attachments", "bob", over).await;
+    assert_eq!(code(&r), (StatusCode::PAYLOAD_TOO_LARGE, Some(40005)));
+    // The patron keeps the larger of the two.
+    let (_, v) = e
+        .post(
+            "/attachments",
+            "owner",
+            json!({"files": [{"filename": "a", "file_size": 200 * MIB}]}),
+        )
+        .await;
+    assert_eq!(v["attachments"][0]["max_size"], 500 * MIB);
+    // The advertised number follows the same rule: server level in the server, perk alone in DMs.
+    let bob = UserId::new(BOB);
+    assert_eq!(
+        e.deps.effective_upload_limit(bob, Some(e.guild)).await,
+        100 * MIB
+    );
+    assert_eq!(e.deps.effective_upload_limit(bob, None).await, 30 * MIB);
+    assert_eq!(
+        e.deps
+            .effective_upload_limit(UserId::new(OWNER), None)
+            .await,
+        500 * MIB
+    );
+}
+
+/// Bob blocks media in age-restricted channels; nobody has friends.
+struct BlockServers;
+
+#[async_trait]
+impl super::ViewerSafety for BlockServers {
+    async fn sensitive_view(
+        &self,
+        viewer: UserId,
+    ) -> (
+        sr_chat::social::safety::SensitiveMedia,
+        std::collections::HashSet<UserId>,
+    ) {
+        use sr_chat::social::safety::MediaFilter;
+        let servers = if viewer.get() == BOB {
+            MediaFilter::Block
+        } else if viewer.get() == OWNER {
+            MediaFilter::Blur
+        } else {
+            MediaFilter::Show
+        };
+        (
+            sr_chat::social::safety::SensitiveMedia {
+                friends: MediaFilter::Show,
+                others: MediaFilter::Show,
+                servers,
+            },
+            Default::default(),
+        )
+    }
+}
+
+#[tokio::test]
+async fn age_restricted_media_is_filtered_per_viewer_on_the_list() {
+    let all = crate::routes::search::ConfirmedUsers(
+        [UserId::new(OWNER), UserId::new(BOB), UserId::new(CAROL)].into(),
+    );
+    let e = env_build(
+        Arc::new(FixedEntitlements(30 * MIB)),
+        None,
+        Some(Arc::new(all)),
+        Some(Arc::new(BlockServers)),
+    )
+    .await;
+    let png = png_with_secret();
+    let (s, v) = e
+        .post(
+            "/attachments",
+            "carol",
+            json!({"files": [{"id": "0", "filename": "cat.png", "file_size": png.len(), "content_type": "image/png"}]}),
+        )
+        .await;
+    // Carol is not a member: use the owner as the author instead.
+    assert_eq!(s, StatusCode::FORBIDDEN, "{v}");
+    let (s, v) = e
+        .post(
+            "/attachments",
+            "owner",
+            json!({"files": [{"id": "0", "filename": "cat.png", "file_size": png.len(), "content_type": "image/png"}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let slot = v["attachments"][0].clone();
+    e.storage
+        .put(&slot_key(e.ch, &slot, "cat.png"), Bytes::from(png))
+        .await
+        .unwrap();
+    e.backend.data().channels.get_mut(&e.ch).unwrap().nsfw = true;
+    let (s, sent) = e
+        .post(
+            "/messages",
+            "owner",
+            json!({"content": "pic", "attachments": [{"id": "0", "uploaded_filename": slot["upload_filename"]}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{sent}");
+    // The author sees the file as it is, whatever their own setting says.
+    assert_eq!(sent["attachments"][0]["filename"], "cat.png");
+    let (_, own) = e.get("/messages", "owner").await;
+    assert_eq!(own[0]["attachments"][0]["filename"], "cat.png");
+    assert!(own[0]["attachments"][0].get("sr_filtered").is_none());
+    // Bob blocks: the attachment is listed without a URL and flagged.
+    let (_, bob) = e.get("/messages", "bob").await;
+    let a = &bob[0]["attachments"][0];
+    assert_eq!(
+        (a["url"].as_str(), a["sr_filtered"].as_bool()),
+        (Some(""), Some(true)),
+        "{bob}"
+    );
+    assert_eq!(a["id"], sent["attachments"][0]["id"]);
+    // A single fetch goes through the same decorator.
+    let id = sent["id"].as_str().unwrap();
+    let (_, one) = e.get(&format!("/messages/{id}"), "bob").await;
+    assert_eq!(one["attachments"][0]["sr_filtered"], true, "{one}");
 }
 
 #[tokio::test]
@@ -1650,6 +1840,43 @@ async fn moderator_message_actions_are_audited() {
                 json!({ "count": 2 })
             ),
         ]
+    );
+}
+
+/// D-235: removing a webhook message by a moderator is logged against its creator and names the
+/// webhook in `options`.
+#[tokio::test]
+async fn deleting_a_webhook_message_notes_the_webhook_in_the_audit_entry() {
+    use sr_chat::settings::audit::AuditAction;
+    let e = env().await;
+    let posted = id_of(&e.say("bob", "deploy done").await);
+    e.backend.data().webhook_authors.insert(
+        sr_core::MessageId::new(posted.parse().unwrap()),
+        sr_chat::rich_repo::WebhookAuthor {
+            webhook_id: 4242,
+            username: "Deploys".into(),
+            avatar_url: None,
+        },
+    );
+    e.status(Method::DELETE, &format!("/messages/{posted}"), "owner")
+        .await;
+    let log = e.audit.0.lock().unwrap().clone();
+    assert_eq!(
+        log,
+        vec![(
+            AuditAction::MessageDelete,
+            Some(BOB),
+            json!({ "channel_id": e.ch.to_string(), "count": 1, "webhook_id": "4242" })
+        )]
+    );
+}
+
+#[test]
+fn custom_emoji_tokens_are_found_in_text() {
+    use super::rich_model::custom_emoji_ids;
+    assert_eq!(
+        custom_emoji_ids("a <:wave:12> b <a:dance:34> <:bad:x> <::5> <@1> <:"),
+        vec![12, 34]
     );
 }
 

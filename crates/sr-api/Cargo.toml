@@ -61,6 +61,7 @@ moka.workspace = true
 sr-chat = { path = "../sr-chat", features = ["memory"] }
 http-body-util = "0.1"
 image = { version = "0.25", default-features = false, features = ["png", "gif"] }
+zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres"] }
 sr-db = { path = "../sr-db" }

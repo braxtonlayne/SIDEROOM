@@ -328,6 +328,11 @@ impl PgGuildDirectory {
             let mut obj = DmChannelObject::new(d, user, &users);
             if self.social.get_request_state(user, d.id).await? == Some(RequestState::Pending) {
                 obj.is_message_request = Some(true);
+                obj.sr_request_reason = self
+                    .social
+                    .get_request_reason(user, d.id)
+                    .await?
+                    .map(|r| r.as_str().to_owned());
             }
             private_channels.push(json!(obj));
         }
@@ -589,6 +594,41 @@ impl GuildDirectory for PgGuildDirectory {
                 false
             }
         }
+    }
+
+    async fn sensitive_view(
+        &self,
+        user: UserId,
+    ) -> Option<(
+        sr_chat::social::safety::SensitiveMedia,
+        std::collections::HashSet<UserId>,
+    )> {
+        use sr_chat::social::repo::RelationshipRepository;
+        // Bots get their messages as they are.
+        let is_bot = match self.chat.users(&[user]).await {
+            Ok(v) => v.first().is_some_and(|u| u.bot),
+            Err(_) => true,
+        };
+        if is_bot {
+            return None;
+        }
+        let prefs = self
+            .social
+            .get_privacy(user)
+            .await
+            .ok()?
+            .safety
+            .sensitive_media;
+        let friends = self
+            .social
+            .list_relationships(user)
+            .await
+            .ok()?
+            .into_iter()
+            .filter(|r| r.kind == RelationshipKind::Friend)
+            .map(|r| r.target)
+            .collect();
+        Some((prefs, friends))
     }
 
     async fn channel_age_restricted(&self, channel: ChannelId) -> bool {

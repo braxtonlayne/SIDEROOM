@@ -346,6 +346,7 @@ async fn upload(w: &World, chapter: i64, name: &str, bytes: Vec<u8>) -> Result<i
             UploadRequest {
                 filename: name.into(),
                 size_bytes: bytes.len() as u64,
+                multipart: false,
             },
         )
         .await?;
@@ -904,7 +905,8 @@ async fn an_archive_upload_becomes_pages_and_a_replacement_is_collected() {
                 c,
                 UploadRequest {
                     filename: "again.cbz".into(),
-                    size_bytes: 10
+                    size_bytes: 10,
+                    multipart: false,
                 }
             )
             .await
@@ -1011,6 +1013,7 @@ async fn upload_requests_and_bad_files_are_refused_with_reasons() {
             UploadRequest {
                 filename: name.into(),
                 size_bytes: size,
+                multipart: false,
             },
         )
     };
@@ -1038,7 +1041,8 @@ async fn upload_requests_and_bad_files_are_refused_with_reasons() {
                 c,
                 UploadRequest {
                     filename: "a.cbz".into(),
-                    size_bytes: 1
+                    size_bytes: 1,
+                    multipart: false,
                 }
             )
             .await
@@ -1052,7 +1056,8 @@ async fn upload_requests_and_bad_files_are_refused_with_reasons() {
                 1,
                 UploadRequest {
                     filename: "a.cbz".into(),
-                    size_bytes: 1
+                    size_bytes: 1,
+                    multipart: false,
                 }
             )
             .await
@@ -1155,7 +1160,8 @@ async fn a_pdf_is_kept_as_the_chapters_source_and_replacing_it_collects_the_old_
                 c,
                 UploadRequest {
                     filename: "a.cbz".into(),
-                    size_bytes: 5
+                    size_bytes: 5,
+                    multipart: false,
                 }
             )
             .await
@@ -1318,6 +1324,7 @@ async fn abandoned_upload_slots_expire_and_are_cleaned() {
             UploadRequest {
                 filename: "a.cbz".into(),
                 size_bytes: 10,
+                multipart: false,
             },
         )
         .await
@@ -1382,6 +1389,7 @@ async fn abandoned_upload_slots_expire_and_are_cleaned() {
             UploadRequest {
                 filename: "a.cbz".into(),
                 size_bytes: 10,
+                multipart: false,
             },
         )
         .await
@@ -1394,6 +1402,7 @@ async fn abandoned_upload_slots_expire_and_are_cleaned() {
             UploadRequest {
                 filename: "b.cbz".into(),
                 size_bytes: 10,
+                multipart: false,
             },
         )
         .await
@@ -1484,5 +1493,383 @@ async fn publishing_a_chapter_notifies_followers_with_the_bell_on() {
         w.events
             .types(bell.user_id)
             .contains(&"unfollow".to_owned())
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_chapter_export_is_a_cbz_of_the_pages_cached_by_page_list() {
+    let w = world().await;
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 36.0, 3).await;
+    w.publish_series(s).await;
+    for i in 0..3 {
+        w.storage
+            .put(
+                &format!("library/{s}/{c}/{i:04}.webp"),
+                Bytes::from(vec![i as u8; 10 + i]),
+            )
+            .await
+            .unwrap();
+    }
+    let first = w.svc.export_chapter(w.member, c).await.unwrap();
+    assert_eq!(first.format, "cbz");
+    assert!(first.filename.ends_with("-ch-36.cbz"), "{}", first.filename);
+    assert!(first.url.contains("/cdn/library/exports/"));
+    let key = first
+        .url
+        .split("/cdn/")
+        .nth(1)
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap()
+        .to_owned();
+    let bytes = w.storage.get(&key).await.unwrap();
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes.to_vec())).unwrap();
+    assert_eq!(zip.len(), 3);
+    assert_eq!(
+        zip.by_index(0).unwrap().name().unwrap().to_string(),
+        "001.webp"
+    );
+    assert_eq!(first.size_bytes, bytes.len() as u64);
+    // The same page list reuses the stored file.
+    let again = w.svc.export_chapter(w.member, c).await.unwrap();
+    assert_eq!(again.size_bytes, first.size_bytes);
+    // An unpublished chapter and a minor on a restricted series are refused.
+    let (rs, re) = w.series(true).await;
+    let rc = w.chapter(rs, re, 1.0, 1).await;
+    w.publish_series(rs).await;
+    assert!(matches!(
+        w.svc.export_chapter(w.minor, rc).await.unwrap_err(),
+        LibraryError::AgeConfirmationRequired
+    ));
+    w.svc
+        .set_chapter_published(w.publisher, c, false)
+        .await
+        .unwrap();
+    assert!(matches!(
+        w.svc.export_chapter(w.member, c).await.unwrap_err(),
+        LibraryError::NotFound(_)
+    ));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn one_page_is_replaced_in_place_keeping_position_and_spread() {
+    let w = world().await;
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 36.0, 3).await;
+    w.publish_series(s).await;
+    // Page 2 is a marked spread; the others are plain.
+    let mut list = pages(s, c, 3);
+    list[1].is_double_spread = true;
+    w.svc.replace_pages(w.publisher, c, list).await.unwrap();
+    let before = w.svc.admin_page_manifest(w.publisher, c).await.unwrap();
+    let export_before = {
+        for i in 0..3 {
+            w.storage
+                .put(
+                    &format!("library/{s}/{c}/{i:04}.webp"),
+                    Bytes::from(vec![i as u8; 10]),
+                )
+                .await
+                .unwrap();
+        }
+        w.svc.export_chapter(w.member, c).await.unwrap().url
+    };
+
+    let after = w
+        .svc
+        .replace_page(w.publisher, c, 1, png(900, 1300, 9))
+        .await
+        .unwrap();
+    assert_eq!(after.page_count, 3, "the page count is unchanged");
+    let m = w.svc.admin_page_manifest(w.publisher, c).await.unwrap();
+    assert_eq!(m.pages.len(), 3);
+    // Same position, spread flag kept, new converted dimensions and variants.
+    assert!(m.pages[1].is_double_spread);
+    assert_eq!((m.pages[1].width, m.pages[1].height), (900, 1300));
+    assert!(m.pages[1].blurhash.is_some());
+    assert!(!m.pages[1].variants.is_empty());
+    assert_ne!(
+        m.pages[1].url, before.pages[1].url,
+        "a new object, not an overwrite"
+    );
+    for i in [0, 2] {
+        assert_eq!(
+            m.pages[i].url, before.pages[i].url,
+            "other pages are untouched"
+        );
+    }
+    // The old page objects are queued for collection; the export fingerprint changed with the keys.
+    assert!(w.gc_queue(&format!("library/{s}/{c}/0001.webp")).await);
+    let export_after = w.svc.export_chapter(w.member, c).await.unwrap().url;
+    assert_ne!(
+        export_before.split('?').next(),
+        export_after.split('?').next()
+    );
+
+    // Bad input is refused: an index past the end, not an image, and a publisher is needed.
+    assert!(matches!(
+        w.svc.replace_page(w.publisher, c, 3, png(10, 10, 1)).await,
+        Err(LibraryError::NotFound(_))
+    ));
+    assert!(matches!(
+        w.svc
+            .replace_page(w.publisher, c, 0, b"not an image".to_vec())
+            .await,
+        Err(LibraryError::Invalid(_))
+    ));
+    assert!(
+        w.svc
+            .replace_page(
+                Actor {
+                    permissions: P::empty(),
+                    ..w.publisher
+                },
+                c,
+                0,
+                png(10, 10, 1)
+            )
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_collector_deletes_exports_nobody_read_for_a_week_and_adopts_strays() {
+    let w = world().await;
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 36.0, 2).await;
+    w.publish_series(s).await;
+    for i in 0..2 {
+        w.storage
+            .put(
+                &format!("library/{s}/{c}/{i:04}.webp"),
+                Bytes::from(vec![i as u8; 10]),
+            )
+            .await
+            .unwrap();
+    }
+    let export = w.svc.export_chapter(w.member, c).await.unwrap();
+    let key = export
+        .url
+        .split("/cdn/")
+        .nth(1)
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap()
+        .to_owned();
+    // Building it recorded a read; a fresh export survives the sweep.
+    let rows = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM library_export_cache WHERE export_key = $1",
+        )
+        .bind(&key)
+        .fetch_one(&w.pool)
+        .await
+        .unwrap()
+    };
+    assert_eq!(rows().await, 1);
+    w.svc.run_gc().await.unwrap();
+    assert!(w.exists(&key).await);
+
+    // A stray from before the index existed is adopted as read now, not deleted.
+    let stray = format!("library/exports/{c}/00000000deadbeef.cbz");
+    w.storage
+        .put(&stray, Bytes::from_static(b"zip"))
+        .await
+        .unwrap();
+    let r = w.svc.run_gc().await.unwrap();
+    assert_eq!(r.exports_deleted, 0);
+    assert!(w.exists(&stray).await);
+
+    // Serving it again refreshes the read; 8 idle days make the sweep delete it.
+    sqlx::query("UPDATE library_export_cache SET last_read_at = now() - interval '8 days' WHERE export_key = ANY($1)")
+        .bind(vec![key.clone(), stray.clone()])
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    w.svc.export_chapter(w.member, c).await.unwrap();
+    let r = w.svc.run_gc().await.unwrap();
+    assert_eq!(r.exports_deleted, 1, "only the stray was idle: {r:?}");
+    assert!(w.exists(&key).await, "a read keeps the export");
+    assert!(!w.exists(&stray).await);
+    sqlx::query("UPDATE library_export_cache SET last_read_at = now() - interval '8 days' WHERE export_key = $1")
+        .bind(&key)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    let r = w.svc.run_gc().await.unwrap();
+    assert_eq!(r.exports_deleted, 1);
+    assert!(!w.exists(&key).await);
+    assert_eq!(rows().await, 0);
+    // It is rebuilt on demand.
+    assert!(w.svc.export_chapter(w.member, c).await.is_ok());
+    assert!(w.exists(&key).await);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_multipart_upload_is_remembered_resumed_and_completed() {
+    use sr_library::{MemoryPartStore, MultipartWiring};
+    let w = world().await;
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 1.0, 1).await;
+    let parts = Arc::new(MemoryPartStore::new(w.storage.clone()));
+    let svc = w
+        .svc
+        .clone()
+        .with_multipart(MultipartWiring::new(parts.clone()).with_part_size(4));
+    let body = cbz(2);
+    let slot = svc
+        .begin_upload(
+            w.publisher,
+            c,
+            UploadRequest {
+                filename: "Ch 1.cbz".into(),
+                size_bytes: body.len() as u64,
+                multipart: true,
+            },
+        )
+        .await
+        .unwrap();
+    let m = slot.multipart.clone().expect("a multipart slot");
+    assert_eq!(m.part_size, 4);
+    assert_eq!(u64::from(m.part_count), (body.len() as u64).div_ceil(4));
+    let remembered: (String, i64) = sqlx::query_as(
+        "SELECT multipart_id, part_size FROM reading_upload_multipart WHERE upload_id = $1",
+    )
+    .bind(slot.upload.id)
+    .fetch_one(&w.pool)
+    .await
+    .unwrap();
+    assert_eq!(remembered.1, 4);
+
+    // Send every part but the first, as a browser that refreshed halfway would have.
+    for (i, chunk) in body.chunks(4).enumerate().skip(1) {
+        parts.put_part(&remembered.0, i as u32 + 1, Bytes::copy_from_slice(chunk));
+    }
+    let resume = svc.upload_parts(w.publisher, slot.upload.id).await.unwrap();
+    assert_eq!(resume.missing.len(), 1);
+    assert_eq!(resume.missing[0].part_number, 1);
+    assert!(
+        svc.complete_upload(w.publisher, slot.upload.id)
+            .await
+            .is_err()
+    );
+    parts.put_part(&remembered.0, 1, Bytes::copy_from_slice(&body[..4]));
+    let up = svc
+        .complete_upload(w.publisher, slot.upload.id)
+        .await
+        .unwrap();
+    assert_eq!(up.status.as_str(), "queued");
+    assert_eq!(w.queue.0.lock().unwrap().as_slice(), [slot.upload.id]);
+    // The slot is spent: no parts to resume, nothing to cancel.
+    assert!(svc.upload_parts(w.publisher, slot.upload.id).await.is_err());
+    assert!(svc.abort_upload(w.publisher, slot.upload.id).await.is_err());
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn duplicates_match_by_title_and_by_cover_artwork() {
+    use sr_library::{CoverHashes, SeriesIndex};
+    let w = world().await;
+    let svc = w
+        .svc
+        .clone()
+        .with_index(Arc::new(SeriesIndex::in_ram().unwrap()))
+        .with_cover_hashes(Arc::new(PgLibraryRepo::new(w.pool.clone())));
+    let tag = uid();
+    let title = format!("Zephyr Quill {tag}");
+    let art = png(600, 900, 10);
+    let other_art = {
+        use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
+        let img = RgbImage::from_fn(600, 900, |x, _| {
+            if (x / 12) % 2 == 0 {
+                Rgb([15, 15, 15])
+            } else {
+                Rgb([240, 240, 240])
+            }
+        });
+        let mut out = Vec::new();
+        DynamicImage::ImageRgb8(img)
+            .write_to(&mut Cursor::new(&mut out), ImageFormat::Png)
+            .unwrap();
+        out
+    };
+    let put_cover = |name: String, bytes: Vec<u8>| {
+        let storage = w.storage.clone();
+        async move {
+            let key = format!("library/cover-{name}.png");
+            storage.put(&key, Bytes::from(bytes)).await.unwrap();
+            key
+        }
+    };
+    let make = |title: String, key: String, publish: bool| {
+        let svc = svc.clone();
+        let mut input = w.input("x", false);
+        input.title = title;
+        input.cover_key = Some(key);
+        let actor = w.publisher;
+        async move {
+            let s = svc.create_series(actor, input).await.unwrap();
+            if publish {
+                svc.set_series_published(actor, s.id, true).await.unwrap();
+            }
+            s.id
+        }
+    };
+    let same_title = make(
+        title.clone(),
+        put_cover(format!("a{tag}"), art.clone()).await,
+        true,
+    )
+    .await;
+    let same_art = make(
+        format!("Unrelated Words {tag}"),
+        put_cover(format!("b{tag}"), art.clone()).await,
+        true,
+    )
+    .await;
+    let _different = make(
+        format!("Nothing Alike {tag}"),
+        put_cover(format!("c{tag}"), other_art).await,
+        true,
+    )
+    .await;
+    let draft = make(
+        title.clone(),
+        put_cover(format!("d{tag}"), art).await,
+        false,
+    )
+    .await;
+
+    let found = svc.find_duplicates(draft).await.unwrap();
+    let by_id = |id: i64| found.iter().find(|m| m.ref_id == id);
+    let t = by_id(same_title).expect("the series with the same title");
+    assert_eq!(t.score, 100);
+    assert!(t.reasons.contains(&"title".to_owned()), "{t:?}");
+    assert!(t.reasons.contains(&"cover".to_owned()), "{t:?}");
+    let a = by_id(same_art).expect("the series with the same cover");
+    assert_eq!(a.reasons, vec!["cover".to_owned()]);
+    assert!(a.score >= 90, "{a:?}");
+    assert!(found.iter().all(|m| m.ref_id != draft), "never itself");
+    assert!(
+        found
+            .iter()
+            .all(|m| !m.title.starts_with("Nothing Alike") || !m.title.ends_with(&tag.to_string())),
+        "different artwork and title are not matches: {found:?}"
+    );
+    // The hashes were filled in as a side effect.
+    let left = CoverHashes::unhashed(&PgLibraryRepo::new(w.pool.clone()), 1000)
+        .await
+        .unwrap();
+    assert!(
+        left.iter()
+            .all(|(id, _)| *id != same_title && *id != same_art)
     );
 }

@@ -18,9 +18,11 @@
 mod accounts;
 mod accounts_ext;
 mod announce;
-pub use announce::press_review_button;
+pub use announce::{ReviewPress, press_review_button};
 mod ctx;
+mod entrance;
 mod invites;
+mod people;
 mod private;
 mod staff;
 mod staff_ext;
@@ -29,7 +31,7 @@ mod system;
 #[cfg(test)]
 mod tests;
 
-pub use ctx::{AdminDeps, ReasonBody, StaffCtx, map_err, reason as reason_from};
+pub use ctx::{AdminDeps, IntegrationStatus, ReasonBody, StaffCtx, map_err, reason as reason_from};
 
 use crate::{openapi::ErrorBody, state::AppState};
 use axum::{
@@ -125,6 +127,47 @@ pub fn router() -> Router<AppState> {
             "/admin/accounts/{account_id}/credits",
             get(invites::ledger).post(invites::adjust),
         )
+        .route(
+            "/admin/accounts/{account_id}/sessions",
+            get(people::sessions),
+        )
+        .route(
+            "/admin/accounts/{account_id}/guilds",
+            get(people::account_guilds),
+        )
+        .route(
+            "/admin/accounts/{account_id}/freeze-invites",
+            post(people::freeze_invites),
+        )
+        .route(
+            "/admin/accounts/{account_id}/unfreeze-invites",
+            post(people::unfreeze_invites),
+        )
+        .route(
+            "/admin/accounts/{account_id}/unlink",
+            post(people::unlink_account),
+        )
+        .route(
+            "/admin/persons/{person_id}/notes",
+            axum::routing::put(people::put_notes),
+        )
+        .route(
+            "/admin/persons/{person_id}/link",
+            post(people::link_account),
+        )
+        .route(
+            "/admin/persons/{person_id}/suspicion-log",
+            get(people::suspicion_log),
+        )
+        .route("/admin/guilds", get(people::search_guilds))
+        .route(
+            "/admin/guilds/{guild_id}",
+            get(people::get_guild).delete(people::delete_guild),
+        )
+        .route(
+            "/admin/guilds/{guild_id}/transfer-ownership",
+            post(people::transfer_ownership),
+        )
         .route("/admin/invites", get(invites::list))
         .route(
             "/admin/invites/{invite_id}",
@@ -146,6 +189,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/admin/stats", get(system::stats))
         .route("/admin/system", get(system::system))
+        .route("/admin/system/email-test", post(system::email_test))
         .route("/admin/jobs", get(system::jobs))
         .route("/admin/jobs/{job_id}/retry", post(system::retry_job))
         .route(
@@ -179,6 +223,18 @@ pub fn router() -> Router<AppState> {
             axum::routing::delete(announce::end).patch(announce::edit),
         )
         .route("/announcements/active", get(announce::active))
+        .route("/sr/entrance/copy", get(entrance::get_copy))
+        .route(
+            "/admin/entrance/copy/{key}",
+            axum::routing::put(entrance::put_copy).delete(entrance::delete_copy),
+        )
+        .route("/sr/entrance/hero", get(entrance::get_hero))
+        .route(
+            "/admin/entrance/hero",
+            axum::routing::put(entrance::put_hero)
+                .delete(entrance::delete_hero)
+                .layer(crate::routes::media::body_limit()),
+        )
         .route("/admin/alerts", get(announce::alerts))
         .route("/admin/alerts/{alert_id}/ack", post(announce::ack))
         .route("/admin/card-actions", post(announce::card_action))
@@ -216,6 +272,25 @@ pub fn router() -> Router<AppState> {
         announce::end,
         announce::edit,
         announce::active,
+        entrance::get_copy,
+        entrance::get_hero,
+        system::email_test,
+        people::sessions,
+        people::account_guilds,
+        people::freeze_invites,
+        people::unfreeze_invites,
+        people::put_notes,
+        people::link_account,
+        people::unlink_account,
+        people::suspicion_log,
+        people::search_guilds,
+        people::get_guild,
+        people::transfer_ownership,
+        people::delete_guild,
+        entrance::put_copy,
+        entrance::put_hero,
+        entrance::delete_hero,
+        entrance::delete_copy,
         announce::alerts,
         announce::ack,
         announce::card_action,
@@ -268,6 +343,14 @@ pub fn router() -> Router<AppState> {
         private::ReauthBody,
         announce::AnnounceBody,
         announce::EditAnnouncementBody,
+        entrance::EntranceCopyBody,
+        entrance::EntranceHeroBody,
+        system::MailTestResult,
+        ctx::IntegrationStatus,
+        people::PersonNotesBody,
+        people::LinkAccountBody,
+        people::UnlinkResult,
+        people::TransferBody,
         announce::CardActionBody,
         sr_admin::StaffOffer,
         sr_admin::OfferState,
@@ -280,6 +363,7 @@ pub fn router() -> Router<AppState> {
         sr_admin::PrivateChannel,
         sr_admin::PrivateEdit,
         sr_admin::PrivateMessage,
+        sr_admin::WebhookMarker,
         sr_admin::PrivateMessagePage,
         sr_admin::CardActionResult,
         accounts::BanBody,

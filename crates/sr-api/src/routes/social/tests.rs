@@ -45,6 +45,7 @@ struct Env {
     storage: Arc<ObjectStoreStorage>,
     guild: GuildId,
     ch: ChannelId,
+    social: Arc<SocialDeps>,
 }
 
 fn token(uid: u64) -> &'static str {
@@ -142,6 +143,7 @@ async fn env() -> Env {
     )
     .unwrap()
     .with_dm_announcer(social.clone());
+    let social_handle = social.clone();
     let state = AppState::builder()
         .bots(bots)
         .clock(dyn_clock)
@@ -161,6 +163,7 @@ async fn env() -> Env {
         storage,
         guild,
         ch,
+        social: social_handle,
     }
 }
 
@@ -510,6 +513,13 @@ async fn one_to_one_dm_open_list_close_and_event() {
 
     let (_, list) = e.get("/users/@me/channels", ALICE).await;
     assert_eq!(list.as_array().unwrap().len(), 1);
+    // D-233: the viewer's effective upload limit travels with the conversation.
+    assert!(
+        list[0]["sr_max_upload_bytes"]
+            .as_u64()
+            .is_some_and(|n| n > 0),
+        "{list}"
+    );
     // Bob sees it as a message request (non-friend first DM, Q112).
     let (_, bob) = e.get("/users/@me/channels", BOB).await;
     assert_eq!(bob[0]["is_message_request"], true);
@@ -1840,6 +1850,86 @@ async fn privacy_settings_round_trip_and_gate_friend_requests() {
 }
 
 #[tokio::test]
+async fn safety_settings_round_trip_and_validate() {
+    let e = env().await;
+    let (_, v) = e.get("/users/@me/privacy", DAVE).await;
+    assert_eq!(
+        v["sensitive_media"],
+        json!({"friends": "show", "others": "blur", "servers": "show"})
+    );
+    assert_eq!(v["dm_spam_filter"], "non_friends");
+    assert_eq!(v["server_dm_overrides"], json!({}));
+
+    let (s, v) = e
+        .patch(
+            "/users/@me/privacy",
+            DAVE,
+            json!({"sensitive_media": {"others": "block"}, "dm_spam_filter": "all",
+                   "server_dm_overrides": {"70": false, "71": true}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["sensitive_media"]["others"], "block");
+    assert_eq!(v["sensitive_media"]["friends"], "show", "untouched");
+    assert_eq!(v["server_dm_overrides"], json!({"70": false, "71": true}));
+    assert_eq!(v["message_requests"], true);
+
+    // null removes one override.
+    let (_, v) = e
+        .patch(
+            "/users/@me/privacy",
+            DAVE,
+            json!({"server_dm_overrides": {"71": null}}),
+        )
+        .await;
+    assert_eq!(v["server_dm_overrides"], json!({"70": false}));
+    assert_eq!(e.get("/users/@me/privacy", DAVE).await.1, v);
+
+    for bad in [
+        json!({"sensitive_media": {"friends": "hide"}}),
+        json!({"dm_spam_filter": "some"}),
+        json!({"server_dm_overrides": {"abc": true}}),
+        json!({"server_dm_overrides": {"0": true}}),
+    ] {
+        let (s, _) = e.patch("/users/@me/privacy", DAVE, bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+}
+
+#[tokio::test]
+async fn notification_keywords_are_cleaned_and_capped() {
+    let e = env().await;
+    let (s, v) = e.get("/users/@me/notification-keywords", ALICE).await;
+    assert_eq!((s, &v["keywords"]), (StatusCode::OK, &json!([])));
+
+    let (s, v) = e
+        .put(
+            "/users/@me/notification-keywords",
+            ALICE,
+            Some(json!({"keywords": ["  Deploy  ", "deploy", "red   alert", "", "  "]})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["keywords"], json!(["Deploy", "red alert"]));
+    assert_eq!(e.get("/users/@me/notification-keywords", ALICE).await.1, v);
+    // Per user.
+    assert_eq!(
+        e.get("/users/@me/notification-keywords", DAVE).await.1["keywords"],
+        json!([])
+    );
+    for bad in [
+        json!({"keywords": ["!!!"]}),
+        json!({"keywords": ["x".repeat(101)]}),
+        json!({"keywords": (0..51).map(|i| format!("word{i}")).collect::<Vec<_>>()}),
+    ] {
+        let (s, _) = e
+            .put("/users/@me/notification-keywords", ALICE, Some(bad))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+}
+
+#[tokio::test]
 async fn display_name_edits_through_global_name() {
     let e = env().await;
     let (s, v) = e
@@ -1955,4 +2045,86 @@ async fn profile_returns_the_server_profile_only_for_a_shared_server() {
     assert!(v.get("guild_member_profile").is_none());
     let (s, _) = e.get("/users/2/profile?guild_id=nope", ALICE).await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn message_request_carries_the_server_protection_reason() {
+    use sr_chat::social::dm::SharedProtection;
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    e.repo.store.lock().unwrap().protection.insert(
+        (UserId::new(ALICE), UserId::new(BOB)),
+        SharedProtection {
+            shared: 1,
+            spam_filter_all: true,
+            ..SharedProtection::default()
+        },
+    );
+    let (s, v) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    // The sender's own view names no reason.
+    assert!(v["sr_request_reason"].is_null());
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    assert_eq!(bob[0]["is_message_request"], true);
+    assert_eq!(bob[0]["sr_request_reason"], "server_filter");
+}
+
+#[tokio::test]
+async fn a_first_message_opens_the_conversation_in_the_recipients_requests_only() {
+    let e = env().await;
+    e.repo
+        .store
+        .lock()
+        .unwrap()
+        .shared_guilds
+        .insert((UserId::new(ALICE), UserId::new(BOB)));
+    let (_, dm) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    let id = dm["id"].as_str().unwrap().to_owned();
+    // The sender is told nothing about requests.
+    assert!(
+        dm.get("is_message_request").is_none_or(Value::is_null),
+        "{dm}"
+    );
+    let mut bob_events = e.user_events(BOB);
+    let mut alice_events = e.user_events(ALICE);
+    // The message path announces the channel to the recipient before the first message.
+    let channel = ChannelId::new(id.parse().unwrap());
+    crate::routes::messages::DmAnnouncer::announce(&*e.social, channel, &[UserId::new(BOB)]).await;
+
+    let mut names = Vec::new();
+    for _ in 0..3 {
+        match tokio::time::timeout(Duration::from_millis(300), bob_events.next()).await {
+            Ok(Some(DomainEvent::UserScoped { name, payload, .. })) if name == "CHANNEL_CREATE" => {
+                assert_eq!(payload["id"], id.as_str());
+                assert_eq!(payload["is_message_request"], true, "{payload}");
+                assert!(
+                    payload.get("sr_request_reason").is_some()
+                        || payload["is_message_request"] == true
+                );
+                names.push(name);
+            }
+            _ => break,
+        }
+    }
+    assert_eq!(names, ["CHANNEL_CREATE"]);
+    // Nothing about requests reaches the sender.
+    while let Ok(Some(DomainEvent::UserScoped { payload, .. })) =
+        tokio::time::timeout(Duration::from_millis(100), alice_events.next()).await
+    {
+        assert!(
+            payload.get("is_message_request").is_none_or(Value::is_null),
+            "{payload}"
+        );
+    }
+
+    // The sender's own list never marks the conversation.
+    let (_, mine) = e.get("/users/@me/channels", ALICE).await;
+    assert!(
+        mine[0].get("is_message_request").is_none_or(Value::is_null),
+        "{mine}"
+    );
 }

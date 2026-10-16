@@ -31,6 +31,8 @@ pub struct Store {
     pub thread_members: Vec<crate::threads::model::ThreadMember>,
     /// Accounts for name search and the user lookup.
     pub users: HashMap<UserId, crate::repo::UserSummary>,
+    /// How members joined (H-37); tests seed this.
+    pub joins: HashMap<(GuildId, UserId), crate::admin_repo::MemberJoin>,
 }
 
 /// Cloning shares the same store, so tests can keep a handle while the service owns a clone.
@@ -425,6 +427,29 @@ impl MessageRepository for MemoryRepo {
 
 #[async_trait]
 impl GuildAdminRepository for MemoryRepo {
+    async fn member_joins(
+        &self,
+        guild: GuildId,
+        users: &[UserId],
+    ) -> RepoResult<Vec<crate::admin_repo::MemberJoin>> {
+        let s = self.lock()?;
+        Ok(users
+            .iter()
+            .map(|u| {
+                s.joins
+                    .get(&(guild, *u))
+                    .cloned()
+                    .unwrap_or(crate::admin_repo::MemberJoin {
+                        user_id: *u,
+                        source: None,
+                        invite_code: None,
+                        ref_id: None,
+                        rejoined: false,
+                    })
+            })
+            .collect())
+    }
+
     async fn set_vanity(&self, guild: GuildId, code: Option<&str>) -> RepoResult<bool> {
         let mut s = self.lock()?;
         if let Some(c) = code

@@ -36,15 +36,35 @@ import { streamerState } from '../settings/user/prefs';
 import { CuePlayer, cueEnabled, type Cue } from './sounds';
 import { VadGate } from './vad';
 import { VIDEO_PUBLISH } from './protocol';
+import { PreviewUploader, type PreviewDeps, browserPreviewDeps } from './preview';
+import { LocalSoundPlayer } from './soundPlayer';
+import {
+  playErrorKind,
+  sendSoundboardSound,
+  soundAudio,
+  useSoundboard,
+  type SendSoundBody,
+  type Sound,
+} from './soundboard';
+import { ApiError } from '../api/client';
+import { applyStreamEvent, ownerOfKey, resetStreams, streamKey } from './streams';
 import {
   applyContentHint,
+  bestProfile,
   browserVideoDeps,
+  buildHints,
   CaptureError,
   openCamera,
   openScreen,
   resetLocalVideo,
+  resetRemoteVideo,
+  setRemoteInfo,
+  setRemoteLayer,
+  setRemoteVideo,
+  setWatching,
   stopCapture,
   useLocalVideo,
+  useRemoteVideo,
   type ShareOptions,
   type VideoDeps,
   type VideoProfile,
@@ -71,7 +91,16 @@ export interface ControllerDeps {
   video?: VideoDeps;
   /** Announce `self_video` / `self_stream` in the voice state (default: `VIDEO_PUBLISH`). */
   publishVideo?: boolean;
+  /** Stream preview thumbnails (VOX-CLI-008); the canvas and the API by default. */
+  preview?: PreviewDeps;
+  /** Announce a soundboard play (VOX-SB-003); `POST /channels/{id}/send-soundboard-sound` by default. */
+  sendSound?: (channelId: string, body: SendSoundBody) => Promise<void>;
 }
+
+export type SoundResult = { ok: true } | { ok: false; message: string };
+
+/** Wait this long after the last tile resize / watch change before sending subscription hints. */
+export const HINT_DEBOUNCE_MS = 200;
 
 export const DM_GUILD_ID = '@me';
 export const SERVER_WAIT_MS = 10_000;
@@ -110,6 +139,13 @@ export class VoiceController {
   private offDispatch: (() => void) | null = null;
   private offSettings: (() => void) | null = null;
   private levelListeners = new Set<(db: number) => void>();
+  private previews: PreviewUploader | null = null;
+  private localSounds: LocalSoundPlayer | null = null;
+  /** Streams the viewer asked to watch and the gateway has not confirmed yet. */
+  private pendingWatch = new Set<string>();
+  private offHints: (() => void) | null = null;
+  private hintTimer: ReturnType<typeof setTimeout> | undefined;
+  private lastHints = '';
 
   constructor(private deps: ControllerDeps = defaultDeps()) {
     const s = getVoiceSettings();
@@ -305,6 +341,7 @@ export class VoiceController {
   ): Promise<void> {
     if (!this.target) return;
     this.stopCamera();
+    this.cameraProfiles = profiles;
     useLocalVideo.setState({ error: null });
     try {
       const cam = await openCamera(this.videoDeps, deviceId, profiles);
@@ -320,6 +357,7 @@ export class VoiceController {
       });
       useLocalVideo.setState({ camera: cam });
       patchSession({ camera: true });
+      this.publishCapture('camera');
       this.announceVideo();
     } catch (e) {
       useLocalVideo.setState({ error: e instanceof CaptureError ? e.message : String(e) });
@@ -329,6 +367,7 @@ export class VoiceController {
   stopCamera(): void {
     const cam = useLocalVideo.getState().camera;
     if (!cam) return;
+    this.engine?.unpublishVideo?.('camera');
     stopCapture(cam.stream);
     useLocalVideo.setState({ camera: null });
     patchSession({ camera: false });
@@ -352,6 +391,8 @@ export class VoiceController {
       });
       useLocalVideo.setState({ screen });
       patchSession({ screen: true });
+      this.publishCapture('screen');
+      this.startStream(screen);
       this.announceVideo();
     } catch (e) {
       if (e instanceof CaptureError && e.code === 'cancelled') return;
@@ -370,6 +411,8 @@ export class VoiceController {
   stopScreenShare(): void {
     const screen = useLocalVideo.getState().screen;
     if (!screen) return;
+    this.engine?.unpublishVideo?.('screen');
+    this.endStream();
     stopCapture(screen.stream);
     useLocalVideo.setState({ screen: null });
     patchSession({ screen: false });
@@ -378,6 +421,194 @@ export class VoiceController {
 
   dismissVideoError(): void {
     useLocalVideo.setState({ error: null });
+  }
+
+  /** The size and rate a running capture is published with (what the track reports, else what was asked). */
+  private captureInfo(
+    kind: 'camera' | 'screen',
+  ): { width: number; height: number; fps: number } | null {
+    const local = useLocalVideo.getState();
+    const cap = kind === 'camera' ? local.camera : local.screen;
+    if (!cap) return null;
+    const asked =
+      kind === 'screen' && local.screen
+        ? { height: local.screen.preset.height, fps: local.screen.preset.fps }
+        : bestProfile(this.cameraProfiles);
+    const got = cap.stream.getVideoTracks()[0]?.getSettings?.();
+    const height = Math.round(got?.height ?? asked.height);
+    return {
+      width: Math.round(got?.width ?? (height * 16) / 9),
+      height,
+      fps: Math.round(got?.frameRate ?? asked.fps),
+    };
+  }
+
+  /** Put a running capture on the engine's lines (when the engine is up and video is published at all). */
+  private publishCapture(kind: 'camera' | 'screen'): void {
+    if (!(this.deps.publishVideo ?? VIDEO_PUBLISH) || !this.engine?.publishVideo) return;
+    const local = useLocalVideo.getState();
+    const cap = kind === 'camera' ? local.camera : local.screen;
+    const info = this.captureInfo(kind);
+    if (cap && info) this.engine.publishVideo(kind, cap.stream, info);
+  }
+
+  /** After a (re)connect: send again whatever the viewer is capturing, and the subscription hints. */
+  private republish(): void {
+    this.publishCapture('camera');
+    if (useLocalVideo.getState().screen) {
+      this.publishCapture('screen');
+      this.sendStreamCreate();
+    }
+    this.syncHints(true);
+  }
+
+  /** Profiles the camera was last opened with, for the size the SFU is told. */
+  private cameraProfiles: readonly VideoProfile[] = [];
+
+  private get streamKeyOfMe(): string | null {
+    const t = this.target;
+    const me = this.deps.currentUserId();
+    return t && me ? streamKey(t.guildId, t.channelId, me) : null;
+  }
+
+  /** Op 18: tell the gateway a screen share started (it checks the allowance and opens the stream). */
+  private sendStreamCreate(): void {
+    const t = this.target;
+    const screen = useLocalVideo.getState().screen;
+    if (!t || !screen || !(this.deps.publishVideo ?? VIDEO_PUBLISH)) return;
+    this.deps.sendGateway(Op.STREAM_CREATE, {
+      guild_id: t.guildId === DM_GUILD_ID ? null : t.guildId,
+      channel_id: t.channelId,
+      height: screen.preset.height,
+      fps: screen.preset.fps,
+    });
+  }
+
+  private startStream(screen: { stream: MediaStream }): void {
+    if (!(this.deps.publishVideo ?? VIDEO_PUBLISH)) return;
+    this.sendStreamCreate();
+    const key = this.streamKeyOfMe;
+    if (!key) return;
+    this.previews ??= new PreviewUploader(this.deps.preview ?? browserPreviewDeps);
+    this.previews.start(key, screen.stream);
+  }
+
+  private endStream(): void {
+    this.previews?.stop();
+    const key = this.streamKeyOfMe;
+    if (key && (this.deps.publishVideo ?? VIDEO_PUBLISH)) {
+      this.deps.sendGateway(Op.STREAM_DELETE, { stream_key: key });
+    }
+  }
+
+  // ---- soundboard (VOX-SB-002 / VOX-SB-003) ----
+
+  /** Hear a sound yourself, without sending it (the popover's preview); works outside a call too. */
+  async previewSound(sound: Sound): Promise<boolean> {
+    try {
+      const data = await soundAudio(sound);
+      this.localSounds ??= new LocalSoundPlayer(this.deps.audio);
+      return await this.localSounds.play(
+        data,
+        sound.volume * (useSoundboard.getState().volume / 100),
+        getVoiceSettings().outputDeviceId,
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Play a sound into the call: the gateway checks the permission, that the viewer can be heard and the
+   * cooldown (and tells the room), then the file is mixed into the outgoing audio so everyone hears it at their
+   * volume for the viewer, and the viewer hears it too.
+   */
+  async playSoundboard(sound: Sound): Promise<SoundResult> {
+    const tgt = this.target;
+    const engine = this.engine;
+    if (
+      !tgt ||
+      tgt.guildId === DM_GUILD_ID ||
+      !engine ||
+      useVoiceSession.getState().status !== 'connected'
+    ) {
+      return { ok: false, message: t('voice.soundboard.notInCall') };
+    }
+    const body: SendSoundBody = {
+      sound_id: sound.id,
+      ...(sound.guildId && sound.guildId !== tgt.guildId ? { source_guild_id: sound.guildId } : {}),
+    };
+    try {
+      const send = this.deps.sendSound ?? sendSoundboardSound;
+      const [data] = await Promise.all([soundAudio(sound), send(tgt.channelId, body)]);
+      if (this.engine !== engine) return { ok: false, message: t('voice.soundboard.notInCall') };
+      const level = sound.volume * (useSoundboard.getState().volume / 100);
+      const mixed = (await engine.playSound?.(data.slice(0), level)) ?? false;
+      void this.previewSelf(data, level);
+      return mixed ? { ok: true } : { ok: false, message: t('voice.soundboard.notMixed') };
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      switch (playErrorKind(status)) {
+        case 'permission':
+          return { ok: false, message: t('voice.soundboard.errPermission') };
+        case 'silenced':
+          return { ok: false, message: t('voice.soundboard.errSilenced') };
+        case 'cooldown':
+          return { ok: false, message: t('voice.soundboard.errCooldown') };
+        case 'gone':
+          return { ok: false, message: t('voice.soundboard.errGone') };
+        default:
+          return { ok: false, message: t('voice.soundboard.errOther') };
+      }
+    }
+  }
+
+  /** The sender hears their own sound (the call's audio does not loop back to them). */
+  private async previewSelf(data: ArrayBuffer, level: number): Promise<void> {
+    this.localSounds ??= new LocalSoundPlayer(this.deps.audio);
+    await this.localSounds.play(data.slice(0), level, getVoiceSettings().outputDeviceId);
+  }
+
+  // ---- watching other people's streams (VOX-UI-004) ----
+
+  /** Start watching someone's screen share ("Watch Stream"): op 20, then the SFU is told to forward it. */
+  watchStream(ownerId: string): void {
+    const t = this.target;
+    this.pendingWatch.add(ownerId);
+    setWatching(ownerId, true);
+    if (t) {
+      this.deps.sendGateway(Op.STREAM_WATCH, {
+        stream_key: streamKey(t.guildId, t.channelId, ownerId),
+      });
+    }
+  }
+
+  /** Stop watching: op 19 (a viewer's delete is an unwatch) and the SFU stops forwarding. */
+  unwatchStream(ownerId: string): void {
+    const t = this.target;
+    this.pendingWatch.delete(ownerId);
+    setWatching(ownerId, false);
+    if (t) {
+      this.deps.sendGateway(Op.STREAM_DELETE, {
+        stream_key: streamKey(t.guildId, t.channelId, ownerId),
+      });
+    }
+  }
+
+  /** Tell the SFU which cameras and screens to forward and how big (debounced; only when it changed). */
+  private syncHints(force = false): void {
+    clearTimeout(this.hintTimer);
+    const run = () => {
+      const engine = this.engine;
+      if (!engine?.setVideoSubscriptions) return;
+      const hints = buildHints(useRemoteVideo.getState());
+      const json = JSON.stringify(hints);
+      if (!force && json === this.lastHints) return;
+      this.lastHints = json;
+      engine.setVideoSubscriptions(hints);
+    };
+    if (force) run();
+    else this.hintTimer = setTimeout(run, HINT_DEBOUNCE_MS);
   }
 
   /** Tell the room about the camera / share, once the SFU forwards video (VIDEO_PUBLISH). */
@@ -389,6 +620,9 @@ export class VoiceController {
     const { camera, screen } = useLocalVideo.getState();
     stopCapture(camera?.stream);
     stopCapture(screen?.stream);
+    this.previews?.stop();
+    this.localSounds?.dispose();
+    this.localSounds = null;
     resetLocalVideo();
   }
 
@@ -439,6 +673,20 @@ export class VoiceController {
       return;
     }
     if (!t) return;
+    if (event === 'STREAM_CREATE' || event === 'STREAM_UPDATE' || event === 'STREAM_DELETE') {
+      const r = applyStreamEvent(event, data, me);
+      const started = r.started ? ownerOfKey(r.started) : null;
+      if (started) {
+        this.pendingWatch.delete(started);
+        setWatching(started, true);
+      }
+      const ended = r.ended ? ownerOfKey(r.ended) : null;
+      if (ended) {
+        this.pendingWatch.delete(ended);
+        setWatching(ended, false);
+      }
+      return;
+    }
     if (event === 'VOICE_STATE_UPDATE') {
       const userId = String(d.user_id ?? '');
       const channelId = (d.channel_id as string | null | undefined) ?? null;
@@ -448,6 +696,11 @@ export class VoiceController {
       if (d.channel_id != null && d.channel_id !== t.channelId) return;
       // A refused camera or share (sender allowance, viewer cap) leaves the call running (VOX-UI-013).
       if (this.started && this.onVideoRefusal(String(d.code ?? ''), d.limit)) return;
+      // A share the plan does not allow (quality above the viewer's profiles) is dropped with a note.
+      if (d.code === 'stream_quality_not_allowed') {
+        this.dropShareForQuality();
+        return;
+      }
       // Stream ops (18 to 22) are answered with `channel_id: null`; a refused stream op never ends the call.
       if (d.channel_id === null) return;
       this.fail({
@@ -521,7 +774,10 @@ export class VoiceController {
       );
     }
     this.joinedSeen = true;
-    patchSession({ serverMute: !!v.mute, serverDeaf: !!v.deaf });
+    const wasSuppressed = useVoiceSession.getState().suppressed;
+    patchSession({ serverMute: !!v.mute, serverDeaf: !!v.deaf, suppressed: !!v.suppress });
+    // Invited to speak from the stage audience: the viewer unmutes themselves (Discord).
+    if (wasSuppressed && !v.suppress) this.noteInvited();
     this.engine?.setDeafened(!!v.deaf || useVoiceSession.getState().selfDeaf);
     this.recompute();
     this.maybeStart();
@@ -553,6 +809,17 @@ export class VoiceController {
     patchSession({ status: 'connecting', error: null });
     const engine = this.deps.createEngine(this.engineEvents());
     this.engine = engine;
+    this.lastHints = '';
+    this.offHints?.();
+    this.offHints = useRemoteVideo.subscribe((st, prev) => {
+      if (
+        st.camera !== prev.camera ||
+        st.watching !== prev.watching ||
+        st.viewports !== prev.viewports ||
+        st.videoOff !== prev.videoOff
+      )
+        this.syncHints();
+    });
     const s = getVoiceSettings();
     engine.setMasterVolume(s.outputVolume);
     const session = useVoiceSession.getState();
@@ -573,6 +840,7 @@ export class VoiceController {
       .then(() => {
         if (this.engine !== engine) return;
         this.rejoins = 0;
+        this.republish();
         patchSession({ status: 'connected', error: null });
         this.cue('selfJoin');
         this.recompute();
@@ -619,6 +887,10 @@ export class VoiceController {
       peer: (userId, present) => {
         if (!present) patchSession({ speaking: omit(useVoiceSession.getState().speaking, userId) });
       },
+      remoteVideo: (userId, kind, stream) => setRemoteVideo(userId, kind, stream),
+      videoPublished: (userId, source, active, size) =>
+        setRemoteInfo(userId, source, active ? size : null),
+      videoLayer: (userId, source, layer) => setRemoteLayer(userId, source, layer),
     };
   }
 
@@ -665,6 +937,10 @@ export class VoiceController {
     if (code === 'video_limit') {
       this.stopCamera();
       this.stopScreenShare();
+    } else {
+      // The stream is full: nobody we asked to watch is being forwarded.
+      for (const owner of this.pendingWatch) setWatching(owner, false);
+      this.pendingWatch.clear();
     }
     patchSession({
       refusal:
@@ -685,6 +961,15 @@ export class VoiceController {
             },
     });
     return true;
+  }
+
+  private dropShareForQuality(): void {
+    this.stopScreenShare();
+    patchSession({ notice: t('voice.refusal.streamQuality') });
+  }
+
+  private noteInvited(): void {
+    patchSession({ notice: t('voice.stage.invited') });
   }
 
   dismissRefusal(): void {
@@ -779,6 +1064,13 @@ export class VoiceController {
     const e = this.engine;
     this.engine = null;
     e?.disconnect();
+    this.offHints?.();
+    this.offHints = null;
+    clearTimeout(this.hintTimer);
+    this.lastHints = '';
+    this.pendingWatch.clear();
+    resetRemoteVideo();
+    resetStreams();
     this.vad.reset();
     this.vadOpen = false;
     patchSession({
@@ -803,7 +1095,11 @@ export class VoiceController {
     const session = useVoiceSession.getState();
     const mode = effectiveInputMode(s, session.pttForced);
     const allowed =
-      !session.selfMute && !session.selfDeaf && !session.serverMute && !session.serverDeaf;
+      !session.selfMute &&
+      !session.selfDeaf &&
+      !session.serverMute &&
+      !session.serverDeaf &&
+      !session.suppressed;
     const open = allowed && (mode === 'ptt' ? session.pttActive : this.vadOpen);
     this.engine?.setTransmitting(open);
     this.engine?.setAttenuation?.(open ? s.attenuation : 0);

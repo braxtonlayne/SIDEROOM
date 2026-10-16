@@ -5,8 +5,10 @@ import { ApiError, apiFetch } from '../../api/client';
 import { resendVerification } from '../../api/entrance';
 import { t, useT } from '../../i18n';
 import { applyPendingUpdate, setNoticesBarMounted, usePwaState } from '../../pwa/state';
+import { useOpenUserSettings } from '../../settings/user/nav';
 import { useConnectionStatus } from '../../store';
 import { canDismiss, useActiveAnnouncements } from '../announcements';
+import { useSecurityNudge } from './securityNudge';
 
 /** True while the browser reports no network. */
 export function useOnline(): boolean {
@@ -91,6 +93,8 @@ export function NoticesBar() {
     return () => setNoticesBarMounted(false);
   }, []);
   const pwa = usePwaState();
+  const nudge = useSecurityNudge();
+  const openSettings = useOpenUserSettings();
   // One source of truth for announcements (ADM-PLT-009): polled, critical ones cannot be dismissed.
   const announcements = useActiveAnnouncements();
 
@@ -166,6 +170,20 @@ export function NoticesBar() {
         ) : undefined,
       dismissLabel: t('lounge.banners.dismissNotice'),
       onDismiss: () => setVerifyHidden(true),
+    });
+
+  if (nudge.show)
+    notices.push({
+      key: 'second-factor',
+      tone: 'info',
+      body: <span>{t('lounge.banners.secondFactor')}</span>,
+      action: (
+        <Button size="sm" variant="secondary" onClick={() => openSettings('account')}>
+          {t('lounge.banners.secondFactorAction')}
+        </Button>
+      ),
+      dismissLabel: t('lounge.banners.dismissSecondFactor'),
+      onDismiss: nudge.dismiss,
     });
 
   if (notices.length === 0) return null;

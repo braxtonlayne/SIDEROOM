@@ -88,6 +88,28 @@ pub struct GuildInfo {
     pub member_count: u64,
 }
 
+/// Who is in a voice channel, as far as this node can know (H-15).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Occupancy {
+    Known(Vec<UserId>),
+    Unknown,
+}
+
+impl Occupancy {
+    /// `true` only when the answer is known and nobody is there.
+    pub fn is_known_empty(&self) -> bool {
+        matches!(self, Self::Known(v) if v.is_empty())
+    }
+
+    /// The members when known; an unknown answer reads as none.
+    pub fn members(&self) -> &[UserId] {
+        match self {
+            Self::Known(v) => v,
+            Self::Unknown => &[],
+        }
+    }
+}
+
 #[async_trait]
 pub trait FeatureActions: Send + Sync {
     /// The user modules post as. Events authored by it are ignored by modules so
@@ -150,8 +172,9 @@ pub trait FeatureActions: Send + Sync {
     async fn set_slowmode(&self, channel: ChannelId, seconds: u32) -> ActionResult<()>;
     async fn set_channel_name(&self, channel: ChannelId, name: &str) -> ActionResult<()>;
 
-    /// Members connected to a guild voice or stage channel right now.
-    async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Vec<UserId>>;
+    /// Members connected to a guild voice or stage channel right now, or `Unknown` when this node
+    /// cannot tell (voice state lives in each node's memory and other nodes may hold members).
+    async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Occupancy>;
     /// Move a connected member to another voice channel of the same guild, as a moderator
     /// would (`PATCH /guilds/{id}/voice-states/{user}`). `NotFound` when they are not in voice.
     async fn move_member(&self, guild: GuildId, user: UserId, to: ChannelId) -> ActionResult<()>;

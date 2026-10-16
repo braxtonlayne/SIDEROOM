@@ -409,11 +409,17 @@ export class PartyController {
 
   /* -------------------------------------------------------------- playback */
 
-  private mediaKey(m: PartyMedia) {
-    return `${m.asset_id}:${m.title_id}:${m.episode_id}`;
+  private mediaKey(m: PartyMedia | null) {
+    return m ? `${m.asset_id}:${m.title_id}:${m.episode_id}` : '';
   }
 
-  private async openMedia(media: PartyMedia, first: boolean) {
+  private async openMedia(media: PartyMedia | null, first: boolean) {
+    // An empty room has nothing to open; the theatre asks its host to pick something.
+    if (!media) {
+      this.loadedKey = '';
+      if (first) this.set({ needsGesture: false });
+      return;
+    }
     const key = this.mediaKey(media);
     if (key === this.loadedKey) return;
     this.loadedKey = key;
@@ -452,7 +458,7 @@ export class PartyController {
 
   private async apply() {
     const party = this.state.party;
-    if (!party || this.state.status !== 'active' || this.loading) return;
+    if (!party || !party.media || this.state.status !== 'active' || this.loading) return;
     const pb = party.playback;
     const p = this.deps.player;
     const expected = expectedPositionMs(pb, this.serverNow());

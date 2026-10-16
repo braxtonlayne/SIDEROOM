@@ -4,6 +4,8 @@ import {
   type Rect,
   type Virtualizer,
 } from '@tanstack/react-virtual';
+import { hasKeyword, useKeywordMatcher } from './keywords';
+import { CustomEmoji } from './msg/CustomEmoji';
 import type { Resolvers } from '@sideroom/markdown-react';
 import { Icon } from '@sideroom/ui';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -33,6 +35,7 @@ import { toSaved, useSaved } from './shell/savedMessages';
 import { useLoungeUi } from './store';
 import { useLoungeGoto, useLoungeGotoMessage, useLoungeGotoThread, useLoungeRoute } from './nav';
 import { formatDividerDate } from './time';
+import { richCardResolvers } from './msg/RichCards';
 import './msg/msg.css';
 
 /** Reports `fallback` while the scroll element has no layout (jsdom, first paint) so rows still render. */
@@ -176,6 +179,8 @@ export function MessageList({
         const c = channels.find((x) => x.id === id);
         return c ? { name: c.name } : undefined;
       },
+      ...richCardResolvers,
+      customEmoji: (e) => <CustomEmoji id={e.id} name={e.name} animated={e.animated} />,
     }),
     [users, roles, channels, roleColor],
   );
@@ -498,9 +503,11 @@ export function MessageList({
     // Inside the loaded range but absent: the original was deleted.
     return oldestId && cmpId(m.replyToId, oldestId) > 0 ? 'deleted' : 'unloaded';
   };
+  const keywordRe = useKeywordMatcher();
   const mentionsMe = (m: Message) =>
     m.author.id !== me.id &&
     (!!m.mentionIds?.includes(me.id) ||
+      hasKeyword(keywordRe, m.content) ||
       !!m.mentionEveryone ||
       !!m.mentionRoleIds?.some((r) => myRoleIds.includes(r)));
 

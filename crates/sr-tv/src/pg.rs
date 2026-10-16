@@ -404,6 +404,43 @@ impl TvRepository for PgTvRepo {
         Ok(done.rows_affected() > 0)
     }
 
+    async fn list_reminders(&self, account_id: i64) -> TvResult<Vec<ReminderRecord>> {
+        let rows = sqlx::query(
+            "SELECT account_id, block_id, channel_id, title, start_ms, remind_at FROM tv_reminders \
+             WHERE account_id = $1 ORDER BY start_ms, block_id",
+        )
+        .bind(account_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(ReminderRecord {
+                    account_id: r.try_get("account_id").map_err(db)?,
+                    block_id: r.try_get("block_id").map_err(db)?,
+                    channel_id: r.try_get("channel_id").map_err(db)?,
+                    title: r.try_get("title").map_err(db)?,
+                    start_ms: r.try_get("start_ms").map_err(db)?,
+                    remind_at_ms: r.try_get("remind_at").map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn reminder_lead_setting(&self, account_id: i64) -> TvResult<Option<i64>> {
+        // Only a number counts; anything else in the blob is ignored (the default applies).
+        let v: Option<f64> = sqlx::query_scalar(
+            "SELECT (settings #>> '{tv,reminder_lead_minutes}')::float8 FROM user_settings \
+             WHERE user_id = $1 AND jsonb_typeof(settings #> '{tv,reminder_lead_minutes}') = 'number'",
+        )
+        .bind(account_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?
+        .flatten();
+        Ok(v.map(|v| v as i64))
+    }
+
     async fn take_due_reminders(&self, now_ms: i64, limit: i64) -> TvResult<Vec<ReminderRecord>> {
         let rows = sqlx::query(
             "DELETE FROM tv_reminders WHERE (account_id, block_id) IN ( \

@@ -187,6 +187,10 @@ impl PgAdminRepo {
         Self { pool, ids }
     }
 
+    pub(crate) fn new_id(&self) -> i64 {
+        (self.ids)()
+    }
+
     pub(crate) fn pool(&self) -> &PgPool {
         &self.pool
     }
@@ -542,7 +546,7 @@ impl AdminRepository for PgAdminRepo {
             }
         })?;
         sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) \
+            "INSERT INTO guild_members (guild_id, user_id, join_source) VALUES ($1, $2, 'staff') \
              ON CONFLICT (guild_id, user_id) DO NOTHING",
         )
         .bind(guild)
@@ -681,7 +685,7 @@ impl AdminRepository for PgAdminRepo {
             .await
             .map_err(db)?;
         sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) \
+            "INSERT INTO guild_members (guild_id, user_id, join_source) VALUES ($1, $2, 'staff') \
              ON CONFLICT (guild_id, user_id) DO NOTHING",
         )
         .bind(guild)
@@ -768,6 +772,10 @@ impl AdminRepository for PgAdminRepo {
                AND ($2::text IS NULL OR a.state::text = $2) AND ($3::bigint IS NULL OR a.person_id = $3) \
                AND ($4::text IS NULL OR a.username::text ILIKE $4 OR a.email::text ILIKE $4 \
                     OR a.display_name ILIKE $4 OR a.id::text = $5) \
+               AND ($7::text IS NULL OR EXISTS (SELECT 1 FROM external_identities x \
+                    WHERE x.account_id = a.id AND x.provider_user_id = $7)) \
+               AND ($8::inet IS NULL OR EXISTS (SELECT 1 FROM login_events e \
+                    WHERE e.account_id = a.id AND e.ip = $8::inet)) \
              ORDER BY a.id LIMIT $6",
             acct_cols()
         )))
@@ -777,6 +785,8 @@ impl AdminRepository for PgAdminRepo {
         .bind(&like)
         .bind(&q.q)
         .bind(q.limit)
+        .bind(&q.discord_id)
+        .bind(&q.ip)
         .fetch_all(&self.pool)
         .await
         .map_err(db)?;
@@ -798,7 +808,8 @@ impl AdminRepository for PgAdminRepo {
                 p.suspicion_level::int AS suspicion, \
                 (EXISTS(SELECT 1 FROM person_bans b WHERE b.person_id = a.person_id AND b.lifted_at IS NULL) \
                  OR EXISTS(SELECT 1 FROM accounts o WHERE o.person_id = a.person_id AND o.state = 'platform_banned')) AS banned, \
-                ia.id AS inviter_id, ia.username::text AS inviter_name \
+                ia.id AS inviter_id, ia.username::text AS inviter_name, \
+                a.invites_frozen_at IS NOT NULL AS frozen \
              FROM accounts a JOIN persons p ON p.id = a.person_id \
              LEFT JOIN platform_invites pi ON pi.id = a.invited_by_invite_id \
              LEFT JOIN accounts ia ON ia.id = pi.issuer_account_id \
@@ -849,6 +860,7 @@ impl AdminRepository for PgAdminRepo {
                 })
                 .collect::<Result<_, sqlx::Error>>()
                 .map_err(db)?,
+            invites_frozen: r.try_get("frozen").map_err(db)?,
         }))
     }
 

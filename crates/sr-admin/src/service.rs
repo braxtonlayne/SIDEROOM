@@ -235,6 +235,11 @@ impl AdminService {
         }
     }
 
+    /// The stored value of an integer setting, or its default (startup wiring of live limits).
+    pub async fn setting_value_i64(&self, key: &str) -> AdminResult<i64> {
+        self.setting_i64(key).await
+    }
+
     pub(crate) async fn setting_i64(&self, key: &str) -> AdminResult<i64> {
         let stored = self.repo.settings().await?;
         let def =
@@ -494,6 +499,26 @@ impl AdminService {
         let limit = page_limit(limit);
         q.limit = limit + 1;
         q.q = q.q.map(|s| s.trim().to_owned()).filter(|s| !s.is_empty());
+        q.discord_id = q
+            .discord_id
+            .map(|s| s.trim().to_owned())
+            .filter(|s| !s.is_empty());
+        q.ip = q.ip.map(|s| s.trim().to_owned()).filter(|s| !s.is_empty());
+        if let Some(ip) = &q.ip {
+            if ip.parse::<std::net::IpAddr>().is_err() {
+                return Err(AdminError::Invalid("ip is not an IP address".into()));
+            }
+            // A login-IP lookup shows which accounts shared an address: log it.
+            let e = self.entry(
+                c,
+                AccessKind::Read,
+                "accounts.search_ip",
+                None,
+                "",
+                json!({ "ip": ip }),
+            );
+            self.repo.append_log(&e).await?;
+        }
         let mut rows = self.repo.search_accounts(&q).await?;
         let more = rows.len() as i64 > limit;
         rows.truncate(limit as usize);

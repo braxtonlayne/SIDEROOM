@@ -161,8 +161,10 @@ describe('buildLiveSnapshot', () => {
     );
     expect(snap.dms.map((d) => d.id)).toEqual(['1000000000000000000', '2000000000000000000']);
     expect(snap.dms[0]).toMatchObject({ recipientIds: ['2'], unread: true });
-    // 1000000000000000000 encodes 2022-07 (snowflake epoch 2015-01-01).
-    expect(snap.dms[0]!.lastMessageAt).toMatch(/^2022-/);
+    // 1000000000000000000 >> 22 is 238418579101 ms after the SIDEROOM epoch (2026-01-01), not Discord's 2015.
+    expect(snap.dms[0]!.lastMessageAt).toBe(
+      new Date(1_767_225_600_000 + 238_418_579_101).toISOString(),
+    );
     expect(snap.dms[1]!.lastMessageAt).toBe('');
   });
 });
@@ -184,6 +186,29 @@ describe('toLoungeMessage', () => {
       reactions: [{ emoji: '👍', count: 2, me: true }],
       author: { displayName: 'bob' },
     });
+  });
+
+  it('shows a webhook as its name and avatar, without a profile (DEV-BOT-006)', () => {
+    const out = toLoungeMessage(
+      message('w1', {
+        webhook_id: '77',
+        author: {
+          id: '77',
+          username: 'Build Bot',
+          global_name: 'Build Bot',
+          bot: true,
+          avatar_url: '/cdn/external/t/u',
+        },
+      }),
+    );
+    expect(out.author).toMatchObject({
+      id: '77',
+      displayName: 'Build Bot',
+      bot: true,
+      webhook: true,
+      avatarUrl: '/cdn/external/t/u',
+    });
+    expect(toLoungeMessage(message('m1', {})).author.webhook).toBeUndefined();
   });
 });
 

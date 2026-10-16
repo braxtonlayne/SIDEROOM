@@ -6,6 +6,7 @@ import { HOME } from '../channels';
 import { useLoungeGoto } from '../nav';
 import { blockUser, respondToMessageRequest, type DmObject } from './api';
 import { rememberDm } from './dm';
+import { requestReasonText } from './requestReason';
 import { useSocial, wireName } from './social';
 
 /** Message Requests (LNG-DM-008): conversations from people who are not friends yet. */
@@ -64,6 +65,7 @@ export function MessageRequestsPage() {
           {list.map((dm) => {
             const from = dm.recipients[0];
             const name = from ? wireName(from) : t('lounge.messageRequests.unknown');
+            const reason = requestReasonText(dm, t);
             return (
               <li key={dm.id} className="lng-friend-row">
                 <Avatar name={name} size={32} />
@@ -72,6 +74,7 @@ export function MessageRequestsPage() {
                   <span className="lng-friend-sub">
                     {t('lounge.messageRequests.wantsToMessage')}
                   </span>
+                  {reason && <span className="lng-friend-sub">{reason}</span>}
                 </span>
                 <Button
                   size="sm"

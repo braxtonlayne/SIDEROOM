@@ -39,8 +39,8 @@ export function QueuePanel() {
     <div className="wp-queue">
       <h3 className="wp-h">{tr('watchparty.queue.nowPlaying')}</h3>
       <p className="wp-now">
-        {party.media.title}
-        {party.media.episode_label ? (
+        {party.media ? party.media.title : tr('watchparty.empty.nothingYet')}
+        {party.media?.episode_label ? (
           <span className="wp-muted"> · {party.media.episode_label}</span>
         ) : null}
       </p>

@@ -1,7 +1,7 @@
 //! In-memory implementation of the social repository traits, for tests of this
 //! crate and of consumers that need a database-free fake.
 
-use super::dm::{DmChannel, DmKind, GroupInvite, RequestState};
+use super::dm::{DmChannel, DmKind, GroupInvite, RequestReason, RequestState, SharedProtection};
 use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
@@ -20,6 +20,7 @@ pub struct Store {
     pub users: HashSet<UserId>,
     pub rels: HashMap<(UserId, UserId), Relationship>,
     pub privacy: HashMap<UserId, Privacy>,
+    pub keywords: HashMap<UserId, Vec<String>>,
     /// Pairs (ordered) that share a guild; set by tests.
     pub shared_guilds: HashSet<(UserId, UserId)>,
     /// Guild memberships `(guild, user) -> (nick, joined_at_ms)`; set by tests.
@@ -39,6 +40,10 @@ pub struct Store {
     pub notes: HashMap<(UserId, UserId), String>,
     /// Message Request state per `(recipient, channel)`; absent means accepted.
     pub requests: HashMap<(UserId, ChannelId), RequestState>,
+    /// Why a pending request is in Message Requests (a server setting), per `(recipient, channel)`.
+    pub request_reasons: HashMap<(UserId, ChannelId), RequestReason>,
+    /// Protection settings of the servers an (ordered) pair shares; set by tests.
+    pub protection: HashMap<(UserId, UserId), SharedProtection>,
     /// Group DM invites by code (G-47).
     pub group_invites: HashMap<String, GroupInvite>,
     pub user_settings: HashMap<UserId, super::user_settings::UserSettings>,
@@ -256,11 +261,11 @@ impl RelationshipRepository for MemoryRepo {
     }
 
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy> {
-        Ok(self.lock()?.privacy.get(&user).copied().unwrap_or_default())
+        Ok(self.lock()?.privacy.get(&user).cloned().unwrap_or_default())
     }
 
     async fn put_privacy(&self, user: UserId, privacy: &Privacy) -> RepoResult<()> {
-        self.lock()?.privacy.insert(user, *privacy);
+        self.lock()?.privacy.insert(user, privacy.clone());
         Ok(())
     }
 
@@ -472,6 +477,37 @@ impl DmRepository for MemoryRepo {
     ) -> RepoResult<()> {
         self.lock()?.requests.insert((user, id), state);
         Ok(())
+    }
+
+    async fn get_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+    ) -> RepoResult<Option<RequestReason>> {
+        Ok(self.lock()?.request_reasons.get(&(user, id)).copied())
+    }
+
+    async fn set_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+        reason: Option<RequestReason>,
+    ) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        match reason {
+            Some(r) => s.request_reasons.insert((user, id), r),
+            None => s.request_reasons.remove(&(user, id)),
+        };
+        Ok(())
+    }
+
+    async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection> {
+        Ok(self
+            .lock()?
+            .protection
+            .get(&pair(a, b))
+            .copied()
+            .unwrap_or_default())
     }
 
     async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()> {
@@ -765,6 +801,20 @@ impl UserSettingsRepository for MemoryRepo {
             Some(l) => s.default_levels.insert(user, l),
             None => s.default_levels.remove(&user),
         };
+        Ok(())
+    }
+
+    async fn get_notification_keywords(&self, user: UserId) -> RepoResult<Vec<String>> {
+        Ok(self
+            .lock()?
+            .keywords
+            .get(&user)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    async fn put_notification_keywords(&self, user: UserId, keywords: &[String]) -> RepoResult<()> {
+        self.lock()?.keywords.insert(user, keywords.to_vec());
         Ok(())
     }
 }

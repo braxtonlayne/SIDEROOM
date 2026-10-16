@@ -1,0 +1,245 @@
+/* ---------- voice, phase 13 (stream viewers and previews, soundboard, stage, calls) ---------- */
+.vc-viewer-count {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-end: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.vc-stream-idle[data-preview] {
+  position: relative;
+  overflow: hidden;
+}
+.vc-stream-idle[data-preview] > :not(.vc-stream-preview) {
+  position: relative;
+  z-index: 1;
+}
+.vc-stream-preview {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  opacity: 0.45;
+  filter: blur(1px);
+}
+
+/* soundboard popover */
+.vc-sb-popover {
+  inline-size: min(340px, calc(100vw - 32px));
+}
+.vc-sb {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vc-sb-scroll {
+  max-block-size: 280px;
+  overflow-y: auto;
+}
+.vc-sb-heading {
+  margin: 8px 0 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.vc-sb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vc-sb-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.vc-sb-play {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.vc-sb-play:hover:not(:disabled),
+.vc-sb-play:focus-visible {
+  background: var(--surface-hover, rgb(127 127 127 / 18%));
+}
+.vc-sb-play:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.vc-sb-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vc-sb-row [data-active] {
+  color: var(--warning, #f0b232);
+}
+
+/* stage view */
+.vc-stage-body {
+  overflow-y: auto;
+}
+.vc-stage-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-block: 8px;
+}
+.vc-stage-live {
+  position: static;
+}
+.vc-stage-topic {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.vc-stage-join {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-block: 8px;
+}
+.vc-stage-heading {
+  margin: 16px 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.vc-audience {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vc-audience-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.vc-audience-row[data-hand] {
+  background: rgb(240 178 50 / 14%);
+}
+.vc-audience-name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vc-hand {
+  font-size: 18px;
+}
+
+/* DM call stage */
+.vc-dmcall {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  border-block-end: 1px solid var(--border, rgb(127 127 127 / 25%));
+}
+.vc-dmcall-stage {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 8px 12px;
+  background: var(--surface-sunken, rgb(0 0 0 / 12%));
+}
+.vc-dmcall-grid {
+  flex: 1;
+}
+.vc-dmcall-waiting {
+  display: flex;
+  justify-content: center;
+  padding-block: 4px;
+}
+.vc-dmcall-resize {
+  block-size: 6px;
+  cursor: ns-resize;
+  background: transparent;
+}
+.vc-dmcall-resize:hover,
+.vc-dmcall-resize:focus-visible {
+  background: var(--accent, #5865f2);
+}
+.vc-tile-ringing .vc-ringing-label {
+  position: absolute;
+  inset-block-end: 8px;
+  inset-inline-end: 8px;
+  font-size: 12px;
+  opacity: 0.8;
+  animation: vc-ring-pulse 1.4s ease-in-out infinite;
+}
+@keyframes vc-ring-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vc-tile-ringing .vc-ringing-label {
+    animation: none;
+  }
+}
+
+/* voice channel status */
+.vc-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  border-block-end: 1px solid var(--border, rgb(127 127 127 / 20%));
+}
+.vc-status-text {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.vc-status-text[data-empty] {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.lng-voice-status {
+  margin: 0;
+  padding-block: 0 2px;
+  padding-inline: 36px 8px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

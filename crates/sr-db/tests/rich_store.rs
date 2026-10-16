@@ -395,3 +395,103 @@ async fn stickers_forwards_and_voice_metadata_round_trip() {
     let back = repo.get_message(general, reply.id).await.unwrap().unwrap();
     assert!(back.reference.unwrap().forward.is_none());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn webhook_author_overrides_round_trip() {
+    use sr_chat::rich_repo::WebhookAuthor;
+    let pool = pool().await;
+    let store = PgRichStore::new(pool);
+    let (a, b, none) = (
+        sr_core::MessageId::new(900_001),
+        sr_core::MessageId::new(900_002),
+        sr_core::MessageId::new(900_003),
+    );
+    let first = WebhookAuthor {
+        webhook_id: 77,
+        username: "Deploys".into(),
+        avatar_url: None,
+    };
+    store.set_webhook_author(a, &first).await.unwrap();
+    store
+        .set_webhook_author(
+            b,
+            &WebhookAuthor {
+                webhook_id: 77,
+                username: "Build Bot".into(),
+                avatar_url: Some("https://img.example/a.png".into()),
+            },
+        )
+        .await
+        .unwrap();
+    let got = store.webhook_authors(&[a, b, none]).await.unwrap();
+    assert_eq!(got.len(), 2, "messages without an override are omitted");
+    assert_eq!(got[&a], first);
+    assert_eq!(
+        got[&b].avatar_url.as_deref(),
+        Some("https://img.example/a.png")
+    );
+
+    // A second write for the same message replaces the first.
+    store
+        .set_webhook_author(
+            a,
+            &WebhookAuthor {
+                webhook_id: 77,
+                username: "Renamed".into(),
+                avatar_url: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        store.webhook_authors(&[a]).await.unwrap()[&a].username,
+        "Renamed"
+    );
+    assert!(store.webhook_authors(&[]).await.unwrap().is_empty());
+}
+
+/// D-237: `decorate` asks which ids are application emoji and which application a bot user runs.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn application_emoji_owners_and_bot_applications() {
+    let pool = pool().await;
+    let ids = SnowflakeGenerator::new(Arc::new(SystemClock) as Arc<dyn Clock>, 9, 9).unwrap();
+    let owner = account(&pool, &ids).await;
+    let bot = account(&pool, &ids).await;
+    let human = account(&pool, &ids).await;
+    let app = ids.generate().get() as i64;
+    let emoji = ids.generate().get() as i64;
+    sqlx::query(
+        "INSERT INTO applications (id, owner_id, bot_user_id, name, client_secret_hash) \
+         VALUES ($1, $2, $3, 'Helper', decode(repeat('ab', 32), 'hex'))",
+    )
+    .bind(app)
+    .bind(owner.get() as i64)
+    .bind(bot.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO application_emojis (id, application_id, name, media_key) \
+         VALUES ($1, $2, 'wave', 'emoji/app/x.png')",
+    )
+    .bind(emoji)
+    .bind(app)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let store = PgRichStore::new(pool);
+    let owners = store
+        .app_emoji_owners(&[emoji as u64, 12_345])
+        .await
+        .unwrap();
+    assert_eq!(owners.len(), 1);
+    assert_eq!(owners[&(emoji as u64)], app);
+    assert!(store.app_emoji_owners(&[]).await.unwrap().is_empty());
+
+    let bots = store.bot_applications(&[bot, human]).await.unwrap();
+    assert_eq!(bots.len(), 1, "a person is not a bot");
+    assert_eq!(bots[&bot], app);
+}

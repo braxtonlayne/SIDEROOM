@@ -8,6 +8,7 @@ use super::deps::{GuildAccess, SettingsDeps, actor, id, invalid, re, se};
 use super::events::SettingsEvent;
 use crate::routes::Ext;
 use crate::routes::guilds::dto::UserRef;
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::messages::error::ApiJson;
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
@@ -321,7 +322,7 @@ pub const STICKER_PX: u32 = 320;
 /// decode (animated WebP or APNG, a truncated file) is stored as uploaded: the byte
 /// limits already applied, and the CDN re-validates every variant it serves. Returns the
 /// bytes to store and their file extension.
-fn fit_image(data: Bytes, fallback_ext: &'static str, px: u32) -> (Bytes, &'static str) {
+pub(crate) fn fit_image(data: Bytes, fallback_ext: &'static str, px: u32) -> (Bytes, &'static str) {
     use sr_storage::img::{Fit, Limits, normalize};
     match normalize(&data, Fit::Bound { w: px, h: px }, &Limits::default()) {
         Ok(n) => (Bytes::from(n.bytes), n.format.ext()),
@@ -402,6 +403,7 @@ pub async fn get_emoji(
 )]
 pub async fn create_emoji(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<CreateEmojiBody>,
@@ -409,6 +411,12 @@ pub async fn create_emoji(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(
+        &gate,
+        user,
+        sr_core::permissions::Permissions::MANAGE_GUILD_EXPRESSIONS,
+    )
+    .await?;
     let data = decode_data_uri("image", &body.image)?;
     let img = match sniff(&data) {
         Some(i @ (Image::Png { .. } | Image::Jpeg | Image::Gif { .. } | Image::Webp { .. })) => i,
@@ -464,6 +472,7 @@ pub async fn create_emoji(
 )]
 pub async fn modify_emoji(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, emoji_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<ModifyEmojiBody>,
@@ -472,6 +481,12 @@ pub async fn modify_emoji(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let eid: EmojiId = id("emoji_id", &emoji_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(
+        &gate,
+        user,
+        sr_core::permissions::Permissions::MANAGE_GUILD_EXPRESSIONS,
+    )
+    .await?;
     let mut emoji = deps
         .service
         .repo()
@@ -514,6 +529,7 @@ pub async fn modify_emoji(
 )]
 pub async fn delete_emoji(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, emoji_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
@@ -521,6 +537,12 @@ pub async fn delete_emoji(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let eid: EmojiId = id("emoji_id", &emoji_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(
+        &gate,
+        user,
+        sr_core::permissions::Permissions::MANAGE_GUILD_EXPRESSIONS,
+    )
+    .await?;
     let key = deps
         .service
         .repo()
@@ -613,6 +635,7 @@ pub async fn get_sticker(
 )]
 pub async fn create_sticker(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<CreateStickerBody>,
@@ -620,6 +643,12 @@ pub async fn create_sticker(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(
+        &gate,
+        user,
+        sr_core::permissions::Permissions::MANAGE_GUILD_EXPRESSIONS,
+    )
+    .await?;
     let data = decode_data_uri("file", &body.file)?;
     let (format, img) = match sniff(&data) {
         Some(i @ Image::Png { animated: false }) => (StickerFormat::Png, i),
@@ -685,6 +714,7 @@ pub async fn create_sticker(
 )]
 pub async fn modify_sticker(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, sticker_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<ModifyStickerBody>,
@@ -693,6 +723,12 @@ pub async fn modify_sticker(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let sid: StickerId = id("sticker_id", &sticker_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(
+        &gate,
+        user,
+        sr_core::permissions::Permissions::MANAGE_GUILD_EXPRESSIONS,
+    )
+    .await?;
     let s = deps
         .service
         .edit_sticker(
@@ -726,6 +762,7 @@ pub async fn modify_sticker(
 )]
 pub async fn delete_sticker(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, sticker_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
@@ -733,6 +770,12 @@ pub async fn delete_sticker(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let sid: StickerId = id("sticker_id", &sticker_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(
+        &gate,
+        user,
+        sr_core::permissions::Permissions::MANAGE_GUILD_EXPRESSIONS,
+    )
+    .await?;
     let key = deps
         .service
         .repo()

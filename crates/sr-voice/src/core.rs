@@ -448,6 +448,7 @@ pub struct SfuCore {
     by_addr: HashMap<SocketAddr, ParticipantId>,
     out: VecDeque<CoreOutput>,
     next_id: u64,
+    id_stride: u64,
     max_participants: usize,
     max_room_size: usize,
     forwarded: u64,
@@ -477,6 +478,7 @@ impl SfuCore {
             by_addr: HashMap::new(),
             out: VecDeque::new(),
             next_id: 1,
+            id_stride: 1,
             max_participants,
             max_room_size,
             forwarded: 0,
@@ -496,6 +498,16 @@ impl SfuCore {
     /// Set the egress budget (VOX-SFU-008). A zero budget leaves the governor off.
     pub fn with_governor(mut self, cfg: GovernorConfig) -> Self {
         self.governor = EgressGovernor::new(cfg);
+        self
+    }
+
+    /// Hand out participant ids `shard + 1, shard + 1 + shards, ...` so that cores running
+    /// side by side (VOX-SFU-011 sharding) never collide and the owner of an id is
+    /// `(id - 1) % shards`.
+    pub fn with_id_space(mut self, shard: u64, shards: u64) -> Self {
+        let shards = shards.max(1);
+        self.next_id = shard % shards + 1;
+        self.id_stride = shards;
         self
     }
 
@@ -689,7 +701,7 @@ impl SfuCore {
             rtc.add_local_candidate(c);
         }
         let pid = ParticipantId(self.next_id);
-        self.next_id += 1;
+        self.next_id += self.id_stride;
         let room = self.rooms.entry(p.channel).or_default();
         let existing = room.clone();
         room.push(pid);

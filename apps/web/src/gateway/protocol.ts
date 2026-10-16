@@ -8,6 +8,12 @@ export const Op = {
   RESUME: 6,
   RECONNECT: 7,
   REQUEST_GUILD_MEMBERS: 8,
+  /** Go Live (crates/sr-gateway/src/voice_stream.rs). */
+  STREAM_CREATE: 18,
+  STREAM_DELETE: 19,
+  STREAM_WATCH: 20,
+  STREAM_SET_PAUSED: 22,
+  REQUEST_SOUNDBOARD_SOUNDS: 31,
   INVALID_SESSION: 9,
   HELLO: 10,
   HEARTBEAT_ACK: 11,

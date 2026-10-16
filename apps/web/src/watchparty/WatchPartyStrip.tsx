@@ -13,12 +13,13 @@ export function WatchPartyStrip({ channelId }: { channelId: string | undefined }
   if (!party) return null;
   const m = party.media;
   const n = party.participants.length;
+  const title = m?.title ?? t('watchparty.empty.stripTitle');
   return (
     <aside className="wp-strip" aria-label={t('watchparty.strip.label')}>
       <Icon name="film" size={20} />
       <span className="wp-strip-text">
-        <strong>{m.title}</strong>
-        {m.episode_label ? <span className="wp-muted"> · {m.episode_label}</span> : null}
+        <strong>{title}</strong>
+        {m?.episode_label ? <span className="wp-muted"> · {m.episode_label}</span> : null}
         <span className="wp-muted">
           {' '}
           ·{' '}
@@ -33,7 +34,7 @@ export function WatchPartyStrip({ channelId }: { channelId: string | undefined }
       <Button
         size="sm"
         onClick={() => router.history.push(`/cinema/party/${party.id}`)}
-        aria-label={t('watchparty.strip.joinLabel', { title: m.title })}
+        aria-label={t('watchparty.strip.joinLabel', { title })}
       >
         {t('watchparty.strip.join')}
       </Button>

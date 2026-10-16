@@ -181,6 +181,7 @@ pub async fn delete_account(
         "recovery_codes",
         "passkey_credentials",
         "email_tokens",
+        "account_known_devices",
     ] {
         sqlx::query(sqlx::AssertSqlSafe(format!(
             "DELETE FROM {table} WHERE account_id = $1"

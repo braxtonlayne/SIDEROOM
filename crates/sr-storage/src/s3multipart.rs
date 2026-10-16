@@ -294,6 +294,34 @@ impl S3Multipart {
         Ok(())
     }
 
+    /// The parts S3 holds for an upload, in part order: `(part number, size in bytes, ETag)`.
+    /// This is how a resumed upload learns what already arrived, and how the server completes an
+    /// upload without the browser having to read the `ETag` response header (CORS).
+    pub async fn list_parts(&self, key: &str, upload_id: &str) -> Result<Vec<UploadedPart>> {
+        check_key(key)?;
+        check_upload_id(upload_id)?;
+        let mut out: Vec<UploadedPart> = Vec::new();
+        let mut marker: u32 = 0;
+        // 10 000 parts at 1 000 per page.
+        for _ in 0..=10 {
+            let id = uri_encode(upload_id, false);
+            let q = if marker == 0 {
+                format!("uploadId={id}")
+            } else {
+                format!("part-number-marker={marker}&uploadId={id}")
+            };
+            let body = self.send("GET", key, &q, &q, None, Vec::new()).await?;
+            let (mut page, truncated, next) = parse_list_parts(&body)?;
+            out.append(&mut page);
+            if !truncated || next == 0 || next <= marker {
+                break;
+            }
+            marker = next;
+        }
+        out.sort_by_key(|p| p.number);
+        Ok(out)
+    }
+
     /// Abandon an upload and free its parts.
     pub async fn abort(&self, key: &str, upload_id: &str) -> Result<()> {
         check_key(key)?;
@@ -369,6 +397,43 @@ impl S3Multipart {
             "{method} multipart call failed with {status}: {snippet}"
         )))
     }
+}
+
+/// One part S3 has stored for a multipart upload.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UploadedPart {
+    pub number: u32,
+    pub size: u64,
+    pub etag: String,
+}
+
+/// `(parts, is truncated, next part number marker)` of a `ListParts` answer.
+fn parse_list_parts(xml: &str) -> Result<(Vec<UploadedPart>, bool, u32)> {
+    let bad = || StorageError::Backend("unreadable ListParts answer".into());
+    let mut parts = Vec::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find("<Part>") {
+        let after = &rest[start + "<Part>".len()..];
+        let end = after.find("</Part>").ok_or_else(bad)?;
+        let block = &after[..end];
+        let number = between(block, "<PartNumber>", "</PartNumber>")
+            .and_then(|v| v.trim().parse::<u32>().ok())
+            .ok_or_else(bad)?;
+        let size = between(block, "<Size>", "</Size>")
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .ok_or_else(bad)?;
+        let etag = between(block, "<ETag>", "</ETag>")
+            .map(xml_unescape)
+            .ok_or_else(bad)?;
+        parts.push(UploadedPart { number, size, etag });
+        rest = &after[end + "</Part>".len()..];
+    }
+    let truncated = between(xml, "<IsTruncated>", "</IsTruncated>")
+        .is_some_and(|v| v.trim().eq_ignore_ascii_case("true"));
+    let next = between(xml, "<NextPartNumberMarker>", "</NextPartNumberMarker>")
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .unwrap_or(0);
+    Ok((parts, truncated, next))
 }
 
 fn between<'a>(s: &'a str, open: &str, close: &str) -> Option<&'a str> {

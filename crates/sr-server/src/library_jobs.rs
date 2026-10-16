@@ -153,13 +153,20 @@ async fn gc_handler(pool: PgPool, library: LibraryService, job: Job) -> Result<(
         .run_gc()
         .await
         .map_err(|e| -> HandlerError { Box::new(std::io::Error::other(e.to_string())) })?;
-    if report.objects_deleted > 0 || report.uploads_expired > 0 {
+    if report.objects_deleted > 0 || report.uploads_expired > 0 || report.exports_deleted > 0 {
         tracing::info!(
             deleted = report.objects_deleted,
             expired = report.uploads_expired,
+            exports = report.exports_deleted,
             failed = report.failed,
             "library storage swept"
         );
+    }
+    // Reading presence rows whose heartbeat lapsed (H-18).
+    match sr_library_social::presence::sweep_expired_presence(&pool).await {
+        Ok(n) if n > 0 => tracing::debug!(rows = n, "expired reading presence swept"),
+        Ok(_) => {}
+        Err(e) => tracing::warn!(error = %e, "sweeping reading presence failed"),
     }
     jobs::reschedule_running(&pool, job.id, GC_INTERVAL).await?;
     Ok(())
@@ -181,6 +188,50 @@ pub fn register(runner: JobRunner, pool: &PgPool, library: LibraryService) -> Jo
 /// Create or re-arm the collector singleton. Call only when [`register`] is on the runner.
 pub async fn schedule_gc(pool: &PgPool) -> DbResult<()> {
     jobs::schedule_singleton(pool, GC_JOB_ID, GC_KIND, &json!({}), GC_INTERVAL).await?;
+    Ok(())
+}
+
+/// Kind and reserved singleton id of the ingest source scanner (REV-UP-005).
+pub const SOURCES_KIND: &str = "library.sources";
+pub const SOURCES_JOB_ID: i64 = 895;
+/// How often the scanner looks for sources that are due (each has its own poll interval).
+const SOURCES_INTERVAL: Duration = Duration::from_secs(30);
+
+async fn sources_handler(
+    pool: PgPool,
+    scanner: sr_library::sources::SourceScanner,
+    job: Job,
+) -> Result<(), HandlerError> {
+    let n = scanner.scan_due().await;
+    if n > 0 {
+        tracing::debug!(sources = n, "ingest sources scanned");
+    }
+    jobs::reschedule_running(&pool, job.id, SOURCES_INTERVAL).await?;
+    Ok(())
+}
+
+/// Register `library.sources` on `runner`. Pair with [`schedule_sources`].
+pub fn register_sources(
+    runner: JobRunner,
+    pool: &PgPool,
+    scanner: sr_library::sources::SourceScanner,
+) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(SOURCES_KIND, 1, move |job| {
+        Box::pin(sources_handler(pool.clone(), scanner.clone(), job))
+    })
+}
+
+/// Create or re-arm the scanner singleton.
+pub async fn schedule_sources(pool: &PgPool) -> DbResult<()> {
+    jobs::schedule_singleton(
+        pool,
+        SOURCES_JOB_ID,
+        SOURCES_KIND,
+        &json!({}),
+        SOURCES_INTERVAL,
+    )
+    .await?;
     Ok(())
 }
 

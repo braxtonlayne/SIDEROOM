@@ -82,6 +82,104 @@ pub struct RateLimitConfig {
     /// Overrides keyed by `"METHOD /pattern"` (pattern without the
     /// `/api/v1` prefix, e.g. `"POST /channels/{channel_id}/messages"`).
     pub routes: HashMap<String, BucketSpec>,
+    /// Live HTTP limits (H-39): when set, the limiter reads the current [`RateConfig`] on every
+    /// request, so a change made in Admin applies on the next request without a restart.
+    pub live: Option<tokio::sync::watch::Receiver<RateConfig>>,
+}
+
+/// The route key of a message send.
+const MESSAGES_ROUTE: &str = "POST /channels/{channel_id}/messages";
+/// The route key of an upload slot request.
+const UPLOADS_ROUTE: &str = "POST /channels/{channel_id}/attachments";
+
+/// The live HTTP limits, all requests (or sends) per minute. Gateway and voice limits stay static.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RateConfig {
+    /// Requests per minute from one address that is not signed in.
+    pub ip: u32,
+    /// Requests per minute from one browser session.
+    pub session: u32,
+    /// Requests per minute from one bot or API credential.
+    pub bot: u32,
+    /// Message sends per minute in one channel by one caller.
+    pub messages: u32,
+    /// Upload slot requests per minute in one channel by one caller.
+    pub uploads: u32,
+}
+
+impl Default for RateConfig {
+    fn default() -> Self {
+        Self {
+            ip: 3000,
+            session: 3000,
+            bot: 3000,
+            messages: 60,
+            uploads: 240,
+        }
+    }
+}
+
+impl RateConfig {
+    /// The per-minute figures that a static [`RateLimitConfig`] stands for.
+    pub fn of(cfg: &RateLimitConfig) -> Self {
+        let per_minute = |s: &BucketSpec| {
+            let secs = s.window.as_secs().max(1);
+            u32::try_from(u64::from(s.limit) * 60 / secs).unwrap_or(u32::MAX)
+        };
+        let global = cfg.global_per_second.saturating_mul(60);
+        Self {
+            ip: global,
+            session: global,
+            bot: global,
+            messages: cfg.routes.get(MESSAGES_ROUTE).map_or(60, per_minute),
+            uploads: cfg
+                .routes
+                .get(UPLOADS_ROUTE)
+                .map_or_else(|| per_minute(&cfg.default_bucket), per_minute),
+        }
+    }
+
+    /// The figures in a list of platform settings (`GET /admin/settings`); a missing or out of
+    /// range entry keeps the default.
+    pub fn from_settings(views: &[sr_admin::SettingView]) -> Self {
+        use sr_admin::settings as k;
+        let d = Self::default();
+        let get = |key: &str, default: u32| {
+            views
+                .iter()
+                .find(|v| v.key == key)
+                .and_then(|v| v.value.as_u64())
+                .and_then(|n| u32::try_from(n).ok())
+                .filter(|n| *n > 0)
+                .unwrap_or(default)
+        };
+        Self {
+            ip: get(k::RATE_IP, d.ip),
+            session: get(k::RATE_SESSION, d.session),
+            bot: get(k::RATE_BOT, d.bot),
+            messages: get(k::RATE_MESSAGES, d.messages),
+            uploads: get(k::RATE_UPLOADS, d.uploads),
+        }
+    }
+
+    /// Per-identity limiter: `n` requests a minute with a burst of one second's worth.
+    fn global_quota(n: u32) -> Quota {
+        let n = n.max(1);
+        let burst = NonZeroU32::new((n / 60).max(1)).unwrap_or(NonZeroU32::MIN);
+        Quota::with_period(Duration::from_secs(60) / n)
+            .unwrap_or_else(|| Quota::per_second(NonZeroU32::MIN))
+            .allow_burst(burst)
+    }
+
+    /// Message bucket: a burst of five seconds' worth.
+    fn messages_spec(&self) -> BucketSpec {
+        BucketSpec::new((self.messages / 12).max(1), 5)
+    }
+
+    /// Upload slot bucket: a burst of ten seconds' worth.
+    fn uploads_spec(&self) -> BucketSpec {
+        BucketSpec::new((self.uploads / 6).max(1), 10)
+    }
 }
 
 impl Default for RateLimitConfig {
@@ -146,6 +244,7 @@ impl Default for RateLimitConfig {
             global_per_second: 50,
             default_bucket: BucketSpec::new(40, 10),
             routes,
+            live: None,
         }
     }
 }
@@ -190,9 +289,28 @@ pub enum Decision {
 /// The limiter. One per process, held in `AppState`.
 pub struct RateLimiter {
     cfg: RateLimitConfig,
-    global: KeyedLimiter,
+    live: Mutex<Live>,
     buckets: Mutex<HashMap<String, Arc<Bucket>>>,
     calls: AtomicU64,
+}
+
+/// The limiters that follow the live [`RateConfig`]: one per identity kind.
+struct Live {
+    current: RateConfig,
+    ip: Arc<KeyedLimiter>,
+    session: Arc<KeyedLimiter>,
+    bot: Arc<KeyedLimiter>,
+}
+
+impl Live {
+    fn new(current: RateConfig) -> Self {
+        Self {
+            ip: Arc::new(keyed(RateConfig::global_quota(current.ip))),
+            session: Arc::new(keyed(RateConfig::global_quota(current.session))),
+            bot: Arc::new(keyed(RateConfig::global_quota(current.bot))),
+            current,
+        }
+    }
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -208,26 +326,66 @@ fn hash_hex(s: &str) -> String {
 impl RateLimiter {
     /// Build from config.
     pub fn new(cfg: RateLimitConfig) -> Self {
-        let per_sec = NonZeroU32::new(cfg.global_per_second.max(1)).unwrap_or(NonZeroU32::MIN);
+        let start = cfg
+            .live
+            .as_ref()
+            .map_or_else(|| RateConfig::of(&cfg), |rx| *rx.borrow());
         Self {
-            global: keyed(Quota::per_second(per_sec)),
+            live: Mutex::new(Live::new(start)),
             cfg,
             buckets: Mutex::new(HashMap::new()),
             calls: AtomicU64::new(0),
         }
     }
 
-    fn bucket(&self, route_key: &str) -> Arc<Bucket> {
+    /// The per-identity limiter for `identity` under the current live figures, rebuilt when an
+    /// admin changed that figure since the last request (its counters start afresh, which is fine
+    /// for a setting that is edited rarely).
+    fn global_for(&self, identity: &str) -> (Arc<KeyedLimiter>, RateConfig) {
+        let now = self
+            .cfg
+            .live
+            .as_ref()
+            .map(|rx| *rx.borrow())
+            .unwrap_or_else(|| lock(&self.live).current);
+        let mut live = lock(&self.live);
+        if live.current.ip != now.ip {
+            live.ip = Arc::new(keyed(RateConfig::global_quota(now.ip)));
+        }
+        if live.current.session != now.session {
+            live.session = Arc::new(keyed(RateConfig::global_quota(now.session)));
+        }
+        if live.current.bot != now.bot {
+            live.bot = Arc::new(keyed(RateConfig::global_quota(now.bot)));
+        }
+        live.current = now;
+        let g = if identity.starts_with("auth:") {
+            live.bot.clone()
+        } else if identity.starts_with("sess:") {
+            live.session.clone()
+        } else {
+            live.ip.clone()
+        };
+        (g, now)
+    }
+
+    fn bucket(&self, route_key: &str, now: RateConfig) -> Arc<Bucket> {
         let mut map = lock(&self.buckets);
-        if let Some(b) = map.get(route_key) {
+        let spec = match route_key {
+            MESSAGES_ROUTE if self.cfg.live.is_some() => now.messages_spec(),
+            UPLOADS_ROUTE if self.cfg.live.is_some() => now.uploads_spec(),
+            _ => self
+                .cfg
+                .routes
+                .get(route_key)
+                .copied()
+                .unwrap_or(self.cfg.default_bucket),
+        };
+        if let Some(b) = map.get(route_key)
+            && b.spec == spec
+        {
             return b.clone();
         }
-        let spec = self
-            .cfg
-            .routes
-            .get(route_key)
-            .copied()
-            .unwrap_or(self.cfg.default_bucket);
         let b = Arc::new(Bucket {
             id: hash_hex(route_key),
             spec,
@@ -253,14 +411,15 @@ impl RateLimiter {
             self.sweep();
         }
         let clock = DefaultClock::default();
-        if let Err(nu) = self.global.check_key(&identity.to_owned()) {
+        let (global, now) = self.global_for(identity);
+        if let Err(nu) = global.check_key(&identity.to_owned()) {
             return Decision::Limited {
                 retry_after: nu.wait_time_from(clock.now()).as_secs_f64(),
                 global: true,
                 info: None,
             };
         }
-        let bucket = self.bucket(route_key);
+        let bucket = self.bucket(route_key, now);
         let key = format!("{identity}|{resource}");
         let limit = bucket.spec.limit.max(1);
         // Emission interval is window / limit, so a bucket with `used` spent
@@ -299,7 +458,12 @@ impl RateLimiter {
 
     /// Drop idle keys so memory stays bounded.
     fn sweep(&self) {
-        self.global.retain_recent();
+        {
+            let live = lock(&self.live);
+            live.ip.retain_recent();
+            live.session.retain_recent();
+            live.bot.retain_recent();
+        }
         for b in lock(&self.buckets).values() {
             b.gov.retain_recent();
         }
@@ -464,6 +628,67 @@ mod tests {
         // other identity and other resource are independent
         assert!(matches!(rl.check("GET /x", "", "v"), Decision::Allowed(_)));
         assert!(matches!(rl.check("GET /x", "7", "u"), Decision::Allowed(_)));
+    }
+
+    #[test]
+    fn a_live_change_applies_on_the_next_request() {
+        let (tx, rx) = tokio::sync::watch::channel(RateConfig::default());
+        let rl = RateLimiter::new(RateLimitConfig {
+            live: Some(rx),
+            ..RateLimitConfig::default()
+        });
+        let send = || rl.check(MESSAGES_ROUTE, "7", "sess:a");
+        // Defaults: 60 a minute is a burst of five.
+        for _ in 0..5 {
+            assert!(matches!(send(), Decision::Allowed(_)));
+        }
+        assert!(matches!(send(), Decision::Limited { global: false, .. }));
+        // Raised to 240 a minute (a burst of twenty): the very next request is allowed.
+        tx.send_modify(|c| c.messages = 240);
+        match send() {
+            Decision::Allowed(i) => assert_eq!(i.limit, 20),
+            Decision::Limited { .. } => panic!("the new limit did not apply"),
+        }
+        // Lowered to 12 a minute (a burst of one) on a fresh channel: second send is refused.
+        tx.send_modify(|c| c.messages = 12);
+        assert!(matches!(
+            rl.check(MESSAGES_ROUTE, "8", "sess:a"),
+            Decision::Allowed(_)
+        ));
+        assert!(matches!(
+            rl.check(MESSAGES_ROUTE, "8", "sess:a"),
+            Decision::Limited { global: false, .. }
+        ));
+    }
+
+    #[test]
+    fn identity_kinds_follow_their_own_live_limit() {
+        let (tx, rx) = tokio::sync::watch::channel(RateConfig::default());
+        let rl = RateLimiter::new(RateLimitConfig {
+            live: Some(rx),
+            ..RateLimitConfig::default()
+        });
+        // 60 a minute for addresses: a burst of one, so the second request is a global refusal.
+        tx.send_modify(|c| c.ip = 60);
+        assert!(matches!(
+            rl.check("GET /a", "", "ip:1.2.3.4"),
+            Decision::Allowed(_)
+        ));
+        assert!(matches!(
+            rl.check("GET /b", "", "ip:1.2.3.4"),
+            Decision::Limited { global: true, .. }
+        ));
+        // Sessions and bots keep their own figures.
+        for who in ["sess:x", "auth:y"] {
+            assert!(matches!(rl.check("GET /a", "", who), Decision::Allowed(_)));
+            assert!(matches!(rl.check("GET /b", "", who), Decision::Allowed(_)));
+        }
+    }
+
+    #[test]
+    fn static_config_maps_to_the_same_figures() {
+        let c = RateConfig::of(&RateLimitConfig::default());
+        assert_eq!(c, RateConfig::default());
     }
 
     #[test]

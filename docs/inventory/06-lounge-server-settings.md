@@ -14,6 +14,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-007** [FE] Traits: 5 slots (emoji + short text)
 - [x] **LNG-SSET-008** [FE] Description textarea ("How did your server get started? Why should people join?")
 - [ ] **LNG-SSET-009** [FE] Live preview card (banner, icon, name, "● N Online ● N Members", "Est. <Mon YYYY>") *(p5: preview card with banner, icon, name and Est. date; no Online/Members counts)*
+   - p13 backend half built: `GET /guilds/{id}?with_counts=true` adds `approximate_member_count` and `approximate_presence_count` (test `guild_counts_come_with_with_counts_only`); the preview card does not use them yet.
 - [x] **LNG-SSET-010** [FE] Invite splash background (free) *(p5)*
 
 ## Server Tag
@@ -45,10 +46,11 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [x] **LNG-SSET-026** [BE] Sound handling: stored as uploaded, no Opus transcode *(re-scoped 2026-10-15 by D-201: files (MP3/Ogg/WAV, 512 KiB, 5 s) are validated and stored as uploaded and decoded by the browser; `symphonia` decode only when needed; no libopus. Earlier note: p10: not built. There is no soundboard store or API yet (VOX-SB-001), and the only Opus encoder is the `opus` crate, a binding to the C libopus, which this repo's rustls-only, pure-Rust-first policy (docs/03 section 4, marked with a warning) leaves for an ADR; `symphonia` decode alone is pure Rust. See handoff feat-p10-sset-be)*
 
 ## Members
-- [ ] **LNG-SSET-027** [FE] Member table (avatar/name, member since, joined platform, join method/invite code, roles chips, signals), search, sort, filters (roles, join date, unusual activity), pagination *(p5: search and role filter use the server endpoints, with paging. p10: sort by name or join date over the loaded members. Still open: join method and signals (not in the member object), join-date filter)*
+- [x] **LNG-SSET-027** [FE] Member table (avatar/name, member since, joined platform, join method/invite code, roles chips, signals), search, sort, filters (roles, join date, unusual activity), pagination *(p5: search and role filter use the server endpoints, with paging. p10: sort by name or join date over the loaded members. p13 H-37: "Joined via" and "Signals" columns and the "Unusual activity only" filter for MANAGE_GUILD; the join-date filter is still open)*
 - [x] **LNG-SSET-028** [FE] Bulk select → add/remove role, kick, ban *(p10: row and page checkboxes, bulk Add/Remove role, Kick, Ban run per member with a partial-failure report, `MemberBulk.tsx`, people test)*
 - [x] **LNG-SSET-029** [FE] Prune members modal (inactivity days, include roles, count preview) *(Members, needs Kick Members; wording is "have not sent a message in N days" until last-seen tracking lands (F-02), then Discord's, D-166)*
 - [ ] **LNG-SSET-030** [FE] Member detail side drawer (roles, timeout, audit history for this member) *(p5: details dialog (username, id, joined, nickname, timeout, roles); no audit history because the audit log cannot filter by target)*
+   - p13 backend half built: `GET /guilds/{id}/audit-logs?target_id=` filters entries about one member (test `audit_log_can_be_filtered_by_target`); the drawer does not show the history yet.
 
 ## Roles
 - [x] **LNG-SSET-031** [FE] Roles list (drag reorder, member counts, search, Create Role, "Default permissions" @everyone row)
@@ -82,10 +84,10 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-051** [FE] Watch Parties & Library (who can start parties, default party channel, library feed channel & filters)
 
 ## Safety Setup
-- [x] **LNG-SSET-052** [FE] DM & spam protection (filter DMs from members, hide suspicious links, warn on new accounts) *(p12 lounge-ch-be: Moderation → DM and spam protection stores `dm_spam_filter`, `hide_suspicious_links`, `warn_new_account_days`; no DM filter enforces them yet)*
+- [x] **LNG-SSET-052** [FE] DM & spam protection (filter DMs from members, hide suspicious links, warn on new accounts) *(p12 lounge-ch-be: Moderation → DM and spam protection stores the settings. p13 mfa-protect (G-95, D-224): `SocialService::open_dm` routes to Message Requests via `dm_access_protected` (`sr_request_reason`), `hide_suspicious_links` is on the guild object and rendered by `lounge/suspiciousLinks.ts`; tests `sr-chat` social, `suspiciousLinks` in `p13protect.test.tsx`)*
 - [ ] **LNG-SSET-053** [FE] Raid protection (join rate alerts, auto-lockdown, CAPTCHA **omitted**: invite-only platform)
-- [x] **LNG-SSET-054** [FE] Explicit media content filter (operator-configurable scanner hook; default off) *(p12 lounge-ch-be: the switch `explicit_media_filter_dms` is stored; the scanner hook is operator work)*
-- [x] **LNG-SSET-055** [FE] Require 2FA for moderator actions *(p12 lounge-ch-be: Moderation → Two-factor authentication for moderation, `POST /guilds/{id}/mfa`, enforced by `MfaGate`)*
+- [x] **LNG-SSET-054** [FE] Explicit media content filter (operator-configurable scanner hook; default off) *(spoiler-only; scanner hook not built (D-224): upload slots in a pending Message Request get the spoiler flag when a shared server has `explicit_media_filter_dms` on, `SocialService::spoiler_attachments`)*
+- [x] **LNG-SSET-055** [FE] Require 2FA for moderator actions *(p12 lounge-ch-be: Moderation → Two-factor authentication for moderation, `POST /guilds/{id}/mfa`, enforced by `MfaGate`. Scope per D-223: p13 mfa-protect puts the gate on every elevated route, `900123` for accounts and bot owners without a second factor; tests `elevated_routes_need_a_second_factor_on_a_2fa_server` (`sr-api --test lounge`) and `developer::mfa_tests`)*
 
 ## Audit Log
 - [x] **LNG-SSET-056** [BE] Audit log entry writing for all guild mutations (Discord action types) + X-Audit-Log-Reason *(p10: every guild mutation writes an entry (guild, channel, overwrite, role, member, ban, kick, prune, invite, webhook, emoji, sticker, automod, onboarding questions, thread create/update/delete, pin, unpin, message delete by a moderator, bulk delete); `X-Audit-Log-Reason` is scoped per request (`router.rs` audit_reason_scope, `settings/audit.rs` ambient reason). Soundboard, scheduled event and integration actions have no feature to audit yet)*

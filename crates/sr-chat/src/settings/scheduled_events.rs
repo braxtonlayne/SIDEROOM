@@ -9,6 +9,7 @@
 use serde::{Deserialize, Serialize};
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, GuildId, UserId};
+use std::collections::{HashMap, HashSet};
 
 use super::error::{SettingsError, SettingsResult};
 
@@ -107,11 +108,20 @@ pub struct ScheduledEvent {
     /// Where an external event happens.
     pub location: Option<String>,
     pub created_at_ms: i64,
+    /// A running stage event: the id of its stage instance (the stage channel id; G-93).
+    pub entity_id: Option<u64>,
+    /// Cover image hash (`/cdn/guild-events/<event id>/<hash>`; G-93).
+    pub image_key: Option<String>,
+    /// Since when a running voice or stage event has had an empty channel (G-91).
+    pub empty_since_ms: Option<i64>,
 }
 
 /// A create request after the transport layer parsed it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewEvent {
+    /// Pre-allocated id (the route stores the cover under it before creating the row).
+    pub id: Option<u64>,
+    pub image_key: Option<String>,
     pub channel_id: Option<ChannelId>,
     pub name: String,
     pub description: Option<String>,
@@ -124,6 +134,7 @@ pub struct NewEvent {
 /// An edit. Outer `None` leaves a field alone, inner `None` clears it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EventPatch {
+    pub image_key: Option<Option<String>>,
     pub channel_id: Option<Option<ChannelId>>,
     pub name: Option<String>,
     pub description: Option<Option<String>>,
@@ -244,7 +255,7 @@ fn check_shape(
 pub fn plan_create(
     guild: GuildId,
     creator: UserId,
-    id: u64,
+    id_fallback: u64,
     new: NewEvent,
     kind: ChannelKind,
     open_events: usize,
@@ -272,7 +283,7 @@ pub fn plan_create(
     }
     check_shape(new.entity_type, new.channel_id, kind, &location, new.end_ms)?;
     Ok(ScheduledEvent {
-        id,
+        id: new.id.unwrap_or(id_fallback),
         guild_id: guild,
         channel_id: new.channel_id,
         creator_id: creator,
@@ -284,6 +295,9 @@ pub fn plan_create(
         entity_type: new.entity_type,
         location,
         created_at_ms: now_ms,
+        entity_id: None,
+        image_key: new.image_key,
+        empty_since_ms: None,
     })
 }
 
@@ -336,6 +350,9 @@ pub fn plan_update(
     }
     if let Some(l) = &patch.location {
         out.location = clean_location(l.as_deref())?;
+    }
+    if let Some(i) = patch.image_key.clone() {
+        out.image_key = i;
     }
     if let Some(c) = patch.channel_id {
         out.channel_id = c;
@@ -405,53 +422,170 @@ pub fn can_manage(perms: Permissions, ev: &ScheduledEvent, actor: UserId) -> boo
         || (perms.has(Permissions::CREATE_EVENTS) && ev.creator_id == actor)
 }
 
-/// A move the clock makes by itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Transition {
-    pub id: u64,
-    pub to: EventStatus,
+/// A scheduled voice or stage event nobody started is canceled this long after its start
+/// time (D-222).
+pub const UNSTARTED_CANCEL_MS: i64 = 24 * 3_600_000;
+/// A running voice or stage event whose channel stays empty this long is completed (D-222).
+pub const EMPTY_GRACE_MS: i64 = 15 * 60_000;
+
+/// What the voice side looks like right now, for the channels of the events being advanced.
+/// Production fills it from the gateway (`FeatureActions::voice_occupants` and the stage
+/// instances); tests fill it by hand.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct VoiceView {
+    /// Members connected, per channel. A channel that is absent has nobody in it.
+    pub occupants: HashMap<ChannelId, usize>,
+    /// Stage channels that have a live stage instance.
+    pub live_stages: HashSet<ChannelId>,
+    /// Channels whose occupancy this node cannot tell (a multi-node deployment): never counted as
+    /// empty, so an event is not completed for emptiness there (H-15).
+    pub unknown_occupancy: HashSet<ChannelId>,
 }
 
-/// Events whose time has come: a scheduled event starts at its start time, a running one
-/// ends at its end time, and a voice or stage event whose channel is gone is canceled (or
-/// completed when it was running). A running event without an end time stays until a
-/// member ends it.
-pub fn due_transitions<'a>(
-    events: impl IntoIterator<Item = &'a ScheduledEvent>,
-    now_ms: i64,
-) -> Vec<Transition> {
-    let mut out = Vec::new();
-    for e in events {
-        let orphaned = e.entity_type != EntityType::External && e.channel_id.is_none();
-        match e.status {
-            EventStatus::Scheduled if orphaned => {
-                out.push(Transition {
-                    id: e.id,
-                    to: EventStatus::Canceled,
-                });
-            }
-            EventStatus::Active if orphaned => {
-                out.push(Transition {
-                    id: e.id,
-                    to: EventStatus::Completed,
-                });
-            }
-            EventStatus::Scheduled if e.start_ms <= now_ms => {
-                out.push(Transition {
-                    id: e.id,
-                    to: EventStatus::Active,
-                });
-            }
-            EventStatus::Active if e.end_ms.is_some_and(|end| end <= now_ms) => {
-                out.push(Transition {
-                    id: e.id,
-                    to: EventStatus::Completed,
-                });
-            }
-            _ => {}
+impl VoiceView {
+    pub fn occupancy_unknown(&self, channel: ChannelId) -> bool {
+        self.unknown_occupancy.contains(&channel)
+    }
+
+    pub fn occupants_in(&self, channel: ChannelId) -> usize {
+        self.occupants.get(&channel).copied().unwrap_or(0)
+    }
+
+    pub fn stage_live(&self, channel: ChannelId) -> bool {
+        self.live_stages.contains(&channel)
+    }
+}
+
+fn orphaned(e: &ScheduledEvent) -> bool {
+    e.entity_type != EntityType::External && e.channel_id.is_none()
+}
+
+/// The voice side as the event clock sees it, and the stage instances it opens and closes
+/// (G-91, G-93). Production wires the gateway behind it; [`NoWorld`] is the unwired default.
+#[async_trait::async_trait]
+pub trait EventWorld: Send + Sync {
+    /// Occupancy and live stages of `channels`.
+    async fn view(&self, channels: &[ChannelId]) -> VoiceView;
+    /// Open a stage instance in `channel` (topic = the event name) for a starting stage event.
+    /// `Err` carries a user-facing reason (a stage is already running there).
+    async fn start_stage(
+        &self,
+        guild: GuildId,
+        channel: ChannelId,
+        topic: &str,
+        by: UserId,
+        event_id: u64,
+    ) -> Result<(), String>;
+    /// Delete the stage instance of `channel` when one is live.
+    async fn end_stage(&self, channel: ChannelId);
+}
+
+/// No voice backend: every channel counts as occupied and every stage as live, so the clock
+/// never ends an event for want of listeners; stages open without side effects.
+pub struct NoWorld;
+
+#[async_trait::async_trait]
+impl EventWorld for NoWorld {
+    async fn view(&self, channels: &[ChannelId]) -> VoiceView {
+        VoiceView {
+            occupants: channels.iter().map(|c| (*c, 1)).collect(),
+            live_stages: channels.iter().copied().collect(),
+            ..VoiceView::default()
         }
     }
-    out
+
+    async fn start_stage(
+        &self,
+        _guild: GuildId,
+        _channel: ChannelId,
+        _topic: &str,
+        _by: UserId,
+        _event_id: u64,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn end_stage(&self, _channel: ChannelId) {}
+}
+
+/// One step of the clock for one event: the event as it should be now, or `None` when
+/// nothing changes. Idempotent: advancing the result again with the same inputs changes
+/// nothing, so any number of nodes may run it.
+///
+/// * External events start at their start time and complete at their end time.
+/// * Voice and stage events never start by the clock; a `SCHEDULED` one more than
+///   [`UNSTARTED_CANCEL_MS`] past its start time becomes `CANCELED`.
+/// * A running voice or stage event completes at its end time, or after its channel has
+///   been empty for [`EMPTY_GRACE_MS`]; a stage event also completes once its stage
+///   instance is gone.
+/// * An event whose channel was deleted is canceled (or completed when it was running).
+pub fn advance(ev: &ScheduledEvent, now_ms: i64, view: &VoiceView) -> Option<ScheduledEvent> {
+    let mut out = ev.clone();
+    match ev.status {
+        EventStatus::Scheduled => {
+            if orphaned(ev) {
+                out.status = EventStatus::Canceled;
+            } else if ev.entity_type == EntityType::External {
+                if ev.start_ms <= now_ms {
+                    out.status = if ev.end_ms.is_some_and(|end| end <= now_ms) {
+                        EventStatus::Completed
+                    } else {
+                        EventStatus::Active
+                    };
+                }
+            } else if now_ms >= ev.start_ms.saturating_add(UNSTARTED_CANCEL_MS) {
+                out.status = EventStatus::Canceled;
+            }
+        }
+        EventStatus::Active => {
+            if orphaned(ev) || ev.end_ms.is_some_and(|end| end <= now_ms) {
+                out.status = EventStatus::Completed;
+            } else if let (false, Some(ch)) =
+                (ev.entity_type == EntityType::External, ev.channel_id)
+            {
+                if ev.entity_type == EntityType::StageInstance
+                    && ev.entity_id.is_some()
+                    && !view.stage_live(ch)
+                {
+                    out.status = EventStatus::Completed;
+                } else if view.occupants_in(ch) > 0 || view.occupancy_unknown(ch) {
+                    out.empty_since_ms = None;
+                } else {
+                    match ev.empty_since_ms {
+                        None => out.empty_since_ms = Some(now_ms),
+                        Some(since) if now_ms - since >= EMPTY_GRACE_MS => {
+                            out.status = EventStatus::Completed;
+                        }
+                        Some(_) => {}
+                    }
+                }
+            }
+        }
+        EventStatus::Completed | EventStatus::Canceled => {}
+    }
+    if !out.status.is_open() {
+        out.empty_since_ms = None;
+    }
+    (out != *ev).then_some(out)
+}
+
+/// A member entered `channel`: the voice or stage event waiting on it starts when its start
+/// time has come (D-222). `None` when this event does not start now.
+pub fn start_on_join(
+    ev: &ScheduledEvent,
+    channel: ChannelId,
+    now_ms: i64,
+) -> Option<ScheduledEvent> {
+    let eligible = ev.status == EventStatus::Scheduled
+        && ev.entity_type != EntityType::External
+        && ev.channel_id == Some(channel)
+        && ev.start_ms <= now_ms
+        && now_ms < ev.start_ms.saturating_add(UNSTARTED_CANCEL_MS);
+    eligible.then(|| ScheduledEvent {
+        status: EventStatus::Active,
+        empty_since_ms: None,
+        ..ev.clone()
+    })
 }
 
 #[cfg(test)]
@@ -463,6 +597,8 @@ mod tests {
 
     fn new_voice() -> NewEvent {
         NewEvent {
+            id: None,
+            image_key: None,
             channel_id: Some(ChannelId::new(7)),
             name: "  Movie night ".into(),
             description: Some("  bring snacks ".into()),
@@ -537,6 +673,8 @@ mod tests {
         assert!(make(n, ChannelKind::Voice).is_err());
         // External: location and end time, and no channel.
         let ext = NewEvent {
+            id: None,
+            image_key: None,
             channel_id: None,
             name: "Meetup".into(),
             description: None,
@@ -699,39 +837,200 @@ mod tests {
         assert!(!can_manage(Permissions::empty(), &e, creator));
     }
 
+    const MIN: i64 = 60_000;
+
+    fn running(entity: EntityType) -> ScheduledEvent {
+        let mut e = ev();
+        e.entity_type = entity;
+        e.status = EventStatus::Active;
+        e.start_ms = NOW - HOUR;
+        e.end_ms = Some(NOW + 2 * HOUR);
+        if entity == EntityType::StageInstance {
+            e.entity_id = Some(7);
+        }
+        e
+    }
+
+    fn ext() -> ScheduledEvent {
+        let mut e = ev();
+        e.entity_type = EntityType::External;
+        e.channel_id = None;
+        e.location = Some("the park".into());
+        e.start_ms = NOW + HOUR;
+        e.end_ms = Some(NOW + 2 * HOUR);
+        e
+    }
+
+    fn occupied(ch: u64, n: usize) -> VoiceView {
+        let mut v = VoiceView::default();
+        v.occupants.insert(ChannelId::new(ch), n);
+        v
+    }
+
     #[test]
-    fn the_clock_starts_and_ends_events() {
-        let mut a = ev();
-        a.id = 1;
-        let mut b = ev();
-        b.id = 2;
-        b.status = EventStatus::Active;
-        b.end_ms = Some(NOW + 10);
-        let mut c = ev();
-        c.id = 3;
-        c.status = EventStatus::Active;
-        c.end_ms = None;
-        let mut d = ev();
-        d.id = 4;
-        d.status = EventStatus::Completed;
-        let all = [a, b, c, d];
-        assert!(due_transitions(&all, NOW).is_empty());
-        let t = due_transitions(&all, NOW + HOUR);
+    fn external_events_start_and_complete_by_the_clock() {
+        let e = ext();
+        let none = VoiceView::default();
+        assert!(advance(&e, NOW, &none).is_none(), "not yet");
+        let started = advance(&e, NOW + HOUR, &none).unwrap();
+        assert_eq!(started.status, EventStatus::Active);
+        assert!(
+            advance(&started, NOW + HOUR + 1, &none).is_none(),
+            "idempotent"
+        );
+        let done = advance(&started, NOW + 2 * HOUR, &none).unwrap();
+        assert_eq!(done.status, EventStatus::Completed);
+        // After an outage both moments are past: straight to completed.
+        let late = advance(&e, NOW + 3 * HOUR, &none).unwrap();
+        assert_eq!(late.status, EventStatus::Completed);
+    }
+
+    #[test]
+    fn voice_and_stage_events_do_not_start_by_the_clock() {
+        for entity in [EntityType::Voice, EntityType::StageInstance] {
+            let mut e = ev();
+            e.entity_type = entity;
+            e.start_ms = NOW - HOUR;
+            assert!(advance(&e, NOW, &occupied(7, 3)).is_none(), "{entity:?}");
+        }
+    }
+
+    #[test]
+    fn an_unstarted_voice_event_is_canceled_a_day_after_its_start() {
+        let mut e = ev();
+        e.start_ms = NOW;
+        let v = VoiceView::default();
+        assert!(advance(&e, NOW + 24 * HOUR - 1, &v).is_none());
+        let c = advance(&e, NOW + 24 * HOUR, &v).unwrap();
+        assert_eq!(c.status, EventStatus::Canceled);
+        assert!(advance(&c, NOW + 48 * HOUR, &v).is_none(), "stays canceled");
+    }
+
+    #[test]
+    fn joining_the_channel_starts_the_event_at_or_after_the_start_time() {
+        let mut e = ev();
+        e.start_ms = NOW;
+        let ch = ChannelId::new(7);
+        assert!(
+            start_on_join(&e, ch, NOW - 1).is_none(),
+            "before the start time"
+        );
         assert_eq!(
-            t,
-            vec![
-                Transition {
-                    id: 1,
-                    to: EventStatus::Active
-                },
-                Transition {
-                    id: 2,
-                    to: EventStatus::Completed
-                }
-            ]
+            start_on_join(&e, ch, NOW).unwrap().status,
+            EventStatus::Active
+        );
+        assert!(
+            start_on_join(&e, ChannelId::new(8), NOW).is_none(),
+            "another channel"
+        );
+        assert!(
+            start_on_join(&e, ch, NOW + 24 * HOUR).is_none(),
+            "a day late the clock cancels it instead"
+        );
+        let mut x = ext();
+        x.start_ms = NOW;
+        assert!(
+            start_on_join(&x, ch, NOW).is_none(),
+            "external events are the clock's"
+        );
+        let mut started = e;
+        started.status = EventStatus::Active;
+        assert!(start_on_join(&started, ch, NOW).is_none());
+    }
+
+    #[test]
+    fn a_running_event_completes_at_its_end_time() {
+        for entity in [EntityType::Voice, EntityType::StageInstance] {
+            let e = running(entity);
+            let mut v = occupied(7, 4);
+            v.live_stages.insert(ChannelId::new(7));
+            assert!(
+                advance(&e, NOW + HOUR, &v).is_none(),
+                "busy and before the end"
+            );
+            let done = advance(&e, NOW + 2 * HOUR, &v).unwrap();
+            assert_eq!(done.status, EventStatus::Completed, "{entity:?}");
+        }
+    }
+
+    #[test]
+    fn an_empty_channel_completes_a_running_event_after_fifteen_minutes() {
+        let e = running(EntityType::Voice);
+        let empty = VoiceView::default();
+        // First look: remember when it went empty.
+        let marked = advance(&e, NOW, &empty).unwrap();
+        assert_eq!(marked.status, EventStatus::Active);
+        assert_eq!(marked.empty_since_ms, Some(NOW));
+        assert!(advance(&marked, NOW + 14 * MIN, &empty).is_none());
+        let done = advance(&marked, NOW + 15 * MIN, &empty).unwrap();
+        assert_eq!(done.status, EventStatus::Completed);
+        assert_eq!(done.empty_since_ms, None);
+        // Somebody comes back: the countdown resets.
+        let back = advance(&marked, NOW + 10 * MIN, &occupied(7, 1)).unwrap();
+        assert_eq!(back.empty_since_ms, None);
+        assert!(advance(&back, NOW + 40 * MIN, &occupied(7, 1)).is_none());
+    }
+
+    #[test]
+    fn unknown_occupancy_never_ends_an_event_for_emptiness() {
+        let e = running(EntityType::Voice);
+        let mut unknown = VoiceView::default();
+        unknown.unknown_occupancy.insert(ChannelId::new(7));
+        // Not even after a day: no empty countdown starts, nothing completes.
+        assert!(advance(&e, NOW, &unknown).is_none());
+        assert!(advance(&e, NOW + HOUR, &unknown).is_none());
+        // A countdown that already started is cleared when the answer turns unknown.
+        let marked = advance(&e, NOW, &VoiceView::default()).unwrap();
+        let cleared = advance(&marked, NOW + HOUR, &unknown).unwrap();
+        assert_eq!(cleared.status, EventStatus::Active);
+        assert_eq!(cleared.empty_since_ms, None);
+    }
+
+    #[test]
+    fn a_stage_event_completes_when_its_stage_instance_is_gone() {
+        let e = running(EntityType::StageInstance);
+        let mut live = occupied(7, 2);
+        live.live_stages.insert(ChannelId::new(7));
+        assert!(advance(&e, NOW, &live).is_none());
+        let gone = occupied(7, 2);
+        assert_eq!(
+            advance(&e, NOW, &gone).unwrap().status,
+            EventStatus::Completed
+        );
+    }
+
+    #[test]
+    fn events_without_their_channel_wind_up() {
+        let mut sched = ev();
+        sched.channel_id = None;
+        assert_eq!(
+            advance(&sched, NOW, &VoiceView::default()).unwrap().status,
+            EventStatus::Canceled
+        );
+        let mut run = running(EntityType::Voice);
+        run.channel_id = None;
+        assert_eq!(
+            advance(&run, NOW, &VoiceView::default()).unwrap().status,
+            EventStatus::Completed
         );
         assert_eq!(EventStatus::from_code(2), Some(EventStatus::Active));
         assert_eq!(EntityType::from_code(3), Some(EntityType::External));
         assert_eq!(EventStatus::from_code(9), None);
+    }
+
+    #[test]
+    fn an_image_only_edit_is_allowed_on_a_running_event() {
+        let e = running(EntityType::Voice);
+        let out = plan_update(
+            &e,
+            EventPatch {
+                image_key: Some(Some("abc".into())),
+                ..EventPatch::default()
+            },
+            ChannelKind::Voice,
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(out.image_key.as_deref(), Some("abc"));
     }
 }

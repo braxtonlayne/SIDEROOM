@@ -56,8 +56,26 @@ struct Env {
     guild: GuildId,
     ch: ChannelId,
     voice: ChannelId,
-    /// What the feature modules act on (with `Opts::features`).
+    /// The Server Directory listings behind `GET /emojis/{id}`.
+    directory: Arc<sr_chat::settings::directory::MemoryDirectory>,
     actions: Arc<sr_features::testing::FakeActions>,
+    /// The applications behind application emoji (D-237).
+    apps: Arc<sr_apps::memory::MemoryAppsRepo>,
+    apps_svc: sr_apps::AppsService,
+}
+
+struct NoPassword;
+
+#[async_trait::async_trait]
+impl crate::routes::developer::PasswordConfirm for NoPassword {
+    async fn confirm(
+        &self,
+        _now: i64,
+        _user: i64,
+        _password: &str,
+    ) -> crate::routes::messages::error::MsgResult<()> {
+        Ok(())
+    }
 }
 
 #[derive(Default)]
@@ -207,7 +225,30 @@ async fn env_with(opts: Opts) -> Env {
         1,
         1,
     )
-    .unwrap();
+    .unwrap()
+    .with_rich(crate::routes::messages::rich::RichDeps {
+        store: Some(Arc::new(backend.clone())),
+        ..Default::default()
+    })
+    .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
+        b"webhook-avatar-test-secret-0123456".to_vec(),
+    ));
+    let directory = Arc::new(sr_chat::settings::directory::MemoryDirectory::default());
+    let apps = Arc::new(sr_apps::memory::MemoryAppsRepo::new());
+    let app_ids = Arc::new(AtomicU64::new(900_000));
+    let apps_svc = sr_apps::AppsService::new(
+        apps.clone(),
+        dyn_clock.clone(),
+        Arc::new(move || i64::try_from(app_ids.fetch_add(1, Ordering::SeqCst)).unwrap()),
+    );
+    let dev = crate::routes::developer::DevDeps::new(
+        apps_svc.clone(),
+        Arc::new(backend.clone()),
+        bus.clone(),
+        Arc::new(NoPassword),
+        dyn_clock.clone(),
+        "https://side.test",
+    );
     let mut builder = AppState::builder()
         .bots(bots)
         .sessions(sessions.clone())
@@ -222,7 +263,11 @@ async fn env_with(opts: Opts) -> Env {
         .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
             storage.clone(),
             sr_storage::cdn::CdnSigner::new(b"emoji-url-test-secret-0123456789".to_vec()),
-        )));
+        )))
+        .extension(Arc::new(crate::routes::directory::DirectoryDeps::new(
+            directory.clone(),
+        )))
+        .extension(Arc::new(dev));
     if let Some(v) = opts.voice {
         builder = builder.extension(Arc::new(crate::routes::voice::VoiceApi(v)));
     }
@@ -241,7 +286,12 @@ async fn env_with(opts: Opts) -> Env {
         builder = builder.extension(Arc::new(gf));
     }
     let state = builder.build();
-    let app = build_router(state, router().merge(messages::router()));
+    let app = build_router(
+        state,
+        router()
+            .merge(messages::router())
+            .merge(crate::routes::directory::router()),
+    );
     Env {
         app,
         backend,
@@ -255,7 +305,10 @@ async fn env_with(opts: Opts) -> Env {
         guild,
         ch,
         voice,
+        directory,
         actions,
+        apps,
+        apps_svc,
     }
 }
 
@@ -2968,3 +3021,320 @@ async fn nobody_creates_or_redeems_invites_to_the_staff_server() {
 
 #[path = "features_tests.rs"]
 mod features_tests;
+
+#[tokio::test]
+async fn emoji_popout_and_url_work_for_non_members_and_name_only_listed_servers() {
+    use sr_chat::settings::directory::{DirectoryEntry, DirectoryRepository, DirectoryStatus};
+    use sr_chat::settings::repo::CommunityRepository;
+    let e = env().await;
+    let (_, emoji) = e
+        .post(
+            &e.g("/emojis"),
+            "mod",
+            json!({"name": "party", "image": png_uri(8)}),
+        )
+        .await;
+    let id = emoji["id"].as_str().unwrap().to_owned();
+    let path = format!("/sr/emojis/{id}");
+
+    // Anyone signed in may draw it; a private server stays unnamed to outsiders.
+    let (s, v) = e.get(&path, "carol").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(
+        (v["name"].as_str(), v["animated"].as_bool()),
+        (Some("party"), Some(false))
+    );
+    assert!(v["guild"].is_null(), "{v}");
+    let (s, u) = e.get(&format!("{path}/url?size=64"), "carol").await;
+    assert_eq!(s, StatusCode::OK, "{u}");
+    assert!(u["url"].as_str().unwrap().starts_with("/cdn/emoji/"));
+    assert_eq!(
+        e.get(&format!("{path}/url?size=100"), "carol").await.0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // Members see the server (not a Directory listing).
+    let (_, v) = e.get(&path, "bob").await;
+    assert_eq!(v["guild"]["id"], e.guild.to_string());
+    assert!(v["guild"]["listing"].is_null());
+
+    // An approved Directory listing of a Community server names it for everyone.
+    let mut c = e.repo.get_community(e.guild).await.unwrap();
+    c.community_enabled = true;
+    e.repo.put_community(&c).await.unwrap();
+    e.directory
+        .put_listing(&DirectoryEntry {
+            guild_id: e.guild,
+            status: DirectoryStatus::Approved,
+            category: "gaming".into(),
+            description: String::new(),
+            featured: false,
+            requested_by: UserId::new(OWNER),
+            requested_at_ms: T0,
+            decided_by: None,
+            decided_at_ms: None,
+            decision_note: None,
+        })
+        .await
+        .unwrap();
+    let (_, v) = e.get(&path, "carol").await;
+    assert_eq!(v["guild"]["id"], e.guild.to_string(), "{v}");
+    assert_eq!(v["guild"]["listing"], e.guild.to_string());
+
+    assert_eq!(
+        e.get("/sr/emojis/12345", "bob").await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        e.get("/sr/emojis/abc", "bob").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+/// D-237: an application emoji resolves by id for any session (the popout names the application),
+/// and its `<:name:id>` renders only in messages sent by that application's bot.
+#[tokio::test]
+async fn application_emoji_resolve_by_id_and_render_only_for_their_bot() {
+    use sr_apps::service::NewAppEmoji;
+    let e = env().await;
+    e.apps.add_account(1, "owner");
+    let created = e
+        .apps_svc
+        .create_application(1, "Helper", "x")
+        .await
+        .unwrap();
+    let app = created.application.id;
+    let bot = created.application.bot_user_id;
+    let emoji = e
+        .apps_svc
+        .add_app_emoji(
+            1,
+            app,
+            NewAppEmoji {
+                id: e.apps_svc.new_media_id(),
+                name: "wave".into(),
+                animated: false,
+                size_bytes: 1,
+                media_key: "emoji/app/1/1.png".into(),
+            },
+        )
+        .await
+        .unwrap();
+    let path = format!("/sr/emojis/{}", emoji.id);
+
+    // Any signed-in caller resolves it; the owner is the application, not a server.
+    let (s, v) = e.get(&path, "carol").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["name"], "wave");
+    assert!(v["guild"].is_null(), "{v}");
+    assert_eq!(v["application"]["id"], app.to_string());
+    assert_eq!(v["application"]["name"], "Helper");
+    let (s, u) = e.get(&format!("{path}/url?size=64"), "carol").await;
+    assert_eq!(s, StatusCode::OK, "{u}");
+    assert!(u["url"].as_str().unwrap().starts_with("/cdn/emoji/app/"));
+
+    // Rendering: a person's message with the token keeps it as text.
+    let post = |who: &'static str| {
+        let e = &e;
+        let emoji_id = emoji.id;
+        async move {
+            e.post(
+                &format!("/channels/{}/messages", e.ch),
+                who,
+                json!({"content": format!("hi <:wave:{emoji_id}>")}),
+            )
+            .await
+        }
+    };
+    {
+        let mut d = e.backend.data();
+        d.app_emojis.insert(emoji.id as u64, app);
+    }
+    let (s, m) = post("bob").await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["sr_text_emoji"], json!([emoji.id.to_string()]), "{m}");
+
+    // The application's bot sends the same token: it renders (no hint).
+    e.backend.data().bot_apps.insert(UserId::new(BOB), app);
+    let (s, m) = post("bob").await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert!(m.get("sr_text_emoji").is_none(), "{m}");
+    let _ = bot;
+
+    assert_eq!(
+        e.get(&format!("/sr/emojis/{}", emoji.id + 1), "bob")
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn audit_log_can_be_filtered_by_target() {
+    let e = env().await;
+    let mut ids = Vec::new();
+    for name in ["alpha", "beta"] {
+        let (s, emoji) = e
+            .post(
+                &e.g("/emojis"),
+                "mod",
+                json!({"name": name, "image": png_uri(8)}),
+            )
+            .await;
+        assert_eq!(s, StatusCode::CREATED, "{emoji}");
+        ids.push(emoji["id"].as_str().unwrap().to_owned());
+    }
+    let (_, all) = e.get(&e.g("/audit-logs"), "owner").await;
+    assert!(all["audit_log_entries"].as_array().unwrap().len() >= 2);
+
+    let (s, only) = e
+        .get(&e.g(&format!("/audit-logs?target_id={}", ids[0])), "owner")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{only}");
+    let entries = only["audit_log_entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1, "{only}");
+    assert_eq!(entries[0]["target_id"], ids[0].as_str());
+
+    let (_, none) = e.get(&e.g("/audit-logs?target_id=12345"), "owner").await;
+    assert!(none["audit_log_entries"].as_array().unwrap().is_empty());
+    assert_eq!(
+        e.get(&e.g("/audit-logs?target_id=abc"), "owner").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+// ---- webhook author (DEV-BOT-006) -------------------------------------------------
+
+#[tokio::test]
+async fn webhook_messages_show_the_webhook_or_the_per_call_override() {
+    let e = env().await;
+    let (_, wh) = e
+        .post(
+            &format!("/channels/{}/webhooks", e.ch),
+            "mod",
+            json!({"name": "Deploys"}),
+        )
+        .await;
+    let (id, token) = (wh["id"].as_str().unwrap(), wh["token"].as_str().unwrap());
+    let exec = format!("/webhooks/{id}/{token}?wait=true");
+
+    // No override: the webhook name, the webhook id as author id, marked as a bot.
+    let (s, m) = e
+        .call(Method::POST, &exec, None, Some(json!({"content": "plain"})))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["webhook_id"], id);
+    assert_eq!(m["author"]["id"], id);
+    assert_eq!(m["author"]["username"], "Deploys");
+    assert_eq!(m["author"]["bot"], true);
+    assert!(m["author"].get("avatar_url").is_none());
+
+    // Override name and avatar for one message; the avatar is served through the image proxy.
+    let (s, m) = e
+        .call(
+            Method::POST,
+            &exec,
+            None,
+            Some(json!({
+                "content": "custom",
+                "username": "  Build Bot ",
+                "avatar_url": "https://img.example/a.png"
+            })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["author"]["username"], "Build Bot");
+    assert_eq!(m["author"]["global_name"], "Build Bot");
+    let avatar = m["author"]["avatar_url"].as_str().unwrap();
+    assert!(avatar.starts_with("/cdn/external/"), "{avatar}");
+    assert!(
+        !avatar.contains("img.example"),
+        "never the raw URL: {avatar}"
+    );
+
+    // The history shows the same authors (also for a reader who is not the creator).
+    let (_, history) = e.get(&format!("/channels/{}/messages", e.ch), "bob").await;
+    let names: Vec<_> = history
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["author"]["username"].as_str().unwrap().to_owned())
+        .collect();
+    assert!(names.contains(&"Build Bot".to_owned()) && names.contains(&"Deploys".to_owned()));
+
+    // Bad overrides are refused before anything is posted.
+    for body in [
+        json!({"content": "x", "username": "n".repeat(81)}),
+        json!({"content": "x", "avatar_url": "http://img.example/a.png"}),
+        json!({"content": "x", "avatar_url": "javascript:alert(1)"}),
+    ] {
+        let (s, _) = e.call(Method::POST, &exec, None, Some(body)).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+    let (_, history) = e.get(&format!("/channels/{}/messages", e.ch), "bob").await;
+    assert_eq!(history.as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn a_webhook_posts_into_a_thread_of_its_channel() {
+    let e = env().await;
+    let (_, wh) = e
+        .post(
+            &format!("/channels/{}/webhooks", e.ch),
+            "mod",
+            json!({"name": "Deploys"}),
+        )
+        .await;
+    let (id, token) = (wh["id"].as_str().unwrap(), wh["token"].as_str().unwrap());
+    let thread = sr_core::ChannelId::new(7_700_001);
+    let other = sr_core::ChannelId::new(7_700_002);
+    {
+        let mut d = e.backend.data();
+        for (cid, parent) in [(thread, Some(e.ch)), (other, None)] {
+            let mut c =
+                sr_chat::Channel::new(cid, Some(e.guild), sr_chat::ChannelType::PublicThread);
+            c.name = Some("t".into());
+            c.parent_id = parent;
+            c.thread = Some(sr_chat::threads::model::ThreadInfo::new(T0, 1440));
+            d.channels.insert(cid, c);
+        }
+    }
+    let exec = |q: &str| format!("/webhooks/{id}/{token}?wait=true{q}");
+
+    // A thread of the webhook's channel: the message lands there, not in the channel.
+    let (s, m) = e
+        .call(
+            Method::POST,
+            &exec(&format!("&thread_id={thread}")),
+            None,
+            Some(json!({"content": "in thread", "username": "Build Bot"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["channel_id"], thread.to_string());
+    assert_eq!(m["author"]["username"], "Build Bot");
+    assert_eq!(m["webhook_id"], id);
+
+    // A thread of some other channel, a plain channel and junk are refused.
+    for bad in [
+        other.to_string(),
+        e.ch.to_string(),
+        "x".to_owned(),
+        "0".to_owned(),
+    ] {
+        let (s, v) = e
+            .call(
+                Method::POST,
+                &exec(&format!("&thread_id={bad}")),
+                None,
+                Some(json!({"content": "no"})),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{bad}: {v}");
+    }
+    let (_, history) = e.get(&format!("/channels/{}/messages", e.ch), "bob").await;
+    assert!(
+        history.as_array().unwrap().is_empty(),
+        "nothing leaked into the parent channel"
+    );
+}

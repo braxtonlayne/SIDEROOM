@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
-import { securityHeaders } from './src/security/csp';
+import { cspOptionsFromConfig, securityHeaders } from './src/security/csp';
 import { pwaPlugin } from './vite/pwa';
 
 /** Optional comma-separated extra CSP origins for self-hosters (a separate voice host, activities). */
@@ -9,9 +9,15 @@ const list = (v: string | undefined) =>
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+// Deployment settings mirrored from config.toml (H-27): activities.enabled, server.public_url, voice.public_url.
+const fromConfig = cspOptionsFromConfig({
+  publicUrl: process.env.VITE_PUBLIC_URL,
+  activitiesEnabled: process.env.VITE_ACTIVITIES_ENABLED === 'true',
+  voicePublicUrl: process.env.VITE_VOICE_PUBLIC_URL,
+});
 const extra = {
-  extraConnect: list(process.env.SR_CSP_CONNECT),
-  extraFrame: list(process.env.SR_CSP_FRAME),
+  extraConnect: [...(fromConfig.extraConnect ?? []), ...list(process.env.SR_CSP_CONNECT)],
+  extraFrame: [...(fromConfig.extraFrame ?? []), ...list(process.env.SR_CSP_FRAME)],
   extraMedia: list(process.env.SR_CSP_MEDIA),
 };
 

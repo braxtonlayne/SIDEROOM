@@ -55,6 +55,8 @@ pub struct AccountRecord {
     pub state: AccountState,
     /// Answer to the age gate, if asked (doc 06 section 7).
     pub age_confirmed: Option<bool>,
+    /// When the age gate was answered "18 or older" (Unix seconds); `None` otherwise.
+    pub age_confirmed_at: Option<i64>,
     /// BCP 47 locale (`en-US` by default).
     pub locale: String,
     /// Public account flags (Discord `flags`; 0 for none).
@@ -219,6 +221,17 @@ pub enum InviteBlock {
     Frozen,
 }
 
+/// What `note_login_device` found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeviceSighting {
+    /// The account has no earlier device on record: this is its first sign-in.
+    First,
+    /// Seen before.
+    Known,
+    /// A device the account has not signed in from before.
+    New,
+}
+
 /// One platform invite as the issuer sees it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemberInviteRow {
@@ -285,6 +298,8 @@ pub trait AuthStore: Send + Sync {
     async fn mark_email_verified(&self, id: i64) -> StoreResult<()>;
     /// Record the age-gate answer (doc 06 section 7).
     async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()>;
+    /// Forget the age-gate answer (asked again later); `age_confirmed` and its time go back to unset.
+    async fn reset_age_confirmed(&self, id: i64) -> StoreResult<()>;
     /// Set the account's BCP 47 locale (already normalised); mails, push text and system DMs follow it.
     async fn set_locale(&self, id: i64, locale: &str) -> StoreResult<()>;
 
@@ -421,7 +436,35 @@ pub trait AuthStore: Send + Sync {
         now: i64,
     ) -> StoreResult<bool>;
 
+    // ---- new-device sign-in alerts (ENT-AUTH-015) ------------------------------
+    /// Record a sign-in from the device labelled `name` (`key` is its normalised form) and say whether the
+    /// account has seen that device before. The first device of an account is [`DeviceSighting::First`].
+    async fn note_login_device(
+        &self,
+        _account: i64,
+        _key: &str,
+        _name: &str,
+        _now: i64,
+    ) -> StoreResult<DeviceSighting> {
+        Ok(DeviceSighting::Known)
+    }
+    /// Whether the account wants a mail when a new device signs in (default true).
+    async fn login_alerts_enabled(&self, _account: i64) -> StoreResult<bool> {
+        Ok(true)
+    }
+    /// Turn new-device mails on or off.
+    async fn set_login_alerts(&self, _account: i64, _enabled: bool) -> StoreResult<()> {
+        Err(StoreError(
+            "login alerts are not supported by this store".into(),
+        ))
+    }
+
     // ---- member platform invites (G-57) ---------------------------------------
+    /// The account's remaining invite credits (ledger balance), for the
+    /// `SR_INVITE_CREDITS_UPDATE` dispatch (ENT-INV-009). `None` when the store cannot say.
+    async fn invite_credit_balance(&self, _account: i64) -> StoreResult<Option<i64>> {
+        Ok(None)
+    }
     /// The account's credits, codes and whether it may create one now.
     async fn member_invites(&self, _account: i64, _now: i64) -> StoreResult<MemberInvites> {
         Err(StoreError(

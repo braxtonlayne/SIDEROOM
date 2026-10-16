@@ -48,8 +48,14 @@ pub(crate) struct Session {
     capacity: usize,
     /// Cached age-gate answer: 0 unknown, 1 confirmed, 2 not confirmed (D-199).
     age: AtomicU8,
+    /// Cached sensitive-media settings and friends (D-230); `None` until looked up.
+    safety: Mutex<Option<Arc<SafetyView>>>,
     inner: Mutex<Inner>,
 }
+
+/// What the session`s user wants done with sensitive attachments, and who their friends are.
+/// `None` inside means nothing is filtered (bots, or no source).
+pub(crate) type SafetyView = Option<(sr_chat::social::safety::SensitiveMedia, HashSet<UserId>)>;
 
 impl Session {
     pub fn new(
@@ -69,6 +75,7 @@ impl Session {
             window,
             capacity,
             age: AtomicU8::new(0),
+            safety: Mutex::new(None),
             inner: Mutex::new(Inner {
                 seq: 0,
                 buf: VecDeque::new(),
@@ -91,6 +98,24 @@ impl Session {
     pub fn set_age_cached(&self, confirmed: bool) {
         self.age
             .store(if confirmed { 1 } else { 2 }, Ordering::Relaxed);
+    }
+
+    pub fn safety_cached(&self) -> Option<Arc<SafetyView>> {
+        self.safety
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
+    pub fn set_safety_cached(&self, v: SafetyView) -> Arc<SafetyView> {
+        let v = Arc::new(v);
+        *self.safety.lock().unwrap_or_else(|p| p.into_inner()) = Some(v.clone());
+        v
+    }
+
+    /// Forget the cached sensitive-media view (settings or relationships changed).
+    pub fn clear_safety_cache(&self) {
+        *self.safety.lock().unwrap_or_else(|p| p.into_inner()) = None;
     }
 
     /// Forget the cached age-gate answer (the account answer changed).

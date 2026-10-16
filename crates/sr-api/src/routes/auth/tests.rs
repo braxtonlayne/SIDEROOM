@@ -160,6 +160,7 @@ impl H {
             password_hash: self.hasher.hash(PW).unwrap(),
             state,
             age_confirmed: None,
+            age_confirmed_at: None,
             locale: "en-US".into(),
             flags: 0,
         });
@@ -508,6 +509,32 @@ async fn register_happy_path_consumes_invite_and_credits_ledger() {
     assert_eq!(v2.status, StatusCode::BAD_REQUEST);
 }
 
+/// ENT-INV-009: the issuer's own sessions hear `SR_INVITE_CREDITS_UPDATE` with the new balance.
+#[tokio::test]
+async fn redemption_dispatches_invite_credits_update_to_the_issuer() {
+    let h = harness();
+    let code = h.issuer_with_invite(1, 5);
+    let mut issuer =
+        sr_events::EventBus::subscribe(&*h.bus, sr_events::Topic::User(sr_core::UserId::new(1)));
+    let r = h
+        .post("/api/v1/sr/register", reg_body(&code, "sam", "sam@x.test"))
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::CREATED, "{:?}", r.body);
+    let ev = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        futures::StreamExt::next(&mut issuer),
+    )
+    .await
+    .expect("an event within 5 s")
+    .unwrap();
+    let sr_events::DomainEvent::UserScoped { name, payload, .. } = ev else {
+        panic!("expected a user-scoped event, got {ev:?}");
+    };
+    assert_eq!(name, "SR_INVITE_CREDITS_UPDATE");
+    assert_eq!(payload["credits"], 4);
+}
+
 #[tokio::test]
 async fn register_validation_errors_are_field_scoped() {
     let h = harness();
@@ -723,6 +750,120 @@ async fn login_success_and_generic_failures() {
     assert!(wrong.cookie("sr_session").is_none());
 }
 
+const UA_EDGE: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36 Edg/120.0";
+
+async fn login_from(h: &H, ua: &str) -> Resp {
+    let r = h
+        .post(
+            "/api/v1/sr/auth/login",
+            json!({"login": "alice", "password": PW}),
+        )
+        .ua(ua)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    r
+}
+
+/// Give the background mail task a moment, then list what was sent.
+async fn mails_after_a_moment(h: &H) -> Vec<OutgoingMail> {
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    h.mailer.sent()
+}
+
+/// ENT-AUTH-015: only the first sight of a device label sends the alert; the very first device does not.
+#[tokio::test]
+async fn a_sign_in_from_a_new_device_sends_one_alert() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+
+    login_from(&h, UA_FIREFOX).await;
+    assert!(
+        mails_after_a_moment(&h).await.is_empty(),
+        "the first device never alerts"
+    );
+
+    login_from(&h, UA_CHROME).await;
+    let mails = h.wait_mail(1).await;
+    assert_eq!(mails[0].to, "alice@x.test");
+    assert_eq!(mails[0].subject, "New sign-in to your SIDE ROOM account");
+    assert!(
+        mails[0].text.contains("Chrome on macOS"),
+        "{}",
+        mails[0].text
+    );
+    assert!(
+        mails[0].text.contains("2027-01-15 08:00 UTC"),
+        "{}",
+        mails[0].text
+    );
+
+    login_from(&h, UA_CHROME).await;
+    login_from(&h, UA_FIREFOX).await;
+    assert_eq!(
+        mails_after_a_moment(&h).await.len(),
+        1,
+        "known devices stay quiet"
+    );
+}
+
+#[tokio::test]
+async fn new_device_alerts_can_be_switched_off_and_need_a_verified_address() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+
+    let on = h
+        .get("/api/v1/sr/auth/login-alerts")
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(on.status, StatusCode::OK);
+    assert_eq!(on.body["enabled"], true);
+
+    let off = h
+        .call(Method::PUT, "/api/v1/sr/auth/login-alerts")
+        .json(json!({"enabled": false}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(off.status, StatusCode::NO_CONTENT);
+    let now = h
+        .get("/api/v1/sr/auth/login-alerts")
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(now.body["enabled"], false);
+
+    login_from(&h, UA_FIREFOX).await;
+    login_from(&h, UA_CHROME).await;
+    login_from(&h, UA_EDGE).await;
+    assert!(
+        mails_after_a_moment(&h).await.is_empty(),
+        "alerts are off, nothing is sent"
+    );
+
+    // Turned back on, an unverified address still gets nothing (it may not be theirs).
+    let back = h
+        .call(Method::PUT, "/api/v1/sr/auth/login-alerts")
+        .json(json!({"enabled": true}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(back.status, StatusCode::NO_CONTENT);
+    let mut unverified = h.account(1);
+    unverified.email_verified = false;
+    h.store.add_account(unverified);
+    let opera =
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 OPR/105.0";
+    login_from(&h, opera).await;
+    assert!(mails_after_a_moment(&h).await.is_empty());
+
+    // Signed out, the switch is not reachable.
+    let anon = h.get("/api/v1/sr/auth/login-alerts").send().await;
+    assert_eq!(anon.status, StatusCode::UNAUTHORIZED);
+}
+
 #[tokio::test]
 async fn login_lockout_and_recovery_over_time() {
     let h = harness();
@@ -815,6 +956,7 @@ async fn login_rehashes_outdated_parameters() {
         password_hash: old.hash(PW).unwrap(),
         state: AccountState::Active,
         age_confirmed: None,
+        age_confirmed_at: None,
         locale: "en-US".into(),
         flags: 0,
     });
@@ -886,6 +1028,15 @@ async fn enrol_totp(h: &H, session: &str) -> (TotpSecret, Vec<String>) {
         .map(|v| v.as_str().unwrap().to_owned())
         .collect();
     assert_eq!(codes.len(), 10);
+    // Turning two-factor on mails the account a security notice (ENT-AUTH-014); callers count other mails.
+    let notice = h.wait_mail(1).await;
+    assert_eq!(notice[0].subject, "Your SIDE ROOM sign-in security changed");
+    assert!(
+        notice[0]
+            .text
+            .contains("An authenticator app was added on your SIDE ROOM account")
+    );
+    h.mailer.take();
     (secret, codes)
 }
 
@@ -1412,6 +1563,7 @@ async fn resend_verification_has_a_cooldown() {
         password_hash: h.hasher.hash(PW).unwrap(),
         state: AccountState::Active,
         age_confirmed: None,
+        age_confirmed_at: None,
         locale: "en-US".into(),
         flags: 0,
     });
@@ -1468,6 +1620,61 @@ async fn age_gate_records_the_answer() {
         .send()
         .await;
     assert_eq!(h.account(1).age_confirmed, Some(false));
+}
+
+#[tokio::test]
+async fn age_confirmation_can_be_read_and_reset() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let get = || {
+        h.get("/api/v1/users/@me/age-confirmation")
+            .session(&s)
+            .send()
+    };
+    let r = get().await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    assert_eq!(r.body["confirmed_at"], Value::Null);
+    assert_eq!(r.body["method"], Value::Null);
+
+    h.post("/api/v1/sr/age-gate", json!({"over_18": true}))
+        .session(&s)
+        .send()
+        .await;
+    let r = get().await;
+    assert_eq!(r.body["method"], "self-declared");
+    assert!(
+        r.body["confirmed_at"]
+            .as_str()
+            .is_some_and(|t| t.ends_with('Z'))
+    );
+
+    // Signed-out callers are refused; resetting needs the password and then asks again.
+    assert_eq!(
+        h.get("/api/v1/users/@me/age-confirmation")
+            .send()
+            .await
+            .status,
+        StatusCode::UNAUTHORIZED
+    );
+    let reset = |pw: &str| {
+        h.call(Method::DELETE, "/api/v1/users/@me/age-confirmation")
+            .json(json!({ "current_password": pw }))
+            .session(&s)
+            .send()
+    };
+    assert_ne!(reset("wrong password").await.status, StatusCode::NO_CONTENT);
+    assert_eq!(h.account(1).age_confirmed, Some(true));
+    assert_eq!(reset(PW).await.status, StatusCode::NO_CONTENT);
+    assert_eq!(h.account(1).age_confirmed, None);
+    assert_eq!(get().await.body["confirmed_at"], Value::Null);
+
+    // A "younger" answer carries no time.
+    h.post("/api/v1/sr/age-gate", json!({"over_18": false}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(get().await.body["confirmed_at"], Value::Null);
 }
 
 #[tokio::test]

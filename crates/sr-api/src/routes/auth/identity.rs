@@ -652,7 +652,9 @@ pub async fn delete_account(
         change_username,
         change_email,
         cancel_change_email,
-        delete_account
+        delete_account,
+        super::account::get_age_confirmation,
+        super::account::reset_age_confirmation
     ),
     components(schemas(
         ChangePasswordBody,
@@ -660,7 +662,8 @@ pub async fn delete_account(
         ChangeEmailBody,
         MfaProof,
         CancelEmailChangeBody,
-        DeleteAccountBody
+        DeleteAccountBody,
+        super::account::AgeConfirmationObject
     ))
 )]
 pub struct IdentityApiDoc;

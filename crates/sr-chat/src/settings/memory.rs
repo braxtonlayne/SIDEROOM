@@ -193,6 +193,10 @@ impl ExpressionRepository for MemorySettingsRepo {
         }))
     }
 
+    async fn find_emoji(&self, id: EmojiId) -> RepoResult<Option<Emoji>> {
+        Ok(self.with(|s| s.emoji.iter().find(|e| e.id == id).cloned()))
+    }
+
     async fn insert_emoji(&self, emoji: &Emoji) -> RepoResult<()> {
         self.with(|s| s.emoji.push(emoji.clone()));
         Ok(())
@@ -1017,8 +1021,12 @@ impl ScheduledEventRepository for MemorySettingsRepo {
             s.events
                 .iter()
                 .filter(|e| match e.status {
-                    EventStatus::Scheduled => e.start_ms <= now_ms,
-                    EventStatus::Active => e.end_ms.is_some_and(|end| end <= now_ms),
+                    EventStatus::Scheduled => {
+                        e.start_ms <= now_ms
+                            || (e.entity_type != super::scheduled_events::EntityType::External
+                                && e.channel_id.is_none())
+                    }
+                    EventStatus::Active => true,
                     _ => false,
                 })
                 .cloned()

@@ -6,7 +6,7 @@
 //!   published prefix) and on Patron download cache entries;
 //! * [`sr_media::assets::MediaRepository`]: assets, admin views of jobs, tokens and workers,
 //!   playback data, retention facts;
-//! * [`sr_media::downloads::DownloadRepository`] and [`PgDownloadEntitlements`].
+//! * [`sr_media::downloads::DownloadRepository`] and [`EntitlementDownloads`].
 //!
 //! Tests: `tests/media_repo.rs` (needs `SR_TEST_DATABASE_URL`).
 
@@ -14,7 +14,7 @@ mod assets;
 mod downloads;
 mod jobs;
 
-pub use downloads::{EntitlementDownloads, PgDownloadEntitlements};
+pub use downloads::EntitlementDownloads;
 
 use sqlx::PgPool;
 use sr_media::assets::MediaError;

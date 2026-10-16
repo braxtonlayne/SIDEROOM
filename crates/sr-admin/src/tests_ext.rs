@@ -32,6 +32,7 @@ struct Notes {
     offers: Mutex<Vec<StaffOffer>>,
     notices: Mutex<Vec<String>>,
     broadcasts: Mutex<Vec<Announcement>>,
+    dms: Mutex<Vec<(i64, String)>>,
 }
 
 #[async_trait]
@@ -46,6 +47,21 @@ impl StaffNotifier for Notes {
     fn broadcast_announcement(&self, a: &Announcement) {
         self.broadcasts.lock().unwrap().push(a.clone());
     }
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.dms.lock().unwrap().push((to, text.to_owned()));
+        true
+    }
+}
+
+#[tokio::test]
+async fn system_dms_skip_accounts_that_are_not_active() {
+    let e = env();
+    assert!(e.svc.system_dm(OTHER, "hello").await);
+    // A deactivated account (the system user stands in) is not messaged.
+    assert!(!e.svc.system_dm(SYSTEM_USER_ID, "hello").await);
+    assert!(!e.svc.system_dm(999_999, "hello").await);
+    assert_eq!(*e.notes.dms.lock().unwrap(), [(OTHER, "hello".to_owned())]);
+    assert_eq!(e.svc.username_of(OTHER).await.as_deref(), Some("other"));
 }
 
 struct Env {
@@ -610,6 +626,7 @@ fn pm(id: i64, content: &str, vis: &str, deleted_at: Option<i64>) -> PrivateMess
         deleted_at_ms: deleted_at,
         attachment_count: 0,
         edits: vec![],
+        webhook: None,
     }
 }
 

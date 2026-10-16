@@ -1,0 +1,38 @@
+# Opt-in: the Activities wildcard host (XC-OPS-001, DEV-ACT). NOT part of the default Caddyfile.prod.
+#
+# Activities run in sandboxed iframes served from a separate origin per application, so a third-party
+# activity can never touch the app's cookies or storage: https://<application-id>.activities.<domain>.
+# That needs a wildcard certificate, which ACME only issues through a DNS challenge, so this block needs a
+# Caddy build that includes your DNS provider's module (for example `caddy add-package
+# github.com/caddy-dns/cloudflare`, or `xcaddy build --with github.com/caddy-dns/cloudflare`) and an API
+# token in the environment. A default install has neither, which is why it ships as a snippet.
+#
+# To enable it:
+#   1. Add DNS: *.activities.<domain> pointing at this host.
+#   2. Append this block to Caddyfile.prod (outside the {$SR_DOMAIN} block), replace the DNS provider line.
+#   3. Append `https://*.activities.<domain>` to frame-src in the app shell's Content-Security-Policy, in
+#      Caddyfile.prod and in the web build's SR_CSP_FRAME (apps/web/src/security/csp.ts keeps the two in
+#      step; docs/12 section 1).
+#
+# The activity origin gets no app credentials: it serves static files only, and may be framed by the app
+# and nothing else.
+*.activities.{$SR_DOMAIN} {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	encode zstd gzip
+
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://{$SR_DOMAIN}; frame-ancestors https://{$SR_DOMAIN}"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	handle {
+		root * {$SR_ACTIVITIES_ROOT:/srv/activities}
+		try_files {path} /index.html
+		file_server
+	}
+}

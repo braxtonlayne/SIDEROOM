@@ -2,6 +2,7 @@ import { Badge, Button, EmptyState, Modal } from '@sideroom/ui';
 import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { formatDateTime, useT } from '../../i18n';
+import { cdnUrl } from '../../store';
 import { useChannels, useCurrentUser, useGuild } from '../data';
 import { useLoungeUi } from '../store';
 import {
@@ -12,6 +13,7 @@ import {
   setInterested,
   type ScheduledEvent,
 } from './api';
+import { EventCoverField } from './EventCoverField';
 import { useGuildEvents } from './useEvents';
 import './events.css';
 
@@ -19,7 +21,16 @@ import './events.css';
  * The Events list (LNG-CHN-011): what is on and what is coming, with Interested, and for the creator
  * and people with Manage Events: Start, End, Cancel and Delete.
  */
-export function EventsDialog({ guildId, onClose }: { guildId: string; onClose: () => void }) {
+export function EventsDialog({
+  guildId,
+  eventId,
+  onClose,
+}: {
+  guildId: string;
+  /** The event a notification pointed at: scrolled to and marked. */
+  eventId?: string | undefined;
+  onClose: () => void;
+}) {
   const t = useT();
   const guild = useGuild(guildId);
   const channels = useChannels(guildId);
@@ -28,6 +39,7 @@ export function EventsDialog({ guildId, onClose }: { guildId: string; onClose: (
   const { events, error, reload } = useGuildEvents(guildId);
   const [busy, setBusy] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [coverFor, setCoverFor] = useState<string | null>(null);
   const p = guild?.permissions;
   const canCreate = !p || p.createEvents !== false || p.manageEvents === true;
 
@@ -96,7 +108,23 @@ export function EventsDialog({ guildId, onClose }: { guildId: string; onClose: (
             const manage = mine || p?.manageEvents === true;
             const live = e.status === EVENT_STATUS.active;
             return (
-              <li key={e.id} className="lng-event" data-live={live || undefined}>
+              <li
+                key={e.id}
+                className="lng-event"
+                data-live={live || undefined}
+                data-focus={e.id === eventId || undefined}
+                ref={
+                  e.id === eventId ? (el) => el?.scrollIntoView?.({ block: 'nearest' }) : undefined
+                }
+              >
+                {e.image && (
+                  <img
+                    className="lng-event-cover"
+                    src={cdnUrl('guild-events', e.id, e.image, { size: 512 }) ?? undefined}
+                    alt={t('lounge.events.coverAlt', { name: e.name })}
+                    loading="lazy"
+                  />
+                )}
                 <div className="lng-event-main">
                   <div className="lng-event-when">
                     {live ? (
@@ -127,6 +155,16 @@ export function EventsDialog({ guildId, onClose }: { guildId: string; onClose: (
                       ? t('lounge.events.interestedOn')
                       : t('lounge.events.interestedOff')}
                   </Button>
+                  {manage && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-expanded={coverFor === e.id}
+                      onClick={() => setCoverFor(coverFor === e.id ? null : e.id)}
+                    >
+                      {t('lounge.events.cover')}
+                    </Button>
+                  )}
                   {manage && e.status === EVENT_STATUS.scheduled && (
                     <Button
                       size="sm"
@@ -181,6 +219,18 @@ export function EventsDialog({ guildId, onClose }: { guildId: string; onClose: (
                     </Button>
                   )}
                 </div>
+                {manage && coverFor === e.id && (
+                  <div className="lng-event-cover-edit">
+                    <EventCoverField
+                      eventId={e.id}
+                      value={e.image ?? null}
+                      disabled={busy === e.id}
+                      onChange={(next) =>
+                        void run(e.id, () => modifyEvent(guildId, e.id, { image: next }))
+                      }
+                    />
+                  </div>
+                )}
               </li>
             );
           })}

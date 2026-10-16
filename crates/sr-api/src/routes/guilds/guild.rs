@@ -2,12 +2,12 @@
 
 use super::dto::{CreateGuildBody, GuildObject, GuildPreviewObject, ModifyGuildBody};
 use super::util::{Api, actor, ce, id};
-use crate::routes::settings::deps::{SettingsDeps, se};
+use crate::routes::settings::deps::{SettingsDeps, re, se};
 use crate::routes::{MaybeExt, media::MediaDeps};
 use crate::{AuthKind, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
-    extract::Path,
+    extract::{Path, Query},
     http::StatusCode,
     routing::{delete, get},
 };
@@ -116,11 +116,21 @@ pub(crate) fn created(bp: &GuildBlueprint) -> (StatusCode, Json<GuildObject>) {
     )
 }
 
-/// Get a guild (members only).
+/// Query of `GET /guilds/{id}`.
+#[derive(Debug, Default, serde::Deserialize)]
+pub struct GetGuildQuery {
+    pub with_counts: Option<bool>,
+}
+
+/// Get a guild (members only). With `with_counts=true` the object also carries
+/// `approximate_member_count` and, for servers of up to 1000 members, `approximate_presence_count`.
 #[utoipa::path(
     get,
     path = "/guilds/{guild_id}",
-    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    params(
+        ("guild_id" = String, Path, description = "Guild snowflake"),
+        ("with_counts" = Option<bool>, Query, description = "Add the approximate member and online counts"),
+    ),
     responses(
         (status = 200, body = GuildObject),
         (status = 403, body = ErrorBody),
@@ -131,12 +141,32 @@ pub(crate) fn created(bp: &GuildBlueprint) -> (StatusCode, Json<GuildObject>) {
 pub async fn get_guild(
     p: Principal,
     Api(api): Api,
+    MaybeExt(settings): MaybeExt<SettingsDeps>,
+    MaybeExt(messages): MaybeExt<crate::routes::messages::MessagesDeps>,
     Path(guild_id): Path<String>,
+    Query(q): Query<GetGuildQuery>,
 ) -> ApiResult<Json<GuildObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let (g, roles) = api.get_guild(user, gid).await.map_err(ce)?;
-    Ok(Json(GuildObject::new(&g, Some(&roles), None)))
+    let mut out = GuildObject::new(&g, Some(&roles), None);
+    if let Some(m) = messages {
+        out.sr_max_upload_bytes = Some(m.effective_upload_limit(user, Some(gid)).await);
+    }
+    if q.with_counts == Some(true)
+        && let Some(s) = settings
+    {
+        let members = s.chat.count_members(gid).await.map_err(re)?;
+        out.approximate_member_count = Some(members);
+        if members <= 1000
+            && let Some(p) = s.presence()
+        {
+            let page = s.chat.page_members(gid, None, 1000).await.map_err(re)?;
+            let ids: Vec<_> = page.iter().map(|m| m.user_id).collect();
+            out.approximate_presence_count = Some(p.count_online(&ids));
+        }
+    }
+    Ok(Json(out))
 }
 
 /// Modify a guild; `MANAGE_GUILD`, or the owner for `owner_id`.
@@ -163,7 +193,13 @@ pub async fn modify_guild(
 ) -> ApiResult<Json<GuildObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_GUILD,
+    )
+    .await?;
     let system_channel_id = match body.system_channel_id {
         None => None,
         Some(None) => Some(None),
@@ -286,7 +322,7 @@ pub async fn delete_guild(
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, user, gid).await?;
+    gate.require_owner(&*api, user, gid).await?;
     api.delete_guild(user, gid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
 }

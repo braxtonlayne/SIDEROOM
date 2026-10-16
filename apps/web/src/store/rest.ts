@@ -1,5 +1,6 @@
 // REST calls feeding the store (docs/05 section 4). Thin wrappers over apiFetch.
 import { apiFetch } from '../api/client';
+import { withReauth } from '../admin/reauth';
 import { cmpId } from './reducer';
 import type { Channel, Guild, Message, Role, User, UserSettingsBlob } from './types';
 export type { UserSettingsBlob };
@@ -84,16 +85,23 @@ export const postMessage = (
     retries: 0,
   });
 
+// Moderator actions on a server that requires 2FA answer 900004 until a second factor is proved (G-94, G-97).
 export const deleteMessage = (channelId: string, messageId: string) =>
-  apiFetch<void>(`/channels/${channelId}/messages/${messageId}`, {
-    method: 'DELETE',
-    retries: 0,
-  });
+  withReauth(() =>
+    apiFetch<void>(`/channels/${channelId}/messages/${messageId}`, {
+      method: 'DELETE',
+      retries: 0,
+    }),
+  );
 
 export const pinMessage = (channelId: string, messageId: string) =>
-  apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'PUT', retries: 0 });
+  withReauth(() =>
+    apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'PUT', retries: 0 }),
+  );
 export const unpinMessage = (channelId: string, messageId: string) =>
-  apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'DELETE', retries: 0 });
+  withReauth(() =>
+    apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'DELETE', retries: 0 }),
+  );
 
 const pollPath = (channelId: string, messageId: string) =>
   `/channels/${channelId}/polls/${messageId}`;
@@ -173,9 +181,10 @@ export const postTyping = (channelId: string) =>
 
 export interface Invite {
   code: string;
-  /** 0 = server invite, 1 = group DM invite (no `guild`). */
-  type?: number;
-  guild?: { id: string; name: string; icon?: string | null };
+  /** 0 = server invite, 1 = group DM invite. Switch on this, never on `guild` (D-221). */
+  type: 0 | 1;
+  /** `null` on a group DM invite. */
+  guild: { id: string; name: string; icon?: string | null } | null;
   /** Group invites carry the group's icon hash (`/cdn/channel-icons/{id}/{hash}`). */
   channel: { id: string; name?: string | null; type: number; icon?: string | null };
   inviter?: { id: string; username?: string; global_name?: string | null };

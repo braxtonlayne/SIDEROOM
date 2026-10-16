@@ -3,11 +3,12 @@
  * encodings and the local capture store. Everything the platform provides goes through `VideoDeps`, so tests
  * inject fakes and never open a real camera or screen.
  *
- * Publishing to the SFU is separate and gated by `VIDEO_PUBLISH` (protocol.ts): the SFU does not forward video
- * yet (VOX-SFU-005/006), so today a capture is a local preview that other people are not told about.
+ * Publishing to the SFU is separate and gated by `VIDEO_PUBLISH` (protocol.ts); the engine (engine.ts) puts a
+ * capture on its own lines (camera: three simulcast layers) and the controller announces it.
  */
 import { create } from 'zustand';
 import { t } from '../i18n';
+import type { VideoHint } from './protocol';
 
 /** A camera / screen profile the viewer may send (`PerkSet.video_profiles` on the server). */
 export interface VideoProfile {
@@ -287,21 +288,45 @@ function nameOf(e: unknown): string {
   return typeof n === 'string' ? n : '';
 }
 
+/** Size and frame rate a participant's source was published with (op 12 `published`). */
+export interface SourceInfo {
+  width: number;
+  height: number;
+  fps: number;
+}
+
+/** Where a tile draws a remote video, in CSS pixels; the SFU sends the smallest layer that covers it. */
+export interface TileViewport {
+  width: number;
+  height: number;
+}
+
 /**
- * Other people's video, by user id. Filled by the engine when the SFU forwards video (VOX-SFU-005/006);
- * until then it stays empty and tiles fall back to the avatar. `watching` is the set of streams the viewer
- * chose to watch ("Watch Stream").
+ * Other people's video, by user id. Filled by the engine when the SFU forwards video (VOX-SFU-005/006).
+ * `watching` is the set of streams the viewer chose to watch ("Watch Stream"). `info` and `layers` describe what
+ * is arriving (key `<user>:<source>`); `viewports` are the tile sizes the controller turns into subscription
+ * hints; `videoOff` are people whose camera the viewer turned off for themselves ("Disable Video").
  */
 interface RemoteVideoState {
   camera: Record<string, MediaStream>;
   screen: Record<string, MediaStream>;
   watching: Record<string, boolean>;
+  info: Record<string, SourceInfo>;
+  layers: Record<string, string>;
+  viewports: Record<string, TileViewport>;
+  videoOff: Record<string, boolean>;
 }
 export const useRemoteVideo = create<RemoteVideoState>()(() => ({
   camera: {},
   screen: {},
   watching: {},
+  info: {},
+  layers: {},
+  viewports: {},
+  videoOff: {},
 }));
+
+export const sourceKey = (userId: string, source: string) => `${userId}:${source}`;
 
 export function setRemoteVideo(
   userId: string,
@@ -318,4 +343,83 @@ export function setRemoteVideo(
 
 export function setWatching(userId: string, watching: boolean): void {
   useRemoteVideo.setState((s) => ({ watching: { ...s.watching, [userId]: watching } }));
+}
+
+/** Record (or forget, with `null`) what a participant's source is published as. */
+export function setRemoteInfo(userId: string, source: string, info: SourceInfo | null): void {
+  useRemoteVideo.setState((s) => {
+    const next = { ...s.info };
+    if (info) next[sourceKey(userId, source)] = info;
+    else delete next[sourceKey(userId, source)];
+    return { info: next };
+  });
+}
+
+export function setRemoteLayer(userId: string, source: string, layer: string): void {
+  useRemoteVideo.setState((s) => ({ layers: { ...s.layers, [sourceKey(userId, source)]: layer } }));
+}
+
+/** A tile reports its size (or `null` when it goes away); only rounded changes are stored. */
+export function setTileViewport(
+  userId: string,
+  source: 'camera' | 'screen',
+  vp: TileViewport | null,
+): void {
+  const key = sourceKey(userId, source);
+  const prev = useRemoteVideo.getState().viewports[key];
+  if (!vp && !prev) return;
+  if (vp && prev && prev.width === vp.width && prev.height === vp.height) return;
+  useRemoteVideo.setState((s) => {
+    const next = { ...s.viewports };
+    if (vp) next[key] = vp;
+    else delete next[key];
+    return { viewports: next };
+  });
+}
+
+/** "Disable Video" in the user menu: stop receiving this person's camera (it stays off for this call). */
+export function setVideoOff(userId: string, off: boolean): void {
+  useRemoteVideo.setState((s) => ({ videoOff: { ...s.videoOff, [userId]: off } }));
+}
+
+export const resetRemoteVideo = () =>
+  useRemoteVideo.setState({
+    camera: {},
+    screen: {},
+    watching: {},
+    info: {},
+    layers: {},
+    viewports: {},
+    videoOff: {},
+  });
+
+/**
+ * The subscription hints for what the viewer sees now: every remote camera with the size of its tile (the SFU
+ * picks the smallest simulcast layer that covers it; no tile yet means the thumbnail layer), cameras the viewer
+ * turned off, and every screen the viewer watches or stopped watching. Screens are off until named here.
+ */
+export function buildHints(
+  s: Pick<RemoteVideoState, 'camera' | 'watching' | 'viewports' | 'videoOff'>,
+): VideoHint[] {
+  const hints: VideoHint[] = [];
+  const cameras = new Set([...Object.keys(s.camera), ...Object.keys(s.videoOff)]);
+  for (const user of [...cameras].sort()) {
+    const vp = s.viewports[sourceKey(user, 'camera')];
+    hints.push({
+      user_id: user,
+      source: 'camera',
+      enabled: !s.videoOff[user],
+      ...(vp ? { viewport: vp } : {}),
+    });
+  }
+  for (const user of Object.keys(s.watching).sort()) {
+    const vp = s.viewports[sourceKey(user, 'screen')];
+    hints.push({
+      user_id: user,
+      source: 'screen',
+      enabled: !!s.watching[user],
+      ...(vp ? { viewport: vp } : {}),
+    });
+  }
+  return hints;
 }

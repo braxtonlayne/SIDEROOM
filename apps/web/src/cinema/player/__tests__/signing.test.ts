@@ -89,9 +89,16 @@ describe('loadSigningMap (CIN-PLY-010)', () => {
     const broken = vi.fn((url: string) =>
       url.includes('master') ? Promise.resolve(MASTER) : Promise.reject(new Error('offline')),
     );
-    await expect(
-      loadSigningMap('https://cdn.test/cdn/hls/9/master.m3u8?sig=N', broken),
-    ).rejects.toThrow('offline');
+    // Not `.rejects.toThrow('offline')`: under vitest 2.x that matcher throws "Cannot read properties of
+    // undefined (reading 'indexOf')" for any rejection, which looked like a flaky signing test whenever a stale
+    // vitest 2 was resolved for apps/web (see src/test/vitestVersion.test.ts). Reading the rejection ourselves
+    // works on every version and asserts more.
+    const error = await loadSigningMap('https://cdn.test/cdn/hls/9/master.m3u8?sig=N', broken).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe('offline');
   });
 
   it('stops at the playlist limit', async () => {

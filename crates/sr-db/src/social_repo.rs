@@ -10,7 +10,9 @@ use sqlx::postgres::PgRow;
 use sqlx::{PgPool, Row};
 
 use sr_chat::error::RepoError;
-use sr_chat::social::dm::{DmChannel, DmKind, DmPrivacy, GroupInvite, RequestState};
+use sr_chat::social::dm::{
+    DmChannel, DmKind, DmPrivacy, GroupInvite, RequestReason, RequestState, SharedProtection,
+};
 use sr_chat::social::notifications::{ChannelOverride, Mute, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::{CustomStatus, PresencePrefs, Status};
 use sr_chat::social::profile::{Connection, Profile};
@@ -23,8 +25,10 @@ use sr_chat::social::repo::{
     ProfileRepository, ReadStateRepository, RelationshipRepository, RepoResult,
     UserSettingsRepository,
 };
+use sr_chat::social::safety::{MediaFilter, SafetyPrefs, SensitiveMedia, SpamFilter};
 use sr_chat::social::user_settings::UserSettings;
 use sr_core::{ChannelId, GuildId, MessageId, UserId};
+use std::collections::BTreeMap;
 
 /// Postgres-backed social repository.
 #[derive(Clone)]
@@ -52,6 +56,27 @@ fn i(id: u64) -> i64 {
 }
 fn uid(v: i64) -> UserId {
     UserId::new(v as u64)
+}
+
+fn media_filter(r: &PgRow, col: &str) -> RepoResult<MediaFilter> {
+    let code: i16 = r.try_get(col).map_err(db)?;
+    MediaFilter::from_code(code).ok_or_else(|| bad(col))
+}
+
+fn overrides_from_json(v: &serde_json::Value) -> BTreeMap<u64, bool> {
+    v.as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(k, v)| Some((k.parse().ok()?, v.as_bool()?)))
+        .collect()
+}
+
+fn overrides_to_json(m: &BTreeMap<u64, bool>) -> serde_json::Value {
+    serde_json::Value::Object(
+        m.iter()
+            .map(|(k, v)| (k.to_string(), (*v).into()))
+            .collect(),
+    )
 }
 
 fn guild_key(g: Option<GuildId>) -> i64 {
@@ -298,7 +323,8 @@ impl RelationshipRepository for PgSocialRepo {
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy> {
         let row = sqlx::query(
             "SELECT fr_everyone, fr_friends_of_friends, fr_server_members, \
-                    dm_server_members, dm_message_requests \
+                    dm_server_members, dm_message_requests, media_friends, media_others, \
+                    media_servers, dm_spam_filter, server_dm_overrides \
              FROM user_privacy WHERE user_id = $1",
         )
         .bind(i(user.get()))
@@ -318,17 +344,32 @@ impl RelationshipRepository for PgSocialRepo {
                 allow_server_member_dms: r.try_get("dm_server_members").map_err(db)?,
                 message_requests: r.try_get("dm_message_requests").map_err(db)?,
             },
+            safety: SafetyPrefs {
+                sensitive_media: SensitiveMedia {
+                    friends: media_filter(&r, "media_friends")?,
+                    others: media_filter(&r, "media_others")?,
+                    servers: media_filter(&r, "media_servers")?,
+                },
+                dm_spam_filter: SpamFilter::from_code(r.try_get("dm_spam_filter").map_err(db)?)
+                    .ok_or_else(|| bad("dm_spam_filter"))?,
+                server_dm_overrides: overrides_from_json(
+                    &r.try_get::<serde_json::Value, _>("server_dm_overrides")
+                        .map_err(db)?,
+                ),
+            },
         })
     }
 
     async fn put_privacy(&self, user: UserId, p: &Privacy) -> RepoResult<()> {
         sqlx::query(
             "INSERT INTO user_privacy (user_id, fr_everyone, fr_friends_of_friends, \
-               fr_server_members, dm_server_members, dm_message_requests) \
-             VALUES ($1, $2, $3, $4, $5, $6) \
+               fr_server_members, dm_server_members, dm_message_requests, media_friends, \
+               media_others, media_servers, dm_spam_filter, server_dm_overrides) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
              ON CONFLICT (user_id) DO UPDATE SET fr_everyone = $2, fr_friends_of_friends = $3, \
                fr_server_members = $4, dm_server_members = $5, dm_message_requests = $6, \
-               updated_at = now()",
+               media_friends = $7, media_others = $8, media_servers = $9, dm_spam_filter = $10, \
+               server_dm_overrides = $11, updated_at = now()",
         )
         .bind(i(user.get()))
         .bind(p.friend_requests.everyone)
@@ -336,6 +377,11 @@ impl RelationshipRepository for PgSocialRepo {
         .bind(p.friend_requests.server_members)
         .bind(p.dms.allow_server_member_dms)
         .bind(p.dms.message_requests)
+        .bind(p.safety.sensitive_media.friends.code())
+        .bind(p.safety.sensitive_media.others.code())
+        .bind(p.safety.sensitive_media.servers.code())
+        .bind(p.safety.dm_spam_filter.code())
+        .bind(overrides_to_json(&p.safety.server_dm_overrides))
         .execute(&self.pool)
         .await
         .map_err(db)?;
@@ -692,6 +738,59 @@ impl DmRepository for PgSocialRepo {
         .await
         .map_err(db)?;
         Ok(())
+    }
+
+    async fn get_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+    ) -> RepoResult<Option<RequestReason>> {
+        let code: Option<Option<String>> = sqlx::query_scalar(
+            "SELECT request_reason FROM channel_recipients WHERE channel_id = $1 AND user_id = $2",
+        )
+        .bind(i(id.get()))
+        .bind(i(user.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        code.flatten()
+            .map(|c| RequestReason::parse(&c).ok_or_else(|| bad("request_reason")))
+            .transpose()
+    }
+
+    async fn set_request_reason(
+        &self,
+        user: UserId,
+        id: ChannelId,
+        reason: Option<RequestReason>,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE channel_recipients SET request_reason = $3 WHERE channel_id = $1 AND user_id = $2",
+        )
+        .bind(i(id.get()))
+        .bind(i(user.get()))
+        .bind(reason.map(RequestReason::as_str))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection> {
+        let (shared, filtered, explicit, days): (i64, i64, bool, i32) = sqlx::query_as(
+            "SELECT count(*), \n                    count(*) FILTER (WHERE COALESCE(c.dm_spam_filter, FALSE)), \n                    COALESCE(bool_or(c.explicit_media_filter_dms), FALSE), \n                    COALESCE(max(c.warn_new_account_days), 0) \n             FROM guild_members x \n             JOIN guild_members y ON y.guild_id = x.guild_id \n             LEFT JOIN guild_community c ON c.guild_id = x.guild_id \n             WHERE x.user_id = $1 AND y.user_id = $2",
+        )
+        .bind(i(a.get()))
+        .bind(i(b.get()))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(SharedProtection {
+            shared: usize::try_from(shared).unwrap_or(0),
+            spam_filter_all: shared > 0 && filtered == shared,
+            explicit_media_any: explicit,
+            warn_new_account_days: u32::try_from(days).unwrap_or(0),
+        })
     }
 
     async fn insert_group_invite(&self, invite: &GroupInvite) -> RepoResult<()> {
@@ -1380,6 +1479,29 @@ impl UserSettingsRepository for PgSocialRepo {
         )
         .bind(i(user.get()))
         .bind(level_code(level))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn get_notification_keywords(&self, user: UserId) -> RepoResult<Vec<String>> {
+        let v: Option<Vec<String>> = sqlx::query_scalar(
+            "SELECT notification_keywords FROM user_settings WHERE user_id = $1",
+        )
+        .bind(i(user.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(v.unwrap_or_default())
+    }
+
+    async fn put_notification_keywords(&self, user: UserId, keywords: &[String]) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO user_settings (user_id, notification_keywords) VALUES ($1, $2) \n             ON CONFLICT (user_id) DO UPDATE SET notification_keywords = $2, updated_at = now()",
+        )
+        .bind(i(user.get()))
+        .bind(keywords)
         .execute(&self.pool)
         .await
         .map_err(db)?;

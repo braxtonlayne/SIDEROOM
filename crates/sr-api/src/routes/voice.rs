@@ -48,6 +48,8 @@ pub enum VoiceError {
     StageExists,
     InvalidTopic,
     InvalidPrivacy,
+    /// A voice channel status longer than 500 characters.
+    InvalidStatus,
     /// The stream, call or preview does not exist, or is not yours to see.
     NotFound,
     NotJpeg,
@@ -178,6 +180,16 @@ pub trait VoiceBackend: Send + Sync {
         Err(VoiceError::Unavailable)
     }
 
+    /// Set (`Some`) or clear (`None` or empty) the status line of a voice or stage channel.
+    async fn voice_status_set(
+        &self,
+        _actor: UserId,
+        _channel: ChannelId,
+        _status: Option<String>,
+    ) -> Result<(), VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
     /// Raise or lower a hand, or step down from the stage (`PATCH .../voice-states/@me`).
     async fn stage_self(
         &self,
@@ -283,6 +295,11 @@ impl From<VoiceError> for HttpError {
                 "topic",
                 "BASE_TYPE_BAD_LENGTH",
                 "Must be between 1 and 120 characters.",
+            ),
+            VoiceError::InvalidStatus => ApiError::invalid_form().field(
+                "status",
+                "BASE_TYPE_BAD_LENGTH",
+                "Must be at most 500 characters.",
             ),
             VoiceError::InvalidPrivacy => ApiError::invalid_form().field(
                 "privacy_level",

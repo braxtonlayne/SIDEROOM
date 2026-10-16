@@ -9,8 +9,9 @@ use sr_auth::{
     repo::{SessionRecord, SessionRepository, TotpRecord},
     session::TokenHash,
     store::{
-        AccountRecord, AccountState, AuthStore, DeleteRefusal, DeletedAccount, InviteState,
-        PasskeyRecord, RegisterRejection, RegisterTx, Registered, StoreResult, TrustedDeviceRecord,
+        AccountRecord, AccountState, AuthStore, DeleteRefusal, DeletedAccount, DeviceSighting,
+        InviteState, PasskeyRecord, RegisterRejection, RegisterTx, Registered, StoreResult,
+        TrustedDeviceRecord,
     },
 };
 use std::{
@@ -68,6 +69,10 @@ struct Inner {
     banned_emails: HashSet<String>,
     passkeys: Vec<PasskeyRecord>,
     user_handles: HashMap<i64, Vec<u8>>,
+    /// Device keys each account has signed in from (new-device alerts).
+    devices: HashMap<i64, HashSet<String>>,
+    /// Accounts that turned new-device alerts off.
+    login_alerts_off: HashSet<i64>,
     next_row_id: i64,
 }
 
@@ -187,6 +192,50 @@ impl AuthStore for MemoryAuthStore {
         Ok(self.lock().invites.get(code.canonical()).map(|i| i.state))
     }
 
+    async fn note_login_device(
+        &self,
+        account: i64,
+        key: &str,
+        _name: &str,
+        _now: i64,
+    ) -> StoreResult<DeviceSighting> {
+        let mut g = self.lock();
+        let known = g.devices.entry(account).or_default();
+        let had_any = !known.is_empty();
+        Ok(if !known.insert(key.to_owned()) {
+            DeviceSighting::Known
+        } else if had_any {
+            DeviceSighting::New
+        } else {
+            DeviceSighting::First
+        })
+    }
+
+    async fn login_alerts_enabled(&self, account: i64) -> StoreResult<bool> {
+        Ok(!self.lock().login_alerts_off.contains(&account))
+    }
+
+    async fn set_login_alerts(&self, account: i64, enabled: bool) -> StoreResult<()> {
+        let mut g = self.lock();
+        if enabled {
+            g.login_alerts_off.remove(&account);
+        } else {
+            g.login_alerts_off.insert(account);
+        }
+        Ok(())
+    }
+
+    async fn invite_credit_balance(&self, account: i64) -> StoreResult<Option<i64>> {
+        Ok(Some(
+            self.lock()
+                .ledger
+                .iter()
+                .filter(|(a, ..)| *a == account)
+                .map(|(_, d, _)| i64::from(*d))
+                .sum(),
+        ))
+    }
+
     async fn counted_accounts(&self) -> StoreResult<u64> {
         Ok(self
             .lock()
@@ -247,6 +296,7 @@ impl AuthStore for MemoryAuthStore {
                 password_hash: tx.password_hash,
                 state: AccountState::Active,
                 age_confirmed: None,
+                age_confirmed_at: None,
                 locale: "en-US".into(),
                 flags: 0,
             },
@@ -315,9 +365,18 @@ impl AuthStore for MemoryAuthStore {
         Ok(())
     }
 
-    async fn set_age_confirmed(&self, id: i64, confirmed: bool, _now: i64) -> StoreResult<()> {
+    async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()> {
         if let Some(a) = self.lock().accounts.get_mut(&id) {
             a.age_confirmed = Some(confirmed);
+            a.age_confirmed_at = confirmed.then_some(a.age_confirmed_at.unwrap_or(now));
+        }
+        Ok(())
+    }
+
+    async fn reset_age_confirmed(&self, id: i64) -> StoreResult<()> {
+        if let Some(a) = self.lock().accounts.get_mut(&id) {
+            a.age_confirmed = None;
+            a.age_confirmed_at = None;
         }
         Ok(())
     }

@@ -53,6 +53,8 @@ export interface DmObject {
   last_message_id?: string | null;
   recipients: UserRef[];
   is_message_request?: boolean | null;
+  /** With `is_message_request`: `server_filter` or `new_account` when a shared server's Protection settings sent it here (D-224). */
+  sr_request_reason?: 'server_filter' | 'new_account' | null;
 }
 /** Open (or find) a 1:1 DM, or create a group DM when more than one id is given. */
 export const createDm = (recipientIds: string[]) =>

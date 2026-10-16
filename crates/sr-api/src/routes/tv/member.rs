@@ -61,7 +61,8 @@ pub async fn timezones(_ctx: MemberCtx) -> Json<TimezoneList> {
 #[derive(Debug, Default, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct ReminderParams {
-    /// Minutes before the start (0 to 120, default 5).
+    /// Minutes before the start (0 to 120). Absent: the caller's `tv.reminder_lead_minutes` setting,
+    /// else 5.
     pub lead_minutes: Option<i64>,
 }
 
@@ -87,6 +88,28 @@ pub async fn set_reminder(
         .await
         .map_err(map_err)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = TvReminderList)]
+pub struct ReminderList {
+    pub items: Vec<sr_tv::ReminderView>,
+}
+
+/// The caller's pending reminders, soonest first. A reminder whose programme is gone from the guide is
+/// listed with `title: null` until the next tick drops it.
+#[utoipa::path(
+    get, path = "/tv/reminders", operation_id = "tv_reminders",
+    responses((status = 200, body = ReminderList), (status = 401, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn list_reminders(ctx: MemberCtx) -> ApiResult<Json<ReminderList>> {
+    ctx.deps
+        .service
+        .list_reminders(ctx.viewer)
+        .await
+        .map(|items| Json(ReminderList { items }))
+        .map_err(map_err)
 }
 
 /// Cancel a reminder (cancelling one that is not set is fine).

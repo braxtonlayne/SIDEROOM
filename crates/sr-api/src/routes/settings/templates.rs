@@ -7,6 +7,7 @@ use super::deps::{GuildAccess, SettingsDeps, actor, id, re, se};
 use crate::routes::Ext;
 use crate::routes::guilds::dto::{UserRef, iso8601};
 use crate::routes::guilds::guild::{count_template_use, created, resolve_template};
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::guilds::util::{Api, ce};
 use crate::routes::messages::error::ApiJson;
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
@@ -291,6 +292,7 @@ pub async fn list_guild_templates(
 )]
 pub async fn create_template(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<CreateTemplateBody>,
@@ -298,6 +300,8 @@ pub async fn create_template(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, sr_core::permissions::Permissions::MANAGE_GUILD)
+        .await?;
     let snap = current_snapshot(&deps, &acc).await?;
     let t = deps
         .service
@@ -327,12 +331,15 @@ pub async fn create_template(
 )]
 pub async fn sync_template(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, code)): Path<(String, String)>,
 ) -> ApiResult<Json<TemplateObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, sr_core::permissions::Permissions::MANAGE_GUILD)
+        .await?;
     let snap = current_snapshot(&deps, &acc).await?;
     let t = deps
         .service
@@ -356,6 +363,7 @@ pub async fn sync_template(
 )]
 pub async fn modify_template(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, code)): Path<(String, String)>,
     ApiJson(body): ApiJson<ModifyTemplateBody>,
@@ -363,6 +371,8 @@ pub async fn modify_template(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, sr_core::permissions::Permissions::MANAGE_GUILD)
+        .await?;
     let t = deps
         .service
         .edit_template(
@@ -391,12 +401,15 @@ pub async fn modify_template(
 )]
 pub async fn delete_template(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, code)): Path<(String, String)>,
 ) -> ApiResult<Json<TemplateObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, sr_core::permissions::Permissions::MANAGE_GUILD)
+        .await?;
     let t = deps
         .service
         .delete_template(acc.perms, gid, &code)

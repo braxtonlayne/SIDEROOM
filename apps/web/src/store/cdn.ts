@@ -4,11 +4,12 @@
 //   cdnUrl('icons', guildId, hash, { size: 128 })   -> /cdn/icons/<guild>/<hash>.png?size=128
 //
 // `avatars` also serves user banners, `icons` also serves guild banners and splashes, `channel-icons` serves
-// group DM icons (`/cdn/channel-icons/<channel>/<hash>`).
+// group DM icons (`/cdn/channel-icons/<channel>/<hash>`) and `guild-events` serves scheduled event covers
+// (`/cdn/guild-events/<event>/<hash>`).
 // These kinds are addressed by an unguessable content hash and need no signature.
 // Animated images carry an `a_` hash prefix; they stay GIF unless a static format is asked for.
 
-export type CdnKind = 'avatars' | 'icons' | 'channel-icons';
+export type CdnKind = 'avatars' | 'icons' | 'channel-icons' | 'guild-events';
 export type CdnFormat = 'png' | 'jpg' | 'webp' | 'gif';
 
 export interface CdnUrlOptions {

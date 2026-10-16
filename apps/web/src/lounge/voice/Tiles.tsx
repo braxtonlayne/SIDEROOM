@@ -1,14 +1,19 @@
+import { useRef } from 'react';
 import { Avatar, Button, ContextMenu, Icon, Popover, Slider } from '@sideroom/ui';
 import { t, useT } from '../../i18n';
 import { voiceController } from '../../voice/controller';
 import { useVoiceSession } from '../../voice/session';
 import { useVoiceSettings, userVolumeOf } from '../../voice/settings';
-import { presetLabel, setWatching, useLocalVideo, useRemoteVideo } from '../../voice/video';
+import { streamKey, useStreams } from '../../voice/streams';
+import { presetLabel, sourceKey, useLocalVideo, useRemoteVideo } from '../../voice/video';
 import { useCurrentUser, useUsers, type VoiceMember } from '../data';
 import { QualityBars } from './QualityBars';
+import { useStreamPreview } from './useStreamPreview';
+import { useTileViewport } from './useTileViewport';
 import { useVoiceUserMenu } from './useVoiceUserMenu';
 import { VideoSurface } from './VideoSurface';
 import './voice-p10.css';
+import './voice-p13.css';
 
 export function stateLabel(p: VoiceMember, name: string, self: boolean): string {
   const bits = [
@@ -73,6 +78,8 @@ export interface TileProps {
   focused?: boolean;
   /** Click to spotlight (focus mode) or release it. */
   onToggleFocus?: (() => void) | undefined;
+  /** Extra buttons in the tile's action row (a stage's "Move to audience"). */
+  actions?: React.ReactNode;
 }
 
 /** One person: their camera when it is on, else their avatar; name, state icons, speaking ring (VOX-UI-003). */
@@ -83,6 +90,7 @@ export function ParticipantTile({
   onError,
   focused,
   onToggleFocus,
+  actions,
 }: TileProps) {
   const t = useT();
   const users = useUsers();
@@ -90,12 +98,17 @@ export function ParticipantTile({
   const quality = useVoiceSession((s) => s.quality);
   const sessionCamera = useVoiceSession((s) => s.camera);
   const localCamera = useLocalVideo((s) => s.camera);
-  const remoteCamera = useRemoteVideo((s) => s.camera[p.userId]);
+  const cameraOff = useRemoteVideo((s) => !!s.videoOff[p.userId]);
+  const remoteCamera = useRemoteVideo((s) =>
+    s.videoOff[p.userId] ? undefined : s.camera[p.userId],
+  );
   const u = users[p.userId];
   const name = u?.displayName ?? t('lounge.voiceChannel.unknown');
   const self = p.userId === me.id;
   const stream = self ? (sessionCamera ? localCamera?.stream : undefined) : remoteCamera;
   const hasVideo = !!stream;
+  const tileRef = useRef<HTMLDivElement | null>(null);
+  useTileViewport(tileRef, p.userId, 'camera', !self && !!remoteCamera);
   const menu = useVoiceUserMenu(guildId, { id: p.userId, name }, onError, channelId);
   const label = stateLabel({ ...p, video: p.video || hasVideo }, name, self);
   return (
@@ -106,6 +119,7 @@ export function ParticipantTile({
         disabled={self}
       >
         <div
+          ref={tileRef}
           className="vc-tile"
           data-speaking={p.speaking || undefined}
           data-video={hasVideo || undefined}
@@ -146,8 +160,11 @@ export function ParticipantTile({
                 }
               />
             )}
-            {p.video && !hasVideo && (
+            {p.video && !hasVideo && !cameraOff && (
               <Icon name="video" size={16} label={t('lounge.voiceChannel.cameraOn')} />
+            )}
+            {cameraOff && (
+              <Icon name="video-off" size={16} label={t('lounge.voiceChannel.videoDisabled')} />
             )}
           </div>
           {self && (
@@ -172,6 +189,7 @@ export function ParticipantTile({
               </button>
             )}
             {!self && <VolumeControl userId={p.userId} name={name} />}
+            {actions}
           </div>
         </div>
       </ContextMenu>
@@ -185,10 +203,14 @@ export function ParticipantTile({
  * full screen, quality info).
  */
 export function StreamTile({
+  guildId,
+  channelId,
   userId,
   name,
   onError,
 }: {
+  guildId: string;
+  channelId: string;
   userId: string;
   name: string;
   onError?: (m: string) => void;
@@ -200,6 +222,14 @@ export function StreamTile({
   const sessionScreen = useVoiceSession((s) => s.screen);
   const remote = useRemoteVideo((s) => s.screen[userId]);
   const watching = useRemoteVideo((s) => !!s.watching[userId]);
+  const published = useRemoteVideo((s) => s.info[sourceKey(userId, 'screen')]);
+  const layer = useRemoteVideo((s) => s.layers[sourceKey(userId, 'screen')]);
+  const volume = useVoiceSettings((s) => userVolumeOf(s.settings, userId));
+  const audience = useStreams((s) => s.byOwner[userId]);
+  const key = streamKey(guildId, channelId, userId);
+  const tileRef = useRef<HTMLDivElement | null>(null);
+  useTileViewport(tileRef, userId, 'screen', !self && watching);
+  const preview = useStreamPreview(key, !self && !watching);
   const stream = self
     ? sessionScreen
       ? localScreen?.stream
@@ -207,7 +237,13 @@ export function StreamTile({
     : watching
       ? remote
       : undefined;
-  const info = self && localScreen ? presetLabel(localScreen.preset) : null;
+  const info =
+    self && localScreen
+      ? presetLabel(localScreen.preset)
+      : published && published.height
+        ? `${published.height}p ${published.fps} fps${layer ? ` (${layer})` : ''}`
+        : null;
+  const viewerCount = audience?.viewerIds.length ?? 0;
   const fullscreen = (el: HTMLElement | null) => {
     if (!el?.requestFullscreen) return onError?.(t('lounge.voiceStream.noFullscreen'));
     void el.requestFullscreen().catch(() => onError?.(t('lounge.voiceStream.noFullscreen')));
@@ -215,24 +251,39 @@ export function StreamTile({
   return (
     <li className="vc-tile-item vc-stream-item">
       <div
+        ref={tileRef}
         className="vc-tile vc-stream"
         data-testid={`stream-tile-${userId}`}
         role="group"
         aria-label={self ? t('lounge.voiceStream.yours') : t('lounge.voiceStream.of', { name })}
       >
         <span className="vc-live-badge">{t('lounge.voiceStream.live')}</span>
+        {(self || watching) && audience && (
+          <span className="vc-viewer-count" data-testid={`stream-viewers-${userId}`}>
+            <Icon name="users" size={16} />
+            {t('lounge.voiceStream.viewers', { n: viewerCount })}
+          </span>
+        )}
         {stream ? (
           <VideoSurface
             stream={stream}
             muted={self}
+            volume={self ? undefined : Math.min(1, volume / 100)}
             label={self ? t('lounge.voiceStream.yours') : t('lounge.voiceStream.of', { name })}
           />
         ) : (
-          <div className="vc-stream-idle">
+          <div className="vc-stream-idle" data-preview={preview ? 'true' : undefined}>
+            {preview && (
+              <img
+                className="vc-stream-preview"
+                src={preview}
+                alt={t('lounge.voiceStream.previewOf', { name })}
+              />
+            )}
             <Icon name="screen-share" size={24} />
             <span>{t('lounge.voiceStream.of', { name })}</span>
             {!self && (
-              <Button size="sm" onClick={() => setWatching(userId, true)}>
+              <Button size="sm" onClick={() => voiceController().watchStream(userId)}>
                 {t('lounge.voiceStream.watch')}
               </Button>
             )}
@@ -257,7 +308,11 @@ export function StreamTile({
             <>
               {watching && <VolumeControl userId={userId} name={name} />}
               {watching && (
-                <Button size="sm" variant="secondary" onClick={() => setWatching(userId, false)}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => voiceController().unwatchStream(userId)}
+                >
                   {t('lounge.voiceStream.stopWatching')}
                 </Button>
               )}

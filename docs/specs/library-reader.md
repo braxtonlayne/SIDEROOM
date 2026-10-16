@@ -146,10 +146,34 @@ Objects of replaced pages, deleted chapters, editions and series, replaced cover
 in the same transaction as the change (`reading_gc_keys`); the recurring job `library.gc` (hourly) deletes each one once no
 page, cover or source references it, and expires abandoned upload slots (and their objects) after 24 hours.
 
-### 6.6 Gaps
+### 6.6 Phase 13 additions
+
+| Route | Meaning |
+|---|---|
+| `GET /library/rankings?scope=global|friends|known` | Scoped rankings (G-96, D-190): only members who share their reading (`activity_shares(uid, 'library')`), age-restricted series left out for members who hide them, a floor of one reader; the global aggregate is unchanged. Scoped `all` counts distinct readers over all time. |
+| `GET|POST /library/series/{id}/comments`, `GET|POST /library/chapters/{id}/comments` | Comments on a series or a chapter (LIB-SOC-003, LIB-RDR-014): newest first, keyset `before`, `total` counts comments and replies. `POST` takes `{body, spoiler?, parent_id?}`; replies are one level deep and stay on the same target. |
+| `GET /library/comments/{id}/replies`, `PATCH|DELETE /library/comments/{id}`, `PUT|DELETE /library/comments/{id}/like`, `POST /library/comments/{id}/report` | Replies oldest first; edit and delete are the author's; one like and one report per member. Blocked and ignored authors are left out of listings. |
+| `GET /admin/library/comment-reports`, `POST /admin/library/comment-reports/{id}/resolve` | Curators (`REVIEW_READING`): `{hide: true}` hides the comment and actions every open report on it, `false` dismisses. Logged. |
+| `GET /library/me/downloads`, `POST /library/chapters/{id}/download` | Patron downloads (LIB-RDR-016, D-075). The allowance is the Patron perk's `downloads_per_day` over a rolling 24 hours; non-Patrons get 403, a used-up allowance 429. An image chapter is exported as a CBZ of the converted pages (built on demand, cached under `library/exports/{chapter}/{fingerprint}.cbz`, at most 600 pages and 200 MiB), a PDF or EPUB chapter returns its kept original. The answer is `{format, filename, url, size_bytes, expires_at}` with a signed link. |
+| `PUT /library/chapters/{id}/presence`, `DELETE /library/me/presence`, `GET /library/friends/reading` | "Reading" presence (LIB-RDR-017): the reader sends a heartbeat on opening a chapter and about every 30 seconds; it lapses after 90 seconds. See doc 05 for `SR_ACTIVITY_UPDATE`. |
+| `GET /library/me/notifications`, `POST /library/me/notifications/seen` | The bell's unread count (capped at 99): new chapters of followed series (bell on) after the later of the follow and the last time the bell was opened. |
+| `GET /library/series/{id}/related`, `GET /library/recommendations`, `GET /library/series/{id}/contributors` | Related series (genre and tag overlap weighted 3, plus co-readers among the people you know, capped at 10; LIB-SOC-005), up to three "Because you read X" rows, and the credited members and release groups of a series (credits that were not revoked; members who hide their contributions are left out). |
+| `GET /library/series?sort=rating&rating_min=N` | Browse by average rating and with a minimum average (1 to 10). |
+
+New chapters also reach followers as **Web Push** (title: series, body: "Chapter N is out", collapse key per series), sent by the push consumer on the `chapter_published` `SR_LIBRARY_UPDATE` event and suppressed while any session of the member is active (D-191). The Lounge feed module (FTR-LIBF-001) already posts them into a channel.
+
+Before a CBZ is uploaded the browser reads its table of contents in WebAssembly (`sr-library-wasm`, built on `sr-library-rules`, the same rules the server's archive reader applies) and decodes the first and last page, so a refusal the server would give comes before the upload. 7z and RAR are checked for container and size only.
+
+The reader keeps the current and the next chapter in the browser's Cache Storage for offline reading (LIB-RDR-015; a setting in the reader panel, default on). It is a cache and not a download; the service worker still never touches `/cdn`.
+
+### 6.7 Gaps
 
 * Member submissions (LIB-ING-008) are in place: the kinds `library.series` and `library.items` (submissions-and-review spec
   section 9) let a member build a draft and upload through the same presigned-PUT and `library.ingest` path under
   `/submissions/{id}/library/*`; a curator publishes by approving. Staff can still publish directly through the routes above.
 * Volume bundles (one archive holding several chapters) are not split automatically; upload one archive per chapter.
-* PDF pages are not rasterized (owner decision pending, open-questions).
+* PDF pages are not rasterized on the server: the browser reads the original with pdf.js (D-217).
+
+### 6.7 Phase 13 rules
+- **EPUB (D-225).** `foliate-js` is the EPUB engine (approved `apps/web` dependency, pinned, lazy chunk under the library budget). The server only validates EPUBs with the `epub` crate and serves the kept file. Progress for a book is the EPUB CFI (`cfi`) stored beside the page index on the chapter-progress route.
+- **Share to Lounge (D-226).** Sharing a series posts the `<library:id>` rich card as an ordinary message sent from the person's own session (optional comment; channel picker limited to channels where they hold `SEND_MESSAGES` and `USE_LIBRARY_EMBEDS`, DMs and groups included). "Copy link" stays as a second item. No poster port, no system user.

@@ -76,6 +76,16 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::VerifyAccessLog => verify_access_log(&pool, ids).await?,
         Command::RotateSecretKey => rotate_secret_key(&pool, &cfg, ids).await?,
         Command::Seed { password, force } => seed(&pool, &cfg, ids, &password, force).await?,
+        Command::Backup { dir } => {
+            crate::ops::backup(&cfg, &pool, &dir, now_ms()).await?;
+        }
+        Command::Restore { file, force } => crate::ops::restore(&cfg, &pool, &file, force).await?,
+        Command::Reindex => crate::ops::reindex(&pool, (ids)()).await?,
+        Command::Upgrade {
+            dry_run,
+            no_backup,
+            backup_dir,
+        } => crate::ops::upgrade(&cfg, &pool, &backup_dir, no_backup, dry_run, now_ms()).await?,
         // Handled before the database connection above.
         Command::Storage(_) | Command::Package(_) => {}
     }

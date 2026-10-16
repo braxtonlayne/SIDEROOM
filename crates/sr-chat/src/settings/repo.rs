@@ -56,6 +56,8 @@ pub trait AuditRepository: Send + Sync {
 pub trait ExpressionRepository: Send + Sync {
     async fn list_emoji(&self, guild: GuildId) -> RepoResult<Vec<Emoji>>;
     async fn get_emoji(&self, guild: GuildId, id: EmojiId) -> RepoResult<Option<Emoji>>;
+    /// An emoji by id alone, whichever server owns it (the emoji popout for non-members).
+    async fn find_emoji(&self, id: EmojiId) -> RepoResult<Option<Emoji>>;
     async fn insert_emoji(&self, emoji: &Emoji) -> RepoResult<()>;
     async fn update_emoji(&self, emoji: &Emoji) -> RepoResult<()>;
     async fn delete_emoji(&self, guild: GuildId, id: EmojiId) -> RepoResult<bool>;
@@ -202,8 +204,9 @@ pub trait ScheduledEventRepository: Send + Sync {
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<UserId>>;
-    /// Open events of every guild whose time has come at `now_ms`: scheduled with a start
-    /// time reached, or active with an end time reached.
+    /// Events the clock may have something to do with at `now_ms`, across all guilds: every
+    /// running event, scheduled ones whose start time has come, and open voice or stage events
+    /// whose channel is gone.
     async fn due_events(&self, now_ms: i64) -> RepoResult<Vec<ScheduledEvent>>;
 }
 

@@ -10,7 +10,7 @@ Synchronized playback of Cinema content (VOD or a Live TV channel) for a group, 
 |---|---|
 | Title page → **Watch together** | Choose: a Lounge text/voice channel you can post in, a DM/group DM, or "Private party" (shareable link to friends) |
 | Lounge voice channel → **Start Watch Party** (call bar button) | Party bound to that voice channel. Voice continues as normal (E2EE call) |
-| **Watch party room** preset (create-channel dialog, D-208) | There is no channel type of its own: `POST /guilds/{id}/channels {type: 2, sr_watch_party_room: true, sr_watch_party_title_id, sr_watch_party_episode_id?}` creates the voice channel and a persistent party bound to it in one request (the new channel is removed again when the party cannot start). The creator is not left in the party; the first person to join the empty room becomes host |
+| **Watch party room** preset (create-channel dialog, D-208) | There is no channel type of its own: `POST /guilds/{id}/channels {type: 2, sr_watch_party_room: true, sr_watch_party_title_id?, sr_watch_party_episode_id?}` (the title is optional since D-227: without one the room starts empty, `media: null`) creates the voice channel and a persistent party bound to it in one request (the new channel is removed again when the party cannot start). The creator is not left in the party; the first person to join the empty room becomes host |
 | Lounge message `<cinema:…>` card → **Watch together** | Starts a party in that channel |
 | Live TV → **Watch together** (guide now panel, live player) | Party on a live channel: `POST /watch-parties {tv_channel_id}` (instead of `title_id`). The media has `live: true`, `title_id` and `asset_id` carry the TV channel id, there is no duration, nobody seeks or pauses, and every participant tunes the channel themselves (`GET /tv/channels/{id}/tune`, age check included). `PUT /watch-parties/{id}/media {tv_channel_id}` switches a party to a channel; a live channel cannot be queued. `sr-tv` answers the `PlayGate::resolve_live` check |
 
@@ -101,3 +101,7 @@ Events are hints for latency; the heartbeat answer and `GET /watch-parties/{id}`
 
 ### 7.4 Not in this build
 A dedicated "Watch Party" channel *type* (D-208: the "Watch party room" preset covers it) and the live-updating chat card (the `ChatHook` port exists; no chat message type for it yet). Concurrent parties per server follow the server level (2, 4, 8, 16 for Level 0 to 3, `sr_server::watchparty::EntitlementLimits` over `Entitlements`, refreshed on `SR_ENTITLEMENT_UPDATE`).
+
+### 7.5 Phase 13 rules
+- **Empty rooms (D-227).** A persistent party bound to a voice channel may have `media: null` and state `idle`. The room preset does not ask for a title; the first person to join an idle room hosts and picks the media, and the play gate, limits and age rule run at that moment. Ad-hoc parties still need media at creation.
+- **Live party media (P12-TVW-3).** Live TV media is identified by `title_id` with `live: true` and is gated at tune time (the channel's own access rules), not at party creation.

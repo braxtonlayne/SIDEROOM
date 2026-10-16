@@ -3,7 +3,7 @@
 //! visibility rules, the access log trail and `SR_SUBMISSION_UPDATE`. The Postgres behaviour
 //! and the Library kinds are covered by `sr-db/tests/review_repo.rs`.
 
-use super::{ReviewDeps, router};
+use super::{LookupDeps, ReviewDeps, router};
 use crate::{
     ApiSettings, AppState,
     auth::{
@@ -28,7 +28,7 @@ use sr_auth::{
 };
 use sr_core::{PlatformPermissions as P, SystemClock};
 use sr_review::memory::MemoryReviewRepo;
-use sr_review::model::{Submission, SubmissionItem};
+use sr_review::model::{DuplicateMatch, MediaRef, Submission, SubmissionItem};
 use sr_review::repo::NewItem;
 use sr_review::{
     KindDraft, KindRegistry, ReviewError, ReviewEvents, ReviewResult, ReviewService, SubmissionKind,
@@ -95,6 +95,65 @@ impl SubmissionKind for StubKind {
     }
     async fn publish(&self, _: &Submission, _: &[SubmissionItem]) -> ReviewResult<()> {
         Ok(())
+    }
+    async fn media(&self, _: &Submission) -> ReviewResult<Vec<MediaRef>> {
+        Ok(vec![MediaRef {
+            ref_id: 1,
+            label: "Episode 1".into(),
+            asset_id: Some(5),
+        }])
+    }
+    async fn duplicates(&self, s: &Submission) -> ReviewResult<Vec<DuplicateMatch>> {
+        Ok(if s.title.starts_with("Dup") {
+            vec![DuplicateMatch {
+                section: "library".into(),
+                ref_id: 42,
+                title: "Existing".into(),
+                year: Some(1999),
+                score: 90,
+                reasons: vec!["title".into()],
+                href: Some("/library/series/42".into()),
+            }]
+        } else {
+            vec![]
+        })
+    }
+}
+
+struct FixedLookup;
+
+#[async_trait]
+impl super::LookupProvider for FixedLookup {
+    fn id(&self) -> &'static str {
+        "fixed"
+    }
+    fn label(&self) -> &'static str {
+        "Fixed"
+    }
+    fn serves(&self, s: super::Section) -> bool {
+        s == super::Section::Library
+    }
+    async fn search(
+        &self,
+        _: super::Section,
+        q: &str,
+        _: Option<i32>,
+    ) -> Result<Vec<super::RawCandidate>, super::LookupError> {
+        Ok(vec![super::RawCandidate {
+            external_id: "1".into(),
+            title: q.to_owned(),
+            year: Some(2001),
+            ..Default::default()
+        }])
+    }
+}
+
+struct LookupOn;
+
+#[async_trait]
+impl super::LookupSwitch for LookupOn {
+    async fn enabled(&self) -> bool {
+        true
     }
 }
 
@@ -199,6 +258,11 @@ async fn env() -> Env {
         .bots(bots)
         .extension(Arc::new(AdminDeps::new(svc)))
         .extension(Arc::new(ReviewDeps::new(review)))
+        .extension(Arc::new(LookupDeps::new(
+            vec![Arc::new(FixedLookup)],
+            Arc::new(LookupOn),
+            None,
+        )))
         .build();
     Env {
         app: build_router(state, router()),
@@ -280,6 +344,9 @@ fn member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
             Some(json!({ "section": "cinema", "names": ["a.mkv"] })),
         ),
         (Method::GET, "/submissions/7/credits", None),
+        (Method::GET, "/submissions/7/duplicates", None),
+        (Method::GET, "/submissions/lookup/providers", None),
+        (Method::GET, "/submissions/lookup?provider=fixed&q=ab", None),
         (Method::GET, "/submissions", None),
         (
             Method::POST,
@@ -329,6 +396,13 @@ fn reviewer_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         (Method::GET, "/admin/review/submissions/7", None),
         (Method::GET, "/admin/review/submissions/7/preview", None),
         (Method::GET, "/admin/review/submissions/7/credits", None),
+        (Method::GET, "/admin/review/submissions/7/media", None),
+        (Method::GET, "/admin/review/submissions/7/duplicates", None),
+        (
+            Method::PUT,
+            "/admin/review/submissions/7/duplicate",
+            Some(json!({ "action": "not_duplicate" })),
+        ),
         (
             Method::POST,
             "/admin/review/submissions/7/revoke-credits",
@@ -883,6 +957,9 @@ fn openapi_lists_the_review_paths() {
         "/submissions/quota",
         "/submissions/naming/parse",
         "/submissions/{submission_id}/credits",
+        "/submissions/{submission_id}/duplicates",
+        "/admin/review/submissions/{submission_id}/duplicates",
+        "/admin/review/submissions/{submission_id}/duplicate",
         "/admin/review/submissions/{submission_id}/credits",
         "/admin/review/submissions/{submission_id}/revoke-credits",
         "/admin/review/submissions/{submission_id}/approve",
@@ -946,4 +1023,188 @@ async fn the_naming_tester_parses_both_sections() {
         )
         .await;
     assert_eq!(st, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn duplicates_are_listed_and_resolved_over_http() {
+    let e = env().await;
+    let id = e.create(MEMBER, "Dup Series").await;
+    let (st, mine) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            &format!("/submissions/{id}/duplicates"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{mine}");
+    assert_eq!(mine["matches"][0]["ref_id"], "42");
+    assert!(mine["resolution"].is_null());
+    // A stranger does not see the submission.
+    let (st, _) = e
+        .call(
+            Some(OTHER),
+            Method::GET,
+            &format!("/submissions/{id}/duplicates"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            &format!("/submissions/{id}/submit"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    let panel = format!("/admin/review/submissions/{id}/duplicates");
+    let resolve = format!("/admin/review/submissions/{id}/duplicate");
+    let merge = json!({ "action": "merge", "target": "42", "note": "same series" });
+    // Resolving needs the claim.
+    let (st, _) = e
+        .call(Some(REVIEWER), Method::PUT, &resolve, Some(merge.clone()))
+        .await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    let (st, _) = e
+        .call(
+            Some(REVIEWER),
+            Method::POST,
+            &format!("/admin/review/submissions/{id}/claim"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let (st, b) = e
+        .call(Some(REVIEWER), Method::PUT, &resolve, Some(merge))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["resolution"]["action"], "merge");
+    assert_eq!(b["resolution"]["target"], "42");
+    let (st, b) = e.call(Some(REVIEWER), Method::GET, &panel, None).await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(b["resolution"]["target"], "42");
+    // The submitter's view hides the resolution.
+    let (_, mine) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            &format!("/submissions/{id}/duplicates"),
+            None,
+        )
+        .await;
+    assert!(mine["resolution"].is_null());
+    let (st, _) = e
+        .call(
+            Some(REVIEWER),
+            Method::PUT,
+            &resolve,
+            Some(json!({ "action": "replacement", "target": "7" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn metadata_lookup_lists_providers_and_validates_queries() {
+    let e = env().await;
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup/providers",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["enabled"], true);
+    assert_eq!(b["providers"][0]["id"], "fixed");
+    // Cinema has no provider in this setup.
+    let (_, b) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup/providers?section=cinema",
+            None,
+        )
+        .await;
+    assert_eq!(b["enabled"], false);
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup/providers?section=nope",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup?provider=fixed&q=Blue%20Hour",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["candidates"][0]["title"], "Blue Hour");
+    assert_eq!(b["candidates"][0]["year"], 2001);
+    assert_eq!(b["candidates"][0]["cover"], "");
+    // Too short, and an unknown provider.
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup?provider=fixed&q=x",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/submissions/lookup?provider=tmdb&q=Akira",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    // A session is required.
+    let (st, _) = e
+        .call(
+            None,
+            Method::GET,
+            "/submissions/lookup?provider=fixed&q=Akira",
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn the_media_list_names_each_video_and_says_when_there_is_no_proxy() {
+    let e = env().await;
+    let id = e.create(MEMBER, "Film").await;
+    e.call(
+        Some(MEMBER),
+        Method::POST,
+        &format!("/submissions/{id}/submit"),
+        None,
+    )
+    .await;
+    let path = format!("/admin/review/submissions/{id}/media");
+    let (st, b) = e.call(Some(REVIEWER), Method::GET, &path, None).await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["items"][0]["label"], "Episode 1");
+    assert_eq!(
+        b["items"][0]["state"], "none",
+        "no media service in this setup"
+    );
+    assert!(b["items"][0]["url"].is_null());
+    // Members cannot read it.
+    let (st, _) = e.call(Some(MEMBER), Method::GET, &path, None).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
 }

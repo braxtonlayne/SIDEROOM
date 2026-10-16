@@ -41,6 +41,8 @@ export interface StoreData {
   typing: Record<string, TypingEntry[]>;
   /** The synced per-user settings blob (D-179); null until loaded or pushed over the gateway. */
   userSettings: UserSettingsBlob | null;
+  /** Highlight words (`/users/@me/notification-keywords`); null until fetched. */
+  notificationKeywords: string[] | null;
   /**
    * Message-request DMs (`is_message_request`) from READY and CHANNEL_CREATE: kept out of `channels` until
    * accepted; the social store seeds the Message Requests page from here.
@@ -69,6 +71,7 @@ export const emptyData = (): StoreData => ({
   presences: {},
   typing: {},
   userSettings: null,
+  notificationKeywords: null,
   messageRequestDms: [],
   voiceStates: {},
   voiceServer: null,
@@ -534,6 +537,12 @@ export function reduceDispatch(
       if (!settings || typeof settings !== 'object') return {};
       if (s.userSettings && s.userSettings.version > version) return {};
       return { userSettings: { version, settings } };
+    }
+    case 'SR_NOTIFICATION_KEYWORDS_UPDATE': {
+      const list = Array.isArray(d.keywords)
+        ? d.keywords.filter((k): k is string => typeof k === 'string')
+        : [];
+      return { notificationKeywords: list };
     }
     case 'USER_UPDATE':
       return { users: addUser(s.users, d) };

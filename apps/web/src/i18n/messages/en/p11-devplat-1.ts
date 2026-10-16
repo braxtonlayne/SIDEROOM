@@ -7,8 +7,6 @@ export default {
   'lounge.apps.form.subcommand': 'Subcommand',
   'lounge.apps.form.pick': 'Pick one',
   'lounge.apps.form.pickSubcommand': 'Pick a subcommand to continue.',
-  'lounge.apps.form.attachmentUnsupported':
-    'The file option "{name}" is not supported yet, so this command cannot send files from here.',
   'lounge.apps.form.errRequired': 'This field is required.',
   'lounge.apps.form.errNumber': 'Enter a number.',
   'lounge.apps.form.errInteger': 'Enter a whole number.',

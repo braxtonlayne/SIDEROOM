@@ -121,8 +121,10 @@ pub(super) struct Env {
     pub(super) bus: Arc<InProcessBus>,
     pub(super) tokens: HashMap<i64, String>,
     pub(super) dms: Arc<DmLog>,
+    pub(super) storage: Arc<ObjectStoreStorage>,
     pub(super) guild: GuildId,
     pub(super) ch: ChannelId,
+    pub(super) auth: Option<Arc<crate::routes::auth::memory::MemoryAuthStore>>,
 }
 
 pub(super) fn summary(id: i64, name: &str, bot: bool) -> UserSummary {
@@ -144,6 +146,16 @@ pub(super) async fn env_with(enforce: bool) -> Env {
 pub(super) async fn env_full(
     enforce: bool,
     endpoint: Option<Arc<dyn super::EndpointClient>>,
+) -> Env {
+    env_build(enforce, endpoint, false).await
+}
+
+/// [`env_full`], optionally with an `AuthService` over an in-memory store (accounts for every user),
+/// so second-factor state can be set up (G-94 gate tests).
+pub(super) async fn env_build(
+    enforce: bool,
+    endpoint: Option<Arc<dyn super::EndpointClient>>,
+    with_auth: bool,
 ) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
@@ -263,7 +275,7 @@ pub(super) async fn env_full(
     let messages = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
-        storage,
+        storage.clone(),
         bus.clone(),
         Arc::new(FixedEntitlements(30 * 1024 * 1024)),
         Arc::new(backend.clone()),
@@ -278,16 +290,57 @@ pub(super) async fn env_full(
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
     settings.enforce_credential_policy = enforce;
-    let state = AppState::builder()
-        .sessions(sessions)
+    let mut builder = AppState::builder()
+        .sessions(sessions.clone())
         .bots(auth.clone())
         .bearers(auth)
-        .clock(dyn_clock)
+        .clock(dyn_clock.clone())
         .settings(settings)
         .extension(Arc::new(dev))
         .extension(Arc::new(messages))
-        .extension(Arc::new(AdminDeps::new(admin)))
-        .build();
+        .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
+            storage.clone(),
+            sr_storage::cdn::CdnSigner::new(b"app-media-test-secret-0123456789".to_vec()),
+        )))
+        .extension(Arc::new(AdminDeps::new(admin)));
+    let mut auth_store = None;
+    if with_auth {
+        use crate::routes::auth::{AccountRecord, AccountState as AuthState, AuthService};
+        let store = Arc::new(crate::routes::auth::memory::MemoryAuthStore::new(
+            sessions.clone(),
+        ));
+        for (id, name) in [
+            (OWNER, "owner"),
+            (BOB, "bob"),
+            (CAROL, "carol"),
+            (STAFF, "staff"),
+        ] {
+            store.add_account(AccountRecord {
+                id,
+                person_id: id,
+                username: name.to_owned(),
+                display_name: None,
+                email: format!("{name}@x.test"),
+                email_verified: true,
+                password_hash: "unused".into(),
+                state: AuthState::Active,
+                age_confirmed: None,
+                age_confirmed_at: None,
+                locale: "en-US".into(),
+                flags: 0,
+            });
+        }
+        let next = Arc::new(AtomicI64::new(50_000));
+        let svc = AuthService::new(
+            store.clone(),
+            Arc::new(crate::routes::auth::mail::MemoryMailer::new()),
+            Arc::new(move || next.fetch_add(1, Ordering::SeqCst)),
+        );
+        builder = builder.extension(Arc::new(svc));
+        auth_store = Some(store);
+    }
+    let state = builder.build();
+
     // Stands in for the settings module's `POST /webhooks/{id}/{token}`, which asks the
     // developer module first.
     let followups = Router::new().route(
@@ -309,8 +362,10 @@ pub(super) async fn env_full(
         bus,
         tokens,
         dms,
+        storage,
         guild,
         ch,
+        auth: auth_store,
     }
 }
 

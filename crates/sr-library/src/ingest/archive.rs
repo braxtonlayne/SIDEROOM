@@ -34,7 +34,7 @@ use unrar::{
 };
 use zip::ZipArchive;
 
-use super::{IngestError, natural_cmp};
+use super::IngestError;
 
 /// Budgets for one archive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,8 +75,7 @@ impl Default for ArchiveLimits {
     }
 }
 
-/// Metadata files inside an archive are small; anything bigger is not metadata.
-pub const MAX_METADATA_BYTES: u64 = 1024 * 1024;
+pub use sr_library_rules::MAX_METADATA_BYTES;
 
 /// Largest LZMA/LZMA2 dictionary or PPMd model a 7z coder may ask for. The decoder
 /// allocates it up front, so a header can otherwise demand gigabytes.
@@ -85,9 +84,6 @@ pub const MAX_7Z_CODER_MEMORY: u64 = 512 * 1024 * 1024;
 /// Solid 7z blocks up to this unpacked size are decoded once and their pages cached, so
 /// reading pages in any order stays linear. Larger blocks are re-decoded per page.
 const SOLID_CACHE_BYTES: u64 = 128 * 1024 * 1024;
-
-const IMAGE_EXTS: [&str; 5] = ["jpg", "jpeg", "png", "webp", "gif"];
-const AVIF_EXTS: [&str; 2] = ["avif", "avifs"];
 
 /// The archive container formats this reader understands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,35 +108,11 @@ impl ArchiveFormat {
     }
 }
 
-/// A page (or metadata file) inside the archive.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Entry {
-    index: usize,
-    /// Normalised name: `/` separators, no leading `./`.
-    pub name: String,
-    /// Declared uncompressed size.
-    pub size: u64,
-}
-
-/// What every format reports about one entry before anything is inflated.
-struct Raw {
-    index: usize,
-    name: String,
-    is_dir: bool,
-    encrypted: bool,
-    symlink: bool,
-    size: u64,
-    /// Compressed size when the format records it per entry.
-    packed: Option<u64>,
-}
-
-/// The classified listing, identical for all formats.
-struct Index {
-    pages: Vec<Entry>,
-    comic_info: Option<Entry>,
-    series_json: Option<Entry>,
-    skipped: Vec<String>,
-}
+pub use sr_library_rules::Entry;
+// What every format reports about one entry before anything is inflated.
+use sr_library_rules::Raw;
+// The classified listing, identical for all formats.
+type Index = sr_library_rules::Classified;
 
 /// Per-archive state shared by the variants.
 struct Core {
@@ -179,148 +151,29 @@ pub struct RarReader {
     core: Core,
 }
 
-fn is_junk(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    let base = lower.rsplit('/').next().unwrap_or(&lower);
-    lower
-        .split('/')
-        .any(|c| c == "__macosx" || c == ".git" || c == ".svn")
-        || base.starts_with("._")
-        || base.starts_with('.')
-        || matches!(base, "thumbs.db" | "desktop.ini" | "ehthumbs.db")
-}
-
 /// Normalise an entry name and refuse anything that could escape its directory.
 pub(super) fn safe_name(raw: &str) -> Result<String, IngestError> {
-    let unsafe_name = || IngestError::UnsafePath(raw.chars().take(200).collect());
-    if raw.is_empty() || raw.contains('\0') {
-        return Err(unsafe_name());
-    }
-    let name = raw.replace('\\', "/");
-    let b = name.as_bytes();
-    if name.starts_with('/') || (b.len() >= 2 && b[1] == b':' && b[0].is_ascii_alphabetic()) {
-        return Err(unsafe_name());
-    }
-    let mut parts = Vec::new();
-    for c in name.split('/') {
-        match c {
-            ".." => return Err(unsafe_name()),
-            "" | "." => {}
-            c => parts.push(c),
-        }
-    }
-    if parts.is_empty() || name.len() > 1024 {
-        return Err(unsafe_name());
-    }
-    Ok(parts.join("/"))
-}
-
-fn ext(name: &str) -> String {
-    name.rsplit_once('.')
-        .map(|(_, e)| e.to_ascii_lowercase())
-        .unwrap_or_default()
-}
-
-fn base(name: &str) -> &str {
-    name.rsplit('/').next().unwrap_or(name)
-}
-
-/// Keep the shallowest candidate; ties by natural order.
-fn prefer(slot: &mut Option<Entry>, e: Entry) {
-    let depth = |n: &str| n.matches('/').count();
-    let better = match slot {
-        None => true,
-        Some(cur) => (depth(&e.name), &e.name) < (depth(&cur.name), &cur.name),
-    };
-    if better {
-        *slot = Some(e);
-    }
+    sr_library_rules::safe_name(raw).map_err(IngestError::from)
 }
 
 fn archive_err(e: impl std::fmt::Display) -> IngestError {
     IngestError::Archive(e.to_string())
 }
 
-/// Apply the shared rules to a format's raw listing.
-///
-/// `solid` formats (7z, RAR) must decode every entry in order to reach a page, so their
-/// budget counts all entries; ZIP counts the pages it will actually inflate.
+fn rule_limits(l: &ArchiveLimits) -> sr_library_rules::Limits {
+    sr_library_rules::Limits {
+        max_archive_bytes: l.max_archive_bytes,
+        max_entries: l.max_entries,
+        max_entry_bytes: l.max_entry_bytes,
+        max_total_bytes: l.max_total_bytes,
+        ratio_floor: l.ratio_floor,
+        max_ratio: l.max_ratio,
+    }
+}
+
+/// Apply the shared rules (`sr-library-rules`, also run by the browser's pre-checks) to a format's raw listing.
 fn build_index(raws: Vec<Raw>, limits: &ArchiveLimits, solid: bool) -> Result<Index, IngestError> {
-    let (mut pages, mut comic_info, mut series_json) = (Vec::new(), None, None);
-    let (mut skipped, mut avif) = (Vec::new(), Vec::new());
-    let mut declared_total = 0u64;
-    for r in raws {
-        let name = safe_name(&r.name)?;
-        if r.encrypted {
-            return Err(IngestError::Encrypted(name));
-        }
-        if r.is_dir || r.name.ends_with('/') {
-            continue;
-        }
-        if r.symlink {
-            skipped.push(name);
-            continue;
-        }
-        let size = r.size;
-        if size > limits.max_entry_bytes {
-            return Err(IngestError::EntryTooLarge(name));
-        }
-        if let Some(packed) = r.packed
-            && size >= limits.ratio_floor
-            && size / packed.max(1) > limits.max_ratio
-        {
-            return Err(IngestError::SuspiciousRatio(name));
-        }
-        if solid {
-            declared_total = declared_total.saturating_add(size);
-            if declared_total > limits.max_total_bytes {
-                return Err(IngestError::TooLarge("total uncompressed size"));
-            }
-        }
-        if is_junk(&name) {
-            skipped.push(name);
-            continue;
-        }
-        let entry = Entry {
-            index: r.index,
-            name,
-            size,
-        };
-        let file = base(&entry.name).to_lowercase();
-        let e = ext(&entry.name);
-        if file == "comicinfo.xml" && size <= MAX_METADATA_BYTES {
-            prefer(&mut comic_info, entry);
-        } else if file == "series.json" && size <= MAX_METADATA_BYTES {
-            prefer(&mut series_json, entry);
-        } else if AVIF_EXTS.contains(&e.as_str()) {
-            avif.push(entry.name);
-        } else if IMAGE_EXTS.contains(&e.as_str()) {
-            if !solid {
-                declared_total = declared_total.saturating_add(size);
-                if declared_total > limits.max_total_bytes {
-                    return Err(IngestError::TooLarge("total uncompressed size"));
-                }
-            }
-            pages.push(entry);
-        } else {
-            // Includes nested archives: they are never opened.
-            skipped.push(entry.name);
-        }
-    }
-    if !avif.is_empty() {
-        avif.sort_by(|a, b| natural_cmp(a, b));
-        return Err(IngestError::UnsupportedFormat {
-            what: "AVIF pages",
-            files: avif,
-        });
-    }
-    pages.sort_by(|a, b| natural_cmp(&a.name, &b.name));
-    Ok(Index {
-        pages,
-        comic_info,
-        series_json,
-        skipped,
-    })
+    sr_library_rules::classify(raws, &rule_limits(limits), solid).map_err(IngestError::from)
 }
 
 /// The whole-archive ratio, for formats without a per-entry packed size.
@@ -329,10 +182,8 @@ fn check_archive_ratio(
     archive_len: u64,
     limits: &ArchiveLimits,
 ) -> Result<(), IngestError> {
-    if declared >= limits.ratio_floor && declared / archive_len.max(1) > limits.max_ratio {
-        return Err(IngestError::SuspiciousRatio("(whole archive)".into()));
-    }
-    Ok(())
+    sr_library_rules::check_archive_ratio(declared, archive_len, &rule_limits(limits))
+        .map_err(IngestError::from)
 }
 
 impl Core {

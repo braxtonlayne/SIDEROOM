@@ -582,3 +582,6 @@ sponsored actor, ignore member-supplied artwork keys, accept only assets the sub
 item has a published ladder, and publish only the approved episodes (then the title). **The member upload and draft-edit
 HTTP routes (`/submissions/{id}/cinema/*`) are not built**: there is no member upload path for videos yet, so today only
 payloads referencing staff-uploaded assets can be submitted.
+
+### 6.1 Share dialog (D-226)
+"Share to Lounge" on a title opens a dialog with a channel picker (channels where the person holds `SEND_MESSAGES` and `USE_LIBRARY_EMBEDS`; DMs and groups included), an optional comment, and posts the `<cinema:id>` rich card as the person's own message. "Copy link" is the second item.

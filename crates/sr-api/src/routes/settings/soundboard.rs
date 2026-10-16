@@ -17,6 +17,7 @@ use super::deps::{SettingsDeps, actor, id, invalid, re, se};
 use super::events::SettingsEvent;
 use crate::routes::Ext;
 use crate::routes::guilds::dto::UserRef;
+use crate::routes::guilds::safety::MfaGate;
 use crate::routes::messages::error::ApiJson;
 use crate::routes::voice::{SoundEffect, VoiceApi};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
@@ -368,6 +369,7 @@ pub async fn sound_audio(
 )]
 pub async fn create_sound(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<CreateSoundBody>,
@@ -375,6 +377,8 @@ pub async fn create_sound(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD_EXPRESSIONS)
+        .await?;
     let data = decode_sound_uri(&body.sound)?;
     let info = inspect_sound(&data).ok_or_else(|| {
         invalid(
@@ -435,6 +439,7 @@ pub async fn create_sound(
 )]
 pub async fn modify_sound(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, sound_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<ModifySoundBody>,
@@ -443,6 +448,8 @@ pub async fn modify_sound(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let sid: SoundId = id("sound_id", &sound_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD_EXPRESSIONS)
+        .await?;
     let emoji = if body.emoji_id.is_some() || body.emoji_name.is_some() {
         let raw_id = body.emoji_id.clone().flatten();
         let name = body.emoji_name.clone().flatten();
@@ -488,6 +495,7 @@ pub async fn modify_sound(
 )]
 pub async fn delete_sound(
     p: Principal,
+    gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Path((guild_id, sound_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
@@ -495,6 +503,8 @@ pub async fn delete_sound(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let sid: SoundId = id("sound_id", &sound_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD_EXPRESSIONS)
+        .await?;
     let gone = deps
         .service
         .delete_sound(acc.perms, user, gid, sid)

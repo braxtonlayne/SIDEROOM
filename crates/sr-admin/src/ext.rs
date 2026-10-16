@@ -268,6 +268,17 @@ pub struct PrivateEdit {
     pub previous_content: String,
 }
 
+/// The webhook a message was posted through (D-235): staff views list the message under its
+/// creator (`author_id`) with this marker, "via webhook <name>".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct WebhookMarker {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    /// The name the message was posted under (the per-call override or the webhook name).
+    pub name: String,
+}
+
 /// A message as staff see it: also removed ones, with the edit history.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct PrivateMessage {
@@ -286,6 +297,9 @@ pub struct PrivateMessage {
     pub deleted_at_ms: Option<i64>,
     pub attachment_count: i32,
     pub edits: Vec<PrivateEdit>,
+    /// Set when the message was posted through a webhook; `author_*` is then its creator.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub webhook: Option<WebhookMarker>,
 }
 
 /// A page of a private conversation, newest first.
@@ -344,6 +358,62 @@ pub trait StaffExtrasRepository: Send + Sync {
     /// Announcements showing at `now_ms`.
     async fn active_announcements(&self, now_ms: i64) -> AdminResult<Vec<Announcement>>;
 
+    // ---- entrance copy (ENT-UI-025)
+    /// Every overridden copy block, key to markdown.
+    async fn entrance_copy(&self) -> AdminResult<std::collections::BTreeMap<String, String>>;
+    /// Store `markdown` for `key`, or drop the override with `None` (back to the default).
+    async fn set_entrance_copy(
+        &self,
+        key: &str,
+        markdown: Option<&str>,
+        by: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<()>;
+
+    // ---- people and servers
+    /// Open sessions of an account, newest first.
+    async fn account_sessions(&self, account_id: i64) -> AdminResult<Vec<AdminSession>>;
+    /// Servers the account is a member of.
+    async fn account_guilds(&self, account_id: i64) -> AdminResult<Vec<AdminGuildRef>>;
+    /// Freeze or unfreeze the account's invite creation by hand (on top of the suspicion freeze).
+    async fn set_invites_frozen(
+        &self,
+        account_id: i64,
+        frozen: bool,
+        audit: &AuditEntry,
+    ) -> AdminResult<()>;
+    /// Replace the staff notes of a Person.
+    async fn set_person_notes(
+        &self,
+        person_id: i64,
+        notes: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<()>;
+    /// Move `account_id` into `person_id`. `Conflict` when either Person has an open ban. The old
+    /// Person is merged (suspicion is the higher level, notes are joined) and removed when it has
+    /// no account left. Returns the old Person id.
+    async fn link_account(
+        &self,
+        person_id: i64,
+        account_id: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<i64>;
+    /// Give the account a Person of its own and return its id. `Conflict` when it is the only account
+    /// of its Person or the Person has an open ban.
+    async fn unlink_account(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<i64>;
+    /// Suspicion history, newest first.
+    async fn suspicion_log(&self, person_id: i64, limit: i64) -> AdminResult<Vec<SuspicionEvent>>;
+    /// Servers by name fragment or exact id, ordered by id, strictly after `after`.
+    async fn search_guilds(
+        &self,
+        q: Option<&str>,
+        after: Option<i64>,
+        limit: i64,
+    ) -> AdminResult<Vec<AdminGuild>>;
+    async fn get_guild(&self, id: i64) -> AdminResult<Option<AdminGuild>>;
+    /// Write the audit entry of a server change that was applied through the chat stack.
+    async fn record_guild_action(&self, audit: &AuditEntry) -> AdminResult<()>;
+
     // ---- alerts
     async fn record_alert(&self, kind: &str, detail: &str) -> AdminResult<StaffAlertRow>;
     async fn recent_alerts(&self, limit: i64) -> AdminResult<Vec<StaffAlertRow>>;
@@ -377,4 +447,97 @@ pub trait StaffNotifier: Send + Sync {
     /// DM an announcement from the system user to every active account. Runs in the
     /// background; the implementation must not block the caller.
     fn broadcast_announcement(&self, a: &Announcement);
+    /// A plain DM from the system user (staff actions that affect a server, H-36). The default
+    /// delivers nothing; the server implementation opens the DM and posts the text.
+    async fn system_dm(&self, _to: i64, _text: &str) -> bool {
+        false
+    }
 }
+
+/// The Entrance copy blocks an operator may override (ENT-UI-025). The client serves its own
+/// default for any block that has no override.
+pub const ENTRANCE_COPY_KEYS: &[&str] =
+    &["no-invitation", "house-notes", "landing-note", "hero-alt"];
+
+/// Longest `hero-alt` text (plain text, characters).
+pub const ENTRANCE_HERO_ALT_MAX: usize = 200;
+
+/// Longest copy block, in bytes (16 KiB).
+pub const ENTRANCE_COPY_MAX_CHARS: usize = 16_384;
+
+// ===== people and servers (ADM-PPL-002/004, ADM-GRAPH-004, ADM-COM-002) ====
+
+/// An open session of an account, as the staff drawer lists it. No token material.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct AdminSession {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub ip: Option<String>,
+    pub user_agent: Option<String>,
+    pub device_label: Option<String>,
+    pub created_at_ms: i64,
+    pub last_seen_at_ms: i64,
+    pub expires_at_ms: i64,
+}
+
+/// A server an account belongs to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct AdminGuildRef {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub name: String,
+    pub owner: bool,
+    pub joined_at_ms: i64,
+    pub member_count: i64,
+}
+
+/// One step of a Person's suspicion history.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct SuspicionEvent {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub delta: i32,
+    pub level_after: i32,
+    pub reason: String,
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub source_account_id: Option<i64>,
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub actor_id: Option<i64>,
+    pub created_at_ms: i64,
+}
+
+/// A server in the platform-wide list (staff only).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct AdminGuild {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub name: String,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub owner_id: i64,
+    pub owner_username: Option<String>,
+    pub member_count: i64,
+    pub channel_count: i64,
+    pub created_at_ms: i64,
+    /// The Staff Server: cannot be deleted or transferred here.
+    pub is_staff_guild: bool,
+    /// Soft-deleted, waiting for the purge job.
+    pub deleted: bool,
+    pub community_enabled: bool,
+}
+
+/// A page of servers.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AdminGuildPage {
+    pub items: Vec<AdminGuild>,
+    pub next_after: Option<String>,
+}
+
+/// Most characters of a Person's staff notes.
+pub const PERSON_NOTES_MAX_CHARS: usize = 4_000;

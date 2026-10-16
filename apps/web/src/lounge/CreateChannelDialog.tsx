@@ -1,16 +1,11 @@
 import { Button, Checkbox, Modal, Switch, TextInput } from '@sideroom/ui';
-import { lazy, Suspense, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import { rest, useStore } from '../store';
 import { useGotoGuild } from './AddServerDialog';
 import { useChannels, useCurrentUser, useGuild, useMembers, useRoles } from './data';
 import { slugChannelName } from './inviteFlow';
-import type { PickedTitle } from '../watchparty/TitlePicker';
-
-const TitlePicker = lazy(() =>
-  import('../watchparty/TitlePicker').then((m) => ({ default: m.TitlePicker })),
-);
 
 const VIEW_CHANNEL = (1n << 10n).toString();
 
@@ -98,7 +93,7 @@ export function CreateChannelDialog({
     roles: [],
     members: [],
   });
-  const [title, setTitle] = useState<PickedTitle | null>(null);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isCategory = !!categoryOnly;
@@ -130,18 +125,12 @@ export function CreateChannelDialog({
             : 'lounge.createChannelDialog.channelNameRequired',
         ),
       );
-    if (!isCategory && kind === 'party' && !title)
-      return setError(t('lounge.createChannelDialog.partyTitleRequired'));
+
     const body: rest.CreateChannelBody = {
       name: clean,
       type: isCategory ? 4 : def.type,
-      ...(!isCategory && kind === 'party' && title
-        ? {
-            sr_watch_party_room: true,
-            sr_watch_party_title_id: title.titleId,
-            ...(title.episodeId ? { sr_watch_party_episode_id: title.episodeId } : {}),
-          }
-        : {}),
+      // D-227: the room starts empty; the first person to join hosts it and picks what to watch.
+      ...(!isCategory && kind === 'party' ? { sr_watch_party_room: true } : {}),
       ...(parentId && !isCategory ? { parent_id: parentId } : {}),
       ...(isPrivate
         ? {
@@ -213,20 +202,7 @@ export function CreateChannelDialog({
           </fieldset>
         )}
         {!isCategory && kind === 'party' && (
-          <div className="lng-party-title">
-            {title ? (
-              <p>
-                {t('lounge.createChannelDialog.partyStartsWith', { label: title.label })}{' '}
-                <Button size="sm" variant="ghost" onClick={() => setTitle(null)}>
-                  {t('lounge.createChannelDialog.partyChange')}
-                </Button>
-              </p>
-            ) : (
-              <Suspense fallback={null}>
-                <TitlePicker onPick={setTitle} />
-              </Suspense>
-            )}
-          </div>
+          <p className="lng-party-title">{t('lounge.createChannelDialog.partyEmptyRoom')}</p>
         )}
         <TextInput
           label={

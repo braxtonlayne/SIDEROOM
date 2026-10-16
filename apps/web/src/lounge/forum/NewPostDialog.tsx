@@ -1,15 +1,21 @@
 import { Button, Modal, TextInput } from '@sideroom/ui';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
 import { useLoungeGotoThread } from '../nav';
+import { UploadTray } from '../msg/UploadTray';
+import { MAX_FILES, uploadFiles, type PendingFile } from '../msg/upload';
+import { useStore } from '../../store';
+import { formatBytes } from '../msg/format';
 import { THREAD_NAME_MAX } from '../threads/CreateThreadDialog';
 import { useThreads } from '../threads/threadStore';
 import type { ForumTag } from './forumLogic';
 
 const MAX_APPLIED = 5;
 
-/** New Post: title, tags, first message (LNG-FRM-004). Attachments are not accepted by the server yet. */
+let fileCounter = 0;
+
+/** New Post: title, tags, first message and files (LNG-FRM-004, H-38). */
 export function NewPostDialog({
   guildId,
   channelId,
@@ -29,7 +35,33 @@ export function NewPostDialog({
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const picker = useRef<HTMLInputElement>(null);
+  const abort = useRef<AbortController | null>(null);
   const openThread = useLoungeGotoThread();
+  // The size the server will accept for this viewer in the server (D-233, D-238).
+  const maxUpload = useStore((s) => s.guilds[guildId]?.sr_max_upload_bytes);
+
+  const patchFile = (id: string, patch: Partial<PendingFile>) =>
+    setFiles((cur) => cur.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  const addFiles = (picked: File[]) => {
+    const fits = maxUpload === undefined ? picked : picked.filter((f) => f.size <= maxUpload);
+    if (fits.length < picked.length)
+      setError(t('lounge.newPost.fileTooLarge', { max: formatBytes(maxUpload ?? 0) }));
+    else setError(null);
+    setFiles((cur) => [
+      ...cur,
+      ...fits.slice(0, Math.max(0, MAX_FILES - cur.length)).map((file): PendingFile => ({
+        id: `p${Date.now().toString(36)}${fileCounter++}`,
+        file,
+        name: file.name || 'file',
+        spoiler: false,
+        description: '',
+        progress: 0,
+        status: 'queued',
+      })),
+    ]);
+  };
 
   const toggle = (id: string) =>
     setPicked((cur) =>
@@ -42,7 +74,7 @@ export function NewPostDialog({
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !content.trim()) {
+    if (!title.trim() || (!content.trim() && files.length === 0)) {
       setError(t('lounge.newPost.required'));
       return;
     }
@@ -53,13 +85,30 @@ export function NewPostDialog({
     setBusy(true);
     setError(null);
     try {
+      // The files go to the forum's own upload slots first; the post then carries their ids.
+      let attachments: { id: string; uploaded_filename: string; description?: string }[] = [];
+      if (files.length > 0) {
+        abort.current = new AbortController();
+        const done = await uploadFiles(channelId, files, {
+          onUpdate: patchFile,
+          signal: abort.current.signal,
+        });
+        attachments = done.map((d) => ({
+          id: d.id,
+          uploaded_filename: d.uploadedFilename,
+          ...(d.description ? { description: d.description } : {}),
+        }));
+      }
       const w = await apiFetch<{ id: string; parent_id?: string }>(
         `/channels/${channelId}/threads`,
         {
           method: 'POST',
           json: {
             name: title.trim(),
-            message: { content: content.trim() },
+            message: {
+              content: content.trim(),
+              ...(attachments.length ? { attachments } : {}),
+            },
             ...(picked.length ? { applied_tags: picked } : {}),
           },
           retries: 0,
@@ -114,6 +163,36 @@ export function NewPostDialog({
           maxLength={2000}
           onChange={(e) => setContent(e.target.value)}
         />
+        <UploadTray
+          files={files}
+          busy={busy}
+          onChange={patchFile}
+          onRemove={(id) => {
+            if (busy) abort.current?.abort();
+            else setFiles((cur) => cur.filter((f) => f.id !== id));
+          }}
+        />
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          hidden
+          data-testid="new-post-files"
+          onChange={(e) => {
+            addFiles(Array.from(e.target.files ?? []));
+            e.target.value = '';
+          }}
+        />
+        <div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={busy || files.length >= MAX_FILES}
+            onClick={() => picker.current?.click()}
+          >
+            {t('lounge.newPost.attach')}
+          </Button>
+        </div>
         {error && (
           <p className="lng-muted" role="alert">
             {error}

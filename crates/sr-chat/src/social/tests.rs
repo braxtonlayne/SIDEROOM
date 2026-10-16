@@ -1535,3 +1535,233 @@ async fn group_invites_respect_the_group_size_cap() {
         Err(SocialError::MaxGroupSize)
     ));
 }
+
+// ---- Server Protection (G-95, D-224) ----
+
+#[test]
+fn protection_only_tightens_and_names_the_reason() {
+    use super::dm::{RequestReason, SharedProtection, dm_access_protected};
+    let strangers = PairState::default();
+    let friends = PairState {
+        mine: Some(K::Friend),
+        theirs: Some(K::Friend),
+        ..PairState::default()
+    };
+    let open = DmPrivacy {
+        message_requests: false,
+        ..DmPrivacy::default()
+    };
+    let none = SharedProtection::default();
+    let filter = SharedProtection {
+        shared: 2,
+        spam_filter_all: true,
+        ..none
+    };
+    let young = SharedProtection {
+        shared: 1,
+        warn_new_account_days: 14,
+        ..none
+    };
+    // No setting: the recipient's own choice stands.
+    assert_eq!(
+        dm_access_protected(strangers, &open, true, &none, 3),
+        (DmAccess::Allowed, None)
+    );
+    // Every shared server filters: a stranger lands in requests even when the recipient is open.
+    assert_eq!(
+        dm_access_protected(strangers, &open, true, &filter, 400),
+        (DmAccess::Request, Some(RequestReason::ServerFilter))
+    );
+    // A young sender is marked new_account, and wins over the filter.
+    assert_eq!(
+        dm_access_protected(strangers, &open, true, &young, 3),
+        (DmAccess::Request, Some(RequestReason::NewAccount))
+    );
+    assert_eq!(
+        dm_access_protected(
+            strangers,
+            &open,
+            true,
+            &SharedProtection {
+                warn_new_account_days: 14,
+                ..filter
+            },
+            3
+        ),
+        (DmAccess::Request, Some(RequestReason::NewAccount))
+    );
+    // An old enough account is not affected.
+    assert_eq!(
+        dm_access_protected(strangers, &open, true, &young, 14),
+        (DmAccess::Allowed, None)
+    );
+    // Friends are never routed; settings never open a closed door.
+    assert_eq!(
+        dm_access_protected(friends, &open, true, &filter, 0),
+        (DmAccess::Allowed, None)
+    );
+    assert_eq!(
+        dm_access_protected(strangers, &open, false, &filter, 0),
+        (DmAccess::Denied, None)
+    );
+}
+
+#[tokio::test]
+async fn open_dm_routes_by_protection_and_spoilers_follow_the_media_filter() {
+    use super::dm::{RequestReason, SharedProtection};
+    let f = fx();
+    let repo = f.svc_repo();
+    // 2 is open to DMs from members; 1 and 2 share a server that filters DMs.
+    repo.store
+        .lock()
+        .unwrap()
+        .shared_guilds
+        .insert((u(1), u(2)));
+    f.svc
+        .update_privacy(
+            u(2),
+            super::user_settings::PrivacyUpdate {
+                message_requests: Some(false),
+                // D-230's default (`non_friends`) would route every stranger; this test is about the
+                // server Protection settings alone.
+                dm_spam_filter: Some(super::safety::SpamFilter::Off),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let plain = f.svc.open_dm(u(1), u(2)).await.unwrap();
+    assert_eq!(plain.access, DmAccess::Allowed);
+    assert!(
+        !f.svc
+            .spoiler_attachments(u(1), plain.channel.id)
+            .await
+            .unwrap()
+    );
+    repo.store.lock().unwrap().dms.clear();
+
+    repo.store.lock().unwrap().protection.insert(
+        (u(1), u(2)),
+        SharedProtection {
+            shared: 1,
+            spam_filter_all: true,
+            explicit_media_any: true,
+            warn_new_account_days: 0,
+        },
+    );
+    let opened = f.svc.open_dm(u(1), u(2)).await.unwrap();
+    assert_eq!(opened.access, DmAccess::Request);
+    assert_eq!(opened.reason, Some(RequestReason::ServerFilter));
+    let id = opened.channel.id;
+    assert_eq!(
+        f.svc.request_state(u(2), id).await.unwrap(),
+        Some(super::dm::RequestState::Pending)
+    );
+    assert_eq!(
+        f.svc.request_reason(u(2), id).await.unwrap(),
+        Some(RequestReason::ServerFilter)
+    );
+    // Attachments the stranger sends carry the spoiler flag while the request is pending...
+    assert!(f.svc.spoiler_attachments(u(1), id).await.unwrap());
+    // ...and no longer once the recipient accepted.
+    f.svc
+        .respond_to_request(u(2), id, super::dm::RequestState::Accepted)
+        .await
+        .unwrap();
+    assert!(!f.svc.spoiler_attachments(u(1), id).await.unwrap());
+}
+
+#[tokio::test]
+async fn safety_prefs_update_partially_and_overrides_gate_server_dms() {
+    use super::dm::DmAccess;
+    use super::safety::MediaFilter;
+    use super::user_settings::PrivacyUpdate;
+    use std::collections::BTreeMap;
+    let f = fx();
+    let defaults = f.svc.privacy(u(1)).await.unwrap();
+    assert_eq!(defaults.safety.sensitive_media.others, MediaFilter::Blur);
+    assert_eq!(
+        defaults.safety.dm_spam_filter,
+        super::safety::SpamFilter::NonFriends
+    );
+
+    let p = f
+        .svc
+        .update_privacy(
+            u(1),
+            PrivacyUpdate {
+                media_friends: Some(MediaFilter::Block),
+                dm_spam_filter: Some(super::safety::SpamFilter::All),
+                server_dm_overrides: Some(BTreeMap::from([(70, Some(false)), (71, Some(true))])),
+                ..PrivacyUpdate::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(p.safety.sensitive_media.friends, MediaFilter::Block);
+    assert_eq!(
+        p.safety.sensitive_media.others,
+        MediaFilter::Blur,
+        "untouched"
+    );
+    assert_eq!(p.safety.dm_spam_filter, super::safety::SpamFilter::All);
+    assert_eq!(p.safety.server_dm_overrides.len(), 2);
+
+    // null removes one override, the rest stays.
+    let p = f
+        .svc
+        .update_privacy(
+            u(1),
+            PrivacyUpdate {
+                server_dm_overrides: Some(BTreeMap::from([(71, None)])),
+                ..PrivacyUpdate::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(p.safety.server_dm_overrides.get(&70), Some(&false));
+    assert!(!p.safety.server_dm_overrides.contains_key(&71));
+
+    // User 1 allows server DMs by default but not from server 70; user 2 shares only 70.
+    let (g70, g71) = (sr_core::GuildId::new(70), sr_core::GuildId::new(71));
+    f.svc.repo().add_member(g70, u(1), None, 0);
+    f.svc.repo().add_member(g70, u(2), None, 0);
+    f.svc.repo().add_member(g71, u(1), None, 0);
+    f.svc.repo().add_member(g71, u(3), None, 0);
+    assert!(matches!(
+        f.svc.open_dm(u(2), u(1)).await,
+        Err(SocialError::DmNotAllowed)
+    ));
+    let opened = f.svc.open_dm(u(3), u(1)).await.unwrap();
+    assert_eq!(opened.access, DmAccess::Request);
+}
+
+#[tokio::test]
+async fn too_many_server_dm_overrides_are_rejected() {
+    use super::safety::MAX_SERVER_DM_OVERRIDES;
+    use super::user_settings::PrivacyUpdate;
+    let f = fx();
+    let many = (1..=(MAX_SERVER_DM_OVERRIDES as u64 + 1))
+        .map(|g| (g, Some(true)))
+        .collect();
+    let err = f
+        .svc
+        .update_privacy(
+            u(1),
+            PrivacyUpdate {
+                server_dm_overrides: Some(many),
+                ..PrivacyUpdate::default()
+            },
+        )
+        .await;
+    assert!(err.is_err());
+    assert!(
+        f.svc
+            .privacy(u(1))
+            .await
+            .unwrap()
+            .safety
+            .server_dm_overrides
+            .is_empty()
+    );
+}

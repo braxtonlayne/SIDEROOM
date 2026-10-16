@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PageEntry } from '../types';
 import { decodeBlurhash } from './blurhash';
-import { pickVariant } from './model';
+import { cropView, pickVariant } from './model';
+import { cachedImageUrl } from './offlineCache';
 
 /** Paints a blurhash into a small canvas; silently does nothing where canvas is unavailable. */
 function BlurPlaceholder({ hash }: { hash: string }) {
@@ -23,30 +24,65 @@ export interface PageImageProps {
   /** Mounts the <img>; pages far from the viewport render only the placeholder. */
   active?: boolean;
   alt: string;
+  /** Cut the borders found at ingest (LIB-ING-007), when the page has crop data. */
+  crop?: boolean;
 }
 
 /** One page: blurhash placeholder at the page's own aspect ratio, the sized variant fading in over it. */
-export function PageImage({ page, cssWidth, active = true, alt }: PageImageProps) {
+export function PageImage({ page, cssWidth, active = true, alt, crop = false }: PageImageProps) {
   const [loaded, setLoaded] = useState(false);
+  // When the network image fails, a copy from the offline cache (LIB-RDR-015) stands in for it.
+  const [offlineSrc, setOfflineSrc] = useState<string | null>(null);
+  useEffect(
+    () => () => {
+      if (offlineSrc) URL.revokeObjectURL(offlineSrc);
+    },
+    [offlineSrc],
+  );
   const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
   const src = pickVariant(page, cssWidth, dpr);
+  const view = crop ? cropView(page, page.crop) : null;
+  const fallback = async () => {
+    if (offlineSrc) return;
+    const urls = [src, ...page.variants.map((v) => v.url), page.url];
+    for (const u of urls) {
+      const hit = await cachedImageUrl(u);
+      if (hit) return setOfflineSrc(hit);
+    }
+  };
   return (
     <div
       className="lib-page"
       data-loaded={loaded || undefined}
-      style={{ aspectRatio: `${page.width} / ${page.height}` }}
+      data-cropped={view ? 'true' : undefined}
+      style={{ aspectRatio: view ? view.ratio : `${page.width} / ${page.height}` }}
     >
       {page.blurhash && !loaded && <BlurPlaceholder hash={page.blurhash} />}
       {active && (
         <img
           className="lib-page-img"
-          src={src}
+          src={offlineSrc ?? src}
           alt={alt}
           width={page.width}
           height={page.height}
           decoding="async"
           draggable={false}
           onLoad={() => setLoaded(true)}
+          onError={() => void fallback()}
+          style={
+            view
+              ? {
+                  position: 'absolute',
+                  insetBlockStart: 0,
+                  insetInlineStart: 0,
+                  inlineSize: `${view.widthPct}%`,
+                  maxInlineSize: 'none',
+                  blockSize: 'auto',
+                  transform: `translate(-${view.shiftX}%, -${view.shiftY}%)`,
+                  transformOrigin: 'top left',
+                }
+              : undefined
+          }
         />
       )}
     </div>

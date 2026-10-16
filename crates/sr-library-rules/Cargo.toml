@@ -1,0 +1,12 @@
+[package]
+name = "sr-library-rules"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+description = "The pure archive rules of Library ingest (names, junk, page order, size budgets), shared by the server's archive reader and the browser's pre-checks (LIB-ING-009)."
+
+[dependencies]
+thiserror.workspace = true
+
+[lints]
+workspace = true

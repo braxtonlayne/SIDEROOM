@@ -6,13 +6,15 @@ use crate::routes::{MaybeExt, media::MediaDeps};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::{get, patch},
 };
 use serde::Deserialize;
 use sr_chat::admin_repo::MemberFilter;
 use sr_chat::admin_rules::MemberPatch;
+use sr_chat::settings::repo::CommunityRepository;
+use sr_core::permissions::Permissions;
 use sr_core::{ApiError, ErrorCode, GuildId, RoleId, UserId};
 use sr_storage::media::MediaKind;
 use utoipa::ToSchema;
@@ -42,6 +44,8 @@ pub struct ListMembersQuery {
     pub query: Option<String>,
     /// Only members holding this role.
     pub role_id: Option<String>,
+    /// `true`: only members with a signal (`new_account`, `rejoined`); needs `MANAGE_GUILD`.
+    pub signals: Option<bool>,
 }
 
 /// Page through the members of a guild, ordered by user id.
@@ -56,13 +60,16 @@ pub struct ListMembersQuery {
         ("after" = Option<String>, Query, description = "User snowflake cursor"),
         ("query" = Option<String>, Query, description = "Search text (at most 64 characters): matches nickname, username or display name, case-insensitive"),
         ("role_id" = Option<String>, Query, description = "Only members holding this role snowflake"),
+        ("signals" = Option<bool>, Query, description = "true: only members with a signal (new_account, rejoined); needs MANAGE_GUILD"),
     ),
     responses((status = 200, body = Vec<MemberObject>), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
 )]
 pub async fn list_members(
+    State(state): State<AppState>,
     p: Principal,
     Api(api): Api,
+    MaybeExt(settings): MaybeExt<crate::routes::settings::SettingsDeps>,
     Path(guild_id): Path<String>,
     Query(q): Query<ListMembersQuery>,
 ) -> ApiResult<Json<Vec<MemberObject>>> {
@@ -82,17 +89,99 @@ pub async fn list_members(
         query: q.query,
         role,
     };
+    let limit = q.limit.unwrap_or(1);
+    let ctx = JoinCtx::new(&state, settings.as_deref(), gid).await;
+    if q.signals == Some(true) {
+        // A filter over a computed fact: read pages and keep the matches until the limit is met.
+        let mut kept: Vec<MemberObject> = Vec::new();
+        let mut cursor = after;
+        for _ in 0..SIGNAL_PAGES {
+            let page = api
+                .list_members(user, gid, filter.clone(), cursor, SIGNAL_PAGE)
+                .await
+                .map_err(ce)?;
+            let full = page.len() == SIGNAL_PAGE;
+            cursor = page.last().map(|m| m.user_id);
+            let (objs, permitted) = decorated(&*api, &ctx, user, gid, &page).await?;
+            if !permitted {
+                return Err(ErrorCode::MissingPermissions.into());
+            }
+            kept.extend(objs.into_iter().filter(has_signal));
+            if kept.len() >= limit || !full {
+                break;
+            }
+        }
+        kept.truncate(limit);
+        return Ok(Json(kept));
+    }
     let members = api
-        .list_members(user, gid, filter, after, q.limit.unwrap_or(1))
+        .list_members(user, gid, filter, after, limit)
         .await
         .map_err(ce)?;
-    let users = users_for(&*api, members.iter().map(|m| m.user_id)).await?;
-    Ok(Json(
-        members
-            .iter()
-            .map(|m| MemberObject::new(m, false, &users))
-            .collect(),
-    ))
+    Ok(Json(decorated(&*api, &ctx, user, gid, &members).await?.0))
+}
+
+/// Pages read for a `signals=true` filter, and their size.
+const SIGNAL_PAGES: usize = 5;
+const SIGNAL_PAGE: usize = 200;
+
+fn has_signal(o: &MemberObject) -> bool {
+    o.sr_signals.as_ref().is_some_and(|s| !s.is_empty())
+}
+
+/// The clock and the server's `warn_new_account_days` for the member signals (D-240).
+struct JoinCtx {
+    now_ms: i64,
+    warn_days: u32,
+}
+
+impl JoinCtx {
+    async fn new(
+        state: &AppState,
+        settings: Option<&crate::routes::settings::SettingsDeps>,
+        gid: GuildId,
+    ) -> Self {
+        let warn_days = match settings {
+            Some(s) => s.service.repo().get_community(gid).await.map_or(7, |c| {
+                if c.warn_new_account_days == 0 {
+                    7
+                } else {
+                    c.warn_new_account_days
+                }
+            }),
+            None => 7,
+        };
+        Self {
+            now_ms: state.now_secs().saturating_mul(1000),
+            warn_days,
+        }
+    }
+}
+
+/// Member objects with `sr_join` and `sr_signals` for a caller who holds `MANAGE_GUILD`, and
+/// whether the caller does (`false` leaves the plain objects).
+async fn decorated(
+    api: &dyn super::backend::GuildBackend,
+    ctx: &JoinCtx,
+    actor: UserId,
+    gid: GuildId,
+    members: &[sr_chat::Member],
+) -> ApiResult<(Vec<MemberObject>, bool)> {
+    let users = users_for(api, members.iter().map(|m| m.user_id)).await?;
+    let ids: Vec<UserId> = members.iter().map(|m| m.user_id).collect();
+    let joins = api.member_joins(actor, gid, &ids).await.map_err(ce)?;
+    let permitted = !joins.is_empty() || members.is_empty();
+    let objs = members
+        .iter()
+        .map(|m| {
+            let obj = MemberObject::new(m, false, &users);
+            match joins.iter().find(|j| j.user_id == m.user_id) {
+                Some(j) => obj.with_join(m.user_id, j, ctx.warn_days, ctx.now_ms),
+                None => obj,
+            }
+        })
+        .collect();
+    Ok((objs, permitted))
 }
 
 /// Get one member.
@@ -107,16 +196,19 @@ pub async fn list_members(
     security(("authorization" = []), ("session" = []))
 )]
 pub async fn get_member(
+    State(state): State<AppState>,
     p: Principal,
     Api(api): Api,
+    MaybeExt(settings): MaybeExt<crate::routes::settings::SettingsDeps>,
     Path((guild_id, user_id)): Path<(String, String)>,
 ) -> ApiResult<Json<MemberObject>> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let uid: UserId = id("user_id", &user_id)?;
     let m = api.get_member(actor, gid, uid).await.map_err(ce)?;
-    let users = users_for(&*api, [m.user_id]).await?;
-    Ok(Json(MemberObject::new(&m, false, &users)))
+    let ctx = JoinCtx::new(&state, settings.as_deref(), gid).await;
+    let (mut objs, _) = decorated(&*api, &ctx, actor, gid, std::slice::from_ref(&m)).await?;
+    Ok(Json(objs.remove(0)))
 }
 
 /// Modify nickname, roles or timeout of a member, subject to the role hierarchy.
@@ -134,11 +226,20 @@ pub async fn get_member(
 pub async fn modify_member(
     p: Principal,
     Api(api): Api,
+    gate: super::safety::MfaGate,
     Path((guild_id, user_id)): Path<(String, String)>,
     Json(body): Json<ModifyMemberBody>,
 ) -> ApiResult<Json<MemberObject>> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
+    if body.roles.is_some() {
+        gate.require_perm(&*api, actor, gid, Permissions::MANAGE_ROLES)
+            .await?;
+    }
+    if body.communication_disabled_until.is_some() {
+        gate.require_perm(&*api, actor, gid, Permissions::MODERATE_MEMBERS)
+            .await?;
+    }
     let uid: UserId = id("user_id", &user_id)?;
     let roles = match body.roles {
         None => None,
@@ -190,7 +291,13 @@ pub async fn kick_member(
 ) -> ApiResult<StatusCode> {
     let actor = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
-    gate.require(&*api, actor, gid).await?;
+    gate.require_perm(
+        &*api,
+        actor,
+        gid,
+        sr_core::permissions::Permissions::KICK_MEMBERS,
+    )
+    .await?;
     let uid: UserId = id("user_id", &user_id)?;
     api.kick_member(actor, gid, uid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
@@ -203,6 +310,8 @@ pub struct SearchMembersQuery {
     pub query: String,
     /// 1 to 1000, default 1.
     pub limit: Option<usize>,
+    /// `true`: only members with a signal; needs `MANAGE_GUILD`.
+    pub signals: Option<bool>,
 }
 
 /// Discord's member search: members whose nickname, username or display name contains
@@ -214,13 +323,16 @@ pub struct SearchMembersQuery {
         ("guild_id" = String, Path, description = "Guild snowflake"),
         ("query" = String, Query, description = "Search text, 1 to 64 characters"),
         ("limit" = Option<usize>, Query, description = "1 to 1000, default 1"),
+        ("signals" = Option<bool>, Query, description = "true: only members with a signal (new_account, rejoined); needs MANAGE_GUILD"),
     ),
     responses((status = 200, body = Vec<MemberObject>), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
 )]
 pub async fn search_members(
+    State(state): State<AppState>,
     p: Principal,
     Api(api): Api,
+    MaybeExt(settings): MaybeExt<crate::routes::settings::SettingsDeps>,
     Path(guild_id): Path<String>,
     Query(q): Query<SearchMembersQuery>,
 ) -> ApiResult<Json<Vec<MemberObject>>> {
@@ -237,17 +349,26 @@ pub async fn search_members(
         query: Some(q.query),
         role: None,
     };
+    let limit = q.limit.unwrap_or(1);
+    let ctx = JoinCtx::new(&state, settings.as_deref(), gid).await;
+    if q.signals == Some(true) {
+        let page = api
+            .list_members(user, gid, filter, None, SIGNAL_PAGE.max(limit))
+            .await
+            .map_err(ce)?;
+        let (objs, permitted) = decorated(&*api, &ctx, user, gid, &page).await?;
+        if !permitted {
+            return Err(ErrorCode::MissingPermissions.into());
+        }
+        return Ok(Json(
+            objs.into_iter().filter(has_signal).take(limit).collect(),
+        ));
+    }
     let members = api
-        .list_members(user, gid, filter, None, q.limit.unwrap_or(1))
+        .list_members(user, gid, filter, None, limit)
         .await
         .map_err(ce)?;
-    let users = users_for(&*api, members.iter().map(|m| m.user_id)).await?;
-    Ok(Json(
-        members
-            .iter()
-            .map(|m| MemberObject::new(m, false, &users))
-            .collect(),
-    ))
+    Ok(Json(decorated(&*api, &ctx, user, gid, &members).await?.0))
 }
 
 /// Body of `PATCH /guilds/{id}/members/@me`: the caller's per-server profile

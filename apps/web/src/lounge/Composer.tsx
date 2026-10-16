@@ -73,6 +73,7 @@ import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
 import { UploadTray } from './msg/UploadTray';
 import { queuedFiles } from './queuedFiles';
+import { formatBytes } from './msg/format';
 import { MAX_FILES, uploadFiles, type PendingFile } from './msg/upload';
 import { imageMeta } from './msg/blurhash';
 import { VoiceRecorder, type VoiceClip } from './msg/VoiceRecorder';
@@ -307,8 +308,26 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   };
 
   // ---- files ----
+  // The size the server will accept for this viewer here (D-233); unknown until the guild or DM list is read.
+  const maxUpload = useStore((s) =>
+    guildId ? s.guilds[guildId]?.sr_max_upload_bytes : s.channels[channelId]?.sr_max_upload_bytes,
+  );
   const addFiles = useCallback(
-    (list: File[]) => {
+    (all: File[]) => {
+      // Block oversized files before they upload (the server's 413 stays the real limit).
+      const list = maxUpload === undefined ? all : all.filter((f) => f.size <= maxUpload);
+      const refused = all.filter((f) => !list.includes(f));
+      if (refused.length > 0) {
+        toast.show({
+          title: t('lounge.composer.fileTooLarge', {
+            name: refused[0]!.name || 'file',
+            count: refused.length,
+            max: formatBytes(maxUpload ?? 0),
+          }),
+          variant: 'warning',
+          duration: 5000,
+        });
+      }
       if (list.length === 0) return;
       setFiles((cur) => {
         const room = MAX_FILES - cur.length;
@@ -336,7 +355,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         return [...cur, ...added];
       });
     },
-    [toast, t],
+    [toast, t, maxUpload],
   );
   useImperativeHandle(handle, () => ({ addFiles }), [addFiles]);
   // Files shared into this channel from another app (Share Target, G-18) arrive as attachments.
