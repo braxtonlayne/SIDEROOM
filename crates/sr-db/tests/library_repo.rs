@@ -436,23 +436,23 @@ async fn epub_progress_keeps_the_cfi_beside_the_page_index() {
     let cfi = "epubcfi(/6/14[chap05]!/4/2/16/1:0)";
     let saved = w
         .svc
-        .save_progress(w.member, ch, input(Some(cfi), 4))
+        .save_progress(w.member, ch, input(Some(cfi), 2))
         .await
         .unwrap();
     assert!(saved.applied);
     assert_eq!(
         (saved.progress.page_index, saved.progress.cfi.as_deref()),
-        (4, Some(cfi))
+        (2, Some(cfi))
     );
     // It comes back on read and in the chapter list; either may be null.
     let got = w.svc.progress(w.member, ch).await.unwrap();
     assert_eq!(got.cfi.as_deref(), Some(cfi));
     let none = w
         .svc
-        .save_progress(w.member, ch, input(None, 5))
+        .save_progress(w.member, ch, input(None, 1))
         .await
         .unwrap();
-    assert_eq!((none.progress.page_index, none.progress.cfi), (5, None));
+    assert_eq!((none.progress.page_index, none.progress.cfi), (1, None));
     // Over 1024 characters is refused by the service, and by the column check beneath it.
     let long = "x".repeat(1025);
     assert!(matches!(

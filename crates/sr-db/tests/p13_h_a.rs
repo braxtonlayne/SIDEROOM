@@ -35,12 +35,12 @@ async fn reap_stale_returns_a_crashed_job_to_the_queue_and_names_it() {
         .unwrap();
     assert_eq!(reaped, vec![(9001, "test.crashed".to_owned())]);
     let (state, locked_by): (String, Option<String>) =
-        sqlx::query_as("SELECT state, locked_by FROM jobs WHERE id = 9001")
+        sqlx::query_as("SELECT state::text, locked_by FROM jobs WHERE id = 9001")
             .fetch_one(&pool)
             .await
             .unwrap();
     assert_eq!((state.as_str(), locked_by), ("queued", None));
-    let state: String = sqlx::query_scalar("SELECT state FROM jobs WHERE id = 9002")
+    let state: String = sqlx::query_scalar("SELECT state::text FROM jobs WHERE id = 9002")
         .fetch_one(&pool)
         .await
         .unwrap();
