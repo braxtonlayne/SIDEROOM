@@ -18,6 +18,7 @@ import {
   useLoadRemoteImages,
 } from '../../../lounge/msg/remoteImages';
 import { useT, type MessageKey } from '../../../i18n';
+import { DataExportCard } from './DataExport';
 import { Card, displayOf, Loaded, SectionTitle, Unavailable } from '../parts';
 
 function UserList({
@@ -242,16 +243,7 @@ export function PrivacySection() {
       <RemoteImagesCard />
       <BlockedCard />
       <IgnoredCard />
-      <Card
-        id="us-data"
-        title={t('settings.privacy.dataTitle')}
-        description={t('settings.privacy.dataDesc')}
-      >
-        <Button variant="secondary" disabled>
-          {t('settings.privacy.dataTitle')}
-        </Button>
-        <Unavailable>{t('settings.privacy.dataUnavailable')}</Unavailable>
-      </Card>
+      <DataExportCard />
     </>
   );
 }

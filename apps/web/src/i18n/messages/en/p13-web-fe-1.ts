@@ -1,0 +1,64 @@
+export default {
+  // LNG-USET-023 connections
+  'settings.connections.none': 'You have not connected any accounts yet.',
+  'settings.connections.showOnProfile': 'Show on my profile',
+  'settings.connections.showStats': 'Show stats (followers and the like)',
+  'settings.connections.refresh': 'Refresh stats',
+  'settings.connections.refreshed': 'Stats refreshed',
+  'settings.connections.remove': 'Remove',
+  'settings.connections.actionError': 'That did not work',
+  'settings.connections.connect': 'Connect',
+  'settings.connections.notSetUp': 'Not set up on this server',
+  'settings.connections.linkName': 'Your {provider} name',
+  'settings.connections.linkUrl': 'Profile address (https://)',
+  'settings.connections.linkSubmit': 'Add link',
+  'settings.connections.linkCancel': 'Cancel',
+  'settings.connections.returnedOk': 'Connected {provider}.',
+  'settings.connections.returnedError': 'The account could not be connected',
+  'settings.connections.errorDenied': 'The provider said no. Nothing was connected.',
+  'settings.connections.errorState':
+    'The sign-in took too long or was opened twice. Try connecting again.',
+  'settings.connections.errorExchange': 'The provider did not complete the sign-in. Try again.',
+  'settings.connections.errorProfile': 'The provider did not share an account name. Try again.',
+  'settings.connections.errorTaken': 'That account is already connected to someone else.',
+  'settings.connections.errorLimit': 'You have reached the limit of connected accounts.',
+  'settings.connections.errorSignedOut': 'You were signed out. Sign in and try again.',
+  'settings.connections.errorFailed': 'Something went wrong. Try again.',
+  // LNG-USET-019 data export
+  'settings.dataExport.what': 'your data request',
+  'settings.dataExport.stateNone': 'You have not requested your data yet.',
+  'settings.dataExport.statePending': 'Your request is waiting in line.',
+  'settings.dataExport.stateBuilding': 'Your package is being built. This page updates by itself.',
+  'settings.dataExport.stateReady': 'Your package is ready.',
+  'settings.dataExport.stateFailed': 'The last package could not be built. You can ask again.',
+  'settings.dataExport.stateExpired': 'The last package has expired. You can ask again.',
+  'settings.dataExport.requestedAt': 'Requested {when}',
+  'settings.dataExport.download': 'Download your data',
+  'settings.dataExport.expiresAt': 'Link works until {when}',
+  'settings.dataExport.requestAgain': 'Request my data again',
+  'settings.dataExport.error': 'The request failed',
+  // LNG-NTF-009 DM toasts
+  'settings.notifications.dmToasts': 'Pop-up for direct messages',
+  'settings.notifications.dmToastsDesc':
+    'Show a small pop-up when a direct message arrives while you are looking at another channel.',
+  'lounge.dmToast.title': '{name} sent you a message',
+  // LNG-USET-009 profile decoration and theme
+  'settings.profile.decoration': 'Avatar decoration',
+  'settings.profile.decorationNone': 'No decoration',
+  'settings.profile.themePrimary': 'Profile theme: main colour',
+  'settings.profile.themeAccent': 'Profile theme: accent colour',
+  'settings.profile.clearTheme': 'Remove profile theme',
+  // LNG-USET-035 history management
+  'settings.activityHistory.removeItem': 'Remove',
+  'settings.activityHistory.removeNamed': 'Remove {name} from history',
+  'settings.activityHistory.readingTitle': 'Reading history',
+  'settings.activityHistory.readingDesc':
+    'The chapters you have read. Removing one forgets where you stopped.',
+  'settings.activityHistory.readingWhat': 'your reading history',
+  'settings.activityHistory.readingEmpty': 'Nothing in your reading history.',
+  'settings.activityHistory.readingChapter': 'Chapter {number} · {percent}% read',
+  'settings.activityHistory.libraryPreloadMissing':
+    'A page preload count is not offered yet: the reader has no preload setting.',
+  // LNG-USET-042 text-to-speech speed
+  'settings.accessibility.ttsRate': 'Text-to-speech speed',
+} satisfies Record<string, string>;

@@ -17,6 +17,9 @@ beforeEach(() => {
   resetStore();
   resetPrefs();
   signedIn();
+  server.use(
+    http.get('*/api/v1/users/@me/data-export', () => HttpResponse.json({ state: 'none' })),
+  );
 });
 
 describe('Privacy and Safety', () => {
@@ -62,15 +65,16 @@ describe('Privacy and Safety', () => {
     expect(await screen.findByText('Try later.')).toBeInTheDocument();
   });
 
-  it('shows the empty states, and says where the data request and media filters stand', async () => {
+  it('shows the empty states, the data request and where the media filters stand', async () => {
     server.use(
       http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
       http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
+      http.get('*/api/v1/users/@me/data-export', () => HttpResponse.json({ state: 'none' })),
     );
     openSettings('privacy');
     expect(await screen.findByText("You haven't ignored anyone.")).toBeInTheDocument();
-    expect(screen.getByText(/data export package/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Request my data' })).toBeDisabled();
+    expect(await screen.findByText('You have not requested your data yet.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request my data' })).toBeEnabled();
     expect(screen.getByText(/no media-scanning/)).toBeInTheDocument();
   });
 

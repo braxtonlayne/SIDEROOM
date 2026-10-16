@@ -141,6 +141,9 @@ export interface OwnProfile {
     banner: string | null;
     accent_color: number | null;
     profile_effect?: string | null;
+    avatar_decoration?: string | null;
+    /** Profile theme as two 0xRRGGBB colours, primary first. */
+    theme_colors?: [number, number] | null;
   };
   connected_accounts: Connection[];
   /** Platform badges (`staff` and `owner` only while `staff.show_badge` is on). */
@@ -164,6 +167,10 @@ export interface ProfilePatch {
   custom_status?: { text: string | null } | null;
   /** A slug from `GET /sr/profile-catalog`; null removes the effect. */
   profile_effect?: string | null;
+  /** A slug from `GET /sr/profile-catalog` decorations; null removes it. */
+  avatar_decoration?: string | null;
+  /** The profile theme: [primary, accent] as 0xRRGGBB; null clears it. */
+  theme_colors?: [number, number] | null;
 }
 export interface ProfileCatalog {
   effects: { slug: string; label_key: string }[];
@@ -430,3 +437,66 @@ export const createMemberInvite = (note: string) =>
   apiPost<MemberInvite>('/sr/invites', { note: note.trim() || undefined }, { retries: 0 });
 export const revokeMemberInvite = (code: string) =>
   apiFetch<void>(`/sr/invites/${encodeURIComponent(code)}`, { method: 'DELETE', retries: 0 });
+
+// ---- connections (LNG-USET-023, `/users/@me/connections`) ----
+
+export interface ConnectionRow {
+  type: string;
+  id: string;
+  name: string;
+  verified: boolean;
+  /** Link to the account's public page, when known. */
+  url?: string | null;
+  /** Shown on the profile; hidden ones are listed to their owner only. */
+  visible: boolean;
+  /** Whether the stats line shows. */
+  show_activity: boolean;
+  stats: Record<string, unknown>;
+}
+export interface ConnectionProvider {
+  id: string;
+  name: string;
+  /** `true` when linking proves the account (OAuth); `false` for a typed link. */
+  verified: boolean;
+  /** `false` when the operator has not set the provider up. */
+  available: boolean;
+  /** Link-only providers that need an `https://` address (websites). */
+  requires_url: boolean;
+}
+export interface ConnectionsResponse {
+  connections: ConnectionRow[];
+  providers: ConnectionProvider[];
+}
+export const listConnections = () =>
+  apiFetch<ConnectionsResponse>('/users/@me/connections', { retries: 0 });
+/** Starts the OAuth flow; send the browser to the returned `url`. */
+export const authorizeConnection = (provider: string) =>
+  apiPost<{ url: string }>(`/users/@me/connections/${encodeURIComponent(provider)}/authorize`);
+export const putConnectionLink = (body: { provider: string; name?: string; url?: string }) =>
+  apiFetch<ConnectionRow>('/users/@me/connections/link', { method: 'PUT', json: body, retries: 0 });
+const connPath = (c: { type: string; id: string }) =>
+  `/users/@me/connections/${encodeURIComponent(c.type)}/${encodeURIComponent(c.id)}`;
+export const patchConnection = (
+  c: { type: string; id: string },
+  body: { visible?: boolean; show_activity?: boolean; name?: string },
+) => apiFetch<ConnectionRow>(connPath(c), { method: 'PATCH', json: body, retries: 0 });
+export const removeConnection = (c: { type: string; id: string }) =>
+  apiFetch<void>(connPath(c), { method: 'DELETE', retries: 0 });
+export const refreshConnection = (c: { type: string; id: string }) =>
+  apiPost<ConnectionRow>(`${connPath(c)}/refresh`);
+
+// ---- data export (LNG-USET-019, `/users/@me/data-export`) ----
+
+export type DataExportState = 'none' | 'pending' | 'building' | 'ready' | 'failed' | 'expired';
+export interface DataExport {
+  state: DataExportState;
+  id?: string | null;
+  requested_at?: string | null;
+  ready_at?: string | null;
+  expires_at?: string | null;
+  size_bytes?: number | null;
+  /** API path of the zip, present while `ready`. */
+  download_url?: string | null;
+}
+export const getDataExport = () => apiFetch<DataExport>('/users/@me/data-export', { retries: 0 });
+export const requestDataExport = () => apiPost<DataExport>('/users/@me/data-export');

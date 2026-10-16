@@ -12,6 +12,7 @@ import {
   useReaderPrefsStore,
   type ReaderPrefs,
 } from '../../../library/prefs';
+import { httpProgress } from '../../../library/progress';
 import { errorText, useResource } from '../api';
 import { Card, Loaded } from '../parts';
 
@@ -20,7 +21,7 @@ const SUBTITLE_LANGS = ['en', 'es', 'fr', 'de', 'it', 'pt', 'ja', 'ko', 'zh', 'r
 
 /**
  * Watch history (LNG-USET-035): what Cinema remembers you watched, with Clear all and the server-side pause.
- * There is no route that removes a single item, so the list is read-only apart from Clear all.
+ * Each item can be removed on its own (it forgets that movie's or episode's progress), or Clear all.
  */
 export function CinemaHistoryCard() {
   const t = useT();
@@ -44,6 +45,15 @@ export function CinemaHistoryCard() {
     try {
       await cinema.setHistoryPaused(next);
       setPaused(next);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const removeOne = async (titleId: string, episodeId?: string | null) => {
+    setError(null);
+    try {
+      await cinema.removeProgress(titleId, episodeId);
+      history.reload();
     } catch (e) {
       setError(errorText(e));
     }
@@ -105,6 +115,14 @@ export function CinemaHistoryCard() {
                       </p>
                     )}
                   </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-label={t('settings.activityHistory.removeNamed', { name: h.title.title })}
+                    onClick={() => void removeOne(h.title.id, h.episode?.id)}
+                  >
+                    {t('settings.activityHistory.removeItem')}
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -171,6 +189,66 @@ export function CinemaDefaultsCard() {
   );
 }
 
+/** Reading history (LNG-USET-035): the chapters Library remembers, each removable. */
+export function ReadingHistoryCard() {
+  const t = useT();
+  const items = useResource(() => httpProgress.recent(20));
+  const [error, setError] = useState<string | null>(null);
+  const remove = async (chapterId: string) => {
+    setError(null);
+    try {
+      await httpProgress.remove(chapterId);
+      items.reload();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  return (
+    <Card
+      id="us-reading-history"
+      title={t('settings.activityHistory.readingTitle')}
+      description={t('settings.activityHistory.readingDesc')}
+    >
+      <Loaded res={items} what={t('settings.activityHistory.readingWhat')}>
+        {(list) =>
+          list.length === 0 ? (
+            <p className="us-muted">{t('settings.activityHistory.readingEmpty')}</p>
+          ) : (
+            <ul className="us-list">
+              {list.map((r) => (
+                <li key={r.chapterId}>
+                  <div className="us-row-main">
+                    <strong>{r.seriesTitle}</strong>
+                    <p className="us-muted">
+                      {t('settings.activityHistory.readingChapter', {
+                        number: r.chapterNumber,
+                        percent: Math.round(r.percent),
+                      })}
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-label={t('settings.activityHistory.removeNamed', { name: r.seriesTitle })}
+                    onClick={() => void remove(r.chapterId)}
+                  >
+                    {t('settings.activityHistory.removeItem')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </Loaded>
+      {error && (
+        <Notice variant="danger" role="alert">
+          {error}
+        </Notice>
+      )}
+    </Card>
+  );
+}
+
 /** Library reader defaults, the same record the reader's own settings panel edits as "all series". */
 export function LibraryDefaultsCard() {
   const t = useT();
@@ -215,7 +293,7 @@ export function LibraryDefaultsCard() {
             { value: 'sepia', label: t('settings.activityHistory.bgSepia') },
           ]}
         />
-        <p className="us-muted">{t('settings.activityHistory.libraryMissing')}</p>
+        <p className="us-muted">{t('settings.activityHistory.libraryPreloadMissing')}</p>
       </div>
     </Card>
   );

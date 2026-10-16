@@ -290,14 +290,14 @@ function MessageItemImpl(props: MessageItemProps) {
         label: t('lounge.messageItem.speakMessage'),
         onSelect: () => {
           speechSynthesis.cancel();
-          speechSynthesis.speak(
-            new SpeechSynthesisUtterance(
-              t('lounge.messageItem.speechText', {
-                name: m.author.displayName,
-                content: m.content,
-              }),
-            ),
+          const utterance = new SpeechSynthesisUtterance(
+            t('lounge.messageItem.speechText', {
+              name: m.author.displayName,
+              content: m.content,
+            }),
           );
+          utterance.rate = prefs.ttsRate / 100;
+          speechSynthesis.speak(utterance);
         },
       });
     if (onMarkUnread && !m.pending)
@@ -345,6 +345,7 @@ function MessageItemImpl(props: MessageItemProps) {
     return entries;
   }, [
     t,
+    prefs.ttsRate,
     developerMode,
     m,
     isOwn,

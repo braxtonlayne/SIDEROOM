@@ -16,26 +16,26 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 
 ## Profiles
 - [x] **LNG-USET-008** [FE] Tabs: Main Profile / Per-server Profiles (server picker) (main profile and per-server tabs; the per-server profile is the nickname only)
-- [ ] **LNG-USET-009** [FE] Display name, pronouns, avatar (upload/crop/animated, remove), avatar decoration picker, profile effect picker, banner (image/animated or color), profile theme (two colors), about me (190 chars + markdown), server tag display picker
+- [x] **LNG-USET-009** [FE] Display name, pronouns, avatar (upload/crop/animated, remove), avatar decoration picker, profile effect picker, banner (image/animated or color), profile theme (two colors), about me (190 chars + markdown), server tag display picker *Built: settings/user/sections/Profile.tsx (avatar and banner upload/crop/animated/remove, display name, pronouns, about me 190, accent colour, profile effect and avatar decoration pickers over /sr/profile-catalog, two-colour profile theme `theme_colors`) and ServerTagCard.tsx; tests profile.test.tsx, p13profile.test.tsx.*
    - Built: display name, pronouns, avatar and banner (pick, crop, GIF kept as is, remove), accent colour, about me (190). Not built, needs server fields: avatar decorations, profile effects, a two-colour profile theme, server tag display, markdown in about me.
 - [x] **LNG-USET-010** [FE] Live preview card (popout style)
-- [ ] **LNG-USET-011** [FE] Profile Layout entry ("MySpace mode", Phase 6 → EXT)
+- [ ] **LNG-USET-011** [FE] Profile Layout entry ("MySpace mode", Phase 6 → EXT) *Still open: Phase 6 / EXT, not started.*
    - Open: deferred to the extension phase (Profile Layout); nothing to build now.
 
 ## Content & Social
-- [ ] **LNG-USET-012** [FE] Sensitive media filters (DMs from friends / others / servers: show, blur, block)
+- [ ] **LNG-USET-012** [FE] Sensitive media filters (DMs from friends / others / servers: show, blur, block) *Still open: no user-level sensitive-media setting exists on the server (only the per-server `explicit_media_filter_dms` under /guilds/{id}/sr/community). Contract in docs/dev/handoff/feat-p13-web-fe.md.*
    - Needs a server: no media scanning or per-source filter setting exists. The page says so.
-- [ ] **LNG-USET-013** [FE] DM spam filter, message requests toggle, allow DMs from server members (default + per server)
+- [ ] **LNG-USET-013** [FE] DM spam filter, message requests toggle, allow DMs from server members (default + per server) *Partial: message requests and DMs from server members are built (ReachCard in sections/Privacy.tsx over /users/@me/privacy). The DM spam filter and per-server DM override have no user-level API; contract in the p13 web-fe handoff.*
    - Built: message requests and allow DMs from server members on `/users/@me/privacy`. Not built, needs server fields: the DM spam filter and a per-server DM override.
 - [x] **LNG-USET-014** [FE] Friend request sources (Everyone, Friends of Friends, Server Members) (Everyone / Friends of friends / Server members)
-- [ ] **LNG-USET-015** [FE] Age-restricted content (shows confirmation state, re-confirm flow)
+- [ ] **LNG-USET-015** [FE] Age-restricted content (shows confirmation state, re-confirm flow) *Still open: no route reads or resets the age confirmation; contract in the p13 web-fe handoff.*
    - Needs a server: no way to read or reset the age confirmation (`POST /sr/age-gate` only records an answer). The page says so.
 - [x] **LNG-USET-016** [FE] Blocked & ignored users list (unblock/unignore)
 
 ## Data & Privacy
 - [x] **LNG-USET-017** [FE] Activity privacy: share watching & reading (default on, friends + shared servers), per-section toggles, hide age-restricted from activity, pause history _(Activity page: master, watching, reading, age-restricted and pause switches stored in `user_prefs`; nothing publishes activity yet, so they take effect when Cinema and Library share it (p11-userset-fe))_
 - [x] **LNG-USET-018** [FE] Display current activity as status, share detected activities _(Activity page: status and detected-activity switches, stored the same way (p11-userset-fe))_
-- [ ] **LNG-USET-019** [FE] Request my data (status, download link)
+- [x] **LNG-USET-019** [FE] Request my data (status, download link) *Built: sections/DataExport.tsx over GET/POST /users/@me/data-export (status, polling while building, download link, size and expiry); tests p13connections.test.tsx.*
    - The Request my data card states that the export builder (LNG-USET-020) does not exist; the button is disabled.
 - [x] **LNG-USET-020** [BE][JOB] Data export package builder (JSON + attachment index, zipped, 7-day link) *(sr-db data_export.rs, sr-server userset_jobs.rs, routes /users/@me/data-export; tests data_export.rs, userset_pg_tests.rs)*
 
@@ -47,7 +47,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-022** [FE] Current device + other sessions (platform, browser, location (coarse from IP, optional), last active), Log out one / all others (this device first, other sessions with Log out and Log out other devices, trusted devices; no coarse location (the server stores none))
 
 ## Connections
-- [ ] **LNG-USET-023** [FE] Add connection buttons (providers grid), connected cards (display on profile toggle, show stats toggle, remove)
+- [x] **LNG-USET-023** [FE] Add connection buttons (providers grid), connected cards (display on profile toggle, show stats toggle, remove) *Built: sections/Connections.tsx over /users/@me/connections (providers grid with OAuth start and link-only forms, return notice for `?connected=`/`?error=`, show on profile, show stats, refresh, remove); tests p13connections.test.tsx.*
    - Page built with the Discord status and a read-only list; add/remove/refresh needs LNG-USET-024.
 - [x] **LNG-USET-024** [BE] Connection OAuth flows per provider (Discord, GitHub, Spotify, Steam (OpenID), Twitch, YouTube, Reddit, Xbox/TikTok/Roblox where available) + unverified link connections + periodic stats refresh *(sr-api routes/userset connections.rs and providers.rs: GitHub, Discord, Spotify, Twitch, YouTube, Reddit, Steam behind [connections]; other providers link-only; GitHub/Reddit stats refresh job; tests userset/tests.rs)*
    - Discord is login/register only; `intent=link`, an unlink route and the other providers do not exist.
@@ -67,24 +67,24 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-034** [FE] Leaderboard visibility (hide name, hide amount) _(Hide name / amount / badge switches on `PATCH /donations/me/preferences`, link to the leaderboards (`PrefsCard`))_
 
 ## SIDE ROOM: Activity & Libraries
-- [ ] **LNG-USET-035** [FE] Watch history & reading history management (clear all, per item), defaults for Cinema (autoplay next, subtitle language, audio language, quality cap, data saver) and Library (default reading mode/direction, background, preload count)
+- [ ] **LNG-USET-035** [FE] Watch history & reading history management (clear all, per item), defaults for Cinema (autoplay next, subtitle language, audio language, quality cap, data saver) and Library (default reading mode/direction, background, preload count) *Partial: watch and reading history lists with per-item Remove and Clear all, pause, Cinema (autoplay next, data saver, subtitle language) and Library reader defaults are built (sections/ActivityHistory.tsx, p13history.test.tsx). Missing: Cinema audio language and quality cap (the player cannot apply them before playback) and a Library preload count.*
    - Built (p11-userset-fe): Cinema watch history list with Clear all and the server-side pause, Cinema defaults (autoplay next, data saver, subtitle language), Library reader defaults (mode, direction, background). Open: per-item removal (no route), reading history list and clear (no route), audio language, quality cap and preload count (player/reader have no such setting).
 
 ## SIDE ROOM: Features
-- [ ] **LNG-USET-036** [FE] User-scope feature modules via SchemaForm
+- [ ] **LNG-USET-036** [FE] User-scope feature modules via SchemaForm *Still open: needs a user-scope module schema API; not started.*
    - Open (backend): only `/admin/features` exists; no user-scope feature module list or settings route.
 
 ## Appearance
 - [x] **LNG-USET-037** [FE] Theme: Light / Dark / Ash / Onyx / Sync with computer; Side Room theme option (Light / Dark / Ash / Onyx / Sync with computer / Side Room)
 - [x] **LNG-USET-038** [FE] Per-section themes (Lounge / Cinema / Library / Entrance) pickers (Lounge, Cinema, Library and Entrance pickers (Cinema applies when its shell reads the preference))
-- [ ] **LNG-USET-039** [FE] Theme Store entry (approved packages)
+- [ ] **LNG-USET-039** [FE] Theme Store entry (approved packages) *Still open: no approved-packages Theme Store endpoint for the web client yet.*
    - Theme Store entry not built (there is no theme package store yet).
-- [ ] **LNG-USET-040** [FE] Message display (Cozy/Compact), show avatars in compact, chat font scaling, space between message groups, zoom level
+- [ ] **LNG-USET-040** [FE] Message display (Cozy/Compact), show avatars in compact, chat font scaling, space between message groups, zoom level *Partial: Cozy/Compact, chat font scale, message gap and zoom are built (sections/Appearance.tsx). Missing: "show avatars in compact".*
    - Built: cozy/compact, chat font scale, space between groups, zoom. Not offered: show avatars in compact (compact has no avatar column).
 - [x] **LNG-USET-041** [FE] Allow server theming toggle, show section top bar toggle (allow server theming; the section top bar toggle stays device-local in the Lounge store)
 
 ## Accessibility
-- [ ] **LNG-USET-042** [FE] Saturation, link decorations, role colors display (name / dot / off), reduced motion (sync), autoplay GIFs/stickers/emoji, contrast, TTS rate, show send-message button, dyslexia-friendly font option
+- [x] **LNG-USET-042** [FE] Saturation, link decorations, role colors display (name / dot / off), reduced motion (sync), autoplay GIFs/stickers/emoji, contrast, TTS rate, show send-message button, dyslexia-friendly font option *Built: sections/Accessibility.tsx (saturation in Appearance, underline links, role colours name/dot/off, reduced motion, sticker and emoji animation, high contrast, text-to-speech speed via `ttsRate`, send button, dyslexia font).*
    - Built: saturation, link underline, role colours (name/dot/off), reduced motion, sticker and emoji animation, high contrast, dyslexia-friendly text, send button. Not built: TTS rate (no TTS reader), autoplay of GIFs (no GIF autoplay control in the client).
 
 ## Voice & Video
@@ -95,17 +95,17 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-046** [FE] Attenuation (lower others' volume while speaking) _(Attenuation slider: voices are lowered by 0 to 100 percent while you transmit (`voice/playback.ts` `setAttenuation`, `voice/controller.ts` `recompute`; p11-userset-fe))_
 - [x] **LNG-USET-047** [FE] Camera select + preview, always preview video toggle _(Camera select (stored, used when the camera starts), live preview that releases the camera when stopped, "Always preview video" confirm dialog in the call controls (`lounge/voice/CameraPreview.tsx`; p11-userset-fe))_
 - [x] **LNG-USET-048** [FE] Screen share defaults (resolution/fps within entitlement), share audio default _(Screen share defaults: quality preset, share-audio and content hint seed the Share dialog; entitlement stays enforced by the dialog (p11-userset-fe))_
-- [ ] **LNG-USET-049** [FE] Sounds: join/leave, mute/deafen, PTT sounds, incoming ring, soundboard volume _(partial, feat/p5-voice-client: join/leave, mute/deafen and PTT sounds with a volume; incoming ring and soundboard volume wait for calls and the soundboard)_
+- [ ] **LNG-USET-049** [FE] Sounds: join/leave, mute/deafen, PTT sounds, incoming ring, soundboard volume _(partial, feat/p5-voice-client: join/leave, mute/deafen and PTT sounds with a volume; incoming ring and soundboard volume wait for calls and the soundboard)_ *Unchanged: incoming ring and soundboard volume wait for calls and the soundboard.*
    - Built: join/leave, mute/deafen, PTT and incoming call ring sounds with one volume (p11-userset-fe added the ring switch). Open: soundboard volume (no soundboard).
-- [ ] **LNG-USET-050** [FE] Advanced: hardware acceleration hint, QoS, E2EE info + "show privacy codes"
+- [ ] **LNG-USET-050** [FE] Advanced: hardware acceleration hint, QoS, E2EE info + "show privacy codes" *Still open: only Developer Mode, App Test Mode and diagnostics exist; hardware acceleration hint, QoS and E2EE info are not built.*
    - Built: E2EE information note. Open: hardware acceleration hint and QoS (the engine has nothing to apply them to), "show privacy codes" (calls are not end-to-end encrypted yet).
 
 ## Chat
-- [ ] **LNG-USET-051** [FE] Display images/videos/links previews, inline media size, show embeds, emoji reactions, convert emoticons, show stickers & autocomplete, spoiler display (on click / on hover for mine / always), markdown preview, show compose send button
+- [ ] **LNG-USET-051** [FE] Display images/videos/links previews, inline media size, show embeds, emoji reactions, convert emoticons, show stickers & autocomplete, spoiler display (on click / on hover for mine / always), markdown preview, show compose send button *Partial: link previews, embeds, inline media size, reactions, emoticon conversion and spoiler display (click / always) are built (sections/TextImages.tsx). Missing: sticker autocomplete switch, "on hover for mine" spoilers and a markdown preview.*
    - Built: link previews, app embeds, inline attachments, inline media size (small/medium/large, p11-userset-fe), reactions, emoticon conversion, spoilers, remote images. Open: sticker autocomplete and markdown preview toggles (the composer has neither feature yet).
 
 ## Notifications
-- [ ] **LNG-USET-052** [FE] Enable desktop notifications (permission request), unread badge, taskbar flash equivalent (title blink), push inactive timeout, sounds per type, reaction notifications, email notifications (digest toggles)
+- [x] **LNG-USET-052** [FE] Enable desktop notifications (permission request), unread badge, taskbar flash equivalent (title blink), push inactive timeout, sounds per type, reaction notifications, email notifications (digest toggles) *Built: sections/Notifications.tsx (desktop notification permission request, unread badge, title blink, push inactive timeout, sounds per type, reactions, email digest, DM pop-ups `dmToasts`).*
    - Built: default level; desktop permission request; browser notification for DMs and mentions while the window is in the background and a blinking tab title (`pwa/useDesktopAlerts.ts`, p11-userset-fe); unread badge; reaction, push timeout and email digest stored. Open: per-type sounds (message, mention) are stored but no message sound is played, reaction notifications have no producer, and the server delivers no Web Push or email digests.
 
 ## Keybinds

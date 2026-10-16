@@ -6,9 +6,10 @@ import { useStore } from '../../store';
 import type { Message } from '../../store';
 import { HOME } from '../channels';
 import { useLoungeGoto, useLoungeGotoMessage, useLoungeRoute } from '../nav';
+import { ForYou } from './ForYou';
 import { unreadRows } from './unreads';
 
-type Tab = 'mentions' | 'unreads';
+type Tab = 'mentions' | 'unreads' | 'foryou';
 
 function Mentions({ onGo }: { onGo: () => void }) {
   const t = useT();
@@ -141,7 +142,7 @@ function Unreads({ onGo }: { onGo: () => void }) {
   );
 }
 
-/** Inbox popout (LNG-NTF-006): Mentions and Unreads. "For You" needs aggregation not built yet. */
+/** Inbox popout (LNG-NTF-006): Mentions, Unreads and For You. */
 export function InboxButton({ iconSize = 20 }: { iconSize?: 16 | 20 }) {
   const t = useT();
   const [tab, setTab] = useState<Tab>('mentions');
@@ -160,7 +161,7 @@ export function InboxButton({ iconSize = 20 }: { iconSize?: 16 | 20 }) {
     >
       <div className="lng-inbox">
         <div role="tablist" aria-label={t('lounge.inbox.title')} className="lng-expr-tabs">
-          {(['mentions', 'unreads'] as const).map((id) => (
+          {(['mentions', 'unreads', 'foryou'] as const).map((id) => (
             <button
               key={id}
               type="button"
@@ -168,12 +169,22 @@ export function InboxButton({ iconSize = 20 }: { iconSize?: 16 | 20 }) {
               aria-selected={tab === id}
               onClick={() => setTab(id)}
             >
-              {id === 'mentions' ? t('lounge.inbox.tabMentions') : t('lounge.inbox.tabUnreads')}
+              {id === 'mentions'
+                ? t('lounge.inbox.tabMentions')
+                : id === 'unreads'
+                  ? t('lounge.inbox.tabUnreads')
+                  : t('lounge.inbox.tabForYou')}
             </button>
           ))}
         </div>
         <div role="tabpanel">
-          {tab === 'mentions' ? <Mentions onGo={close} /> : <Unreads onGo={close} />}
+          {tab === 'mentions' ? (
+            <Mentions onGo={close} />
+          ) : tab === 'unreads' ? (
+            <Unreads onGo={close} />
+          ) : (
+            <ForYou onGo={close} />
+          )}
         </div>
       </div>
     </Popover>

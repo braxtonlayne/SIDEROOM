@@ -225,6 +225,12 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
             onChange={(e) => setPrefs({ titleBlink: e.target.checked })}
           />
           <Switch
+            label={t('settings.notifications.dmToasts')}
+            description={t('settings.notifications.dmToastsDesc')}
+            checked={prefs.dmToasts}
+            onChange={(e) => setPrefs({ dmToasts: e.target.checked })}
+          />
+          <Switch
             label={t('settings.notifications.reactions')}
             checked={prefs.reactionNotifications}
             onChange={(e) => setPrefs({ reactionNotifications: e.target.checked })}
