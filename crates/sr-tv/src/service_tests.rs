@@ -688,10 +688,22 @@ async fn the_lead_setting_applies_when_no_lead_is_asked_and_the_list_follows_the
     let mine = e.svc.list_reminders(MEMBER).await.unwrap();
     assert_eq!(mine.len(), 1);
     assert_eq!(mine[0].lead_minutes, 20);
-    assert!(mine[0].title.as_deref().unwrap().starts_with("Cowboy Bebop"));
-    assert_eq!(e.svc.list_reminders(ADULT).await.unwrap()[0].lead_minutes, 5);
+    assert!(
+        mine[0]
+            .title
+            .as_deref()
+            .unwrap()
+            .starts_with("Cowboy Bebop")
+    );
+    assert_eq!(
+        e.svc.list_reminders(ADULT).await.unwrap()[0].lead_minutes,
+        5
+    );
     e.svc.set_reminder(MEMBER, block, Some(0)).await.unwrap();
-    assert_eq!(e.svc.list_reminders(MEMBER).await.unwrap()[0].lead_minutes, 0);
+    assert_eq!(
+        e.svc.list_reminders(MEMBER).await.unwrap()[0].lead_minutes,
+        0
+    );
     // The reminder fires at the setting's lead: 20 minutes before 20:30 is 20:10.
     e.svc.set_reminder(MEMBER, block, None).await.unwrap();
     e.clock.advance_ms(9 * MIN);

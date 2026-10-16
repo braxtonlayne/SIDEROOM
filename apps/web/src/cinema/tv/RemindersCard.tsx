@@ -17,7 +17,10 @@ export const DEFAULT_LEAD = 5;
 /** `tv.reminder_lead_minutes` out of the blob; anything that is not a number from 0 to 120 is the default. */
 export function leadFrom(settings: Record<string, unknown> | undefined): number {
   const tv = settings?.tv;
-  const v = tv && typeof tv === 'object' ? (tv as Record<string, unknown>).reminder_lead_minutes : undefined;
+  const v =
+    tv && typeof tv === 'object'
+      ? (tv as Record<string, unknown>).reminder_lead_minutes
+      : undefined;
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 120 ? v : DEFAULT_LEAD;
 }
 

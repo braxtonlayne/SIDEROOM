@@ -842,3 +842,5 @@ PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-
 #undocumented	/sr/auth/verify-email/resend
 #undocumented	/sr/register
 #undocumented	/sr/usernames/check
+PUT	/admin/library/chapters/{chapter_id}/pages/{index}	authenticated	staff	deny	-
+GET	/tv/reminders	authenticated	self	deny	-

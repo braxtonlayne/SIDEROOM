@@ -10,6 +10,7 @@
 //!   `[{"name":"a","url":"https://...","pointer":"/data/amount"}]` (`pointer` selects the USD price).
 //! * `SR_PAYMENTS_DESCRIPTOR` and `SR_PAYMENTS_NETWORK`, a WATCH-ONLY descriptor to register when no
 //!   wallet exists yet (Admin > Donations can set it instead). Private keys are refused.
+//!
 //! The legacy download fallback (`SR_DOWNLOADS_LEGACY_FALLBACK` and `cinema_download_grants`) was removed
 //! with migration 0871: only entitlements grant the Patron download perk.
 //!

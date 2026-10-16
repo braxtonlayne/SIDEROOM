@@ -706,7 +706,10 @@ mod tests {
         assert!(h.actions.channel_exists(room.get()), "unknown is not empty");
         h.actions.set_occupancy_unknown(false);
         JoinToCreate.on_tick(&h.ctx).await.unwrap();
-        assert!(!h.actions.channel_exists(room.get()), "known and empty goes");
+        assert!(
+            !h.actions.channel_exists(room.get()),
+            "known and empty goes"
+        );
     }
 
     impl Harness {

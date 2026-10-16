@@ -99,6 +99,7 @@ impl settings::EventWorld for FakeVoice {
         settings::event_world::VoiceView {
             occupants: self.occupants.lock().unwrap().clone(),
             live_stages: self.live.lock().unwrap().iter().copied().collect(),
+            ..Default::default()
         }
     }
     async fn start_stage(
@@ -1821,7 +1822,10 @@ async fn scheduled_events_validate_and_follow_discord_shapes() {
         .map(|e| e["name"].as_str().unwrap())
         .collect();
     assert_eq!(names, ["Park meetup", "Movie night"]);
-    assert_eq!(list[0]["user_count"], 1, "the creator is interested (D-228)");
+    assert_eq!(
+        list[0]["user_count"], 1,
+        "the creator is interested (D-228)"
+    );
     let (_, plain) = w.get(BOB, &path).await;
     assert!(plain[0].get("user_count").is_none());
 }
@@ -1990,12 +1994,18 @@ async fn the_creator_of_an_event_is_marked_interested_and_can_unmark_themselves(
     assert_eq!(ev["user_count"], 1);
     let one = format!("{path}/{}", ev["id"].as_str().unwrap());
     let (_, got) = w.get(OWNER, &format!("{one}?with_user_count=true")).await;
-    assert_eq!((got["user_count"].as_u64(), got["user_rsvp"].as_bool()), (Some(1), Some(false)));
+    assert_eq!(
+        (got["user_count"].as_u64(), got["user_rsvp"].as_bool()),
+        (Some(1), Some(false))
+    );
     // CREATE first, then USER_ADD for the creator.
     let mut seen = Vec::new();
     while let Ok(Some(e)) = tokio::time::timeout(Duration::from_millis(50), bus.next()).await {
         if let DomainEvent::ScheduledEvent { kind, payload, .. } = e {
-            seen.push((kind.dispatch_name(), payload["user_id"].as_str().map(str::to_owned)));
+            seen.push((
+                kind.dispatch_name(),
+                payload["user_id"].as_str().map(str::to_owned),
+            ));
         }
     }
     assert_eq!(
@@ -2011,7 +2021,10 @@ async fn the_creator_of_an_event_is_marked_interested_and_can_unmark_themselves(
         StatusCode::NO_CONTENT
     );
     let (_, got) = w.get(BOB, &format!("{one}?with_user_count=true")).await;
-    assert_eq!((got["user_count"].as_u64(), got["user_rsvp"].as_bool()), (Some(0), Some(false)));
+    assert_eq!(
+        (got["user_count"].as_u64(), got["user_rsvp"].as_bool()),
+        (Some(0), Some(false))
+    );
 }
 
 #[tokio::test]

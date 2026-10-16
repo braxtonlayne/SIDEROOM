@@ -3,7 +3,7 @@
 use super::{PgMediaRepo, be, is_unique_violation, jobs::insert_job};
 use async_trait::async_trait;
 use serde_json::Value;
-use sqlx::{PgPool, Row, postgres::PgRow};
+use sqlx::{Row, postgres::PgRow};
 use sr_media::assets::{MediaError, MediaResult};
 use sr_media::downloads::*;
 use sr_media::remux::{RemuxFile, RemuxRequest, RemuxTrack};

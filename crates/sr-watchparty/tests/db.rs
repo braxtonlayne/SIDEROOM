@@ -398,7 +398,10 @@ async fn only_playable_published_titles_start_a_party() {
     let mut episode = create(5);
     episode.episode_id = Some(11);
     let party = e.svc.create(e.v(host).await, episode).await.unwrap();
-    assert_eq!(party.media.as_ref().unwrap().episode_label.as_deref(), Some("S1 E1"));
+    assert_eq!(
+        party.media.as_ref().unwrap().episode_label.as_deref(),
+        Some("S1 E1")
+    );
     assert_eq!(party.media.as_ref().unwrap().episode_id, 11);
 }
 
@@ -1002,7 +1005,9 @@ async fn an_empty_room_has_no_media_until_its_first_host_picks_one() {
     assert_eq!(joined.host_id, next);
     assert!(joined.media.is_none());
     assert!(matches!(
-        e.svc.command(e.v(next).await, party.id, cmd(Action::Play)).await,
+        e.svc
+            .command(e.v(next).await, party.id, cmd(Action::Play))
+            .await,
         Err(PartyError::Conflict(_))
     ));
     // Picking media runs the play gate and lands paused at the start.

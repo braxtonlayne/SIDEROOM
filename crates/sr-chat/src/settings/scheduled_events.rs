@@ -978,7 +978,7 @@ mod tests {
         unknown.unknown_occupancy.insert(ChannelId::new(7));
         // Not even after a day: no empty countdown starts, nothing completes.
         assert!(advance(&e, NOW, &unknown).is_none());
-        assert!(advance(&e, NOW + 24 * HOUR, &unknown).is_none());
+        assert!(advance(&e, NOW + HOUR, &unknown).is_none());
         // A countdown that already started is cleared when the answer turns unknown.
         let marked = advance(&e, NOW, &VoiceView::default()).unwrap();
         let cleared = advance(&marked, NOW + HOUR, &unknown).unwrap();

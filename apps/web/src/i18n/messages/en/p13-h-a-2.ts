@@ -17,4 +17,9 @@ export default {
   'watchparty.empty.pickFailed': 'That could not be started. Pick something else or try again.',
   'watchparty.empty.dismiss': 'Dismiss',
   'watchparty.empty.waiting': 'Waiting for the host to pick something.',
+  'admin.library.replace': 'Replace',
+  'admin.library.replacing': 'Replacing...',
+  'admin.library.replacePage': 'Replace page {n}',
+  'admin.library.replaceFile': 'New image for the page',
+  'admin.library.replaceSaveFirst': 'Save the page order first.',
 } as const;

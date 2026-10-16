@@ -723,10 +723,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Donations (DON-*): watch-only Bitcoin payments, entitlements, and the Patron download perk
     // on top of them (the legacy `cinema_download_grants` fallback is gone, migration 0871).
     let payments = crate::payments_jobs::build(&pool, id_src.clone(), bus.clone()).await;
-    let download_entitlements: Arc<dyn sr_media::downloads::DownloadEntitlements> =
-        Arc::new(sr_db::media_repo::EntitlementDownloads::new(
-            payments.entitlements.clone(),
-        ));
+    let download_entitlements: Arc<dyn sr_media::downloads::DownloadEntitlements> = Arc::new(
+        sr_db::media_repo::EntitlementDownloads::new(payments.entitlements.clone()),
+    );
     let download_service = Arc::new(sr_media::downloads::DownloadService::new(
         media_repo.clone(),
         media_repo.clone(),

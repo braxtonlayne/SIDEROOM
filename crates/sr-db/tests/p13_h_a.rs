@@ -98,13 +98,18 @@ async fn migration_0871_drops_the_legacy_table_only_when_entitlements_were_backf
     let db = TestDb::new().await.unwrap();
     let pool = db.pool().clone();
     let table_exists = || async {
-        sqlx::query_scalar::<_, Option<String>>("SELECT to_regclass('cinema_download_grants')::text")
-            .fetch_one(&pool)
-            .await
-            .unwrap()
-            .is_some()
+        sqlx::query_scalar::<_, Option<String>>(
+            "SELECT to_regclass('cinema_download_grants')::text",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .is_some()
     };
-    assert!(!table_exists().await, "the migrated database has no legacy table");
+    assert!(
+        !table_exists().await,
+        "the migrated database has no legacy table"
+    );
 
     // Without grants (an empty table) it drops cleanly; without the table it is a no-op.
     recreate_legacy_table(&pool).await;
@@ -119,7 +124,11 @@ async fn migration_0871_drops_the_legacy_table_only_when_entitlements_were_backf
         .execute(&pool)
         .await
         .unwrap();
-    let err = sqlx::raw_sql(sql).execute(&pool).await.unwrap_err().to_string();
+    let err = sqlx::raw_sql(sql)
+        .execute(&pool)
+        .await
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("run a Phase 12 release first"), "{err}");
     assert!(table_exists().await, "the table stays");
 

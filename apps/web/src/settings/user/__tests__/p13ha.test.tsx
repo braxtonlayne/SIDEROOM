@@ -25,7 +25,9 @@ describe('Reading audience (H-17, D-229)', () => {
     openSettings('activity');
     const level = await screen.findByRole('combobox', { name: 'Who can see what I am reading' });
     await waitFor(() => expect(level).toHaveTextContent('Friends and people in my servers'));
-    expect(screen.getByText(/people who share a server with you see what you are reading/)).toBeVisible();
+    expect(
+      screen.getByText(/people who share a server with you see what you are reading/),
+    ).toBeVisible();
     await user.click(level);
     await user.click(await screen.findByRole('option', { name: 'Nobody' }));
     await waitFor(() => expect(patches).toEqual([{ library: { share_reading: 'off' } }]));

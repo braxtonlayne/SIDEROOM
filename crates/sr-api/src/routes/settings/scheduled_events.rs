@@ -485,7 +485,9 @@ pub async fn create_event(
         match deps.service.set_interested(gid, ev.id, user, true).await {
             Ok((_, true)) => announce_interest(&deps, gid, ev.id, user, true).await,
             Ok(_) => {}
-            Err(e) => tracing::warn!(error = ?e, event = ev.id, "could not mark the creator interested"),
+            Err(e) => {
+                tracing::warn!(error = ?e, event = ev.id, "could not mark the creator interested")
+            }
         }
     }
     let mut out = render(&deps, user, std::slice::from_ref(&ev), true).await?;

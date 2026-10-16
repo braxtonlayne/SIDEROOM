@@ -536,7 +536,9 @@ impl PartyService {
             )
         };
         let now = self.now();
-        let (duration, live) = media.as_ref().map_or((None, false), |m| (m.duration_ms, m.live));
+        let (duration, live) = media
+            .as_ref()
+            .map_or((None, false), |m| (m.duration_ms, m.live));
         let start = clamp_start(input.start_ms, duration, live)?;
         let max_participants = settings.max_participants.unwrap_or_else(|| {
             match voice_limit {

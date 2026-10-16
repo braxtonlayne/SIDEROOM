@@ -7,7 +7,6 @@ import { useGotoGuild } from './AddServerDialog';
 import { useChannels, useCurrentUser, useGuild, useMembers, useRoles } from './data';
 import { slugChannelName } from './inviteFlow';
 
-
 const VIEW_CHANNEL = (1n << 10n).toString();
 
 type Kind = 'text' | 'voice' | 'party' | 'announcement' | 'forum' | 'stage' | 'media';

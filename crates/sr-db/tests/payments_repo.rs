@@ -604,10 +604,11 @@ async fn the_download_perk_comes_from_entitlements_only() {
     );
     assert!(downloads.allowance(plain).await.unwrap().is_none());
     // The legacy table is gone (migration 0871).
-    let table: Option<String> = sqlx::query_scalar("SELECT to_regclass('cinema_download_grants')::text")
-        .fetch_one(&r.pool)
-        .await
-        .unwrap();
+    let table: Option<String> =
+        sqlx::query_scalar("SELECT to_regclass('cinema_download_grants')::text")
+            .fetch_one(&r.pool)
+            .await
+            .unwrap();
     assert!(table.is_none());
 }
 

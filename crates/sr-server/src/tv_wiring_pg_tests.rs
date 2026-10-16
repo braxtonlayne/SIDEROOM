@@ -427,7 +427,11 @@ async fn reminders_are_stored_replaced_taken_once_and_follow_the_account() {
         .execute(db.pool())
         .await
         .unwrap();
-        assert_eq!(repo.reminder_lead_setting(who).await.unwrap(), want, "{blob}");
+        assert_eq!(
+            repo.reminder_lead_setting(who).await.unwrap(),
+            want,
+            "{blob}"
+        );
     }
     assert!(repo.take_due_reminders(500, 10).await.unwrap().is_empty());
     let due = repo.take_due_reminders(5_000, 10).await.unwrap();
