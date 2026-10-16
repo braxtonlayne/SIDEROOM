@@ -512,8 +512,8 @@ fn caddy_proxies_what_the_server_serves_and_hides_the_rest() {
 
 #[test]
 fn the_activities_wildcard_is_an_opt_in_snippet() {
-    // Activities (DEV-ACT) are not built; the wildcard host would need a DNS-challenge certificate that a
-    // default install cannot get. The snippet ships ready to paste, and the default stays closed.
+    // The wildcard host needs a DNS-challenge certificate that a default install cannot get. The snippet ships
+    // ready to paste (it proxies to sr-server, which serves the activity origin), and the default stays closed.
     let caddy = read("deploy/compose/caddy/Caddyfile.prod");
     assert!(
         !caddy
@@ -529,6 +529,10 @@ fn the_activities_wildcard_is_an_opt_in_snippet() {
     );
     assert!(snippet.contains("dns "), "name the DNS provider module");
     assert!(snippet.contains("frame-ancestors https://{$SR_DOMAIN}"));
+    assert!(
+        snippet.contains("reverse_proxy"),
+        "sr-server serves the activity origin, so the snippet proxies to it"
+    );
     assert!(caddy.contains("activities.snippet"));
 }
 

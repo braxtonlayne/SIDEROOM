@@ -4,6 +4,75 @@
  */
 
 export interface paths {
+    "/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The approved Activities a member can start in a voice channel. */
+        get: operations["shelf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity-instances/{instance_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A running Activity and who is in it. */
+        get: operations["get_instance"];
+        put?: never;
+        post?: never;
+        /** End an Activity for everybody (its starter, or Manage Channels). */
+        delete: operations["end"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity-instances/{instance_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Join a running Activity. */
+        post: operations["join"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity-instances/{instance_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave an Activity; the last one out ends it. */
+        post: operations["leave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/access-log": {
         parameters: {
             query?: never;
@@ -1132,6 +1201,40 @@ export interface paths {
         post?: never;
         /** Delete a variant (`PUBLISH_MEDIA`). */
         delete: operations["admin_cinema_delete_variant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: Activities waiting for review, oldest first. */
+        get: operations["admin_pending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/activities/{application_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff: approve (the proxy then serves the submitted entry document) or reject an Activity. */
+        post: operations["admin_decide"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3582,6 +3685,44 @@ export interface paths {
         patch: operations["patch_app"];
         trace?: never;
     };
+    "/applications/{application_id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Activity settings of my application. */
+        get: operations["get_config"];
+        /** Set the entry URL and URL mappings. A change withdraws any approval and asks for a new review. */
+        put: operations["put_config"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/activity/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit for review. The server fetches the entry document now and pins its SHA-256: only a document with
+         *     that hash is served once staff approves.
+         */
+        post: operations["submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications/{application_id}/assets": {
         parameters: {
             query?: never;
@@ -3980,6 +4121,27 @@ export interface paths {
         head?: never;
         /** Modify a guild channel. Needs `MANAGE_CHANNELS`. */
         patch: operations["modify_channel"];
+        trace?: never;
+    };
+    "/channels/{channel_id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Activity running in a voice channel, if any. */
+        get: operations["in_channel"];
+        put?: never;
+        /**
+         * Start an approved Activity in a voice channel (needs Connect and Use Activities there). One Activity
+         *     runs per channel; the starter is its first participant.
+         */
+        post: operations["launch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/channels/{channel_id}/application-commands": {
@@ -12052,6 +12214,10 @@ export interface components {
             /** @description 2 to 32 characters of `a-z 0-9 _ .` (case-insensitive), not reserved. */
             username: string;
         };
+        ChannelActivity: {
+            enabled: boolean;
+            instance?: null | components["schemas"]["InstanceView"];
+        };
         ChannelObject: {
             /** @description Forum tag ids applied to a post. */
             applied_tags?: string[] | null;
@@ -12742,6 +12908,37 @@ export interface components {
         CompleteUploadRequest: {
             parts: components["schemas"]["PartDone"][];
             upload_id: string;
+        };
+        /** @description What the owner may change. */
+        ConfigInput: {
+            /** @description `null` or empty clears it. */
+            entry_url?: string | null;
+            url_mappings?: components["schemas"]["UrlMapping"][];
+        };
+        /** @description The owner's settings, with the origin the Activity will run on. */
+        ConfigResponse: {
+            config: components["schemas"]["ConfigView"];
+            /** @description `[activities] enabled`: when off, nothing here is served. */
+            enabled: boolean;
+            /**
+             * @description `https://<application-id>.activities.<host>`. Register `<origin>/` as a redirect URI of the
+             *     application so the Embedded App SDK's `authorize` can return a code.
+             */
+            origin: string;
+        };
+        /** @description An application's Activity settings. */
+        ConfigView: {
+            application_id: string;
+            entry_url?: string | null;
+            /** @description SHA-256 (hex) of the entry document the owner submitted. */
+            pinned_sha256?: string | null;
+            review_note?: string | null;
+            review_state: components["schemas"]["ReviewState"];
+            /** @description SHA-256 (hex) of the entry document staff approved; the proxy serves only this one. */
+            reviewed_sha256?: string | null;
+            /** Format: int64 */
+            updated_at_ms: number;
+            url_mappings: components["schemas"]["UrlMapping"][];
         };
         /** @description Body of `PUT /users/@me/connections/link`. */
         ConnectionLinkBody: {
@@ -14272,6 +14469,18 @@ export interface components {
             permissions: string;
             scopes: string[];
         };
+        /** @description A running activity in a voice channel. */
+        InstanceView: {
+            application_id: string;
+            application_name: string;
+            channel_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            guild_id: string;
+            id: string;
+            participants: components["schemas"]["ParticipantView"][];
+            started_by: string;
+        };
         /** @description Instant-search result. */
         InstantSearch: {
             authors: string[];
@@ -14553,6 +14762,9 @@ export interface components {
         KindInfo: {
             id: string;
             label: string;
+        };
+        LaunchBody: {
+            application_id: string;
         };
         LeaderboardEntry: {
             avatar_key?: string | null;
@@ -15740,6 +15952,11 @@ export interface components {
             id?: string | null;
             name: string;
         };
+        ParticipantView: {
+            /** Format: int64 */
+            joined_at_ms: number;
+            user_id: string;
+        };
         /** @description A passkey as the settings page shows it. */
         PasskeyView: {
             /** @description Synced (multi-device) passkey. */
@@ -15876,6 +16093,12 @@ export interface components {
             started_ms?: number | null;
             /** Format: int64 */
             until_ms?: number | null;
+        };
+        /** @description A submitted Activity in the staff queue. */
+        PendingView: {
+            application_name: string;
+            config: components["schemas"]["ConfigView"];
+            owner_id: string;
         };
         PersonBanBody: {
             category?: null | components["schemas"]["BanCategory"];
@@ -16712,6 +16935,11 @@ export interface components {
             asset_id: string;
             reason: string;
         };
+        /**
+         * @description Where an application's Activity is in review.
+         * @enum {string}
+         */
+        ReviewState: "draft" | "pending" | "approved" | "rejected";
         /** @description Body of `POST /admin/review/submissions/{id}/revoke-credits`. */
         RevokeCreditsBody: {
             /** @description Only these published items (item snowflakes); omitted: every credit of the submission. */
@@ -17141,6 +17369,17 @@ export interface components {
          * @enum {string}
          */
         Shelf: "reading" | "plan_to_read" | "completed" | "on_hold" | "dropped";
+        /** @description An approved Activity in the launcher's shelf. */
+        ShelfItem: {
+            application_id: string;
+            description: string;
+            name: string;
+        };
+        ShelfResponse: {
+            /** @description `[activities] enabled`. */
+            enabled: boolean;
+            items: components["schemas"]["ShelfItem"][];
+        };
         /** @description A short-lived signed CDN URL. */
         SignedUrlObject: {
             /**
@@ -18370,6 +18609,13 @@ export interface components {
          * @enum {string}
          */
         UploadStatus: "awaiting_upload" | "queued" | "running" | "done" | "failed" | "expired";
+        /** @description One URL mapping: requests to `<activity origin><prefix>/...` are fetched from `target`. */
+        UrlMapping: {
+            /** @description `/api`: a path of one or more segments, never `/`. */
+            prefix: string;
+            /** @description `https://api.example.com/v1`: https, no query. */
+            target: string;
+        };
         UserGuildSettingsObject: {
             channel_overrides: components["schemas"]["ChannelOverrideObject"][];
             /** @description `null` for the DM scope. */
@@ -18923,6 +19169,165 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    shelf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_instance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    end: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    join: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     access_log: {
         parameters: {
             query?: {
@@ -23054,6 +23459,75 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_pending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingView"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -30978,6 +31452,125 @@ export interface operations {
             };
         };
     };
+    get_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigResponse"];
+                };
+            };
+            /** @description The entry document could not be fetched. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_assets: {
         parameters: {
             query?: never;
@@ -32322,6 +32915,95 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    in_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelActivity"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    launch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LaunchBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description One is already running. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

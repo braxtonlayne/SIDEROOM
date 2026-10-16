@@ -15,6 +15,234 @@
     }
   ],
   "paths": {
+    "/activities": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "The approved Activities a member can start in a voice channel.",
+        "operationId": "shelf",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/activity-instances/{instance_id}": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "A running Activity and who is in it.",
+        "operationId": "get_instance",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Activity instance snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "End an Activity for everybody (its starter, or Manage Channels).",
+        "operationId": "end",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Activity instance snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/activity-instances/{instance_id}/join": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Join a running Activity.",
+        "operationId": "join",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Activity instance snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/activity-instances/{instance_id}/leave": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Leave an Activity; the last one out ends it.",
+        "operationId": "leave",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Activity instance snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/access-log": {
       "get": {
         "tags": [
@@ -6178,6 +6406,112 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/developers/activities": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Staff: Activities waiting for review, oldest first.",
+        "operationId": "admin_pending",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PendingView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/developers/activities/{application_id}/decision": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Staff: approve (the proxy then serves the submitted entry document) or reject an Activity.",
+        "operationId": "admin_decide",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -18059,6 +18393,185 @@
         ]
       }
     },
+    "/applications/{application_id}/activity": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "The Activity settings of my application.",
+        "operationId": "get_config",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Set the entry URL and URL mappings. A change withdraws any approval and asks for a new review.",
+        "operationId": "put_config",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/activity/submit": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Submit for review. The server fetches the entry document now and pins its SHA-256: only a document with\nthat hash is served once staff approves.",
+        "operationId": "submit",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The entry document could not be fetched.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/applications/{application_id}/assets": {
       "get": {
         "tags": [
@@ -20344,6 +20857,138 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/activity": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "The Activity running in a voice channel, if any.",
+        "operationId": "in_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelActivity"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Start an approved Activity in a voice channel (needs Connect and Use Activities there). One Activity\nruns per channel; the starter is its first participant.",
+        "operationId": "launch",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaunchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "One is already running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -58806,6 +59451,27 @@
           }
         }
       },
+      "ChannelActivity": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "instance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InstanceView"
+              }
+            ]
+          }
+        }
+      },
       "ChannelObject": {
         "type": "object",
         "required": [
@@ -61110,6 +61776,101 @@
           },
           "upload_id": {
             "type": "string"
+          }
+        }
+      },
+      "ConfigInput": {
+        "type": "object",
+        "description": "What the owner may change.",
+        "properties": {
+          "entry_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` or empty clears it."
+          },
+          "url_mappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UrlMapping"
+            }
+          }
+        }
+      },
+      "ConfigResponse": {
+        "type": "object",
+        "description": "The owner's settings, with the origin the Activity will run on.",
+        "required": [
+          "config",
+          "enabled",
+          "origin"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ConfigView"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "`[activities] enabled`: when off, nothing here is served."
+          },
+          "origin": {
+            "type": "string",
+            "description": "`https://<application-id>.activities.<host>`. Register `<origin>/` as a redirect URI of the\napplication so the Embedded App SDK's `authorize` can return a code."
+          }
+        }
+      },
+      "ConfigView": {
+        "type": "object",
+        "description": "An application's Activity settings.",
+        "required": [
+          "application_id",
+          "url_mappings",
+          "review_state",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string"
+          },
+          "entry_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pinned_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SHA-256 (hex) of the entry document the owner submitted."
+          },
+          "review_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "review_state": {
+            "$ref": "#/components/schemas/ReviewState"
+          },
+          "reviewed_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SHA-256 (hex) of the entry document staff approved; the proxy serves only this one."
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "url_mappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UrlMapping"
+            }
           }
         }
       },
@@ -66013,6 +66774,50 @@
           }
         }
       },
+      "InstanceView": {
+        "type": "object",
+        "description": "A running activity in a voice channel.",
+        "required": [
+          "id",
+          "application_id",
+          "application_name",
+          "guild_id",
+          "channel_id",
+          "started_by",
+          "created_at_ms",
+          "participants"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string"
+          },
+          "application_name": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParticipantView"
+            }
+          },
+          "started_by": {
+            "type": "string"
+          }
+        }
+      },
       "InstantSearch": {
         "type": "object",
         "description": "Instant-search result.",
@@ -66965,6 +67770,17 @@
             "type": "string"
           },
           "label": {
+            "type": "string"
+          }
+        }
+      },
+      "LaunchBody": {
+        "type": "object",
+        "required": [
+          "application_id"
+        ],
+        "properties": {
+          "application_id": {
             "type": "string"
           }
         }
@@ -70903,6 +71719,22 @@
           }
         }
       },
+      "ParticipantView": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "joined_at_ms"
+        ],
+        "properties": {
+          "joined_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
       "PasskeyView": {
         "type": "object",
         "description": "A passkey as the settings page shows it.",
@@ -71361,6 +72193,26 @@
               "null"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "PendingView": {
+        "type": "object",
+        "description": "A submitted Activity in the staff queue.",
+        "required": [
+          "application_name",
+          "owner_id",
+          "config"
+        ],
+        "properties": {
+          "application_name": {
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/ConfigView"
+          },
+          "owner_id": {
+            "type": "string"
           }
         }
       },
@@ -73930,6 +74782,16 @@
           }
         }
       },
+      "ReviewState": {
+        "type": "string",
+        "description": "Where an application's Activity is in review.",
+        "enum": [
+          "draft",
+          "pending",
+          "approved",
+          "rejected"
+        ]
+      },
       "RevokeCreditsBody": {
         "type": "object",
         "description": "Body of `POST /admin/review/submissions/{id}/revoke-credits`.",
@@ -75416,6 +76278,45 @@
           "on_hold",
           "dropped"
         ]
+      },
+      "ShelfItem": {
+        "type": "object",
+        "description": "An approved Activity in the launcher's shelf.",
+        "required": [
+          "application_id",
+          "name",
+          "description"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ShelfResponse": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "items"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "`[activities] enabled`."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfItem"
+            }
+          }
+        }
       },
       "SignedUrlObject": {
         "type": "object",
@@ -79408,6 +80309,24 @@
           "failed",
           "expired"
         ]
+      },
+      "UrlMapping": {
+        "type": "object",
+        "description": "One URL mapping: requests to `<activity origin><prefix>/...` are fetched from `target`.",
+        "required": [
+          "prefix",
+          "target"
+        ],
+        "properties": {
+          "prefix": {
+            "type": "string",
+            "description": "`/api`: a path of one or more segments, never `/`."
+          },
+          "target": {
+            "type": "string",
+            "description": "`https://api.example.com/v1`: https, no query."
+          }
+        }
       },
       "UserGuildSettingsObject": {
         "type": "object",

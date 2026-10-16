@@ -783,6 +783,22 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         watchparty_service.clone(),
     ));
 
+    // Activities (DEV-ACT): settings and review, instances tied to voice channels, and the proxy for
+    // `<app-id>.activities.<host>`. Everything but the owner's settings is off unless `[activities] enabled`.
+    let activities_deps = Arc::new(routes::activities::ActivitiesDeps::new(
+        sr_activities::ActivityService::new(pool.clone(), id_src.clone())
+            .with_channels(Arc::new(crate::activities::ChatActivityChannels::new(
+                PgChatRepo::new(pool.clone()),
+                clock.clone(),
+            )))
+            .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone()))),
+        cfg.activities.enabled,
+        &cfg.server.public_url,
+        Some(Arc::new(
+            crate::activities::SafeActivityFetcher::production(),
+        )),
+    ));
+
     // The review pipeline (REV-*): submissions of the Library kinds, reviewed by staff with
     // REVIEW_READING and published through the same Library service. The submitter hears
     // about every step as SR_SUBMISSION_UPDATE.
@@ -1210,6 +1226,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(media_deps)
         .extension(cinema_social_deps)
         .extension(watchparty_deps)
+        .extension(activities_deps.clone())
         .extension(user_feature_deps)
         .extension(Arc::new(routes::donations::DonationsDeps::new(
             payments.service.clone(),
@@ -1412,6 +1429,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     if let Some(s) = &sfu {
         app = app.merge(with_request_id(sr_voice::router(s.clone())));
     }
+    // Last, so every route (gateway, CDN, SFU included) answers an activity host the same way: not at all.
+    let app = routes::activities::proxy::wrap_activity_host(app, activities_deps.clone());
 
     let gw = gateway.clone();
     let sfu_for_drain = sfu.clone();

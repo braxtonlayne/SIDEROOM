@@ -1,5 +1,6 @@
 # XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.
 # METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER (a trailing ? on AUTHZ means unreviewed)
+DELETE	/activity-instances/{instance_id}	authenticated	membership	allow	-
 DELETE	/admin/announcements/{announcement_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-
@@ -112,6 +113,8 @@ DELETE	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	all
 DELETE	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
 DELETE	/webhooks/{webhook_id}	authenticated	membership	allow	-
 DELETE	/webhooks/{webhook_id}/{token}	public	none	allow	-
+GET	/activities	authenticated	user	allow	-
+GET	/activity-instances/{instance_id}	authenticated	membership	allow	-
 GET	/admin/access-log	authenticated	staff	deny	-
 GET	/admin/access-log/verify	authenticated	staff	deny	-
 GET	/admin/accounts	authenticated	staff	deny	-
@@ -132,6 +135,7 @@ GET	/admin/cinema/episodes/{episode_id}/markers	authenticated	staff	deny	-
 GET	/admin/cinema/reports	authenticated	staff	deny	-
 GET	/admin/cinema/titles	authenticated	staff	deny	-
 GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
+GET	/admin/developers/activities	authenticated	staff	deny	-
 GET	/admin/developers/requests	authenticated	staff	deny	-
 GET	/admin/developers/versions	authenticated	staff	deny	-
 GET	/admin/directory	authenticated	staff	deny	-
@@ -199,6 +203,7 @@ GET	/app-directory/{application_id}	authenticated	user	allow	-
 GET	/applications	authenticated	owner	deny	-
 GET	/applications/@me	authenticated	owner	allow	-
 GET	/applications/{application_id}	authenticated	owner	deny	-
+GET	/applications/{application_id}/activity	authenticated	owner	deny	-
 GET	/applications/{application_id}/assets	authenticated	user	deny	-
 GET	/applications/{application_id}/audit-log	authenticated	owner	deny	-
 GET	/applications/{application_id}/commands	authenticated	owner	allow	-
@@ -212,6 +217,7 @@ GET	/applications/{application_id}/installs	authenticated	owner	deny	-
 GET	/applications/{application_id}/testers	authenticated	owner	deny	-
 GET	/applications/{application_id}/versions	authenticated	owner	deny	-
 GET	/channels/{channel_id}	authenticated	membership	allow	-
+GET	/channels/{channel_id}/activity	authenticated	membership	allow	-
 GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-
 GET	/channels/{channel_id}/call	authenticated	membership	allow	-
 GET	/channels/{channel_id}/invites	authenticated	membership	allow	-
@@ -509,6 +515,8 @@ PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allo
 PATCH	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
 PATCH	/webhooks/{webhook_id}	authenticated	membership	allow	-
 PATCH	/webhooks/{webhook_id}/{token}	public	none	allow	-
+POST	/activity-instances/{instance_id}/join	authenticated	membership	allow	-
+POST	/activity-instances/{instance_id}/leave	authenticated	membership	allow	-
 POST	/admin/accounts/{account_id}/badges	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/ban	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/change-email	authenticated	staff	deny	-
@@ -543,6 +551,7 @@ POST	/admin/cinema/titles/{title_id}/seasons	authenticated	staff	deny	-
 POST	/admin/cinema/titles/{title_id}/trailers	authenticated	staff	deny	-
 POST	/admin/cinema/titles/{title_id}/unpublish	authenticated	staff	deny	-
 POST	/admin/cinema/titles/{title_id}/variants	authenticated	staff	deny	-
+POST	/admin/developers/activities/{application_id}/decision	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/suspend	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/unsuspend	authenticated	staff	deny	-
 POST	/admin/developers/requests/{request_id}/decision	authenticated	staff	deny	-
@@ -597,6 +606,7 @@ POST	/admin/tv/channels/{channel_id}/blocks	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/preview	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-
 POST	/applications	authenticated	owner	deny	-
+POST	/applications/{application_id}/activity/submit	authenticated	owner	deny	-
 POST	/applications/{application_id}/assets	authenticated	owner	deny	-
 POST	/applications/{application_id}/bot/reset-token	authenticated	owner	deny	-
 POST	/applications/{application_id}/commands	authenticated	owner	allow	-
@@ -608,6 +618,7 @@ POST	/applications/{application_id}/reset-secret	authenticated	owner	deny	-
 POST	/applications/{application_id}/testers	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions/{version_id}/withdraw	authenticated	owner	deny	-
+POST	/channels/{channel_id}/activity	authenticated	membership	allow	-
 POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-
 POST	/channels/{channel_id}/attachments/{upload_id}/complete	authenticated	membership	allow	-
 POST	/channels/{channel_id}/call/ring	authenticated	membership	allow	-
@@ -754,6 +765,7 @@ PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-
 PUT	/admin/transcode/workers/{worker_id}/drain	authenticated	staff	deny	-
 PUT	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
 PUT	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
+PUT	/applications/{application_id}/activity	authenticated	owner	deny	-
 PUT	/applications/{application_id}/commands	authenticated	owner	allow	-
 PUT	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
 PUT	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	owner	allow	applications.commands.permissions.update

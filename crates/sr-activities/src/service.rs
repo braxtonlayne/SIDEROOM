@@ -130,10 +130,8 @@ impl ActivityService {
             .entry_url
             .map(|u| u.trim().to_owned())
             .filter(|u| !u.is_empty());
-        if let Some(u) = &entry {
-            if let Some(p) = rules::https_url_problem(u) {
-                return Err(ActivityError::Invalid("entry_url", p.to_owned()));
-            }
+        if let Some(p) = entry.as_deref().and_then(rules::https_url_problem) {
+            return Err(ActivityError::Invalid("entry_url", p.to_owned()));
         }
         let mappings: Vec<UrlMapping> = input
             .url_mappings
