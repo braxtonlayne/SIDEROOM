@@ -137,6 +137,8 @@ export interface ChannelPermissions {
   moveMembers?: boolean;
   /** USE_SOUNDBOARD: play sounds into the call. */
   useSoundboard?: boolean;
+  /** REQUEST_TO_SPEAK: raise a hand in a stage. */
+  requestToSpeak?: boolean;
 }
 
 export interface Channel {
@@ -186,6 +188,10 @@ export interface VoiceMember {
   serverDeafened?: boolean;
   video?: boolean;
   streaming?: boolean;
+  /** Stage channels: in the audience. */
+  suppressed?: boolean;
+  /** Stage channels: when the hand went up (ms since the epoch), null when it is down. */
+  handRaisedAt?: number | null;
 }
 
 export interface Role {

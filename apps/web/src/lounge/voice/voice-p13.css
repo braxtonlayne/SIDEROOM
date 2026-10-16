@@ -96,3 +96,68 @@
 .vc-sb-row [data-active] {
   color: var(--warning, #f0b232);
 }
+
+/* stage view */
+.vc-stage-body {
+  overflow-y: auto;
+}
+.vc-stage-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-block: 8px;
+}
+.vc-stage-live {
+  position: static;
+}
+.vc-stage-topic {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.vc-stage-join {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-block: 8px;
+}
+.vc-stage-heading {
+  margin: 16px 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.vc-audience {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vc-audience-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.vc-audience-row[data-hand] {
+  background: rgb(240 178 50 / 14%);
+}
+.vc-audience-name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vc-hand {
+  font-size: 18px;
+}

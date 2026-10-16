@@ -78,6 +78,8 @@ export interface TileProps {
   focused?: boolean;
   /** Click to spotlight (focus mode) or release it. */
   onToggleFocus?: (() => void) | undefined;
+  /** Extra buttons in the tile's action row (a stage's "Move to audience"). */
+  actions?: React.ReactNode;
 }
 
 /** One person: their camera when it is on, else their avatar; name, state icons, speaking ring (VOX-UI-003). */
@@ -88,6 +90,7 @@ export function ParticipantTile({
   onError,
   focused,
   onToggleFocus,
+  actions,
 }: TileProps) {
   const t = useT();
   const users = useUsers();
@@ -180,6 +183,7 @@ export function ParticipantTile({
               </button>
             )}
             {!self && <VolumeControl userId={p.userId} name={name} />}
+            {actions}
           </div>
         </div>
       </ContextMenu>

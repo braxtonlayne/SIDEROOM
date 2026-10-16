@@ -774,7 +774,10 @@ export class VoiceController {
       );
     }
     this.joinedSeen = true;
-    patchSession({ serverMute: !!v.mute, serverDeaf: !!v.deaf });
+    const wasSuppressed = useVoiceSession.getState().suppressed;
+    patchSession({ serverMute: !!v.mute, serverDeaf: !!v.deaf, suppressed: !!v.suppress });
+    // Invited to speak from the stage audience: the viewer unmutes themselves (Discord).
+    if (wasSuppressed && !v.suppress) this.noteInvited();
     this.engine?.setDeafened(!!v.deaf || useVoiceSession.getState().selfDeaf);
     this.recompute();
     this.maybeStart();
@@ -965,6 +968,10 @@ export class VoiceController {
     patchSession({ notice: t('voice.refusal.streamQuality') });
   }
 
+  private noteInvited(): void {
+    patchSession({ notice: t('voice.stage.invited') });
+  }
+
   dismissRefusal(): void {
     patchSession({ refusal: null });
   }
@@ -1088,7 +1095,11 @@ export class VoiceController {
     const session = useVoiceSession.getState();
     const mode = effectiveInputMode(s, session.pttForced);
     const allowed =
-      !session.selfMute && !session.selfDeaf && !session.serverMute && !session.serverDeaf;
+      !session.selfMute &&
+      !session.selfDeaf &&
+      !session.serverMute &&
+      !session.serverDeaf &&
+      !session.suppressed;
     const open = allowed && (mode === 'ptt' ? session.pttActive : this.vadOpen);
     this.engine?.setTransmitting(open);
     this.engine?.setAttenuation?.(open ? s.attenuation : 0);

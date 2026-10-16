@@ -19,6 +19,7 @@ import {
 import { AgeConfirmPrompt, useAgeGate } from './AgeGate';
 import { MessageList } from './MessageList';
 import { ForumView } from './forum/ForumView';
+import { StageView } from './voice/StageView';
 import { VoiceChannelView } from './voice/VoiceChannelView';
 import { WatchPartyStrip } from '../watchparty/WatchPartyStrip';
 import { useLoungeGoto } from './nav';
@@ -79,6 +80,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
 
   // Server voice channels have their own view (tiles and call controls), not a message list.
   if (channel?.type === 'voice') return <VoiceChannelView channel={channel} onBack={onBack} />;
+  if (channel?.type === 'stage') return <StageView channel={channel} onBack={onBack} />;
 
   const title =
     isDm && dm
