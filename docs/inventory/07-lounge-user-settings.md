@@ -23,14 +23,14 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
    - Open: deferred to the extension phase (Profile Layout); nothing to build now.
 
 ## Content & Social
-- [ ] **LNG-USET-012** [FE] Sensitive media filters (DMs from friends / others / servers: show, blur, block)
+- [x] **LNG-USET-012** [FE] Sensitive media filters (DMs from friends / others / servers: show, blur, block) _p13 web: `settings/user/sections/SafetyCards.tsx` (SensitiveMediaCard, show/blur/block per audience over PATCH /users/@me/privacy), test `p13Safety.test.tsx`. The server stores the choice; applying it to attachments per viewer is still a backend gap (see the p13 settings-admin handoff)._
    - p13 backend half built (D-230): `sensitive_media {friends, others, servers}` (show/blur/block) on `GET/PATCH /users//privacy` (`sr-chat social/safety.rs`, migration 0840). Stored and returned; the per-viewer attachment handling (spoiler flag, `sr_filtered`) is not applied by the message pipeline yet. The settings UI is not wired.
    - Needs a server: no media scanning or per-source filter setting exists. The page says so.
-- [ ] **LNG-USET-013** [FE] DM spam filter, message requests toggle, allow DMs from server members (default + per server)
+- [x] **LNG-USET-013** [FE] DM spam filter, message requests toggle, allow DMs from server members (default + per server) _p13 web: `SafetyCards.tsx` DmSafetyCard (spam filter off/non_friends/all and per-server DM overrides), message requests and server DMs toggles in `Privacy.tsx`; test `p13Safety.test.tsx`._
    - p13 backend half built (D-230): `dm_spam_filter` (`off`, `non_friends` default, `all`) and `server_dm_overrides` on `/users//privacy`, both enforced when a DM is opened (`SocialService::open_dm`, tests `safety_prefs_update_partially_and_overrides_gate_server_dms`, `safety_settings_round_trip_and_validate`). Server tightening (D-224) is not wired.
    - Built: message requests and allow DMs from server members on `/users/@me/privacy`. Not built, needs server fields: the DM spam filter and a per-server DM override.
 - [x] **LNG-USET-014** [FE] Friend request sources (Everyone, Friends of Friends, Server Members) (Everyone / Friends of friends / Server members)
-- [ ] **LNG-USET-015** [FE] Age-restricted content (shows confirmation state, re-confirm flow)
+- [x] **LNG-USET-015** [FE] Age-restricted content (shows confirmation state, re-confirm flow) _p13 web: `SafetyCards.tsx` AgeConfirmationCard (state, confirm again, reset behind the password via DELETE /users/@me/age-confirmation; keeps the device copy in `lounge/AgeGate.tsx` in step); test `p13Safety.test.tsx`._
    - p13 backend half built: `GET /users/@me/age-confirmation` (`{confirmed, confirmed_at, method}`) and `DELETE` to reset (`routes/auth/account.rs`, test `age_confirmation_can_be_read_and_reset`).
    - Needs a server: no way to read or reset the age confirmation (`POST /sr/age-gate` only records an answer). The page says so.
 - [x] **LNG-USET-016** [FE] Blocked & ignored users list (unblock/unignore)

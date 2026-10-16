@@ -41,7 +41,7 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [x] **ENT-UI-007** [FE] Section strip "One door. *A few different worlds.*" with 3 columns (lounge/cinema/library), no Board
 - [x] **ENT-UI-008** [FE] Footer (tagline, House notes, ©)
 - [x] **ENT-UI-009** [FE] `/join/:code` prefill + auto-check
-- [ ] **ENT-UI-010** [FE] `/no-invitation` and `/house-notes` static pages (operator markdown) _(Default pages now have rules, privacy, terms, image credits and a Help page; operator-editable markdown is ENT-UI-025.)_
+- [x] **ENT-UI-010** [FE] `/no-invitation` and `/house-notes` static pages (operator markdown) _(Default pages now have rules, privacy, terms, image credits and a Help page; operator-editable markdown is ENT-UI-025.)_ _p13 web: `routes/entrance/Static.tsx` renders the staff markdown for `no-invitation` and `house-notes` (restricted renderer in `entranceCopy.tsx`), defaults stay when there is none; test `entranceCopy.test.tsx`._
    - p13 backend half built: `GET /sr/entrance/copy` (ETag, max-age 60) and `PUT|DELETE /admin/entrance/copy/{key}` (keys `no-invitation`, `house-notes`, `landing-note`) (`routes/admin/entrance.rs`, migration 0843, test `entrance_copy_is_public_to_read_and_staff_to_write`).
 - [x] **ENT-UI-011** [FE] Register page layout (left editorial panel, right form)
 - [x] **ENT-UI-012** [FE] Register form: email, username (live check), display name, password + strength meter, confirm, house-notes checkbox, submit
@@ -57,6 +57,6 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [ ] **ENT-UI-022** [FE] First-run onboarding modal (theme, avatar, 2FA nudge, suggested servers)
 - [x] **ENT-UI-023** [FE] Logged-in redirect from `/` and `/login` to last section
 - [x] **ENT-UI-024** [FE] Responsive layouts < 900px (stacked hero, door as background)
-- [ ] **ENT-UI-025** [FE] Operator-editable copy loading (Admin → Entrance) with defaults
+- [x] **ENT-UI-025** [FE] Operator-editable copy loading (Admin → Entrance) with defaults _p13 web: `entranceCopy.tsx` loader (GET /sr/entrance/copy, cached, no catalog keys so first paint is unchanged) and Admin → Entrance pages (`admin/sections/Entrance.tsx`, through withReauth); landing note shown under the invite box; tests `entranceCopy.test.tsx`, `p13entrance.test.tsx`._
    - p13 backend half built: see ENT-UI-010; the Admin editor (ADM-PLT-003) and the client loader are not wired.
 - [ ] **ENT-UI-026** [TEST] Playwright: invite → register → verify → logout → login with TOTP → passkey login

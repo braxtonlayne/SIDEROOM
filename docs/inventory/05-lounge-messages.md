@@ -100,7 +100,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-EXP-008** [FE] Sticker picker (packs, search, server sections) *Current server's stickers with search; no default packs yet (LNG-EXP-004).*
 - [x] **LNG-EXP-009** [FE] GIF picker (trending categories grid, search, favorites star) *lounge/components/GifPicker.tsx (trending, categories, search, favorites in localStorage).*
 - [x] **LNG-EXP-010** [FE] Expression picker tabs container (GIFs / Stickers / Emoji) *The GIF tab explains that no GIF provider is connected.*
-- [ ] **LNG-EXP-011** [FE] Emoji tooltip/popout on click (name, source server, "Join server" if public)
+- [x] **LNG-EXP-011** [FE] Emoji tooltip/popout on click (name, source server, "Join server" if public) _p13 web: `lounge/msg/CustomEmoji.tsx` (clickable custom emoji drawn from /sr/emojis/{id}/url, popout with name, source server and Join over /directory/{id}/join), wired through the new `customEmoji` resolver in markdown-react; test `p13WebUi2.test.tsx`._
    - p13 backend half built (D-232): `GET /sr/emojis/{emoji_id}` (name, source server only for members or Directory-listed servers, with `listing`) and `GET /sr/emojis/{emoji_id}/url` for any session; `routes/directory.rs`, test `emoji_popout_and_url_work_for_non_members_and_name_only_listed_servers`.
 - [ ] **LNG-EXP-012** [FE] Super/burst reaction picker variant + animations
    - p13 (D-231): burst reactions are not built; the reaction object carries the Discord shim (`me_burst: false`, `count_details`, `burst_colors`) and `?type` is accepted and ignored, test `reaction_objects_carry_the_burst_shim_and_ignore_type`. The picker variant and animations are closed.
