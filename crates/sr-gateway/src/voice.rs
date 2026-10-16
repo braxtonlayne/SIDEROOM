@@ -80,6 +80,8 @@ pub struct VoiceChannelInfo {
     pub bitrate: Option<u32>,
     /// Age-restricted (NSFW) channel: joining needs the 18+ confirmation (D-032).
     pub age_restricted: bool,
+    /// The channel's `video_quality_mode`: 1 auto, 2 full (J-11).
+    pub video_quality: u8,
 }
 
 /// Per-guild voice settings the gateway acts on (VOX-SIG-003).
@@ -150,6 +152,8 @@ pub struct VoiceState {
     pub exempt: bool,
     /// The allowance tier for the egress governor: the server level, or 4 for a Patron.
     pub tier: u8,
+    /// The channel's `video_quality_mode` at join (1 auto, 2 full), told to the SFU in the token.
+    pub video_quality: u8,
 }
 
 impl VoiceState {
@@ -654,6 +658,7 @@ impl Gateway {
                 camera: flags.camera,
                 screen: flags.screen,
                 tier: st.tier,
+                video_quality: st.video_quality,
             })
             .ok_or(JoinDenied::Unavailable)?;
         let session = self.st().sessions.get(&st.session_id).cloned();
@@ -739,6 +744,7 @@ impl Gateway {
                     user_limit: 0,
                     bitrate: None,
                     age_restricted: false,
+                    video_quality: 1,
                 };
                 (info, DM_PERMS)
             }
@@ -816,6 +822,7 @@ impl Gateway {
             afk,
             exempt: limits.exempt,
             tier: limits.tier,
+            video_quality: info.video_quality,
         };
         let flags = media_flags(perms, &new);
         // Refuse before changing anything if no SFU can be named.
@@ -1385,6 +1392,7 @@ mod tests {
             user_limit: limit,
             bitrate: Some(64_000),
             age_restricted: false,
+            video_quality: 1,
         }
     }
 
@@ -1409,6 +1417,7 @@ mod tests {
             afk: false,
             exempt: false,
             tier: 0,
+            video_quality: 1,
         }
     }
 

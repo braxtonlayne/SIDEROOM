@@ -3,6 +3,7 @@
 use super::tests::{BOB, CAROL, CB, Env, OWNER, Who, code_of, env, json_of, next_named, no_event};
 use axum::http::{Method, StatusCode};
 use serde_json::{Value, json};
+use sr_chat::settings::repo::AuditRepository;
 use sr_core::Permissions;
 use std::collections::HashMap;
 
@@ -619,7 +620,7 @@ async fn commands_are_registered_by_the_bot_and_validated() {
 }
 
 #[tokio::test]
-async fn command_permissions_need_a_scoped_bearer_of_a_server_manager() {
+async fn command_permissions_are_written_by_people_who_manage_the_server() {
     let e = env().await;
     let (id, bot, token, secret) = e.new_app().await;
     e.configure(&id).await;
@@ -639,8 +640,31 @@ async fn command_permissions_need_a_scoped_bearer_of_a_server_manager() {
     let body = json!({"permissions": [{"id": BOB.to_string(), "type": 2, "permission": false}]});
     let (s, _) = e.put(Who::Bot(&token), &path, body.clone()).await;
     assert_eq!(s, StatusCode::FORBIDDEN, "bot tokens are refused");
-    let (s, _) = e.put(Who::Session(OWNER), &path, body.clone()).await;
-    assert_eq!(s, StatusCode::FORBIDDEN, "sessions are refused");
+    // A member who neither owns the application nor manages the server is refused.
+    let (s, v) = e.put(Who::Session(BOB), &path, body.clone()).await;
+    assert_eq!((s, code_of(&v)), (StatusCode::FORBIDDEN, 50013), "{v}");
+    let (s, _) = e.put(Who::Session(CAROL), &path, body.clone()).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "not even a member");
+    // The application owner (who also owns the server) is accepted; the change is audited (121).
+    let (s, v) = e.put(Who::Session(OWNER), &path, body.clone()).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let log = e
+        .settings
+        .list_audit(&sr_chat::settings::audit::AuditQuery::new(e.guild))
+        .await
+        .unwrap();
+    assert_eq!(log.len(), 1, "{log:?}");
+    assert_eq!(log[0].action.code(), 121);
+    assert_eq!(log[0].actor_id.get(), OWNER as u64);
+    assert_eq!(log[0].target_id, cid.parse::<u64>().ok());
+    // Reading is open to the same people.
+    let (s, v) = e.get(Who::Session(OWNER), &path).await;
+    assert_eq!(
+        (s, v["permissions"].as_array().map(Vec::len)),
+        (StatusCode::OK, Some(1))
+    );
+    let (s, _) = e.get(Who::Session(BOB), &path).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
     let t = e.grant(OWNER, (&id, &secret), "identify").await;
     let (s, v) = e
         .put(
@@ -1789,4 +1813,63 @@ async fn an_attachment_option_resolves_to_the_invokers_own_staged_upload() {
         a["url"].as_str().unwrap().starts_with("/cdn/attachments/"),
         "{a}"
     );
+}
+
+// ======================================================================= integrations (J-05)
+
+#[tokio::test]
+async fn the_integrations_list_shows_installed_applications_and_managers_remove_them() {
+    let e = env().await;
+    let (id, bot, _token, _) = e.new_app().await;
+    e.configure(&id).await;
+    e.install(&id, &bot, 0).await;
+    let path = format!("/guilds/{}/integrations", e.guild);
+
+    // Needs MANAGE_GUILD: a plain member and an outsider are refused.
+    let (s, v) = e.get(Who::Session(BOB), &path).await;
+    assert_eq!((s, code_of(&v)), (StatusCode::FORBIDDEN, 50013), "{v}");
+    let (s, v) = e.get(Who::Session(CAROL), &path).await;
+    assert_eq!((s, code_of(&v)), (StatusCode::FORBIDDEN, 50001), "{v}");
+
+    let (s, v) = e.get(Who::Session(OWNER), &path).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let list = v.as_array().unwrap();
+    assert_eq!(list.len(), 1, "{v}");
+    let one = &list[0];
+    assert_eq!(one["id"], id);
+    assert_eq!(one["type"], "discord");
+    assert_eq!(one["enabled"], true);
+    assert_eq!(one["application"]["id"], id);
+    assert_eq!(one["application"]["bot"]["id"], bot);
+    assert_eq!(one["user"]["id"], OWNER.to_string());
+    assert!(
+        one["scopes"].as_array().unwrap().iter().any(|s| s == "bot"),
+        "{one}"
+    );
+
+    // Removing needs the same permission; a second removal is unknown.
+    let item = format!("{path}/{id}");
+    let (s, _) = e.delete(Who::Session(BOB), &item, None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = e.delete(Who::Session(OWNER), &item, None).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (_, v) = e.get(Who::Session(OWNER), &path).await;
+    assert_eq!(v.as_array().map(Vec::len), Some(0), "{v}");
+    let (s, v) = e.delete(Who::Session(OWNER), &item, None).await;
+    assert_eq!((s, code_of(&v)), (StatusCode::NOT_FOUND, 10005), "{v}");
+    let (s, v) = e
+        .delete(Who::Session(OWNER), &format!("{path}/12345"), None)
+        .await;
+    assert_eq!((s, code_of(&v)), (StatusCode::NOT_FOUND, 10005), "{v}");
+
+    // INTEGRATION_DELETE (82) names the application.
+    let log = e
+        .settings
+        .list_audit(&sr_chat::settings::audit::AuditQuery::new(e.guild))
+        .await
+        .unwrap();
+    assert_eq!(log.len(), 1, "{log:?}");
+    assert_eq!(log[0].action.code(), 82);
+    assert_eq!(log[0].actor_id.get(), OWNER as u64);
+    assert_eq!(log[0].target_id, id.parse::<u64>().ok());
 }

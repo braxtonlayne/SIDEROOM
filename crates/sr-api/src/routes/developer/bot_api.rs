@@ -9,13 +9,15 @@ use crate::{
     auth::{AuthKind, BotOnly, Principal},
     openapi::ErrorBody,
     routes::{
-        Ext,
-        messages::error::{ApiJson, MsgError, MsgResult},
+        Ext, MaybeExt,
+        messages::error::{ApiJson, ApiQuery, MsgError, MsgResult},
+        settings::SettingsDeps,
     },
 };
 use axum::{Json, extract::Path, http::StatusCode};
 use serde_json::{Value, json};
 use sr_apps::{commands::command_json, model::CommandPermission, service::PermissionsView};
+use sr_chat::settings::audit::AuditAction;
 use sr_core::{ApiError, ErrorCode, Permissions};
 
 const APP: ErrorCode = ErrorCode::UnknownApplication;
@@ -243,20 +245,37 @@ pub async fn delete_global(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Commands of the application in one server.
+/// Query of the server command list.
+#[derive(Debug, Default, serde::Deserialize, utoipa::IntoParams)]
+pub struct ListGuildQuery {
+    /// SIDE ROOM extension for the command permission editor: also list the application's global
+    /// commands (the ones with `guild_id` absent).
+    #[serde(default)]
+    pub include_global: bool,
+}
+
+/// Commands of the application in one server. The application's bot, its owner and the server's
+/// managers may read them (J-10: the command permission editor lists them).
 #[utoipa::path(
     get, path = "/applications/{application_id}/guilds/{guild_id}/commands", tag = "bot",
     params(("application_id" = String, Path, description = "Application snowflake"),
-        ("guild_id" = String, Path, description = "Guild snowflake")),
+        ("guild_id" = String, Path, description = "Guild snowflake"), ListGuildQuery),
     responses((status = 200, body = Vec<Object>), (status = 403, body = ErrorBody)),
-    security(("authorization" = []))
+    security(("authorization" = []), ("session" = []))
 )]
 pub async fn list_guild(
-    BotOnly(p): BotOnly,
+    p: Principal,
     Ext(deps): Ext<DevDeps>,
     Path((app, guild)): Path<(String, String)>,
+    ApiQuery(q): ApiQuery<ListGuildQuery>,
 ) -> MsgResult<Json<Vec<Value>>> {
-    list(&deps, bot_app(&p, &app)?, Some(guild_of(&guild)?)).await
+    let guild = guild_of(&guild)?;
+    let (app, _) = permission_caller(&p, &deps, &app, guild, false).await?;
+    let mut out = list(&deps, app, Some(guild)).await?.0;
+    if q.include_global {
+        out.extend(list(&deps, app, None).await?.0);
+    }
+    Ok(Json(out))
 }
 
 /// Create (or update by name) a server command.
@@ -395,55 +414,128 @@ fn view_json(v: &PermissionsView) -> Value {
     })
 }
 
-/// Overwrites of every command in a server.
+const PERMISSIONS_SCOPE: &str = "applications.commands.permissions.update";
+
+/// Who may read and write a server's command permission overrides (J-10): the application's
+/// own bot (read only), a person who owns the application, a person who holds `MANAGE_GUILD`
+/// (or `ADMINISTRATOR`) in the server, or a bearer token with
+/// `applications.commands.permissions.update` of such a manager. Returns the application and
+/// the acting person (`None` for the bot).
+async fn permission_caller(
+    p: &Principal,
+    deps: &DevDeps,
+    app_raw: &str,
+    guild: i64,
+    write: bool,
+) -> MsgResult<(i64, Option<i64>)> {
+    let deny = |m: &str| {
+        MsgError::Api(ApiError::with_message(
+            ErrorCode::MissingAccess,
+            m.to_owned(),
+        ))
+    };
+    let manager = |user: i64| async move {
+        let acc = deps
+            .guild_access(user, guild)
+            .await?
+            .ok_or_else(|| deny("Missing Access"))?;
+        if acc.perms.contains(Permissions::MANAGE_GUILD)
+            || acc.perms.contains(Permissions::ADMINISTRATOR)
+        {
+            Ok(())
+        } else {
+            Err(MsgError::Api(ApiError::new(ErrorCode::MissingPermissions)))
+        }
+    };
+    match &p.kind {
+        AuthKind::Bot { .. } => {
+            if write {
+                return Err(deny("This endpoint needs a person, not a bot token."));
+            }
+            Ok((bot_app(p, app_raw)?, None))
+        }
+        AuthKind::Bearer {
+            scopes,
+            application_id,
+        } => {
+            if !scopes.iter().any(|s| s == PERMISSIONS_SCOPE) {
+                return Err(deny(
+                    "Missing scope: applications.commands.permissions.update",
+                ));
+            }
+            let app = parse_id(app_raw, APP)?;
+            if *application_id != app {
+                return Err(deny("The token was issued to another application."));
+            }
+            manager(p.user_id).await?;
+            Ok((app, Some(p.user_id)))
+        }
+        AuthKind::Session { .. } => {
+            let app: i64 = parse_id(app_raw, APP)?;
+            let application = deps.apps.application(app).await.map_err(app_err)?;
+            if application.owner_id != p.user_id {
+                manager(p.user_id).await?;
+            }
+            Ok((app, Some(p.user_id)))
+        }
+    }
+}
+
+/// Overwrites of every command in a server. The application's bot, its owner and the server's
+/// managers may read them.
 #[utoipa::path(
     get, path = "/applications/{application_id}/guilds/{guild_id}/commands/permissions", tag = "bot",
     params(("application_id" = String, Path, description = "Application snowflake"),
         ("guild_id" = String, Path, description = "Guild snowflake")),
-    responses((status = 200, body = Vec<Object>)),
-    security(("authorization" = []))
+    responses((status = 200, body = Vec<Object>), (status = 403, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
 )]
 pub async fn guild_permissions(
-    BotOnly(p): BotOnly,
+    p: Principal,
     Ext(deps): Ext<DevDeps>,
     Path((app, guild)): Path<(String, String)>,
 ) -> MsgResult<Json<Vec<Value>>> {
+    let guild = guild_of(&guild)?;
+    let (app, _) = permission_caller(&p, &deps, &app, guild, false).await?;
     let views = deps
         .apps
-        .guild_permissions(bot_app(&p, &app)?, guild_of(&guild)?)
+        .guild_permissions(app, guild)
         .await
         .map_err(app_err)?;
     Ok(Json(views.iter().map(view_json).collect()))
 }
 
-/// Overwrites of one command.
+/// Overwrites of one command. The application's bot, its owner and the server's managers may
+/// read them.
 #[utoipa::path(
     get, path = "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions",
     tag = "bot",
     params(("application_id" = String, Path, description = "Application snowflake"),
         ("guild_id" = String, Path, description = "Guild snowflake"),
         ("command_id" = String, Path, description = "Command snowflake")),
-    responses((status = 200, body = Object), (status = 404, body = ErrorBody)),
-    security(("authorization" = []))
+    responses((status = 200, body = Object), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
 )]
 pub async fn command_permissions(
-    BotOnly(p): BotOnly,
+    p: Principal,
     Ext(deps): Ext<DevDeps>,
     Path((app, guild, cmd)): Path<(String, String, String)>,
 ) -> MsgResult<Json<Value>> {
-    let app = bot_app(&p, &app)?;
+    let guild = guild_of(&guild)?;
+    let (app, _) = permission_caller(&p, &deps, &app, guild, false).await?;
     let cmd = command_of(&cmd)?;
     let v = deps
         .apps
-        .command_permissions(app, guild_of(&guild)?, (cmd != app).then_some(cmd))
+        .command_permissions(app, guild, (cmd != app).then_some(cmd))
         .await
         .map_err(app_err)?;
     Ok(Json(view_json(&v)))
 }
 
-/// Replace the overwrites of one command. Needs a bearer token with
-/// `applications.commands.permissions.update`, issued to this application, of a user who
-/// manages the server. Bot tokens and sessions are refused (as on Discord).
+/// Replace the overwrites of one command (audit log entry 121 in the server). Needs a person:
+/// the application's owner, a member who holds `MANAGE_GUILD` in the server, or an OAuth2
+/// bearer token with `applications.commands.permissions.update` of such a manager. Bot tokens
+/// are refused (as on Discord).
 #[utoipa::path(
     put, path = "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions",
     tag = "bot",
@@ -452,54 +544,54 @@ pub async fn command_permissions(
         ("command_id" = String, Path, description = "Command snowflake")),
     request_body = Object,
     responses((status = 200, body = Object), (status = 403, body = ErrorBody)),
-    security(("authorization" = []))
+    security(("authorization" = []), ("session" = []))
 )]
 pub async fn set_command_permissions(
     p: Principal,
     Ext(deps): Ext<DevDeps>,
+    MaybeExt(settings): MaybeExt<SettingsDeps>,
     Path((app, guild, cmd)): Path<(String, String, String)>,
     ApiJson(body): ApiJson<Value>,
 ) -> MsgResult<Json<Value>> {
-    let deny = |m: &str| {
-        MsgError::Api(ApiError::with_message(
-            ErrorCode::MissingAccess,
-            m.to_owned(),
-        ))
-    };
-    let AuthKind::Bearer {
-        scopes,
-        application_id,
-    } = &p.kind
-    else {
-        return Err(deny("This endpoint needs an OAuth2 bearer token."));
-    };
-    if !scopes
-        .iter()
-        .any(|s| s == "applications.commands.permissions.update")
-    {
-        return Err(deny(
-            "Missing scope: applications.commands.permissions.update",
-        ));
-    }
-    let app = parse_id(&app, APP)?;
-    if *application_id != app {
-        return Err(deny("The token was issued to another application."));
-    }
     let guild = guild_of(&guild)?;
-    let acc = deps
-        .guild_access(p.user_id, guild)
-        .await?
-        .ok_or_else(|| deny("Missing Access"))?;
-    if !acc.perms.contains(Permissions::MANAGE_GUILD)
-        && !acc.perms.contains(Permissions::ADMINISTRATOR)
-    {
-        return Err(MsgError::Api(ApiError::new(ErrorCode::MissingPermissions)));
-    }
+    let (app, who) = permission_caller(&p, &deps, &app, guild, true).await?;
     let cmd = command_of(&cmd)?;
+    let command = (cmd != app).then_some(cmd);
     let v = deps
         .apps
-        .set_command_permissions(app, guild, (cmd != app).then_some(cmd), &body)
+        .set_command_permissions(app, guild, command, &body)
         .await
         .map_err(app_err)?;
+    audit_permission_update(settings.as_deref(), guild, who, app, command).await;
     Ok(Json(view_json(&v)))
+}
+
+/// Write audit log entry 121 (`APPLICATION_COMMAND_PERMISSION_UPDATE`) in the server; a
+/// failure is logged, the change stands.
+async fn audit_permission_update(
+    settings: Option<&SettingsDeps>,
+    guild: i64,
+    who: Option<i64>,
+    app: i64,
+    command: Option<i64>,
+) {
+    let (Some(settings), Some(who)) = (settings, who) else {
+        return;
+    };
+    let guild = sr_core::GuildId::new(u64::try_from(guild).unwrap_or(0));
+    let actor = sr_core::UserId::new(u64::try_from(who).unwrap_or(0));
+    let target = u64::try_from(command.unwrap_or(app)).ok();
+    if let Err(e) = settings
+        .service
+        .record_audit_with_options(
+            guild,
+            actor,
+            AuditAction::ApplicationCommandPermissionUpdate,
+            target,
+            json!({ "application_id": app.to_string() }),
+        )
+        .await
+    {
+        tracing::warn!(error = %e, "command permission change was not written to the audit log");
+    }
 }

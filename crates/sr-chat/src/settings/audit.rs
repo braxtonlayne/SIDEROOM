@@ -108,6 +108,7 @@ audit_actions! {
     OnboardingPromptDelete = 165,
     OnboardingCreate = 166,
     OnboardingUpdate = 167,
+    ApplicationCommandPermissionUpdate = 121,
     ApplicationDecision = 200,
 }
 

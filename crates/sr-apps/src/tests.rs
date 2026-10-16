@@ -1723,3 +1723,39 @@ async fn a_failing_endpoint_is_disabled_and_verification_re_enables_it() {
     assert!(actions.contains(&"app.interactions_endpoint_disabled".to_string()));
     assert!(actions.contains(&"app.interactions_endpoint_reenabled".to_string()));
 }
+
+#[tokio::test]
+async fn integrations_list_the_installed_applications_and_uninstall_removes_the_bot() {
+    let e = env();
+    let c = app(&e).await;
+    e.repo.add_guild(60, OWNER, &[]);
+    e.repo.add_guild(61, OWNER, &[]);
+    e.svc
+        .install(install_req(&c, OWNER, 60, Permissions::MANAGE_GUILD, 8))
+        .await
+        .unwrap();
+    // Only the server the application is installed in lists it, with the installer.
+    let list = e.svc.guild_integrations(60).await.unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].1.id, c.application.id);
+    assert_eq!(list[0].0.installed_by, OWNER);
+    assert!(e.svc.guild_integrations(61).await.unwrap().is_empty());
+    // A kicked bot drops out of the list.
+    e.repo.remove_member(60, c.application.bot_user_id);
+    assert!(e.svc.guild_integrations(60).await.unwrap().is_empty());
+    e.svc
+        .install(install_req(&c, OWNER, 60, Permissions::MANAGE_GUILD, 8))
+        .await
+        .unwrap();
+    assert_eq!(e.svc.guild_integrations(60).await.unwrap().len(), 1);
+
+    // Uninstalling removes the install and the bot's membership; a second try finds nothing.
+    let gone = e.svc.uninstall(c.application.id, 60).await.unwrap();
+    assert_eq!(gone.guild_id, 60);
+    assert!(!e.repo.is_member(60, c.application.bot_user_id));
+    assert!(!e.svc.is_installed(c.application.id, 60).await.unwrap());
+    assert_eq!(
+        e.svc.uninstall(c.application.id, 60).await.err(),
+        Some(AppsError::NotFound("integration"))
+    );
+}

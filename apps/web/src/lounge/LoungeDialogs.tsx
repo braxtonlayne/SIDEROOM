@@ -20,6 +20,8 @@ import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
 import { BrowseChannelsDialog } from './shell/BrowseChannelsDialog';
 import { SecurityActionsDialog } from './shell/SecurityActionsDialog';
+import { OnboardingEntryDialog } from './shell/JoinGate';
+import { ServerPrivacyDialog } from './shell/ServerDmToggle';
 import { ServerGuideDialog } from './shell/ServerGuideDialog';
 import { SlowmodeDialog } from './shell/SlowmodeDialog';
 import { TransferOwnershipDialog } from './shell/TransferOwnershipDialog';
@@ -43,6 +45,10 @@ export function LoungeDialogs() {
       return <ServerGuideDialog guildId={dialog.guildId} onClose={close} />;
     case 'browseChannels':
       return <BrowseChannelsDialog guildId={dialog.guildId} onClose={close} />;
+    case 'serverPrivacy':
+      return <ServerPrivacyDialog guildId={dialog.guildId} onClose={close} />;
+    case 'onboarding':
+      return <OnboardingEntryDialog guildId={dialog.guildId} onClose={close} />;
     case 'securityActions':
       return <SecurityActionsDialog guildId={dialog.guildId} onClose={close} />;
     case 'directory':

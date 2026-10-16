@@ -240,6 +240,11 @@ impl Member {
     }
 }
 
+/// `video_quality_mode` 1: the adaptive default.
+pub const VIDEO_QUALITY_AUTO: u8 = 1;
+/// `video_quality_mode` 2: camera tracks may use the 720p tier regardless of occupancy.
+pub const VIDEO_QUALITY_FULL: u8 = 2;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Channel {
     pub id: ChannelId,
@@ -262,6 +267,10 @@ pub struct Channel {
     pub thread: Option<ThreadInfo>,
     /// Forum/media settings and thread defaults.
     pub forum: ForumConfig,
+    /// Voice and stage channels: 1 auto (the adaptive default), 2 full (camera tracks may use
+    /// the 720p tier whatever the occupancy). Discord's `video_quality_mode`; always 1 on other
+    /// channels.
+    pub video_quality_mode: u8,
 }
 
 impl Channel {
@@ -283,6 +292,7 @@ impl Channel {
             flags: 0,
             thread: None,
             forum: ForumConfig::default(),
+            video_quality_mode: VIDEO_QUALITY_AUTO,
         }
     }
 }

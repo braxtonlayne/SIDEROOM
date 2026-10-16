@@ -1647,6 +1647,7 @@ async fn open_dm_routes_by_protection_and_spoilers_follow_the_media_filter() {
             spam_filter_all: true,
             explicit_media_any: true,
             warn_new_account_days: 0,
+            ..SharedProtection::default()
         },
     );
     let opened = f.svc.open_dm(u(1), u(2)).await.unwrap();
@@ -1764,4 +1765,76 @@ async fn too_many_server_dm_overrides_are_rejected() {
             .server_dm_overrides
             .is_empty()
     );
+}
+
+#[test]
+fn a_dm_pause_blocks_strangers_but_never_friends() {
+    use super::dm::{SharedProtection, dm_access_protected};
+    let strangers = PairState::default();
+    let friends = PairState {
+        mine: Some(K::Friend),
+        theirs: Some(K::Friend),
+        ..PairState::default()
+    };
+    let open = DmPrivacy {
+        message_requests: false,
+        ..DmPrivacy::default()
+    };
+    let paused = SharedProtection {
+        shared: 2,
+        dms_paused_all: true,
+        // The standing filter does not matter: a pause blocks, it does not file into requests.
+        spam_filter_all: true,
+        ..SharedProtection::default()
+    };
+    assert_eq!(
+        dm_access_protected(strangers, &open, true, &paused, 400),
+        (DmAccess::Denied, None)
+    );
+    assert_eq!(
+        dm_access_protected(friends, &open, true, &paused, 400),
+        (DmAccess::Allowed, None)
+    );
+}
+
+#[tokio::test]
+async fn open_dm_refuses_with_50007_while_every_shared_server_pauses_dms() {
+    use super::dm::SharedProtection;
+    let f = fx();
+    let repo = f.svc_repo();
+    repo.store
+        .lock()
+        .unwrap()
+        .shared_guilds
+        .insert((u(1), u(2)));
+    f.svc
+        .update_privacy(
+            u(2),
+            super::user_settings::PrivacyUpdate {
+                message_requests: Some(false),
+                dm_spam_filter: Some(super::safety::SpamFilter::Off),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    // Before the pause the stranger can open a DM.
+    let opened = f.svc.open_dm(u(1), u(2)).await.unwrap();
+    assert_eq!(opened.access, DmAccess::Allowed);
+    repo.store.lock().unwrap().protection.insert(
+        (u(1), u(2)),
+        SharedProtection {
+            shared: 1,
+            dms_paused_all: true,
+            ..SharedProtection::default()
+        },
+    );
+    // During the pause even the existing conversation is closed to them.
+    let err = f.svc.open_dm(u(1), u(2)).await.unwrap_err();
+    assert!(matches!(err, SocialError::DmNotAllowed));
+    assert_eq!(err.to_api_error().code.code(), 50007);
+    // Friends are unaffected.
+    f.svc.send_friend_request(u(1), u(2)).await.unwrap();
+    f.svc.accept_friend_request(u(2), u(1)).await.unwrap();
+    assert!(f.svc.open_dm(u(1), u(2)).await.is_ok());
 }

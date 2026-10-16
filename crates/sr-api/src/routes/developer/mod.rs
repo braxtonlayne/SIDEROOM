@@ -24,6 +24,7 @@ mod bot_api;
 mod directory;
 mod dto;
 mod endpoint;
+mod integrations;
 mod interactions;
 mod oauth;
 mod portal;
@@ -362,6 +363,7 @@ pub(crate) fn app_err(e: AppsError) -> MsgError {
             "account" => ApiError::new(C::UnknownAccount),
             "guild" => ApiError::new(C::UnknownGuild),
             "webhook" => ApiError::new(C::UnknownWebhook),
+            "integration" => ApiError::new(C::UnknownIntegration),
             other => ApiError::with_message(C::SrNotFound, format!("Unknown {other}")),
         },
         AppsError::Forbidden(m) => ApiError::with_message(C::MissingAccess, m),
@@ -564,6 +566,15 @@ pub fn router() -> Router<AppState> {
             "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions",
             get(bot_api::command_permissions).put(bot_api::set_command_permissions),
         )
+        // the server Integrations list (J-05)
+        .route(
+            "/guilds/{guild_id}/integrations",
+            get(integrations::list_integrations),
+        )
+        .route(
+            "/guilds/{guild_id}/integrations/{integration_id}",
+            delete(integrations::delete_integration),
+        )
         // interactions
         .route("/interactions", post(interactions::create))
         .route(
@@ -605,6 +616,7 @@ pub fn router() -> Router<AppState> {
         bot_api::list_guild, bot_api::create_guild, bot_api::overwrite_guild,
         bot_api::get_guild, bot_api::patch_guild, bot_api::delete_guild,
         bot_api::guild_permissions, bot_api::command_permissions, bot_api::set_command_permissions,
+        integrations::list_integrations, integrations::delete_integration,
         interactions::create, interactions::command_index, interactions::callback, interactions::get_message,
         interactions::edit_message, interactions::delete_message,
     ),
@@ -623,6 +635,8 @@ pub fn router() -> Router<AppState> {
         directory::DirectoryApp, directory::DirectoryPage, directory::DirectoryTag,
         directory::DirectoryCommand, directory::DirectoryAppPage,
         app_media::RenameAppEmojiBody, app_media::AppAssetObject, app_media::CreateAppAssetBody,
+        integrations::IntegrationObject, integrations::IntegrationApplicationObject,
+        integrations::IntegrationAccountObject,
     )),
     tags(
         (name = "developer", description = "Developer portal: applications, bot credentials, release review"),

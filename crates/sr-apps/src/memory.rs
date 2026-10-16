@@ -1175,6 +1175,24 @@ impl AppsRepository for MemoryAppsRepo {
             || bot.is_some_and(|b| s.guilds.get(&guild).is_some_and(|g| g.members.contains(&b))))
     }
 
+    async fn uninstall(&self, app: i64, guild: i64) -> AppsResult<Option<Install>> {
+        let mut s = self.st();
+        let Some(pos) = s
+            .installs
+            .iter()
+            .position(|i| i.application_id == app && i.guild_id == guild)
+        else {
+            return Ok(None);
+        };
+        let install = s.installs.remove(pos);
+        if let Some(bot) = s.apps.get(&app).map(|a| a.bot_user_id)
+            && let Some(g) = s.guilds.get_mut(&guild)
+        {
+            g.members.remove(&bot);
+        }
+        Ok(Some(install))
+    }
+
     async fn commands(&self, app: i64, guild: Option<i64>) -> AppsResult<Vec<Command>> {
         let mut v: Vec<_> = self
             .st()

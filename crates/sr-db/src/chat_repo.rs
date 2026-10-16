@@ -167,7 +167,7 @@ pub(crate) const CHANNEL_SELECT: &str = "SELECT c.id, c.guild_id, c.type, c.name
     c.position, c.parent_id, c.nsfw, c.rate_limit_per_user, c.bitrate, c.user_limit, \
     c.last_message_id, c.owner_id, c.flags, c.available_tags, c.default_reaction_emoji, \
     c.default_sort_order, c.default_forum_layout, c.default_thread_rate_limit, \
-    c.default_auto_archive_duration, \
+    c.default_auto_archive_duration, c.video_quality_mode, \
     tm.archived AS t_archived, tm.auto_archive_duration AS t_auto_archive, \
     (extract(epoch FROM tm.archive_timestamp) * 1000)::bigint AS t_archive_ms, \
     tm.locked AS t_locked, tm.invitable AS t_invitable, \
@@ -253,6 +253,8 @@ pub(crate) fn channel_from(r: &PgRow) -> RepoResult<Channel> {
             default_thread_rate_limit: small("default_thread_rate_limit")?,
             default_auto_archive_duration: small("default_auto_archive_duration")?,
         },
+        video_quality_mode: u8::try_from(r.try_get::<i16, _>("video_quality_mode").map_err(db)?)
+            .unwrap_or(1),
     })
 }
 
@@ -346,8 +348,8 @@ fn ids_i64<T: Copy>(v: &[T], f: impl Fn(T) -> u64) -> Vec<i64> {
 pub(crate) const INSERT_CHANNEL: &str = "INSERT INTO channels (id, guild_id, type, name, topic, position, \
     parent_id, nsfw, rate_limit_per_user, bitrate, user_limit, owner_id, flags, available_tags, \
     default_reaction_emoji, default_sort_order, default_forum_layout, default_thread_rate_limit, \
-    default_auto_archive_duration) \
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)";
+    default_auto_archive_duration, video_quality_mode) \
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)";
 
 fn tags_json(c: &Channel) -> Option<serde_json::Value> {
     (!c.forum.available_tags.is_empty())
@@ -388,6 +390,7 @@ pub(crate) fn bind_channel<'q>(
         .bind(c.forum.default_forum_layout.map(i16::from))
         .bind(opt_i32(c.forum.default_thread_rate_limit))
         .bind(opt_i32(c.forum.default_auto_archive_duration))
+        .bind(i16::from(c.video_quality_mode))
 }
 
 #[async_trait]
@@ -800,7 +803,8 @@ impl ChannelRepository for PgChatRepo {
              rate_limit_per_user = $7, bitrate = $8, user_limit = $9, flags = $10, \
              available_tags = $11, default_reaction_emoji = $12, default_sort_order = $13, \
              default_forum_layout = $14, default_thread_rate_limit = $15, \
-             default_auto_archive_duration = $16, updated_at = now() WHERE id = $1",
+             default_auto_archive_duration = $16, video_quality_mode = $17, \
+             updated_at = now() WHERE id = $1",
         )
         .bind(i(c.id.get()))
         .bind(c.name.as_deref())
@@ -818,6 +822,7 @@ impl ChannelRepository for PgChatRepo {
         .bind(c.forum.default_forum_layout.map(i16::from))
         .bind(opt_i32(c.forum.default_thread_rate_limit))
         .bind(opt_i32(c.forum.default_auto_archive_duration))
+        .bind(i16::from(c.video_quality_mode))
         .execute(&mut *tx)
         .await
         .map_err(db)?;

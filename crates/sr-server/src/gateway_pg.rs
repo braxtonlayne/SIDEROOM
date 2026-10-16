@@ -703,6 +703,7 @@ impl GuildDirectory for PgGuildDirectory {
                 user_limit: c.user_limit.unwrap_or(0),
                 bitrate: c.bitrate,
                 age_restricted: c.nsfw,
+                video_quality: c.video_quality_mode,
             }),
             Ok(_) => None,
             Err(e) => {

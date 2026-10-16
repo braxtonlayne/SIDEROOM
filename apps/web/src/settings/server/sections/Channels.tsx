@@ -261,6 +261,8 @@ interface ChannelFields {
   user_limit: number;
   /** Voice bitrate in kbit/s. */
   bitrate_kbps: number;
+  /** Video quality "full" (`video_quality_mode` 2) instead of auto (1). */
+  video_full: boolean;
   /** Text channel is an announcement channel (type 5). */
   announcement: boolean;
   parent_id: string;
@@ -409,6 +411,7 @@ function ChannelOverview({
       rate_limit_per_user: channel.rate_limit_per_user,
       user_limit: channel.user_limit ?? 0,
       bitrate_kbps: Math.round((channel.bitrate ?? 64_000) / 1000),
+      video_full: channel.video_quality_mode === 2,
       announcement: channel.type === 5,
       parent_id: channel.parent_id ?? '',
     }),
@@ -434,6 +437,7 @@ function ChannelOverview({
     if (c.parent_id !== undefined) body.parent_id = c.parent_id || null;
     if (c.user_limit !== undefined) body.user_limit = c.user_limit;
     if (c.bitrate_kbps !== undefined) body.bitrate = c.bitrate_kbps * 1000;
+    if (c.video_full !== undefined) body.video_quality_mode = c.video_full ? 2 : 1;
     if (c.announcement !== undefined) body.type = c.announcement ? 5 : 0;
     const ok = await action.run(
       () => api.modifyChannel(channel.id, body),
@@ -532,6 +536,13 @@ function ChannelOverview({
               onChange={(e) => draft.set('bitrate_kbps', Number(e.target.value))}
             />
           </div>
+          <Switch
+            label={t('settings.channels.videoQuality')}
+            description={t('settings.channels.videoQualityHint')}
+            checked={draft.value.video_full}
+            onChange={(e) => draft.set('video_full', e.target.checked)}
+          />
+          <p className="ss-sub">{t('settings.channels.region')}</p>
         </>
       )}
       {!cat && (

@@ -383,26 +383,36 @@ describe('Integrations overview and followed channels (LNG-SSET-044, LNG-SSET-04
     avatar: null,
   });
 
-  it('counts webhooks and followed channels, lists bots and kicks one', async () => {
-    seed({ perms: [MANAGE.webhooks, MANAGE.kick] });
-    const kick = capture();
+  const integration = (id: string, name: string) => ({
+    id,
+    name,
+    type: 'discord',
+    enabled: true,
+    account: { id, name },
+    application: {
+      id,
+      name,
+      icon: null,
+      description: '',
+      bot: { id: `${id}0`, username: name.toLowerCase(), bot: true },
+    },
+    user: { id: '3', username: 'carol' },
+    scopes: ['bot', 'applications.commands'],
+  });
+
+  it('counts webhooks and followed channels, lists installed applications and removes one', async () => {
+    seed({ perms: [MANAGE.webhooks, MANAGE.guild] });
+    const remove = capture();
     const setup = () =>
       server.use(
         http.get('*/api/v1/guilds/g1/webhooks', () =>
           HttpResponse.json([hook('w1', 1, 'CI'), hook('w2', 2, 'News'), hook('w3', 2, 'Blog')]),
         ),
-        http.get('*/api/v1/guilds/g1/members', () =>
-          HttpResponse.json([
-            { user: { id: '2', username: 'bob' }, roles: [], joined_at: '2026-01-01T00:00:00Z' },
-            {
-              user: { id: '50', username: 'helper', bot: true },
-              roles: [],
-              joined_at: '2026-01-01T00:00:00Z',
-            },
-          ]),
+        http.get('*/api/v1/guilds/g1/integrations', () =>
+          HttpResponse.json([integration('50', 'Helper')]),
         ),
-        http.delete('*/api/v1/guilds/g1/members/50', async ({ request }) => {
-          await kick.record(request);
+        http.delete('*/api/v1/guilds/g1/integrations/50', async ({ request }) => {
+          await remove.record(request);
           return new HttpResponse(null, { status: 204 });
         }),
       );
@@ -410,16 +420,115 @@ describe('Integrations overview and followed channels (LNG-SSET-044, LNG-SSET-04
     const counts = await screen.findByRole('list', { name: 'Integration counts' });
     expect(within(counts).getByText('1 webhook')).toBeVisible();
     expect(within(counts).getByText('2 followed channels')).toBeVisible();
-    expect(await screen.findByText('helper')).toBeVisible();
-    expect(screen.queryByText('bob')).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Remove helper' }));
+    expect(await screen.findByText('Helper')).toBeVisible();
+    expect(screen.getByText('Added by carol')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Helper' }));
     await userEvent.click(
-      within(await screen.findByRole('dialog', { name: 'Remove helper?' })).getByRole('button', {
+      within(await screen.findByRole('dialog', { name: 'Remove Helper?' })).getByRole('button', {
         name: 'Remove',
       }),
     );
-    await waitFor(() => expect(kick.calls).toHaveLength(1));
-    await waitFor(() => expect(screen.queryByText('helper')).toBeNull());
+    await waitFor(() => expect(remove.calls).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText('Helper')).toBeNull());
+  });
+
+  it('does not list applications for someone who cannot manage the server', async () => {
+    seed({ perms: [MANAGE.webhooks] });
+    const asked = vi.fn();
+    await openWith('integrations', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/webhooks', () => HttpResponse.json([])),
+        http.get('*/api/v1/guilds/g1/integrations', () => {
+          asked();
+          return HttpResponse.json([]);
+        }),
+      ),
+    );
+    await screen.findByRole('list', { name: 'Integration counts' });
+    expect(screen.queryByRole('heading', { name: 'Bots and apps' })).toBeNull();
+    expect(asked).not.toHaveBeenCalled();
+  });
+
+  it('edits the command permissions of an installed application (J-10)', async () => {
+    seed({ perms: [MANAGE.webhooks, MANAGE.guild] });
+    const put = capture();
+    let saved = [{ id: '9', type: 2, permission: false }];
+    await openWith('integrations', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/webhooks', () => HttpResponse.json([])),
+        http.get('*/api/v1/guilds/g1/integrations', () =>
+          HttpResponse.json([integration('50', 'Helper')]),
+        ),
+        http.get('*/api/v1/guilds/g1/members', () =>
+          HttpResponse.json([
+            { user: { id: '2', username: 'bob' }, roles: [], joined_at: '2026-01-01T00:00:00Z' },
+          ]),
+        ),
+        http.get('*/api/v1/applications/50/guilds/g1/commands', ({ request }) => {
+          expect(new URL(request.url).searchParams.get('include_global')).toBe('true');
+          return HttpResponse.json([
+            { id: '700', name: 'ping', guild_id: null },
+            { id: '701', name: 'ban-hammer', guild_id: 'g1' },
+          ]);
+        }),
+        http.get('*/api/v1/applications/50/guilds/g1/commands/permissions', () =>
+          HttpResponse.json([
+            {
+              id: '700',
+              application_id: '50',
+              guild_id: 'g1',
+              permissions: [{ id: 'g1', type: 1, permission: false }],
+            },
+          ]),
+        ),
+        http.put(
+          '*/api/v1/applications/50/guilds/g1/commands/701/permissions',
+          async ({ request }) => {
+            await put.record(request);
+            const body = (await request.json()) as { permissions: typeof saved };
+            saved = body.permissions;
+            return HttpResponse.json({
+              id: '701',
+              application_id: '50',
+              guild_id: 'g1',
+              permissions: saved,
+            });
+          },
+        ),
+      ),
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Command permissions of Helper' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Command permissions for Helper' });
+    // /ping already denies Everyone.
+    await userEvent.selectOptions(await within(dialog).findByLabelText('Command'), '700');
+    expect(within(dialog).getByLabelText('Rule for Everyone')).toHaveValue('deny');
+    // /ban-hammer: allow a role and one channel, deny Everyone and one member.
+    await userEvent.selectOptions(within(dialog).getByLabelText('Command'), '701');
+    expect(within(dialog).getByLabelText('Rule for Everyone')).toHaveValue('default');
+    await userEvent.selectOptions(within(dialog).getByLabelText('Rule for Everyone'), 'deny');
+    await userEvent.selectOptions(within(dialog).getByLabelText('Rule for All channels'), 'allow');
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText('Add a role, member or channel'),
+      '1:mod',
+    );
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText('Add a role, member or channel'),
+      '2:2',
+    );
+    await userEvent.selectOptions(within(dialog).getByLabelText('Rule for bob'), 'deny');
+    expect(within(dialog).getByLabelText('Rule for @Mod')).toHaveValue('allow');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(put.calls).toHaveLength(1));
+    // 18446744073709551615 stands for nothing here: "All channels" is the server id minus one.
+    expect(put.calls[0]!.body).toEqual({
+      permissions: expect.arrayContaining([
+        { id: 'g1', type: 1, permission: false },
+        { id: 'mod', type: 1, permission: true },
+        { id: '2', type: 2, permission: false },
+      ]),
+    });
   });
 
   it('unfollows a channel from its own tab and keeps followers out of Webhooks', async () => {

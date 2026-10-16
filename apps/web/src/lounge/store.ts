@@ -41,6 +41,8 @@ export type LoungeDialog =
   | { kind: 'serverGuide'; guildId: string }
   | { kind: 'browseChannels'; guildId: string }
   | { kind: 'securityActions'; guildId: string }
+  | { kind: 'onboarding'; guildId: string }
+  | { kind: 'serverPrivacy'; guildId: string }
   | { kind: 'createChannel'; guildId: string; parentId?: string | undefined; category?: boolean }
   | { kind: 'invite'; guildId: string; channelId?: string | undefined }
   | { kind: 'leaveServer'; guildId: string }

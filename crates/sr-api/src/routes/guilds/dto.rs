@@ -305,6 +305,14 @@ pub struct ChannelObject {
     pub default_thread_rate_limit_per_user: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_auto_archive_duration: Option<u32>,
+    /// Voice and stage channels: 1 auto (the adaptive default), 2 full (camera tracks may use the
+    /// 720p tier whatever the occupancy).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_quality_mode: Option<u8>,
+    /// Voice and stage channels: always `null` (this installation has one voice region).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<String>)]
+    pub rtc_region: Option<Option<String>>,
 }
 
 impl ChannelObject {
@@ -360,6 +368,8 @@ impl ChannelObject {
             default_forum_layout: c.forum.default_forum_layout.filter(|_| forum),
             default_thread_rate_limit_per_user: c.forum.default_thread_rate_limit,
             default_auto_archive_duration: c.forum.default_auto_archive_duration,
+            video_quality_mode: c.kind.is_voice_like().then_some(c.video_quality_mode),
+            rtc_region: c.kind.is_voice_like().then_some(None),
         }
     }
 
@@ -761,6 +771,12 @@ pub struct CreateChannelBody {
     pub rate_limit_per_user: Option<u32>,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    /// Voice and stage channels: 1 auto (default), 2 full.
+    pub video_quality_mode: Option<u8>,
+    /// Only `null` is accepted: this installation has one voice region.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub rtc_region: Option<Option<String>>,
     #[serde(default)]
     pub permission_overwrites: Vec<OverwriteBody>,
     /// Forum and media channels: `REQUIRE_TAG` (1 << 4) and similar settings bits.
@@ -793,6 +809,12 @@ pub struct ModifyChannelBody {
     pub rate_limit_per_user: Option<u32>,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    /// Voice and stage channels (`MANAGE_CHANNELS`): 1 auto, 2 full.
+    pub video_quality_mode: Option<u8>,
+    /// Only `null` is accepted: this installation has one voice region.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub rtc_region: Option<Option<String>>,
     pub position: Option<i32>,
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]

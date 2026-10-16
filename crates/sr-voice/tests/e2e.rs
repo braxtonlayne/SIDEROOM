@@ -80,6 +80,7 @@ fn token_in(user: u64, channel: u64, exp: u64, speak: bool) -> String {
             camera: false,
             screen: false,
             tier: 0,
+            video_quality: 0,
         })
         .unwrap()
 }

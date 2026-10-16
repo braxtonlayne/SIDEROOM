@@ -11,9 +11,10 @@ import {
   type IconName,
   type MenuEntry,
 } from '@sideroom/ui';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { RovingNav } from '../a11y/RovingNav';
-import { useT } from '../i18n';
+import { formatTime, useT } from '../i18n';
+import { useStore } from '../store';
 import { useVoiceSession } from '../voice/session';
 import { useJoinVoice } from './voice/actions';
 import { ChannelStatusLine } from './voice/VoiceStatusBar';
@@ -33,7 +34,7 @@ import {
 } from './data';
 import { useLoungeRoute } from './nav';
 import { NestedThreads } from './threads/NestedThreads';
-import { useGuideFlags } from './shell/joinPipeline';
+import { completedOnboarding, pauseActive, useGuideFlags } from './shell/joinPipeline';
 import { useGuildMenuCore } from './shell/useGuildMenu';
 import { hasMemberModule, useGuildModules } from './features/useModules';
 import { useChannelDnd, type ChannelDropMark } from './shell/useChannelDnd';
@@ -487,6 +488,52 @@ function EventsRow({ guildId }: { guildId: string }) {
   );
 }
 
+/**
+ * "Invites paused until <time>" under the server name while a timed pause from Security Actions or the join-rate
+ * alert runs (D-243); read from `incidents_data` on the guild object and gone once the time passes.
+ */
+function InvitesPausedRow({ guildId }: { guildId: string }) {
+  const t = useT();
+  const until = useStore((s) => s.guilds[guildId]?.incidents_data?.invites_disabled_until);
+  const [, tick] = useState(0);
+  const end = until ? Date.parse(until) : 0;
+  useEffect(() => {
+    const wait = end - Date.now();
+    if (!end || wait <= 0 || wait > 2_147_000_000) return;
+    const timer = setTimeout(() => tick((n) => n + 1), wait + 50);
+    return () => clearTimeout(timer);
+  }, [end]);
+  if (!pauseActive(until)) return null;
+  return (
+    <p className="lng-incident-row" role="status">
+      <Icon name="lock" size={16} />
+      <span>{t('lounge.channelSidebar.invitesPausedUntil', { time: formatTime(end) })}</span>
+    </p>
+  );
+}
+
+/**
+ * "Channels & Roles" at the top of the channel list (D-245): the onboarding questions again, for a member who has
+ * not completed them in a server that has them on. Gone once the `COMPLETED_ONBOARDING` flag is set.
+ */
+function ChannelsAndRolesRow({ guildId }: { guildId: string }) {
+  const t = useT();
+  const openDialog = useLoungeUi((s) => s.openDialog);
+  const on = useGuideFlags((s) => !!s.onboarding[guildId]);
+  const flags = useGuideFlags((s) => s.memberFlags[guildId]);
+  if (!on || flags === undefined || completedOnboarding(flags)) return null;
+  return (
+    <button
+      type="button"
+      className="lng-events-row"
+      onClick={() => openDialog({ kind: 'onboarding', guildId })}
+    >
+      <Icon name="list" size={20} />
+      <span>{t('lounge.channelSidebar.channelsAndRoles')}</span>
+    </button>
+  );
+}
+
 export function ChannelSidebar({ guildId }: { guildId: string }) {
   const t = useT();
   const guild = useGuild(guildId);
@@ -501,6 +548,8 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
   return (
     <div className="lng-sidebar" data-testid="channel-sidebar">
       <GuildHeader guild={guild} />
+      <InvitesPausedRow guildId={guild.id} />
+      <ChannelsAndRolesRow guildId={guild.id} />
       <EventsRow guildId={guild.id} />
       {error && (
         <Notice variant="danger" onDismiss={() => setError(null)}>

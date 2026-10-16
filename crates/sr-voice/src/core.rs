@@ -59,6 +59,16 @@ use str0m::{Candidate, Event, IceConnectionState, Input, Output, Rtc};
 use thiserror::Error;
 
 use crate::governor::{EgressGovernor, GovernorConfig, Tier, cap_for, notice};
+
+/// The layer cap a member gets: the governor's for its tier, unless the channel is on full video
+/// quality (J-11), where camera layers stay up to 720p whatever the room load.
+fn cap_of(severity: u8, flags: &Flags) -> Layer {
+    if flags.video_full {
+        Layer::High
+    } else {
+        cap_for(severity, Tier(flags.tier))
+    }
+}
 use crate::keyframe::{self, KeyframeCoalescer};
 use crate::layers::{Available, Frame, LayerSelector, SelectorConfig, layer_for_viewport};
 use crate::loss::LossBudget;
@@ -97,6 +107,9 @@ pub struct Flags {
     pub screen: bool,
     /// Which allowance the participant is on, for the egress governor ([`Tier`]).
     pub tier: u8,
+    /// The channel is on full video quality (`video_quality_mode` 2, J-11): the governor never
+    /// reduces the layers handed to its members.
+    pub video_full: bool,
 }
 
 pub struct JoinParams {
@@ -706,7 +719,7 @@ impl SfuCore {
         let existing = room.clone();
         room.push(pid);
         self.by_user.insert(p.user, pid);
-        let cap = cap_for(self.governor.severity(), Tier(p.flags.tier));
+        let cap = cap_of(self.governor.severity(), &p.flags);
         self.parts.insert(
             pid,
             Participant {
@@ -1447,7 +1460,7 @@ impl SfuCore {
             let Some(q) = self.parts.get_mut(&id) else {
                 continue;
             };
-            let cap = cap_for(severity, Tier(q.flags.tier));
+            let cap = cap_of(severity, &q.flags);
             q.cap = cap;
             let n_video = q.video_outs().max(1);
             let budget = match (q.bwe_bps, q.loss.budget()) {
@@ -1943,5 +1956,31 @@ fn default_cap(source: TrackSource) -> Layer {
         Layer::High
     } else {
         Layer::Low
+    }
+}
+
+#[cfg(test)]
+mod video_quality_tests {
+    use super::*;
+    use crate::governor::MAX_SEVERITY;
+
+    #[test]
+    fn full_video_quality_ignores_how_busy_the_room_is() {
+        let auto = Flags::default();
+        let full = Flags {
+            video_full: true,
+            ..Flags::default()
+        };
+        // A free-tier member of a busy room is capped to the smallest layer ...
+        assert_eq!(cap_of(MAX_SEVERITY, &auto), Layer::Low);
+        // ... unless the channel asked for full quality.
+        assert_eq!(cap_of(MAX_SEVERITY, &full), Layer::High);
+        assert_eq!(cap_of(0, &auto), Layer::High);
+        // The adaptive default still follows the tier.
+        let patron = Flags {
+            tier: 4,
+            ..Flags::default()
+        };
+        assert_eq!(cap_of(MAX_SEVERITY - 1, &patron), Layer::Mid);
     }
 }
