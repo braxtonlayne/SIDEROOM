@@ -1632,6 +1632,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/ingest-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The sources, newest last (`PUBLISH_READING`). */
+        get: operations["admin_ingest_sources"];
+        put?: never;
+        /** Add a source (`PUBLISH_READING`). A local folder must be under an approved root. */
+        post: operations["admin_ingest_source_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/ingest-sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a source and its ledger. Drafts it already created stay (`PUBLISH_READING`). */
+        delete: operations["admin_ingest_source_delete"];
+        options?: never;
+        head?: never;
+        /** Edit a source: label, on or off, polling, stability wait, owner (`PUBLISH_READING`). */
+        patch: operations["admin_ingest_source_update"];
+        trace?: never;
+    };
+    "/admin/ingest-sources/{source_id}/dry-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dry run: list the source and report the structure the importer detected (series, chapters,
+         *     files it cannot place, what is still settling). Writes nothing (`PUBLISH_READING`).
+         */
+        post: operations["admin_ingest_source_dry_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/ingest-sources/{source_id}/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan now and import what is ready as draft submissions (`PUBLISH_READING`). A watched folder
+         *     also runs on its own schedule.
+         */
+        post: operations["admin_ingest_source_scan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/invites": {
         parameters: {
             query?: never;
@@ -2056,7 +2132,8 @@ export interface paths {
         get: operations["admin_library_upload"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Cancel an upload that was not completed and free its parts (`PUBLISH_READING`). */
+        delete: operations["admin_library_abort_upload"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2076,6 +2153,47 @@ export interface paths {
          *     for a queued or finished upload returns it unchanged.
          */
         post: operations["admin_library_complete_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/uploads/{upload_id}/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the contents of an uploaded archive without converting it: pages per folder, ignored
+         *     files, `ComicInfo.xml` facts and why it would be refused (`PUBLISH_READING`). Available from
+         *     the moment the file is in storage until its conversion has run.
+         */
+        get: operations["admin_library_inspect_upload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/uploads/{upload_id}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resume a multipart upload: the parts that arrived and fresh URLs for the missing ones
+         *     (`PUBLISH_READING`).
+         */
+        get: operations["admin_library_upload_parts"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2438,6 +2556,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/review/submissions/{submission_id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Resolve the duplicate panel: `merge` into an existing entry, mark as a `replacement`, or
+         *     `not_duplicate`. Needs the review claim. A merge or replacement earns no contribution credit.
+         */
+        put: operations["admin_review_resolve_duplicate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/review/submissions/{submission_id}/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Possible duplicates with the reviewers' resolution (reviewers of the kind). */
+        get: operations["admin_review_duplicates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/review/submissions/{submission_id}/items/{item_id}": {
         parameters: {
             query?: never;
@@ -2464,6 +2619,26 @@ export interface paths {
         };
         /** Signed page URLs of a chapter under review (reviewers of the kind). */
         get: operations["admin_review_library_pages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/review/submissions/{submission_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The review proxies of the videos in a submission (reviewers of the kind). Kinds without videos
+         *     answer an empty list.
+         */
+        get: operations["admin_review_media"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9076,6 +9251,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/submissions/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ask one provider about a title (members; the provider must be on). */
+        get: operations["submissions_lookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/lookup/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The providers "Fetch details" can use for a section. */
+        get: operations["submissions_lookup_providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/submissions/naming/parse": {
         parameters: {
             query?: never;
@@ -9163,6 +9372,23 @@ export interface paths {
          *     replacements earn none). Revoked credits stay listed with their reason.
          */
         get: operations["submissions_credits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Existing catalog entries my submission may duplicate (title, year, cover artwork). */
+        get: operations["submissions_duplicates"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9283,7 +9509,8 @@ export interface paths {
         get: operations["submissions_library_upload"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Cancel an upload that was not completed: its parts are freed. */
+        delete: operations["submissions_library_abort_upload"];
         options?: never;
         head?: never;
         patch?: never;
@@ -9300,6 +9527,43 @@ export interface paths {
         put?: never;
         /** The file is uploaded: check it and queue the conversion. */
         post: operations["submissions_library_complete_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/library/uploads/{upload_id}/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the contents of an uploaded archive of my submission without converting it: pages per
+         *     chapter folder, ignored files, `ComicInfo.xml` facts and why it would be refused.
+         */
+        get: operations["submissions_library_inspect_upload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/library/uploads/{upload_id}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resume a multipart upload: which parts arrived and fresh URLs for the missing ones. */
+        get: operations["submissions_library_upload_parts"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -11146,6 +11410,25 @@ export interface components {
             /** @description Staff Server role ids to start with. */
             role_ids: string[];
         };
+        /** @description The pre-inspection of one archive. */
+        ArchiveReport: {
+            comic_info?: null | components["schemas"]["ComicInfoFacts"];
+            /** @description The first pages in reading order. */
+            first_pages: string[];
+            /** @description Pages per folder, in reading order of their first page. */
+            folders: components["schemas"]["FolderGroup"][];
+            /** @description `zip`, `7z` or `rar`. */
+            format: string;
+            has_series_json: boolean;
+            /** Format: int32 */
+            pages: number;
+            /** @description Why this archive would be refused or needs attention; empty when it looks fine. */
+            problems: string[];
+            /** Format: int64 */
+            size_bytes: number;
+            /** @description Files the importer ignores (junk, symlinks, unsupported files, nested archives). */
+            skipped: string[];
+        };
         /**
          * @description Which artwork file.
          * @enum {string}
@@ -11370,6 +11653,11 @@ export interface components {
             id: string;
             name: string;
         };
+        /**
+         * @description Where the files are.
+         * @enum {string}
+         */
+        Backend: "local" | "storage";
         /**
          * @description A public profile badge: the catalogue id with English fallback text and an icon name
          *     (G-53). Clients translate the ids they know and fall back to `description`.
@@ -12280,6 +12568,13 @@ export interface components {
         CollectionList: {
             items: components["schemas"]["Collection"][];
         };
+        /** @description What `ComicInfo.xml` says, when the archive has one. */
+        ComicInfoFacts: {
+            /** Format: double */
+            number?: number | null;
+            series?: string | null;
+            title?: string | null;
+        };
         /** @description `GET /channels/{id}/application-commands`. */
         CommandIndex: {
             /** @description Discord command objects the caller may use here. */
@@ -13037,6 +13332,52 @@ export interface components {
         DrainBody: {
             drain: boolean;
         };
+        /**
+         * @description What a reviewer decided about a possible duplicate.
+         * @enum {string}
+         */
+        DuplicateAction: "Merge" | "Replacement" | "NotDuplicate";
+        /** @description One existing catalog entry that a submission may duplicate. */
+        DuplicateMatch: {
+            /** @description Where staff can open the existing entry (an app path). */
+            href?: string | null;
+            /** @description Why it matched: `title`, `alt_title`, `year`, `cover`. */
+            reasons: string[];
+            /** @description Id of the existing entry (a series or a title). */
+            ref_id: string;
+            /**
+             * Format: int32
+             * @description 0 to 100; higher is more alike.
+             */
+            score: number;
+            /** @description Catalog section the match lives in (`library`, `cinema`). */
+            section: string;
+            title: string;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /** @description What `GET .../duplicates` returns. */
+        DuplicateReport: {
+            matches: components["schemas"]["DuplicateMatch"][];
+            resolution?: null | components["schemas"]["DuplicateResolution"];
+        };
+        /** @description The reviewer's resolution of the duplicate panel, kept on the timeline. */
+        DuplicateResolution: {
+            action: components["schemas"]["DuplicateAction"];
+            /** Format: int64 */
+            decided_at_ms: number;
+            decided_by?: string | null;
+            note?: string | null;
+            /** @description The existing entry the submission is merged into or replaces. */
+            target?: string | null;
+        };
+        /** @description Body of `PUT /admin/review/submissions/{id}/duplicate`. */
+        DuplicateResolutionInput: {
+            action: components["schemas"]["DuplicateAction"];
+            note?: string | null;
+            /** @description Required for `merge` and `replacement`: the existing entry. */
+            target?: string | null;
+        };
         EditAnnouncementBody: components["schemas"]["AnnouncementPatch"] & {
             reason?: string | null;
         };
@@ -13301,6 +13642,13 @@ export interface components {
              * @description Images and videos: pixel size (1 to 16384 each, both or neither).
              */
             width?: number | null;
+        };
+        /** @description Pages that share a folder inside the archive (a chapter folder, a volume folder, the root). */
+        FolderGroup: {
+            /** Format: int32 */
+            pages: number;
+            /** @description Folder path inside the archive; empty for the top level. */
+            path: string;
         };
         /** @description A followed series with the user's shelf. */
         Follow: {
@@ -13729,6 +14077,36 @@ export interface components {
             donated_this_month_cents: number;
             /** Format: int64 */
             month_start_ms: number;
+        };
+        /** @description A configured source. */
+        IngestSource: {
+            backend: components["schemas"]["Backend"];
+            /** Format: int64 */
+            created_at_ms: number;
+            enabled: boolean;
+            id: string;
+            kind: components["schemas"]["SourceKind"];
+            label: string;
+            last_error?: string | null;
+            /** @description What the last scan found and did. */
+            last_scan?: Record<string, never> | null;
+            /** Format: int64 */
+            last_scan_at_ms?: number | null;
+            /** @description The directory (local) or key prefix (storage). */
+            location: string;
+            /** @description The staff account the drafts belong to. */
+            owner_id: string;
+            /** Format: int32 */
+            poll_secs: number;
+            /**
+             * Format: int32
+             * @description A file must be unchanged this long before it is imported.
+             */
+            stable_secs: number;
+        };
+        /** @description All configured sources. */
+        IngestSourceList: {
+            sources: components["schemas"]["IngestSource"][];
         };
         InsightsChannelObject: {
             channel_id: string;
@@ -14395,6 +14773,38 @@ export interface components {
             /** @description The result of `navigator.credentials.get`. */
             credential: components["schemas"]["AssertionCredential"];
         };
+        /** @description One catalog entry a provider found, as fields the editor can accept one by one. */
+        LookupCandidate: {
+            alt_titles: string[];
+            authors: string[];
+            /** @description Same-origin path of the proxied cover; empty when there is none. */
+            cover: string;
+            /** @description The provider's id for the entry. */
+            external_id: string;
+            genres: string[];
+            provider: string;
+            synopsis: string;
+            title: string;
+            /** @description The entry's page at the provider. */
+            url?: string | null;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /** @description A provider the editor can offer. */
+        LookupProviderInfo: {
+            id: string;
+            label: string;
+        };
+        /** @description What `GET /submissions/lookup/providers` returns. */
+        LookupProviders: {
+            /** @description False while the feature is off (no provider configured, or the platform setting is off). */
+            enabled: boolean;
+            providers: components["schemas"]["LookupProviderInfo"][];
+        };
+        /** @description Candidates found by one provider. */
+        LookupResults: {
+            candidates: components["schemas"]["LookupCandidate"][];
+        };
         /** @description Result of the mail test. */
         MailTestResult: {
             /** @description The caller's address with the local part masked. */
@@ -14448,6 +14858,29 @@ export interface components {
          * @enum {string}
          */
         Media: "movie" | "episode" | "unknown";
+        /** @description One video under review. */
+        MediaItem: {
+            /** Format: int64 */
+            duration_ms?: number | null;
+            label: string;
+            ref_id: string;
+            /** @description `none` (no video yet), `processing` (the proxy is not ready), `ready` or `failed`. */
+            state: string;
+            /** @description Signed URL of the 480p proxy (MP4), valid for two hours; only when `ready`. */
+            url?: string | null;
+        };
+        /** @description The videos of a submission under review. */
+        MediaList: {
+            items: components["schemas"]["MediaItem"][];
+        };
+        /** @description A video that belongs to an item under review. */
+        MediaRef: {
+            /** @description The media asset; none while the item has no video yet. */
+            asset_id?: string | null;
+            label: string;
+            /** @description The item (episode or title) the video is for. */
+            ref_id: string;
+        };
         /** @description One of the account's platform invites. */
         MemberInvite: {
             /** @description Display form, `XXXXX-XXXXX`. */
@@ -14854,6 +15287,17 @@ export interface components {
                 [key: string]: boolean;
             };
         };
+        /** @description The multipart part of a new upload slot. */
+        MultipartSlot: {
+            /** Format: int32 */
+            part_count: number;
+            /**
+             * Format: int64
+             * @description Every part but the last has exactly this size.
+             */
+            part_size: number;
+            parts: components["schemas"]["PartUrl"][];
+        };
         /** @description Mute window of a change that sets `muted: true`. */
         MuteConfigIn: {
             /**
@@ -15143,6 +15587,7 @@ export interface components {
             /** Format: int32 */
             part_number: number;
         };
+        /** @description One presigned part URL. */
         PartUrl: {
             /** Format: int32 */
             part_number: number;
@@ -15318,6 +15763,28 @@ export interface components {
         PinsPage: {
             has_more: boolean;
             items: components["schemas"]["PinEntry"][];
+        };
+        /** @description One file as the importer reads it. */
+        PlannedChapter: {
+            /** Format: double */
+            chapter?: number | null;
+            group?: string | null;
+            note?: string | null;
+            rel_path: string;
+            /** Format: int64 */
+            size_bytes: number;
+            /** @description `new`, `waiting` (not stable yet), `imported`, `skipped`, `failed`. */
+            status: string;
+            title?: string | null;
+            /** Format: double */
+            volume?: number | null;
+        };
+        /** @description The files that belong to one series. */
+        PlannedSeries: {
+            chapters: components["schemas"]["PlannedChapter"][];
+            /** @description The published series these chapters would be added to, when its title matches exactly. */
+            existing_series?: string | null;
+            title: string;
         };
         /** @description What a player needs to open a title or an episode. */
         PlayTarget: {
@@ -15904,6 +16371,13 @@ export interface components {
              */
             window_secs: number;
         };
+        /** @description A part that already arrived. */
+        ReceivedPart: {
+            /** Format: int32 */
+            part_number: number;
+            /** Format: int64 */
+            size: number;
+        };
         /** @description The account that used a code. */
         RedeemedBy: {
             id: string;
@@ -16228,6 +16702,24 @@ export interface components {
             /** Format: int32 */
             trigger_type: number;
         };
+        /** @description What a scan found and did. */
+        ScanReport: {
+            dry_run: boolean;
+            /** Format: int32 */
+            failed: number;
+            /** Format: int32 */
+            files_seen: number;
+            /** Format: int32 */
+            imported: number;
+            problems: string[];
+            series: components["schemas"]["PlannedSeries"][];
+            /** @description Drafts created or extended, by submission id. */
+            submissions: string[];
+            /** @description Files that could not be placed (no series or chapter number in the name). */
+            unplaced: components["schemas"]["PlannedChapter"][];
+            /** Format: int32 */
+            waiting: number;
+        };
         ScheduleBody: {
             /** @description The message text (up to 2000 characters). */
             content: string;
@@ -16526,6 +17018,34 @@ export interface components {
          * @enum {string}
          */
         SortKey: "newest" | "updated" | "title" | "followers" | "rating";
+        /** @description Body of `POST /admin/ingest-sources`. */
+        SourceInput: {
+            backend: components["schemas"]["Backend"];
+            enabled?: boolean;
+            kind: components["schemas"]["SourceKind"];
+            label: string;
+            location: string;
+            owner_id: string;
+            /** Format: int32 */
+            poll_secs?: number | null;
+            /** Format: int32 */
+            stable_secs?: number | null;
+        };
+        /**
+         * @description What a source is for.
+         * @enum {string}
+         */
+        SourceKind: "watched_folder" | "storage_import";
+        /** @description Body of `PATCH /admin/ingest-sources/{id}`. */
+        SourcePatch: {
+            enabled?: boolean | null;
+            label?: string | null;
+            owner_id?: string | null;
+            /** Format: int32 */
+            poll_secs?: number | null;
+            /** Format: int32 */
+            stable_secs?: number | null;
+        };
         /** @description A stored staff alert (what `#alerts` showed), kept for the dashboard. */
         StaffAlertRow: {
             /** Format: int64 */
@@ -17617,10 +18137,27 @@ export interface components {
         UploadList: {
             uploads: components["schemas"]["Upload"][];
         };
+        /** @description What a resuming client needs: which parts are in, and URLs for the rest. */
+        UploadParts: {
+            /** Format: int64 */
+            expires_in_secs: number;
+            /** @description Fresh URLs for the parts still missing (or received with the wrong size). */
+            missing: components["schemas"]["PartUrl"][];
+            /** Format: int32 */
+            part_count: number;
+            /** Format: int64 */
+            part_size: number;
+            received: components["schemas"]["ReceivedPart"][];
+        };
         /** @description Body of `POST /admin/library/chapters/{id}/uploads`. */
         UploadRequest: {
             /** @description Original file name; its extension must fit the chapter's format. */
             filename: string;
+            /**
+             * @description Ask for a resumable multipart upload: parts of 64 MB sent in parallel, resumable after a
+             *     refresh. Without it the slot is one presigned `PUT`.
+             */
+            multipart?: boolean;
             /** Format: int64 */
             size_bytes: number;
         };
@@ -23746,6 +24283,314 @@ export interface operations {
             };
         };
     };
+    admin_ingest_sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestSourceList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_ingest_source_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestSource"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_ingest_source_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source snowflake */
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_ingest_source_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source snowflake */
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourcePatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestSource"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_ingest_source_dry_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source snowflake */
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanReport"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_ingest_source_scan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source snowflake */
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanReport"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: {
@@ -25399,6 +26244,60 @@ export interface operations {
             };
         };
     };
+    admin_library_abort_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Upload"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_library_complete_upload: {
         parameters: {
             query?: never;
@@ -25452,6 +26351,123 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_inspect_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveReport"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_upload_parts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadParts"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a multipart upload, or no longer awaiting its file. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -26589,6 +27605,118 @@ export interface operations {
             };
         };
     };
+    admin_review_resolve_duplicate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DuplicateResolutionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateReport"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_review_duplicates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateReport"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_review_decide_item: {
         parameters: {
             query?: never;
@@ -26677,6 +27805,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PageManifest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_review_media: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaList"];
                 };
             };
             401: {
@@ -48046,6 +49220,104 @@ export interface operations {
             };
         };
     };
+    submissions_lookup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider id from the providers list. */
+                provider: string;
+                /** @description Title to look up, 2 to 200 characters. */
+                q: string;
+                year: number | null;
+                /** @description `library` (default) or `cinema`. */
+                section: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupResults"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Lookup is off or this provider is not configured. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_lookup_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `library` (default) or `cinema`. */
+                section: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupProviders"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     submissions_naming_parse: {
         parameters: {
             query?: never;
@@ -48284,6 +49556,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Credit"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_duplicates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateReport"];
                 };
             };
             401: {
@@ -48744,6 +50054,54 @@ export interface operations {
             };
         };
     };
+    submissions_library_abort_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Upload"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     submissions_library_complete_upload: {
         parameters: {
             query?: never;
@@ -48772,6 +50130,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_library_inspect_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveReport"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_library_upload_parts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadParts"];
                 };
             };
             401: {

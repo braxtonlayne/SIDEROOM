@@ -8433,6 +8433,435 @@
         ]
       }
     },
+    "/admin/ingest-sources": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "The sources, newest last (`PUBLISH_READING`).",
+        "operationId": "admin_ingest_sources",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestSourceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Add a source (`PUBLISH_READING`). A local folder must be under an approved root.",
+        "operationId": "admin_ingest_source_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestSource"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/ingest-sources/{source_id}": {
+      "delete": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Remove a source and its ledger. Drafts it already created stay (`PUBLISH_READING`).",
+        "operationId": "admin_ingest_source_delete",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "description": "Source snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Edit a source: label, on or off, polling, stability wait, owner (`PUBLISH_READING`).",
+        "operationId": "admin_ingest_source_update",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "description": "Source snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourcePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestSource"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/ingest-sources/{source_id}/dry-run": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Dry run: list the source and report the structure the importer detected (series, chapters,\nfiles it cannot place, what is still settling). Writes nothing (`PUBLISH_READING`).",
+        "operationId": "admin_ingest_source_dry_run",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "description": "Source snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/ingest-sources/{source_id}/scan": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Scan now and import what is ready as draft submissions (`PUBLISH_READING`). A watched folder\nalso runs on its own schedule.",
+        "operationId": "admin_ingest_source_scan",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "description": "Source snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/invites": {
       "get": {
         "tags": [
@@ -10942,6 +11371,81 @@
             "session": []
           }
         ]
+      },
+      "delete": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Cancel an upload that was not completed and free its parts (`PUBLISH_READING`).",
+        "operationId": "admin_library_abort_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Upload"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
       }
     },
     "/admin/library/uploads/{upload_id}/complete": {
@@ -11015,6 +11519,170 @@
           },
           "409": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/library/uploads/{upload_id}/inspect": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "List the contents of an uploaded archive without converting it: pages per folder, ignored\nfiles, `ComicInfo.xml` facts and why it would be refused (`PUBLISH_READING`). Available from\nthe moment the file is in storage until its conversion has run.",
+        "operationId": "admin_library_inspect_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/library/uploads/{upload_id}/parts": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Resume a multipart upload: the parts that arrived and fresh URLs for the missing ones\n(`PUBLISH_READING`).",
+        "operationId": "admin_library_upload_parts",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadParts"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not a multipart upload, or no longer awaiting its file.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12753,6 +13421,170 @@
         ]
       }
     },
+    "/admin/review/submissions/{submission_id}/duplicate": {
+      "put": {
+        "tags": [
+          "duplicates"
+        ],
+        "summary": "Resolve the duplicate panel: `merge` into an existing entry, mark as a `replacement`, or\n`not_duplicate`. Needs the review claim. A merge or replacement earns no contribution credit.",
+        "operationId": "admin_review_resolve_duplicate",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateResolutionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/review/submissions/{submission_id}/duplicates": {
+      "get": {
+        "tags": [
+          "duplicates"
+        ],
+        "summary": "Possible duplicates with the reviewers' resolution (reviewers of the kind).",
+        "operationId": "admin_review_duplicates",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/review/submissions/{submission_id}/items/{item_id}": {
       "put": {
         "tags": [
@@ -12893,6 +13725,73 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PageManifest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/review/submissions/{submission_id}/media": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "The review proxies of the videos in a submission (reviewers of the kind). Kinds without videos\nanswer an empty list.",
+        "operationId": "admin_review_media",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaList"
                 }
               }
             }
@@ -46729,6 +47628,176 @@
         ]
       }
     },
+    "/submissions/lookup": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "Ask one provider about a title (members; the provider must be on).",
+        "operationId": "submissions_lookup",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id from the providers list.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "path",
+            "description": "Title to look up, 2 to 200 characters.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "section",
+            "in": "path",
+            "description": "`library` (default) or `cinema`.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupResults"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lookup is off or this provider is not configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/lookup/providers": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "The providers \"Fetch details\" can use for a section.",
+        "operationId": "submissions_lookup_providers",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "description": "`library` (default) or `cinema`.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupProviders"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/submissions/naming/parse": {
       "post": {
         "tags": [
@@ -47078,6 +48147,63 @@
                   "items": {
                     "$ref": "#/components/schemas/Credit"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/duplicates": {
+      "get": {
+        "tags": [
+          "duplicates"
+        ],
+        "summary": "Existing catalog entries my submission may duplicate (title, year, cover artwork).",
+        "operationId": "submissions_duplicates",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateReport"
                 }
               }
             }
@@ -47792,6 +48918,80 @@
             "session": []
           }
         ]
+      },
+      "delete": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Cancel an upload that was not completed: its parts are freed.",
+        "operationId": "submissions_library_abort_upload",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Upload"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
       }
     },
     "/submissions/{submission_id}/library/uploads/{upload_id}/complete": {
@@ -47838,6 +49038,168 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/library/uploads/{upload_id}/inspect": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "List the contents of an uploaded archive of my submission without converting it: pages per\nchapter folder, ignored files, `ComicInfo.xml` facts and why it would be refused.",
+        "operationId": "submissions_library_inspect_upload",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/library/uploads/{upload_id}/parts": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Resume a multipart upload: which parts arrived and fresh URLs for the missing ones.",
+        "operationId": "submissions_library_upload_parts",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadParts"
                 }
               }
             }
@@ -55372,6 +56734,77 @@
           }
         }
       },
+      "ArchiveReport": {
+        "type": "object",
+        "description": "The pre-inspection of one archive.",
+        "required": [
+          "format",
+          "size_bytes",
+          "pages",
+          "folders",
+          "first_pages",
+          "skipped",
+          "has_series_json",
+          "problems"
+        ],
+        "properties": {
+          "comic_info": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ComicInfoFacts"
+              }
+            ]
+          },
+          "first_pages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The first pages in reading order."
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderGroup"
+            },
+            "description": "Pages per folder, in reading order of their first page."
+          },
+          "format": {
+            "type": "string",
+            "description": "`zip`, `7z` or `rar`."
+          },
+          "has_series_json": {
+            "type": "boolean"
+          },
+          "pages": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Why this archive would be refused or needs attention; empty when it looks fine."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Files the importer ignores (junk, symlinks, unsupported files, nested archives)."
+          }
+        }
+      },
       "ArtworkKind": {
         "type": "string",
         "description": "Which artwork file.",
@@ -56127,6 +57560,14 @@
             "type": "string"
           }
         }
+      },
+      "Backend": {
+        "type": "string",
+        "description": "Where the files are.",
+        "enum": [
+          "local",
+          "storage"
+        ]
       },
       "BadgeObject": {
         "type": "object",
@@ -59085,6 +60526,31 @@
           }
         }
       },
+      "ComicInfoFacts": {
+        "type": "object",
+        "description": "What `ComicInfo.xml` says, when the archive has one.",
+        "properties": {
+          "number": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "series": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CommandIndex": {
         "type": "object",
         "description": "`GET /channels/{id}/application-commands`.",
@@ -61495,6 +62961,152 @@
           }
         }
       },
+      "DuplicateAction": {
+        "type": "string",
+        "description": "What a reviewer decided about a possible duplicate.",
+        "enum": [
+          "Merge",
+          "Replacement",
+          "NotDuplicate"
+        ]
+      },
+      "DuplicateMatch": {
+        "type": "object",
+        "description": "One existing catalog entry that a submission may duplicate.",
+        "required": [
+          "section",
+          "ref_id",
+          "title",
+          "score",
+          "reasons"
+        ],
+        "properties": {
+          "href": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where staff can open the existing entry (an app path)."
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Why it matched: `title`, `alt_title`, `year`, `cover`."
+          },
+          "ref_id": {
+            "type": "string",
+            "description": "Id of the existing entry (a series or a title)."
+          },
+          "score": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 to 100; higher is more alike.",
+            "minimum": 0
+          },
+          "section": {
+            "type": "string",
+            "description": "Catalog section the match lives in (`library`, `cinema`)."
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "DuplicateReport": {
+        "type": "object",
+        "description": "What `GET .../duplicates` returns.",
+        "required": [
+          "matches"
+        ],
+        "properties": {
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateMatch"
+            }
+          },
+          "resolution": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DuplicateResolution"
+              }
+            ]
+          }
+        }
+      },
+      "DuplicateResolution": {
+        "type": "object",
+        "description": "The reviewer's resolution of the duplicate panel, kept on the timeline.",
+        "required": [
+          "action",
+          "decided_at_ms"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/DuplicateAction"
+          },
+          "decided_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "decided_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The existing entry the submission is merged into or replaces."
+          }
+        }
+      },
+      "DuplicateResolutionInput": {
+        "type": "object",
+        "description": "Body of `PUT /admin/review/submissions/{id}/duplicate`.",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/DuplicateAction"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required for `merge` and `replacement`: the existing entry."
+          }
+        }
+      },
       "EditAnnouncementBody": {
         "allOf": [
           {
@@ -62396,6 +64008,25 @@
             "format": "int32",
             "description": "Images and videos: pixel size (1 to 16384 each, both or neither).",
             "minimum": 0
+          }
+        }
+      },
+      "FolderGroup": {
+        "type": "object",
+        "description": "Pages that share a folder inside the archive (a chapter folder, a volume folder, the root).",
+        "required": [
+          "path",
+          "pages"
+        ],
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string",
+            "description": "Folder path inside the archive; empty for the top level."
           }
         }
       },
@@ -63745,6 +65376,95 @@
           "month_start_ms": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "IngestSource": {
+        "type": "object",
+        "description": "A configured source.",
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "backend",
+          "location",
+          "owner_id",
+          "enabled",
+          "poll_secs",
+          "stable_secs",
+          "created_at_ms"
+        ],
+        "properties": {
+          "backend": {
+            "$ref": "#/components/schemas/Backend"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_scan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What the last scan found and did."
+          },
+          "last_scan_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "location": {
+            "type": "string",
+            "description": "The directory (local) or key prefix (storage)."
+          },
+          "owner_id": {
+            "type": "string",
+            "description": "The staff account the drafts belong to."
+          },
+          "poll_secs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stable_secs": {
+            "type": "integer",
+            "format": "int32",
+            "description": "A file must be unchanged this long before it is imported."
+          }
+        }
+      },
+      "IngestSourceList": {
+        "type": "object",
+        "description": "All configured sources.",
+        "required": [
+          "sources"
+        ],
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IngestSource"
+            }
           }
         }
       },
@@ -65931,6 +67651,122 @@
           }
         }
       },
+      "LookupCandidate": {
+        "type": "object",
+        "description": "One catalog entry a provider found, as fields the editor can accept one by one.",
+        "required": [
+          "provider",
+          "external_id",
+          "title",
+          "alt_titles",
+          "synopsis",
+          "authors",
+          "genres",
+          "cover"
+        ],
+        "properties": {
+          "alt_titles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cover": {
+            "type": "string",
+            "description": "Same-origin path of the proxied cover; empty when there is none."
+          },
+          "external_id": {
+            "type": "string",
+            "description": "The provider's id for the entry."
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider": {
+            "type": "string"
+          },
+          "synopsis": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The entry's page at the provider."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "LookupProviderInfo": {
+        "type": "object",
+        "description": "A provider the editor can offer.",
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "LookupProviders": {
+        "type": "object",
+        "description": "What `GET /submissions/lookup/providers` returns.",
+        "required": [
+          "enabled",
+          "providers"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "False while the feature is off (no provider configured, or the platform setting is off)."
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupProviderInfo"
+            }
+          }
+        }
+      },
+      "LookupResults": {
+        "type": "object",
+        "description": "Candidates found by one provider.",
+        "required": [
+          "candidates"
+        ],
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupCandidate"
+            }
+          }
+        }
+      },
       "MailTestResult": {
         "type": "object",
         "description": "Result of the mail test.",
@@ -66087,6 +67923,80 @@
           "episode",
           "unknown"
         ]
+      },
+      "MediaItem": {
+        "type": "object",
+        "description": "One video under review.",
+        "required": [
+          "ref_id",
+          "label",
+          "state"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "label": {
+            "type": "string"
+          },
+          "ref_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`none` (no video yet), `processing` (the proxy is not ready), `ready` or `failed`."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Signed URL of the 480p proxy (MP4), valid for two hours; only when `ready`."
+          }
+        }
+      },
+      "MediaList": {
+        "type": "object",
+        "description": "The videos of a submission under review.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaItem"
+            }
+          }
+        }
+      },
+      "MediaRef": {
+        "type": "object",
+        "description": "A video that belongs to an item under review.",
+        "required": [
+          "ref_id",
+          "label"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The media asset; none while the item has no video yet."
+          },
+          "label": {
+            "type": "string"
+          },
+          "ref_id": {
+            "type": "string",
+            "description": "The item (episode or title) the video is for."
+          }
+        }
       },
       "MemberInvite": {
         "type": "object",
@@ -67474,6 +69384,34 @@
           }
         }
       },
+      "MultipartSlot": {
+        "type": "object",
+        "description": "The multipart part of a new upload slot.",
+        "required": [
+          "part_size",
+          "part_count",
+          "parts"
+        ],
+        "properties": {
+          "part_count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "part_size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Every part but the last has exactly this size.",
+            "minimum": 0
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartUrl"
+            }
+          }
+        }
+      },
       "MuteConfigIn": {
         "type": "object",
         "description": "Mute window of a change that sets `muted: true`.",
@@ -68453,6 +70391,7 @@
       },
       "PartUrl": {
         "type": "object",
+        "description": "One presigned part URL.",
         "required": [
           "part_number",
           "url"
@@ -69072,6 +71011,87 @@
             "items": {
               "$ref": "#/components/schemas/PinEntry"
             }
+          }
+        }
+      },
+      "PlannedChapter": {
+        "type": "object",
+        "description": "One file as the importer reads it.",
+        "required": [
+          "rel_path",
+          "size_bytes",
+          "status"
+        ],
+        "properties": {
+          "chapter": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rel_path": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "description": "`new`, `waiting` (not stable yet), `imported`, `skipped`, `failed`."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "volume": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "PlannedSeries": {
+        "type": "object",
+        "description": "The files that belong to one series.",
+        "required": [
+          "title",
+          "chapters"
+        ],
+        "properties": {
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannedChapter"
+            }
+          },
+          "existing_series": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The published series these chapters would be added to, when its title matches exactly."
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -70808,6 +72828,26 @@
           }
         }
       },
+      "ReceivedPart": {
+        "type": "object",
+        "description": "A part that already arrived.",
+        "required": [
+          "part_number",
+          "size"
+        ],
+        "properties": {
+          "part_number": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "RedeemedBy": {
         "type": "object",
         "description": "The account that used a code.",
@@ -71895,6 +73935,72 @@
           }
         }
       },
+      "ScanReport": {
+        "type": "object",
+        "description": "What a scan found and did.",
+        "required": [
+          "dry_run",
+          "files_seen",
+          "series",
+          "unplaced",
+          "imported",
+          "waiting",
+          "failed",
+          "submissions",
+          "problems"
+        ],
+        "properties": {
+          "dry_run": {
+            "type": "boolean"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "files_seen": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "imported": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannedSeries"
+            }
+          },
+          "submissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Drafts created or extended, by submission id."
+          },
+          "unplaced": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannedChapter"
+            },
+            "description": "Files that could not be placed (no series or chapter number in the name)."
+          },
+          "waiting": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "ScheduleBody": {
         "type": "object",
         "required": [
@@ -72878,6 +74984,97 @@
           "followers",
           "rating"
         ]
+      },
+      "SourceInput": {
+        "type": "object",
+        "description": "Body of `POST /admin/ingest-sources`.",
+        "required": [
+          "label",
+          "kind",
+          "backend",
+          "location",
+          "owner_id"
+        ],
+        "properties": {
+          "backend": {
+            "$ref": "#/components/schemas/Backend"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "poll_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "stable_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "SourceKind": {
+        "type": "string",
+        "description": "What a source is for.",
+        "enum": [
+          "watched_folder",
+          "storage_import"
+        ]
+      },
+      "SourcePatch": {
+        "type": "object",
+        "description": "Body of `PATCH /admin/ingest-sources/{id}`.",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "poll_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "stable_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
       },
       "StaffAlertRow": {
         "type": "object",
@@ -76502,6 +78699,47 @@
           }
         }
       },
+      "UploadParts": {
+        "type": "object",
+        "description": "What a resuming client needs: which parts are in, and URLs for the rest.",
+        "required": [
+          "part_size",
+          "part_count",
+          "received",
+          "missing",
+          "expires_in_secs"
+        ],
+        "properties": {
+          "expires_in_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartUrl"
+            },
+            "description": "Fresh URLs for the parts still missing (or received with the wrong size)."
+          },
+          "part_count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "part_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "received": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceivedPart"
+            }
+          }
+        }
+      },
       "UploadRequest": {
         "type": "object",
         "description": "Body of `POST /admin/library/chapters/{id}/uploads`.",
@@ -76513,6 +78751,10 @@
           "filename": {
             "type": "string",
             "description": "Original file name; its extension must fit the chapter's format."
+          },
+          "multipart": {
+            "type": "boolean",
+            "description": "Ask for a resumable multipart upload: parts of 64 MB sent in parallel, resumable after a\nrefresh. Without it the slot is one presigned `PUT`."
           },
           "size_bytes": {
             "type": "integer",
