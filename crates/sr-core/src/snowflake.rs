@@ -217,11 +217,11 @@ mod tests {
         assert!(serde_json::from_str::<Snowflake>("-1").is_err());
     }
 
-    /// The web client keeps one copy of the epoch (`apps/web/src/lounge/liveMap.ts`, imported by every
-    /// TypeScript caller); it must match this one.
+    /// The web client has no hand-written epoch: `apps/web/src/lounge/epoch.generated.ts` is generated
+    /// from the constant above (doc 05: exported once from Rust) and every TypeScript caller imports it.
+    /// This test writes the file when `SR_UPDATE_GENERATED` is set and otherwise fails if it drifted.
     #[test]
-    fn web_epoch_copy_matches() {
-        let web = include_str!("../../../apps/web/src/lounge/liveMap.ts");
+    fn web_epoch_file_is_generated_from_rust() {
         let digits: String = SIDEROOM_EPOCH_MS
             .to_string()
             .as_bytes()
@@ -230,9 +230,27 @@ mod tests {
             .map(|c| std::str::from_utf8(c).unwrap())
             .collect::<Vec<_>>()
             .join("_");
-        assert!(
-            web.contains(&format!("export const SIDEROOM_EPOCH_MS = {digits}n;")),
-            "apps/web/src/lounge/liveMap.ts must export SIDEROOM_EPOCH_MS = {digits}n"
+        let want = [
+            "// GENERATED from crates/sr-core/src/snowflake.rs (SIDEROOM_EPOCH_MS). Do not edit by hand: the sr-core test".to_owned(),
+            "// `web_epoch_file_is_generated_from_rust` fails when this file drifts; regenerate it with".to_owned(),
+            "// `SR_UPDATE_GENERATED=1 cargo test -p sr-core web_epoch_file_is_generated_from_rust`.".to_owned(),
+            "/** 2026-01-01T00:00:00Z, the one snowflake epoch (not Discord's 2015 epoch). */".to_owned(),
+            format!("export const SIDEROOM_EPOCH_MS = {digits}n;"),
+            String::new(),
+        ]
+        .join("\n");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../apps/web/src/lounge/epoch.generated.ts"
+        );
+        if std::env::var_os("SR_UPDATE_GENERATED").is_some() {
+            std::fs::write(path, &want).expect("write the generated epoch file");
+        }
+        let have = std::fs::read_to_string(path).expect("read the generated epoch file");
+        assert_eq!(
+            have.replace("\r\n", "\n"),
+            want,
+            "{path} is stale: run SR_UPDATE_GENERATED=1 cargo test -p sr-core web_epoch_file_is_generated_from_rust"
         );
     }
 }

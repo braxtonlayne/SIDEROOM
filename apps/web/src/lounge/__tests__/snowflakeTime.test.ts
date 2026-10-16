@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SIDEROOM_EPOCH_MS, snowflakeTime } from '../liveMap';
+import { SIDEROOM_EPOCH_MS } from '../epoch.generated';
+import { snowflakeTime } from '../liveMap';
 
 describe('snowflakeTime', () => {
   it('uses the SIDEROOM epoch, matching sr-core', () => {

@@ -4,7 +4,7 @@ import { apiFetch } from '../../api/client';
 import { useT, type MessageKey } from '../../i18n';
 import { THEME_CHOICES, usePrefsStore, type ThemeChoice } from '../../settings/user/prefs';
 import { useOpenUserSettings } from '../../settings/user/nav';
-import { SIDEROOM_EPOCH_MS } from '../liveMap';
+import { SIDEROOM_EPOCH_MS } from '../epoch.generated';
 
 const NEW_ACCOUNT_DAYS = 14;
 const SHOW_DELAY_MS = 1500;

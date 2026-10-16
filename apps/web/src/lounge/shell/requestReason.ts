@@ -1,6 +1,6 @@
 // Why a conversation sits in Message Requests because of a server's Protection settings (G-95, D-224).
 import type { DmObject } from './api';
-import { SIDEROOM_EPOCH_MS } from '../liveMap';
+import { SIDEROOM_EPOCH_MS } from '../epoch.generated';
 
 /** Whole days since the account with this snowflake id was created; null when the id is not a snowflake. */
 export function accountAgeDays(id: string | undefined, nowMs: number = Date.now()): number | null {
