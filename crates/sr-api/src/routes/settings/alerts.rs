@@ -401,13 +401,12 @@ async fn try_post_automod_alert(
     if !in_guild {
         return Ok(());
     }
-    // The buttons carry the id of the message, which is only known once it is stored, so the
-    // card is posted bare first and rewritten with its buttons.
-    let (embeds, _) = automod_card(0, alert, blocked, flagged.is_some());
-    let msg = post_system_card(messages, alert.channel_id, embeds, Vec::new()).await?;
-    let (embeds, components) = automod_card(msg.id.get(), alert, blocked, flagged.is_some());
+    // The buttons carry the id of the message; the row is stored before the card is, so a press
+    // can never arrive first.
+    let id = MessageId::from(messages.next_id());
+    let (embeds, components) = automod_card(id.get(), alert, blocked, flagged.is_some());
     let row = AutoModAlert {
-        id: msg.id.get(),
+        id: id.get(),
         guild_id: guild,
         rule_id: alert.rule_id,
         rule_name: alert.rule_name.clone(),
@@ -423,7 +422,7 @@ async fn try_post_automod_alert(
         .insert_alert(&row)
         .await
         .map_err(MsgError::from)?;
-    rewrite_system_card(messages, alert.channel_id, msg.id, &embeds, &components).await?;
+    post_system_card(messages, alert.channel_id, id, embeds, components).await?;
     Ok(())
 }
 
@@ -465,22 +464,14 @@ async fn try_after_join(
         return Ok(());
     };
     if let Some(channel) = community.safety_alerts_channel_id {
-        let (embeds, _) = incident_card(
-            guild,
-            joins,
-            community.raid_alert_joins_per_minute,
-            fired.paused_until_ms.is_some(),
-        );
-        let msg = post_system_card(messages, channel, embeds, Vec::new())
-            .await
-            .map_err(msg_err)?;
         let (embeds, components) = incident_card(
             guild,
             joins,
             community.raid_alert_joins_per_minute,
             fired.paused_until_ms.is_some(),
         );
-        rewrite_system_card(messages, channel, msg.id, &embeds, &components)
+        let id = MessageId::from(messages.next_id());
+        post_system_card(messages, channel, id, embeds, components)
             .await
             .map_err(msg_err)?;
     }

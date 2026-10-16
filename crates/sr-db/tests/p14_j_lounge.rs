@@ -5,9 +5,10 @@
 use std::sync::Arc;
 
 use sr_chat::admin_repo::GuildAdminRepository;
-use sr_chat::repo::{ChannelRepository, ChatRepository, GuildRepository};
+use sr_chat::repo::{ChannelRepository, GuildRepository};
 use sr_chat::settings::automod::AutoModAlert;
 use sr_chat::settings::repo::{AutoModRepository, CommunityRepository};
+use sr_chat::social::repo::DmRepository;
 use sr_chat::{ChatLimits, ChatService};
 use sr_core::{ChannelId, Clock, GuildId, SnowflakeGenerator, SystemClock, UserId};
 use sr_db::PgPool;

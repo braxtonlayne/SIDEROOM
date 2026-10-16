@@ -156,10 +156,12 @@ async fn store_and_announce(
 /// Post a card (type 24, authored by the system user) with embeds and components into a
 /// guild channel: the AutoMod alerts and incident alerts of D-243/D-244. The system user is
 /// not a member of the server, so this stores the message directly instead of going through
-/// the send checks. Returns the stored message.
+/// the send checks. `id` comes from [`MessagesDeps::next_id`] so a card's buttons can name it.
+/// Returns the stored message.
 pub async fn post_system_card(
     deps: &MessagesDeps,
     channel_id: sr_core::ChannelId,
+    id: MessageId,
     embeds: Vec<sr_chat::message::Embed>,
     components: Vec<sr_chat::message::Component>,
 ) -> MsgResult<Message> {
@@ -170,7 +172,7 @@ pub async fn post_system_card(
         .ok_or_else(|| MsgError::from(sr_core::ErrorCode::UnknownChannel))?;
     let user = UserId::new(sr_chat::SYSTEM_USER_ID);
     let msg = Message {
-        id: MessageId::from(deps.next_id()),
+        id: id,
         channel_id,
         guild_id: ch.guild_id,
         author_id: user,
