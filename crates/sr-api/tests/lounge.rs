@@ -1769,7 +1769,7 @@ async fn scheduled_events_validate_and_follow_discord_shapes() {
     assert_eq!(ev["creator_id"], BOB.to_string());
     assert_eq!(ev["creator"]["username"], "bob");
     assert!(ev["channel_id"].is_null());
-    assert_eq!(ev["user_count"], 0);
+    assert_eq!(ev["user_count"], 1, "the creator is Interested");
 
     // Validation: past start, ends before it starts, external without location or end time, a
     // channel on an external event, a text channel for a voice event, a bad privacy level.
@@ -2245,7 +2245,7 @@ async fn a_member_joining_the_voice_channel_starts_the_event_and_interested_memb
     assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 1);
     assert!(w.notified.0.lock().unwrap().is_empty());
 
-    // The first join at the start time starts it: UPDATE dispatched, audit 101, Carol told.
+    // The first join at the start time starts it: UPDATE dispatched, audit 101, the creator and Carol told.
     settings::scheduled_events::on_voice_joined(&w.settings_deps, g, ch).await;
     let (_, now) = w.get(BOB, &format!("{path}/{eid}")).await;
     assert_eq!(now["status"], 2, "{now}");
@@ -2263,7 +2263,10 @@ async fn a_member_joining_the_voice_channel_starts_the_event_and_interested_memb
     let told = w.notified.0.lock().unwrap().clone();
     assert_eq!(
         told,
-        vec![("Movie night".to_owned(), vec![UserId::new(CAROL as u64)])]
+        vec![(
+            "Movie night".to_owned(),
+            vec![UserId::new(BOB as u64), UserId::new(CAROL as u64)]
+        )]
     );
 
     // A second join announces nothing more; an empty channel ends it after 15 minutes.
