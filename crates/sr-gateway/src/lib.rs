@@ -12,6 +12,7 @@ pub mod conn;
 pub mod hub;
 mod lists;
 pub mod member_list;
+mod members_request;
 pub mod presence;
 pub mod protocol;
 mod session;
@@ -31,7 +32,10 @@ pub use conn::{ConnectParams, Frame, run_connection};
 pub use hub::{Gateway, GatewayConfig, LARGE_THRESHOLD_DEFAULT, LARGE_THRESHOLD_MAX};
 pub use protocol::{Identify, Payload, PresenceUpdate, Resume, close, intents, op};
 pub use session::SessionHandle;
-pub use traits::{AuthError, AuthedUser, Authenticator, GuildDirectory, OpHandler};
+pub use traits::{
+    AuthError, AuthedUser, Authenticator, GuildDirectory, MemberRequest, OpHandler,
+    RequestedMembers,
+};
 pub use voice::{
     JoinDenied, ModAction, ModError, ModOutcome, ModPatch, VoiceChannelInfo, VoiceChannelKind,
     VoiceConfig, VoiceGuildInfo, VoiceLimits, VoiceState, allowance_ok, is_stage_moderator,
@@ -43,6 +47,8 @@ pub use voice_status::{ChannelStatus, MAX_STATUS_CHARS, StatusError};
 pub use voice_stream::{PreviewError, stream_key};
 pub use ws::{GatewayQuery, SESSION_COOKIE, gateway_handler, routes};
 
+#[cfg(test)]
+mod members_request_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

@@ -49,6 +49,7 @@ export const PERM = {
   MANAGE_GUILD: 1n << 5n,
   SEND_MESSAGES: 1n << 11n,
   EMBED_LINKS: 1n << 14n,
+  USE_LIBRARY_EMBEDS: 1n << 58n,
   VIEW_CHANNEL: 1n << 10n,
   MANAGE_MESSAGES: 1n << 13n,
   MENTION_EVERYONE: 1n << 17n,

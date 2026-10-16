@@ -1,4 +1,4 @@
-// "Share to Lounge" channel picker (D-226): only channels where the person can send and embed are offered.
+// "Share to Lounge" channel picker (D-226): only channels where the person can send and use library embeds are offered.
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@sideroom/ui';
@@ -29,7 +29,7 @@ function seed(permissions: bigint) {
     channels: {
       open: channel('open'),
       muted: channel('muted', PERM.SEND_MESSAGES.toString()),
-      noembed: channel('noembed', PERM.EMBED_LINKS.toString()),
+      noembed: channel('noembed', PERM.USE_LIBRARY_EMBEDS.toString()),
     },
     channelIdsByGuild: { g1: ['open', 'muted', 'noembed'] },
   });
@@ -42,8 +42,8 @@ beforeEach(() => {
 afterEach(() => setPermEngine(null));
 
 describe('Share to Lounge channel picker', () => {
-  it('hides channels where sending or embedding is denied (overwrites applied by the shared engine)', async () => {
-    seed(PERM.SEND_MESSAGES | PERM.EMBED_LINKS | PERM.VIEW_CHANNEL);
+  it('hides channels where sending or library embeds are denied (overwrites applied by the shared engine)', async () => {
+    seed(PERM.SEND_MESSAGES | PERM.USE_LIBRARY_EMBEDS | PERM.VIEW_CHANNEL);
     setPermEngine({
       compute: (input) => {
         const deny = BigInt(input.overwrites[0]?.deny ?? '0');

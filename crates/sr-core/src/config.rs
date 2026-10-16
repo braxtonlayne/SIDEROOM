@@ -194,8 +194,9 @@ pub struct VoiceConfig {
     /// it off, layer selection falls back to loss reports.
     pub video_bwe: bool,
     /// Media actors the SFU shards its rooms over (one per channel id hash, each with its own
-    /// UDP sockets). `0` picks half the available cores, at most 8; it never exceeds the number
-    /// of bound media sockets. `1` is the old single-actor SFU.
+    /// UDP sockets). Defaults to `1` (single actor) until the AX42 run is recorded; `0` picks half
+    /// the available cores, at most 8; it never exceeds the number
+    /// of bound media sockets.
     pub shards: usize,
     pub turn: TurnSection,
 }
@@ -238,7 +239,7 @@ impl Default for VoiceConfig {
             session_grace_secs: 20,
             egress_budget_mbps: 0,
             video_bwe: false,
-            shards: 0,
+            shards: 1,
             turn: TurnSection::default(),
         }
     }
@@ -717,6 +718,8 @@ mod tests {
             (50_000, 50_099)
         );
         assert_eq!(c.voice.turn.ttl_secs, 3600);
+        // One media actor until the AX42 run is recorded (H-44); 0 keeps the auto rule.
+        assert_eq!(c.voice.shards, 1);
         let on = |toml: &str| {
             Config::from_figment(
                 &Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(
@@ -729,6 +732,7 @@ enabled = true
             )
         };
         assert!(on("").is_ok());
+        assert_eq!(on("shards = 0").unwrap().voice.shards, 0);
         assert!(
             on("udp_port_min = 60000
 udp_port_max = 50000")

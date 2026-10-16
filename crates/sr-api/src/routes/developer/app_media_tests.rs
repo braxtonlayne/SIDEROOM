@@ -271,3 +271,77 @@ async fn a_bot_manages_the_emoji_of_its_own_application_only() {
         StatusCode::NO_CONTENT
     );
 }
+
+/// H-51: the audit rows of an emoji change name who acted: the bot user for the bot token, the
+/// owner for the owner's session.
+#[tokio::test]
+async fn emoji_audit_rows_name_the_bot_or_the_owner() {
+    let e = env().await;
+    let (app, bot, token, _) = e.new_app().await;
+    let base = format!("/applications/{app}/emojis");
+
+    let (s, v) = e
+        .post(
+            Who::Bot(&token),
+            &base,
+            json!({"name": "party", "image": PNG}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let id = v["id"].as_str().unwrap().to_owned();
+    let (s, _) = e
+        .patch(
+            Who::Bot(&token),
+            &format!("{base}/{id}"),
+            json!({"name": "party2"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, v) = e
+        .post(
+            Who::Session(OWNER),
+            &base,
+            json!({"name": "wave", "image": PNG}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let mine = v["id"].as_str().unwrap().to_owned();
+    for (who, path) in [
+        (Who::Bot(&token), format!("{base}/{id}")),
+        (Who::Session(OWNER), format!("{base}/{mine}")),
+    ] {
+        let (s, _) = e.delete(who, &path, None).await;
+        assert_eq!(s, StatusCode::NO_CONTENT);
+    }
+
+    let (_, log) = e
+        .get(
+            Who::Session(OWNER),
+            &format!("/applications/{app}/audit-log"),
+        )
+        .await;
+    let rows: Vec<(&str, &str)> = log
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| {
+            (
+                r["action"].as_str().unwrap(),
+                r["actor_id"].as_str().unwrap(),
+            )
+        })
+        .filter(|(a, _)| a.starts_with("app.emoji_"))
+        .collect();
+    let owner = OWNER.to_string();
+    // Newest first.
+    assert_eq!(
+        rows,
+        vec![
+            ("app.emoji_deleted", owner.as_str()),
+            ("app.emoji_deleted", bot.as_str()),
+            ("app.emoji_added", owner.as_str()),
+            ("app.emoji_renamed", bot.as_str()),
+            ("app.emoji_added", bot.as_str()),
+        ]
+    );
+}

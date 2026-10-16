@@ -63,6 +63,7 @@ Implement these route families with Discord-compatible request and response shap
 
 - **Channels** [1]: get/modify/delete, messages (CRUD, bulk delete, crosspost), reactions, pins, typing, permissions overwrites, invites, follow announcement channel, threads (start, join, leave, members, archived lists), forum posts.
   Announcement channels (LNG-CHN-004): `PATCH /channels/{id}` `{type: 5}` turns a text channel into an announcement channel and `{type: 0}` back (no other change of type); `flags` bit `1 << 24` (SIDE ROOM's `AUTO_PUBLISH`) makes an announcement channel publish every message as it is sent. `POST /channels/{id}/followers` `{webhook_channel_id}` subscribes a text or announcement channel where you hold `MANAGE_WEBHOOKS` (idempotent; the subscription is a follower webhook, type 2, in `GET /channels/{id}/webhooks`, and deleting it unfollows). `POST /channels/{id}/messages/{id}/crosspost` publishes one message (your own with `SEND_MESSAGES`, others' with `MANAGE_MESSAGES`; 40033 when it already was, 50024 outside announcement channels): each follower receives a copy with flag `IS_CROSSPOST` (`1 << 1`), the original author, the text and embeds, a `message_reference` to the source and no pings; the source gets `CROSSPOSTED` (`1 << 0`) and a `MESSAGE_UPDATE`. Attachments, stickers and polls are not copied. Slowmode is enforced on every message endpoint (`BYPASS_SLOWMODE`, `MANAGE_MESSAGES` and `MANAGE_CHANNELS` skip it; 429 with `retry_after`).
+- **Cards need `USE_LIBRARY_EMBEDS` (D-241).** Creating or editing a message whose content carries a `<library:id>` or `<cinema:id>` card token (outside code) answers `403 50013` when the author lacks the bit in that channel; it is in the default @everyone set of a new server and in the DM and group set, and migration `0876` granted it once to existing servers.
 - **Emoji / Stickers / Soundboard** [1–2].
 - **Invites** [1]: get/delete (server invites).
   **Invite object (D-221, G-90).** `type` is always present: `0` for a server invite, `1` for a group DM invite. `guild` is `null` for a group invite (clients switch on `type`, never on whether `guild` is present). `channel` is `{id, type, name, icon?}`; for a group it carries the group id, `type: 3`, its name and icon hash.
@@ -328,7 +329,7 @@ every request; `PATCH /admin/settings` updates them without a restart. Gateway a
 | 4 | VOICE_STATE_UPDATE | → |
 | 6 | RESUME | → |
 | 7 | RECONNECT | ← |
-| 8 | REQUEST_GUILD_MEMBERS | → |
+| 8 | REQUEST_GUILD_MEMBERS (served, section 6.6a) | → |
 | 9 | INVALID_SESSION | ← |
 | 10 | HELLO | ← |
 | 11 | HEARTBEAT_ACK | ← |
@@ -393,6 +394,9 @@ The media signalling (voice WebSocket) is in `docs/specs/lounge-voice-video.md` 
 Each change is written to the guild audit log (`MEMBER_MOVE` 26 with `channel_id`/`count`, `MEMBER_DISCONNECT` 27 with `count`, `MEMBER_UPDATE` 24 with `mute`/`deaf` changes) and dispatched as `VOICE_STATE_UPDATE`. Server mute and deafen survive moves inside the voice session and are cleared when the user leaves voice (in-memory state; persistence is a follow-up).
 
 `GET /sr/voice/turn` returns coturn ephemeral credentials `{username, password, ttl, uris}` (HMAC-SHA1, TTL 1 h, `403` with `SR_FEATURE_DISABLED` (900001) when TURN is not configured). `ice_servers` in `VOICE_SERVER_UPDATE` carries the same credentials.
+
+### 6.6a Request guild members (op 8, `GUILD_MEMBERS_CHUNK`, D-242)
+Discord's contract. Payload `{guild_id, query | user_ids, limit, presences, nonce}`: `query` xor `user_ids` (at most 100 ids), `limit` 0 or more, `nonce` at most 32 bytes; anything else is close code `4002`. The caller must be a member of the server (a bot: have it installed); a request for another server is ignored. The whole list (the empty `query`) needs the `GUILD_MEMBERS` intent and is never served to user sessions, and `presences: true` needs `GUILD_PRESENCES`; otherwise the connection closes with `4014`. A non-empty `query` matches nicknames, usernames and display names (the same search as `GET /guilds/{id}/members/search`, so a substring, ordered by user id); `limit` 0 with a query means 100. Member objects are the REST ones without `sr_join` and `sr_signals`. The answer is one or more `GUILD_MEMBERS_CHUNK` dispatches of at most 1000 members each: `{guild_id, members, chunk_index, chunk_count, not_found?, presences?, nonce?}`; an empty result is one empty chunk. `not_found` (ids that are not members, or not snowflakes) rides on the first chunk; `presences` lists the online members of that chunk (invisible users are left out). The op counts against the connection's 120 ops per 60 s.
 
 ### 6.6 Lazy member list (op 102, `GUILD_MEMBER_LIST_UPDATE`)
 The member sidebar of a server is served in ranges instead of with the whole `GUILD_CREATE` member list (LNG-GLD-010). Sessions whose intents include `GUILD_MEMBERS` (user clients always) send

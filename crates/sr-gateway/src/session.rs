@@ -44,6 +44,8 @@ pub(crate) struct Session {
     pub intents: u64,
     /// `(shard_id, shard_count)` of a sharded bot session (DEV-BOT-002).
     pub shard: Option<(u32, u32)>,
+    /// A bot account (op 8 checks its intents; user sessions hold all of them).
+    pub bot: bool,
     window: Duration,
     capacity: usize,
     /// Cached age-gate answer: 0 unknown, 1 confirmed, 2 not confirmed (D-199).
@@ -72,6 +74,7 @@ impl Session {
             user,
             intents,
             shard: None,
+            bot: false,
             window,
             capacity,
             age: AtomicU8::new(0),
