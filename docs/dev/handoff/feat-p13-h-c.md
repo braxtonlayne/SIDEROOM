@@ -51,4 +51,17 @@ Branch `feat/p13-h-c`, base `integration/phase13`. Local only: nothing pushed, n
 
 ## Tests run
 
-See the final report of the agent for the exact list (commands and counts).
+All with `CARGO_TARGET_DIR=.../p13-devplat-target`, `-j 2`, one command at a time, own scratch database `sr_p13hc` (TestDb clones).
+
+- `cargo clippy -D warnings --all-targets` on sr-sdk, sr-core, sr-apps, sr-chat, sr-admin, sr-db, sr-api, sr-cli, sr-server: clean; `cargo fmt --all`.
+- `cargo test -- --include-ignored --test-threads=1` on sr-api (564 lib, 18+20+24 integration, route_matrix 5), sr-server (95), sr-admin (42), sr-apps (61), sr-chat (303), sr-core (40), sr-sdk (37): all pass.
+- sr-db Postgres: `apps_repo` 19, `rich_store` 4 (new test for the two RichStore lookups), `message_store`, `migration_versions`, `admin_ext_repo` 6, `data_export` 3: all pass.
+- sr-cli with Postgres, run twice in a row on the same database: 10 + 4 passed both times (fix (b)).
+- sr-voice `ice_tcp_reaches_the_shard_that_owns_the_participant`: 20 of 20 isolated runs and 6 of 6 full `e2e` runs with 4 test threads pass; no flake reproduced, no change made (fix (c)).
+- Web: `pnpm -r typecheck`, `pnpm -r lint`, prettier check clean; vitest apps/web `--maxWorkers=2`: 2012 tests passed, the one failing file (`channelPerms.test.ts`, needs the WASM build) passes after `pnpm --filter @sideroom/wasm build`; `@sideroom/bot` 18 tests; `i18n-verify-diff` MISSING 0; doc links ok.
+- OpenAPI, `schema.d.ts`, MSW handlers regenerated (808 operations, `mocks:check` ok); route matrix regenerated and reviewed (four emoji rows now `allow` for bots, assets list is `user`), 5 tests pass.
+
+## Not run
+
+- `vite build` and the bundle budget, `cargo deny check`, the full `sr-db` Postgres suite: free space on C: fell below the 40 GB limit set for this task (23 GB at the end, shared by all agents), so I stopped building. The web changes are small (no new route chunks); the `sr-sdk` dependency added is `tracing` (already in the lockfile).
+- Playwright (shared ports, per the brief).
