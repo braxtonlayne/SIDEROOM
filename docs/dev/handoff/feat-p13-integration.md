@@ -111,7 +111,7 @@ Merged on top of `40fa908` as merge commits, in this order: `feat/p13-h-a`, `fea
 - **Epoch.** One source: the Rust constant, written to `epoch.generated.ts`; `liveMap.ts`, `Welcome.tsx`, `requestReason.ts` and
   `securityNudge.ts` import it. Doc 05's "no TypeScript copy" rule is now met (generated file plus drift test).
 - **Generated files.** OpenAPI, `schema.d.ts` and MSW handlers regenerated from the merged Rust (814 operations): identical to the
-  textual merge. Route matrix regenerated: no change, 849 rows, no `?`, no `other`.
+  textual merge. Route matrix regenerated: no change, 814 route rows, no `?`, no `other`.
 - **Fixes.** None needed beyond the doc 05 resolution.
 
 ## Gates (final tree, all fifteen branches merged)
