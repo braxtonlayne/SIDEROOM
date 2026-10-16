@@ -5,6 +5,7 @@ import { createAppRouter } from '../../router';
 import { resetStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { ME, signedIn } from '../../settings/user/__tests__/helpers';
+import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { ProfileRenderer } from '../ProfileRenderer';
 import { emptyDoc, type Block, type ProfileDoc, type ProfilePage } from '../types';
 
@@ -142,6 +143,30 @@ describe('profile page renderer (EXT-PRF-002, EXT-PRF-003)', () => {
     expect(links.map((l) => l.getAttribute('href'))).toEqual(['/u/cy', '/u/di']);
     expect(within(links[0]!).getByText('Cy')).toBeInTheDocument();
     expect(within(links[1]!).getByText('di')).toBeInTheDocument();
+  });
+
+  it('has no accessibility violations with every block on the page', async () => {
+    const d = doc([
+      blk('h', 'header', 0, 0, 12, 3, { tagline: 'hi' }),
+      blk('a', 'about', 0, 3, 6, 3, { text: 'About' }),
+      blk('t', 'top_friends', 6, 3, 6, 3, { user_ids: ['3'] }),
+      blk('n', 'now_watching', 0, 6, 6, 2, { mode: 'manual', title: 'Frieren' }),
+      blk('f', 'favorites', 6, 6, 6, 3, { items: ['miso'] }),
+      blk('g', 'gallery', 0, 8, 6, 3, {
+        items: [{ url: 'https://example.org/a.png', caption: 'Cat' }],
+      }),
+      blk('s', 'song', 6, 9, 6, 2, { title: 'Blue', url: 'https://youtu.be/abc' }),
+      blk('c', 'custom', 0, 11, 6, 3, {
+        title: 'Links',
+        links: [{ label: 'Site', url: 'https://example.org' }],
+      }),
+    ]);
+    const { container } = render(
+      <ProfileRenderer
+        page={page(d, { friends: [user({ id: '3', username: 'cy', display_name: 'Cy' })] })}
+      />,
+    );
+    expect(await axeViolations(container)).toEqual([]);
   });
 
   it('is compact in the popout: one column, five blocks at most, no guestbook', () => {

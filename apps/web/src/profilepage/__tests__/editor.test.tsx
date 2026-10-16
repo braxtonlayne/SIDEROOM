@@ -5,6 +5,7 @@ import { createAppRouter } from '../../router';
 import { resetStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { signedIn } from '../../settings/user/__tests__/helpers';
+import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { cleanDoc } from '../ProfileEditor';
 import { contrast, lowContrast } from '../StylePanel';
 import { emptyDoc, type ProfileDoc } from '../types';
@@ -126,6 +127,19 @@ describe('profile editor (EXT-PRF-005)', () => {
     await waitFor(() => expect(rig.saved).toHaveLength(1));
     expect(rig.saved[0]!.blocks[0]).toMatchObject({ x: 0, y: 1, w: 5, h: 4 });
     expect(rig.saved[0]!.blocks[1]).toMatchObject({ x: 6, y: 0, w: 6, h: 3 });
+  });
+
+  it('has no accessibility violations', async () => {
+    open({
+      ...emptyDoc(),
+      blocks: [
+        { id: 'a', type: 'about', x: 0, y: 0, w: 6, h: 3, config: {} },
+        { id: 'c', type: 'custom', x: 6, y: 0, w: 6, h: 3, config: {} },
+      ],
+    });
+    const canvas = await screen.findByRole('group', { name: 'Profile page grid' });
+    await userEvent.setup().click(within(canvas).getByRole('button', { name: /About me block/ }));
+    expect(await axeViolations(document.body)).toEqual([]);
   });
 
   it('removes a block with Delete and Revert brings the saved page back', async () => {

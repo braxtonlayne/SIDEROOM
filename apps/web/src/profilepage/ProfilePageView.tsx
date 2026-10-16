@@ -1,6 +1,6 @@
 // `/u/:username` (EXT-PRF-002): a person's customised profile page, drawn by the renderer in a scoped
 // container. A person who has not customised their page gets a plain card, not an empty grid.
-import { Button, EmptyState, Spinner, ThemeProvider } from '@sideroom/ui';
+import { EmptyState, Spinner, ThemeProvider } from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
 import { useT } from '../i18n';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
@@ -34,9 +34,7 @@ export function ProfilePageView({ username }: { username: string }) {
           </Link>{' '}
           {page?.is_owner && (
             <Link to="/profile-page/edit" className="us-link">
-              <Button variant="secondary" size="sm">
-                {t('lounge.profilePage.edit')}
-              </Button>
+              {t('lounge.profilePage.edit')}
             </Link>
           )}
         </span>
