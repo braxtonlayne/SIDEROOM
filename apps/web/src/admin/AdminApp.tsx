@@ -24,6 +24,7 @@ import { AnnouncementsSection } from './sections/Announcements';
 import { AuditLogSection } from './sections/AuditLog';
 import { CatalogSection } from './cinema/CatalogSection';
 import { LibraryCatalogSection } from './library/LibraryCatalogSection';
+import { IngestSourcesSection } from './sections/IngestSources';
 import { CollectionsSection } from './cinema/CollectionsSection';
 import { TranscodingSection } from './cinema/TranscodingSection';
 import { LiveTvSection } from './cinema/tv/LiveTvSection';
@@ -118,6 +119,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.content',
     visible: (v) => v.can('MANAGE_TRANSCODE'),
     component: JobsSection,
+  },
+  {
+    id: 'ingest-sources',
+    label: 'admin.adminApp.section.ingestSources',
+    group: 'admin.adminApp.group.content',
+    visible: (v) => v.can('PUBLISH_READING'),
+    component: IngestSourcesSection,
   },
   {
     id: 'library-catalog',

@@ -107,5 +107,4 @@ export default {
   'review.ingest.unplaced': 'Files that could not be placed',
   'review.ingest.saved': 'Saved.',
   'review.ingest.removed': 'Removed.',
-  'review.ingest.section': 'Ingest sources',
 };

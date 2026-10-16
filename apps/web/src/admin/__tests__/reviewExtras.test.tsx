@@ -4,7 +4,6 @@ import { manifestDiff, safeThemeCss } from '../../review/ReviewExtras';
 import { detail, preview, submission } from '../../review/__tests__/fixtures';
 import { asStaff, http, HttpResponse, openAdmin, readJson, server } from './helpers';
 
-
 describe('manifest diff', () => {
   it('lists added, removed and changed leaves', () => {
     const changes = manifestDiff(

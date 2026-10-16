@@ -6,6 +6,7 @@ export default {
   'admin.adminApp.section.staff': 'Staff & roles',
   'admin.adminApp.section.review': 'Review queues',
   'admin.adminApp.section.jobs': 'Jobs',
+  'admin.adminApp.section.ingestSources': 'Ingest sources',
   'admin.adminApp.section.cinemaCatalog': 'Cinema catalog',
   'admin.adminApp.section.cinemaCollections': 'Cinema collections',
   'admin.adminApp.section.cinemaTranscoding': 'Cinema transcoding',
