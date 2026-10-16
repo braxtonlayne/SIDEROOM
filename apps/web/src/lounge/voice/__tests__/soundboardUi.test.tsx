@@ -121,12 +121,10 @@ describe('soundboard popover (VOX-SB-002)', () => {
     const body = await popover(user);
     expect(within(body).getByRole('heading', { name: 'Favorites' })).toBeInTheDocument();
     act(() => {
-      useStore
-        .getState()
-        .applyDispatch('SR_USER_SETTINGS_UPDATE', {
-          version: 2,
-          settings: { soundboardFavorites: [] },
-        });
+      useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', {
+        version: 2,
+        settings: { soundboardFavorites: [] },
+      });
     });
     expect(within(body).queryByRole('heading', { name: 'Favorites' })).toBeNull();
     useStore.setState({ userSettings: null });

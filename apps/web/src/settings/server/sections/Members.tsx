@@ -54,6 +54,9 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   const [applied, setApplied] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [unusual, setUnusual] = useState(false);
+  /** `YYYY-MM-DD` from the date inputs; empty means no bound. Applied here to the loaded members. */
+  const [joinedAfter, setJoinedAfter] = useState('');
+  const [joinedBefore, setJoinedBefore] = useState('');
   const [page, setPage] = useState(0);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [details, setDetails] = useState<api.MemberObject | null>(null);
@@ -157,7 +160,15 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   const roleById = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles]);
   // The server did the filtering (search text, role); the order is applied here to the members loaded so far.
   const filtered = useMemo(() => {
-    const out = [...members];
+    // Bounds are whole local days, both inclusive.
+    const from = joinedAfter ? new Date(`${joinedAfter}T00:00:00`).getTime() : NaN;
+    const to = joinedBefore ? new Date(`${joinedBefore}T23:59:59.999`).getTime() : NaN;
+    const out = members.filter((m) => {
+      if (Number.isNaN(from) && Number.isNaN(to)) return true;
+      const at = new Date(m.joined_at).getTime();
+      if (Number.isNaN(at)) return false;
+      return (Number.isNaN(from) || at >= from) && (Number.isNaN(to) || at <= to);
+    });
     if (sort === 'name')
       out.sort((a, b) =>
         memberName(a).localeCompare(memberName(b), undefined, { sensitivity: 'base' }),
@@ -167,7 +178,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       out.sort((a, b) => (sort === 'newest' ? at(b) - at(a) : at(a) - at(b)));
     }
     return out;
-  }, [members, sort]);
+  }, [members, sort, joinedAfter, joinedBefore]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / VIEW_PAGE));
   const safePage = Math.min(page, pageCount - 1);
   const visible = filtered.slice(safePage * VIEW_PAGE, (safePage + 1) * VIEW_PAGE);
@@ -275,6 +286,38 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
                 </option>
               ))}
           </select>
+        </div>
+        <div>
+          <label className="ss-field-label" htmlFor="ss-member-after">
+            {t('settings.members.joinedAfter')}
+          </label>
+          <input
+            id="ss-member-after"
+            type="date"
+            className="ss-select"
+            value={joinedAfter}
+            max={joinedBefore || undefined}
+            onChange={(e) => {
+              setJoinedAfter(e.target.value);
+              setPage(0);
+            }}
+          />
+        </div>
+        <div>
+          <label className="ss-field-label" htmlFor="ss-member-before">
+            {t('settings.members.joinedBefore')}
+          </label>
+          <input
+            id="ss-member-before"
+            type="date"
+            className="ss-select"
+            value={joinedBefore}
+            min={joinedAfter || undefined}
+            onChange={(e) => {
+              setJoinedBefore(e.target.value);
+              setPage(0);
+            }}
+          />
         </div>
         {viewer.can('MANAGE_GUILD') && (
           <Checkbox
