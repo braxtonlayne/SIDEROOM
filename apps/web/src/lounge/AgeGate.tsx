@@ -37,6 +37,22 @@ function saveAgeAnswer(userId: string | null, answer: Exclude<AgeAnswer, null>) 
   }
 }
 
+/** Settings re-confirmed or reset the stored answer: keep this device's copy in step (LNG-USET-015). */
+export function setLocalAgeAnswer(userId: string | null, answer: AgeAnswer) {
+  try {
+    if (answer === null) localStorage.removeItem(storageKey(userId));
+    else localStorage.setItem(storageKey(userId), answer);
+  } catch {
+    /* private mode */
+  }
+  useAgeAnswers.setState((s) => {
+    const answers = { ...s.answers };
+    if (answer === null) delete answers[userId ?? ''];
+    else answers[userId ?? ''] = answer;
+    return { answers };
+  });
+}
+
 /** Record the answer on the account (permanent: `true` confirms, `false` hides restricted content). */
 export const postAgeGate = (over18: boolean) =>
   apiFetch<void>('/sr/age-gate', { method: 'POST', json: { over_18: over18 }, retries: 0 });

@@ -21,11 +21,6 @@ export default {
   'lounge.richCard.seriesNovel': 'Novel',
   'lounge.richCard.seriesBook': 'Book',
   'lounge.richCard.chapters': '{n, plural, one {# chapter} other {# chapters}}',
-  // LNG-EXP-011 emoji popout
-  'lounge.emojiPopout.label': 'About :{name}:',
-  'lounge.emojiPopout.open': 'About the emoji :{name}:',
-  'lounge.emojiPopout.from': 'From {server}',
-  'lounge.emojiPopout.unknownServer': 'From a server you are in',
   // LNG-NTF-006 inbox For You
   'lounge.inbox.tabForYou': 'For You',
   'lounge.inbox.forYouEmpty': 'Nothing new for you right now.',

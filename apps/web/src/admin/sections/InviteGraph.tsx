@@ -331,7 +331,7 @@ function NodePanel({
     api.listInvites({ issuer_id: accountId, state: 'open', limit: 20 }),
   );
   const credits = useResource(`gnode-credits:${accountId}`, () => api.getCredits(accountId));
-  const [pending, setPending] = useState<'credits' | 'clear' | null>(null);
+  const [pending, setPending] = useState<'credits' | 'clear' | 'freeze' | 'unfreeze' | null>(null);
   const [delta, setDelta] = useState('1');
   const [notice, setNotice] = useState<string | null>(null);
   const done = async (text: string) => {
@@ -375,6 +375,12 @@ function NodePanel({
               <dd>{d.suspicion_level}</dd>
               <dt>{t('admin.accounts.dtInviteCredits')}</dt>
               <dd>{credits.data ? credits.data.balance : d.credit_balance}</dd>
+              {d.invites_frozen && (
+                <>
+                  <dt>{t('admin.accountExtras.freezeTitle')}</dt>
+                  <dd>{t('admin.accountExtras.frozen')}</dd>
+                </>
+              )}
             </dl>
             <div className="adm-actions">
               <Button variant="secondary" onClick={() => onReroot(accountId)}>
@@ -383,6 +389,16 @@ function NodePanel({
               {viewer.can('MANAGE_INVITES') && (
                 <Button variant="secondary" onClick={() => setPending('credits')}>
                   {t('admin.graph.adjustCredits')}
+                </Button>
+              )}
+              {viewer.can('MANAGE_INVITES') && (
+                <Button
+                  variant={d.invites_frozen ? 'secondary' : 'danger'}
+                  onClick={() => setPending(d.invites_frozen ? 'unfreeze' : 'freeze')}
+                >
+                  {d.invites_frozen
+                    ? t('admin.accountExtras.unfreeze')
+                    : t('admin.accountExtras.freeze')}
                 </Button>
               )}
               {viewer.can('MANAGE_INVITES') && d.suspicion_level > 0 && (
@@ -448,6 +464,29 @@ function NodePanel({
                 onChange={(e) => setDelta(e.target.value)}
               />
             </ReasonDialog>
+            <ReasonDialog
+              open={pending === 'freeze'}
+              danger
+              title={t('admin.accountExtras.freezeDialog', { username: d.account.username })}
+              description={t('admin.accountExtras.freezeDescription')}
+              confirmLabel={t('admin.accountExtras.freeze')}
+              onCancel={() => setPending(null)}
+              onConfirm={async (reason) => {
+                await api.freezeInvites(accountId, reason);
+                await done(t('admin.accountExtras.froze', { username: d.account.username }));
+              }}
+            />
+            <ReasonDialog
+              open={pending === 'unfreeze'}
+              title={t('admin.accountExtras.unfreezeDialog', { username: d.account.username })}
+              description={t('admin.accountExtras.unfreezeDescription')}
+              confirmLabel={t('admin.accountExtras.unfreeze')}
+              onCancel={() => setPending(null)}
+              onConfirm={async (reason) => {
+                await api.unfreezeInvites(accountId, reason);
+                await done(t('admin.accountExtras.unfroze', { username: d.account.username }));
+              }}
+            />
             <ReasonDialog
               open={pending === 'clear'}
               title={t('admin.invites.clearSuspicion')}

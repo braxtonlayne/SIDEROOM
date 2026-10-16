@@ -4,16 +4,15 @@ import { apiFetch } from '../../api/client';
 import { useT, type MessageKey } from '../../i18n';
 import { THEME_CHOICES, usePrefsStore, type ThemeChoice } from '../../settings/user/prefs';
 import { useOpenUserSettings } from '../../settings/user/nav';
+import { SIDEROOM_EPOCH_MS } from '../liveMap';
 
-/** The platform snowflake epoch (sr-core `SIDEROOM_EPOCH_MS`). */
-const EPOCH_MS = 1_767_225_600_000n;
 const NEW_ACCOUNT_DAYS = 14;
 const SHOW_DELAY_MS = 1500;
 
 /** Whether an account id was minted in the last `days` days; false for anything that is not a snowflake. */
 export function isNewAccount(id: string | undefined, now = Date.now(), days = NEW_ACCOUNT_DAYS) {
   if (!id || !/^\d+$/.test(id)) return false;
-  const created = Number((BigInt(id) >> 22n) + EPOCH_MS);
+  const created = Number((BigInt(id) >> 22n) + SIDEROOM_EPOCH_MS);
   return now - created >= 0 && now - created <= days * 86_400_000;
 }
 

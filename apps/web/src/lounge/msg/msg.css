@@ -1302,36 +1302,6 @@
   font-weight: 600;
 }
 
-/* LNG-EXP-011 custom emoji popout */
-.lng-emoji-btn {
-  display: inline;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  cursor: pointer;
-  vertical-align: bottom;
-}
-.lng-emoji-pop {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-}
-.lng-emoji-pop-img {
-  inline-size: 48px;
-  block-size: 48px;
-  object-fit: contain;
-}
-.lng-emoji-pop-text {
-  display: flex;
-  flex-direction: column;
-}
-.lng-emoji-pop-source {
-  color: var(--text-muted);
-  font-size: 0.85em;
-}
-
 .lng-inbox-head {
   margin: 8px 0 4px;
   font-size: 0.8em;
@@ -1353,4 +1323,31 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Custom emoji button and popout (LNG-EXP-011) */
+.lng-custom-emoji {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.lng-emoji-popout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 220px;
+  padding: 12px;
+}
+.lng-emoji-popout-head,
+.lng-emoji-popout-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lng-emoji-popout p {
+  margin: 0;
 }

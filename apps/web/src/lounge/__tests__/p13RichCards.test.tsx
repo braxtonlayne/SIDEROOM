@@ -1,11 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Markdown, type MdNode, type Resolvers } from '@sideroom/markdown-react';
-import { customEmojiResolver, resetCustomEmojiUrls } from '../msg/CustomEmoji';
+import { CustomEmoji, resetEmojiUrls } from '../msg/CustomEmoji';
 import { resetRichCards, richCardResolvers } from '../msg/RichCards';
 import { resetStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
+
+const emojiResolvers: Resolvers = {
+  customEmoji: (e) => <CustomEmoji id={e.id} name={e.name} animated={e.animated} />,
+};
 
 const Md = ({ nodes, resolvers }: { nodes: MdNode[]; resolvers: Resolvers }) => (
   <Markdown nodes={nodes} resolvers={resolvers} />
@@ -14,7 +18,7 @@ const Md = ({ nodes, resolvers }: { nodes: MdNode[]; resolvers: Resolvers }) => 
 beforeEach(() => {
   resetStore();
   resetRichCards();
-  resetCustomEmojiUrls();
+  resetEmojiUrls();
 });
 
 describe('Cinema and Library rich cards (LNG-MSGUI-018)', () => {
@@ -113,35 +117,38 @@ describe('Cinema and Library rich cards (LNG-MSGUI-018)', () => {
 describe('Custom emoji popout (LNG-EXP-011)', () => {
   it('draws the emoji and opens a popout with its name on click', async () => {
     server.use(
-      http.get('*/api/v1/guilds/9/emojis/55/url', () =>
+      http.get('*/api/v1/sr/emojis/55/url', () =>
         HttpResponse.json({ url: 'https://cdn.example/e/55.png' }),
+      ),
+      http.get('*/api/v1/sr/emojis/55', () =>
+        HttpResponse.json({ id: '55', name: 'blob', animated: false, guild: null }),
       ),
     );
     render(
       <Md
         nodes={[{ type: 'custom_emoji', name: 'blob', id: 55, animated: false }]}
-        resolvers={{ customEmoji: customEmojiResolver('9') }}
+        resolvers={emojiResolvers}
       />,
     );
-    const btn = await screen.findByRole('button', { name: 'About the emoji :blob:' });
+    const btn = await screen.findByRole('button', { name: 'Emoji :blob:' });
     await userEvent.click(btn);
     expect(await screen.findByRole('dialog', { name: 'About :blob:' })).toBeInTheDocument();
-    expect(screen.getByText(':blob:')).toBeInTheDocument();
+    expect(await screen.findByText('This emoji is from a private server.')).toBeInTheDocument();
   });
 
-  it('keeps the :name: text when the emoji cannot be resolved', async () => {
+  it('keeps the :name: text when the emoji image cannot be resolved', async () => {
     server.use(
-      http.get('*/api/v1/guilds/9/emojis/56/url', () =>
+      http.get('*/api/v1/sr/emojis/56/url', () =>
         HttpResponse.json({ message: 'Unknown' }, { status: 404 }),
       ),
     );
     render(
       <Md
         nodes={[{ type: 'custom_emoji', name: 'gone', id: 56, animated: false }]}
-        resolvers={{ customEmoji: customEmojiResolver('9') }}
+        resolvers={emojiResolvers}
       />,
     );
     await waitFor(() => expect(screen.getByText(':gone:')).toBeInTheDocument());
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
   });
 });

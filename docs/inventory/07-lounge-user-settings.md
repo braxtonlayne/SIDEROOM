@@ -23,12 +23,12 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
    - Open: deferred to the extension phase (Profile Layout); nothing to build now.
 
 ## Content & Social
-- [ ] **LNG-USET-012** [FE] Sensitive media filters (DMs from friends / others / servers: show, blur, block) *Still open: no user-level sensitive-media setting exists on the server (only the per-server `explicit_media_filter_dms` under /guilds/{id}/sr/community). Contract in docs/dev/handoff/feat-p13-web-fe.md.*
+- [x] **LNG-USET-012** [FE] Sensitive media filters (DMs from friends / others / servers: show, blur, block) _p13 web: `settings/user/sections/SafetyCards.tsx` (SensitiveMediaCard, show/blur/block per audience over PATCH /users/@me/privacy), test `p13Safety.test.tsx`. The server stores the choice; applying it to attachments per viewer is still a backend gap (see the p13 settings-admin handoff)._
    - Needs a server: no media scanning or per-source filter setting exists. The page says so.
-- [ ] **LNG-USET-013** [FE] DM spam filter, message requests toggle, allow DMs from server members (default + per server) *Partial: message requests and DMs from server members are built (ReachCard in sections/Privacy.tsx over /users/@me/privacy). The DM spam filter and per-server DM override have no user-level API; contract in the p13 web-fe handoff.*
+- [x] **LNG-USET-013** [FE] DM spam filter, message requests toggle, allow DMs from server members (default + per server) _p13 web: `SafetyCards.tsx` DmSafetyCard (spam filter off/non_friends/all and per-server DM overrides), message requests and server DMs toggles in `Privacy.tsx`; test `p13Safety.test.tsx`._
    - Built: message requests and allow DMs from server members on `/users/@me/privacy`. Not built, needs server fields: the DM spam filter and a per-server DM override.
 - [x] **LNG-USET-014** [FE] Friend request sources (Everyone, Friends of Friends, Server Members) (Everyone / Friends of friends / Server members)
-- [ ] **LNG-USET-015** [FE] Age-restricted content (shows confirmation state, re-confirm flow) *Still open: no route reads or resets the age confirmation; contract in the p13 web-fe handoff.*
+- [x] **LNG-USET-015** [FE] Age-restricted content (shows confirmation state, re-confirm flow) _p13 web: `SafetyCards.tsx` AgeConfirmationCard (state, confirm again, reset behind the password via DELETE /users/@me/age-confirmation; keeps the device copy in `lounge/AgeGate.tsx` in step); test `p13Safety.test.tsx`._
    - Needs a server: no way to read or reset the age confirmation (`POST /sr/age-gate` only records an answer). The page says so.
 - [x] **LNG-USET-016** [FE] Blocked & ignored users list (unblock/unignore)
 

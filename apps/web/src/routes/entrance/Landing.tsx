@@ -1,4 +1,5 @@
 import { DisplayHeading, Eyebrow, GoldButton } from '@sideroom/ui';
+import { EntranceMarkdown, useEntranceCopy } from './entranceCopy';
 import { Link, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
@@ -43,6 +44,7 @@ const WORLDS: { n: string; Icon: typeof ChatIcon; title: MessageKey; copy: Messa
 ];
 
 export function Landing({ initialCode = '' }: { initialCode?: string }) {
+  const note = useEntranceCopy()['landing-note'];
   useRedirectIfLoggedIn();
   const t = useT();
   const router = useRouter();
@@ -163,6 +165,11 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
               </span>
               <Link to="/no-invitation">{t('entrance.landing.noInvitation')}</Link>
             </div>
+            {note && (
+              <aside className="ent-landing-note">
+                <EntranceMarkdown source={note} />
+              </aside>
+            )}
           </div>
           <div className="ent-hero-right">
             <Door className="ent-door-bg" />

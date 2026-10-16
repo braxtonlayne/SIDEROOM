@@ -100,7 +100,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-EXP-008** [FE] Sticker picker (packs, search, server sections) *Current server's stickers with search; no default packs yet (LNG-EXP-004).*
 - [x] **LNG-EXP-009** [FE] GIF picker (trending categories grid, search, favorites star) *lounge/components/GifPicker.tsx (trending, categories, search, favorites in localStorage).*
 - [x] **LNG-EXP-010** [FE] Expression picker tabs container (GIFs / Stickers / Emoji) *The GIF tab explains that no GIF provider is connected.*
-- [ ] **LNG-EXP-011** [FE] Emoji tooltip/popout on click (name, source server, "Join server" if public) *Partial: custom emoji now render in messages and open a popout with name and source server (lounge/msg/CustomEmoji.tsx). "Join server" for public servers needs an emoji lookup that works for non-members; contract in the p13 web-fe handoff.*
+- [x] **LNG-EXP-011** [FE] Emoji tooltip/popout on click (name, source server, "Join server" if public) _p13 web: `lounge/msg/CustomEmoji.tsx` (clickable custom emoji drawn from /sr/emojis/{id}/url, popout with name, source server and Join over /directory/{id}/join), wired through the new `customEmoji` resolver in markdown-react; test `p13WebUi2.test.tsx`._
 - [ ] **LNG-EXP-012** [FE] Super/burst reaction picker variant + animations *Still open: reactions have no burst/super type on the server (PUT reactions takes no burst flag), so there is nothing to build against.*
 
 ## LNG-SRC — Search

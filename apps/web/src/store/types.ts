@@ -33,6 +33,8 @@ export interface Guild {
   safety_alerts_channel_id?: string | null;
   /** Server Protection (D-224): links whose text names another host show their raw target and a warning. */
   hide_suspicious_links?: boolean;
+  /** Largest file the viewer may upload in this server, in bytes (D-233); absent until `GET /guilds/{id}` is read. */
+  sr_max_upload_bytes?: number;
 }
 
 export interface Channel {
@@ -63,6 +65,8 @@ export interface Channel {
   nsfw?: boolean;
   /** Per-channel role/member overwrites (type 0 role, 1 member; allow/deny are decimal strings). */
   permission_overwrites?: { id: string; type: number; allow: string; deny: string }[];
+  /** DM and group DM channels: the largest file the viewer may upload there, in bytes (D-233). */
+  sr_max_upload_bytes?: number;
 }
 
 export interface Role {
