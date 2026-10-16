@@ -163,6 +163,7 @@ pub async fn decorate(
                     global_name: Some(a.username.clone()),
                     bot: true,
                     primary_guild: None,
+                    sr_patron: false,
                     avatar_url: a
                         .avatar_url
                         .as_deref()

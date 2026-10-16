@@ -293,6 +293,10 @@ pub async fn patch_preferences(
         // An opt-out takes effect at once, not at the next hourly rebuild.
         ctx.deps.contributors.invalidate_all();
     }
+    if next.hide_badge != cur.hide_badge {
+        // The ring and badge follow the toggle at once (D-256).
+        super::refresh_patron_flag(&ctx.deps.chat, ctx.user).await;
+    }
     Ok(Json(prefs_view(next)))
 }
 

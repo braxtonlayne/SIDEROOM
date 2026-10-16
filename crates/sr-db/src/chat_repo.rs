@@ -589,6 +589,16 @@ impl GuildRepository for PgChatRepo {
             .collect()
     }
 
+    async fn user_guild_ids(&self, user: UserId) -> RepoResult<Vec<GuildId>> {
+        let rows: Vec<i64> =
+            sqlx::query_scalar("SELECT guild_id FROM guild_members WHERE user_id = $1 ORDER BY 1")
+                .bind(i(user.get()))
+                .fetch_all(&self.pool)
+                .await
+                .map_err(db)?;
+        Ok(rows.into_iter().map(|g| GuildId::new(u(g))).collect())
+    }
+
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>> {
         let row = sqlx::query(
             "SELECT gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
@@ -1644,6 +1654,10 @@ impl MessageStore for PgMessageStore {
     }
 }
 
+/// Grace after the paid time during which the Patron mark still shows: the default
+/// `DonationConfig::grace_days` (3 days) in milliseconds (D-256).
+const PATRON_GRACE_MS: i64 = 3 * 86_400_000;
+
 #[async_trait]
 impl UserLookup for PgChatRepo {
     async fn users(&self, ids: &[UserId]) -> RepoResult<Vec<UserSummary>> {
@@ -1652,7 +1666,15 @@ impl UserLookup for PgChatRepo {
         // the user is still a member (LNG-SSET-012).
         let rows = sqlx::query(
             "SELECT a.id, a.username::text AS username, a.display_name, a.avatar_key, \
-             a.banner_key, a.is_bot, t.guild_id AS tag_guild, t.tag, t.badge, t.color \
+             a.banner_key, a.is_bot, t.guild_id AS tag_guild, t.tag, t.badge, t.color, \
+             (EXISTS(SELECT 1 FROM entitlement_grants e \
+                     WHERE e.kind = 'patron' AND e.user_id = a.id AND e.revoked_ms IS NULL \
+                       AND (e.permanent \
+                            OR e.ends_ms + $2 > (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT \
+                            OR e.starts_ms + COALESCE(e.days, 0) * 86400000 + $2 \
+                               > (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT)) \
+              AND NOT COALESCE((SELECT d.hide_badge FROM donor_preferences d \
+                                WHERE d.user_id = a.id), FALSE)) AS is_patron \
              FROM accounts a \
              LEFT JOIN user_primary_guilds p ON p.user_id = a.id \
              LEFT JOIN guild_tags t ON t.guild_id = p.guild_id AND t.members_can_display \
@@ -1661,6 +1683,7 @@ impl UserLookup for PgChatRepo {
              WHERE a.id = ANY($1)",
         )
         .bind(ids)
+        .bind(PATRON_GRACE_MS)
         .fetch_all(&self.pool)
         .await
         .map_err(db)?;
@@ -1684,6 +1707,7 @@ impl UserLookup for PgChatRepo {
                 banner_key: r.try_get("banner_key").map_err(db)?,
                 bot: r.try_get("is_bot").map_err(db)?,
                 primary_guild,
+                patron: r.try_get("is_patron").map_err(db)?,
             });
         }
         Ok(out)

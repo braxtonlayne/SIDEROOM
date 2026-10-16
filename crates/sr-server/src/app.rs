@@ -1228,9 +1228,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(watchparty_deps)
         .extension(activities_deps.clone())
         .extension(user_feature_deps)
-        .extension(Arc::new(routes::donations::DonationsDeps::new(
-            payments.service.clone(),
-        )))
+        .extension(Arc::new(
+            routes::donations::DonationsDeps::new(payments.service.clone())
+                .with_chat_slot(payments.chat.clone()),
+        ))
         .extension(review_deps.clone())
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
