@@ -216,6 +216,14 @@ impl Client {
                 }
             }
         }
+        // Every dispatch sender is gone, so each shard task has ended or is about to: the first
+        // fatal error among them is the result (the channel can close before we see it).
+        while let Some(done) = shard_tasks.join_next().await {
+            if let Ok(Err(e)) = done {
+                shard_tasks.abort_all();
+                return Err(e);
+            }
+        }
         Ok(())
     }
 

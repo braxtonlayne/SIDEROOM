@@ -626,3 +626,72 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod ws_tests {
+    //! The real WebSocket transport against a local server speaking the gateway protocol.
+    use futures::{SinkExt, StreamExt};
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::tungstenite::Message as Ws;
+    use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+    use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn identifies_over_a_real_socket_and_a_fatal_close_code_comes_back() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.expect("accept");
+            let mut ws = tokio_tungstenite::accept_async(tcp)
+                .await
+                .expect("handshake");
+            ws.send(Ws::text(
+                json!({"op": 10, "d": {"heartbeat_interval": 30000}}).to_string(),
+            ))
+            .await
+            .expect("hello");
+            let Some(Ok(Ws::Text(first))) = ws.next().await else {
+                panic!("expected IDENTIFY");
+            };
+            let first: Value = serde_json::from_str(&first).expect("json");
+            ws.send(Ws::text(
+                json!({"op": 0, "s": 1, "t": "READY", "d": {
+                    "session_id": "s", "user": {"id": "9", "bot": true}, "application": {"id": "5"}}})
+                .to_string(),
+            ))
+            .await
+            .expect("ready");
+            ws.send(Ws::Close(Some(CloseFrame {
+                code: CloseCode::from(4014),
+                reason: "disallowed".into(),
+            })))
+            .await
+            .expect("close");
+            first
+        });
+
+        let (tx, mut rx) = mpsc::channel(8);
+        let cfg = ShardConfig::new("tok", 513, (0, 1), format!("ws://{addr}/gateway"));
+        let run = tokio::spawn(async move { run_shard(cfg, &WsConnector, tx).await });
+
+        let ready = timeout(Duration::from_secs(10), rx.recv())
+            .await
+            .expect("no timeout")
+            .expect("READY dispatch");
+        assert_eq!(ready.name, "READY");
+        let err = timeout(Duration::from_secs(10), run)
+            .await
+            .expect("no timeout")
+            .expect("join")
+            .expect_err("4014 is fatal");
+        assert!(matches!(err, Error::GatewayFatal { code: 4014, .. }));
+
+        let identify = server.await.expect("server task");
+        assert_eq!(identify["op"], 2);
+        assert_eq!(identify["d"]["token"], "tok");
+        assert_eq!(identify["d"]["intents"], 513);
+        assert_eq!(identify["d"]["shard"], json!([0, 1]));
+    }
+}
