@@ -297,3 +297,29 @@
   display: inline-block;
   width: 32px;
 }
+.adm-unsaved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-md, 6px);
+}
+.adm-unsaved[data-dirty='true'] {
+  position: sticky;
+  inset-block-end: 0;
+  background: var(--ui-bg-raised);
+  border-color: var(--ui-border);
+  box-shadow: 0 -2px 8px rgb(0 0 0 / 0.12);
+}
+.adm-unsaved-note {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--ui-text-muted);
+}
+.adm-unsaved-note:empty {
+  display: none;
+}
