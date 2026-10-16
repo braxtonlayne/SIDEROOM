@@ -48,6 +48,8 @@ pub struct VoiceConfig {
     pub session_grace: Duration,
     /// Told when a DM call ends, to write the call record. `None`: no record.
     pub calls: Option<Arc<dyn crate::voice_call::CallHooks>>,
+    /// `voice.e2ee`: the MLS delivery service over op 101 E2EE_MLS (VOX-E2E-004). Off by default.
+    pub e2ee: bool,
 }
 
 impl std::fmt::Debug for VoiceConfig {
@@ -415,6 +417,10 @@ pub(crate) struct VoiceExtra {
     /// Voice channel status lines by channel (VOX-UI-015); gone when the channel empties.
     pub statuses: HashMap<ChannelId, crate::voice_status::ChannelStatus>,
     pub calls: HashMap<ChannelId, crate::voice_call::CallState>,
+    /// E2EE commit ordering per voice channel or call (VOX-E2E-004); gone when it empties.
+    pub e2ee: HashMap<ChannelId, crate::voice_e2ee::E2eeCall>,
+    /// The delivery service's MLS external-sender key (VOX-E2E-004), made on first use.
+    pub e2ee_ds: Option<Arc<sr_e2ee::mls::ExternalSenderKey>>,
     /// One soundboard play per member per few seconds.
     pub cooldown: sr_chat::settings::soundboard::PlayCooldown,
 }
@@ -956,6 +962,7 @@ impl Gateway {
         self.stream_member_left(old).await;
         self.stage_member_left(old).await;
         self.voice_status_member_left(old).await;
+        self.e2ee_member_left(old);
         if old.guild_id.is_none() {
             self.call_member_left(old).await;
         }
@@ -1172,6 +1179,7 @@ impl Gateway {
         }
         self.voice_afk_sweep(now).await;
         self.call_sweep(now).await;
+        self.e2ee_sweep();
     }
 
     /// Move members who have been silent for the guild's AFK timeout to its AFK channel
@@ -1288,6 +1296,7 @@ impl Gateway {
             st.vx.streams.retain(|_, s| s.guild_id != Some(guild));
             st.vx.stages.retain(|_, s| s.guild_id != guild);
             st.vx.statuses.retain(|_, s| s.guild_id != guild);
+            st.vx.e2ee.retain(|c, _| !channels.contains(c));
         }
         for c in channels {
             self.relay(VoiceCommand::CloseRoom { channel: c }).await;

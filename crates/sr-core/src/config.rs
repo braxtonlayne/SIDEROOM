@@ -198,6 +198,10 @@ pub struct VoiceConfig {
     /// the available cores, at most 8; it never exceeds the number
     /// of bound media sockets.
     pub shards: usize,
+    /// End-to-end encryption for calls (`voice.e2ee`, D-053, D-249): the gateway is the MLS
+    /// delivery service over op 101 E2EE_MLS. Off by default until the media path has run in real
+    /// browsers; use it together with the web build flag `VITE_SR_VOICE_E2EE`.
+    pub e2ee: bool,
     pub turn: TurnSection,
 }
 
@@ -239,6 +243,7 @@ impl Default for VoiceConfig {
             session_grace_secs: 20,
             egress_budget_mbps: 0,
             video_bwe: false,
+            e2ee: false,
             shards: 1,
             turn: TurnSection::default(),
         }

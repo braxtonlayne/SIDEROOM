@@ -12,6 +12,7 @@ import { StartPartyButton } from '../../watchparty/StartPartyButton';
 import { ActivityButton } from '../../activities/ActivityButton';
 import { CameraPreviewDialog } from './CameraPreview';
 import { ScreenSharePicker } from './ScreenSharePicker';
+import { E2eeShield } from './PrivacyCodes';
 import { SoundboardButton } from './SoundboardPopover';
 import './voice-p10.css';
 
@@ -279,6 +280,7 @@ export function CallControls({
             </button>
           </Tooltip>
         )}
+        <E2eeShield />
         {guildId !== DM_GUILD_ID && <SoundboardButton guildId={guildId} channelId={channelId} />}
         <StartPartyButton channelId={channelId} />
         {guildId !== DM_GUILD_ID && <ActivityButton channelId={channelId} />}

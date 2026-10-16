@@ -268,6 +268,10 @@ struct Env {
 }
 
 fn env_with_voice(enabled: bool) -> Env {
+    env_full(enabled, true)
+}
+
+fn env_full(enabled: bool, e2ee: bool) -> Env {
     let relay = Arc::new(Recorder::default());
     let calls = Arc::new(CallLog::default());
     let cfg = GatewayConfig {
@@ -285,6 +289,7 @@ fn env_with_voice(enabled: bool) -> Env {
             relay: Some(relay.clone()),
             session_grace: Duration::from_secs(20),
             calls: Some(calls.clone()),
+            e2ee,
         }),
         ..GatewayConfig::default()
     };
@@ -1116,6 +1121,9 @@ async fn voice_state_dispatches_need_the_guild_voice_states_intent() {
 
 #[path = "voice_ext_tests.rs"]
 mod ext;
+
+#[path = "voice_e2ee_tests.rs"]
+mod e2ee;
 
 /// The `VoiceJoined` / `VoiceLeft` events on the guild topic, in order, as `(+|-, channel, user)`.
 async fn voice_events(

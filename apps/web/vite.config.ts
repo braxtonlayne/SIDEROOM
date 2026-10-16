@@ -23,6 +23,8 @@ const extra = {
 
 export default defineConfig({
   plugins: [react(), pwaPlugin()],
+  // VOX-E2E-003: the E2EE media worker is a module worker that lazy-loads its WASM.
+  worker: { format: 'es' },
   server: {
     port: 5173,
     // Report-only in dev: the HMR socket and react-refresh preamble are inline, and a header must never
