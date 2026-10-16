@@ -196,7 +196,8 @@ describe('downloads and sharing (LIB-SER-002/004, LIB-RDR-016)', () => {
     expect(sent[0]![0]).toBe('d1');
     const [first, second] = sent[0]![1].split('\n');
     expect(first).toBe('Try this');
-    expect(second).toMatch(/\/library\/s\/1$/);
+    // D-226: the Lounge draws this token as the Library rich card.
+    expect(second).toBe('<library:1>');
   });
 });
 

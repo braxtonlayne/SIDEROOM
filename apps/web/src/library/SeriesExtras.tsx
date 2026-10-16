@@ -113,6 +113,7 @@ export function ShareButton({ seriesId, title }: { seriesId: string; title: stri
           onClose={() => setOpen(false)}
           target={{
             url: `${window.location.origin}/library/s/${seriesId}`,
+            card: `<library:${seriesId}>`,
             title,
             kind: t('share.kindLibrary'),
           }}

@@ -1,6 +1,6 @@
-// "Share to Lounge": posts a link to a Library series or a Cinema title into a channel or DM the person picks.
-// The message is the link (with an optional note); the Lounge renders SIDE ROOM links as rich cards. Used by
-// the Library series page and the Cinema title page.
+// "Share to Lounge" (D-226): posts a Library series or a Cinema title into a channel or DM the person picks.
+// The message is the `<library:id>` / `<cinema:id>` token (with an optional note), which the Lounge draws as a
+// rich card (`lounge/msg/RichCards.tsx`). Used by the Library series page and the Cinema title page.
 import { Button, Modal, Notice, Select, TextArea, useToast } from '@sideroom/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useT } from '../i18n';
@@ -12,8 +12,10 @@ import type { Channel } from '../store/types';
 const POSTABLE = new Set([0, 1, 3, 5]);
 
 export interface ShareTarget {
-  /** Absolute URL of the thing shared. */
+  /** Absolute URL of the thing shared (for copying). */
   url: string;
+  /** The rich-card token posted to the Lounge: `<library:id>` or `<cinema:id>` (D-226). */
+  card: string;
   /** Its name, shown in the dialog. */
   title: string;
   /** "Library" or "Cinema", shown under the title. */
@@ -79,7 +81,7 @@ export function ShareToLoungeDialog({
     setBusy(true);
     setError(false);
     try {
-      const content = [note.trim(), target.url].filter(Boolean).join('\n');
+      const content = [note.trim(), target.card].filter(Boolean).join('\n');
       await sendMessage(channelId, content);
       toast.show({ title: t('share.sent') });
       setNote('');
@@ -88,6 +90,16 @@ export function ShareToLoungeDialog({
       setError(true);
     } finally {
       setBusy(false);
+    }
+  };
+
+  // D-226: "Copy link" stays next to posting the card.
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(target.url);
+      toast.show({ title: t('share.copied') });
+    } catch {
+      toast.show({ title: t('share.copyFailed') });
     }
   };
 
@@ -123,6 +135,9 @@ export function ShareToLoungeDialog({
         />
         {error && <Notice variant="danger">{t('share.failed')}</Notice>}
         <div className="share-actions">
+          <Button variant="ghost" onClick={() => void copy()}>
+            {t('share.copyLink')}
+          </Button>
           <Button variant="ghost" onClick={onClose}>
             {t('share.cancel')}
           </Button>

@@ -320,6 +320,7 @@ pub(super) async fn env_build(
                 password_hash: "unused".into(),
                 state: AuthState::Active,
                 age_confirmed: None,
+                age_confirmed_at: None,
                 locale: "en-US".into(),
                 flags: 0,
             });

@@ -217,6 +217,7 @@ function Header({
           onClose={() => setSharing(false)}
           target={{
             url: `${window.location.origin}/cinema/t/${t.id}`,
+            card: `<cinema:${t.id}>`,
             title: t.title,
             kind: tr('share.kindCinema'),
           }}
