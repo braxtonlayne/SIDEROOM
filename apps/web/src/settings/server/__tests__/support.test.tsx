@@ -259,6 +259,42 @@ describe('Leaderboards page', () => {
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
+  it('shows each donor picture, and the initials where there is none', async () => {
+    server.use(
+      http.get('*/api/v1/donations/leaderboards/donors', () =>
+        HttpResponse.json(
+          board('Anonymous patron', {
+            items: [
+              {
+                rank: 1,
+                user_id: '7',
+                guild_id: null,
+                name: 'Ann Lee',
+                avatar: 'abc',
+                cents: 900,
+                anonymous: false,
+              },
+              {
+                rank: 2,
+                user_id: null,
+                guild_id: null,
+                name: 'Anonymous patron',
+                avatar: null,
+                cents: null,
+                anonymous: true,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    open();
+    const list = await screen.findByRole('list', { name: 'Top donors' });
+    const img = list.querySelector('img');
+    expect(img?.getAttribute('src')).toBe('/cdn/avatars/7/abc.png?size=64');
+    expect(within(list).getByText('AP')).toBeInTheDocument();
+  });
+
   it('switches to the lifetime window and the servers tab', async () => {
     const windows: string[] = [];
     server.use(
