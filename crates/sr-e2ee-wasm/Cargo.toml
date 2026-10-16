@@ -1,0 +1,16 @@
+[package]
+name = "sr-e2ee-wasm"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+description = "wasm-bindgen wrapper over sr-e2ee for the browser's media worker: the frame encryptor, the epoch key ring and privacy codes (VOX-E2E-002, 006, 007)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+sr-e2ee = { path = "../sr-e2ee" }
+wasm-bindgen.workspace = true
+
+[lints]
+workspace = true

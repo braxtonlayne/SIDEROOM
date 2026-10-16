@@ -202,6 +202,37 @@ export function loadGraph(wasmUrl?: string | URL | BufferSource): Promise<GraphA
 /** Loaded on its own: only the Library upload forms need it. */
 export function loadLibrary(wasmUrl?: string | URL | BufferSource): Promise<LibraryApi>;
 
+/** One sender's frame encryptor for one epoch (sr-e2ee). Call `free()` when the epoch ends. */
+export interface E2eeEncryptor {
+  /** Encrypt an encoded frame of `mime`; throws when the frame must be dropped. */
+  encrypt(mime: string, frame: Uint8Array): Uint8Array;
+  readonly counter: number;
+  free(): void;
+}
+
+/** The receiver's epoch keys, with a grace window for the previous epoch. */
+export interface E2eeKeyRing {
+  /** `secrets` holds one 16-byte secret per user id, in order. */
+  setEpoch(epoch: number, userIds: string[], secrets: Uint8Array, nowMs: number): void;
+  /** Decrypt a frame from `sender`; throws when the frame must be dropped. */
+  decrypt(sender: string, mime: string, frame: Uint8Array, nowMs: number): Uint8Array;
+  /** -1 before the first epoch. */
+  readonly epoch: number;
+  clear(): void;
+  free(): void;
+}
+
+export interface E2eeApi {
+  isSupportedCodec(mime: string): boolean;
+  /** `secret`: 16 bytes; `random`: 4 bytes from `crypto.getRandomValues`. */
+  createEncryptor(secret: Uint8Array, random: Uint8Array): E2eeEncryptor;
+  createKeyRing(graceMs?: number): E2eeKeyRing;
+  /** Six groups of five digits. */
+  privacyCode(epochAuthenticator: Uint8Array, userId: string, identityKey: Uint8Array): string;
+}
+
+export function loadE2ee(wasmUrl?: string | URL | BufferSource): Promise<E2eeApi>;
+
 /** Load all modules in parallel. */
 export function initWasm(options?: WasmInitOptions): Promise<{
   theme: ThemeApi;

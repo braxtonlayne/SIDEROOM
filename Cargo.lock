@@ -5388,6 +5388,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-e2ee-wasm"
+version = "0.0.0"
+dependencies = [
+ "sr-e2ee",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "sr-events"
 version = "0.0.0"
 dependencies = [
