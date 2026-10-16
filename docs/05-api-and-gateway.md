@@ -331,7 +331,7 @@ every request; `PATCH /admin/settings` updates them without a restart. Gateway a
 | 4 | VOICE_STATE_UPDATE | → |
 | 6 | RESUME | → |
 | 7 | RECONNECT | ← |
-| 8 | REQUEST_GUILD_MEMBERS (served, section 6.6a) | → |
+| 8 | REQUEST_GUILD_MEMBERS (served, section 6.6a; a `query` is a substring match over nick, username and display name, a superset of Discord's prefix match) | → |
 | 9 | INVALID_SESSION | ← |
 | 10 | HELLO | ← |
 | 11 | HEARTBEAT_ACK | ← |
