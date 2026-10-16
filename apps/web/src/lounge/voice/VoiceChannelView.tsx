@@ -14,6 +14,7 @@ import { useVoicePerms } from './perms';
 import { usePopOut } from './PopOut';
 import { useSwipeDown } from './swipe';
 import { VoiceChat } from './VoiceChat';
+import { VoiceStatusBar } from './VoiceStatusBar';
 import { WatchPartyStrip } from '../../watchparty/WatchPartyStrip';
 import './voice-p10.css';
 
@@ -145,6 +146,7 @@ export function VoiceChannelView({
         guildId={channel.guildId}
         channelId={channel.id}
       />
+      <VoiceStatusBar channel={channel} here={here} />
       <WatchPartyStrip channelId={channel.id} />
       <div className="vc-body" data-chat={layout.chatOpen && here ? 'open' : undefined}>
         <div className="vc-main">

@@ -1298,3 +1298,149 @@ async fn call_create_says_whether_the_caller_started_with_video() {
     assert_eq!(friend.event("CALL_CREATE").await["video"], true);
     assert_eq!(e.gw.call_state(u(FRIEND), DM).unwrap()["video"], true);
 }
+
+// ---- voice channel status (VOX-UI-015) -----------------------------------------------------------
+
+fn allow_status(e: &Env, user: u64, ch: ChannelId) {
+    e.dir.perms.lock().unwrap().insert(
+        (u(user), ch),
+        member_perms() | Permissions::SET_VOICE_CHANNEL_STATUS,
+    );
+}
+
+#[tokio::test]
+async fn a_status_is_set_changed_and_cleared_by_someone_in_the_channel() {
+    let e = env();
+    allow_status(&e, MEMBER, LOBBY);
+    let mut watcher = client(&e, FRIEND).await;
+    let _a = join(&e, MEMBER, LOBBY).await;
+    watcher.drain().await;
+
+    let set =
+        e.gw.voice_status_set(u(MEMBER), LOBBY, Some("  Mario Kart  "))
+            .await;
+    assert_eq!(set.unwrap().unwrap().text, "Mario Kart");
+    let ev = watcher.event("VOICE_CHANNEL_STATUS_UPDATE").await;
+    assert_eq!(ev["id"], "20");
+    assert_eq!(ev["guild_id"], "1");
+    assert_eq!(ev["status"], "Mario Kart");
+    assert_eq!(e.gw.voice_channel_status(LOBBY).unwrap().set_by, u(MEMBER));
+
+    // The same text again is not announced twice; a new one replaces it.
+    e.gw.voice_status_set(u(MEMBER), LOBBY, Some("Mario Kart"))
+        .await
+        .unwrap();
+    e.gw.voice_status_set(u(MEMBER), LOBBY, Some("Chess"))
+        .await
+        .unwrap();
+    assert_eq!(
+        watcher.event("VOICE_CHANNEL_STATUS_UPDATE").await["status"],
+        "Chess"
+    );
+
+    // An empty status clears it.
+    assert_eq!(
+        e.gw.voice_status_set(u(MEMBER), LOBBY, Some("  ")).await,
+        Ok(None)
+    );
+    assert_eq!(
+        watcher.event("VOICE_CHANNEL_STATUS_UPDATE").await["status"],
+        Value::Null
+    );
+    assert!(e.gw.voice_channel_status(LOBBY).is_none());
+    e.gw.voice_status_set(u(MEMBER), LOBBY, None).await.unwrap();
+}
+
+#[tokio::test]
+async fn who_may_set_a_status_and_what_is_refused() {
+    let e = env();
+    let _a = join(&e, MEMBER, LOBBY).await;
+    // Without the permission, even from inside.
+    assert_eq!(
+        e.gw.voice_status_set(u(MEMBER), LOBBY, Some("x")).await,
+        Err(StatusError::MissingPermissions)
+    );
+    allow_status(&e, MEMBER, LOBBY);
+    allow_status(&e, FRIEND, LOBBY);
+    // With the permission but outside the channel.
+    assert_eq!(
+        e.gw.voice_status_set(u(FRIEND), LOBBY, Some("x")).await,
+        Err(StatusError::NotInVoice)
+    );
+    // Too long, not a voice channel, unknown channel.
+    assert_eq!(
+        e.gw.voice_status_set(u(MEMBER), LOBBY, Some(&"x".repeat(MAX_STATUS_CHARS + 1)))
+            .await,
+        Err(StatusError::InvalidStatus)
+    );
+    assert_eq!(
+        e.gw.voice_status_set(u(MOD), TEXT, Some("x")).await,
+        Err(StatusError::NotVoiceChannel)
+    );
+    assert_eq!(
+        e.gw.voice_status_set(u(MOD), ChannelId::new(999), Some("x"))
+            .await,
+        Err(StatusError::UnknownChannel)
+    );
+    // A moderator (Manage Channels) may set and clear it without being in the channel.
+    assert!(
+        e.gw.voice_status_set(u(MOD), LOBBY, Some("Movie night"))
+            .await
+            .is_ok()
+    );
+    assert_eq!(
+        e.gw.voice_channel_status(LOBBY).unwrap().text,
+        "Movie night"
+    );
+    assert_eq!(e.gw.voice_status_set(u(MOD), LOBBY, None).await, Ok(None));
+    // Nobody in the channel: nothing to describe.
+    assert_eq!(
+        e.gw.voice_status_set(u(MOD), ROOM_B, Some("x")).await,
+        Err(StatusError::NotInVoice)
+    );
+}
+
+#[tokio::test]
+async fn a_status_ends_when_the_last_member_leaves() {
+    let e = env();
+    allow_status(&e, MEMBER, LOBBY);
+    let mut watcher = client(&e, FRIEND).await;
+    let mut a = join(&e, MEMBER, LOBBY).await;
+    let _b = join(&e, MOD, LOBBY).await;
+    e.gw.voice_status_set(u(MEMBER), LOBBY, Some("Study hall"))
+        .await
+        .unwrap();
+    watcher.event("VOICE_CHANNEL_STATUS_UPDATE").await;
+
+    // One leaves, one stays: the status stays.
+    a.voice(1, None, false, false).await;
+    a.drain().await;
+    assert_eq!(e.gw.voice_channel_status(LOBBY).unwrap().text, "Study hall");
+    e.gw.voice_leave(u(MOD)).await;
+    assert!(e.gw.voice_channel_status(LOBBY).is_none());
+    let mut saw_clear = false;
+    for v in watcher.drain().await {
+        if v["t"] == "VOICE_CHANNEL_STATUS_UPDATE" && v["d"]["status"].is_null() {
+            saw_clear = true;
+        }
+    }
+    assert!(saw_clear, "the channel is told its status ended");
+}
+
+#[tokio::test]
+async fn guild_create_carries_the_status_on_the_channel_object() {
+    let e = env();
+    allow_status(&e, MEMBER, LOBBY);
+    let _a = join(&e, MEMBER, LOBBY).await;
+    e.gw.voice_status_set(u(MEMBER), LOBBY, Some("Karaoke"))
+        .await
+        .unwrap();
+    let mut late = Client::connect(&e.gw);
+    late.identify(FRIEND).await;
+    let create = late.event("GUILD_CREATE").await;
+    let channels = create["channels"].as_array().unwrap();
+    let lobby = channels.iter().find(|c| c["id"] == "20").unwrap();
+    assert_eq!(lobby["status"], "Karaoke");
+    let stage = channels.iter().find(|c| c["id"] == "24").unwrap();
+    assert!(stage.get("status").is_none());
+}

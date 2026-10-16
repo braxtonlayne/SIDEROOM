@@ -162,6 +162,7 @@ export const PERMISSIONS: PermissionInfo[] = [
   p('USE_SOUNDBOARD', 42, 'voice', {
     scope: 'voice',
   }),
+  p('SET_VOICE_CHANNEL_STATUS', 48, 'voice', { scope: 'voice' }),
   p('USE_EXTERNAL_SOUNDS', 45, 'voice', {
     scope: 'voice',
   }),

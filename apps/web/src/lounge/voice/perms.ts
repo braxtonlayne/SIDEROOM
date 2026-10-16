@@ -11,6 +11,7 @@ export interface VoicePerms {
   moveMembers: boolean;
   useSoundboard: boolean;
   requestToSpeak: boolean;
+  setVoiceStatus: boolean;
   manageChannels: boolean;
 }
 
@@ -36,6 +37,7 @@ export function useVoicePerms(
     moveMembers: p?.moveMembers ?? base('MOVE_MEMBERS', false),
     useSoundboard: p?.useSoundboard ?? base('USE_SOUNDBOARD', true),
     requestToSpeak: p?.requestToSpeak ?? base('REQUEST_TO_SPEAK', true),
+    setVoiceStatus: p?.setVoiceStatus ?? base('SET_VOICE_CHANNEL_STATUS', true),
     manageChannels: p?.manageChannels ?? base('MANAGE_CHANNELS', false),
   };
 }

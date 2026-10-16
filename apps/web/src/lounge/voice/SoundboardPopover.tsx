@@ -193,7 +193,16 @@ function Body({ guildId, channelId }: { guildId: string; channelId: string }) {
  * default ones, a preview that only you hear, and a volume for what you play. Playing a sound announces it to
  * the room and mixes the file into your microphone stream (VOX-SB-003).
  */
-export function SoundboardButton({ guildId, channelId }: { guildId: string; channelId: string }) {
+export function SoundboardButton({
+  guildId,
+  channelId,
+  compact,
+}: {
+  guildId: string;
+  channelId: string;
+  /** The small icon button of the voice panel. */
+  compact?: boolean;
+}) {
   const t = useT();
   return (
     <Popover
@@ -201,8 +210,12 @@ export function SoundboardButton({ guildId, channelId }: { guildId: string; chan
       placement="top"
       className="vc-sb-popover"
       trigger={
-        <button type="button" className="vc-ctl" aria-label={t('lounge.soundboard.title')}>
-          <Icon name="soundboard" size={24} />
+        <button
+          type="button"
+          className={compact ? 'lng-icon-btn' : 'vc-ctl'}
+          aria-label={t('lounge.soundboard.title')}
+        >
+          <Icon name="soundboard" size={compact ? 20 : 24} />
         </button>
       }
     >

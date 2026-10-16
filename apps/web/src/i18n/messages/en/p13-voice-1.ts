@@ -69,4 +69,20 @@ export default {
   'lounge.dmCall.callingShort': 'Calling...',
   'lounge.dmCall.cancel': 'Cancel call',
   'lounge.dmCall.resize': 'Resize the call',
+  // VOX-UI-015: voice channel status
+  'lounge.voiceStatus.none': 'No status. Tell people what you are up to.',
+  'lounge.voiceStatus.edit': 'Set channel status',
+  'lounge.voiceStatus.dialogTitle': 'Channel status',
+  'lounge.voiceStatus.dialogHelp':
+    'Shown under the channel name while people are in it. It ends when the last person leaves.',
+  'lounge.voiceStatus.label': 'Status',
+  'lounge.voiceStatus.placeholder': 'Playing Mario Kart',
+  'lounge.voiceStatus.save': 'Save',
+  'lounge.voiceStatus.clear': 'Clear status',
+  'lounge.voiceStatus.cancel': 'Cancel',
+  'lounge.voiceStatus.errPermission': 'You cannot set the status of this channel.',
+  'lounge.voiceStatus.errOther': 'The status could not be saved. Try again in a moment.',
+  'settings.permissions.setVoiceChannelStatus.label': 'Set Voice Channel Status',
+  'settings.permissions.setVoiceChannelStatus.description':
+    'Set the status line under a voice or stage channel while connected to it.',
 } satisfies Record<string, string>;

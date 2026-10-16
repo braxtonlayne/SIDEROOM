@@ -165,7 +165,6 @@ export function DmCallStage({ channelId }: { channelId: string }) {
         />
       </div>
       {/* A window splitter: drag, or Arrow Up/Down, Home and End. */}
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions */}
       <div
         role="separator"
         aria-orientation="horizontal"

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { onDispatch } from '../../store/events';
 import { voiceController } from '../../voice/controller';
+import { applyStatusEvent } from '../../voice/channelStatus';
 import { applyStageEvent } from '../../voice/stage';
 import { useVoiceSession } from '../../voice/session';
 import { useVoicePerms } from './perms';
@@ -20,6 +21,8 @@ export function VoiceBridge() {
   useEffect(() => voiceController().start(), []);
   // Stage instances (VOX-STG-002) arrive with GUILD_CREATE and STAGE_INSTANCE_*; keep them whatever view is open.
   useEffect(() => onDispatch((event, data) => applyStageEvent(event, data)), []);
+  // Voice channel statuses (VOX-UI-015) arrive with GUILD_CREATE and VOICE_CHANNEL_STATUS_UPDATE.
+  useEffect(() => onDispatch((event, data) => applyStatusEvent(event, data)), []);
 
   useEffect(() => {
     if (channelId) voiceController().setPttForced(!perms.useVad);

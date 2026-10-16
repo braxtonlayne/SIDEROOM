@@ -21,6 +21,7 @@ import { CHANNEL_ICON } from '../ChannelSidebar';
 import { useJoinVoice } from './actions';
 import { useVoicePerms } from './perms';
 import { ParticipantTile } from './Tiles';
+import { VoiceStatusBar } from './VoiceStatusBar';
 import './voice-p10.css';
 import './voice-p13.css';
 
@@ -170,6 +171,7 @@ export function StageView({
         guildId={channel.guildId}
         channelId={channel.id}
       />
+      <VoiceStatusBar channel={channel} here={here} />
       <div className="vc-body">
         <div className="vc-main">
           <div className="vc-stage vc-stage-body">

@@ -29,6 +29,7 @@ pub fn default_everyone_permissions() -> Permissions {
         | P::USE_EMBEDDED_ACTIVITIES
         | P::USE_SOUNDBOARD
         | P::USE_EXTERNAL_SOUNDS
+        | P::SET_VOICE_CHANNEL_STATUS
         | P::CREATE_EVENTS
         | P::SEND_VOICE_MESSAGES
         | P::SEND_POLLS

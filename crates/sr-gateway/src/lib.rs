@@ -22,6 +22,7 @@ pub mod voice;
 mod voice_call;
 mod voice_sound;
 mod voice_stage;
+mod voice_status;
 mod voice_stream;
 pub mod ws;
 
@@ -38,6 +39,7 @@ pub use voice::{
 pub use voice_call::{CallError, CallHooks, CallSummary, RING_TIMEOUT};
 pub use voice_sound::{SoundPlay, SoundPlayError};
 pub use voice_stage::{SelfStagePatch, StageError, StageInstance};
+pub use voice_status::{ChannelStatus, MAX_STATUS_CHARS, StatusError};
 pub use voice_stream::{PreviewError, stream_key};
 pub use ws::{GatewayQuery, SESSION_COOKIE, gateway_handler, routes};
 

@@ -56,7 +56,8 @@ bitflags! {
         const CREATE_EVENTS = 1 << 44;
         const USE_EXTERNAL_SOUNDS = 1 << 45;
         const SEND_VOICE_MESSAGES = 1 << 46;
-        // Bits 47-48 are unassigned in Discord's current list.
+        // Bit 47 is unassigned in Discord's current list.
+        const SET_VOICE_CHANNEL_STATUS = 1 << 48;
         const SEND_POLLS = 1 << 49;
         const USE_EXTERNAL_APPS = 1 << 50;
         const PIN_MESSAGES = 1 << 51;
@@ -345,6 +346,7 @@ mod tests {
 
     #[test]
     fn new_bits_and_positions() {
+        assert_eq!(Permissions::SET_VOICE_CHANNEL_STATUS.bits(), 1 << 48);
         assert_eq!(Permissions::PIN_MESSAGES.bits(), 1 << 51);
         assert_eq!(Permissions::BYPASS_SLOWMODE.bits(), 1 << 52);
     }

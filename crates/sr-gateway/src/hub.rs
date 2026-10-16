@@ -712,6 +712,21 @@ impl Gateway {
             .map(crate::voice_stage::StageInstance::to_json)
             .collect();
         let sounds = self.inner.dir.soundboard_sounds(guild).await;
+        // Voice channel statuses ride on the channel objects, as in Discord.
+        let statuses = self.voice_statuses_for(user, guild).await;
+        if !statuses.is_empty()
+            && let Some(channels) = body.get_mut("channels").and_then(Value::as_array_mut)
+        {
+            for ch in channels {
+                let id = ch.get("id").and_then(Value::as_str).map(str::to_owned);
+                let found = statuses
+                    .iter()
+                    .find(|s| id.as_deref() == Some(s.channel_id.to_string().as_str()));
+                if let (Some(s), Some(o)) = (found, ch.as_object_mut()) {
+                    o.insert("status".into(), Value::String(s.text.clone()));
+                }
+            }
+        }
         if let Some(obj) = body.as_object_mut() {
             obj.insert("voice_states".into(), Value::Array(voice_states));
             obj.insert("stage_instances".into(), Value::Array(stages));

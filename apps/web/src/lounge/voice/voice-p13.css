@@ -212,3 +212,34 @@
     animation: none;
   }
 }
+
+/* voice channel status */
+.vc-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  border-block-end: 1px solid var(--border, rgb(127 127 127 / 20%));
+}
+.vc-status-text {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.vc-status-text[data-empty] {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.lng-voice-status {
+  margin: 0;
+  padding-block: 0 2px;
+  padding-inline: 36px 8px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

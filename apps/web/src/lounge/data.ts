@@ -139,6 +139,8 @@ export interface ChannelPermissions {
   useSoundboard?: boolean;
   /** REQUEST_TO_SPEAK: raise a hand in a stage. */
   requestToSpeak?: boolean;
+  /** SET_VOICE_CHANNEL_STATUS: the status line of a voice channel. */
+  setVoiceStatus?: boolean;
 }
 
 export interface Channel {
