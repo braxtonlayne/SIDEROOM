@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { listPasskeys } from '../../api/passkeys';
-import { SIDEROOM_EPOCH_MS } from '../liveMap';
+import { SIDEROOM_EPOCH_MS } from '../epoch.generated';
 
 export const WELCOME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 export const SECURITY_NUDGE_KEY = 'securityNudgeDone';

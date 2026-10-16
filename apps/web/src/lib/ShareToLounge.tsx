@@ -5,7 +5,10 @@ import { Button, Modal, Notice, Select, TextArea, useToast } from '@sideroom/ui'
 import { useEffect, useMemo, useState } from 'react';
 import { useT } from '../i18n';
 import { DM_GUILD, useStore } from '../store';
+import { memberKey } from '../store/reducer';
 import { useChannels, useGuilds } from '../store/hooks';
+import { PERM, basePermissions, computeChannelBits } from '../lounge/liveMap';
+import { usePermEngine } from '../lounge/permEngine';
 import type { Channel } from '../store/types';
 
 /** Channel types a message can be posted to: text, DM, group DM, announcement. */
@@ -46,6 +49,12 @@ export function ShareToLoungeDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const channels = useChannels(place);
+  const engine = usePermEngine();
+  const me = useStore((s) => s.currentUserId);
+  const guild = useStore((s) => (place === DM_GUILD ? undefined : s.guilds[place]));
+  const viewer = useStore((s) => (me ? s.members[memberKey(place, me)] : undefined));
+  const roles = useStore((s) => s.roles);
+  const roleIds = useStore((s) => s.roleIdsByGuild[place]);
 
   useEffect(() => {
     if (open && guilds.length === 0) void loadGuilds().catch(() => undefined);
@@ -56,15 +65,41 @@ export function ShareToLoungeDialog({
       void loadGuild(place).catch(() => undefined);
   }, [open, place, channels.length, loadGuild]);
 
+  // A server channel is offered only where the person can send and embed (the card is an embed):
+  // the same bits the server checks. Until the member is loaded the server decides, so nothing is hidden.
+  const canPost = useMemo(() => {
+    if (place === DM_GUILD || !me) return () => true;
+    const roleById = new Map(
+      (roleIds ?? []).flatMap((id) => (roles[id] ? [[id, roles[id]] as const] : [])),
+    );
+    const owner = guild?.owner_id === me;
+    if (!viewer && !owner) return () => true;
+    const need = PERM.SEND_MESSAGES | PERM.EMBED_LINKS;
+    return (c: Channel) => {
+      const bits =
+        (engine
+          ? computeChannelBits(engine, {
+              guildId: place,
+              ownerId: guild?.owner_id,
+              viewerId: me,
+              viewer,
+              roleById,
+              channel: c,
+            })
+          : undefined) ?? basePermissions(place, guild?.owner_id, me, roleById, viewer?.roles);
+      return (bits & need) === need;
+    };
+  }, [place, me, guild, viewer, roles, roleIds, engine]);
+
   const options = useMemo(
     () =>
       channels
-        .filter((c) => POSTABLE.has(c.type) && !c.is_message_request)
+        .filter((c) => POSTABLE.has(c.type) && !c.is_message_request && canPost(c))
         .map((c) => ({
           value: c.id,
           label: place === DM_GUILD ? dmName(c) : `# ${c.name ?? c.id}`,
         })),
-    [channels, place],
+    [channels, place, canPost],
   );
   // Keep the pick valid when the place changes.
   useEffect(() => {

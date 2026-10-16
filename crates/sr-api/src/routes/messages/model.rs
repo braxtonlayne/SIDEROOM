@@ -204,6 +204,10 @@ pub struct MessageObject {
     /// webhook, not the person who created it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub webhook_id: Option<String>,
+    /// Ids of `<:name:id>` tokens in `content` that resolve to an application emoji but were not
+    /// sent by that application's bot: clients show them as `:name:` text (D-237).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sr_text_emoji: Vec<String>,
 }
 
 impl MessageObject {
@@ -284,6 +288,7 @@ impl MessageObject {
             message_snapshots: Vec::new(),
             call,
             webhook_id: None,
+            sr_text_emoji: Vec::new(),
         }
     }
 

@@ -19,6 +19,7 @@ pub mod error;
 pub mod gateway;
 pub mod http;
 pub mod model;
+pub mod ops;
 
 pub use cache::Cache;
 pub use client::{Client, ClientBuilder, EventHandler, Shards};
@@ -29,3 +30,4 @@ pub use error::{Error, Result};
 pub use gateway::Event;
 pub use http::{MessageBody, Rest};
 pub use model::{Interaction, Message, User, intents};
+pub use ops::{GatewayHandle, MembersChunk, PresenceUpdate, RequestGuildMembers, Status};

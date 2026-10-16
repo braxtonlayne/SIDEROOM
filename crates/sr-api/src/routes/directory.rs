@@ -12,6 +12,7 @@
 //! data comes from the chat repository inside [`SettingsDeps`].
 
 use crate::routes::admin::{StaffCtx, map_err as admin_err};
+use crate::routes::developer::DevDeps;
 use crate::routes::guilds::dto::{MemberObject, iso8601};
 use crate::routes::guilds::util::{actor, id};
 use crate::routes::messages::error::{ApiJson, ApiQuery};
@@ -257,6 +258,18 @@ pub struct EmojiInfoObject {
     /// The owning server, only when the caller is a member or it has an approved Server Directory
     /// listing; otherwise `null` and the popout says the emoji is from a private server.
     pub guild: Option<EmojiGuildObject>,
+    /// Set instead of `guild` for an application emoji (D-237): the popout says "Emoji of
+    /// <application>" and offers no join action.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub application: Option<EmojiApplicationObject>,
+}
+
+/// The application an application emoji belongs to.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EmojiApplicationObject {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
 }
 
 /// The server an emoji belongs to.
@@ -270,18 +283,29 @@ pub struct EmojiGuildObject {
     pub listing: Option<String>,
 }
 
+/// A server emoji by id, if there is one.
 async fn find_emoji(
     deps: &SettingsDeps,
     emoji_id: &str,
-) -> ApiResult<sr_chat::settings::expressions::Emoji> {
+) -> ApiResult<Option<sr_chat::settings::expressions::Emoji>> {
     use sr_chat::settings::repo::ExpressionRepository;
     let eid: sr_core::EmojiId = id("emoji_id", emoji_id)?;
-    deps.service
-        .repo()
-        .find_emoji(eid)
+    deps.service.repo().find_emoji(eid).await.map_err(re)
+}
+
+/// An application emoji by id, looked up after the server emoji (D-237).
+async fn find_app_emoji(
+    dev: &Option<Arc<DevDeps>>,
+    emoji_id: &str,
+) -> ApiResult<Option<(sr_apps::model::AppEmoji, sr_apps::model::Application)>> {
+    let eid: u64 = id("emoji_id", emoji_id)?;
+    let (Some(dev), Ok(eid)) = (dev, i64::try_from(eid)) else {
+        return Ok(None);
+    };
+    dev.apps
+        .public_app_emoji(eid)
         .await
-        .map_err(re)?
-        .ok_or_else(|| ErrorCode::UnknownEmoji.into())
+        .map_err(|_| ErrorCode::SrInternal.into())
 }
 
 /// An emoji by id, for any signed-in caller (the popout on a cross-server custom emoji, D-232).
@@ -296,10 +320,26 @@ pub async fn get_emoji_info(
     p: Principal,
     Ext(dir): Ext<DirectoryDeps>,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(dev): MaybeExt<DevDeps>,
     Path(emoji_id): Path<String>,
 ) -> ApiResult<Json<EmojiInfoObject>> {
     let user = actor(&p)?;
-    let emoji = find_emoji(&deps, &emoji_id).await?;
+    let Some(emoji) = find_emoji(&deps, &emoji_id).await? else {
+        let (e, app) = find_app_emoji(&dev, &emoji_id)
+            .await?
+            .ok_or(ErrorCode::UnknownEmoji)?;
+        return Ok(Json(EmojiInfoObject {
+            id: e.id.to_string(),
+            name: e.name,
+            animated: e.animated,
+            guild: None,
+            application: Some(EmojiApplicationObject {
+                id: app.id.to_string(),
+                name: app.name,
+                icon: app.icon_key,
+            }),
+        }));
+    };
     let joined = deps
         .chat
         .get_member(emoji.guild_id, user)
@@ -337,6 +377,7 @@ pub async fn get_emoji_info(
         name: emoji.name,
         animated: emoji.animated,
         guild,
+        application: None,
     }))
 }
 
@@ -359,13 +400,23 @@ pub async fn get_emoji_url(
     State(state): State<AppState>,
     Ext(deps): Ext<SettingsDeps>,
     Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
+    MaybeExt(dev): MaybeExt<DevDeps>,
     Path(emoji_id): Path<String>,
     axum::extract::Query(q): axum::extract::Query<crate::routes::settings::expressions::UrlQuery>,
 ) -> ApiResult<Json<crate::routes::settings::expressions::SignedUrlObject>> {
     actor(&p)?;
-    let emoji = find_emoji(&deps, &emoji_id).await?;
+    let key = match find_emoji(&deps, &emoji_id).await? {
+        Some(emoji) => emoji.media_key,
+        None => {
+            find_app_emoji(&dev, &emoji_id)
+                .await?
+                .ok_or(ErrorCode::UnknownEmoji)?
+                .0
+                .media_key
+        }
+    };
     Ok(Json(
-        crate::routes::settings::expressions::signed_media_url(&state, &cdn, &emoji.media_key, &q)?,
+        crate::routes::settings::expressions::signed_media_url(&state, &cdn, &key, &q)?,
     ))
 }
 
@@ -886,6 +937,7 @@ pub async fn admin_decide(
     components(schemas(
         DirectoryGuildObject,
         EmojiInfoObject,
+        EmojiApplicationObject,
         EmojiGuildObject,
         ListingObject,
         AdminListingObject,

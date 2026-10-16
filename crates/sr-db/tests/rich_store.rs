@@ -450,3 +450,48 @@ async fn webhook_author_overrides_round_trip() {
     );
     assert!(store.webhook_authors(&[]).await.unwrap().is_empty());
 }
+
+/// D-237: `decorate` asks which ids are application emoji and which application a bot user runs.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn application_emoji_owners_and_bot_applications() {
+    let pool = pool().await;
+    let ids = SnowflakeGenerator::new(Arc::new(SystemClock) as Arc<dyn Clock>, 9, 9).unwrap();
+    let owner = account(&pool, &ids).await;
+    let bot = account(&pool, &ids).await;
+    let human = account(&pool, &ids).await;
+    let app = ids.generate().get() as i64;
+    let emoji = ids.generate().get() as i64;
+    sqlx::query(
+        "INSERT INTO applications (id, owner_id, bot_user_id, name, client_secret_hash) \
+         VALUES ($1, $2, $3, 'Helper', decode(repeat('ab', 32), 'hex'))",
+    )
+    .bind(app)
+    .bind(owner.get() as i64)
+    .bind(bot.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO application_emojis (id, application_id, name, media_key) \
+         VALUES ($1, $2, 'wave', 'emoji/app/x.png')",
+    )
+    .bind(emoji)
+    .bind(app)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let store = PgRichStore::new(pool);
+    let owners = store
+        .app_emoji_owners(&[emoji as u64, 12_345])
+        .await
+        .unwrap();
+    assert_eq!(owners.len(), 1);
+    assert_eq!(owners[&(emoji as u64)], app);
+    assert!(store.app_emoji_owners(&[]).await.unwrap().is_empty());
+
+    let bots = store.bot_applications(&[bot, human]).await.unwrap();
+    assert_eq!(bots.len(), 1, "a person is not a bot");
+    assert_eq!(bots[&bot], app);
+}

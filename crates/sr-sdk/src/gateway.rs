@@ -11,12 +11,15 @@ use tokio::time::{Instant, interval_at, sleep, timeout};
 
 use crate::error::{Error, Result};
 use crate::model::{Guild, Interaction, Message, Ready};
+use crate::ops::MembersChunk;
 
 pub const OP_DISPATCH: u64 = 0;
 pub const OP_HEARTBEAT: u64 = 1;
 pub const OP_IDENTIFY: u64 = 2;
+pub const OP_PRESENCE_UPDATE: u64 = 3;
 pub const OP_RESUME: u64 = 6;
 pub const OP_RECONNECT: u64 = 7;
+pub const OP_REQUEST_GUILD_MEMBERS: u64 = 8;
 pub const OP_INVALID_SESSION: u64 = 9;
 pub const OP_HELLO: u64 = 10;
 pub const OP_HEARTBEAT_ACK: u64 = 11;
@@ -65,6 +68,8 @@ pub enum Event {
     },
     MessageCreate(Box<Message>),
     InteractionCreate(Box<Interaction>),
+    /// An answer to `REQUEST_GUILD_MEMBERS`.
+    GuildMembersChunk(Box<MembersChunk>),
     /// Anything else, with its raw payload.
     Other {
         name: String,
@@ -97,6 +102,8 @@ impl Event {
             }
             "INTERACTION_CREATE" => typed(&data)
                 .map_or_else(|| fallback(data), |i| Event::InteractionCreate(Box::new(i))),
+            "GUILD_MEMBERS_CHUNK" => typed(&data)
+                .map_or_else(|| fallback(data), |c| Event::GuildMembersChunk(Box::new(c))),
             _ => fallback(data),
         }
     }
@@ -120,6 +127,26 @@ pub struct ShardConfig {
     /// Base for the reconnect delay; doubles up to `max_backoff`.
     pub min_backoff: Duration,
     pub max_backoff: Duration,
+    /// Hosts a `resume_gateway_url` may point at (D-234). Always holds the host of `url`.
+    pub allowed_hosts: Vec<String>,
+}
+
+/// The lower-case host of a `ws(s)://` or `http(s)://` URL, without user info or port.
+pub fn url_host(url: &str) -> Option<String> {
+    let rest = url.split_once("://")?.1;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let authority = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    let host = if let Some(v6) = authority.strip_prefix('[') {
+        v6.split_once(']')?.0
+    } else {
+        authority.split(':').next()?
+    };
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
+}
+
+/// Whether `url` has a host in `allowed` (compared case-insensitively).
+pub fn host_allowed(url: &str, allowed: &[String]) -> bool {
+    url_host(url).is_some_and(|h| allowed.iter().any(|a| a.eq_ignore_ascii_case(&h)))
 }
 
 impl ShardConfig {
@@ -129,13 +156,16 @@ impl ShardConfig {
         shard: (u32, u32),
         url: impl Into<String>,
     ) -> Self {
+        let url = url.into();
+        let allowed_hosts = url_host(&url).into_iter().collect();
         Self {
             token: token.into(),
             intents,
             shard,
-            url: url.into(),
+            url,
             min_backoff: Duration::from_secs(1),
             max_backoff: Duration::from_secs(60),
+            allowed_hosts,
         }
     }
 }
@@ -162,13 +192,30 @@ pub async fn run_shard(
     connector: &dyn GatewayConnector,
     tx: mpsc::Sender<Dispatch>,
 ) -> Result<()> {
+    run_shard_with(cfg, connector, tx, None).await
+}
+
+/// [`run_shard`] plus a queue of frames to send as they arrive (ops 3 and 8, see `ops`).
+pub async fn run_shard_with(
+    cfg: ShardConfig,
+    connector: &dyn GatewayConnector,
+    tx: mpsc::Sender<Dispatch>,
+    mut outbound: Option<mpsc::Receiver<String>>,
+) -> Result<()> {
     let mut session: Option<SessionInfo> = None;
     let mut backoff = cfg.min_backoff;
     loop {
-        let url = session
-            .as_ref()
-            .and_then(|s| s.resume_url.clone())
-            .unwrap_or_else(|| cfg.url.clone());
+        let url = match session.as_ref().and_then(|s| s.resume_url.as_deref()) {
+            Some(u) if host_allowed(u, &cfg.allowed_hosts) => u.to_owned(),
+            Some(u) => {
+                tracing::warn!(
+                    resume_url = u,
+                    "ignoring a resume gateway URL on a host that is neither the configured one nor allow-listed"
+                );
+                cfg.url.clone()
+            }
+            None => cfg.url.clone(),
+        };
         let mut conn = match connector.connect(&url).await {
             Ok(c) => c,
             Err(_) => {
@@ -177,7 +224,15 @@ pub async fn run_shard(
                 continue;
             }
         };
-        let cycle = connection_cycle(&cfg, conn.as_mut(), &mut session, &tx, &mut backoff).await;
+        let cycle = connection_cycle(
+            &cfg,
+            conn.as_mut(),
+            &mut session,
+            &tx,
+            &mut backoff,
+            &mut outbound,
+        )
+        .await;
         match cycle {
             Cycle::Stopped => return Ok(()),
             Cycle::Fatal(code) => {
@@ -203,6 +258,7 @@ async fn connection_cycle(
     session: &mut Option<SessionInfo>,
     tx: &mpsc::Sender<Dispatch>,
     backoff: &mut Duration,
+    outbound: &mut Option<mpsc::Receiver<String>>,
 ) -> Cycle {
     // HELLO first.
     let hello_ms = loop {
@@ -251,6 +307,11 @@ async fn connection_cycle(
                     return Cycle::Reconnect { resume: true };
                 }
             }
+            Some(frame) = next_outbound(outbound) => {
+                if conn.send(frame).await.is_err() {
+                    return Cycle::Reconnect { resume: true };
+                }
+            }
             frame = conn.recv() => {
                 let text = match frame {
                     Ok(Incoming::Text(t)) => t,
@@ -293,6 +354,14 @@ async fn connection_cycle(
                 }
             }
         }
+    }
+}
+
+/// The next queued outbound frame; pends forever without a queue. Cancel safe.
+async fn next_outbound(outbound: &mut Option<mpsc::Receiver<String>>) -> Option<String> {
+    match outbound {
+        Some(rx) => rx.recv().await,
+        None => std::future::pending().await,
     }
 }
 
@@ -460,7 +529,7 @@ mod tests {
 
     fn ready(seq: u64) -> Incoming {
         text(json!({"op": 0, "s": seq, "t": "READY", "d": {
-            "session_id": "sess1", "resume_gateway_url": "wss://resume.test/gw",
+            "session_id": "sess1", "resume_gateway_url": "wss://gw.test/resume",
             "user": {"id": "9", "bot": true}, "application": {"id": "5", "flags": 0}, "guilds": []}}))
     }
 
@@ -527,7 +596,7 @@ mod tests {
             sent[0]["d"],
             json!({"token": "tok", "session_id": "sess1", "seq": 7})
         );
-        assert_eq!(conn.urls.lock().expect("lock")[1], "wss://resume.test/gw");
+        assert_eq!(conn.urls.lock().expect("lock")[1], "wss://gw.test/resume");
         h.abort();
     }
 
@@ -693,5 +762,103 @@ mod ws_tests {
         assert_eq!(identify["d"]["token"], "tok");
         assert_eq!(identify["d"]["intents"], 513);
         assert_eq!(identify["d"]["shard"], json!([0, 1]));
+    }
+}
+
+#[cfg(test)]
+mod address_rule_tests {
+    //! D-234: a resume URL is followed only on the configured or an allow-listed host.
+    use std::sync::Arc;
+
+    use super::fake::*;
+    use super::*;
+
+    fn ready_with(resume: &str) -> Incoming {
+        text(json!({"op": 0, "s": 1, "t": "READY", "d": {
+            "session_id": "s1", "resume_gateway_url": resume,
+            "user": {"id": "9", "bot": true}, "application": {"id": "5", "flags": 0}, "guilds": []}}))
+    }
+
+    /// Connect, READY with `resume`, drop the link (the shard reconnects), return the URLs used.
+    async fn urls_after_reconnect(cfg: ShardConfig, resume: &str) -> Vec<String> {
+        let (conn, links) = FakeConnector::new(2);
+        let conn = Arc::new(conn);
+        let c2 = conn.clone();
+        let (tx, mut rx) = mpsc::channel(8);
+        let h = tokio::spawn(async move { run_shard(cfg, &*c2, tx).await });
+        links[0]
+            .to_client
+            .send(text(json!({"op": 10, "d": {"heartbeat_interval": 40000}})))
+            .expect("hello");
+        links[0].to_client.send(ready_with(resume)).expect("ready");
+        rx.recv().await.expect("ready dispatch");
+        links[0]
+            .to_client
+            .send(Incoming::Close(Some(1006)))
+            .expect("drop");
+        sleep(Duration::from_secs(2)).await;
+        h.abort();
+        conn.urls.lock().expect("lock").clone()
+    }
+
+    fn cfg(allowed: &[&str]) -> ShardConfig {
+        let mut c = ShardConfig::new("tok", 513, (0, 1), "wss://gw.test/gateway");
+        c.min_backoff = Duration::from_millis(10);
+        c.allowed_hosts
+            .extend(allowed.iter().map(|h| (*h).to_owned()));
+        c
+    }
+
+    #[test]
+    fn hosts_are_read_without_port_user_info_or_case() {
+        assert_eq!(
+            url_host("wss://GW.Test:8443/x?y#z").as_deref(),
+            Some("gw.test")
+        );
+        assert_eq!(
+            url_host("wss://user:pw@gw.test/x").as_deref(),
+            Some("gw.test")
+        );
+        assert_eq!(url_host("ws://[::1]:80/").as_deref(), Some("::1"));
+        assert_eq!(url_host("not a url"), None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_resume_url_on_another_host_falls_back_to_the_configured_gateway() {
+        let urls = urls_after_reconnect(cfg(&[]), "wss://evil.test/resume").await;
+        assert_eq!(urls[1], "wss://gw.test/gateway");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_resume_url_on_an_allow_listed_host_is_followed() {
+        let urls = urls_after_reconnect(cfg(&["resume.test"]), "wss://resume.test/gw").await;
+        assert_eq!(urls[1], "wss://resume.test/gw");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn queued_operations_are_sent_after_identify() {
+        let (conn, links) = FakeConnector::new(1);
+        let (tx, mut rx) = mpsc::channel(8);
+        let (out_tx, out_rx) = mpsc::channel(4);
+        let h =
+            tokio::spawn(async move { run_shard_with(cfg(&[]), &conn, tx, Some(out_rx)).await });
+        links[0]
+            .to_client
+            .send(text(json!({"op": 10, "d": {"heartbeat_interval": 40000}})))
+            .expect("hello");
+        links[0]
+            .to_client
+            .send(ready_with("wss://gw.test/r"))
+            .expect("ready");
+        rx.recv().await.expect("ready dispatch");
+        out_tx
+            .send(json!({"op": 8, "d": {"guild_id": "1"}}).to_string())
+            .await
+            .expect("queue");
+        sleep(Duration::from_millis(50)).await;
+        let sent = links[0].from_client.lock().expect("lock");
+        assert_eq!(sent[0]["op"], 2);
+        assert_eq!(sent[1]["op"], 8);
+        h.abort();
     }
 }

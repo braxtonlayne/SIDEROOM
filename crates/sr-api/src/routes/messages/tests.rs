@@ -1843,6 +1843,43 @@ async fn moderator_message_actions_are_audited() {
     );
 }
 
+/// D-235: removing a webhook message by a moderator is logged against its creator and names the
+/// webhook in `options`.
+#[tokio::test]
+async fn deleting_a_webhook_message_notes_the_webhook_in_the_audit_entry() {
+    use sr_chat::settings::audit::AuditAction;
+    let e = env().await;
+    let posted = id_of(&e.say("bob", "deploy done").await);
+    e.backend.data().webhook_authors.insert(
+        sr_core::MessageId::new(posted.parse().unwrap()),
+        sr_chat::rich_repo::WebhookAuthor {
+            webhook_id: 4242,
+            username: "Deploys".into(),
+            avatar_url: None,
+        },
+    );
+    e.status(Method::DELETE, &format!("/messages/{posted}"), "owner")
+        .await;
+    let log = e.audit.0.lock().unwrap().clone();
+    assert_eq!(
+        log,
+        vec![(
+            AuditAction::MessageDelete,
+            Some(BOB),
+            json!({ "channel_id": e.ch.to_string(), "count": 1, "webhook_id": "4242" })
+        )]
+    );
+}
+
+#[test]
+fn custom_emoji_tokens_are_found_in_text() {
+    use super::rich_model::custom_emoji_ids;
+    assert_eq!(
+        custom_emoji_ids("a <:wave:12> b <a:dance:34> <:bad:x> <::5> <@1> <:"),
+        vec![12, 34]
+    );
+}
+
 #[tokio::test]
 async fn a_finished_call_becomes_a_call_message_with_its_details() {
     let e = env().await;

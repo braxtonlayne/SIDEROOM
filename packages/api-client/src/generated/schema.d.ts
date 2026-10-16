@@ -3589,7 +3589,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Rich Presence assets of my application. */
+        /** Rich Presence assets of an application (any signed-in session, D-237). */
         get: operations["list_assets"];
         put?: never;
         /** Upload a Rich Presence asset. */
@@ -13558,6 +13558,12 @@ export interface components {
             /** @description BCP 47 language tag. */
             language: string;
         };
+        /** @description The application an application emoji belongs to. */
+        EmojiApplicationObject: {
+            icon?: string | null;
+            id: string;
+            name: string;
+        };
         /** @description The server an emoji belongs to. */
         EmojiGuildObject: {
             icon?: string | null;
@@ -13572,6 +13578,7 @@ export interface components {
         /** @description What the emoji popout shows (D-232). */
         EmojiInfoObject: {
             animated: boolean;
+            application?: null | components["schemas"]["EmojiApplicationObject"];
             guild?: null | components["schemas"]["EmojiGuildObject"];
             id: string;
             name: string;
@@ -15100,6 +15107,11 @@ export interface components {
             /** @description Poll definition with live results (`results.answer_counts`). */
             poll?: Record<string, never> | null;
             reactions?: components["schemas"]["ReactionObject"][];
+            /**
+             * @description Ids of `<:name:id>` tokens in `content` that resolve to an application emoji but were not
+             *     sent by that application's bot: clients show them as `:name:` text (D-237).
+             */
+            sr_text_emoji?: string[];
             sticker_items?: Record<string, never>[];
             /** @description The thread started from this message (a thread has its starter's id). */
             thread?: Record<string, never> | null;
@@ -16080,6 +16092,7 @@ export interface components {
             id: string;
             /** @description `visible`, `user_deleted` or `staff_removed`. */
             visibility: string;
+            webhook?: null | components["schemas"]["WebhookMarker"];
         };
         /** @description A page of a private conversation, newest first. */
         PrivateMessagePage: {
@@ -18821,6 +18834,15 @@ export interface components {
             polled: number;
             /** Format: int32 */
             tip_height?: number | null;
+        };
+        /**
+         * @description The webhook a message was posted through (D-235): staff views list the message under its
+         *     creator (`author_id`) with this marker, "via webhook <name>".
+         */
+        WebhookMarker: {
+            id: string;
+            /** @description The name the message was posted under (the per-call override or the webhook name). */
+            name: string;
         };
         WebhookObject: {
             avatar?: string | null;

@@ -148,6 +148,12 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         .await
         .unwrap();
     }
+    sqlx::query(
+        "INSERT INTO message_webhook_authors (message_id, webhook_id, username) VALUES (1, 88, 'Deploys')",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
     sqlx::query("INSERT INTO relationships (user_id, target_id, type) VALUES (1, 2, 1)")
         .execute(pool)
         .await
@@ -213,6 +219,12 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         .map(|m| m["content"].as_str().unwrap())
         .collect();
     assert_eq!(contents, ["hello", "second"]);
+    // D-235: a message sent through a webhook carries the webhook, the others do not.
+    assert_eq!(
+        messages[0]["webhook"],
+        serde_json::json!({"id": "88", "name": "Deploys"})
+    );
+    assert!(messages[1]["webhook"].is_null());
     let rel: serde_json::Value = serde_json::from_str(&read("relationships.json")).unwrap();
     assert_eq!(rel["notes"][0]["note"], "my note");
     assert_eq!(rel["relationships"][0]["user_id"], "2");

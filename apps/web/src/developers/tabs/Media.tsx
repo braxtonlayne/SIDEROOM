@@ -44,7 +44,7 @@ export function suggestName(fileName: string, emoji: boolean): string {
 
 /**
  * Emojis of the application (DEV-PORT-003). They belong to the application, not to a server. The owner uploads
- * PNG, JPEG, GIF or WebP files up to 256 KiB; the server shrinks them. Using them in messages is not available yet.
+ * PNG, JPEG, GIF or WebP files up to 256 KiB; the server shrinks them.
  */
 export function EmojisTab({ app }: { app: DevApp }) {
   const t = useT();

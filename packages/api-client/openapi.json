@@ -18064,7 +18064,7 @@
         "tags": [
           "developer"
         ],
-        "summary": "Rich Presence assets of my application.",
+        "summary": "Rich Presence assets of an application (any signed-in session, D-237).",
         "operationId": "list_assets",
         "parameters": [
           {
@@ -18800,6 +18800,9 @@
         "security": [
           {
             "session": []
+          },
+          {
+            "authorization": []
           }
         ]
       },
@@ -18875,6 +18878,9 @@
         "security": [
           {
             "session": []
+          },
+          {
+            "authorization": []
           }
         ]
       }
@@ -18924,6 +18930,9 @@
         "security": [
           {
             "session": []
+          },
+          {
+            "authorization": []
           }
         ]
       },
@@ -19008,6 +19017,9 @@
         "security": [
           {
             "session": []
+          },
+          {
+            "authorization": []
           }
         ]
       }
@@ -63683,6 +63695,28 @@
           }
         }
       },
+      "EmojiApplicationObject": {
+        "type": "object",
+        "description": "The application an application emoji belongs to.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "EmojiGuildObject": {
         "type": "object",
         "description": "The server an emoji belongs to.",
@@ -63723,6 +63757,17 @@
         "properties": {
           "animated": {
             "type": "boolean"
+          },
+          "application": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EmojiApplicationObject",
+                "description": "Set instead of `guild` for an application emoji (D-237): the popout says \"Emoji of\n<application>\" and offers no join action."
+              }
+            ]
           },
           "guild": {
             "oneOf": [
@@ -68787,6 +68832,13 @@
               "$ref": "#/components/schemas/ReactionObject"
             }
           },
+          "sr_text_emoji": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of `<:name:id>` tokens in `content` that resolve to an application emoji but were not\nsent by that application's bot: clients show them as `:name:` text (D-237)."
+          },
           "sticker_items": {
             "type": "array",
             "items": {
@@ -72044,6 +72096,17 @@
           "visibility": {
             "type": "string",
             "description": "`visible`, `user_deleted` or `staff_removed`."
+          },
+          "webhook": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WebhookMarker",
+                "description": "Set when the message was posted through a webhook; `author_*` is then its creator."
+              }
+            ]
           }
         }
       },
@@ -80749,6 +80812,23 @@
             ],
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "WebhookMarker": {
+        "type": "object",
+        "description": "The webhook a message was posted through (D-235): staff views list the message under its\ncreator (`author_id`) with this marker, \"via webhook <name>\".",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name the message was posted under (the per-call override or the webhook name)."
           }
         }
       },

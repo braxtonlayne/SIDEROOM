@@ -1211,6 +1211,19 @@ impl AppsRepository for PgAppsRepo {
         .transpose()
     }
 
+    async fn find_app_emoji(&self, id: i64) -> AppsResult<Option<AppEmoji>> {
+        q(format!(
+            "SELECT {APP_EMOJI_COLS} FROM application_emojis WHERE id = $1"
+        ))
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?
+        .as_ref()
+        .map(app_emoji_row)
+        .transpose()
+    }
+
     async fn insert_app_emoji(&self, e: &AppEmoji, audit: AuditRow) -> AppsResult<AppEmoji> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         // The application row serialises concurrent inserts so the cap holds.

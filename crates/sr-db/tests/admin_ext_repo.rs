@@ -740,11 +740,34 @@ async fn private_reads_include_deleted_messages_inside_the_window_and_edit_histo
     assert_ne!(deleted.visibility, "visible");
     assert!(deleted.deleted_at_ms.is_some());
     assert_eq!(deleted.content, "regretted");
+    assert!(msgs.iter().all(|m| m.webhook.is_none()));
     let edited = &msgs[1];
     assert_eq!(edited.content, "edited");
     assert_eq!(edited.edits.len(), 1);
     assert_eq!(edited.edits[0].previous_content, "original");
     assert!(edited.edited_at_ms.is_some());
+
+    // D-235: a webhook message is listed under its creator with the webhook's name.
+    sqlx::query(
+        "INSERT INTO message_webhook_authors (message_id, webhook_id, username) VALUES ($1, 77, 'Deploys')",
+    )
+    .bind(m1.id.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let msgs = r
+        .private_messages(dm.get() as i64, None, 50, 30)
+        .await
+        .unwrap();
+    let via = msgs.iter().find(|m| m.id == m1.id.get() as i64).unwrap();
+    assert_eq!(via.author_id, a, "the creator stays the author");
+    assert_eq!(
+        via.webhook,
+        Some(sr_admin::WebhookMarker {
+            id: 77,
+            name: "Deploys".into()
+        })
+    );
 
     // Outside a zero-day window the deletion is gone for staff too.
     let strict = r

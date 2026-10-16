@@ -639,6 +639,10 @@ impl AppsRepository for MemoryAppsRepo {
             .cloned())
     }
 
+    async fn find_app_emoji(&self, id: i64) -> AppsResult<Option<AppEmoji>> {
+        Ok(self.st().app_emojis.iter().find(|e| e.id == id).cloned())
+    }
+
     async fn insert_app_emoji(&self, e: &AppEmoji, audit: AuditRow) -> AppsResult<AppEmoji> {
         let mut s = self.st();
         let mine = s

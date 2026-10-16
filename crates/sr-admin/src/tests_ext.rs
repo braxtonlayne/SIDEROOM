@@ -626,6 +626,7 @@ fn pm(id: i64, content: &str, vis: &str, deleted_at: Option<i64>) -> PrivateMess
         deleted_at_ms: deleted_at,
         attachment_count: 0,
         edits: vec![],
+        webhook: None,
     }
 }
 

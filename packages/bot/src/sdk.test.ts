@@ -102,7 +102,7 @@ describe('Shard', () => {
     op: 0,
     s,
     t: 'READY',
-    d: { session_id: 'sess1', resume_gateway_url: 'wss://resume.test/gw', user: { id: '9' } },
+    d: { session_id: 'sess1', resume_gateway_url: 'wss://gw.test/resume', user: { id: '9' } },
   });
 
   it('identifies with token, intents and shard, then forwards dispatches', () => {
@@ -133,7 +133,7 @@ describe('Shard', () => {
     expect(s0.closedWith).toBe(4000);
     vi.advanceTimersByTime(20);
     const s1 = f.sockets[1]!;
-    expect(s1.url).toBe('wss://resume.test/gw');
+    expect(s1.url).toBe('wss://gw.test/resume');
     s1.serverSends({ op: 10, d: { heartbeat_interval: 40000 } });
     expect(s1.sent[0]).toEqual({ op: 6, d: { token: 'tok', session_id: 'sess1', seq: 7 } });
     sh.destroy();
@@ -371,5 +371,110 @@ describe('Cache', () => {
     expect(c.role('1', '20')?.name).toBe('Admin');
     c.apply('GUILD_DELETE', { id: '1' });
     expect(c.guilds.size).toBe(0);
+  });
+});
+
+describe('address rule (D-234) and gateway ops', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const shardOpts = (f: ReturnType<typeof socketFactory>, allowedHosts?: string[]) => ({
+    token: 'tok',
+    intents: 513,
+    shard: [0, 1] as [number, number],
+    url: 'wss://gw.test/gateway',
+    createSocket: f.createSocket,
+    onDispatch: () => undefined,
+    onFatal: () => undefined,
+    minBackoffMs: 10,
+    allowedHosts,
+  });
+  const readyAt = (resume: string) => ({
+    op: 0,
+    s: 1,
+    t: 'READY',
+    d: { session_id: 's1', resume_gateway_url: resume, user: { id: '9' } },
+  });
+
+  it('a resume url on another host falls back; an allow-listed host is followed', () => {
+    for (const [allow, resume, expected] of [
+      [undefined, 'wss://evil.test/r', 'wss://gw.test/gateway'],
+      [['resume.test'], 'wss://RESUME.test/r', 'wss://RESUME.test/r'],
+    ] as const) {
+      const f = socketFactory();
+      const sh = new Shard(shardOpts(f, allow ? [...allow] : undefined));
+      sh.connect();
+      f.sockets[0]?.serverSends({ op: 10, d: { heartbeat_interval: 40000 } });
+      f.sockets[0]?.serverSends(readyAt(resume));
+      f.sockets[0]?.serverCloses(1006);
+      vi.advanceTimersByTime(20);
+      expect(f.sockets[1]?.url).toBe(expected);
+      sh.destroy();
+    }
+  });
+
+  it('a gateway url from /gateway/bot on another host falls back to the api host', async () => {
+    const { fetch } = fakeFetch([
+      { status: 200, body: { url: 'wss://evil.test/gateway', shards: 1 } },
+    ]);
+    const f = socketFactory();
+    const client = new Client({ token: 'tok', apiUrl: API, fetch, createSocket: f.createSocket });
+    await client.login();
+    expect(f.sockets[0]?.url).toBe('wss://x.test/gateway');
+    client.destroy();
+
+    const ok = fakeFetch([{ status: 200, body: { url: 'wss://gw.test/gateway', shards: 1 } }]);
+    const f2 = socketFactory();
+    const c2 = new Client({
+      token: 'tok',
+      apiUrl: API,
+      fetch: ok.fetch,
+      createSocket: f2.createSocket,
+      allowGatewayHosts: ['GW.test'],
+    });
+    await c2.login();
+    expect(f2.sockets[0]?.url).toBe('wss://gw.test/gateway');
+    c2.destroy();
+  });
+
+  it('requestGuildMembers sends op 8 and streams the chunks of its nonce; setPresence sends op 3', async () => {
+    const { fetch } = fakeFetch([
+      { status: 200, body: { url: 'wss://x.test/gateway', shards: 1 } },
+    ]);
+    const f = socketFactory();
+    const client = new Client({ token: 'tok', apiUrl: API, fetch, createSocket: f.createSocket });
+    await client.login();
+    const s = f.sockets[0]!;
+    s.serverSends({ op: 10, d: { heartbeat_interval: 40000 } });
+    s.serverSends(readyAt('wss://x.test/r'));
+
+    const got: number[] = [];
+    const run = (async () => {
+      for await (const c of client.requestGuildMembers({ guildId: '42', limit: 0 })) {
+        got.push(c.chunk_index);
+      }
+    })();
+    const frame = s.sent.find((x) => x.op === 8) as { d: Record<string, unknown> };
+    expect(frame.d).toMatchObject({ guild_id: '42', query: '', limit: 0 });
+    const nonce = frame.d.nonce as string;
+    for (const i of [0, 1]) {
+      s.serverSends({
+        op: 0,
+        s: 2 + i,
+        t: 'GUILD_MEMBERS_CHUNK',
+        d: { guild_id: '42', members: [], chunk_index: i, chunk_count: 2, nonce },
+      });
+    }
+    await run;
+    expect(got).toEqual([0, 1]);
+
+    expect(client.setPresence({ status: 'idle', activities: [{ name: 'chess', type: 0 }] })).toBe(
+      true,
+    );
+    expect(s.sent.at(-1)).toEqual({
+      op: 3,
+      d: { status: 'idle', activities: [{ name: 'chess', type: 0 }], since: null, afk: false },
+    });
+    client.destroy();
   });
 });

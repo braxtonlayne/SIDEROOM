@@ -171,7 +171,56 @@ pub async fn decorate(
             }
         }
     }
+    // Application emoji render only in messages of their own application's bot (D-237).
+    if let Some(store) = &deps.rich.store {
+        let per_msg: Vec<Vec<u64>> = msgs.iter().map(|m| custom_emoji_ids(&m.content)).collect();
+        let mut all: Vec<u64> = per_msg.iter().flatten().copied().collect();
+        all.sort_unstable();
+        all.dedup();
+        if !all.is_empty() {
+            let owners = store.app_emoji_owners(&all).await?;
+            if !owners.is_empty() {
+                let authors: Vec<UserId> = msgs
+                    .iter()
+                    .zip(&per_msg)
+                    .filter(|(_, ids)| ids.iter().any(|i| owners.contains_key(i)))
+                    .map(|(m, _)| m.author_id)
+                    .collect();
+                let bots = store.bot_applications(&authors).await?;
+                for ((m, o), ids) in msgs.iter().zip(objs.iter_mut()).zip(&per_msg) {
+                    for id in ids {
+                        if let Some(app) = owners.get(id)
+                            && bots.get(&m.author_id) != Some(app)
+                            && !o.sr_text_emoji.contains(&id.to_string())
+                        {
+                            o.sr_text_emoji.push(id.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
     Ok(())
+}
+
+/// Ids of the `<:name:id>` and `<a:name:id>` tokens in `content`.
+pub fn custom_emoji_ids(content: &str) -> Vec<u64> {
+    let mut out = Vec::new();
+    let mut rest = content;
+    while let Some(start) = rest.find('<') {
+        rest = &rest[start + 1..];
+        let Some(end) = rest.find('>') else { break };
+        let body = &rest[..end];
+        let body = body.strip_prefix('a').unwrap_or(body);
+        if let Some(inner) = body.strip_prefix(':')
+            && let Some((name, id)) = inner.rsplit_once(':')
+            && !name.is_empty()
+            && let Ok(id) = id.parse::<u64>()
+        {
+            out.push(id);
+        }
+    }
+    out
 }
 
 #[cfg(test)]

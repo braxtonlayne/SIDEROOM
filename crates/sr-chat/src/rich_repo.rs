@@ -112,6 +112,16 @@ pub trait RichStore: Send + Sync {
         Ok(HashMap::new())
     }
 
+    /// Which of these emoji ids are application emoji (D-237), with the owning application.
+    async fn app_emoji_owners(&self, _emoji: &[u64]) -> StoreResult<HashMap<u64, i64>> {
+        Ok(HashMap::new())
+    }
+
+    /// The application each of these users is the bot of (users that are not bots are omitted).
+    async fn bot_applications(&self, _users: &[UserId]) -> StoreResult<HashMap<UserId, i64>> {
+        Ok(HashMap::new())
+    }
+
     /// Replace the embeds of a message (link previews arriving after the send).
     async fn set_embeds(&self, message: MessageId, embeds: &[Embed]) -> StoreResult<()>;
 

@@ -33,6 +33,22 @@ impl RichStore for MemoryBackend {
             .collect())
     }
 
+    async fn app_emoji_owners(&self, emoji: &[u64]) -> StoreResult<HashMap<u64, i64>> {
+        let d = self.data();
+        Ok(emoji
+            .iter()
+            .filter_map(|e| d.app_emojis.get(e).map(|a| (*e, *a)))
+            .collect())
+    }
+
+    async fn bot_applications(&self, users: &[UserId]) -> StoreResult<HashMap<UserId, i64>> {
+        let d = self.data();
+        Ok(users
+            .iter()
+            .filter_map(|u| d.bot_apps.get(u).map(|a| (*u, *a)))
+            .collect())
+    }
+
     async fn set_embeds(&self, message: MessageId, embeds: &[Embed]) -> StoreResult<()> {
         if let Some(m) = self.data().messages.iter_mut().find(|m| m.id == message) {
             m.embeds = embeds.to_vec();

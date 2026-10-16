@@ -343,6 +343,8 @@ export interface Message {
   /** Ephemeral app reply (flag 1 << 6): only this viewer sees it and it is never stored. */
   ephemeral?: boolean;
   suppressEmbeds?: boolean;
+  /** Ids of application emoji in the text that this message's author may not render (D-237): shown as `:name:`. */
+  textEmoji?: string[];
   /** Buttons and selects on app messages. */
   components?: import('../store/types').RawComponent[];
   /** `message_reference.channel_id`: the thread of a thread-created row, the origin of a thread's first row. */

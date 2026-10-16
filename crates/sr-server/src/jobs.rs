@@ -52,7 +52,8 @@ LIMIT $2";
 /// statement, re-checking the due and hold conditions against `$1` (Unix ms) so a hold
 /// placed after the selection still wins. `message_edits` has no foreign key to the
 /// partitioned `messages` table, so it is deleted explicitly by the same statement
-/// (open question 94). The data-modifying CTEs commit together; attachment rows go
+/// (open question 94); `message_webhook_authors` has none either and goes the same way
+/// (D-235). The data-modifying CTEs commit together; attachment rows go
 /// with the message by cascade, after their stored objects were removed.
 pub(crate) const PURGE_SQL: &str = "\
 WITH doomed AS ( \
@@ -64,7 +65,10 @@ WITH doomed AS ( \
     RETURNING id), \
 edits AS ( \
     DELETE FROM message_edits WHERE message_id IN (SELECT id FROM doomed) \
-    RETURNING id) \
+    RETURNING id), \
+webhook_authors AS ( \
+    DELETE FROM message_webhook_authors WHERE message_id IN (SELECT id FROM doomed) \
+    RETURNING message_id) \
 SELECT (SELECT count(*) FROM doomed)";
 
 /// Hard-deletes soft-deleted guilds (LNG-SSET-073) whose messages are all gone. Held
@@ -732,6 +736,15 @@ mod hold_guard_tests {
         )
         .await;
 
+        for id in [plain, held, kept] {
+            exec(
+                pool,
+                "INSERT INTO message_webhook_authors (message_id, webhook_id, username) \
+                 VALUES ($1, 5, 'Deploys')",
+                &[id],
+            )
+            .await;
+        }
         let purged = purge_deleted_messages(
             pool,
             &sr_storage::ObjectStoreStorage::in_memory(),
@@ -740,6 +753,16 @@ mod hold_guard_tests {
         .await
         .expect("purge");
         assert_eq!(purged, 1, "only the plain, due, unheld message goes");
+        let authors: Vec<i64> =
+            sqlx::query_scalar("SELECT message_id FROM message_webhook_authors ORDER BY 1")
+                .fetch_all(pool)
+                .await
+                .expect("authors");
+        assert_eq!(
+            authors,
+            vec![held, kept],
+            "the purged message loses its webhook author row (D-235), the others keep theirs"
+        );
         let left: Vec<i64> = sqlx::query_scalar("SELECT id FROM messages ORDER BY id")
             .fetch_all(pool)
             .await
@@ -773,6 +796,16 @@ mod hold_guard_tests {
             .await
             .expect("purge"),
             2
+        );
+        let authors: Vec<i64> =
+            sqlx::query_scalar("SELECT message_id FROM message_webhook_authors ORDER BY 1")
+                .fetch_all(pool)
+                .await
+                .expect("authors");
+        assert_eq!(
+            authors,
+            vec![kept],
+            "the released message's row goes with it"
         );
         db.cleanup().await.expect("cleanup");
     }

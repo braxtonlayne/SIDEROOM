@@ -14,9 +14,10 @@ futures.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tracing = "0.1"
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "time", "sync", "macros", "net"] }
 # The SDK talks to the server its operator names (a bot's own base URL), not to user-supplied
-# addresses, so it is on the `reqwest` wrapper list in deny.toml (docs/dev/handoff/feat-p13-devplat.md).
+# addresses, so it is on the `reqwest` wrapper list in deny.toml (D-234).
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
 tokio-tungstenite = { version = "0.29", features = ["connect", "rustls-tls-native-roots"] }
 

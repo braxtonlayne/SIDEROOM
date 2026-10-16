@@ -13,6 +13,8 @@ export interface EmojiInfo {
   name: string;
   animated: boolean;
   guild: { id: string; name: string; icon?: string | null; listing?: string | null } | null;
+  /** Set instead of `guild` for an application emoji (D-237). */
+  application?: { id: string; name: string; icon?: string | null } | null;
 }
 
 const urls = new Map<string, Promise<string | null>>();
@@ -74,6 +76,7 @@ function EmojiPopout({ id, url }: { id: string; url: string | null }) {
       </p>
     );
   const g = info.guild;
+  const app = info.application;
   const icon = g ? cdnUrl('icons', g.id, g.icon, { size: 64 }) : null;
   const join = async () => {
     if (!g?.listing) return;
@@ -94,7 +97,12 @@ function EmojiPopout({ id, url }: { id: string; url: string | null }) {
         {url && <img src={url} alt="" width={48} height={48} />}
         <strong>{`:${info.name}:`}</strong>
       </div>
-      {g ? (
+      {app ? (
+        <div className="lng-emoji-popout-source">
+          <Avatar name={app.name} size={32} />
+          <span>{t('lounge.emojiPopout.fromApplication', { name: app.name })}</span>
+        </div>
+      ) : g ? (
         <div className="lng-emoji-popout-source">
           <Avatar name={g.name} size={32} {...(icon ? { src: icon } : {})} />
           <span>{t('lounge.emojiPopout.fromServer', { name: g.name })}</span>

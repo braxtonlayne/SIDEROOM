@@ -59,6 +59,23 @@ struct Env {
     /// The Server Directory listings behind `GET /emojis/{id}`.
     directory: Arc<sr_chat::settings::directory::MemoryDirectory>,
     actions: Arc<sr_features::testing::FakeActions>,
+    /// The applications behind application emoji (D-237).
+    apps: Arc<sr_apps::memory::MemoryAppsRepo>,
+    apps_svc: sr_apps::AppsService,
+}
+
+struct NoPassword;
+
+#[async_trait::async_trait]
+impl crate::routes::developer::PasswordConfirm for NoPassword {
+    async fn confirm(
+        &self,
+        _now: i64,
+        _user: i64,
+        _password: &str,
+    ) -> crate::routes::messages::error::MsgResult<()> {
+        Ok(())
+    }
 }
 
 #[derive(Default)]
@@ -217,6 +234,21 @@ async fn env_with(opts: Opts) -> Env {
         b"webhook-avatar-test-secret-0123456".to_vec(),
     ));
     let directory = Arc::new(sr_chat::settings::directory::MemoryDirectory::default());
+    let apps = Arc::new(sr_apps::memory::MemoryAppsRepo::new());
+    let app_ids = Arc::new(AtomicU64::new(900_000));
+    let apps_svc = sr_apps::AppsService::new(
+        apps.clone(),
+        dyn_clock.clone(),
+        Arc::new(move || i64::try_from(app_ids.fetch_add(1, Ordering::SeqCst)).unwrap()),
+    );
+    let dev = crate::routes::developer::DevDeps::new(
+        apps_svc.clone(),
+        Arc::new(backend.clone()),
+        bus.clone(),
+        Arc::new(NoPassword),
+        dyn_clock.clone(),
+        "https://side.test",
+    );
     let mut builder = AppState::builder()
         .bots(bots)
         .sessions(sessions.clone())
@@ -234,7 +266,8 @@ async fn env_with(opts: Opts) -> Env {
         )))
         .extension(Arc::new(crate::routes::directory::DirectoryDeps::new(
             directory.clone(),
-        )));
+        )))
+        .extension(Arc::new(dev));
     if let Some(v) = opts.voice {
         builder = builder.extension(Arc::new(crate::routes::voice::VoiceApi(v)));
     }
@@ -274,6 +307,8 @@ async fn env_with(opts: Opts) -> Env {
         voice,
         directory,
         actions,
+        apps,
+        apps_svc,
     }
 }
 
@@ -3053,6 +3088,84 @@ async fn emoji_popout_and_url_work_for_non_members_and_name_only_listed_servers(
     assert_eq!(
         e.get("/sr/emojis/abc", "bob").await.0,
         StatusCode::BAD_REQUEST
+    );
+}
+
+/// D-237: an application emoji resolves by id for any session (the popout names the application),
+/// and its `<:name:id>` renders only in messages sent by that application's bot.
+#[tokio::test]
+async fn application_emoji_resolve_by_id_and_render_only_for_their_bot() {
+    use sr_apps::service::NewAppEmoji;
+    let e = env().await;
+    e.apps.add_account(1, "owner");
+    let created = e
+        .apps_svc
+        .create_application(1, "Helper", "x")
+        .await
+        .unwrap();
+    let app = created.application.id;
+    let bot = created.application.bot_user_id;
+    let emoji = e
+        .apps_svc
+        .add_app_emoji(
+            1,
+            app,
+            NewAppEmoji {
+                id: e.apps_svc.new_media_id(),
+                name: "wave".into(),
+                animated: false,
+                size_bytes: 1,
+                media_key: "emoji/app/1/1.png".into(),
+            },
+        )
+        .await
+        .unwrap();
+    let path = format!("/sr/emojis/{}", emoji.id);
+
+    // Any signed-in caller resolves it; the owner is the application, not a server.
+    let (s, v) = e.get(&path, "carol").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["name"], "wave");
+    assert!(v["guild"].is_null(), "{v}");
+    assert_eq!(v["application"]["id"], app.to_string());
+    assert_eq!(v["application"]["name"], "Helper");
+    let (s, u) = e.get(&format!("{path}/url?size=64"), "carol").await;
+    assert_eq!(s, StatusCode::OK, "{u}");
+    assert!(u["url"].as_str().unwrap().starts_with("/cdn/emoji/app/"));
+
+    // Rendering: a person's message with the token keeps it as text.
+    let post = |who: &'static str| {
+        let e = &e;
+        let emoji_id = emoji.id;
+        async move {
+            e.post(
+                &format!("/channels/{}/messages", e.ch),
+                who,
+                json!({"content": format!("hi <:wave:{emoji_id}>")}),
+            )
+            .await
+        }
+    };
+    {
+        let mut d = e.backend.data();
+        d.app_emojis.insert(emoji.id as u64, app);
+    }
+    let (s, m) = post("bob").await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["sr_text_emoji"], json!([emoji.id.to_string()]), "{m}");
+
+    // The application's bot sends the same token: it renders (no hint).
+    e.backend.data().bot_apps.insert(UserId::new(BOB), app);
+    let (s, m) = post("bob").await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert!(m.get("sr_text_emoji").is_none(), "{m}");
+    let _ = bot;
+
+    assert_eq!(
+        e.get(&format!("/sr/emojis/{}", emoji.id + 1), "bob")
+            .await
+            .0,
+        StatusCode::NOT_FOUND
     );
 }
 

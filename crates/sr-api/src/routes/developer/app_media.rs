@@ -1,15 +1,16 @@
 //! Application emoji and Rich Presence art assets (DEV-PORT-003, Emojis and Rich Presence
-//! tabs). Owner session only. Images arrive as `data:` URIs like guild emoji, are sniffed,
+//! tabs). Emoji are managed by the owner's session or by the bot token of that application
+//! (D-237); the assets stay owner-session only. Images arrive as `data:` URIs like guild emoji, are sniffed,
 //! shrunk and stored under `emoji/app/...` and `emoji/app-assets/...`; the list objects carry
 //! a short-lived signed URL for the portal thumbnails.
 //!
-//! Application emoji are managed here; sending them in messages and rendering them is not
-//! built (a bot cannot yet use `<:name:id>` of an application emoji).
+//! A message sent by the application's bot renders `<:name:id>` of its emoji; anywhere else the
+//! token stays text (`sr_text_emoji`, D-237).
 
 use super::{DevDeps, app_err, invalid, parse_id};
 use crate::{
     AppState,
-    auth::SessionOnly,
+    auth::{AuthKind, Principal, SessionOnly},
     openapi::ErrorBody,
     routes::{
         Ext,
@@ -172,24 +173,40 @@ fn asset_object(
     })
 }
 
+/// Who acts on the emoji of `app`: the owner's session, or the bot of that application (it acts
+/// for the owner). Another application's bot is refused with 403.
+async fn emoji_owner(p: &Principal, deps: &DevDeps, app: i64) -> MsgResult<i64> {
+    match p.kind {
+        AuthKind::Session { .. } => Ok(p.user_id),
+        AuthKind::Bot { application_id } if application_id == app => deps
+            .apps
+            .application(app)
+            .await
+            .map(|a| a.owner_id)
+            .map_err(app_err),
+        _ => Err(MsgError::from(ErrorCode::MissingAccess)),
+    }
+}
+
 /// Emoji of my application.
 #[utoipa::path(
     get, path = "/applications/{application_id}/emojis", tag = "developer",
     params(("application_id" = String, Path, description = "Application snowflake")),
     responses((status = 200, body = AppEmojiList), (status = 404, body = ErrorBody)),
-    security(("session" = []))
+    security(("session" = []), ("authorization" = []))
 )]
 pub async fn list_emojis(
-    SessionOnly(p): SessionOnly,
+    p: Principal,
     State(state): State<AppState>,
     Ext(deps): Ext<DevDeps>,
     Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
     Path(app): Path<String>,
 ) -> MsgResult<Json<AppEmojiList>> {
     let app = parse_id(&app, APP)?;
+    let owner = emoji_owner(&p, &deps, app).await?;
     let rows = deps
         .apps
-        .list_app_emojis(p.user_id, app)
+        .list_app_emojis(owner, app)
         .await
         .map_err(app_err)?;
     let items = rows
@@ -206,10 +223,10 @@ pub async fn list_emojis(
     request_body = CreateAppEmojiBody,
     responses((status = 201, body = AppEmojiObject), (status = 400, body = ErrorBody),
               (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
-    security(("session" = []))
+    security(("session" = []), ("authorization" = []))
 )]
 pub async fn create_emoji(
-    SessionOnly(p): SessionOnly,
+    p: Principal,
     State(state): State<AppState>,
     Ext(deps): Ext<DevDeps>,
     Ext(messages): Ext<MessagesDeps>,
@@ -219,7 +236,8 @@ pub async fn create_emoji(
 ) -> MsgResult<(StatusCode, Json<AppEmojiObject>)> {
     let app = parse_id(&app, APP)?;
     // Fail on ownership and the name before touching storage.
-    deps.apps.owned(p.user_id, app).await.map_err(app_err)?;
+    let owner = emoji_owner(&p, &deps, app).await?;
+    deps.apps.owned(owner, app).await.map_err(app_err)?;
     if !sr_apps::service::valid_emoji_name(&body.name) {
         return Err(invalid(
             "name",
@@ -235,7 +253,7 @@ pub async fn create_emoji(
     let e = match deps
         .apps
         .add_app_emoji(
-            p.user_id,
+            owner,
             app,
             sr_apps::service::NewAppEmoji {
                 id,
@@ -265,10 +283,10 @@ pub async fn create_emoji(
     request_body = RenameAppEmojiBody,
     responses((status = 200, body = AppEmojiObject), (status = 400, body = ErrorBody),
               (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
-    security(("session" = []))
+    security(("session" = []), ("authorization" = []))
 )]
 pub async fn rename_emoji(
-    SessionOnly(p): SessionOnly,
+    p: Principal,
     State(state): State<AppState>,
     Ext(deps): Ext<DevDeps>,
     Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
@@ -276,9 +294,10 @@ pub async fn rename_emoji(
     ApiJson(body): ApiJson<RenameAppEmojiBody>,
 ) -> MsgResult<Json<AppEmojiObject>> {
     let (app, id) = (parse_id(&app, APP)?, parse_id(&id, ITEM)?);
+    let owner = emoji_owner(&p, &deps, app).await?;
     let e = deps
         .apps
-        .rename_app_emoji(p.user_id, app, id, &body.name)
+        .rename_app_emoji(owner, app, id, &body.name)
         .await
         .map_err(app_err)?;
     Ok(Json(emoji_object(&state, &cdn, &e)?))
@@ -290,18 +309,19 @@ pub async fn rename_emoji(
     params(("application_id" = String, Path, description = "Application snowflake"),
            ("emoji_id" = String, Path, description = "Emoji snowflake")),
     responses((status = 204), (status = 404, body = ErrorBody)),
-    security(("session" = []))
+    security(("session" = []), ("authorization" = []))
 )]
 pub async fn delete_emoji(
-    SessionOnly(p): SessionOnly,
+    p: Principal,
     Ext(deps): Ext<DevDeps>,
     Ext(messages): Ext<MessagesDeps>,
     Path((app, id)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let (app, id) = (parse_id(&app, APP)?, parse_id(&id, ITEM)?);
+    let owner = emoji_owner(&p, &deps, app).await?;
     let e = deps
         .apps
-        .delete_app_emoji(p.user_id, app, id)
+        .delete_app_emoji(owner, app, id)
         .await
         .map_err(app_err)?;
     // The row is gone; a failed image delete only leaves an orphan object.
@@ -309,7 +329,7 @@ pub async fn delete_emoji(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Rich Presence assets of my application.
+/// Rich Presence assets of an application (any signed-in session, D-237).
 #[utoipa::path(
     get, path = "/applications/{application_id}/assets", tag = "developer",
     params(("application_id" = String, Path, description = "Application snowflake")),
@@ -317,18 +337,14 @@ pub async fn delete_emoji(
     security(("session" = []))
 )]
 pub async fn list_assets(
-    SessionOnly(p): SessionOnly,
+    SessionOnly(_p): SessionOnly,
     State(state): State<AppState>,
     Ext(deps): Ext<DevDeps>,
     Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
     Path(app): Path<String>,
 ) -> MsgResult<Json<Vec<AppAssetObject>>> {
     let app = parse_id(&app, APP)?;
-    let rows = deps
-        .apps
-        .list_app_assets(p.user_id, app)
-        .await
-        .map_err(app_err)?;
+    let rows = deps.apps.public_app_assets(app).await.map_err(app_err)?;
     Ok(Json(
         rows.iter()
             .map(|a| asset_object(&state, &cdn, a))
