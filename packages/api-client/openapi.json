@@ -7855,13 +7855,13 @@
         "tags": [
           "entrance"
         ],
-        "summary": "Set or reset one copy block (`MANAGE_FEATURES`). Audited with the key and length.",
+        "summary": "Set one copy block (`MANAGE_FEATURES`, fresh second factor). Audited with the key and length.\nThe text is stored as written; the Entrance renders it with the restricted entrance profile of\nthe shared markdown renderer (no mentions, no custom emoji).",
         "operationId": "put_copy",
         "parameters": [
           {
             "name": "key",
             "in": "path",
-            "description": "no-invitation, house-notes, landing-headline, landing-subhead or login-notice",
+            "description": "no-invitation, house-notes or landing-note",
             "required": true,
             "schema": {
               "type": "string"
@@ -7891,6 +7891,64 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "entrance"
+        ],
+        "summary": "Remove an override, so the client's default shows again (`MANAGE_FEATURES`, fresh second factor).",
+        "operationId": "delete_copy",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "no-invitation, house-notes or landing-note",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
           },
           "401": {
             "description": "",
@@ -20095,7 +20153,7 @@
           {
             "name": "type",
             "in": "query",
-            "description": "0 normal (default) or 1 burst",
+            "description": "0 or 1; 1 answers an empty list (burst reactions are not built, D-231)",
             "required": false,
             "schema": {
               "type": "integer",
@@ -20256,7 +20314,7 @@
           {
             "name": "type",
             "in": "query",
-            "description": "0 normal (default) or 1 burst; a member may hold both for one emoji",
+            "description": "Accepted for Discord parity and ignored: burst reactions are not built (D-231)",
             "required": false,
             "schema": {
               "type": "integer",
@@ -20346,7 +20404,7 @@
           {
             "name": "type",
             "in": "query",
-            "description": "0 normal (default) or 1 burst",
+            "description": "Accepted and ignored (D-231)",
             "required": false,
             "schema": {
               "type": "integer",
@@ -20427,7 +20485,7 @@
           {
             "name": "type",
             "in": "query",
-            "description": "0 normal (default) or 1 burst",
+            "description": "Accepted and ignored (D-231)",
             "required": false,
             "schema": {
               "type": "integer",
@@ -28286,54 +28344,6 @@
           }
         },
         "security": [
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/emojis/{emoji_id}": {
-      "get": {
-        "tags": [],
-        "summary": "An emoji by id, for members of any server (the popout on a cross-server custom emoji).\nUnavailable emoji are hidden from non-members.",
-        "operationId": "get_emoji_info",
-        "parameters": [
-          {
-            "name": "emoji_id",
-            "in": "path",
-            "description": "Emoji snowflake",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EmojiInfoObject"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "authorization": []
-          },
           {
             "session": []
           }
@@ -43476,12 +43486,138 @@
         ]
       }
     },
+    "/sr/emojis/{emoji_id}": {
+      "get": {
+        "tags": [],
+        "summary": "An emoji by id, for any signed-in caller (the popout on a cross-server custom emoji, D-232).",
+        "operationId": "get_emoji_info",
+        "parameters": [
+          {
+            "name": "emoji_id",
+            "in": "path",
+            "description": "Emoji snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmojiInfoObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/emojis/{emoji_id}/url": {
+      "get": {
+        "tags": [],
+        "summary": "A short-lived signed CDN URL for an emoji image, for any signed-in caller: custom emoji are\ndrawable wherever they appear (D-232).",
+        "operationId": "get_emoji_url",
+        "parameters": [
+          {
+            "name": "emoji_id",
+            "in": "path",
+            "description": "Emoji snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Power of two, 16 to 4096",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "png, jpg, webp or gif",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedUrlObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/entrance/copy": {
       "get": {
         "tags": [
           "entrance"
         ],
-        "summary": "The copy blocks staff overrode, key to markdown. Public (the Entrance is pre-login); blocks\nwithout an override are missing and the client shows its default. Keys: `no-invitation`,\n`house-notes`, `landing-headline`, `landing-subhead`, `login-notice`.",
+        "summary": "The copy blocks staff overrode, key to markdown. Public (the Entrance is pre-login); blocks\nwithout an override are missing and the client shows its default. Keys: `no-invitation`,\n`house-notes`, `landing-note`. Answers with an `ETag` and `Cache-Control: max-age=60`;\n`If-None-Match` gets 304.",
         "operationId": "get_copy",
         "responses": {
           "200": {
@@ -43499,6 +43635,9 @@
                 }
               }
             }
+          },
+          "304": {
+            "description": "Unchanged"
           }
         }
       }
@@ -46709,11 +46848,31 @@
         "tags": [
           "super::account"
         ],
-        "summary": "`DELETE /users/@me/age-confirmation`: forget the answer, so the age gate asks again\n(\"re-confirm\", LNG-USET-015). Restricted content is hidden until the account answers.",
+        "summary": "`DELETE /users/@me/age-confirmation`: forget the answer, so the age gate asks again\n(\"re-confirm\", LNG-USET-015). Needs the current password; restricted content is hidden until\nthe account answers again.",
         "operationId": "reset_age_confirmation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAgeBody"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "204": {
             "description": "Reset"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
             "description": "",
@@ -52623,28 +52782,21 @@
       },
       "AgeConfirmationObject": {
         "type": "object",
-        "description": "Where the account stands on the 18+ age gate.",
+        "description": "The stored \"18 or older\" confirmation (D-230).",
         "properties": {
-          "confirmed": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "`true` after \"18 or older\", `false` after \"younger\", `null` when never asked or reset."
-          },
           "confirmed_at": {
             "type": [
               "string",
               "null"
             ],
-            "description": "When the account confirmed it was 18 or older (RFC 3339); `null` otherwise."
+            "description": "When the account confirmed it was 18 or older (RFC 3339); `null` when it never did, said\n\"younger\", or the answer was reset."
           },
           "method": {
             "type": [
               "string",
               "null"
             ],
-            "description": "How it was confirmed; always `self-declared` (D-032: no ID check)."
+            "description": "How it was confirmed; `self-declared` (D-032: no ID check) while `confirmed_at` is set."
           }
         }
       },
@@ -58823,6 +58975,15 @@
             },
             "description": "Everyone except the viewer, in join order."
           },
+          "sr_max_upload_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The largest file the viewer may upload in this conversation, in bytes (D-233).",
+            "minimum": 0
+          },
           "type": {
             "type": "integer",
             "format": "int32",
@@ -59274,9 +59435,7 @@
         "description": "The server an emoji belongs to.",
         "required": [
           "id",
-          "name",
-          "joined",
-          "joinable"
+          "name"
         ],
         "properties": {
           "icon": {
@@ -59288,13 +59447,12 @@
           "id": {
             "type": "string"
           },
-          "joinable": {
-            "type": "boolean",
-            "description": "`POST /directory/{guild_id}/join` works for it (it is Directory-listed)."
-          },
-          "joined": {
-            "type": "boolean",
-            "description": "The viewer is a member."
+          "listing": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The id `POST /directory/{id}/join` takes, when the server is listed; `null` for a member's\nown unlisted server."
           },
           "name": {
             "type": "string"
@@ -59303,12 +59461,11 @@
       },
       "EmojiInfoObject": {
         "type": "object",
-        "description": "What the emoji popout shows for an emoji the viewer may not be able to use.",
+        "description": "What the emoji popout shows (D-232).",
         "required": [
           "id",
           "name",
-          "animated",
-          "url"
+          "animated"
         ],
         "properties": {
           "animated": {
@@ -59321,7 +59478,7 @@
               },
               {
                 "$ref": "#/components/schemas/EmojiGuildObject",
-                "description": "The owning server, only while it is listed in the Directory (or the viewer is a member).\nOtherwise `null`: the popout then says only that the emoji is from a private server."
+                "description": "The owning server, only when the caller is a member or it has an approved Server Directory\nlisting; otherwise `null` and the popout says the emoji is from a private server."
               }
             ]
           },
@@ -59330,10 +59487,6 @@
           },
           "name": {
             "type": "string"
-          },
-          "url": {
-            "type": "string",
-            "description": "Short-lived signed image URL (`/cdn/...`), valid for an hour."
           }
         }
       },
@@ -59413,7 +59566,7 @@
               "string",
               "null"
             ],
-            "description": "Markdown, at most 20 000 characters. `null` or blank removes the override."
+            "description": "Markdown, at most 16 KiB. Blank removes the override."
           },
           "reason": {
             "type": [
@@ -60961,6 +61114,15 @@
               "null"
             ],
             "description": "Invite splash hash, same URL shape as the icon."
+          },
+          "sr_max_upload_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The largest file the caller may upload here, in bytes (D-233). Only on `GET /guilds/{id}`.",
+            "minimum": 0
           },
           "system_channel_flags": {
             "type": "integer",
@@ -65823,7 +65985,7 @@
           },
           "dm_spam_filter": {
             "type": [
-              "boolean",
+              "string",
               "null"
             ]
           },
@@ -66502,8 +66664,8 @@
             "description": "DMs from members of shared servers (default on)."
           },
           "dm_spam_filter": {
-            "type": "boolean",
-            "description": "Flag likely spam into Message Requests (LNG-USET-013). Stored; no detector reads it yet."
+            "type": "string",
+            "description": "Flag likely spam into Message Requests (LNG-USET-013). Stored; no detector reads it yet.\n`off`, `non_friends` (default) or `all` (D-230)."
           },
           "friend_requests_everyone": {
             "type": "boolean",
@@ -67555,7 +67717,7 @@
       },
       "ReactionCountDetails": {
         "type": "object",
-        "description": "Normal vs burst reaction counts.",
+        "description": "Normal vs burst counts; burst is always 0 (D-231).",
         "required": [
           "burst",
           "normal"
@@ -67578,9 +67740,9 @@
         "required": [
           "emoji",
           "count",
-          "count_details",
           "me",
           "me_burst",
+          "count_details",
           "burst_colors"
         ],
         "properties": {
@@ -67589,33 +67751,32 @@
             "items": {
               "type": "string"
             },
-            "description": "Always empty; bursts have no colour effect yet."
+            "description": "Always empty."
           },
           "count": {
             "type": "integer",
             "format": "int32",
-            "description": "Normal and burst reactions together (Discord parity).",
             "minimum": 0
           },
           "count_details": {
-            "$ref": "#/components/schemas/ReactionCountDetails"
+            "$ref": "#/components/schemas/ReactionCountDetails",
+            "description": "Always `{normal: count, burst: 0}`."
           },
           "emoji": {
             "$ref": "#/components/schemas/PartialEmoji"
           },
           "me": {
-            "type": "boolean",
-            "description": "The viewer reacted normally."
+            "type": "boolean"
           },
           "me_burst": {
             "type": "boolean",
-            "description": "The viewer reacted with a burst."
+            "description": "Discord parity shim (D-231): burst reactions are not built, so always false."
           }
         }
       },
       "ReactionTypeQuery": {
         "type": "object",
-        "description": "Query of the add and remove reaction routes.",
+        "description": "Query of the add and remove reaction routes; `type` is accepted and ignored (D-231).",
         "properties": {
           "type": {
             "type": [
@@ -67623,7 +67784,6 @@
               "null"
             ],
             "format": "int32",
-            "description": "0 normal (default) or 1 burst.",
             "minimum": 0
           }
         }
@@ -68257,6 +68417,19 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "ResetAgeBody": {
+        "type": "object",
+        "description": "Body of `DELETE /users/@me/age-confirmation`.",
+        "required": [
+          "current_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "description": "The current password (re-authentication)."
           }
         }
       },

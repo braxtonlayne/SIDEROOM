@@ -1522,10 +1522,15 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Set or reset one copy block (`MANAGE_FEATURES`). Audited with the key and length. */
+        /**
+         * Set one copy block (`MANAGE_FEATURES`, fresh second factor). Audited with the key and length.
+         *     The text is stored as written; the Entrance renders it with the restricted entrance profile of
+         *     the shared markdown renderer (no mentions, no custom emoji).
+         */
         put: operations["put_copy"];
         post?: never;
-        delete?: never;
+        /** Remove an override, so the client's default shows again (`MANAGE_FEATURES`, fresh second factor). */
+        delete: operations["delete_copy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5532,26 +5537,6 @@ export interface paths {
         patch: operations["donations_patch_preferences"];
         trace?: never;
     };
-    "/emojis/{emoji_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * An emoji by id, for members of any server (the popout on a cross-server custom emoji).
-         *     Unavailable emoji are hidden from non-members.
-         */
-        get: operations["get_emoji_info"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/gateway": {
         parameters: {
             query?: never;
@@ -8317,6 +8302,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/emojis/{emoji_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An emoji by id, for any signed-in caller (the popout on a cross-server custom emoji, D-232). */
+        get: operations["get_emoji_info"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/emojis/{emoji_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A short-lived signed CDN URL for an emoji image, for any signed-in caller: custom emoji are
+         *     drawable wherever they appear (D-232).
+         */
+        get: operations["get_emoji_url"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/entrance/copy": {
         parameters: {
             query?: never;
@@ -8327,7 +8349,8 @@ export interface paths {
         /**
          * The copy blocks staff overrode, key to markdown. Public (the Entrance is pre-login); blocks
          *     without an override are missing and the client shows its default. Keys: `no-invitation`,
-         *     `house-notes`, `landing-headline`, `landing-subhead`, `login-notice`.
+         *     `house-notes`, `landing-note`. Answers with an `ETag` and `Cache-Control: max-age=60`;
+         *     `If-None-Match` gets 304.
          */
         get: operations["get_copy"];
         put?: never;
@@ -9096,7 +9119,8 @@ export interface paths {
         post?: never;
         /**
          * `DELETE /users/@me/age-confirmation`: forget the answer, so the age gate asks again
-         *     ("re-confirm", LNG-USET-015). Restricted content is hidden until the account answers.
+         *     ("re-confirm", LNG-USET-015). Needs the current password; restricted content is hidden until
+         *     the account answers again.
          */
         delete: operations["reset_age_confirmation"];
         options?: never;
@@ -10468,13 +10492,14 @@ export interface components {
             trailers: components["schemas"]["Trailer"][];
             variants: components["schemas"]["Variant"][];
         };
-        /** @description Where the account stands on the 18+ age gate. */
+        /** @description The stored "18 or older" confirmation (D-230). */
         AgeConfirmationObject: {
-            /** @description `true` after "18 or older", `false` after "younger", `null` when never asked or reset. */
-            confirmed?: boolean | null;
-            /** @description When the account confirmed it was 18 or older (RFC 3339); `null` otherwise. */
+            /**
+             * @description When the account confirmed it was 18 or older (RFC 3339); `null` when it never did, said
+             *     "younger", or the answer was reset.
+             */
             confirmed_at?: string | null;
-            /** @description How it was confirmed; always `self-declared` (D-032: no ID check). */
+            /** @description How it was confirmed; `self-declared` (D-032: no ID check) while `confirmed_at` is set. */
             method?: string | null;
         };
         /**
@@ -12386,6 +12411,11 @@ export interface components {
             /** @description Everyone except the viewer, in join order. */
             recipients: components["schemas"]["UserObject"][];
             /**
+             * Format: int64
+             * @description The largest file the viewer may upload in this conversation, in bytes (D-233).
+             */
+            sr_max_upload_bytes?: number | null;
+            /**
              * Format: int32
              * @description 1 DM, 3 group DM.
              */
@@ -12535,20 +12565,19 @@ export interface components {
         EmojiGuildObject: {
             icon?: string | null;
             id: string;
-            /** @description `POST /directory/{guild_id}/join` works for it (it is Directory-listed). */
-            joinable: boolean;
-            /** @description The viewer is a member. */
-            joined: boolean;
+            /**
+             * @description The id `POST /directory/{id}/join` takes, when the server is listed; `null` for a member's
+             *     own unlisted server.
+             */
+            listing?: string | null;
             name: string;
         };
-        /** @description What the emoji popout shows for an emoji the viewer may not be able to use. */
+        /** @description What the emoji popout shows (D-232). */
         EmojiInfoObject: {
             animated: boolean;
             guild?: null | components["schemas"]["EmojiGuildObject"];
             id: string;
             name: string;
-            /** @description Short-lived signed image URL (`/cdn/...`), valid for an hour. */
-            url: string;
         };
         EmojiObject: {
             animated: boolean;
@@ -12569,7 +12598,7 @@ export interface components {
         };
         /** @description Body of `PUT /admin/entrance/copy/{key}`. */
         EntranceCopyBody: {
-            /** @description Markdown, at most 20 000 characters. `null` or blank removes the override. */
+            /** @description Markdown, at most 16 KiB. Blank removes the override. */
             markdown?: string | null;
             reason?: string | null;
         };
@@ -13036,6 +13065,11 @@ export interface components {
             safety_alerts_channel_id?: string | null;
             /** @description Invite splash hash, same URL shape as the icon. */
             splash?: string | null;
+            /**
+             * Format: int64
+             * @description The largest file the caller may upload here, in bytes (D-233). Only on `GET /guilds/{id}`.
+             */
+            sr_max_upload_bytes?: number | null;
             /**
              * Format: int32
              * @description Discord `system_channel_flags` bits (1 suppress join messages, 2 boost messages,
@@ -14494,7 +14528,7 @@ export interface components {
         /** @description Body of `PATCH /users/@me/privacy`; absent fields stay. */
         PatchPrivacyBody: {
             allow_server_member_dms?: boolean | null;
-            dm_spam_filter?: boolean | null;
+            dm_spam_filter?: string | null;
             friend_requests_everyone?: boolean | null;
             friend_requests_friends_of_friends?: boolean | null;
             friend_requests_server_members?: boolean | null;
@@ -14680,8 +14714,11 @@ export interface components {
         PrivacyObject: {
             /** @description DMs from members of shared servers (default on). */
             allow_server_member_dms: boolean;
-            /** @description Flag likely spam into Message Requests (LNG-USET-013). Stored; no detector reads it yet. */
-            dm_spam_filter: boolean;
+            /**
+             * @description Flag likely spam into Message Requests (LNG-USET-013). Stored; no detector reads it yet.
+             *     `off`, `non_friends` (default) or `all` (D-230).
+             */
+            dm_spam_filter: string;
             /** @description Friend requests from anyone. */
             friend_requests_everyone: boolean;
             /** @description Friend requests from friends of friends. */
@@ -15044,7 +15081,7 @@ export interface components {
             current?: null | components["schemas"]["RateView"];
             sources: components["schemas"]["RateSourceView"][];
         };
-        /** @description Normal vs burst reaction counts. */
+        /** @description Normal vs burst counts; burst is always 0 (D-231). */
         ReactionCountDetails: {
             /** Format: int32 */
             burst: number;
@@ -15052,26 +15089,20 @@ export interface components {
             normal: number;
         };
         ReactionObject: {
-            /** @description Always empty; bursts have no colour effect yet. */
+            /** @description Always empty. */
             burst_colors: string[];
-            /**
-             * Format: int32
-             * @description Normal and burst reactions together (Discord parity).
-             */
+            /** Format: int32 */
             count: number;
+            /** @description Always `{normal: count, burst: 0}`. */
             count_details: components["schemas"]["ReactionCountDetails"];
             emoji: components["schemas"]["PartialEmoji"];
-            /** @description The viewer reacted normally. */
             me: boolean;
-            /** @description The viewer reacted with a burst. */
+            /** @description Discord parity shim (D-231): burst reactions are not built, so always false. */
             me_burst: boolean;
         };
-        /** @description Query of the add and remove reaction routes. */
+        /** @description Query of the add and remove reaction routes; `type` is accepted and ignored (D-231). */
         ReactionTypeQuery: {
-            /**
-             * Format: int32
-             * @description 0 normal (default) or 1 burst.
-             */
+            /** Format: int32 */
             type?: number | null;
         };
         /** @description Body of `POST /library/chapters/{id}/read`. */
@@ -15291,6 +15322,11 @@ export interface components {
             totp: number;
             /** Format: int64 */
             trusted_devices: number;
+        };
+        /** @description Body of `DELETE /users/@me/age-confirmation`. */
+        ResetAgeBody: {
+            /** @description The current password (re-authentication). */
+            current_password: string;
         };
         ResetSecretResult: {
             client_secret: string;
@@ -22592,7 +22628,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description no-invitation, house-notes, landing-headline, landing-subhead or login-notice */
+                /** @description no-invitation, house-notes or landing-note */
                 key: string;
             };
             cookie?: never;
@@ -22616,6 +22652,50 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_copy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description no-invitation, house-notes or landing-note */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: {
                 headers: {
@@ -30508,7 +30588,7 @@ export interface operations {
                 limit?: number;
                 /** @description User id to start after */
                 after?: string;
-                /** @description 0 normal (default) or 1 burst */
+                /** @description 0 or 1; 1 answers an empty list (burst reactions are not built, D-231) */
                 type?: number;
             };
             header?: never;
@@ -30593,7 +30673,7 @@ export interface operations {
     add_own: {
         parameters: {
             query?: {
-                /** @description 0 normal (default) or 1 burst; a member may hold both for one emoji */
+                /** @description Accepted for Discord parity and ignored: burst reactions are not built (D-231) */
                 type?: number;
             };
             header?: never;
@@ -30644,7 +30724,7 @@ export interface operations {
     remove_own: {
         parameters: {
             query?: {
-                /** @description 0 normal (default) or 1 burst */
+                /** @description Accepted and ignored (D-231) */
                 type?: number;
             };
             header?: never;
@@ -30679,7 +30759,7 @@ export interface operations {
     remove_user: {
         parameters: {
             query?: {
-                /** @description 0 normal (default) or 1 burst */
+                /** @description Accepted and ignored (D-231) */
                 type?: number;
             };
             header?: never;
@@ -35720,36 +35800,6 @@ export interface operations {
                 };
             };
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-        };
-    };
-    get_emoji_info: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Emoji snowflake */
-                emoji_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EmojiInfoObject"];
-                };
-            };
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -45150,6 +45200,79 @@ export interface operations {
             };
         };
     };
+    get_emoji_info: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Emoji snowflake */
+                emoji_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmojiInfoObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_emoji_url: {
+        parameters: {
+            query?: {
+                /** @description Power of two, 16 to 4096 */
+                size?: number;
+                /** @description png, jpg, webp or gif */
+                format?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Emoji snowflake */
+                emoji_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedUrlObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_copy: {
         parameters: {
             query?: never;
@@ -45168,6 +45291,13 @@ export interface operations {
                         [key: string]: string;
                     };
                 };
+            };
+            /** @description Unchanged */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -47307,7 +47437,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetAgeBody"];
+            };
+        };
         responses: {
             /** @description Reset */
             204: {
@@ -47315,6 +47449,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
             };
             403: {
                 headers: {

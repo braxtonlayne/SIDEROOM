@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sr_chat::social::notifications::NotificationLevel;
 use sr_chat::social::repo::Privacy;
-use sr_chat::social::safety::MediaFilter;
+use sr_chat::social::safety::{MediaFilter, SpamFilter};
 use sr_chat::social::user_settings::{PrivacyUpdate, UserSettings};
 use std::collections::BTreeMap;
 use utoipa::ToSchema;
@@ -185,7 +185,8 @@ pub struct PrivacyObject {
     /// How to show sensitive media in DMs, per source (LNG-USET-012).
     pub sensitive_media: SensitiveMediaObject,
     /// Flag likely spam into Message Requests (LNG-USET-013). Stored; no detector reads it yet.
-    pub dm_spam_filter: bool,
+    /// `off`, `non_friends` (default) or `all` (D-230).
+    pub dm_spam_filter: String,
     /// Per-server override of `allow_server_member_dms`: server id to allowed.
     pub server_dm_overrides: BTreeMap<String, bool>,
 }
@@ -214,7 +215,7 @@ impl From<Privacy> for PrivacyObject {
                 others: p.safety.sensitive_media.others.as_str().to_owned(),
                 servers: p.safety.sensitive_media.servers.as_str().to_owned(),
             },
-            dm_spam_filter: p.safety.dm_spam_filter,
+            dm_spam_filter: p.safety.dm_spam_filter.as_str().to_owned(),
             server_dm_overrides: p
                 .safety
                 .server_dm_overrides
@@ -235,7 +236,7 @@ pub struct PatchPrivacyBody {
     pub message_requests: Option<bool>,
     /// Any of `friends`, `others`, `servers` (each `show`, `blur` or `block`); absent ones stay.
     pub sensitive_media: Option<PatchSensitiveMedia>,
-    pub dm_spam_filter: Option<bool>,
+    pub dm_spam_filter: Option<String>,
     /// Server id to `true`/`false` (set) or `null` (back to the default). At most 200 servers.
     pub server_dm_overrides: Option<BTreeMap<String, Option<bool>>>,
 }
@@ -328,7 +329,19 @@ pub async fn patch_privacy(
                 media_friends: media_filter("sensitive_media.friends", sm.friends.as_ref())?,
                 media_others: media_filter("sensitive_media.others", sm.others.as_ref())?,
                 media_servers: media_filter("sensitive_media.servers", sm.servers.as_ref())?,
-                dm_spam_filter: body.dm_spam_filter,
+                dm_spam_filter: body
+                    .dm_spam_filter
+                    .as_deref()
+                    .map(|s| {
+                        SpamFilter::parse(s).ok_or_else(|| {
+                            invalid(
+                                "dm_spam_filter",
+                                "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+                                "Must be off, non_friends or all.",
+                            )
+                        })
+                    })
+                    .transpose()?,
                 server_dm_overrides: parse_overrides(body.server_dm_overrides)?,
             },
         )

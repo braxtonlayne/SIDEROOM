@@ -241,8 +241,6 @@ pub enum DomainEvent {
         message_id: u64,
         user: UserId,
         emoji: serde_json::Value,
-        /// A burst ("super") reaction.
-        burst: bool,
     },
     /// `MESSAGE_REACTION_REMOVE`.
     ReactionRemoved {
@@ -251,7 +249,6 @@ pub enum DomainEvent {
         message_id: u64,
         user: UserId,
         emoji: serde_json::Value,
-        burst: bool,
     },
     /// `MESSAGE_REACTION_REMOVE_ALL`.
     ReactionsCleared {
@@ -662,7 +659,6 @@ mod tests {
             message_id: 3,
             user: UserId::new(4),
             emoji: serde_json::json!({"id": null, "name": "x"}),
-            burst: false,
         };
         assert_eq!(
             e.topics(),

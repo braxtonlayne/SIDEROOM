@@ -2981,7 +2981,7 @@ async fn nobody_creates_or_redeems_invites_to_the_staff_server() {
 mod features_tests;
 
 #[tokio::test]
-async fn emoji_popout_works_for_non_members_and_names_only_listed_servers() {
+async fn emoji_popout_and_url_work_for_non_members_and_name_only_listed_servers() {
     use sr_chat::settings::directory::{DirectoryEntry, DirectoryRepository, DirectoryStatus};
     use sr_chat::settings::repo::CommunityRepository;
     let e = env().await;
@@ -2993,28 +2993,30 @@ async fn emoji_popout_works_for_non_members_and_names_only_listed_servers() {
         )
         .await;
     let id = emoji["id"].as_str().unwrap().to_owned();
-    let path = format!("/emojis/{id}");
+    let path = format!("/sr/emojis/{id}");
 
-    // Anyone signed in gets the image; a private server stays unnamed to outsiders.
+    // Anyone signed in may draw it; a private server stays unnamed to outsiders.
     let (s, v) = e.get(&path, "carol").await;
     assert_eq!(s, StatusCode::OK, "{v}");
-    assert_eq!(v["name"], "party");
-    assert_eq!(v["animated"], false);
-    assert!(v["url"].as_str().unwrap().starts_with("/cdn/emoji/"));
-    assert!(v["guild"].is_null(), "{v}");
-
-    // Members see the server.
-    let (_, v) = e.get(&path, "bob").await;
-    assert_eq!(v["guild"]["id"], e.guild.to_string());
     assert_eq!(
-        (
-            v["guild"]["joined"].as_bool(),
-            v["guild"]["joinable"].as_bool()
-        ),
-        (Some(true), Some(false))
+        (v["name"].as_str(), v["animated"].as_bool()),
+        (Some("party"), Some(false))
+    );
+    assert!(v["guild"].is_null(), "{v}");
+    let (s, u) = e.get(&format!("{path}/url?size=64"), "carol").await;
+    assert_eq!(s, StatusCode::OK, "{u}");
+    assert!(u["url"].as_str().unwrap().starts_with("/cdn/emoji/"));
+    assert_eq!(
+        e.get(&format!("{path}/url?size=100"), "carol").await.0,
+        StatusCode::BAD_REQUEST
     );
 
-    // An approved Directory listing of a Community server names it and offers Join.
+    // Members see the server (not a Directory listing).
+    let (_, v) = e.get(&path, "bob").await;
+    assert_eq!(v["guild"]["id"], e.guild.to_string());
+    assert!(v["guild"]["listing"].is_null());
+
+    // An approved Directory listing of a Community server names it for everyone.
     let mut c = e.repo.get_community(e.guild).await.unwrap();
     c.community_enabled = true;
     e.repo.put_community(&c).await.unwrap();
@@ -3035,17 +3037,16 @@ async fn emoji_popout_works_for_non_members_and_names_only_listed_servers() {
         .unwrap();
     let (_, v) = e.get(&path, "carol").await;
     assert_eq!(v["guild"]["id"], e.guild.to_string(), "{v}");
-    assert_eq!(
-        (
-            v["guild"]["joined"].as_bool(),
-            v["guild"]["joinable"].as_bool()
-        ),
-        (Some(false), Some(true))
-    );
+    assert_eq!(v["guild"]["listing"], e.guild.to_string());
 
-    // Unknown ids are 404, and unavailable emoji are hidden from outsiders.
-    assert_eq!(e.get("/emojis/12345", "bob").await.0, StatusCode::NOT_FOUND);
-    assert_eq!(e.get("/emojis/abc", "bob").await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        e.get("/sr/emojis/12345", "bob").await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        e.get("/sr/emojis/abc", "bob").await.0,
+        StatusCode::BAD_REQUEST
+    );
 }
 
 #[tokio::test]

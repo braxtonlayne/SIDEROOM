@@ -101,9 +101,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-EXP-009** [FE] GIF picker (trending categories grid, search, favorites star) *lounge/components/GifPicker.tsx (trending, categories, search, favorites in localStorage).*
 - [x] **LNG-EXP-010** [FE] Expression picker tabs container (GIFs / Stickers / Emoji) *The GIF tab explains that no GIF provider is connected.*
 - [ ] **LNG-EXP-011** [FE] Emoji tooltip/popout on click (name, source server, "Join server" if public)
-   - p13 backend half built: `GET /emojis/{emoji_id}` for non-members (name, signed URL, owning server only when Directory-listed or the caller is a member, `joinable`), `routes/directory.rs`, test `emoji_popout_works_for_non_members_and_names_only_listed_servers`.
+   - p13 backend half built (D-232): `GET /sr/emojis/{emoji_id}` (name, source server only for members or Directory-listed servers, with `listing`) and `GET /sr/emojis/{emoji_id}/url` for any session; `routes/directory.rs`, test `emoji_popout_and_url_work_for_non_members_and_name_only_listed_servers`.
 - [ ] **LNG-EXP-012** [FE] Super/burst reaction picker variant + animations
-   - p13 backend half built: `?type=1` on the add/remove/list reaction routes, `count_details`/`me_burst` on the reaction object, `burst`/`type` on `MESSAGE_REACTION_ADD/REMOVE`, migration 0841, test `burst_reactions_count_separately_and_are_capped`. Cap: 3 bursts per member per message (owner decision pending on a Patron allowance).
+   - p13 (D-231): burst reactions are not built; the reaction object carries the Discord shim (`me_burst: false`, `count_details`, `burst_colors`) and `?type` is accepted and ignored, test `reaction_objects_carry_the_burst_shim_and_ignore_type`. The picker variant and animations are closed.
 
 ## LNG-SRC — Search
 - [x] **LNG-SRC-001** [BE] Tantivy message index schema (content, author, channel, guild, has-flags, timestamps, pinned, author type, mentions)

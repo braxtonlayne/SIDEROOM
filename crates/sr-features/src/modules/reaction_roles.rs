@@ -78,7 +78,6 @@ impl ReactionRoles {
                 message_id,
                 user,
                 emoji,
-                burst: false,
             } => {
                 if let Some(key) = event_emoji_key(emoji) {
                     self.added(ctx, *g, *channel, *message_id, *user, &key)
@@ -90,7 +89,6 @@ impl ReactionRoles {
                 message_id,
                 user,
                 emoji,
-                burst: false,
                 ..
             } => {
                 if let Some(key) = event_emoji_key(emoji) {
@@ -300,7 +298,6 @@ mod tests {
             message_id: MSG,
             user: UserId::new(user),
             emoji: json!({"id": id, "name": name}),
-            burst: false,
         }
     }
 
@@ -311,7 +308,6 @@ mod tests {
             message_id: MSG,
             user: UserId::new(user),
             emoji: json!({"id": id, "name": name}),
-            burst: false,
         }
     }
 
@@ -362,7 +358,6 @@ mod tests {
                 message_id: 999,
                 user: UserId::new(5),
                 emoji: json!({"id": null, "name": "\u{1f34e}"}),
-                burst: false,
             },
         )
         .await;

@@ -31,8 +31,6 @@ pub struct Data {
     nonce_by_message: HashMap<MessageId, String>,
     /// (message, emoji key) -> reactions in insertion order.
     reactions: BTreeMap<(MessageId, String), (EmojiKey, Vec<UserId>)>,
-    /// Burst reactions, same shape (LNG-EXP-012).
-    burst_reactions: BTreeMap<(MessageId, String), (EmojiKey, Vec<UserId>)>,
     attachments: HashMap<AttachmentId, Attachment>,
     /// Accounts for the user lookup (open question 157).
     pub users: HashMap<UserId, crate::repo::UserSummary>,
@@ -439,16 +437,11 @@ impl MessageStore for MemoryBackend {
         message: MessageId,
         user: UserId,
         emoji: &EmojiKey,
-        burst: bool,
         _now_ms: i64,
     ) -> StoreResult<bool> {
         let mut s = self.data();
-        let map = if burst {
-            &mut s.burst_reactions
-        } else {
-            &mut s.reactions
-        };
-        let entry = map
+        let entry = s
+            .reactions
             .entry((message, emoji.key()))
             .or_insert_with(|| (emoji.clone(), Vec::new()));
         if entry.1.contains(&user) {
@@ -463,40 +456,32 @@ impl MessageStore for MemoryBackend {
         message: MessageId,
         user: UserId,
         emoji: &EmojiKey,
-        burst: bool,
     ) -> StoreResult<bool> {
         let mut s = self.data();
-        let map = if burst {
-            &mut s.burst_reactions
-        } else {
-            &mut s.reactions
-        };
         let key = (message, emoji.key());
-        let Some((_, users)) = map.get_mut(&key) else {
+        let Some((_, users)) = s.reactions.get_mut(&key) else {
             return Ok(false);
         };
         let before = users.len();
         users.retain(|u| *u != user);
         let removed = users.len() != before;
         if users.is_empty() {
-            map.remove(&key);
+            s.reactions.remove(&key);
         }
         Ok(removed)
     }
 
     async fn clear_reactions(&self, message: MessageId) -> StoreResult<()> {
-        let mut s = self.data();
-        s.reactions.retain(|(m, _), _| *m != message);
-        s.burst_reactions.retain(|(m, _), _| *m != message);
+        self.data().reactions.retain(|(m, _), _| *m != message);
         Ok(())
     }
 
     async fn clear_emoji(&self, message: MessageId, emoji: &EmojiKey) -> StoreResult<bool> {
-        let mut s = self.data();
-        let key = (message, emoji.key());
-        let normal = s.reactions.remove(&key).is_some();
-        let burst = s.burst_reactions.remove(&key).is_some();
-        Ok(normal || burst)
+        Ok(self
+            .data()
+            .reactions
+            .remove(&(message, emoji.key()))
+            .is_some())
     }
 
     async fn reactions_for(
@@ -505,40 +490,15 @@ impl MessageStore for MemoryBackend {
         viewer: UserId,
     ) -> StoreResult<HashMap<MessageId, Vec<ReactionSummary>>> {
         let s = self.data();
-        let mut rows: BTreeMap<(MessageId, String), ReactionSummary> = BTreeMap::new();
-        for ((m, k), (emoji, users)) in &s.reactions {
-            if messages.contains(m) {
-                let r = rows
-                    .entry((*m, k.clone()))
-                    .or_insert_with(|| ReactionSummary {
-                        emoji: emoji.clone(),
-                        count: 0,
-                        burst_count: 0,
-                        me: false,
-                        me_burst: false,
-                    });
-                r.count = u32::try_from(users.len()).unwrap_or(u32::MAX);
-                r.me = users.contains(&viewer);
-            }
-        }
-        for ((m, k), (emoji, users)) in &s.burst_reactions {
-            if messages.contains(m) {
-                let r = rows
-                    .entry((*m, k.clone()))
-                    .or_insert_with(|| ReactionSummary {
-                        emoji: emoji.clone(),
-                        count: 0,
-                        burst_count: 0,
-                        me: false,
-                        me_burst: false,
-                    });
-                r.burst_count = u32::try_from(users.len()).unwrap_or(u32::MAX);
-                r.me_burst = users.contains(&viewer);
-            }
-        }
         let mut out: HashMap<MessageId, Vec<ReactionSummary>> = HashMap::new();
-        for ((m, _), r) in rows {
-            out.entry(m).or_default().push(r);
+        for ((m, _), (emoji, users)) in &s.reactions {
+            if messages.contains(m) {
+                out.entry(*m).or_default().push(ReactionSummary {
+                    emoji: emoji.clone(),
+                    count: u32::try_from(users.len()).unwrap_or(u32::MAX),
+                    me: users.contains(&viewer),
+                });
+            }
         }
         Ok(out)
     }
@@ -547,17 +507,12 @@ impl MessageStore for MemoryBackend {
         &self,
         message: MessageId,
         emoji: &EmojiKey,
-        burst: bool,
         after: Option<UserId>,
         limit: usize,
     ) -> StoreResult<Vec<UserId>> {
         let s = self.data();
-        let map = if burst {
-            &s.burst_reactions
-        } else {
-            &s.reactions
-        };
-        let mut users: Vec<UserId> = map
+        let mut users: Vec<UserId> = s
+            .reactions
             .get(&(message, emoji.key()))
             .map(|(_, u)| u.clone())
             .unwrap_or_default();

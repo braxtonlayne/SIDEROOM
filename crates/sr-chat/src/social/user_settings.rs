@@ -10,7 +10,7 @@
 use super::notifications::NotificationLevel;
 use super::relationships::FriendRequestSources;
 use super::repo::SocialRepository;
-use super::safety::{MAX_SERVER_DM_OVERRIDES, MediaFilter};
+use super::safety::{MAX_SERVER_DM_OVERRIDES, MediaFilter, SpamFilter};
 use super::service::SocialService;
 use super::{SocialError, SocialResult};
 use serde_json::{Map, Value};
@@ -130,7 +130,7 @@ pub struct PrivacyUpdate {
     pub media_friends: Option<MediaFilter>,
     pub media_others: Option<MediaFilter>,
     pub media_servers: Option<MediaFilter>,
-    pub dm_spam_filter: Option<bool>,
+    pub dm_spam_filter: Option<SpamFilter>,
     /// Guild id to override: `Some(allowed)` sets, `None` removes.
     pub server_dm_overrides: Option<BTreeMap<u64, Option<bool>>>,
 }

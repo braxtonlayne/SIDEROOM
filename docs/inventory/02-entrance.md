@@ -42,7 +42,7 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [x] **ENT-UI-008** [FE] Footer (tagline, House notes, ©)
 - [x] **ENT-UI-009** [FE] `/join/:code` prefill + auto-check
 - [ ] **ENT-UI-010** [FE] `/no-invitation` and `/house-notes` static pages (operator markdown) _(Default pages now have rules, privacy, terms, image credits and a Help page; operator-editable markdown is ENT-UI-025.)_
-   - p13 backend half built: `GET /sr/entrance/copy` and `PUT /admin/entrance/copy/{key}` (`routes/admin/entrance.rs`, migration 0843, test `entrance_copy_is_public_to_read_and_staff_to_write`).
+   - p13 backend half built: `GET /sr/entrance/copy` (ETag, max-age 60) and `PUT|DELETE /admin/entrance/copy/{key}` (keys `no-invitation`, `house-notes`, `landing-note`) (`routes/admin/entrance.rs`, migration 0843, test `entrance_copy_is_public_to_read_and_staff_to_write`).
 - [x] **ENT-UI-011** [FE] Register page layout (left editorial panel, right form)
 - [x] **ENT-UI-012** [FE] Register form: email, username (live check), display name, password + strength meter, confirm, house-notes checkbox, submit
 - [x] **ENT-UI-013** [FE] Register with Discord: OAuth start, return handling, linked chip with unlink, prefill

@@ -2177,7 +2177,7 @@ async fn entrance_copy_is_public_to_read_and_staff_to_write() {
         put(
             Some(OWNER),
             "house-notes",
-            json!({"markdown": "x".repeat(20_001)})
+            json!({"markdown": "x".repeat(16_385)})
         )
         .await
         .0,
@@ -2199,7 +2199,23 @@ async fn entrance_copy_is_public_to_read_and_staff_to_write() {
         v,
         json!({"no-invitation": "# Ask a friend\n\nInvites are personal."})
     );
-    // Blank resets to the default (the key disappears).
+    // DELETE and a blank body both reset to the default (the key disappears); GET is cacheable.
+    assert_eq!(
+        e.call(
+            Some(OWNER),
+            Method::DELETE,
+            "/admin/entrance/copy/no-invitation",
+            None
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        e.call(None, Method::GET, "/sr/entrance/copy", None).await.1,
+        json!({})
+    );
+    put(Some(OWNER), "no-invitation", json!({"markdown": "again"})).await;
     assert_eq!(
         put(Some(OWNER), "no-invitation", json!({"markdown": "  "}))
             .await

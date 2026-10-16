@@ -73,7 +73,8 @@ impl DirectoryDeps {
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/emojis/{emoji_id}", get(get_emoji_info))
+        .route("/sr/emojis/{emoji_id}", get(get_emoji_info))
+        .route("/sr/emojis/{emoji_id}/url", get(get_emoji_url))
         .route("/directory/categories", get(list_categories))
         .route("/directory", get(search))
         .route("/directory/{guild_id}", get(get_listed))
@@ -228,16 +229,14 @@ fn unknown_listing() -> HttpError {
 
 // ------------------------------------------------------------------ emoji popout
 
-/// What the emoji popout shows for an emoji the viewer may not be able to use.
+/// What the emoji popout shows (D-232).
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct EmojiInfoObject {
     pub id: String,
     pub name: String,
     pub animated: bool,
-    /// Short-lived signed image URL (`/cdn/...`), valid for an hour.
-    pub url: String,
-    /// The owning server, only while it is listed in the Directory (or the viewer is a member).
-    /// Otherwise `null`: the popout then says only that the emoji is from a private server.
+    /// The owning server, only when the caller is a member or it has an approved Server Directory
+    /// listing; otherwise `null` and the popout says the emoji is from a private server.
     pub guild: Option<EmojiGuildObject>,
 }
 
@@ -247,48 +246,47 @@ pub struct EmojiGuildObject {
     pub id: String,
     pub name: String,
     pub icon: Option<String>,
-    /// The viewer is a member.
-    pub joined: bool,
-    /// `POST /directory/{guild_id}/join` works for it (it is Directory-listed).
-    pub joinable: bool,
+    /// The id `POST /directory/{id}/join` takes, when the server is listed; `null` for a member's
+    /// own unlisted server.
+    pub listing: Option<String>,
 }
 
-/// An emoji by id, for members of any server (the popout on a cross-server custom emoji).
-/// Unavailable emoji are hidden from non-members.
+async fn find_emoji(
+    deps: &SettingsDeps,
+    emoji_id: &str,
+) -> ApiResult<sr_chat::settings::expressions::Emoji> {
+    use sr_chat::settings::repo::ExpressionRepository;
+    let eid: sr_core::EmojiId = id("emoji_id", emoji_id)?;
+    deps.service
+        .repo()
+        .find_emoji(eid)
+        .await
+        .map_err(re)?
+        .ok_or_else(|| ErrorCode::UnknownEmoji.into())
+}
+
+/// An emoji by id, for any signed-in caller (the popout on a cross-server custom emoji, D-232).
 #[utoipa::path(
     get,
-    path = "/emojis/{emoji_id}",
+    path = "/sr/emojis/{emoji_id}",
     params(("emoji_id" = String, Path, description = "Emoji snowflake")),
     responses((status = 200, body = EmojiInfoObject), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
 )]
 pub async fn get_emoji_info(
     p: Principal,
-    State(state): State<AppState>,
     Ext(dir): Ext<DirectoryDeps>,
     Ext(deps): Ext<SettingsDeps>,
-    Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
     Path(emoji_id): Path<String>,
 ) -> ApiResult<Json<EmojiInfoObject>> {
-    use sr_chat::settings::repo::ExpressionRepository;
     let user = actor(&p)?;
-    let eid: sr_core::EmojiId = id("emoji_id", &emoji_id)?;
-    let emoji = deps
-        .service
-        .repo()
-        .find_emoji(eid)
-        .await
-        .map_err(re)?
-        .ok_or(ErrorCode::UnknownEmoji)?;
+    let emoji = find_emoji(&deps, &emoji_id).await?;
     let joined = deps
         .chat
         .get_member(emoji.guild_id, user)
         .await
         .map_err(re)?
         .is_some();
-    if !emoji.available && !joined {
-        return Err(ErrorCode::UnknownEmoji.into());
-    }
     let listed = match dir.repo.get_listing(emoji.guild_id).await.map_err(re)? {
         Some(entry) if !dir.hidden_categories().await.contains(&entry.category) => {
             let community = deps
@@ -310,25 +308,46 @@ pub async fn get_emoji_info(
                 id: g.id.to_string(),
                 name: g.name.clone(),
                 icon: g.icon_key.clone(),
-                joined,
-                joinable: listed && !joined,
+                listing: listed.then(|| g.id.to_string()),
             })
     } else {
         None
     };
-    let signed = crate::routes::settings::expressions::signed_media_url(
-        &state,
-        &cdn,
-        &emoji.media_key,
-        &crate::routes::settings::expressions::UrlQuery::default(),
-    )?;
     Ok(Json(EmojiInfoObject {
         id: emoji.id.to_string(),
         name: emoji.name,
         animated: emoji.animated,
-        url: signed.url,
         guild,
     }))
+}
+
+/// A short-lived signed CDN URL for an emoji image, for any signed-in caller: custom emoji are
+/// drawable wherever they appear (D-232).
+#[utoipa::path(
+    get,
+    path = "/sr/emojis/{emoji_id}/url",
+    params(
+        ("emoji_id" = String, Path, description = "Emoji snowflake"),
+        ("size" = Option<u32>, Query, description = "Power of two, 16 to 4096"),
+        ("format" = Option<String>, Query, description = "png, jpg, webp or gif"),
+    ),
+    responses((status = 200, body = crate::routes::settings::expressions::SignedUrlObject),
+              (status = 400, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_emoji_url(
+    p: Principal,
+    State(state): State<AppState>,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
+    Path(emoji_id): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<crate::routes::settings::expressions::UrlQuery>,
+) -> ApiResult<Json<crate::routes::settings::expressions::SignedUrlObject>> {
+    actor(&p)?;
+    let emoji = find_emoji(&deps, &emoji_id).await?;
+    Ok(Json(
+        crate::routes::settings::expressions::signed_media_url(&state, &cdn, &emoji.media_key, &q)?,
+    ))
 }
 
 // ------------------------------------------------------------------ member side
@@ -801,6 +820,7 @@ pub async fn admin_decide(
         search,
         get_listed,
         get_emoji_info,
+        get_emoji_url,
         join,
         get_own_listing,
         request_listing,

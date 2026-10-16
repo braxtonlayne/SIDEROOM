@@ -1226,9 +1226,9 @@ impl AdminService {
             return Err(AdminError::NotFound("copy block"));
         }
         let markdown = markdown.map(str::trim).filter(|m| !m.is_empty());
-        if markdown.is_some_and(|m| m.chars().count() > ENTRANCE_COPY_MAX_CHARS) {
+        if markdown.is_some_and(|m| m.len() > ENTRANCE_COPY_MAX_CHARS) {
             return Err(AdminError::Invalid(format!(
-                "at most {ENTRANCE_COPY_MAX_CHARS} characters"
+                "at most {ENTRANCE_COPY_MAX_CHARS} bytes"
             )));
         }
         let reason = Self::optional_reason(reason)?;

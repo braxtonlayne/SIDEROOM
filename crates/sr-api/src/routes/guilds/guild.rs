@@ -142,6 +142,7 @@ pub async fn get_guild(
     p: Principal,
     Api(api): Api,
     MaybeExt(settings): MaybeExt<SettingsDeps>,
+    MaybeExt(messages): MaybeExt<crate::routes::messages::MessagesDeps>,
     Path(guild_id): Path<String>,
     Query(q): Query<GetGuildQuery>,
 ) -> ApiResult<Json<GuildObject>> {
@@ -149,6 +150,9 @@ pub async fn get_guild(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let (g, roles) = api.get_guild(user, gid).await.map_err(ce)?;
     let mut out = GuildObject::new(&g, Some(&roles), None);
+    if let Some(m) = messages {
+        out.sr_max_upload_bytes = Some(m.effective_upload_limit(user).await);
+    }
     if q.with_counts == Some(true)
         && let Some(s) = settings
     {

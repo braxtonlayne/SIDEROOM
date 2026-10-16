@@ -2,26 +2,24 @@
 
 Branch `feat/p13-settings-admin`, base `integration/phase13`. Backend contracts the web agents asked for, the remaining
 backend half of the server-settings, admin and server inventories, and one web bug (snowflake epoch). Migrations used:
-0840 to 0844. The contracts are written into `docs/05-api-and-gateway.md` section 5.3.
+0840, 0842, 0843 and 0844 (0841 is unused). The contracts are written into `docs/05-api-and-gateway.md` section 5.3.
 
-## Part A: contracts for the web agents
+## Part A: contracts for the web agents (aligned with D-230 to D-233)
 
 | Asked for | Built |
 | --- | --- |
-| User safety settings (LNG-USET-012/013) | `sensitive_media {friends, others, servers}` (show/blur/block), `dm_spam_filter`, `server_dm_overrides` on `GET/PATCH /users/@me/privacy` (migration 0840). The per-server override is enforced when a DM is opened. The media filter is a client display preference; the spam filter is stored, no detector reads it yet. |
-| Age confirmation (LNG-USET-015) | `GET/DELETE /users/@me/age-confirmation` (`{confirmed, confirmed_at, method}`); reset publishes `SR_USER_UPDATE`. |
-| Burst reactions (LNG-EXP-012) | `?type=1` on add, remove (own and other's) and list; `count_details`, `me_burst`, `burst_colors` on the reaction object; `burst` and `type` on `MESSAGE_REACTION_ADD/REMOVE` (migration 0841: `burst` joins the primary key so a member can hold both kinds). Cap: 3 bursts per member per message. |
-| Emoji popout (LNG-EXP-011) | `GET /emojis/{emoji_id}`: name, animated, signed URL, and the owning server only when it is Directory-listed (`joinable`) or the caller is a member. |
-| Entrance copy (ENT-UI-010/025) | `GET /sr/entrance/copy` (public) and `PUT /admin/entrance/copy/{key}` (`MANAGE_FEATURES`, audited with key and length), migration 0843. Keys: `no-invitation`, `house-notes`, `landing-headline`, `landing-subhead`, `login-notice`. |
-| OpenAPI name clash | The connections body is now `ConnectionLinkBody` (it was `LinkBody`, which resolved to the Cinema staff schema). |
-| Keyword highlights | `GET/PUT /users/@me/notification-keywords` (migration 0842). The push notifier now feeds them to the decision engine, which had `keyword_hit` hard-coded to false. |
+| Safety settings (D-230, LNG-USET-012/013) | `sensitive_media {friends, others, servers}`, `dm_spam_filter` (`off`, `non_friends` default, `all`) and `server_dm_overrides` on `GET/PATCH /users/@me/privacy` (migration 0840). Enforced: the spam filter level and the per-server override when a DM is opened. Not yet: applying `sensitive_media` to attachments per viewer (spoiler flag, `sr_filtered`), which needs a viewer-aware message pipeline for REST and the gateway; and server settings tightening the filter (D-224). |
+| Age confirmation (D-230, LNG-USET-015) | `GET /users/@me/age-confirmation` `{confirmed_at, method}`; `DELETE` needs `current_password` and publishes `SR_USER_UPDATE`. |
+| Burst reactions (D-231) | Not built. The reaction object carries the shim (`me_burst`, `count_details`, `burst_colors`), `?type` is accepted and ignored. (An earlier burst implementation on this branch was removed, with its migration.) |
+| Emoji (D-232, LNG-EXP-011) | `GET /sr/emojis/{id}` (popout, source server only for members or Directory-listed servers, with `listing`) and `GET /sr/emojis/{id}/url` for any session. Bots are allowed on `/sr/emojis/`. |
+| Upload limit (D-233) | `sr_max_upload_bytes` on `GET /guilds/{id}` and on the DM channels of `GET /users/@me/channels`. Not yet on `GUILD_CREATE`/`GUILD_UPDATE` (broadcast payloads are not per viewer) and the "server entitlement level" has no source in the code, so the value is the member's perk (same function as the 413 check). |
+| Entrance copy (ENT-UI-010/025, H-09) | `GET /sr/entrance/copy` (public, ETag, max-age 60), `PUT|DELETE /admin/entrance/copy/{key}` (`MANAGE_FEATURES`, fresh second factor, 16 KiB, keys `no-invitation`, `house-notes`, `landing-note`), migration 0843. Stored in an `entrance_copy` table rather than `platform_settings`; the server does not parse the markdown (no entrance profile in `sr-markdown` yet). |
+| OpenAPI name clash (H-10) | The connections body is now `ConnectionLinkBody` (a rename of the Rust struct instead of `schema(as)`). The extra OpenAPI check that every schema name maps to one Rust type is not added. |
+| Keyword highlights | `GET/PUT /users/@me/notification-keywords` (migration 0842); the push notifier feeds the hits to the decision engine (it had `keyword_hit` hard-coded to false). |
 
-Decisions taken (conservative defaults, please confirm):
-- Safety settings ride on the privacy object instead of a new route, as the web agent asked.
-- Defaults: friends `show`, others `blur`, servers `show`.
-- Burst cap of 3 per member per message for everyone; no Patron allowance yet.
-- Reaction roles and the starboard ignore burst reactions.
-- Keywords: at most 50 per user, 100 characters each, whole-word match (the existing `matches_keyword`).
+Other H items in my area from `answers-followups-p13.md`: H-05, H-06, H-07, H-08, H-09, H-10 are covered as above (H-05 and H-06
+partly, see the notes). H-11 to H-13 (2FA gate order, request dispatch, thread gate test) build on `feat/p13-mfa-protect` and are not in
+this base; H-14 to H-27 are other areas.
 
 ## Part B: backend half of the settings, admin and server inventories
 
@@ -53,7 +51,7 @@ counts through `?with_counts=true` (LNG-SSET-009, `settings/server/sections/Over
 
 ## Still open, with reasons
 
-- Web wiring of everything above except the Overview card: the USET-012/013/015 panels, the burst picker, the emoji popout Join,
+- Web wiring of everything above except the Overview card: the USET-012/013/015 panels, the emoji popout Join,
   keyword list, Admin Entrance editor, the account and Person drawers (sessions, servers, notes, link/unlink, freeze), the Servers
   page (ADM-COM-002), the Setup checklist (ADM-DASH-003) and the member drawer's audit history (LNG-SSET-030). The routes, OpenAPI
   schema, generated client and MSW handlers are in place; these boxes stay unticked because they are `[FE]` items.
@@ -67,14 +65,14 @@ counts through `?with_counts=true` (LNG-SSET-009, `settings/server/sections/Over
 - ADM-COM-001 (Directory approvals): the queue and decisions exist; a staff preview of a pending listing server and a category
   manager (the categories are a constant, hiding is the `directory.hidden_categories` feature) are not built.
 - ADM-PLT-005/006, ADM-CNT-003/004: their routes exist or belong to the content agents; not audited further here.
-- The dm_spam_filter has no detector; it is stored only. Sensitive-media `block` and `blur` are client behaviour.
+- Per-viewer sensitive-media handling of attachments (D-230) and `sr_max_upload_bytes` on gateway guild payloads (D-233).
 
 ## Tests run
 
 - `cargo test -p sr-chat`, `-p sr-admin`, `-p sr-review`, `-p sr-api --lib`, `-p sr-api --test lounge` and the route matrix
   (regenerated and reviewed: all new rows are `self`, `other` or `staff`, no `?` left).
 - Postgres (`cargo test -p sr-db -- --include-ignored --test-threads=1` on a scratch database, dropped afterwards): 34 suites green,
-  including the new `p13_settings_admin.rs` (safety prefs, keywords, burst rows, emoji lookup, audit target, entrance copy, link/unlink/
+  including the new `p13_settings_admin.rs` (safety prefs, keywords, emoji lookup, audit target, entrance copy, link/unlink/
   notes/freeze, discord and IP search, sessions/servers/guild list, age confirmation reset) and the manual freeze in `member_invites.rs`.
 - `cargo fmt --check`, `cargo clippy --all-targets -D warnings` on sr-chat, sr-admin, sr-db, sr-api, sr-events, sr-gateway,
   sr-features, sr-auth, sr-review, sr-server.
@@ -84,7 +82,7 @@ counts through `?with_counts=true` (LNG-SSET-009, `settings/server/sections/Over
 
 ## Open owner questions
 
-- Burst cap: 3 per member per message for everyone, or a Patron allowance?
+- Should `sensitive_media` be applied in the REST message object only first, or REST and gateway together?
 - Entrance copy permission: `MANAGE_FEATURES` today; should it be a dedicated bit?
 - Staff server deletion/transfer acts as the owner and is audited; should it also DM the owner?
-- Should `dm_spam_filter` get a real detector (Phase 6) or be dropped from the UI?
+- Where should the server entitlement level for `sr_max_upload_bytes` come from (boost levels are not modelled)?

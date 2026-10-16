@@ -1545,7 +1545,10 @@ async fn safety_prefs_update_partially_and_overrides_gate_server_dms() {
     let f = fx();
     let defaults = f.svc.privacy(u(1)).await.unwrap();
     assert_eq!(defaults.safety.sensitive_media.others, MediaFilter::Blur);
-    assert!(!defaults.safety.dm_spam_filter);
+    assert_eq!(
+        defaults.safety.dm_spam_filter,
+        super::safety::SpamFilter::NonFriends
+    );
 
     let p = f
         .svc
@@ -1553,7 +1556,7 @@ async fn safety_prefs_update_partially_and_overrides_gate_server_dms() {
             u(1),
             PrivacyUpdate {
                 media_friends: Some(MediaFilter::Block),
-                dm_spam_filter: Some(true),
+                dm_spam_filter: Some(super::safety::SpamFilter::All),
                 server_dm_overrides: Some(BTreeMap::from([(70, Some(false)), (71, Some(true))])),
                 ..PrivacyUpdate::default()
             },
@@ -1566,7 +1569,7 @@ async fn safety_prefs_update_partially_and_overrides_gate_server_dms() {
         MediaFilter::Blur,
         "untouched"
     );
-    assert!(p.safety.dm_spam_filter);
+    assert_eq!(p.safety.dm_spam_filter, super::safety::SpamFilter::All);
     assert_eq!(p.safety.server_dm_overrides.len(), 2);
 
     // null removes one override, the rest stays.

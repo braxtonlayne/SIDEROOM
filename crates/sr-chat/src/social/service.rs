@@ -327,7 +327,19 @@ impl<R: SocialRepository> SocialService<R> {
                 .await?;
         }
         let existing = self.repo.find_dm(me, target).await?;
-        let access = dm_access(st, &privacy, shares);
+        let mut access = dm_access(st, &privacy, shares);
+        let spam = full.safety.dm_spam_filter;
+        if existing.is_none() && access != DmAccess::Denied {
+            // D-230: `non_friends` always routes a stranger's first DM to requests; `all` also routes
+            // a friend's; `off` leaves it to the message_requests toggle.
+            let friends = st.mine == Some(RelationshipKind::Friend)
+                && st.theirs == Some(RelationshipKind::Friend);
+            if spam == super::safety::SpamFilter::All
+                || (spam == super::safety::SpamFilter::NonFriends && !friends)
+            {
+                access = DmAccess::Request;
+            }
+        }
         // Friends/blocks decide; an existing conversation stays reachable unless blocked.
         if access == DmAccess::Denied && (existing.is_none() || dm_blocked(st)) {
             return Err(SocialError::DmNotAllowed);

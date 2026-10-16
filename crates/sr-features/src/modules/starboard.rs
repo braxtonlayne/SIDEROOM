@@ -436,7 +436,6 @@ mod tests {
             message_id: MSG,
             user: UserId::new(user),
             emoji: json!({"id": null, "name": "\u{2b50}"}),
-            burst: false,
         }
     }
 
@@ -447,7 +446,6 @@ mod tests {
             message_id: MSG,
             user: UserId::new(user),
             emoji: json!({"id": null, "name": "\u{2b50}"}),
-            burst: false,
         }
     }
 
@@ -538,7 +536,6 @@ mod tests {
                 message_id: MSG,
                 user: UserId::new(2),
                 emoji: json!({"id": null, "name": "\u{1f44d}"}),
-                burst: false,
             },
         )
         .await;
@@ -551,7 +548,6 @@ mod tests {
                 message_id: MSG,
                 user: UserId::new(2),
                 emoji: json!({"id": null, "name": "\u{2b50}"}),
-                burst: false,
             },
         )
         .await;

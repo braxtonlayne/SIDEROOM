@@ -558,7 +558,7 @@ impl FeatureActions for PgFeatureActions {
         let removed = self
             .messages
             .store
-            .remove_reaction(MessageId::new(message), user, &key, false)
+            .remove_reaction(MessageId::new(message), user, &key)
             .await
             .map_err(backend)?;
         if removed {
@@ -577,7 +577,6 @@ impl FeatureActions for PgFeatureActions {
                     message_id: message,
                     user,
                     emoji: key.json(),
-                    burst: false,
                 })
                 .await;
         }

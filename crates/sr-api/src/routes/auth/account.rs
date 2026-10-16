@@ -4,7 +4,7 @@
 use super::{
     common::{AuthRouteError, R, Svc},
     mail,
-    mfa::current_account,
+    mfa::{current_account, reauthenticate},
     register::send_verification,
     sessions::session_id,
     store::AccountState,
@@ -266,14 +266,13 @@ pub async fn age_gate(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Where the account stands on the 18+ age gate.
+/// The stored "18 or older" confirmation (D-230).
 #[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct AgeConfirmationObject {
-    /// `true` after "18 or older", `false` after "younger", `null` when never asked or reset.
-    pub confirmed: Option<bool>,
-    /// When the account confirmed it was 18 or older (RFC 3339); `null` otherwise.
+    /// When the account confirmed it was 18 or older (RFC 3339); `null` when it never did, said
+    /// "younger", or the answer was reset.
     pub confirmed_at: Option<String>,
-    /// How it was confirmed; always `self-declared` (D-032: no ID check).
+    /// How it was confirmed; `self-declared` (D-032: no ID check) while `confirmed_at` is set.
     pub method: Option<String>,
 }
 
@@ -295,22 +294,38 @@ pub async fn get_age_confirmation(
         .filter(|_| account.age_confirmed == Some(true))
         .map(validate::iso8601);
     Ok(Json(AgeConfirmationObject {
-        confirmed: account.age_confirmed,
         method: confirmed_at.as_ref().map(|_| "self-declared".to_owned()),
         confirmed_at,
     }))
 }
 
+/// Body of `DELETE /users/@me/age-confirmation`.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct ResetAgeBody {
+    /// The current password (re-authentication).
+    current_password: String,
+}
+
 /// `DELETE /users/@me/age-confirmation`: forget the answer, so the age gate asks again
-/// ("re-confirm", LNG-USET-015). Restricted content is hidden until the account answers.
+/// ("re-confirm", LNG-USET-015). Needs the current password; restricted content is hidden until
+/// the account answers again.
 #[utoipa::path(
     delete,
     path = "/users/@me/age-confirmation",
-    responses((status = 204, description = "Reset"), (status = 403, body = crate::openapi::ErrorBody)),
+    request_body = ResetAgeBody,
+    responses((status = 204, description = "Reset"), (status = 400, body = crate::openapi::ErrorBody),
+              (status = 403, body = crate::openapi::ErrorBody)),
     security(("session" = []))
 )]
-pub async fn reset_age_confirmation(UserOnly(p): UserOnly, Svc { svc, .. }: Svc) -> R<StatusCode> {
+pub async fn reset_age_confirmation(
+    State(state): State<AppState>,
+    UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
+    Json(body): Json<ResetAgeBody>,
+) -> R<StatusCode> {
     session_id(&p)?;
+    let account = current_account(&svc, p.user_id).await?;
+    reauthenticate(&svc, state.now_secs(), &account, &body.current_password).await?;
     svc.store.reset_age_confirmed(p.user_id).await?;
     svc.notify_user_update(p.user_id, serde_json::json!({ "age_confirmed": null }))
         .await;

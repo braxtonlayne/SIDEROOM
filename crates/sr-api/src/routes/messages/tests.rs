@@ -894,98 +894,42 @@ async fn reaction_limits_and_permissions() {
 }
 
 #[tokio::test]
-async fn burst_reactions_count_separately_and_are_capped() {
+async fn reaction_objects_carry_the_burst_shim_and_ignore_type() {
     let e = env().await;
-    let id = id_of(&e.say("owner", "burst me").await);
+    let id = id_of(&e.say("owner", "shim").await);
     let base = format!("/messages/{id}/reactions/{THUMBS_UP}");
-    let mut ev = e.events();
-
-    // A normal and a burst reaction by one member are two reactions.
-    assert_eq!(
-        e.status(Method::PUT, &format!("{base}/@me"), "bob").await,
-        StatusCode::NO_CONTENT
-    );
+    // `type` is accepted on every reaction route and treated as a normal reaction (D-231).
     assert_eq!(
         e.status(Method::PUT, &format!("{base}/@me?type=1"), "bob")
             .await,
         StatusCode::NO_CONTENT
     );
-    // Same kind twice changes nothing; an unknown type is refused.
-    assert_eq!(
-        e.status(Method::PUT, &format!("{base}/@me?type=1"), "bob")
-            .await,
-        StatusCode::NO_CONTENT
-    );
-    assert_eq!(
-        e.status(Method::PUT, &format!("{base}/@me?type=2"), "bob")
-            .await,
-        StatusCode::BAD_REQUEST
-    );
-    assert!(matches!(
-        next_event(&mut ev).await,
-        DomainEvent::ReactionAdded { burst: false, .. }
-    ));
-    assert!(matches!(
-        next_event(&mut ev).await,
-        DomainEvent::ReactionAdded { burst: true, .. }
-    ));
-
     let (_, one) = e.get(&format!("/messages/{id}"), "bob").await;
     let r = &one["reactions"][0];
-    assert_eq!(r["count"], 2);
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["me"], true);
+    assert_eq!(r["me_burst"], false);
     assert_eq!(
         r["count_details"],
-        serde_json::json!({"burst": 1, "normal": 1})
+        serde_json::json!({"burst": 0, "normal": 1})
+    );
+    assert_eq!(r["burst_colors"], serde_json::json!([]));
+    assert_eq!(
+        e.get(&format!("{base}?type=1"), "bob").await.1,
+        serde_json::json!([])
     );
     assert_eq!(
-        (r["me"].as_bool(), r["me_burst"].as_bool()),
-        (Some(true), Some(true))
+        e.get(&format!("{base}?type=0"), "bob")
+            .await
+            .1
+            .as_array()
+            .map(Vec::len),
+        Some(1)
     );
-    let (_, other) = e.get(&format!("/messages/{id}"), "owner").await;
-    assert_eq!(
-        (
-            other["reactions"][0]["me"].as_bool(),
-            other["reactions"][0]["me_burst"].as_bool()
-        ),
-        (Some(false), Some(false))
-    );
-
-    // Listing and removing are per kind.
-    let (_, burst_users) = e.get(&format!("{base}?type=1"), "bob").await;
-    assert_eq!(burst_users.as_array().map(Vec::len), Some(1));
     assert_eq!(
         e.status(Method::DELETE, &format!("{base}/@me?type=1"), "bob")
             .await,
         StatusCode::NO_CONTENT
-    );
-    assert_eq!(
-        e.status(Method::DELETE, &format!("{base}/@me?type=1"), "bob")
-            .await,
-        StatusCode::NOT_FOUND
-    );
-    let (_, one) = e.get(&format!("/messages/{id}"), "bob").await;
-    assert_eq!(one["reactions"][0]["count"], 1, "the normal reaction stays");
-
-    // At most three bursts per member on one message.
-    for em in ["e01:1001", "e02:1002", "e03:1003"] {
-        assert_eq!(
-            e.status(
-                Method::PUT,
-                &format!("/messages/{id}/reactions/{em}/@me?type=1"),
-                "bob"
-            )
-            .await,
-            StatusCode::NO_CONTENT
-        );
-    }
-    assert_eq!(
-        e.status(
-            Method::PUT,
-            &format!("/messages/{id}/reactions/e04:1004/@me?type=1"),
-            "bob"
-        )
-        .await,
-        StatusCode::BAD_REQUEST
     );
 }
 

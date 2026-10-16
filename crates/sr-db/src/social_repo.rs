@@ -23,7 +23,7 @@ use sr_chat::social::repo::{
     ProfileRepository, ReadStateRepository, RelationshipRepository, RepoResult,
     UserSettingsRepository,
 };
-use sr_chat::social::safety::{MediaFilter, SafetyPrefs, SensitiveMedia};
+use sr_chat::social::safety::{MediaFilter, SafetyPrefs, SensitiveMedia, SpamFilter};
 use sr_chat::social::user_settings::UserSettings;
 use sr_core::{ChannelId, GuildId, MessageId, UserId};
 use std::collections::BTreeMap;
@@ -348,7 +348,8 @@ impl RelationshipRepository for PgSocialRepo {
                     others: media_filter(&r, "media_others")?,
                     servers: media_filter(&r, "media_servers")?,
                 },
-                dm_spam_filter: r.try_get("dm_spam_filter").map_err(db)?,
+                dm_spam_filter: SpamFilter::from_code(r.try_get("dm_spam_filter").map_err(db)?)
+                    .ok_or_else(|| bad("dm_spam_filter"))?,
                 server_dm_overrides: overrides_from_json(
                     &r.try_get::<serde_json::Value, _>("server_dm_overrides")
                         .map_err(db)?,
@@ -377,7 +378,7 @@ impl RelationshipRepository for PgSocialRepo {
         .bind(p.safety.sensitive_media.friends.code())
         .bind(p.safety.sensitive_media.others.code())
         .bind(p.safety.sensitive_media.servers.code())
-        .bind(p.safety.dm_spam_filter)
+        .bind(p.safety.dm_spam_filter.code())
         .bind(overrides_to_json(&p.safety.server_dm_overrides))
         .execute(&self.pool)
         .await

@@ -305,7 +305,7 @@ async fn roles_and_reactions() {
     for user in [5, 6, 7] {
         f.messages
             .store
-            .add_reaction(f.general, m, UserId::new(user), &star, false, 1)
+            .add_reaction(f.general, m, UserId::new(user), &star, 1)
             .await
             .unwrap();
     }
@@ -465,11 +465,10 @@ async fn starboard_and_welcome_run_through_the_runtime() {
         message_id: m.get(),
         user: UserId::new(user),
         emoji: json!({"id": null, "name": "\u{2b50}"}),
-        burst: false,
     };
     f.messages
         .store
-        .add_reaction(f.general, m, UserId::new(6), &star, false, 1)
+        .add_reaction(f.general, m, UserId::new(6), &star, 1)
         .await
         .unwrap();
     rt.dispatch(&react(6)).await;
@@ -488,7 +487,7 @@ async fn starboard_and_welcome_run_through_the_runtime() {
     );
     f.messages
         .store
-        .add_reaction(f.general, m, UserId::new(7), &star, false, 1)
+        .add_reaction(f.general, m, UserId::new(7), &star, 1)
         .await
         .unwrap();
     rt.dispatch(&react(7)).await;
@@ -499,7 +498,7 @@ async fn starboard_and_welcome_run_through_the_runtime() {
     // The author's own star does not count; a third real star updates the same post.
     f.messages
         .store
-        .add_reaction(f.general, m, UserId::new(5), &star, false, 1)
+        .add_reaction(f.general, m, UserId::new(5), &star, 1)
         .await
         .unwrap();
     rt.dispatch(&react(5)).await;

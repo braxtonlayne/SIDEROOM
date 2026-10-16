@@ -1485,15 +1485,14 @@ async fn age_confirmation_can_be_read_and_reset() {
     };
     let r = get().await;
     assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
-    assert_eq!(r.body["confirmed"], Value::Null);
     assert_eq!(r.body["confirmed_at"], Value::Null);
+    assert_eq!(r.body["method"], Value::Null);
 
     h.post("/api/v1/sr/age-gate", json!({"over_18": true}))
         .session(&s)
         .send()
         .await;
     let r = get().await;
-    assert_eq!(r.body["confirmed"], true);
     assert_eq!(r.body["method"], "self-declared");
     assert!(
         r.body["confirmed_at"]
@@ -1501,7 +1500,7 @@ async fn age_confirmation_can_be_read_and_reset() {
             .is_some_and(|t| t.ends_with('Z'))
     );
 
-    // Signed-out callers are refused; resetting asks again.
+    // Signed-out callers are refused; resetting needs the password and then asks again.
     assert_eq!(
         h.get("/api/v1/users/@me/age-confirmation")
             .send()
@@ -1509,25 +1508,24 @@ async fn age_confirmation_can_be_read_and_reset() {
             .status,
         StatusCode::UNAUTHORIZED
     );
-    let r = h
-        .call(Method::DELETE, "/api/v1/users/@me/age-confirmation")
-        .session(&s)
-        .send()
-        .await;
-    assert_eq!(r.status, StatusCode::NO_CONTENT);
+    let reset = |pw: &str| {
+        h.call(Method::DELETE, "/api/v1/users/@me/age-confirmation")
+            .json(json!({ "current_password": pw }))
+            .session(&s)
+            .send()
+    };
+    assert_ne!(reset("wrong password").await.status, StatusCode::NO_CONTENT);
+    assert_eq!(h.account(1).age_confirmed, Some(true));
+    assert_eq!(reset(PW).await.status, StatusCode::NO_CONTENT);
     assert_eq!(h.account(1).age_confirmed, None);
-    assert_eq!(get().await.body["confirmed"], Value::Null);
+    assert_eq!(get().await.body["confirmed_at"], Value::Null);
 
-    // A "younger" answer is reported as false without a time.
+    // A "younger" answer carries no time.
     h.post("/api/v1/sr/age-gate", json!({"over_18": false}))
         .session(&s)
         .send()
         .await;
-    let r = get().await;
-    assert_eq!(
-        (r.body["confirmed"].as_bool(), &r.body["confirmed_at"]),
-        (Some(false), &Value::Null)
-    );
+    assert_eq!(get().await.body["confirmed_at"], Value::Null);
 }
 
 #[tokio::test]

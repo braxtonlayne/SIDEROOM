@@ -226,7 +226,7 @@ pub fn router() -> Router<AppState> {
         .route("/sr/entrance/copy", get(entrance::get_copy))
         .route(
             "/admin/entrance/copy/{key}",
-            axum::routing::put(entrance::put_copy),
+            axum::routing::put(entrance::put_copy).delete(entrance::delete_copy),
         )
         .route("/admin/alerts", get(announce::alerts))
         .route("/admin/alerts/{alert_id}/ack", post(announce::ack))
@@ -280,6 +280,7 @@ pub fn router() -> Router<AppState> {
         people::transfer_ownership,
         people::delete_guild,
         entrance::put_copy,
+        entrance::delete_copy,
         announce::alerts,
         announce::ack,
         announce::card_action,

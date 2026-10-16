@@ -691,7 +691,6 @@ async fn rest_message_family_is_dispatched_with_payloads() {
             message_id: 5,
             user: u(2),
             emoji: json!({"id": null, "name": "x"}),
-            burst: false,
         },
     )
     .await;

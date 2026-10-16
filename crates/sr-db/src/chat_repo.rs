@@ -1367,18 +1367,16 @@ impl MessageStore for PgMessageStore {
         message: MessageId,
         user: UserId,
         emoji: &EmojiKey,
-        burst: bool,
         now_ms: i64,
     ) -> StoreResult<bool> {
         let res = sqlx::query(
-            "INSERT INTO reactions (message_id, emoji_key, user_id, burst, created_at) \
-             VALUES ($1, $2, $3, $4, to_timestamp($5::double precision / 1000.0)) \
+            "INSERT INTO reactions (message_id, emoji_key, user_id, created_at) \
+             VALUES ($1, $2, $3, to_timestamp($4::double precision / 1000.0)) \
              ON CONFLICT DO NOTHING",
         )
         .bind(i(message.get()))
         .bind(emoji.key())
         .bind(i(user.get()))
-        .bind(burst)
         .bind(now_ms)
         .execute(&self.pool)
         .await
@@ -1391,16 +1389,13 @@ impl MessageStore for PgMessageStore {
         message: MessageId,
         user: UserId,
         emoji: &EmojiKey,
-        burst: bool,
     ) -> StoreResult<bool> {
         let res = sqlx::query(
-            "DELETE FROM reactions WHERE message_id = $1 AND emoji_key = $2 AND user_id = $3 \
-             AND burst = $4",
+            "DELETE FROM reactions WHERE message_id = $1 AND emoji_key = $2 AND user_id = $3",
         )
         .bind(i(message.get()))
         .bind(emoji.key())
         .bind(i(user.get()))
-        .bind(burst)
         .execute(&self.pool)
         .await
         .map_err(sdb)?;
@@ -1433,11 +1428,7 @@ impl MessageStore for PgMessageStore {
     ) -> StoreResult<HashMap<MessageId, Vec<ReactionSummary>>> {
         let ids: Vec<i64> = messages.iter().map(|m| i(m.get())).collect();
         let rows = sqlx::query(
-            "SELECT message_id, emoji_key, \
-                    count(*) FILTER (WHERE NOT burst) AS n, \
-                    count(*) FILTER (WHERE burst) AS nb, \
-                    coalesce(bool_or(user_id = $2) FILTER (WHERE NOT burst), false) AS me, \
-                    coalesce(bool_or(user_id = $2) FILTER (WHERE burst), false) AS me_burst \
+            "SELECT message_id, emoji_key, count(*) AS n, bool_or(user_id = $2) AS me \
              FROM reactions WHERE message_id = ANY($1) \
              GROUP BY message_id, emoji_key ORDER BY message_id, min(created_at), emoji_key",
         )
@@ -1454,13 +1445,10 @@ impl MessageStore for PgMessageStore {
             };
             let mid = MessageId::new(u(r.try_get("message_id").map_err(sdb)?));
             let n: i64 = r.try_get("n").map_err(sdb)?;
-            let nb: i64 = r.try_get("nb").map_err(sdb)?;
             out.entry(mid).or_default().push(ReactionSummary {
                 emoji,
                 count: u32::try_from(n).unwrap_or(u32::MAX),
-                burst_count: u32::try_from(nb).unwrap_or(u32::MAX),
                 me: r.try_get("me").map_err(sdb)?,
-                me_burst: r.try_get("me_burst").map_err(sdb)?,
             });
         }
         Ok(out)
@@ -1470,19 +1458,17 @@ impl MessageStore for PgMessageStore {
         &self,
         message: MessageId,
         emoji: &EmojiKey,
-        burst: bool,
         after: Option<UserId>,
         limit: usize,
     ) -> StoreResult<Vec<UserId>> {
         let rows: Vec<i64> = sqlx::query_scalar(
             "SELECT user_id FROM reactions WHERE message_id = $1 AND emoji_key = $2 \
-             AND burst = $5 AND ($3::bigint IS NULL OR user_id > $3) ORDER BY user_id LIMIT $4",
+             AND ($3::bigint IS NULL OR user_id > $3) ORDER BY user_id LIMIT $4",
         )
         .bind(i(message.get()))
         .bind(emoji.key())
         .bind(after.map(|u| i(u.get())))
         .bind(i64::try_from(limit).unwrap_or(i64::MAX))
-        .bind(burst)
         .fetch_all(&self.pool)
         .await
         .map_err(sdb)?;

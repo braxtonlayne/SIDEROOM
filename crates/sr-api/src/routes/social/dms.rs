@@ -30,15 +30,21 @@ use sr_storage::media::MediaKind;
 pub async fn list(
     p: Principal,
     Ext(deps): Ext<SocialDeps>,
+    MaybeExt(messages): MaybeExt<crate::routes::messages::MessagesDeps>,
 ) -> MsgResult<Json<Vec<DmChannelObject>>> {
     let me = actor(&p)?;
     let dms = deps.service.list_dms(me).await?;
+    let limit = match &messages {
+        Some(m) => Some(m.effective_upload_limit(me).await),
+        None => None,
+    };
     let users = deps
         .summaries(dms.iter().flat_map(|d| d.recipients.iter().copied()))
         .await?;
     let mut out = Vec::with_capacity(dms.len());
     for dm in &dms {
         let mut obj = DmChannelObject::new(dm, me, &users);
+        obj.sr_max_upload_bytes = limit;
         if deps.service.request_state(me, dm.id).await? == Some(RequestState::Pending) {
             obj.is_message_request = Some(true);
         }

@@ -24,10 +24,10 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 
 ## Content & Social
 - [ ] **LNG-USET-012** [FE] Sensitive media filters (DMs from friends / others / servers: show, blur, block)
-   - p13 backend half built: `sensitive_media {friends, others, servers}` (show/blur/block) on `GET/PATCH /users/@me/privacy` (`sr-chat social/safety.rs`, migration 0840, test `safety_settings_round_trip_and_validate`). The filter is a client display preference; the server stores it. The settings UI is not wired yet.
+   - p13 backend half built (D-230): `sensitive_media {friends, others, servers}` (show/blur/block) on `GET/PATCH /users//privacy` (`sr-chat social/safety.rs`, migration 0840). Stored and returned; the per-viewer attachment handling (spoiler flag, `sr_filtered`) is not applied by the message pipeline yet. The settings UI is not wired.
    - Needs a server: no media scanning or per-source filter setting exists. The page says so.
 - [ ] **LNG-USET-013** [FE] DM spam filter, message requests toggle, allow DMs from server members (default + per server)
-   - p13 backend half built: `dm_spam_filter` and `server_dm_overrides` on `/users/@me/privacy`. The per-server override is enforced when a DM is opened (`SocialService::open_dm`, test `safety_prefs_update_partially_and_overrides_gate_server_dms`); the spam filter is stored, no detector reads it yet.
+   - p13 backend half built (D-230): `dm_spam_filter` (`off`, `non_friends` default, `all`) and `server_dm_overrides` on `/users//privacy`, both enforced when a DM is opened (`SocialService::open_dm`, tests `safety_prefs_update_partially_and_overrides_gate_server_dms`, `safety_settings_round_trip_and_validate`). Server tightening (D-224) is not wired.
    - Built: message requests and allow DMs from server members on `/users/@me/privacy`. Not built, needs server fields: the DM spam filter and a per-server DM override.
 - [x] **LNG-USET-014** [FE] Friend request sources (Everyone, Friends of Friends, Server Members) (Everyone / Friends of friends / Server members)
 - [ ] **LNG-USET-015** [FE] Age-restricted content (shows confirmation state, re-confirm flow)

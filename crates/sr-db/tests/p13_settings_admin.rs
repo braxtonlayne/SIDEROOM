@@ -1,5 +1,5 @@
 //! DB-backed tests of the phase-13 settings and admin backend: safety preferences, keywords,
-//! burst reactions, emoji lookup, audit target filter, entrance copy, staff people and server
+//! emoji lookup, audit target filter, entrance copy, staff people and server
 //! views, the invite freeze and the age-confirmation reset. Run with a scratch Postgres:
 //! `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-db --test p13_settings_admin -- --ignored --test-threads=1`
 
@@ -10,17 +10,17 @@ use std::sync::{
 
 use sr_admin::{AccessKind, AdminError, AuditEntry, StaffExtrasRepository};
 use sr_auth::store::AuthStore;
-use sr_chat::repo::{EmojiKey, MessageStore};
+
 use sr_chat::settings::audit::{AuditAction, AuditEntry as GuildAudit, AuditQuery};
 use sr_chat::settings::expressions::Emoji;
 use sr_chat::settings::repo::{AuditRepository, ExpressionRepository};
 use sr_chat::social::repo::{RelationshipRepository, UserSettingsRepository};
 use sr_chat::social::safety::MediaFilter;
-use sr_chat::{ChatLimits, ChatService, SendMessage};
+use sr_chat::{ChatLimits, ChatService};
 use sr_core::{Clock, EmojiId, GuildId, SnowflakeGenerator, SystemClock, UserId};
 use sr_db::auth_repo::PgAuthRepo;
 use sr_db::auth_store::PgAuthStore;
-use sr_db::chat_repo::{PgChatRepo, PgMessageStore};
+use sr_db::chat_repo::PgChatRepo;
 use sr_db::settings_repo::PgSettingsRepo;
 use sr_db::social_repo::PgSocialRepo;
 use sr_db::{
@@ -125,7 +125,7 @@ async fn safety_preferences_and_keywords_round_trip() {
 
     let mut p = p;
     p.safety.sensitive_media.friends = MediaFilter::Block;
-    p.safety.dm_spam_filter = true;
+    p.safety.dm_spam_filter = sr_chat::social::safety::SpamFilter::All;
     p.safety.server_dm_overrides.insert(70, false);
     p.safety.server_dm_overrides.insert(71, true);
     repo.put_privacy(user, &p).await.unwrap();
@@ -144,104 +144,6 @@ async fn safety_preferences_and_keywords_round_trip() {
     repo.put_notification_keywords(user, &[]).await.unwrap();
     assert!(
         repo.get_notification_keywords(user)
-            .await
-            .unwrap()
-            .is_empty()
-    );
-}
-
-#[tokio::test]
-#[ignore = "needs SR_TEST_DATABASE_URL"]
-async fn burst_reactions_are_separate_rows_with_their_own_counts() {
-    let pool = pool().await;
-    let svc = chat(&pool);
-    let store = PgMessageStore::new(pool.clone());
-    let owner = UserId::new(account(&pool).await as u64);
-    let other = UserId::new(account(&pool).await as u64);
-    let bp = svc.create_guild(owner, "Burst Club").await.unwrap();
-    let general = bp.channels[2].id;
-    let m = svc
-        .send_message(
-            owner,
-            general,
-            SendMessage {
-                content: "react".into(),
-                ..Default::default()
-            },
-        )
-        .await
-        .unwrap();
-    let thumbs = EmojiKey::parse("\u{1F44D}").unwrap();
-    let now = SystemClock.now_unix_ms();
-
-    assert!(
-        store
-            .add_reaction(general, m.id, owner, &thumbs, false, now)
-            .await
-            .unwrap()
-    );
-    assert!(
-        store
-            .add_reaction(general, m.id, owner, &thumbs, true, now)
-            .await
-            .unwrap()
-    );
-    assert!(
-        store
-            .add_reaction(general, m.id, other, &thumbs, true, now)
-            .await
-            .unwrap()
-    );
-    assert!(
-        !store
-            .add_reaction(general, m.id, other, &thumbs, true, now)
-            .await
-            .unwrap(),
-        "a repeat of the same kind is a no-op"
-    );
-
-    let r = &store.reactions_for(&[m.id], owner).await.unwrap()[&m.id][0];
-    assert_eq!((r.count, r.burst_count), (1, 2));
-    assert!(r.me && r.me_burst);
-    let r = &store.reactions_for(&[m.id], other).await.unwrap()[&m.id][0];
-    assert!(!r.me && r.me_burst);
-
-    assert_eq!(
-        store
-            .reaction_users(m.id, &thumbs, true, None, 10)
-            .await
-            .unwrap()
-            .len(),
-        2
-    );
-    assert_eq!(
-        store
-            .reaction_users(m.id, &thumbs, false, None, 10)
-            .await
-            .unwrap(),
-        vec![owner]
-    );
-
-    assert!(
-        store
-            .remove_reaction(m.id, owner, &thumbs, true)
-            .await
-            .unwrap()
-    );
-    assert!(
-        !store
-            .remove_reaction(m.id, owner, &thumbs, true)
-            .await
-            .unwrap()
-    );
-    let r = &store.reactions_for(&[m.id], owner).await.unwrap()[&m.id][0];
-    assert_eq!((r.count, r.burst_count), (1, 1));
-
-    // Clearing an emoji removes both kinds.
-    assert!(store.clear_emoji(m.id, &thumbs).await.unwrap());
-    assert!(
-        store
-            .reactions_for(&[m.id], owner)
             .await
             .unwrap()
             .is_empty()

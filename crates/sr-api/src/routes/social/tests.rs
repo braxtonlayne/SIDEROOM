@@ -510,6 +510,13 @@ async fn one_to_one_dm_open_list_close_and_event() {
 
     let (_, list) = e.get("/users/@me/channels", ALICE).await;
     assert_eq!(list.as_array().unwrap().len(), 1);
+    // D-233: the viewer's effective upload limit travels with the conversation.
+    assert!(
+        list[0]["sr_max_upload_bytes"]
+            .as_u64()
+            .is_some_and(|n| n > 0),
+        "{list}"
+    );
     // Bob sees it as a message request (non-friend first DM, Q112).
     let (_, bob) = e.get("/users/@me/channels", BOB).await;
     assert_eq!(bob[0]["is_message_request"], true);
@@ -1847,14 +1854,14 @@ async fn safety_settings_round_trip_and_validate() {
         v["sensitive_media"],
         json!({"friends": "show", "others": "blur", "servers": "show"})
     );
-    assert_eq!(v["dm_spam_filter"], false);
+    assert_eq!(v["dm_spam_filter"], "non_friends");
     assert_eq!(v["server_dm_overrides"], json!({}));
 
     let (s, v) = e
         .patch(
             "/users/@me/privacy",
             DAVE,
-            json!({"sensitive_media": {"others": "block"}, "dm_spam_filter": true,
+            json!({"sensitive_media": {"others": "block"}, "dm_spam_filter": "all",
                    "server_dm_overrides": {"70": false, "71": true}}),
         )
         .await;
@@ -1877,6 +1884,7 @@ async fn safety_settings_round_trip_and_validate() {
 
     for bad in [
         json!({"sensitive_media": {"friends": "hide"}}),
+        json!({"dm_spam_filter": "some"}),
         json!({"server_dm_overrides": {"abc": true}}),
         json!({"server_dm_overrides": {"0": true}}),
     ] {

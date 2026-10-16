@@ -172,6 +172,9 @@ pub struct DmChannelObject {
     /// Set only on a conversation sitting in the viewer's Message Requests.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_message_request: Option<bool>,
+    /// The largest file the viewer may upload in this conversation, in bytes (D-233).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_max_upload_bytes: Option<u64>,
 }
 
 impl DmChannelObject {
@@ -190,6 +193,7 @@ impl DmChannelObject {
             name: dm.name.clone(),
             icon: dm.icon_key.clone(),
             is_message_request: None,
+            sr_max_upload_bytes: None,
         }
     }
 }

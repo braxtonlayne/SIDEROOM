@@ -297,12 +297,11 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             message_id,
             user,
             emoji,
-            burst,
         } => Dispatch {
             name: "MESSAGE_REACTION_ADD",
             data: json!({
                 "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
-                "guild_id": guild, "emoji": emoji, "burst": burst, "type": u8::from(*burst),
+                "guild_id": guild, "emoji": emoji, "burst": false,
             }),
             channel: Some(*channel),
             audience: None,
@@ -313,12 +312,11 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             message_id,
             user,
             emoji,
-            burst,
         } => Dispatch {
             name: "MESSAGE_REACTION_REMOVE",
             data: json!({
                 "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
-                "guild_id": guild, "emoji": emoji, "burst": burst, "type": u8::from(*burst),
+                "guild_id": guild, "emoji": emoji, "burst": false,
             }),
             channel: Some(*channel),
             audience: None,

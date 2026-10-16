@@ -105,18 +105,17 @@ pub struct PartialEmoji {
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ReactionObject {
     pub emoji: PartialEmoji,
-    /// Normal and burst reactions together (Discord parity).
     pub count: u32,
-    pub count_details: ReactionCountDetails,
-    /// The viewer reacted normally.
     pub me: bool,
-    /// The viewer reacted with a burst.
+    /// Discord parity shim (D-231): burst reactions are not built, so always false.
     pub me_burst: bool,
-    /// Always empty; bursts have no colour effect yet.
+    /// Always `{normal: count, burst: 0}`.
+    pub count_details: ReactionCountDetails,
+    /// Always empty.
     pub burst_colors: Vec<String>,
 }
 
-/// Normal vs burst reaction counts.
+/// Normal vs burst counts; burst is always 0 (D-231).
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ReactionCountDetails {
     pub burst: u32,
@@ -225,13 +224,13 @@ impl MessageObject {
                         id: r.emoji.id.map(|i| i.to_string()),
                         name: r.emoji.name.clone(),
                     },
-                    count: r.count.saturating_add(r.burst_count),
+                    count: r.count,
+                    me: r.me,
+                    me_burst: false,
                     count_details: ReactionCountDetails {
-                        burst: r.burst_count,
+                        burst: 0,
                         normal: r.count,
                     },
-                    me: r.me,
-                    me_burst: r.me_burst,
                     burst_colors: Vec::new(),
                 })
                 .collect(),
@@ -395,15 +394,14 @@ pub struct ListMessagesQuery {
 pub struct ReactionUsersQuery {
     pub limit: Option<u32>,
     pub after: Option<String>,
-    /// 0 normal (default) or 1 burst.
+    /// 0 or 1. Burst reactions are not built (D-231): 1 answers an empty list.
     #[serde(rename = "type")]
     pub kind: Option<u8>,
 }
 
-/// Query of the add and remove reaction routes.
+/// Query of the add and remove reaction routes; `type` is accepted and ignored (D-231).
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
 pub struct ReactionTypeQuery {
-    /// 0 normal (default) or 1 burst.
     #[serde(rename = "type")]
     pub kind: Option<u8>,
 }

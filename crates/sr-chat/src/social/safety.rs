@@ -51,6 +51,54 @@ impl MediaFilter {
     }
 }
 
+/// How strictly first DMs are routed to Message Requests (D-230).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpamFilter {
+    /// Only the `message_requests` toggle decides.
+    Off,
+    /// First DMs from non-friends go to requests (default).
+    #[default]
+    NonFriends,
+    /// Every first DM, friends included, goes to requests.
+    All,
+}
+
+impl SpamFilter {
+    pub const fn code(self) -> i16 {
+        match self {
+            Self::Off => 0,
+            Self::NonFriends => 1,
+            Self::All => 2,
+        }
+    }
+
+    pub const fn from_code(code: i16) -> Option<Self> {
+        Some(match code {
+            0 => Self::Off,
+            1 => Self::NonFriends,
+            2 => Self::All,
+            _ => return None,
+        })
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::NonFriends => "non_friends",
+            Self::All => "all",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "off" => Self::Off,
+            "non_friends" => Self::NonFriends,
+            "all" => Self::All,
+            _ => return None,
+        })
+    }
+}
+
 /// Sensitive-media handling per source (Discord: friends, non-friends, servers).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SensitiveMedia {
@@ -76,9 +124,7 @@ pub const MAX_SERVER_DM_OVERRIDES: usize = 200;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SafetyPrefs {
     pub sensitive_media: SensitiveMedia,
-    /// Flag likely spam from non-friends into Message Requests' spam tab. Stored and shown;
-    /// no detector reads it yet.
-    pub dm_spam_filter: bool,
+    pub dm_spam_filter: SpamFilter,
     /// Per-server override of "allow DMs from server members" (guild id to allowed).
     pub server_dm_overrides: BTreeMap<u64, bool>,
 }

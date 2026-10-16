@@ -8,6 +8,7 @@ DELETE	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
 DELETE	/admin/donations/entitlements/{grant_id}	authenticated	staff	deny	-
+DELETE	/admin/entrance/copy/{key}	authenticated	staff	deny	-
 DELETE	/admin/guilds/{guild_id}	authenticated	staff	deny	-
 DELETE	/admin/invites/{invite_id}	authenticated	staff	deny	-
 DELETE	/admin/jobs/{job_id}	authenticated	staff	deny	-
@@ -253,7 +254,6 @@ GET	/donations/invoices/{invoice_id}	authenticated	other	allow	-
 GET	/donations/leaderboards/contributors/{kind}	authenticated	other	allow	-
 GET	/donations/leaderboards/{board}	authenticated	other	allow	-
 GET	/donations/me	authenticated	other	allow	-
-GET	/emojis/{emoji_id}	authenticated	other	allow	-
 GET	/gateway	public	none	allow	-
 GET	/gateway/bot	authenticated	other	allow	-
 GET	/gifs/categories	authenticated	self	deny	-
@@ -349,6 +349,8 @@ GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	other	allow	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
 GET	/sr/auth/reauth	authenticated	self	deny	-
 GET	/sr/csrf	authenticated	other	allow	-
+GET	/sr/emojis/{emoji_id}	authenticated	other	allow	-
+GET	/sr/emojis/{emoji_id}/url	authenticated	other	allow	-
 GET	/sr/entrance/copy	public	none	deny	-
 GET	/sr/features/flags	authenticated	other	deny	-
 GET	/sr/invites	authenticated	self	deny	-

@@ -86,19 +86,14 @@ async fn reactions_nonces_and_pins_round_trip() {
     let thumbs = EmojiKey::parse("\u{1F44D}").unwrap();
     assert!(
         store
-            .add_reaction(general, m.id, owner, &thumbs, false, clock.now_unix_ms())
+            .add_reaction(general, m.id, owner, &thumbs, clock.now_unix_ms())
             .await
             .unwrap()
     );
     let rows = store.reactions_for(&[m.id], owner).await.unwrap();
     assert_eq!(rows[&m.id][0].count, 1);
     assert!(rows[&m.id][0].me);
-    assert!(
-        store
-            .remove_reaction(m.id, owner, &thumbs, false)
-            .await
-            .unwrap()
-    );
+    assert!(store.remove_reaction(m.id, owner, &thumbs).await.unwrap());
 
     let page = store
         .fetch(

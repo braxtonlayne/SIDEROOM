@@ -211,46 +211,52 @@ Content type: images, video and audio from an allow-list (png, jpeg, gif, webp, 
 
 ### 5.3 Phase 13 additions (settings, reactions, emoji, Entrance copy)
 
-**Safety settings (LNG-USET-012/013).** `GET/PATCH /users/@me/privacy` also carry:
+**Safety settings (LNG-USET-012/013, D-230).** `GET/PATCH /users/@me/privacy` also carry
 `sensitive_media: {friends, others, servers}` (each `show`, `blur` or `block`; defaults `show`, `blur`, `show`),
-`dm_spam_filter: bool` (default false; stored, no detector reads it yet) and
-`server_dm_overrides: {"<guild id>": bool}`. The `PATCH` body takes any subset: `sensitive_media` is a partial object,
-`server_dm_overrides` maps a server id to `true`/`false` (set) or `null` (back to `allow_server_member_dms`), at most 200
-servers; an unknown filter word or a key that is not a snowflake answers 50035. The override is enforced when a DM is
-opened: with `allow_server_member_dms` as the default, the recipient is reachable if at least one shared server allows
-DMs (its override, else the default). The media filters are a client display preference; the server only stores them.
+`dm_spam_filter` (`off`, `non_friends` (default) or `all`) and `server_dm_overrides: {"<guild id>": bool}`. The `PATCH` body takes
+any subset: `sensitive_media` is a partial object, `server_dm_overrides` maps a server id to `true`/`false` (set) or `null` (back to
+`allow_server_member_dms`), at most 200 servers; an unknown word or a key that is not a snowflake answers 50035. Enforced today
+when a DM is opened: `non_friends` sends a stranger's first DM to Message Requests whatever the `message_requests` toggle says,
+`all` also sends a friend's first DM there, `off` leaves it to the toggle; with `allow_server_member_dms` as the default, the
+recipient is reachable if at least one shared server allows DMs (its override, else the default). Server settings may only tighten
+the filter (D-224; not wired yet). The `sensitive_media` values are stored and returned, but the per-viewer attachment handling
+(`blur` as a spoiler flag, `block` as a URL-less attachment with `sr_filtered: true`) is not applied by the message pipeline yet.
 `SR_PRIVACY_UPDATE` carries the same object.
 
 **Age confirmation (LNG-USET-015).** `GET /users/@me/age-confirmation` (session) answers
-`{confirmed: true|false|null, confirmed_at: RFC 3339|null, method: "self-declared"|null}`; `null` means never asked or reset.
-`DELETE /users/@me/age-confirmation` (204) forgets the answer so the age gate asks again (re-confirm); restricted content stays
-hidden until it is answered. Both the reset and `POST /sr/age-gate` send `SR_USER_UPDATE {age_confirmed}` to the account's own
-sessions (`null` after a reset).
+`{confirmed_at: RFC 3339|null, method: "self-declared"|null}`; both are `null` when never confirmed, answered "younger" or reset.
+`DELETE /users/@me/age-confirmation` takes `{current_password}` (re-authentication), answers 204 and forgets the answer so the age
+gate asks again; restricted content stays hidden until it is answered. The reset and `POST /sr/age-gate` send
+`SR_USER_UPDATE {age_confirmed}` to the account's own sessions (`null` after a reset).
 
-**Burst reactions (LNG-EXP-012).** `PUT|DELETE /channels/{id}/messages/{id}/reactions/{emoji}/@me?type=1` (and the
-`/{user_id}` delete, and `GET .../reactions/{emoji}?type=1`) work on burst reactions; `type` is 0 (default) or 1, anything else is
-50035. A member may hold the normal and the burst reaction of one emoji; at most 3 burst reactions per member per message
-(conservative default for everyone; a Patron allowance is an open owner decision). The reaction object is
-`{emoji, count, count_details: {burst, normal}, me, me_burst, burst_colors: []}` where `count` is the sum. `MESSAGE_REACTION_ADD`
-and `MESSAGE_REACTION_REMOVE` carry `burst` and `type`. Reaction roles and the starboard ignore burst reactions.
+**Reaction shim (LNG-EXP-012, D-231).** Burst reactions are not built. Reaction objects carry Discord's fields as constants:
+`me_burst: false`, `count_details: {normal: count, burst: 0}`, `burst_colors: []`; `?type=` (0 or 1) is accepted and ignored on the add,
+remove and remove-user routes, and `GET .../reactions/{emoji}?type=1` answers `[]`. The `MESSAGE_REACTION_*` payloads keep
+`burst: false`.
 
-**Emoji by id (LNG-EXP-011).** `GET /emojis/{emoji_id}` (any signed-in caller) answers
-`{id, name, animated, url, guild}`. `url` is a signed CDN path valid for an hour. `guild` is
-`{id, name, icon, joined, joinable}` when the caller is a member or the owning server is approved and visible in the Server
-Directory (`joinable` then means `POST /directory/{guild_id}/join` works); otherwise `null` and the popout says the emoji is from a
-private server. Emoji marked unavailable are 404 for non-members.
+**Emoji by id (LNG-EXP-011, D-232).** `GET /sr/emojis/{emoji_id}` (any signed-in caller, bots too) answers
+`{id, name, animated, guild}`. `guild` is `{id, name, icon, listing}` when the caller is a member or the owning server is approved
+and visible in the Server Directory (`listing` is the id `POST /directory/{id}/join` takes, `null` for a member's unlisted server);
+otherwise `null` and the popout says the emoji is from a private server. `GET /sr/emojis/{emoji_id}/url?size=&format=` signs the
+image variant for any session (one hour, like the guild route), so custom emoji draw wherever they appear. Unknown id: 404.
+
+**Upload limit (D-233).** `GET /guilds/{id}` carries `sr_max_upload_bytes` and each DM or group channel of
+`GET /users/@me/channels` carries the same field: the largest file the caller may upload there (the entitlement clamped by the size
+policy, the number the 413 check uses). Not yet on `GUILD_CREATE`/`GUILD_UPDATE` (those payloads are not per viewer) and the
+server entitlement level has no source yet, so the value is the member's perk.
 
 **Notification keywords.** `GET/PUT /users/@me/notification-keywords` with `{keywords: string[]}`. At most 50 entries of 100
 characters, each with a letter or digit; entries are trimmed, inner whitespace collapsed, blanks and duplicates (any case) dropped,
 and the cleaned list is returned. A message in a channel the user can see that contains an entry as a whole word or phrase
-(case-insensitive) is pushed like a mention (the Web Push title is "{author} in #{channel}"), unless the server or channel suppresses highlights.
-`SR_NOTIFICATION_KEYWORDS_UPDATE {keywords}` goes to the user's sessions.
+(case-insensitive) is pushed like a mention (the Web Push title is "{author} in #{channel}"), unless the server or channel suppresses
+highlights. `SR_NOTIFICATION_KEYWORDS_UPDATE {keywords}` goes to the user's sessions.
 
-**Entrance copy (ENT-UI-010/025).** `GET /sr/entrance/copy` (public) answers `{ "<key>": "<markdown>" }` for the blocks staff
-overrode; a missing key means the client shows its built-in default. Keys: `no-invitation`, `house-notes`, `landing-headline`,
-`landing-subhead`, `login-notice`. `PUT /admin/entrance/copy/{key}` (staff with `MANAGE_FEATURES`) takes
-`{markdown: string|null, reason?}`: up to 20 000 characters, `null` or blank removes the override (204); an unknown key is 404. The
-change is written to the access log with the key and length, not the text.
+**Entrance copy (ENT-UI-010/025).** `GET /sr/entrance/copy` (public, `ETag`, `Cache-Control: max-age=60`) answers
+`{ "<key>": "<markdown>" }` for the blocks staff overrode; a missing key means the client shows its built-in default. Keys:
+`no-invitation`, `house-notes`, `landing-note`. `PUT /admin/entrance/copy/{key}` (`MANAGE_FEATURES`, fresh second factor) takes
+`{markdown, reason?}` of at most 16 KiB; `DELETE` (or a blank `markdown`) removes the override; an unknown key is 404. The change is
+written to the access log with the key and length, not the text. The server does not parse the markdown; the Entrance renders it with
+the restricted profile.
 
 **Server and staff additions (phase 13).** `GET /guilds/{id}?with_counts=true` adds `approximate_member_count` and, for servers of up
 to 1000 members when a presence source is wired, `approximate_presence_count`. `GET /guilds/{id}/audit-logs` also takes
