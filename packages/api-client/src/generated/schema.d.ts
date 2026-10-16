@@ -9076,6 +9076,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/auth/discord": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /sr/auth/discord`: link status for User Settings. */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/discord/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/discord/link`: start linking a Discord identity to the signed-in account. The
+         *     answer sets the state cookie; the browser then goes to `url` and Discord returns to the
+         *     callback, which sends it back to Settings.
+         */
+        post: operations["link_start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/discord/unlink": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /sr/auth/discord/unlink {password}`: detach the Discord identity from the account. */
+        post: operations["unlink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/auth/email/cancel": {
         parameters: {
             query?: never;
@@ -13913,6 +13968,18 @@ export interface components {
             /** Format: int64 */
             count: number;
             tag: string;
+        };
+        /** @description The authorize URL to send the browser to. */
+        DiscordLinkStart: {
+            /** @description Discord's authorize page, with the state and PKCE challenge of this attempt. */
+            url: string;
+        };
+        /** @description Whether Discord sign-in is configured and whether this account has an identity linked. */
+        DiscordStatus: {
+            /** @description `[discord]` is configured on this server. */
+            enabled: boolean;
+            /** @description The signed-in account has a Discord identity linked. */
+            linked: boolean;
         };
         Discover: {
             /** @description Tonight's feature carousel (display `hero`). */
@@ -19040,6 +19107,11 @@ export interface components {
             accounts_left_deactivated: number;
             /** Format: int64 */
             accounts_reactivated: number;
+        };
+        /** @description Body of the unlink call. */
+        UnlinkBody: {
+            /** @description The account password (re-authentication). */
+            password: string;
         };
         /** @description The Person created by an unlink. */
         UnlinkResult: {
@@ -49832,6 +49904,121 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordStatus"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    link_start: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordLinkStart"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Discord sign-in is not configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unlink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnlinkBody"];
+            };
+        };
+        responses: {
+            /** @description Unlinked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

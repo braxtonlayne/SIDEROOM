@@ -47186,6 +47186,144 @@
         ]
       }
     },
+    "/sr/auth/discord": {
+      "get": {
+        "tags": [],
+        "summary": "`GET /sr/auth/discord`: link status for User Settings.",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscordStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/discord/link": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/discord/link`: start linking a Discord identity to the signed-in account. The\nanswer sets the state cookie; the browser then goes to `url` and Discord returns to the\ncallback, which sends it back to Settings.",
+        "operationId": "link_start",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscordLinkStart"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Discord sign-in is not configured"
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/discord/unlink": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/discord/unlink {password}`: detach the Discord identity from the account.",
+        "operationId": "unlink",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnlinkBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Unlinked"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/auth/email/cancel": {
       "post": {
         "tags": [],
@@ -65003,6 +65141,37 @@
           }
         }
       },
+      "DiscordLinkStart": {
+        "type": "object",
+        "description": "The authorize URL to send the browser to.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Discord's authorize page, with the state and PKCE challenge of this attempt."
+          }
+        }
+      },
+      "DiscordStatus": {
+        "type": "object",
+        "description": "Whether Discord sign-in is configured and whether this account has an identity linked.",
+        "required": [
+          "enabled",
+          "linked"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "`[discord]` is configured on this server."
+          },
+          "linked": {
+            "type": "boolean",
+            "description": "The signed-in account has a Discord identity linked."
+          }
+        }
+      },
       "Discover": {
         "type": "object",
         "required": [
@@ -81661,6 +81830,19 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "UnlinkBody": {
+        "type": "object",
+        "description": "Body of the unlink call.",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "The account password (re-authentication)."
           }
         }
       },
