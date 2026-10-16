@@ -48,7 +48,7 @@ pub struct VoiceConfig {
     pub session_grace: Duration,
     /// Told when a DM call ends, to write the call record. `None`: no record.
     pub calls: Option<Arc<dyn crate::voice_call::CallHooks>>,
-    /// `voice.e2ee`: relay op 101 E2EE_MLS (VOX-E2E-004). Off by default until MLS lands.
+    /// `voice.e2ee`: the MLS delivery service over op 101 E2EE_MLS (VOX-E2E-004). Off by default.
     pub e2ee: bool,
 }
 

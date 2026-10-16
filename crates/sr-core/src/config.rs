@@ -197,8 +197,9 @@ pub struct VoiceConfig {
     /// UDP sockets). `0` picks half the available cores, at most 8; it never exceeds the number
     /// of bound media sockets. `1` is the old single-actor SFU.
     pub shards: usize,
-    /// End-to-end encryption for calls (`voice.e2ee`, D-053): relay op 101 E2EE_MLS. Off by
-    /// default: the MLS key agreement (VOX-E2E-001) is not built yet, so nothing can use it.
+    /// End-to-end encryption for calls (`voice.e2ee`, D-053, D-249): the gateway is the MLS
+    /// delivery service over op 101 E2EE_MLS. Off by default until the media path has run in real
+    /// browsers; use it together with the web build flag `VITE_SR_VOICE_E2EE`.
     pub e2ee: bool,
     pub turn: TurnSection,
 }

@@ -337,7 +337,7 @@ every request; `PATCH /admin/settings` updates them without a restart. Gateway a
 | 20 | STREAM_WATCH | → |
 | 22 | STREAM_SET_PAUSED | → |
 | 31 | REQUEST_SOUNDBOARD_SOUNDS | → |
-| 100+ | SIDE ROOM ops: `100 WATCH_PARTY_SYNC`, `101 E2EE_MLS` (MLS key packages, proposals, commits and welcomes relayed opaquely between the members of a voice channel or call, first commit per epoch wins; server-to-client as the `E2EE_MLS` dispatch; payloads in `crates/sr-gateway/src/voice_e2ee.rs`; off unless `voice.e2ee`), `102 LAZY_REQUEST` (member-list ranges, like Discord's op 14 for user clients) | ↔ |
+| 100+ | SIDE ROOM ops: `100 WATCH_PARTY_SYNC`, `101 E2EE_MLS` (call E2EE delivery service: `hello` answered by `call` with the MLS group id and the server's external-sender key, key packages, proposals, commits and welcomes relayed opaquely between the members of a voice channel or call, first commit per epoch wins, `ready`/`execute` key switch, Remove proposals signed by the server when someone leaves; server-to-client as the `E2EE_MLS` dispatch; payloads in `crates/sr-gateway/src/voice_e2ee.rs`; off unless `voice.e2ee`), `102 LAZY_REQUEST` (member-list ranges, like Discord's op 14 for user clients) | ↔ |
 
 ### 6.2 Intents
 Discord's intent bits, including privileged `GUILD_MEMBERS`, `GUILD_PRESENCES`, and `MESSAGE_CONTENT`. Privileged intents for released apps require approval in the developer portal (like Discord's verification).

@@ -3,7 +3,7 @@ name = "sr-e2ee"
 version = "0.0.0"
 edition.workspace = true
 publish.workspace = true
-description = "Voice/video end-to-end encryption: the per-frame AES-128-GCM transform (codec-aware), sender keys, the epoch key ring, privacy codes and the delivery-service commit sequencer. Pure functions, also compiled to WASM (sr-e2ee-wasm)."
+description = "Voice/video end-to-end encryption: MLS key agreement (openmls), the per-frame AES-128-GCM transform (codec-aware), sender keys, the epoch key ring, privacy codes and the delivery-service commit sequencer. Also compiled to WASM (sr-e2ee-wasm)."
 
 [dependencies]
 # RustCrypto only (docs/03). `aes-gcm` without default features: no getrandom, so the crate
