@@ -168,6 +168,14 @@ pub const CATALOG: &[SettingDef] = &[
         "Bytes a member may upload to submissions per UTC day (default 50 GiB, 0 = unlimited; staff are exempt).",
     ),
     int(
+        "submissions.max_open_per_member",
+        "limits",
+        1,
+        100,
+        5,
+        "Open submissions a member may have at once (staff are exempt, D-082).",
+    ),
+    int(
         "messages.max_length",
         "limits",
         1,

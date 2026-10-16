@@ -37,7 +37,8 @@ async fn block_for(
     let row = sqlx::query(
         "SELECT a.email_verified_at IS NOT NULL AS verified, \
                 (extract(epoch FROM a.created_at))::bigint AS created, \
-                p.suspicion_level AS suspicion \
+                p.suspicion_level AS suspicion, \
+                a.invites_frozen_at IS NOT NULL AS frozen \
          FROM accounts a JOIN persons p ON p.id = a.person_id WHERE a.id = $1",
     )
     .bind(account)
@@ -53,7 +54,7 @@ async fn block_for(
     }
     let freeze = setting_int(conn, "invites.suspicion_freeze_threshold", DEFAULT_FREEZE).await?;
     let suspicion: i16 = row.try_get("suspicion")?;
-    if i64::from(suspicion) >= freeze {
+    if row.try_get::<bool, _>("frozen")? || i64::from(suspicion) >= freeze {
         return Ok(Some(InviteBlock::Frozen));
     }
     let cap = setting_int(conn, "accounts.cap", DEFAULT_CAP).await?;

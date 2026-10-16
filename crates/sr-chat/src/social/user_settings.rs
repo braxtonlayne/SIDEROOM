@@ -10,10 +10,12 @@
 use super::notifications::NotificationLevel;
 use super::relationships::FriendRequestSources;
 use super::repo::SocialRepository;
+use super::safety::{MAX_SERVER_DM_OVERRIDES, MediaFilter, SpamFilter};
 use super::service::SocialService;
 use super::{SocialError, SocialResult};
 use serde_json::{Map, Value};
 use sr_core::UserId;
+use std::collections::BTreeMap;
 
 /// Largest synced blob, serialised.
 pub const MAX_SETTINGS_BYTES: usize = 64 * 1024;
@@ -118,13 +120,53 @@ pub fn check_blob(v: &Value) -> SocialResult<()> {
 }
 
 /// Partial update of the privacy settings; `None` leaves a field alone.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PrivacyUpdate {
     pub friend_everyone: Option<bool>,
     pub friend_of_friends: Option<bool>,
     pub friend_server_members: Option<bool>,
     pub allow_server_member_dms: Option<bool>,
     pub message_requests: Option<bool>,
+    pub media_friends: Option<MediaFilter>,
+    pub media_others: Option<MediaFilter>,
+    pub media_servers: Option<MediaFilter>,
+    pub dm_spam_filter: Option<SpamFilter>,
+    /// Guild id to override: `Some(allowed)` sets, `None` removes.
+    pub server_dm_overrides: Option<BTreeMap<u64, Option<bool>>>,
+}
+
+/// Most highlight keywords per user.
+pub const MAX_KEYWORDS: usize = 50;
+/// Longest keyword or phrase, in characters.
+pub const MAX_KEYWORD_CHARS: usize = 100;
+
+/// Clean up a keyword list; see [`SocialService::set_notification_keywords`].
+pub fn normalize_keywords(raw: &[String]) -> SocialResult<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    for k in raw {
+        let k = k.split_whitespace().collect::<Vec<_>>().join(" ");
+        if k.is_empty() || out.iter().any(|o| o.to_lowercase() == k.to_lowercase()) {
+            continue;
+        }
+        if k.chars().count() > MAX_KEYWORD_CHARS || !k.chars().any(char::is_alphanumeric) {
+            return Err(SocialError::invalid(
+                "keywords",
+                "BASE_TYPE_BAD_LENGTH",
+                format!(
+                    "each keyword needs a letter or digit and at most {MAX_KEYWORD_CHARS} characters"
+                ),
+            ));
+        }
+        out.push(k);
+    }
+    if out.len() > MAX_KEYWORDS {
+        return Err(SocialError::invalid(
+            "keywords",
+            "BASE_TYPE_MAX_LENGTH",
+            format!("at most {MAX_KEYWORDS} keywords"),
+        ));
+    }
+    Ok(out)
 }
 
 impl<R: SocialRepository> SocialService<R> {
@@ -180,6 +222,23 @@ impl<R: SocialRepository> SocialService<R> {
             .await?)
     }
 
+    /// The user's highlight keywords (empty by default).
+    pub async fn notification_keywords(&self, user: UserId) -> SocialResult<Vec<String>> {
+        Ok(self.repo().get_notification_keywords(user).await?)
+    }
+
+    /// Replace the keyword list: trimmed, whitespace collapsed, blank and duplicate (any case)
+    /// entries dropped. Returns what was stored.
+    pub async fn set_notification_keywords(
+        &self,
+        user: UserId,
+        raw: &[String],
+    ) -> SocialResult<Vec<String>> {
+        let clean = normalize_keywords(raw)?;
+        self.repo().put_notification_keywords(user, &clean).await?;
+        Ok(clean)
+    }
+
     /// Who may send friend requests and DMs.
     pub async fn privacy(&self, user: UserId) -> SocialResult<super::repo::Privacy> {
         Ok(self.repo().get_privacy(user).await?)
@@ -202,6 +261,36 @@ impl<R: SocialRepository> SocialService<R> {
         }
         if let Some(v) = up.message_requests {
             p.dms.message_requests = v;
+        }
+        let s = &mut p.safety;
+        if let Some(v) = up.media_friends {
+            s.sensitive_media.friends = v;
+        }
+        if let Some(v) = up.media_others {
+            s.sensitive_media.others = v;
+        }
+        if let Some(v) = up.media_servers {
+            s.sensitive_media.servers = v;
+        }
+        if let Some(v) = up.dm_spam_filter {
+            s.dm_spam_filter = v;
+        }
+        for (guild, change) in up.server_dm_overrides.iter().flatten() {
+            match change {
+                Some(allowed) => {
+                    s.server_dm_overrides.insert(*guild, *allowed);
+                }
+                None => {
+                    s.server_dm_overrides.remove(guild);
+                }
+            }
+        }
+        if s.server_dm_overrides.len() > MAX_SERVER_DM_OVERRIDES {
+            return Err(SocialError::invalid(
+                "server_dm_overrides",
+                "BASE_TYPE_MAX_LENGTH",
+                format!("at most {MAX_SERVER_DM_OVERRIDES} servers"),
+            ));
         }
         self.repo().put_privacy(user, &p).await?;
         Ok(p)

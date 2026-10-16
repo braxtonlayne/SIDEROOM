@@ -7,8 +7,9 @@ use crate::{
     chain,
     error::{AdminError, AdminResult},
     ext::{
-        Announcement, Delegation, NewAnnouncement, NewOffer, OfferState, PrivateChannel,
-        PrivateEdit, PrivateMessage, StaffAlertRow, StaffExtrasRepository, StaffOffer,
+        AdminGuild, AdminGuildRef, AdminSession, Announcement, Delegation, NewAnnouncement,
+        NewOffer, OfferState, PrivateChannel, PrivateEdit, PrivateMessage, StaffAlertRow,
+        StaffExtrasRepository, StaffOffer, SuspicionEvent,
     },
     model::{
         AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountRef, AccountState,
@@ -34,6 +35,7 @@ struct Acct {
     sessions: u64,
     mfa: bool,
     password_reset_forced: bool,
+    invites_frozen: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +68,9 @@ struct State {
     delegations: Vec<Delegation>,
     offers: Vec<StaffOffer>,
     announcements: Vec<Announcement>,
+    suspicion_events: Vec<(i64, SuspicionEvent)>,
+    guilds: Vec<AdminGuild>,
+    entrance_copy: std::collections::BTreeMap<String, String>,
     alerts: Vec<StaffAlertRow>,
     private_channels: Vec<PrivateChannel>,
     private_messages: Vec<(i64, PrivateMessage)>,
@@ -200,6 +205,25 @@ impl MemoryAdminRepo {
     }
 
     /// Add an account (and its Person); returns the account id. `person` reuses a Person.
+    /// Seed a server for the platform-wide list.
+    pub fn add_guild(&self, id: i64, name: &str, owner_id: i64, members: i64) {
+        let now = self.now();
+        let mut s = self.s();
+        let owner_username = s.acct(owner_id).map(|a| a.s.username.clone());
+        s.guilds.push(AdminGuild {
+            id,
+            name: name.to_owned(),
+            owner_id,
+            owner_username,
+            member_count: members,
+            channel_count: 3,
+            created_at_ms: now,
+            is_staff_guild: false,
+            deleted: false,
+            community_enabled: false,
+        });
+    }
+
     pub fn add_account(
         &self,
         id: i64,
@@ -229,6 +253,7 @@ impl MemoryAdminRepo {
             sessions: 2,
             mfa: true,
             password_reset_forced: false,
+            invites_frozen: false,
         });
         id
     }
@@ -577,6 +602,7 @@ impl AdminRepository for MemoryAdminRepo {
                 .iter()
                 .any(|b| b.person_id == a.s.person_id && b.lifted_at_ms.is_none()),
             recent_logins: vec![],
+            invites_frozen: a.invites_frozen,
         }))
     }
 
@@ -1446,6 +1472,198 @@ impl StaffExtrasRepository for MemoryAdminRepo {
         let out = a.clone();
         audit_in(&mut s, now, audit);
         Ok(out)
+    }
+
+    async fn account_sessions(&self, _account_id: i64) -> AdminResult<Vec<AdminSession>> {
+        Ok(Vec::new())
+    }
+
+    async fn account_guilds(&self, _account_id: i64) -> AdminResult<Vec<AdminGuildRef>> {
+        Ok(Vec::new())
+    }
+
+    async fn set_invites_frozen(
+        &self,
+        account_id: i64,
+        frozen: bool,
+        audit: &AuditEntry,
+    ) -> AdminResult<()> {
+        let now = self.now();
+        let mut s = self.s();
+        let a = s
+            .accounts
+            .iter_mut()
+            .find(|a| a.s.id == account_id)
+            .ok_or(AdminError::NotFound("account"))?;
+        a.invites_frozen = frozen;
+        audit_in(&mut s, now, audit);
+        Ok(())
+    }
+
+    async fn set_person_notes(
+        &self,
+        person_id: i64,
+        notes: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<()> {
+        let now = self.now();
+        let mut s = self.s();
+        s.persons
+            .get_mut(&person_id)
+            .ok_or(AdminError::NotFound("person"))?
+            .0 = notes.to_owned();
+        audit_in(&mut s, now, audit);
+        Ok(())
+    }
+
+    async fn link_account(
+        &self,
+        person_id: i64,
+        account_id: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<i64> {
+        let now = self.now();
+        let mut s = self.s();
+        if !s.persons.contains_key(&person_id) {
+            return Err(AdminError::NotFound("person"));
+        }
+        let old = s
+            .acct(account_id)
+            .ok_or(AdminError::NotFound("account"))?
+            .s
+            .person_id;
+        if old == person_id {
+            return Err(AdminError::Conflict(
+                "the account already belongs to this Person".into(),
+            ));
+        }
+        let banned = |s: &State, p: i64| {
+            s.bans
+                .iter()
+                .any(|b| b.person_id == p && b.lifted_at_ms.is_none())
+        };
+        if banned(&s, old) || banned(&s, person_id) {
+            return Err(AdminError::Conflict("lift the ban first".into()));
+        }
+        if let Some(a) = s.accounts.iter_mut().find(|a| a.s.id == account_id) {
+            a.s.person_id = person_id;
+        }
+        if !s.accounts.iter().any(|a| a.s.person_id == old) {
+            let (old_notes, old_level) = s.persons.remove(&old).unwrap_or_default();
+            if let Some(t) = s.persons.get_mut(&person_id) {
+                t.1 = t.1.max(old_level);
+                if !old_notes.is_empty() {
+                    if !t.0.is_empty() {
+                        t.0.push_str(
+                            "
+
+",
+                        );
+                    }
+                    t.0.push_str(&old_notes);
+                }
+            }
+        }
+        audit_in(&mut s, now, audit);
+        Ok(old)
+    }
+
+    async fn unlink_account(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<i64> {
+        let now = self.now();
+        let mut s = self.s();
+        let old = s
+            .acct(account_id)
+            .ok_or(AdminError::NotFound("account"))?
+            .s
+            .person_id;
+        if s.accounts.iter().filter(|a| a.s.person_id == old).count() < 2 {
+            return Err(AdminError::Conflict(
+                "this is the only account of its Person".into(),
+            ));
+        }
+        if s.bans
+            .iter()
+            .any(|b| b.person_id == old && b.lifted_at_ms.is_none())
+        {
+            return Err(AdminError::Conflict("lift the ban first".into()));
+        }
+        let new_person_id = s.id();
+        s.persons.insert(new_person_id, (String::new(), 0));
+        if let Some(a) = s.accounts.iter_mut().find(|a| a.s.id == account_id) {
+            a.s.person_id = new_person_id;
+        }
+        audit_in(&mut s, now, audit);
+        Ok(new_person_id)
+    }
+
+    async fn suspicion_log(&self, person_id: i64, limit: i64) -> AdminResult<Vec<SuspicionEvent>> {
+        let s = self.s();
+        Ok(s.suspicion_events
+            .iter()
+            .rev()
+            .filter(|(p, _)| *p == person_id)
+            .take(usize::try_from(limit).unwrap_or(0))
+            .map(|(_, e)| e.clone())
+            .collect())
+    }
+
+    async fn search_guilds(
+        &self,
+        q: Option<&str>,
+        after: Option<i64>,
+        limit: i64,
+    ) -> AdminResult<Vec<AdminGuild>> {
+        let s = self.s();
+        let needle = q.map(str::to_lowercase);
+        let mut v: Vec<AdminGuild> = s
+            .guilds
+            .iter()
+            .filter(|g| after.is_none_or(|a| g.id > a))
+            .filter(|g| {
+                needle.as_ref().is_none_or(|n| {
+                    g.name.to_lowercase().contains(n.as_str()) || g.id.to_string() == *n
+                })
+            })
+            .cloned()
+            .collect();
+        v.sort_by_key(|g| g.id);
+        v.truncate(usize::try_from(limit).unwrap_or(0));
+        Ok(v)
+    }
+
+    async fn get_guild(&self, id: i64) -> AdminResult<Option<AdminGuild>> {
+        Ok(self.s().guilds.iter().find(|g| g.id == id).cloned())
+    }
+
+    async fn record_guild_action(&self, audit: &AuditEntry) -> AdminResult<()> {
+        let now = self.now();
+        audit_in(&mut self.s(), now, audit);
+        Ok(())
+    }
+
+    async fn entrance_copy(&self) -> AdminResult<std::collections::BTreeMap<String, String>> {
+        Ok(self.s().entrance_copy.clone())
+    }
+
+    async fn set_entrance_copy(
+        &self,
+        key: &str,
+        markdown: Option<&str>,
+        _by: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<()> {
+        let now = self.now();
+        let mut s = self.s();
+        match markdown {
+            Some(m) => {
+                s.entrance_copy.insert(key.to_owned(), m.to_owned());
+            }
+            None => {
+                s.entrance_copy.remove(key);
+            }
+        }
+        audit_in(&mut s, now, audit);
+        Ok(())
     }
 
     async fn get_announcement(&self, id: i64) -> AdminResult<Announcement> {

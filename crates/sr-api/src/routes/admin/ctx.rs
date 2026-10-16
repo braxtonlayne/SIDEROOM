@@ -24,6 +24,16 @@ use utoipa::ToSchema;
 /// Header that may carry the reason of a body-less request.
 pub const REASON_HEADER: &str = "x-audit-log-reason";
 
+/// Whether an optional integration is set up. Never carries a secret.
+#[derive(Debug, Clone, serde::Serialize, ToSchema)]
+pub struct IntegrationStatus {
+    /// `smtp`, `discord_oauth`, `voice`, `turn`, `gif`, `push` or `connections`.
+    pub id: String,
+    pub configured: bool,
+    /// A short non-secret note, such as the SMTP host.
+    pub detail: Option<String>,
+}
+
 /// Collaborators of the admin endpoints.
 pub struct AdminDeps {
     pub service: AdminService,
@@ -31,6 +41,8 @@ pub struct AdminDeps {
     pub gateway_sessions: Option<Arc<dyn Fn() -> usize + Send + Sync>>,
     /// Live voice counts (rooms, egress bytes) when the SFU runs in this process.
     pub voice_stats: Option<Arc<dyn Fn() -> (u64, u64) + Send + Sync>>,
+    /// Which optional integrations the operator configured (the Setup checklist).
+    pub integrations: Vec<IntegrationStatus>,
     /// Sensitive actions need a second factor checked within the last 15 minutes
     /// (ADM-STF-009). Off by default so tests and development need no authenticator.
     pub require_reauth: bool,
@@ -43,6 +55,7 @@ impl AdminDeps {
             features: None,
             gateway_sessions: None,
             voice_stats: None,
+            integrations: Vec::new(),
             require_reauth: false,
         }
     }
@@ -63,6 +76,12 @@ impl AdminDeps {
     /// Source of the live voice room count and egress bytes for the dashboard.
     pub fn with_voice_stats(mut self, f: Arc<dyn Fn() -> (u64, u64) + Send + Sync>) -> Self {
         self.voice_stats = Some(f);
+        self
+    }
+
+    /// The configured-or-not state of each optional integration, for the Setup checklist.
+    pub fn with_integrations(mut self, v: Vec<IntegrationStatus>) -> Self {
+        self.integrations = v;
         self
     }
 
@@ -87,6 +106,18 @@ pub struct StaffCtx {
 impl StaffCtx {
     pub fn svc(&self) -> &AdminService {
         &self.deps.service
+    }
+
+    /// Send a test message to the caller's own address through the configured mailer; returns the
+    /// masked address. Needs the account service.
+    pub async fn send_test_mail(&self) -> Result<String, HttpError> {
+        let auth = self
+            .auth
+            .as_ref()
+            .ok_or_else(|| HttpError::from(ErrorCode::SrInternal))?;
+        auth.send_operator_test_mail(self.caller.user_id)
+            .await
+            .map_err(auth_err)
     }
 
     pub fn now_secs(&self) -> i64 {

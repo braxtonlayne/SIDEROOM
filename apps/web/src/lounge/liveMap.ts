@@ -25,12 +25,13 @@ import { canOpenSettingsFromBits } from '../settings/server/permissions';
 import type * as S from '../store/types';
 import type { PermEngine } from './permEngine';
 
-const SNOWFLAKE_EPOCH_MS = 1420070400000n;
+/** SIDEROOM_EPOCH_MS in sr-core snowflake.rs (2026-01-01T00:00:00Z), not Discord's 2015 epoch. */
+export const SIDEROOM_EPOCH_MS = 1_767_225_600_000n;
 
 /** Creation time encoded in a snowflake, as ISO text; '' when the id is not a snowflake. */
 export function snowflakeTime(id: string | null | undefined): string {
   if (!id || !/^\d+$/.test(id)) return '';
-  return new Date(Number((BigInt(id) >> 22n) + SNOWFLAKE_EPOCH_MS)).toISOString();
+  return new Date(Number((BigInt(id) >> 22n) + SIDEROOM_EPOCH_MS)).toISOString();
 }
 
 /** Discord permission bits used by the Lounge (sr-core permissions.rs). */

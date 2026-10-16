@@ -55,6 +55,8 @@ pub struct AccountRecord {
     pub state: AccountState,
     /// Answer to the age gate, if asked (doc 06 section 7).
     pub age_confirmed: Option<bool>,
+    /// When the age gate was answered "18 or older" (Unix seconds); `None` otherwise.
+    pub age_confirmed_at: Option<i64>,
     /// BCP 47 locale (`en-US` by default).
     pub locale: String,
     /// Public account flags (Discord `flags`; 0 for none).
@@ -285,6 +287,8 @@ pub trait AuthStore: Send + Sync {
     async fn mark_email_verified(&self, id: i64) -> StoreResult<()>;
     /// Record the age-gate answer (doc 06 section 7).
     async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()>;
+    /// Forget the age-gate answer (asked again later); `age_confirmed` and its time go back to unset.
+    async fn reset_age_confirmed(&self, id: i64) -> StoreResult<()>;
     /// Set the account's BCP 47 locale (already normalised); mails, push text and system DMs follow it.
     async fn set_locale(&self, id: i64, locale: &str) -> StoreResult<()>;
 

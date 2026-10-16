@@ -8,6 +8,8 @@ DELETE	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
 DELETE	/admin/donations/entitlements/{grant_id}	authenticated	staff	deny	-
+DELETE	/admin/entrance/copy/{key}	authenticated	staff	deny	-
+DELETE	/admin/guilds/{guild_id}	authenticated	staff	deny	-
 DELETE	/admin/invites/{invite_id}	authenticated	staff	deny	-
 DELETE	/admin/jobs/{job_id}	authenticated	staff	deny	-
 DELETE	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
@@ -87,6 +89,7 @@ DELETE	/sr/invites/{code}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
 DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-
+DELETE	/users/@me/age-confirmation	authenticated	self	deny	-
 DELETE	/users/@me/birthday	authenticated	self	deny	-
 DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
 DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
@@ -108,8 +111,10 @@ GET	/admin/access-log/verify	authenticated	staff	deny	-
 GET	/admin/accounts	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
+GET	/admin/accounts/{account_id}/guilds	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-descendants	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-tree	authenticated	staff	deny	-
+GET	/admin/accounts/{account_id}/sessions	authenticated	staff	deny	-
 GET	/admin/alerts	authenticated	staff	deny	-
 GET	/admin/announcements	authenticated	staff	deny	-
 GET	/admin/bans	authenticated	staff	deny	-
@@ -133,6 +138,8 @@ GET	/admin/donations/rates	authenticated	staff	deny	-
 GET	/admin/donations/report	authenticated	staff	deny	-
 GET	/admin/donations/status	authenticated	staff	deny	-
 GET	/admin/features	authenticated	staff	deny	-
+GET	/admin/guilds	authenticated	staff	deny	-
+GET	/admin/guilds/{guild_id}	authenticated	staff	deny	-
 GET	/admin/invites	authenticated	staff	deny	-
 GET	/admin/jobs	authenticated	staff	deny	-
 GET	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
@@ -144,6 +151,7 @@ GET	/admin/library/series/{series_id}/chapters	authenticated	staff	deny	-
 GET	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-
 GET	/admin/me	authenticated	staff	deny	-
 GET	/admin/persons/{person_id}	authenticated	staff	deny	-
+GET	/admin/persons/{person_id}/suspicion-log	authenticated	staff	deny	-
 GET	/admin/private/accounts/{account_id}/dms	authenticated	staff	deny	-
 GET	/admin/private/channels/{channel_id}/messages	authenticated	staff	deny	-
 GET	/admin/private/guilds/{guild_id}/channels	authenticated	staff	deny	-
@@ -354,6 +362,9 @@ GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	other	allow	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
 GET	/sr/auth/reauth	authenticated	self	deny	-
 GET	/sr/csrf	authenticated	other	allow	-
+GET	/sr/emojis/{emoji_id}	authenticated	other	allow	-
+GET	/sr/emojis/{emoji_id}/url	authenticated	other	allow	-
+GET	/sr/entrance/copy	public	none	deny	-
 GET	/sr/features/flags	authenticated	other	deny	-
 GET	/sr/invites	authenticated	self	deny	-
 GET	/sr/profile-catalog	authenticated	other	deny	-
@@ -382,6 +393,7 @@ GET	/tv/channels/{channel_id}/tune	authenticated	membership	allow	-
 GET	/tv/guide	authenticated	other	allow	-
 GET	/tv/timezones	authenticated	other	allow	-
 GET	/users/@me	authenticated	self	allow	identify
+GET	/users/@me/age-confirmation	authenticated	self	deny	-
 GET	/users/@me/birthday	authenticated	self	deny	-
 GET	/users/@me/bookmarks	authenticated	self	deny	-
 GET	/users/@me/channels	authenticated	self	allow	-
@@ -395,6 +407,7 @@ GET	/users/@me/ignores	authenticated	self	deny	-
 GET	/users/@me/mentions	authenticated	self	deny	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
 GET	/users/@me/notification-defaults	authenticated	self	deny	-
+GET	/users/@me/notification-keywords	authenticated	self	deny	-
 GET	/users/@me/presence	authenticated	self	allow	-
 GET	/users/@me/primary-guild	authenticated	self	deny	-
 GET	/users/@me/privacy	authenticated	self	deny	-
@@ -477,9 +490,12 @@ POST	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/delete-request	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/force-logout	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/force-password-reset	authenticated	staff	deny	-
+POST	/admin/accounts/{account_id}/freeze-invites	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/rename	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/reset-2fa	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/suspend	authenticated	staff	deny	-
+POST	/admin/accounts/{account_id}/unfreeze-invites	authenticated	staff	deny	-
+POST	/admin/accounts/{account_id}/unlink	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/unsuspend	authenticated	staff	deny	-
 POST	/admin/alerts/{alert_id}/ack	authenticated	staff	deny	-
 POST	/admin/announcements	authenticated	staff	deny	-
@@ -509,6 +525,7 @@ POST	/admin/donations/entitlements	authenticated	staff	deny	-
 POST	/admin/donations/invoices/{invoice_id}/resolve	authenticated	staff	deny	-
 POST	/admin/donations/leaderboard/hide	authenticated	staff	deny	-
 POST	/admin/donations/wallet/test	authenticated	staff	deny	-
+POST	/admin/guilds/{guild_id}/transfer-ownership	authenticated	staff	deny	-
 POST	/admin/jobs/{job_id}/retry	authenticated	staff	deny	-
 POST	/admin/library/chapters/{chapter_id}/publish	authenticated	staff	deny	-
 POST	/admin/library/chapters/{chapter_id}/unpublish	authenticated	staff	deny	-
@@ -525,6 +542,7 @@ POST	/admin/library/series/{series_id}/unpublish	authenticated	staff	deny	-
 POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/ban	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/clear-suspicion	authenticated	staff	deny	-
+POST	/admin/persons/{person_id}/link	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/unban	authenticated	staff	deny	-
 POST	/admin/reauth	authenticated	staff	deny	-
 POST	/admin/review/requests/{request_id}/decline	authenticated	staff	deny	-
@@ -539,6 +557,7 @@ POST	/admin/review/submissions/{submission_id}/request-changes	authenticated	sta
 POST	/admin/review/submissions/{submission_id}/revoke-credits	authenticated	staff	deny	-
 POST	/admin/staff	authenticated	staff	deny	-
 POST	/admin/staff/offers	authenticated	staff	deny	-
+POST	/admin/system/email-test	authenticated	staff	deny	-
 POST	/admin/transcode/jobs/{job_id}/cancel	authenticated	staff	deny	-
 POST	/admin/transcode/jobs/{job_id}/retry	authenticated	staff	deny	-
 POST	/admin/transcode/retranscode	authenticated	staff	deny	-
@@ -689,10 +708,12 @@ PUT	/admin/cinema/titles/{title_id}/markers	authenticated	staff	deny	-
 PUT	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
 PUT	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
 PUT	/admin/donations/wallet	authenticated	staff	deny	-
+PUT	/admin/entrance/copy/{key}	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
 PUT	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
 PUT	/admin/library/series/{series_id}	authenticated	staff	deny	-
+PUT	/admin/persons/{person_id}/notes	authenticated	staff	deny	-
 PUT	/admin/review/submissions/{submission_id}/items/{item_id}	authenticated	staff	deny	-
 PUT	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-
 PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-
@@ -753,6 +774,7 @@ PUT	/users/@me/connections/link	authenticated	self	deny	-
 PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-
 PUT	/users/@me/ignores/{user_id}	authenticated	self	deny	-
 PUT	/users/@me/notes/{user_id}	authenticated	self	deny	-
+PUT	/users/@me/notification-keywords	authenticated	self	deny	-
 PUT	/users/@me/primary-guild	authenticated	self	deny	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	other	allow	-

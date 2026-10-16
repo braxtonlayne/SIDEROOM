@@ -156,6 +156,8 @@ pub fn router() -> Router<AppState> {
         model::AttachmentObject,
         model::PartialEmoji,
         model::ReactionObject,
+        model::ReactionCountDetails,
+        model::ReactionTypeQuery,
         model::MessageReferenceObject,
         model::CreateMessageBody,
         model::MessageReferenceIn,

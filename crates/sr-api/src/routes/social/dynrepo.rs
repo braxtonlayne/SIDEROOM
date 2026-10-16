@@ -321,4 +321,10 @@ impl UserSettingsRepository for DynRepo {
     ) -> RepoResult<()> {
         self.0.put_default_notification_level(user, level).await
     }
+    async fn get_notification_keywords(&self, user: UserId) -> RepoResult<Vec<String>> {
+        self.0.get_notification_keywords(user).await
+    }
+    async fn put_notification_keywords(&self, user: UserId, keywords: &[String]) -> RepoResult<()> {
+        self.0.put_notification_keywords(user, keywords).await
+    }
 }

@@ -420,6 +420,15 @@ pub struct GuildObject {
     /// Server Protection (D-224): a link whose text names another host is shown as its raw
     /// target with a warning. Visible to every member; set in `/sr/community`.
     pub hide_suspicious_links: bool,
+    /// Only with `?with_counts=true` on `GET /guilds/{id}` (Discord shape).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_member_count: Option<u64>,
+    /// Members visibly online; only with `with_counts`, and only for servers of up to 1000 members.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_presence_count: Option<u64>,
+    /// The largest file the caller may upload here, in bytes (D-233). Only on `GET /guilds/{id}`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_max_upload_bytes: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roles: Option<Vec<RoleObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -454,6 +463,9 @@ impl GuildObject {
             public_updates_channel_id: g.public_updates_channel_id.map(|c| c.to_string()),
             safety_alerts_channel_id: g.safety_alerts_channel_id.map(|c| c.to_string()),
             hide_suspicious_links: g.hide_suspicious_links,
+            approximate_member_count: None,
+            approximate_presence_count: None,
+            sr_max_upload_bytes: None,
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
         }

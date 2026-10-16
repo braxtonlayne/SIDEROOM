@@ -894,6 +894,46 @@ async fn reaction_limits_and_permissions() {
 }
 
 #[tokio::test]
+async fn reaction_objects_carry_the_burst_shim_and_ignore_type() {
+    let e = env().await;
+    let id = id_of(&e.say("owner", "shim").await);
+    let base = format!("/messages/{id}/reactions/{THUMBS_UP}");
+    // `type` is accepted on every reaction route and treated as a normal reaction (D-231).
+    assert_eq!(
+        e.status(Method::PUT, &format!("{base}/@me?type=1"), "bob")
+            .await,
+        StatusCode::NO_CONTENT
+    );
+    let (_, one) = e.get(&format!("/messages/{id}"), "bob").await;
+    let r = &one["reactions"][0];
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["me"], true);
+    assert_eq!(r["me_burst"], false);
+    assert_eq!(
+        r["count_details"],
+        serde_json::json!({"burst": 0, "normal": 1})
+    );
+    assert_eq!(r["burst_colors"], serde_json::json!([]));
+    assert_eq!(
+        e.get(&format!("{base}?type=1"), "bob").await.1,
+        serde_json::json!([])
+    );
+    assert_eq!(
+        e.get(&format!("{base}?type=0"), "bob")
+            .await
+            .1
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &format!("{base}/@me?type=1"), "bob")
+            .await,
+        StatusCode::NO_CONTENT
+    );
+}
+
+#[tokio::test]
 async fn pins_flow() {
     let e = env().await;
     let id = id_of(&e.say("bob", "pin me").await);

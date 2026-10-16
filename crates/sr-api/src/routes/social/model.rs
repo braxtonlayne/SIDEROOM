@@ -176,6 +176,9 @@ pub struct DmChannelObject {
     /// settings sent the conversation there (D-224). SIDE ROOM extension.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sr_request_reason: Option<String>,
+    /// The largest file the viewer may upload in this conversation, in bytes (D-233).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_max_upload_bytes: Option<u64>,
 }
 
 impl DmChannelObject {
@@ -195,6 +198,7 @@ impl DmChannelObject {
             icon: dm.icon_key.clone(),
             is_message_request: None,
             sr_request_reason: None,
+            sr_max_upload_bytes: None,
         }
     }
 }

@@ -21,6 +21,10 @@ pub struct SearchParams {
     /// `active`, `deactivated`, `deleted` or `platform_banned`.
     pub state: Option<String>,
     pub person_id: Option<String>,
+    /// Accounts linked to this Discord user id.
+    pub discord_id: Option<String>,
+    /// Accounts that signed in from this IP address (the lookup is logged).
+    pub ip: Option<String>,
     /// Cursor: the `next_after` of the previous page.
     pub after: Option<String>,
     /// 1 to 100, default 50.
@@ -34,6 +38,8 @@ pub struct SearchParams {
         ("q" = Option<String>, Query, description = "Username, display name, email fragment or exact id"),
         ("state" = Option<String>, Query, description = "active, deactivated, deleted, platform_banned"),
         ("person_id" = Option<String>, Query, description = "Only accounts of this Person"),
+        ("discord_id" = Option<String>, Query, description = "Accounts linked to this Discord user id"),
+        ("ip" = Option<String>, Query, description = "Accounts that signed in from this IP address"),
         ("after" = Option<String>, Query, description = "Cursor"),
         ("limit" = Option<i64>, Query, description = "1-100, default 50"),
     ),
@@ -55,6 +61,8 @@ pub async fn search(ctx: StaffCtx, Query(p): Query<SearchParams>) -> ApiResult<J
         q: p.q,
         state,
         person_id: p.person_id.as_deref().map(id).transpose()?,
+        discord_id: p.discord_id,
+        ip: p.ip,
         after: p.after.as_deref().map(id).transpose()?,
         limit: 0,
     };

@@ -56,7 +56,8 @@ struct Env {
     guild: GuildId,
     ch: ChannelId,
     voice: ChannelId,
-    /// What the feature modules act on (with `Opts::features`).
+    /// The Server Directory listings behind `GET /emojis/{id}`.
+    directory: Arc<sr_chat::settings::directory::MemoryDirectory>,
     actions: Arc<sr_features::testing::FakeActions>,
 }
 
@@ -208,6 +209,7 @@ async fn env_with(opts: Opts) -> Env {
         1,
     )
     .unwrap();
+    let directory = Arc::new(sr_chat::settings::directory::MemoryDirectory::default());
     let mut builder = AppState::builder()
         .bots(bots)
         .sessions(sessions.clone())
@@ -222,6 +224,9 @@ async fn env_with(opts: Opts) -> Env {
         .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
             storage.clone(),
             sr_storage::cdn::CdnSigner::new(b"emoji-url-test-secret-0123456789".to_vec()),
+        )))
+        .extension(Arc::new(crate::routes::directory::DirectoryDeps::new(
+            directory.clone(),
         )));
     if let Some(v) = opts.voice {
         builder = builder.extension(Arc::new(crate::routes::voice::VoiceApi(v)));
@@ -241,7 +246,12 @@ async fn env_with(opts: Opts) -> Env {
         builder = builder.extension(Arc::new(gf));
     }
     let state = builder.build();
-    let app = build_router(state, router().merge(messages::router()));
+    let app = build_router(
+        state,
+        router()
+            .merge(messages::router())
+            .merge(crate::routes::directory::router()),
+    );
     Env {
         app,
         backend,
@@ -255,6 +265,7 @@ async fn env_with(opts: Opts) -> Env {
         guild,
         ch,
         voice,
+        directory,
         actions,
     }
 }
@@ -2968,3 +2979,106 @@ async fn nobody_creates_or_redeems_invites_to_the_staff_server() {
 
 #[path = "features_tests.rs"]
 mod features_tests;
+
+#[tokio::test]
+async fn emoji_popout_and_url_work_for_non_members_and_name_only_listed_servers() {
+    use sr_chat::settings::directory::{DirectoryEntry, DirectoryRepository, DirectoryStatus};
+    use sr_chat::settings::repo::CommunityRepository;
+    let e = env().await;
+    let (_, emoji) = e
+        .post(
+            &e.g("/emojis"),
+            "mod",
+            json!({"name": "party", "image": png_uri(8)}),
+        )
+        .await;
+    let id = emoji["id"].as_str().unwrap().to_owned();
+    let path = format!("/sr/emojis/{id}");
+
+    // Anyone signed in may draw it; a private server stays unnamed to outsiders.
+    let (s, v) = e.get(&path, "carol").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(
+        (v["name"].as_str(), v["animated"].as_bool()),
+        (Some("party"), Some(false))
+    );
+    assert!(v["guild"].is_null(), "{v}");
+    let (s, u) = e.get(&format!("{path}/url?size=64"), "carol").await;
+    assert_eq!(s, StatusCode::OK, "{u}");
+    assert!(u["url"].as_str().unwrap().starts_with("/cdn/emoji/"));
+    assert_eq!(
+        e.get(&format!("{path}/url?size=100"), "carol").await.0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // Members see the server (not a Directory listing).
+    let (_, v) = e.get(&path, "bob").await;
+    assert_eq!(v["guild"]["id"], e.guild.to_string());
+    assert!(v["guild"]["listing"].is_null());
+
+    // An approved Directory listing of a Community server names it for everyone.
+    let mut c = e.repo.get_community(e.guild).await.unwrap();
+    c.community_enabled = true;
+    e.repo.put_community(&c).await.unwrap();
+    e.directory
+        .put_listing(&DirectoryEntry {
+            guild_id: e.guild,
+            status: DirectoryStatus::Approved,
+            category: "gaming".into(),
+            description: String::new(),
+            featured: false,
+            requested_by: UserId::new(OWNER),
+            requested_at_ms: T0,
+            decided_by: None,
+            decided_at_ms: None,
+            decision_note: None,
+        })
+        .await
+        .unwrap();
+    let (_, v) = e.get(&path, "carol").await;
+    assert_eq!(v["guild"]["id"], e.guild.to_string(), "{v}");
+    assert_eq!(v["guild"]["listing"], e.guild.to_string());
+
+    assert_eq!(
+        e.get("/sr/emojis/12345", "bob").await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        e.get("/sr/emojis/abc", "bob").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test]
+async fn audit_log_can_be_filtered_by_target() {
+    let e = env().await;
+    let mut ids = Vec::new();
+    for name in ["alpha", "beta"] {
+        let (s, emoji) = e
+            .post(
+                &e.g("/emojis"),
+                "mod",
+                json!({"name": name, "image": png_uri(8)}),
+            )
+            .await;
+        assert_eq!(s, StatusCode::CREATED, "{emoji}");
+        ids.push(emoji["id"].as_str().unwrap().to_owned());
+    }
+    let (_, all) = e.get(&e.g("/audit-logs"), "owner").await;
+    assert!(all["audit_log_entries"].as_array().unwrap().len() >= 2);
+
+    let (s, only) = e
+        .get(&e.g(&format!("/audit-logs?target_id={}", ids[0])), "owner")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{only}");
+    let entries = only["audit_log_entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1, "{only}");
+    assert_eq!(entries[0]["target_id"], ids[0].as_str());
+
+    let (_, none) = e.get(&e.g("/audit-logs?target_id=12345"), "owner").await;
+    assert!(none["audit_log_entries"].as_array().unwrap().is_empty());
+    assert_eq!(
+        e.get(&e.g("/audit-logs?target_id=abc"), "owner").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}

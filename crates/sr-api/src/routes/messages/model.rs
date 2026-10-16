@@ -107,6 +107,19 @@ pub struct ReactionObject {
     pub emoji: PartialEmoji,
     pub count: u32,
     pub me: bool,
+    /// Discord parity shim (D-231): burst reactions are not built, so always false.
+    pub me_burst: bool,
+    /// Always `{normal: count, burst: 0}`.
+    pub count_details: ReactionCountDetails,
+    /// Always empty.
+    pub burst_colors: Vec<String>,
+}
+
+/// Normal vs burst counts; burst is always 0 (D-231).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ReactionCountDetails {
+    pub burst: u32,
+    pub normal: u32,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -213,6 +226,12 @@ impl MessageObject {
                     },
                     count: r.count,
                     me: r.me,
+                    me_burst: false,
+                    count_details: ReactionCountDetails {
+                        burst: 0,
+                        normal: r.count,
+                    },
+                    burst_colors: Vec::new(),
                 })
                 .collect(),
             nonce,
@@ -375,6 +394,16 @@ pub struct ListMessagesQuery {
 pub struct ReactionUsersQuery {
     pub limit: Option<u32>,
     pub after: Option<String>,
+    /// 0 or 1. Burst reactions are not built (D-231): 1 answers an empty list.
+    #[serde(rename = "type")]
+    pub kind: Option<u8>,
+}
+
+/// Query of the add and remove reaction routes; `type` is accepted and ignored (D-231).
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+pub struct ReactionTypeQuery {
+    #[serde(rename = "type")]
+    pub kind: Option<u8>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]

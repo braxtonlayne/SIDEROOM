@@ -247,6 +247,7 @@ impl AuthStore for MemoryAuthStore {
                 password_hash: tx.password_hash,
                 state: AccountState::Active,
                 age_confirmed: None,
+                age_confirmed_at: None,
                 locale: "en-US".into(),
                 flags: 0,
             },
@@ -315,9 +316,18 @@ impl AuthStore for MemoryAuthStore {
         Ok(())
     }
 
-    async fn set_age_confirmed(&self, id: i64, confirmed: bool, _now: i64) -> StoreResult<()> {
+    async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()> {
         if let Some(a) = self.lock().accounts.get_mut(&id) {
             a.age_confirmed = Some(confirmed);
+            a.age_confirmed_at = confirmed.then_some(a.age_confirmed_at.unwrap_or(now));
+        }
+        Ok(())
+    }
+
+    async fn reset_age_confirmed(&self, id: i64) -> StoreResult<()> {
+        if let Some(a) = self.lock().accounts.get_mut(&id) {
+            a.age_confirmed = None;
+            a.age_confirmed_at = None;
         }
         Ok(())
     }

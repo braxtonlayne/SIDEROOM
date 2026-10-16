@@ -5,9 +5,10 @@
 use async_trait::async_trait;
 use sqlx::{PgConnection, Row, postgres::PgRow};
 use sr_admin::{
-    AccountRef, AdminError, AdminResult, Announcement, AnnouncementPatch, AnnouncementSeverity,
-    AuditEntry, NewAnnouncement, NewOffer, OfferState, PrivateChannel, PrivateEdit, PrivateMessage,
-    StaffAlertRow, StaffExtrasRepository, StaffOffer,
+    AccountRef, AdminError, AdminGuild, AdminGuildRef, AdminResult, AdminSession, Announcement,
+    AnnouncementPatch, AnnouncementSeverity, AuditEntry, NewAnnouncement, NewOffer, OfferState,
+    PrivateChannel, PrivateEdit, PrivateMessage, StaffAlertRow, StaffExtrasRepository, StaffOffer,
+    SuspicionEvent,
 };
 
 use crate::admin_repo::{PgAdminRepo, db, is_unique, ms};
@@ -344,6 +345,373 @@ impl StaffExtrasRepository for PgAdminRepo {
         announcement_from(&r).map_err(db)
     }
 
+    async fn account_sessions(&self, account_id: i64) -> AdminResult<Vec<AdminSession>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT id, host(ip) AS ip, user_agent, device_label, {} AS created_ms, \
+                    {} AS seen_ms, {} AS expires_ms \
+             FROM sessions WHERE account_id = $1 AND revoked_at IS NULL AND expires_at > now() \
+             ORDER BY last_seen_at DESC LIMIT 100",
+            ms("created_at"),
+            ms("last_seen_at"),
+            ms("expires_at")
+        )))
+        .bind(account_id)
+        .fetch_all(self.pool())
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(AdminSession {
+                    id: r.try_get("id")?,
+                    ip: r.try_get("ip")?,
+                    user_agent: r.try_get("user_agent")?,
+                    device_label: r.try_get("device_label")?,
+                    created_at_ms: r.try_get("created_ms")?,
+                    last_seen_at_ms: r.try_get("seen_ms")?,
+                    expires_at_ms: r.try_get("expires_ms")?,
+                })
+            })
+            .collect::<Result<_, sqlx::Error>>()
+            .map_err(db)
+    }
+
+    async fn account_guilds(&self, account_id: i64) -> AdminResult<Vec<AdminGuildRef>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT g.id, g.name, g.owner_id = m.user_id AS owner, {} AS joined_ms, \
+                    (SELECT count(*) FROM guild_members c WHERE c.guild_id = g.id) AS members \
+             FROM guild_members m JOIN guilds g ON g.id = m.guild_id \
+             WHERE m.user_id = $1 AND g.deleted_at IS NULL ORDER BY g.id",
+            ms("m.joined_at")
+        )))
+        .bind(account_id)
+        .fetch_all(self.pool())
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(AdminGuildRef {
+                    id: r.try_get("id")?,
+                    name: r.try_get("name")?,
+                    owner: r.try_get("owner")?,
+                    joined_at_ms: r.try_get("joined_ms")?,
+                    member_count: r.try_get("members")?,
+                })
+            })
+            .collect::<Result<_, sqlx::Error>>()
+            .map_err(db)
+    }
+
+    async fn set_invites_frozen(
+        &self,
+        account_id: i64,
+        frozen: bool,
+        audit: &AuditEntry,
+    ) -> AdminResult<()> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        let n = sqlx::query(
+            "UPDATE accounts SET invites_frozen_at = CASE WHEN $2 THEN COALESCE(invites_frozen_at, now()) \
+             ELSE NULL END, updated_at = now() WHERE id = $1",
+        )
+        .bind(account_id)
+        .bind(frozen)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        if n == 0 {
+            return Err(AdminError::NotFound("account"));
+        }
+        self.audit_in(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)
+    }
+
+    async fn set_person_notes(
+        &self,
+        person_id: i64,
+        notes: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<()> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        let n = sqlx::query("UPDATE persons SET notes = $2, updated_at = now() WHERE id = $1")
+            .bind(person_id)
+            .bind(notes)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?
+            .rows_affected();
+        if n == 0 {
+            return Err(AdminError::NotFound("person"));
+        }
+        self.audit_in(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)
+    }
+
+    async fn link_account(
+        &self,
+        person_id: i64,
+        account_id: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<i64> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        let old: i64 =
+            sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1 FOR UPDATE")
+                .bind(account_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(db)?
+                .ok_or(AdminError::NotFound("account"))?;
+        if old == person_id {
+            return Err(AdminError::Conflict(
+                "the account already belongs to this Person".into(),
+            ));
+        }
+        // Lock both Persons in id order so two concurrent links cannot deadlock.
+        let locked: Vec<(i64, String, i32)> = sqlx::query_as(
+            "SELECT id, notes, suspicion_level::int FROM persons WHERE id = ANY($1) \
+             ORDER BY id FOR UPDATE",
+        )
+        .bind(vec![old, person_id])
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(db)?;
+        let find = |id: i64| locked.iter().find(|p| p.0 == id);
+        let Some(target) = find(person_id) else {
+            return Err(AdminError::NotFound("person"));
+        };
+        let Some(source) = find(old) else {
+            return Err(AdminError::NotFound("person"));
+        };
+        let banned: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM person_bans WHERE person_id = ANY($1) AND lifted_at IS NULL)",
+        )
+        .bind(vec![old, person_id])
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db)?;
+        if banned {
+            return Err(AdminError::Conflict("lift the ban first".into()));
+        }
+        sqlx::query("UPDATE accounts SET person_id = $2, updated_at = now() WHERE id = $1")
+            .bind(account_id)
+            .bind(person_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        let left: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE person_id = $1")
+            .bind(old)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(db)?;
+        if left == 0 {
+            // The old Person is empty: fold its history into the target and drop it.
+            let notes = match (target.1.is_empty(), source.1.is_empty()) {
+                (_, true) => target.1.clone(),
+                (true, false) => source.1.clone(),
+                (false, false) => format!("{}\n\n{}", target.1, source.1),
+            };
+            sqlx::query(
+                "UPDATE persons SET notes = $2, suspicion_level = $3, updated_at = now() WHERE id = $1",
+            )
+            .bind(person_id)
+            .bind(notes)
+            .bind(i16::try_from(target.2.max(source.2)).unwrap_or(i16::MAX))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+            sqlx::query("UPDATE suspicion_events SET person_id = $2 WHERE person_id = $1")
+                .bind(old)
+                .bind(person_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+            sqlx::query("DELETE FROM person_bans WHERE person_id = $1")
+                .bind(old)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+            sqlx::query("DELETE FROM persons WHERE id = $1")
+                .bind(old)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+        }
+        self.audit_in(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(old)
+    }
+
+    async fn unlink_account(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<i64> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        let old: i64 =
+            sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1 FOR UPDATE")
+                .bind(account_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(db)?
+                .ok_or(AdminError::NotFound("account"))?;
+        sqlx::query("SELECT id FROM persons WHERE id = $1 FOR UPDATE")
+            .bind(old)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        let siblings: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM accounts WHERE person_id = $1")
+                .bind(old)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(db)?;
+        if siblings < 2 {
+            return Err(AdminError::Conflict(
+                "this is the only account of its Person".into(),
+            ));
+        }
+        let banned: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM person_bans WHERE person_id = $1 AND lifted_at IS NULL)",
+        )
+        .bind(old)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db)?;
+        if banned {
+            return Err(AdminError::Conflict("lift the ban first".into()));
+        }
+        let new_id = self.new_id();
+        sqlx::query("INSERT INTO persons (id) VALUES ($1)")
+            .bind(new_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        sqlx::query("UPDATE accounts SET person_id = $2, updated_at = now() WHERE id = $1")
+            .bind(account_id)
+            .bind(new_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        self.audit_in(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(new_id)
+    }
+
+    async fn suspicion_log(&self, person_id: i64, limit: i64) -> AdminResult<Vec<SuspicionEvent>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT id, delta::int AS delta, level_after, reason, source_account_id, actor_id, \
+                    {} AS at_ms \
+             FROM suspicion_events WHERE person_id = $1 ORDER BY id DESC LIMIT $2",
+            ms("created_at")
+        )))
+        .bind(person_id)
+        .bind(limit)
+        .fetch_all(self.pool())
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(SuspicionEvent {
+                    id: r.try_get("id")?,
+                    delta: r.try_get("delta")?,
+                    level_after: r.try_get("level_after")?,
+                    reason: r.try_get("reason")?,
+                    source_account_id: r.try_get("source_account_id")?,
+                    actor_id: r.try_get("actor_id")?,
+                    created_at_ms: r.try_get("at_ms")?,
+                })
+            })
+            .collect::<Result<_, sqlx::Error>>()
+            .map_err(db)
+    }
+
+    async fn search_guilds(
+        &self,
+        q: Option<&str>,
+        after: Option<i64>,
+        limit: i64,
+    ) -> AdminResult<Vec<AdminGuild>> {
+        let like = q.map(|s| {
+            let esc = s
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            format!("%{esc}%")
+        });
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} FROM guilds g LEFT JOIN accounts o ON o.id = g.owner_id \
+             WHERE ($1::bigint IS NULL OR g.id > $1) \
+               AND ($2::text IS NULL OR g.name ILIKE $2 OR g.id::text = $3) \
+             ORDER BY g.id LIMIT $4",
+            guild_cols()
+        )))
+        .bind(after)
+        .bind(&like)
+        .bind(q)
+        .bind(limit)
+        .fetch_all(self.pool())
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(guild_from)
+            .collect::<Result<_, sqlx::Error>>()
+            .map_err(db)
+    }
+
+    async fn get_guild(&self, id: i64) -> AdminResult<Option<AdminGuild>> {
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} FROM guilds g LEFT JOIN accounts o ON o.id = g.owner_id WHERE g.id = $1",
+            guild_cols()
+        )))
+        .bind(id)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(db)?;
+        row.as_ref().map(guild_from).transpose().map_err(db)
+    }
+
+    async fn record_guild_action(&self, audit: &AuditEntry) -> AdminResult<()> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        self.audit_in(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)
+    }
+
+    async fn entrance_copy(&self) -> AdminResult<std::collections::BTreeMap<String, String>> {
+        let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, markdown FROM entrance_copy")
+            .fetch_all(self.pool())
+            .await
+            .map_err(db)?;
+        Ok(rows.into_iter().collect())
+    }
+
+    async fn set_entrance_copy(
+        &self,
+        key: &str,
+        markdown: Option<&str>,
+        by: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<()> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        match markdown {
+            Some(m) => {
+                sqlx::query(
+                    "INSERT INTO entrance_copy (key, markdown, updated_by) VALUES ($1, $2, $3) \n                     ON CONFLICT (key) DO UPDATE SET markdown = $2, updated_by = $3, updated_at = now()",
+                )
+                .bind(key)
+                .bind(m)
+                .bind(by)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+            }
+            None => {
+                sqlx::query("DELETE FROM entrance_copy WHERE key = $1")
+                    .bind(key)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db)?;
+            }
+        }
+        self.audit_in(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(())
+    }
+
     async fn get_announcement(&self, id: i64) -> AdminResult<Announcement> {
         let r = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {} FROM platform_announcements WHERE id = $1",
@@ -602,4 +970,30 @@ impl StaffExtrasRepository for PgAdminRepo {
         }
         Ok(out)
     }
+}
+
+fn guild_cols() -> String {
+    format!(
+        "g.id, g.name, g.owner_id, o.username::text AS owner_username, \
+         (SELECT count(*) FROM guild_members m WHERE m.guild_id = g.id) AS members, \
+         (SELECT count(*) FROM channels c WHERE c.guild_id = g.id) AS channels, \
+         {} AS created_ms, g.is_staff_guild, g.deleted_at IS NOT NULL AS deleted, \
+         COALESCE((SELECT community_enabled FROM guild_community s WHERE s.guild_id = g.id), false) AS community",
+        ms("g.created_at")
+    )
+}
+
+fn guild_from(r: &PgRow) -> Result<AdminGuild, sqlx::Error> {
+    Ok(AdminGuild {
+        id: r.try_get("id")?,
+        name: r.try_get("name")?,
+        owner_id: r.try_get("owner_id")?,
+        owner_username: r.try_get("owner_username")?,
+        member_count: r.try_get("members")?,
+        channel_count: r.try_get("channels")?,
+        created_at_ms: r.try_get("created_ms")?,
+        is_staff_guild: r.try_get("is_staff_guild")?,
+        deleted: r.try_get("deleted")?,
+        community_enabled: r.try_get("community")?,
+    })
 }

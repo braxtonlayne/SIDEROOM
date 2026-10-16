@@ -160,6 +160,7 @@ impl H {
             password_hash: self.hasher.hash(PW).unwrap(),
             state,
             age_confirmed: None,
+            age_confirmed_at: None,
             locale: "en-US".into(),
             flags: 0,
         });
@@ -815,6 +816,7 @@ async fn login_rehashes_outdated_parameters() {
         password_hash: old.hash(PW).unwrap(),
         state: AccountState::Active,
         age_confirmed: None,
+        age_confirmed_at: None,
         locale: "en-US".into(),
         flags: 0,
     });
@@ -1412,6 +1414,7 @@ async fn resend_verification_has_a_cooldown() {
         password_hash: h.hasher.hash(PW).unwrap(),
         state: AccountState::Active,
         age_confirmed: None,
+        age_confirmed_at: None,
         locale: "en-US".into(),
         flags: 0,
     });
@@ -1468,6 +1471,61 @@ async fn age_gate_records_the_answer() {
         .send()
         .await;
     assert_eq!(h.account(1).age_confirmed, Some(false));
+}
+
+#[tokio::test]
+async fn age_confirmation_can_be_read_and_reset() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let get = || {
+        h.get("/api/v1/users/@me/age-confirmation")
+            .session(&s)
+            .send()
+    };
+    let r = get().await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    assert_eq!(r.body["confirmed_at"], Value::Null);
+    assert_eq!(r.body["method"], Value::Null);
+
+    h.post("/api/v1/sr/age-gate", json!({"over_18": true}))
+        .session(&s)
+        .send()
+        .await;
+    let r = get().await;
+    assert_eq!(r.body["method"], "self-declared");
+    assert!(
+        r.body["confirmed_at"]
+            .as_str()
+            .is_some_and(|t| t.ends_with('Z'))
+    );
+
+    // Signed-out callers are refused; resetting needs the password and then asks again.
+    assert_eq!(
+        h.get("/api/v1/users/@me/age-confirmation")
+            .send()
+            .await
+            .status,
+        StatusCode::UNAUTHORIZED
+    );
+    let reset = |pw: &str| {
+        h.call(Method::DELETE, "/api/v1/users/@me/age-confirmation")
+            .json(json!({ "current_password": pw }))
+            .session(&s)
+            .send()
+    };
+    assert_ne!(reset("wrong password").await.status, StatusCode::NO_CONTENT);
+    assert_eq!(h.account(1).age_confirmed, Some(true));
+    assert_eq!(reset(PW).await.status, StatusCode::NO_CONTENT);
+    assert_eq!(h.account(1).age_confirmed, None);
+    assert_eq!(get().await.body["confirmed_at"], Value::Null);
+
+    // A "younger" answer carries no time.
+    h.post("/api/v1/sr/age-gate", json!({"over_18": false}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(get().await.body["confirmed_at"], Value::Null);
 }
 
 #[tokio::test]

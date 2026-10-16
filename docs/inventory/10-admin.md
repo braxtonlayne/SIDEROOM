@@ -25,15 +25,20 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 ## ADM-DASH — Overview
 
 - [ ] **ADM-DASH-001** [FE] Dashboard tiles: accounts vs cap gauge, online now, voice rooms + egress, storage used, job backlog, review queue counts, donations vs hosting cost, recent alerts _(partly built: review queue sizes, donations against hosting cost, alerts derived from probes, dead jobs, invoices and the chain check; p12: storage used and open invites from `/admin/stats`, recorded alerts from `/admin/alerts` with Acknowledge (`DashboardExtras.tsx`), tests in `p12adminui.test.tsx`. Voice rooms and egress tiles render when the stats route sends `voice_rooms` / `egress_bytes`, but the server does not report them yet, so this stays open)_
+   - p13 note: the server does report `voice_rooms` and `egress_bytes` on `/admin/stats` whenever the SFU runs in-process (`sr-server/src/app.rs` `with_voice_stats`), so that reason for staying open is gone; the remaining gap is the tile layout.
 - [x] **ADM-DASH-002** [BE] Stats endpoint (cached 30s) _GET /admin/stats cached 30 s in AdminService (cached_counts); adds accounts_cap, review_pending, invites_open, alerts_unacked, storage_bytes; GET /admin/alerts for recent alerts._
 - [ ] **ADM-DASH-003** [FE] Setup Wizard checklist (SMTP test, Discord OAuth, wallet, storage test, voice/TURN test, default limits) _(partly built: checklist for storage, wallet, limits and staff; SMTP, Discord OAuth and voice/TURN have no status or test routes)_
+   - p13 backend half built: `GET /admin/system` lists `integrations` (smtp, discord_oauth, voice, turn, gif: configured or not, no secrets) and `POST /admin/system/email-test` sends a test message to the caller (`OPERATOR`, fresh second factor). The storage and wallet tests already existed. The checklist is not wired to them yet.
 
 ## ADM-PPL — People
 
 - [ ] **ADM-PPL-001** [FE] Accounts search (username, email, id, Discord id, IP), state filter _(partly built: username, email, id and state; Discord id and IP search need server support)_
+   - p13 backend half built: `GET /admin/accounts?discord_id=` and `?ip=` (the IP lookup is validated and written to the access log), `crates/sr-db/tests/p13_settings_admin.rs`. The search box does not use them yet.
 - [ ] **ADM-PPL-002** [FE] Account drawer: profile, state, Person link, sessions, IP history, invited by, invites issued, servers, entitlements, flags, audit trail _(partly built: profile, state, Person link, recent sign-ins, invited by, invites, credits, entitlements, flags, audit trail; sessions list and servers need routes)_
+   - p13 backend half built: `GET /admin/accounts/{id}/sessions` and `/guilds` (`routes/admin/people.rs`); the drawer does not show them yet.
 - [x] **ADM-PPL-003** [BE] Account actions: deactivate, reactivate (cap check), force password reset, reset 2FA, rename, change email, badges, force logout _New: rename, change-email, badges, force-password-reset (POST /admin/accounts/{id}/...). Suspend/unsuspend (cap check), reset-2fa and force-logout already existed._ _p12 UI: Rename, Change email, Badges, Force password reset in the account drawer (`Accounts.tsx`), all through withReauth._
 - [ ] **ADM-PPL-004** [FE] Persons view: account chain timeline, link/unlink accounts, notes, suspicion level with history _(partly built: `PersonDrawer.tsx` shows the account chain, ban, notes, suspicion and its log history; link/unlink, note editing and suspicion history need routes)_
+   - p13 backend half built: `PUT /admin/persons/{id}/notes`, `POST /admin/persons/{id}/link`, `POST /admin/accounts/{id}/unlink`, `GET /admin/persons/{id}/suspicion-log`; the drawer is not wired to them yet.
 - [x] **ADM-PPL-005** [BE] Platform bans (reason category serious/standard, note) applied to Person, unban
 - [x] **ADM-PPL-006** [BE] Inviter suspicion propagation on serious bans + thresholds (freeze, escalate) + clear
 - [x] **ADM-PPL-007** [FE] Platform Bans page
@@ -45,6 +50,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [x] **ADM-GRAPH-002** [WASM] Force-directed layout for large graphs (Rust, Barnes–Hut) → positions _crates/sr-graph-wasm (layout.rs, Barnes-Hut quadtree), loadGraph() in @sideroom/wasm, packages/wasm/test/graph.test.ts._
 - [ ] **ADM-GRAPH-003** [FE] Canvas 2D graph renderer over `sr-graph-wasm`, used when the graph exceeds about 500 nodes (pan/zoom, collapse subtrees, node colors by state, suspicion halo, banned marker); no WebGL *(re-scoped 2026-10-15, P10-ADM-8; below 500 nodes the tree and list views of ADM-GRAPH-005 are used)*
 - [ ] **ADM-GRAPH-004** [FE] Node side panel (account summary, open codes, credits ledger, grant/revoke credit, freeze invites, clear suspicion) *(partly built: summary, open codes, credits ledger, grant/revoke credit, clear suspicion; freeze invites needs a route)*
+   - p13 backend half built: `POST /admin/accounts/{id}/freeze-invites` and `unfreeze-invites` (migration 0844, enforced in `sr-db member_invites.rs`, `invites_frozen` on the account drawer); the node panel button is not wired.
 - [x] **ADM-GRAPH-005** [FE] Tree/list fallback view + path-to-root breadcrumb *(`admin/sections/InviteGraph.tsx`: collapsible tree, flat list and path-to-root breadcrumb)*
 
 ## ADM-CNT — Content admin
@@ -60,6 +66,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 
 - [ ] **ADM-COM-001** [FE] Server Directory approvals (request detail, preview server, approve/deny with note, categories manager, featured)
 - [ ] **ADM-COM-002** [FE] Servers search (all guilds), metadata view, transfer ownership, delete
+   - p13 backend half built: `GET /admin/guilds`, `GET /admin/guilds/{id}`, `POST /admin/guilds/{id}/transfer-ownership`, `DELETE /admin/guilds/{id}` (`MANAGE_GUILDS_GLOBAL`, reason required, applied through the chat stack as the owner); no Admin page yet.
 - [x] **ADM-COM-003** [FE] Private Content Viewer (channel/DM picker, reason + 2FA gate, read-only message list incl. deleted ≤ 30d and edit history, banner "Access is logged") _(p11: `admin/sections/PrivateContent.tsx` (section `private-content`, needs READ_PRIVATE_CONTENT): look up by channel id, by account (its DMs) or by server (its channels), reason required, paging, deleted/edited badges, edit history; the 2FA gate is the re-auth modal (`admin/ReauthHost.tsx`, `withReauth` in `admin/reauth.ts`); tests `admin/__tests__/p11client.test.tsx`)_
 - [x] **ADM-COM-004** [BE] Private content read API (deleted + edits), logging every request _GET /admin/private/channels/{id}/messages (deleted within retention.deleted_message_days plus edit history), /admin/private/accounts/{id}/dms, /admin/private/guilds/{id}/channels. Reason required, fresh 2FA, hash-chained private_read row written before content returns._
 
@@ -67,7 +74,9 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 
 - [x] **ADM-PLT-001** [FE] Features page (all modules, platform settings via SchemaForm, kill switches) _(`admin/sections/Features.tsx` kill switches plus `admin/SchemaForm.tsx` platform settings from the feature schema)_
 - [ ] **ADM-PLT-002** [FE] Limits page (cap, initial credits, account-age for inviting, credit price, upload limits, message length, rate limits, retention windows, submission rate limits) _(partly built: every setting the server registers is editable; rate-limit and submission-rate-limit settings are not in the registry yet)_
+   - p13: `submissions.max_open_per_member` is now a platform setting (default 5, 1 to 100; `sr-review` reads it through `AllowanceSource`, test `the_open_submission_cap_follows_the_platform_setting`), so it shows in the generic settings editor. The HTTP API rate limits are still static config (`[server]`/`ApiSettings`), not registry settings.
 - [ ] **ADM-PLT-003** [FE] Entrance page editor (copy blocks, hero image, house notes markdown, no-invitation text)
+   - p13 backend half built: `PUT /admin/entrance/copy/{key}` for `no-invitation`, `house-notes`, `landing-note` (DELETE resets); no hero image route yet.
 - [ ] **ADM-PLT-004** [FE] Themes & Defaults (default theme per section)
 - [ ] **ADM-PLT-005** [FE] Email & Integrations (SMTP + test send, Discord OAuth app id/secret, GIF provider key, metadata provider keys, unfurl allow/deny lists)
 - [ ] **ADM-PLT-006** [FE] System page (health, versions, backups last run/verify, disk, Garage status, coturn status)

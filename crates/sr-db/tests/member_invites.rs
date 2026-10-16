@@ -128,6 +128,16 @@ async fn unverified_new_and_frozen_accounts_cannot_create() {
         .execute(pool)
         .await
         .unwrap();
+    // Staff can also freeze one account by hand (ADM-GRAPH-004); lifting it restores creation.
+    sqlx::query("UPDATE accounts SET invites_frozen_at = now() WHERE id = 3")
+        .execute(pool)
+        .await
+        .unwrap();
+    assert_eq!(make(3).await, Err(InviteBlock::Frozen));
+    sqlx::query("UPDATE accounts SET invites_frozen_at = NULL WHERE id = 3")
+        .execute(pool)
+        .await
+        .unwrap();
     // The account cap (D-014) blocks creation too.
     sqlx::query(
         "INSERT INTO platform_settings (key, value) VALUES ('accounts.cap', '1'::jsonb) \

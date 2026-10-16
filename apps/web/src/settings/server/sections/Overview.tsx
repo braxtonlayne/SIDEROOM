@@ -65,7 +65,20 @@ export function OverviewSection({ guildId }: SectionProps) {
         description={t('settings.overview.description')}
       />
       <Async res={guild} label={t('settings.overview.loading')}>
-        {(g) => <OverviewForm guildId={guildId} guild={g} onSaved={(next) => guild.set(next)} />}
+        {(g) => (
+          <OverviewForm
+            guildId={guildId}
+            guild={g}
+            // A PATCH answer carries no counts; keep the ones the page loaded.
+            onSaved={(next) =>
+              guild.set((cur) => ({
+                approximate_member_count: cur?.approximate_member_count,
+                approximate_presence_count: cur?.approximate_presence_count,
+                ...next,
+              }))
+            }
+          />
+        )}
       </Async>
     </>
   );
@@ -175,7 +188,12 @@ function OverviewForm({
           value={draft.value.splash}
           onChange={(v) => draft.set('splash', v)}
         />
-        <ServerCard guildId={guildId} draft={draft.value} />
+        <ServerCard
+          guildId={guildId}
+          draft={draft.value}
+          members={guild.approximate_member_count}
+          online={guild.approximate_presence_count}
+        />
       </section>
 
       <section className="ss-card" aria-labelledby="ss-system">
@@ -362,7 +380,17 @@ function WidgetCard({
 }
 
 /** Live preview of how the server shows up on an invite (LNG-SSET-009). */
-function ServerCard({ guildId, draft }: { guildId: string; draft: Fields }) {
+function ServerCard({
+  guildId,
+  draft,
+  members,
+  online,
+}: {
+  guildId: string;
+  draft: Fields;
+  members?: number;
+  online?: number;
+}) {
   const t = useT();
   const img = (hash: string | null, size: number) =>
     hash ? (hash.startsWith('data:') ? hash : cdnUrl('icons', guildId, hash, { size })) : null;
@@ -380,6 +408,13 @@ function ServerCard({ guildId, draft }: { guildId: string; draft: Fields }) {
         </span>
         <div>
           <strong>{name}</strong>
+          {members !== undefined && (
+            <div className="ss-sub">
+              {online !== undefined &&
+                `${t('settings.overview.cardOnline', { count: online })} 00b7 `}
+              {t('settings.overview.cardMembers', { count: members })}
+            </div>
+          )}
           {est && <div className="ss-sub">{t('settings.overview.cardEst', { date: est })}</div>}
         </div>
       </div>

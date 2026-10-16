@@ -20,6 +20,7 @@ pub struct Store {
     pub users: HashSet<UserId>,
     pub rels: HashMap<(UserId, UserId), Relationship>,
     pub privacy: HashMap<UserId, Privacy>,
+    pub keywords: HashMap<UserId, Vec<String>>,
     /// Pairs (ordered) that share a guild; set by tests.
     pub shared_guilds: HashSet<(UserId, UserId)>,
     /// Guild memberships `(guild, user) -> (nick, joined_at_ms)`; set by tests.
@@ -260,11 +261,11 @@ impl RelationshipRepository for MemoryRepo {
     }
 
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy> {
-        Ok(self.lock()?.privacy.get(&user).copied().unwrap_or_default())
+        Ok(self.lock()?.privacy.get(&user).cloned().unwrap_or_default())
     }
 
     async fn put_privacy(&self, user: UserId, privacy: &Privacy) -> RepoResult<()> {
-        self.lock()?.privacy.insert(user, *privacy);
+        self.lock()?.privacy.insert(user, privacy.clone());
         Ok(())
     }
 
@@ -800,6 +801,20 @@ impl UserSettingsRepository for MemoryRepo {
             Some(l) => s.default_levels.insert(user, l),
             None => s.default_levels.remove(&user),
         };
+        Ok(())
+    }
+
+    async fn get_notification_keywords(&self, user: UserId) -> RepoResult<Vec<String>> {
+        Ok(self
+            .lock()?
+            .keywords
+            .get(&user)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    async fn put_notification_keywords(&self, user: UserId, keywords: &[String]) -> RepoResult<()> {
+        self.lock()?.keywords.insert(user, keywords.to_vec());
         Ok(())
     }
 }

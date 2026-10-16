@@ -2,7 +2,7 @@
 
 use super::deps::{Access, MessagesDeps};
 use super::error::{ApiQuery, MsgError, MsgResult, invalid, parse_id};
-use super::model::{ReactionUsersQuery, UserListEntry};
+use super::model::{ReactionTypeQuery, ReactionUsersQuery, UserListEntry};
 use super::render::actor;
 use super::store::EmojiKey;
 use crate::routes::Ext;
@@ -57,6 +57,7 @@ fn guild_of(t: &Target) -> Option<sr_events::GuildId> {
         ("channel_id" = String, Path, description = "Channel snowflake"),
         ("message_id" = String, Path, description = "Message snowflake"),
         ("emoji" = String, Path, description = "Unicode emoji, or `name:id` for custom emoji (URL-encoded)"),
+        ("type" = Option<u8>, Query, description = "Accepted for Discord parity and ignored: burst reactions are not built (D-231)"),
     ),
     responses(
         (status = 204),
@@ -70,6 +71,7 @@ pub async fn add_own(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji)): Path<(String, String, String)>,
+    ApiQuery(_q): ApiQuery<ReactionTypeQuery>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message).await?;
     let emoji = emoji(&raw_emoji)?;
@@ -137,6 +139,7 @@ async fn remove_for(
         ("channel_id" = String, Path, description = "Channel snowflake"),
         ("message_id" = String, Path, description = "Message snowflake"),
         ("emoji" = String, Path, description = "Unicode emoji, or `name:id`"),
+        ("type" = Option<u8>, Query, description = "Accepted and ignored (D-231)"),
     ),
     responses((status = 204), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
@@ -145,6 +148,7 @@ pub async fn remove_own(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji)): Path<(String, String, String)>,
+    ApiQuery(_q): ApiQuery<ReactionTypeQuery>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message).await?;
     let emoji = emoji(&raw_emoji)?;
@@ -160,6 +164,7 @@ pub async fn remove_own(
         ("message_id" = String, Path, description = "Message snowflake"),
         ("emoji" = String, Path, description = "Unicode emoji, or `name:id`"),
         ("user_id" = String, Path, description = "User snowflake"),
+        ("type" = Option<u8>, Query, description = "Accepted and ignored (D-231)"),
     ),
     responses((status = 204), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
@@ -168,6 +173,7 @@ pub async fn remove_user(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji, user)): Path<(String, String, String, String)>,
+    ApiQuery(_q): ApiQuery<ReactionTypeQuery>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message).await?;
     let emoji = emoji(&raw_emoji)?;
@@ -185,6 +191,7 @@ pub async fn remove_user(
         ("emoji" = String, Path, description = "Unicode emoji, or `name:id`"),
         ("limit" = Option<u32>, Query, description = "1-100, default 25"),
         ("after" = Option<String>, Query, description = "User id to start after"),
+        ("type" = Option<u8>, Query, description = "0 or 1; 1 answers an empty list (burst reactions are not built, D-231)"),
     ),
     responses((status = 200, body = Vec<UserListEntry>), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
@@ -200,6 +207,9 @@ pub async fn list_users(
         return Err(ChatError::MissingPermissions.into());
     }
     let emoji = emoji(&raw_emoji)?;
+    if q.kind == Some(1) {
+        return Ok(Json(Vec::new()));
+    }
     let limit = match q.limit {
         None => 25,
         Some(l) if (1..=100).contains(&l) => l as usize,

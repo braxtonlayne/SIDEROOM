@@ -193,6 +193,10 @@ impl ExpressionRepository for MemorySettingsRepo {
         }))
     }
 
+    async fn find_emoji(&self, id: EmojiId) -> RepoResult<Option<Emoji>> {
+        Ok(self.with(|s| s.emoji.iter().find(|e| e.id == id).cloned()))
+    }
+
     async fn insert_emoji(&self, emoji: &Emoji) -> RepoResult<()> {
         self.with(|s| s.emoji.push(emoji.clone()));
         Ok(())

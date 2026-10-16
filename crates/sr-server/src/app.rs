@@ -1062,8 +1062,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         std::env::var("SR_ADMIN_REQUIRE_REAUTH").as_deref(),
         Ok("0" | "false" | "off")
     );
+    let integrations = integration_status(&cfg, voice_setup.is_some());
     let mut admin = routes::admin::AdminDeps::new(admin_service)
         .with_features(features.clone())
+        .with_integrations(integrations)
         .with_reauth(require_reauth)
         .with_gateway_sessions({
             let gw = gateway.clone();
@@ -1388,6 +1390,42 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     // library feed, watch party announcer, poll templates, suggestions, tickets (docs/inventory/09).
     sr_userfeat::register_all(&mut registry).context("registering the user feature modules")?;
     Ok(registry)
+}
+
+/// What the operator configured, for the Setup checklist (ADM-DASH-003). Notes carry no secrets.
+fn integration_status(
+    cfg: &sr_core::config::Config,
+    voice: bool,
+) -> Vec<routes::admin::IntegrationStatus> {
+    let item =
+        |id: &str, configured: bool, detail: Option<String>| routes::admin::IntegrationStatus {
+            id: id.to_owned(),
+            configured,
+            detail,
+        };
+    vec![
+        item(
+            "smtp",
+            !cfg.smtp.host.is_empty(),
+            (!cfg.smtp.host.is_empty()).then(|| format!("{}:{}", cfg.smtp.host, cfg.smtp.port)),
+        ),
+        item("discord_oauth", !cfg.discord.client_id.is_empty(), None),
+        item("voice", voice, None),
+        item(
+            "turn",
+            !cfg.voice.turn.urls.is_empty(),
+            Some(if cfg.voice.turn.secret.expose().is_empty() {
+                "STUN only".to_owned()
+            } else {
+                "TURN credentials".to_owned()
+            }),
+        ),
+        item(
+            "gif",
+            cfg.gif.enabled(),
+            (!cfg.gif.provider.is_empty()).then(|| cfg.gif.provider.clone()),
+        ),
+    ]
 }
 
 #[cfg(test)]

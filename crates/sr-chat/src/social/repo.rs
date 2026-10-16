@@ -9,6 +9,7 @@ use super::read_state::ReadState;
 use super::relationships::{
     FriendRequestSources, RelOp, Relationship, RelationshipCounts, RelationshipKind,
 };
+use super::safety::SafetyPrefs;
 use super::user_settings::UserSettings;
 use crate::error::RepoError;
 use async_trait::async_trait;
@@ -33,10 +34,11 @@ pub struct GuildMembership {
 }
 
 /// Per-user privacy preferences relevant to relationships and DMs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Privacy {
     pub friend_requests: FriendRequestSources,
     pub dms: DmPrivacy,
+    pub safety: SafetyPrefs,
 }
 
 #[async_trait]
@@ -244,6 +246,9 @@ pub trait UserSettingsRepository: Send + Sync {
         user: UserId,
         level: Option<NotificationLevel>,
     ) -> RepoResult<()>;
+    /// The user's keyword highlights.
+    async fn get_notification_keywords(&self, user: UserId) -> RepoResult<Vec<String>>;
+    async fn put_notification_keywords(&self, user: UserId, keywords: &[String]) -> RepoResult<()>;
 }
 
 /// Everything the service needs.

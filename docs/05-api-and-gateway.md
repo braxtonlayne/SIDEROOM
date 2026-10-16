@@ -211,6 +211,69 @@ Responses of the normal `/cdn/{*path}` route:
 
 Content type: images, video and audio from an allow-list (png, jpeg, gif, webp, avif, mp4, webm, mov, mp3, ogg, flac, wav, m4a, aac) are served with their real type and `Content-Disposition: inline`, chosen by file extension, or by sniffing the first 512 bytes when the extension is unknown. Everything else (HTML, SVG, PDF, scripts, unknown) is forced to `Content-Type: application/octet-stream` with `Content-Disposition: attachment`, so an upload cannot run in the site origin. CORS allows only the configured public origin(s), without credentials. No compression layer is applied.
 
+### 5.3 Phase 13 additions (settings, reactions, emoji, Entrance copy)
+
+**Safety settings (LNG-USET-012/013, D-230).** `GET/PATCH /users/@me/privacy` also carry
+`sensitive_media: {friends, others, servers}` (each `show`, `blur` or `block`; defaults `show`, `blur`, `show`),
+`dm_spam_filter` (`off`, `non_friends` (default) or `all`) and `server_dm_overrides: {"<guild id>": bool}`. The `PATCH` body takes
+any subset: `sensitive_media` is a partial object, `server_dm_overrides` maps a server id to `true`/`false` (set) or `null` (back to
+`allow_server_member_dms`), at most 200 servers; an unknown word or a key that is not a snowflake answers 50035. Enforced today
+when a DM is opened: `non_friends` sends a stranger's first DM to Message Requests whatever the `message_requests` toggle says,
+`all` also sends a friend's first DM there, `off` leaves it to the toggle; with `allow_server_member_dms` as the default, the
+recipient is reachable if at least one shared server allows DMs (its override, else the default). Server settings may only tighten
+the filter (D-224; not wired yet). The `sensitive_media` values are stored and returned, but the per-viewer attachment handling
+(`blur` as a spoiler flag, `block` as a URL-less attachment with `sr_filtered: true`) is not applied by the message pipeline yet.
+`SR_PRIVACY_UPDATE` carries the same object.
+
+**Age confirmation (LNG-USET-015).** `GET /users/@me/age-confirmation` (session) answers
+`{confirmed_at: RFC 3339|null, method: "self-declared"|null}`; both are `null` when never confirmed, answered "younger" or reset.
+`DELETE /users/@me/age-confirmation` takes `{current_password}` (re-authentication), answers 204 and forgets the answer so the age
+gate asks again; restricted content stays hidden until it is answered. The reset and `POST /sr/age-gate` send
+`SR_USER_UPDATE {age_confirmed}` to the account's own sessions (`null` after a reset).
+
+**Reaction shim (LNG-EXP-012, D-231).** Burst reactions are not built. Reaction objects carry Discord's fields as constants:
+`me_burst: false`, `count_details: {normal: count, burst: 0}`, `burst_colors: []`; `?type=` (0 or 1) is accepted and ignored on the add,
+remove and remove-user routes, and `GET .../reactions/{emoji}?type=1` answers `[]`. The `MESSAGE_REACTION_*` payloads keep
+`burst: false`.
+
+**Emoji by id (LNG-EXP-011, D-232).** `GET /sr/emojis/{emoji_id}` (any signed-in caller, bots too) answers
+`{id, name, animated, guild}`. `guild` is `{id, name, icon, listing}` when the caller is a member or the owning server is approved
+and visible in the Server Directory (`listing` is the id `POST /directory/{id}/join` takes, `null` for a member's unlisted server);
+otherwise `null` and the popout says the emoji is from a private server. `GET /sr/emojis/{emoji_id}/url?size=&format=` signs the
+image variant for any session (one hour, like the guild route), so custom emoji draw wherever they appear. Unknown id: 404.
+
+**Upload limit (D-233).** `GET /guilds/{id}` carries `sr_max_upload_bytes` and each DM or group channel of
+`GET /users/@me/channels` carries the same field: the largest file the caller may upload there (the entitlement clamped by the size
+policy, the number the 413 check uses). Not yet on `GUILD_CREATE`/`GUILD_UPDATE` (those payloads are not per viewer) and the
+server entitlement level has no source yet, so the value is the member's perk.
+
+**Notification keywords.** `GET/PUT /users/@me/notification-keywords` with `{keywords: string[]}`. At most 50 entries of 100
+characters, each with a letter or digit; entries are trimmed, inner whitespace collapsed, blanks and duplicates (any case) dropped,
+and the cleaned list is returned. A message in a channel the user can see that contains an entry as a whole word or phrase
+(case-insensitive) is pushed like a mention (the Web Push title is "{author} in #{channel}"), unless the server or channel suppresses
+highlights. `SR_NOTIFICATION_KEYWORDS_UPDATE {keywords}` goes to the user's sessions.
+
+**Entrance copy (ENT-UI-010/025).** `GET /sr/entrance/copy` (public, `ETag`, `Cache-Control: max-age=60`) answers
+`{ "<key>": "<markdown>" }` for the blocks staff overrode; a missing key means the client shows its built-in default. Keys:
+`no-invitation`, `house-notes`, `landing-note`. `PUT /admin/entrance/copy/{key}` (`MANAGE_FEATURES`, fresh second factor) takes
+`{markdown, reason?}` of at most 16 KiB; `DELETE` (or a blank `markdown`) removes the override; an unknown key is 404. The change is
+written to the access log with the key and length, not the text. The server does not parse the markdown; the Entrance renders it with
+the restricted profile.
+
+**Server and staff additions (phase 13).** `GET /guilds/{id}?with_counts=true` adds `approximate_member_count` and, for servers of up
+to 1000 members when a presence source is wired, `approximate_presence_count`. `GET /guilds/{id}/audit-logs` also takes
+`target_id` (entries about one user or object). Staff routes (all session-only, bots are refused; a reason is required where noted):
+`GET /admin/accounts?discord_id=&ip=` (the IP lookup is validated and logged); `GET /admin/accounts/{id}/sessions` (never the token)
+and `/guilds` (`MANAGE_ACCOUNTS`); `POST /admin/accounts/{id}/freeze-invites` and `unfreeze-invites` (`MANAGE_INVITES`, reason; shown as
+`invites_frozen` on `GET /admin/accounts/{id}`); `PUT /admin/persons/{id}/notes` (4 000 characters), `POST /admin/persons/{id}/link`
+`{account_id}` and `POST /admin/accounts/{id}/unlink` (`MANAGE_ACCOUNTS`, reason; 409 while a Person is banned or when the account is
+its Person's only one), `GET /admin/persons/{id}/suspicion-log` (`MANAGE_INVITES`); `GET /admin/guilds?q=&after=&limit=`,
+`GET /admin/guilds/{id}`, `POST /admin/guilds/{id}/transfer-ownership {new_owner_id}` and `DELETE /admin/guilds/{id}`
+(`MANAGE_GUILDS_GLOBAL`, reason; applied as the server's owner through the normal chat stack, the Staff Server is refused);
+`GET /admin/system` lists `integrations` (`smtp`, `discord_oauth`, `voice`, `turn`, `gif`: `{id, configured, detail}`, never a secret) and
+`POST /admin/system/email-test` (`OPERATOR`, fresh second factor) mails a test message to the caller and answers `{sent_to}` with the
+local part masked.
+
 ## 6. Gateway
 
 ### 6.1 Opcodes (Discord numbering)

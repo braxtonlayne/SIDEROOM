@@ -114,6 +114,10 @@ pub fn router() -> Router<AppState> {
         .route("/sr/usernames/check", get(invites::check_username))
         .route("/sr/register", post(register::register))
         .route("/sr/age-gate", post(account::age_gate))
+        .route(
+            "/users/@me/age-confirmation",
+            get(account::get_age_confirmation).delete(account::reset_age_confirmation),
+        )
         .route("/sr/auth/login", post(login::login))
         .route("/sr/auth/login-link", post(login::login_link))
         .route("/sr/auth/2fa", post(login::second_factor))

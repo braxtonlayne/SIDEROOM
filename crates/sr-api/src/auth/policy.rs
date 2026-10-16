@@ -39,7 +39,7 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     }
     // SIDE ROOM account, library, cinema, party routes: bots have no account to act for.
     if p.starts_with("/sr/") {
-        return !matches!(p, "/sr/csrf" | "/sr/voice/turn");
+        return !(matches!(p, "/sr/csrf" | "/sr/voice/turn") || p.starts_with("/sr/emojis/"));
     }
     // The Server Directory is for signed-in members (D-012), and the server tag a person shows
     // is their own choice.
@@ -51,6 +51,8 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/users/@me/settings")
         || p.starts_with("/users/@me/notification-defaults")
         || p.starts_with("/users/@me/privacy")
+        || p.starts_with("/users/@me/notification-keywords")
+        || p.starts_with("/users/@me/age-confirmation")
         || p.starts_with("/users/@me/notes")
         || p.starts_with("/users/@me/ignores")
         || p.starts_with("/users/@me/connections")

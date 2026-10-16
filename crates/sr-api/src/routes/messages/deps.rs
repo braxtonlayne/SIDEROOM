@@ -362,6 +362,13 @@ impl MessagesDeps {
         self.entitlements.max_upload_bytes(user).await
     }
 
+    /// The largest file `user` may upload: the same number the 413 check uses (the entitlement,
+    /// clamped to the size policy). Sent to clients as `sr_max_upload_bytes` (D-233).
+    pub async fn effective_upload_limit(&self, user: UserId) -> u64 {
+        self.size_policy
+            .effective_limit(self.upload_limit(user).await)
+    }
+
     /// Publish to every topic the event routes to. Delivery is best effort: the
     /// mutation already happened, so a bus failure is logged, not surfaced.
     pub async fn publish(&self, ev: DomainEvent) {
