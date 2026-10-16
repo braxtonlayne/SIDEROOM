@@ -842,3 +842,22 @@ export const decideDirectoryListing = (
   guildId: string,
   body: { decision: 'approve' | 'reject' | 'remove'; featured?: boolean; note?: string },
 ) => send<DirectoryListing>(`/admin/directory/${guildId}`, 'PATCH', body);
+
+// ---- Activity review (REVIEW_APPS, DEV-ACT-001) ----
+
+export interface PendingActivity {
+  application_name: string;
+  owner_id: string;
+  config: {
+    application_id: string;
+    entry_url: string | null;
+    url_mappings: { prefix: string; target: string }[];
+    pinned_sha256: string | null;
+  };
+}
+export const listPendingActivities = () => get<PendingActivity[]>('/admin/developers/activities');
+export const decideActivity = (applicationId: string, approve: boolean, note: string) =>
+  send<unknown>(`/admin/developers/activities/${applicationId}/decision`, 'POST', {
+    decision: approve ? 'approve' : 'reject',
+    note: note || null,
+  });

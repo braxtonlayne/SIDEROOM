@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sideroom/embedded-app-sdk": "workspace:*",
     "@sideroom/markdown-react": "workspace:*",
     "@sideroom/ui": "workspace:*",
     "@sideroom/wasm": "workspace:*",

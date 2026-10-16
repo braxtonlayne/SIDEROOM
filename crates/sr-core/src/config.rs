@@ -444,6 +444,16 @@ pub struct Config {
     pub lookup: LookupConfig,
     pub ingest: IngestConfig,
     pub voice: VoiceConfig,
+    pub activities: ActivitiesConfig,
+}
+/// `[activities]`: Activities (DEV-ACT, docs/11 section 3). Off by default: when on, the server answers on
+/// `https://<application-id>.activities.<host>` (the wildcard host of `deploy/compose/caddy/activities.snippet`,
+/// `<host>` taken from `server.public_url`), the voice call bar shows the Activities button and launching
+/// works. The web build's `VITE_ACTIVITIES_ENABLED` and the Caddy CSP are switched on with it (OQ-XC-3).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ActivitiesConfig {
+    pub enabled: bool,
 }
 
 /// `[discord]`: OAuth sign-in and registration (open question 79). An empty

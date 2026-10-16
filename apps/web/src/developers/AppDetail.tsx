@@ -11,6 +11,7 @@ import { GeneralTab } from './tabs/General';
 import { InstallTab } from './tabs/Install';
 import { EmojisTab, RichPresenceTab } from './tabs/Media';
 import { ReviewTab } from './tabs/Review';
+import { ActivitiesTab } from './tabs/Activities';
 import { parseTab, type AppTab } from './search';
 import { OAuth2Tab } from './tabs/OAuth2';
 import { LoadError, Loading, NotAvailable } from './ui';
@@ -117,6 +118,11 @@ export function AppDetailPage({ appId, tab }: { appId: string; tab: AppTab }) {
             id: 'richpresence',
             label: t('developers.appDetail.tabRichPresence'),
             content: <RichPresenceTab app={app} />,
+          },
+          {
+            id: 'activities',
+            label: t('developers.appDetail.tabActivities'),
+            content: <ActivitiesTab app={app} />,
           },
           {
             id: 'review',

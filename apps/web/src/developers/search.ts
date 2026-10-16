@@ -8,6 +8,7 @@ export const APP_TABS = [
   'commands',
   'emojis',
   'richpresence',
+  'activities',
   'review',
 ] as const;
 export type AppTab = (typeof APP_TABS)[number];

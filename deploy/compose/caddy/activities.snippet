@@ -13,9 +13,14 @@
 #   3. Append `https://*.activities.<domain>` to frame-src in the app shell's Content-Security-Policy, in
 #      Caddyfile.prod and in the web build's SR_CSP_FRAME (apps/web/src/security/csp.ts keeps the two in
 #      step; docs/12 section 1).
+#   4. Turn it on in the server: `[activities] enabled = true` (env SR_ACTIVITIES__ENABLED=true), and build the
+#      web app with VITE_ACTIVITIES_ENABLED=true.
 #
-# The activity origin gets no app credentials: it serves static files only, and may be framed by the app
-# and nothing else.
+# sr-server answers this host itself (`routes::activities::proxy`): it serves only an approved application's
+# reviewed entry document and the paths its URL mappings allow, from the SSRF-safe client, and sets the
+# Content-Security-Policy (`frame-ancestors` is the app shell only), nosniff and Permissions-Policy on every
+# response. The Host header must reach the server unchanged, which Caddy's reverse_proxy does by default. The
+# activity origin gets no app credentials.
 *.activities.{$SR_DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
@@ -23,16 +28,13 @@
 	encode zstd gzip
 
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://{$SR_DOMAIN}; frame-ancestors https://{$SR_DOMAIN}"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "no-referrer"
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		-Server
 	}
 
-	handle {
-		root * {$SR_ACTIVITIES_ROOT:/srv/activities}
-		try_files {path} /index.html
-		file_server
-	}
+	# Defence in depth: the server also sets this, but a response it did not produce still may be framed by
+	# the app shell and nothing else.
+	header Content-Security-Policy "frame-ancestors https://{$SR_DOMAIN}"
+
+	reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080}
 }

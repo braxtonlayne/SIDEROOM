@@ -10,6 +10,7 @@ import { ApiProblem, LoadMore, ReasonDialog, usePaged } from '../ui';
 type Pending =
   | { kind: 'request'; row: api.DeveloperRequest; approve: boolean }
   | { kind: 'version'; row: api.AppVersion; decision: api.VersionDecision }
+  | { kind: 'activity'; row: api.PendingActivity; approve: boolean }
   | null;
 
 const PAGE = 50;
@@ -33,6 +34,11 @@ export function AppsReview() {
     return { items, next: items.length >= PAGE ? items[items.length - 1]!.id : null };
   });
 
+  const activities = usePaged<api.PendingActivity>('dev-activities', async () => ({
+    items: await api.listPendingActivities(),
+    next: null,
+  }));
+
   return (
     <>
       {notice && (
@@ -40,7 +46,7 @@ export function AppsReview() {
           {notice}
         </Notice>
       )}
-      <ApiProblem error={requests.error ?? versions.error} />
+      <ApiProblem error={requests.error ?? versions.error ?? activities.error} />
 
       <section className="ss-card" aria-labelledby="apps-req-h">
         <h2 id="apps-req-h">{t('admin.appsReview.requestsTitle')}</h2>
@@ -157,6 +163,46 @@ export function AppsReview() {
         <LoadMore paged={versions} />
       </section>
 
+      <section className="ss-card" aria-labelledby="apps-act-h">
+        <h2 id="apps-act-h">{t('admin.appsReview.activitiesTitle')}</h2>
+        {!activities.loading && activities.items.length === 0 && (
+          <EmptyState title={t('admin.appsReview.noActivities')} />
+        )}
+        <ul className="ss-list" aria-label={t('admin.appsReview.activitiesTitle')}>
+          {activities.items.map((a) => (
+            <li key={a.config.application_id} className="ss-row">
+              <div className="ss-grow">
+                <div className="ss-name">{a.application_name}</div>
+                <div className="ss-meta adm-mono">{a.config.entry_url}</div>
+                {a.config.url_mappings.map((m) => (
+                  <div key={m.prefix} className="ss-meta adm-mono">
+                    {m.prefix} → {m.target}
+                  </div>
+                ))}
+                <div className="ss-meta">
+                  {t('admin.appsReview.activityHash', { hash: a.config.pinned_sha256 ?? '' })}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                aria-label={t('admin.appsReview.approveActivityAria', { name: a.application_name })}
+                onClick={() => setPending({ kind: 'activity', row: a, approve: true })}
+              >
+                {t('admin.appsReview.approve')}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                aria-label={t('admin.appsReview.rejectActivityAria', { name: a.application_name })}
+                onClick={() => setPending({ kind: 'activity', row: a, approve: false })}
+              >
+                {t('admin.appsReview.reject')}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <ReasonDialog
         open={pending !== null}
         title={
@@ -168,16 +214,24 @@ export function AppsReview() {
               )
             : pending?.kind === 'version'
               ? t(DECISION_TITLE[pending.decision])
-              : ''
+              : pending?.kind === 'activity'
+                ? t(
+                    pending.approve
+                      ? 'admin.appsReview.approveActivity'
+                      : 'admin.appsReview.rejectActivity',
+                  )
+                : ''
         }
         confirmLabel={t('admin.appsReview.confirm')}
         danger={
           (pending?.kind === 'request' && !pending.approve) ||
+          (pending?.kind === 'activity' && !pending.approve) ||
           (pending?.kind === 'version' && pending.decision === 'reject')
         }
         reasonLabel={t('admin.appsReview.noteLabel')}
         reasonOptional={
           (pending?.kind === 'request' && pending.approve) ||
+          (pending?.kind === 'activity' && pending.approve) ||
           (pending?.kind === 'version' && pending.decision === 'approve')
         }
         onCancel={() => setPending(null)}
@@ -186,6 +240,9 @@ export function AppsReview() {
           if (pending.kind === 'request') {
             await api.decideDeveloperRequest(pending.row.id, pending.approve, note);
             requests.reload();
+          } else if (pending.kind === 'activity') {
+            await api.decideActivity(pending.row.config.application_id, pending.approve, note);
+            activities.reload();
           } else {
             await api.decideAppVersion(pending.row.id, pending.decision, note);
             versions.reload();

@@ -1,0 +1,56 @@
+/* Activities: the panel above the call stage, the shelf and the portal tab (DEV-ACT-004). */
+.act-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-block-start: 8px;
+  margin-inline: 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--sr-gold, #c9a24d);
+  border-radius: var(--sr-radius, 4px);
+  background: var(--sr-bg-1, #14120f);
+}
+.act-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.act-bar-text {
+  flex: 1;
+  min-inline-size: 0;
+}
+.act-frame {
+  inline-size: 100%;
+  block-size: min(60vh, 520px);
+  min-block-size: 240px;
+  border: 0;
+  border-radius: var(--sr-radius, 4px);
+  background: #000;
+}
+.act-muted {
+  color: var(--sr-text-muted, #a79f8f);
+}
+.act-shelf {
+  display: grid;
+  gap: 8px;
+}
+.act-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.act-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.act-item-text {
+  flex: 1;
+  min-inline-size: 0;
+}
+:where(.act-panel, .act-shelf) :focus-visible {
+  outline: 2px solid var(--sr-focus, #c9a24d);
+  outline-offset: 2px;
+}
