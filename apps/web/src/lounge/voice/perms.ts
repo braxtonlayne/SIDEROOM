@@ -9,6 +9,7 @@ export interface VoicePerms {
   muteMembers: boolean;
   deafenMembers: boolean;
   moveMembers: boolean;
+  useSoundboard: boolean;
 }
 
 /**
@@ -31,5 +32,6 @@ export function useVoicePerms(
     muteMembers: p?.muteMembers ?? base('MUTE_MEMBERS', false),
     deafenMembers: p?.deafenMembers ?? base('DEAFEN_MEMBERS', false),
     moveMembers: p?.moveMembers ?? base('MOVE_MEMBERS', false),
+    useSoundboard: p?.useSoundboard ?? base('USE_SOUNDBOARD', true),
   };
 }

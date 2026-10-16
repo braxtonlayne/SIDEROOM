@@ -92,6 +92,31 @@ export class FakeAudioContext {
   sources: FakeNode[] = [];
   dests: { stream: FakeStream }[] = [];
   oscillators = 0;
+  bufferSources: FakeBufferSource[] = [];
+  decodeAudioData = vi.fn(async (data: ArrayBuffer) => {
+    if (data.byteLength === 0) throw new Error('bad audio');
+    return { duration: 1 } as unknown as AudioBuffer;
+  });
+  createBufferSource() {
+    const src = Object.assign(new FakeNode(), {
+      buffer: null as unknown,
+      started: false,
+      stopped: false,
+      onended: null as (() => void) | null,
+      start() {
+        src.started = true;
+      },
+      stop() {
+        src.stopped = true;
+      },
+      /** The sound ran out. */
+      finish() {
+        src.onended?.();
+      },
+    });
+    this.bufferSources.push(src);
+    return src;
+  }
   createMediaStreamSource() {
     const n = new FakeNode();
     this.sources.push(n);
@@ -364,3 +389,13 @@ export interface FakeTransceiver {
   stopped: boolean;
   stop(): void;
 }
+
+export type FakeBufferSource = FakeNode & {
+  buffer: unknown;
+  started: boolean;
+  stopped: boolean;
+  onended: (() => void) | null;
+  start(): void;
+  stop(): void;
+  finish(): void;
+};

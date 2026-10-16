@@ -37,6 +37,16 @@ import { CuePlayer, cueEnabled, type Cue } from './sounds';
 import { VadGate } from './vad';
 import { VIDEO_PUBLISH } from './protocol';
 import { PreviewUploader, type PreviewDeps, browserPreviewDeps } from './preview';
+import { LocalSoundPlayer } from './soundPlayer';
+import {
+  playErrorKind,
+  sendSoundboardSound,
+  soundAudio,
+  useSoundboard,
+  type SendSoundBody,
+  type Sound,
+} from './soundboard';
+import { ApiError } from '../api/client';
 import { applyStreamEvent, ownerOfKey, resetStreams, streamKey } from './streams';
 import {
   applyContentHint,
@@ -83,7 +93,11 @@ export interface ControllerDeps {
   publishVideo?: boolean;
   /** Stream preview thumbnails (VOX-CLI-008); the canvas and the API by default. */
   preview?: PreviewDeps;
+  /** Announce a soundboard play (VOX-SB-003); `POST /channels/{id}/send-soundboard-sound` by default. */
+  sendSound?: (channelId: string, body: SendSoundBody) => Promise<void>;
 }
+
+export type SoundResult = { ok: true } | { ok: false; message: string };
 
 /** Wait this long after the last tile resize / watch change before sending subscription hints. */
 export const HINT_DEBOUNCE_MS = 200;
@@ -126,6 +140,7 @@ export class VoiceController {
   private offSettings: (() => void) | null = null;
   private levelListeners = new Set<(db: number) => void>();
   private previews: PreviewUploader | null = null;
+  private localSounds: LocalSoundPlayer | null = null;
   /** Streams the viewer asked to watch and the gateway has not confirmed yet. */
   private pendingWatch = new Set<string>();
   private offHints: (() => void) | null = null;
@@ -486,6 +501,74 @@ export class VoiceController {
     }
   }
 
+  // ---- soundboard (VOX-SB-002 / VOX-SB-003) ----
+
+  /** Hear a sound yourself, without sending it (the popover's preview); works outside a call too. */
+  async previewSound(sound: Sound): Promise<boolean> {
+    try {
+      const data = await soundAudio(sound);
+      this.localSounds ??= new LocalSoundPlayer(this.deps.audio);
+      return await this.localSounds.play(
+        data,
+        sound.volume * (useSoundboard.getState().volume / 100),
+        getVoiceSettings().outputDeviceId,
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Play a sound into the call: the gateway checks the permission, that the viewer can be heard and the
+   * cooldown (and tells the room), then the file is mixed into the outgoing audio so everyone hears it at their
+   * volume for the viewer, and the viewer hears it too.
+   */
+  async playSoundboard(sound: Sound): Promise<SoundResult> {
+    const tgt = this.target;
+    const engine = this.engine;
+    if (
+      !tgt ||
+      tgt.guildId === DM_GUILD_ID ||
+      !engine ||
+      useVoiceSession.getState().status !== 'connected'
+    ) {
+      return { ok: false, message: t('voice.soundboard.notInCall') };
+    }
+    const body: SendSoundBody = {
+      sound_id: sound.id,
+      ...(sound.guildId && sound.guildId !== tgt.guildId ? { source_guild_id: sound.guildId } : {}),
+    };
+    try {
+      const send = this.deps.sendSound ?? sendSoundboardSound;
+      const [data] = await Promise.all([soundAudio(sound), send(tgt.channelId, body)]);
+      if (this.engine !== engine) return { ok: false, message: t('voice.soundboard.notInCall') };
+      const level = sound.volume * (useSoundboard.getState().volume / 100);
+      const mixed = (await engine.playSound?.(data.slice(0), level)) ?? false;
+      void this.previewSelf(data, level);
+      return mixed ? { ok: true } : { ok: false, message: t('voice.soundboard.notMixed') };
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      switch (playErrorKind(status)) {
+        case 'permission':
+          return { ok: false, message: t('voice.soundboard.errPermission') };
+        case 'silenced':
+          return { ok: false, message: t('voice.soundboard.errSilenced') };
+        case 'cooldown':
+          return { ok: false, message: t('voice.soundboard.errCooldown') };
+        case 'gone':
+          return { ok: false, message: t('voice.soundboard.errGone') };
+        default:
+          return { ok: false, message: t('voice.soundboard.errOther') };
+      }
+    }
+  }
+
+  /** The sender hears their own sound (the call's audio does not loop back to them). */
+  private async previewSelf(data: ArrayBuffer, level: number): Promise<void> {
+    this.localSounds ??= new LocalSoundPlayer(this.deps.audio);
+    await this.localSounds.play(data.slice(0), level, getVoiceSettings().outputDeviceId);
+  }
+
   // ---- watching other people's streams (VOX-UI-004) ----
 
   /** Start watching someone's screen share ("Watch Stream"): op 20, then the SFU is told to forward it. */
@@ -538,6 +621,8 @@ export class VoiceController {
     stopCapture(camera?.stream);
     stopCapture(screen?.stream);
     this.previews?.stop();
+    this.localSounds?.dispose();
+    this.localSounds = null;
     resetLocalVideo();
   }
 

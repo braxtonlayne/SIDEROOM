@@ -135,6 +135,8 @@ export interface ChannelPermissions {
   muteMembers?: boolean;
   deafenMembers?: boolean;
   moveMembers?: boolean;
+  /** USE_SOUNDBOARD: play sounds into the call. */
+  useSoundboard?: boolean;
 }
 
 export interface Channel {

@@ -125,6 +125,8 @@ export interface VoiceEngine {
   unpublishVideo?(source: 'camera' | 'screen'): void;
   /** Tell the SFU which sources of which participants to forward, and how big (op 12 `subscribe`). */
   setVideoSubscriptions?(hints: readonly VideoHint[]): void;
+  /** Mix a soundboard file into the outgoing audio (VOX-SB-003); false when it could not be played. */
+  playSound?(data: ArrayBuffer, volume: number): Promise<boolean>;
 }
 
 export type EngineEventHandlers = Partial<EngineEvents>;
@@ -812,6 +814,9 @@ export class RtcVoiceEngine implements VoiceEngine {
   }
   setInputVolume(percent: number): void {
     this.mic.setInputVolume(percent);
+  }
+  playSound(data: ArrayBuffer, volume: number): Promise<boolean> {
+    return this.mic.playSound(data, volume);
   }
   setOutputDevice(deviceId: string): Promise<void> {
     return this.playback.setOutputDevice(deviceId);

@@ -31,3 +31,68 @@
   opacity: 0.45;
   filter: blur(1px);
 }
+
+/* soundboard popover */
+.vc-sb-popover {
+  inline-size: min(340px, calc(100vw - 32px));
+}
+.vc-sb {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vc-sb-scroll {
+  max-block-size: 280px;
+  overflow-y: auto;
+}
+.vc-sb-heading {
+  margin: 8px 0 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.vc-sb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vc-sb-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.vc-sb-play {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.vc-sb-play:hover:not(:disabled),
+.vc-sb-play:focus-visible {
+  background: var(--surface-hover, rgb(127 127 127 / 18%));
+}
+.vc-sb-play:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.vc-sb-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vc-sb-row [data-active] {
+  color: var(--warning, #f0b232);
+}

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DropdownMenu, Icon, Tooltip, type MenuEntry } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useOpenUserSettings } from '../../settings/user/nav';
-import { voiceController } from '../../voice/controller';
+import { DM_GUILD_ID, voiceController } from '../../voice/controller';
 import { useAudioDevices, useCameras } from '../../voice/hooks';
 import { useVideoLimits } from '../../voice/limits';
 import { useVoiceSession } from '../../voice/session';
@@ -11,6 +11,7 @@ import { useLocalVideo } from '../../voice/video';
 import { StartPartyButton } from '../../watchparty/StartPartyButton';
 import { CameraPreviewDialog } from './CameraPreview';
 import { ScreenSharePicker } from './ScreenSharePicker';
+import { SoundboardButton } from './SoundboardPopover';
 import './voice-p10.css';
 
 export interface ViewLayout {
@@ -272,6 +273,7 @@ export function CallControls({
             <Icon name="message" size={24} />
           </button>
         </Tooltip>
+        {guildId !== DM_GUILD_ID && <SoundboardButton guildId={guildId} channelId={channelId} />}
         <StartPartyButton channelId={channelId} />
         <DropdownMenu
           label={t('lounge.callControls.more')}
