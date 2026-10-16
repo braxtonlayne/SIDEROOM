@@ -254,3 +254,17 @@ export const listCommentReports = () =>
   get<{ items: CommentReport[] }>('/admin/library/comment-reports');
 export const resolveCommentReport = (id: string, hide: boolean) =>
   send<void>(`/admin/library/comment-reports/${id}/resolve`, 'POST', { hide });
+
+// ---- featured reading lists (ADM-CNT-004) ----
+export interface FeaturedList {
+  id: string;
+  name: string;
+  owner_name: string;
+  item_count: number;
+  featured: boolean;
+}
+/** Public lists staff featured on the Library home, newest feature first. */
+export const featuredLists = () =>
+  get<{ items: FeaturedList[] }>(`/library/lists/featured?limit=50`).then((r) => r.items);
+export const setListFeatured = (id: string, featured: boolean) =>
+  send<void>(`/admin/library/lists/${encodeURIComponent(id)}/feature`, 'POST', { featured });

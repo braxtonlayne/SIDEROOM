@@ -27,6 +27,7 @@ import {
 } from '../ui';
 import * as api from './api';
 import { CommentReportsCard, CreditsCard } from './CreditsCard';
+import { FeaturedListsCard } from './FeaturedListsCard';
 import { PagesDialog } from './PagesDialog';
 
 const PAGE = 50;
@@ -163,6 +164,7 @@ export function LibraryCatalogSection() {
           </form>
         }
       />
+      <FeaturedListsCard />
       <CreditsCard />
       <CommentReportsCard />
       {editing && (
