@@ -30,6 +30,7 @@ import { PERM, bitsToValues, has, permissionGroups, toBig } from '../permissions
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, ColorDot, NotAvailable, SectionHeader, useAction } from '../ui';
 import { ImageField } from './ImageField';
+import { ViewAsRoleDialog } from './ViewAsRole';
 
 const GROUPS = permissionGroups();
 
@@ -93,6 +94,7 @@ function RolesEditor({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorDirty, setEditorDirty] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [viewAs, setViewAs] = useState(false);
   const action = useAction();
   const { members } = useMembers(guildId);
   const counts = useMemo(() => {
@@ -183,10 +185,16 @@ function RolesEditor({
               placeholder={t('settings.roles.searchLabel')}
             />
           </div>
+          <Button variant="secondary" onClick={() => setViewAs(true)}>
+            {t('settings.roles.viewAs')}
+          </Button>
           <Button onClick={() => void create()} loading={action.busy}>
             {t('settings.roles.create')}
           </Button>
         </div>
+        {viewAs && (
+          <ViewAsRoleDialog guildId={guildId} roles={roles} onClose={() => setViewAs(false)} />
+        )}
         <ActionStatus error={action.error} />
         {blocked && (
           <Notice variant="warning" onDismiss={() => setBlocked(false)}>
@@ -452,7 +460,10 @@ function RoleEditor({
                         draft.set('secondary', null);
                         draft.set('tertiary', null);
                       } else if (v === 'gradient') {
-                        draft.set('secondary', draft.value.secondary ?? draft.value.color ?? 0x5865f2);
+                        draft.set(
+                          'secondary',
+                          draft.value.secondary ?? draft.value.color ?? 0x5865f2,
+                        );
                         draft.set('tertiary', null);
                       } else {
                         draft.set('color', HOLOGRAPHIC.primary);

@@ -487,3 +487,21 @@
 .ss-role-preview {
   font-weight: 600;
 }
+
+/* J-06: the soundboard trimmer. */
+.ss-trimmer {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--ui-border, rgb(127 127 127 / 0.3));
+  border-radius: 8px;
+}
+.ss-trimmer-wave {
+  inline-size: 100%;
+  block-size: 64px;
+  fill: var(--ui-text-faint, #888);
+}
+.ss-trimmer-window {
+  fill: var(--brand, #5865f2);
+  fill-opacity: 0.25;
+}
