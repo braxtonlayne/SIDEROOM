@@ -287,6 +287,30 @@ its Person's only one), `GET /admin/persons/{id}/suspicion-log` (`MANAGE_INVITES
 `POST /admin/system/email-test` (`OPERATOR`, fresh second factor) mails a test message to the caller and answers `{sent_to}` with the
 local part masked.
 
+**Join source and member signals (D-240, H-37).** `guild_members.join_source`, `join_invite_code` and `join_ref` are set by every join
+path (invite, vanity, Server Directory, application approval, server creation, staff appointment and transfer, app install). For a caller
+with `MANAGE_GUILD`, `GET /guilds/{id}/members`, `/members/search` and `/members/{user_id}` add `sr_join {source, invite_code?, inviter_id?}`
+(`source` is `unknown` for rows older than migration 0874; `inviter_id` only for invites) and `sr_signals`, an array of `new_account` (the
+snowflake is younger than the server's `warn_new_account_days`, 0 reads as the default 7) and `rejoined` (an earlier kick, prune or
+ban-then-unban of this person is in the server's audit log). Everyone else gets neither field. `?signals=true` on the list and the search keeps only
+members with a signal (`50013` without `MANAGE_GUILD`; the list reads up to 5 pages of 200 to fill the limit).
+
+**Forum post files (H-38).** Upload slots can be requested against a forum or media channel (`POST /channels/{forum}/attachments`, `ATTACH_FILES`).
+`POST /channels/{forum}/threads` takes them as `message.attachments: [{id | uploaded_filename, description?}]`: the caller's own unused slots of that forum
+(anything else is `50035`), verified before the thread exists and attached to the starter message afterwards.
+
+**Entrance hero image (D-239, H-41).** `PUT /admin/entrance/hero {image, reason?}` (data URI, PNG, JPEG or WebP sniffed from the bytes, at most 8 MiB in,
+longest side shrunk to 1600 px, at most 4 MiB stored at `entrance/hero`) and `DELETE /admin/entrance/hero` need `MANAGE_ENTRANCE` and a fresh second
+factor and are audited (`entrance.hero`). `GET /sr/entrance/hero` is public, answers the image with an `ETag` and `Cache-Control: public, max-age=3600`
+(304 on `If-None-Match`) and 404 when none is set. The copy key `hero-alt` (plain text, 200 characters) holds its alt text.
+
+**Directory preview (H-40).** `GET /admin/directory/queue/{guild_id}/preview` (`MANAGE_DIRECTORY`) answers the listing as the public card
+(`DirectoryGuildObject`) with `pending: true` while the request waits; the admin queue's Preview shows it with a banner and no Join.
+
+**Live HTTP rate limits (H-39).** The registry settings `limits.rate.ip`, `.session`, `.bot` (60 to 60 000 requests a minute per identity; default 3 000),
+`.messages` (12 to 600 sends a minute per channel and caller; default 60) and `.uploads` (6 to 6 000 slot requests; default 240) are read by the limiter on
+every request; `PATCH /admin/settings` updates them without a restart. Gateway and voice limits stay static.
+
 ## 6. Gateway
 
 ### 6.1 Opcodes (Discord numbering)

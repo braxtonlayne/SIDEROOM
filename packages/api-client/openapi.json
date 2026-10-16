@@ -6629,6 +6629,71 @@
         ]
       }
     },
+    "/admin/directory/queue/{guild_id}/preview": {
+      "get": {
+        "tags": [],
+        "summary": "What a listing would look like in the directory, as its draft stands (`MANAGE_DIRECTORY`).\nThe card is the public shape plus `pending: true` while the request waits. The admin queue's\nPreview opens the server page in preview mode (banner, no join). The category list is a\nconstant; hiding a category is the `directory.hidden_categories` platform setting.",
+        "operationId": "admin_preview",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryGuildObject"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/directory/{guild_id}": {
       "patch": {
         "tags": [],
@@ -7855,7 +7920,7 @@
         "tags": [
           "entrance"
         ],
-        "summary": "Set one copy block (`MANAGE_FEATURES`, fresh second factor). Audited with the key and length.\nThe text is stored as written; the Entrance renders it with the restricted entrance profile of\nthe shared markdown renderer (no mentions, no custom emoji).",
+        "summary": "Set one copy block (`MANAGE_ENTRANCE`, fresh second factor). Audited with the key and length.\nThe text is stored as written; the Entrance renders it with the restricted entrance profile of\nthe shared markdown renderer (no mentions, no custom emoji).",
         "operationId": "put_copy",
         "parameters": [
           {
@@ -7933,7 +7998,7 @@
         "tags": [
           "entrance"
         ],
-        "summary": "Remove an override, so the client's default shows again (`MANAGE_FEATURES`, fresh second factor).",
+        "summary": "Remove an override, so the client's default shows again (`MANAGE_ENTRANCE`, fresh second factor).",
         "operationId": "delete_copy",
         "parameters": [
           {
@@ -7971,6 +8036,102 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/entrance/hero": {
+      "put": {
+        "tags": [
+          "entrance"
+        ],
+        "summary": "Replace the Entrance hero image (`MANAGE_ENTRANCE`, fresh second factor). The image is sniffed\n(never trusted by its declared type), shrunk, re-encoded without metadata and stored at\n`entrance/hero`. Audited.",
+        "operationId": "put_hero",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntranceHeroBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "entrance"
+        ],
+        "summary": "Remove the hero image, so the shipped art shows again (`MANAGE_ENTRANCE`, fresh second factor).",
+        "operationId": "delete_hero",
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "",
             "content": {
               "application/json": {
@@ -32892,6 +33053,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "signals",
+            "in": "query",
+            "description": "true: only members with a signal (new_account, rejoined); needs MANAGE_GUILD",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -33053,6 +33223,15 @@
             "schema": {
               "type": "integer",
               "minimum": 0
+            }
+          },
+          {
+            "name": "signals",
+            "in": "query",
+            "description": "true: only members with a signal (new_account, rejoined); needs MANAGE_GUILD",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -46555,6 +46734,36 @@
         }
       }
     },
+    "/sr/entrance/hero": {
+      "get": {
+        "tags": [
+          "entrance"
+        ],
+        "summary": "The operator's Entrance hero image. Public (the Entrance is pre-login); 404 when none is set.\n`ETag` from the content, `Cache-Control: public, max-age=3600`; `If-None-Match` gets 304.",
+        "operationId": "get_hero",
+        "responses": {
+          "200": {
+            "description": "The image",
+            "content": {
+              "image/*": {}
+            }
+          },
+          "304": {
+            "description": "Unchanged"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sr/features/flags": {
       "get": {
         "tags": [
@@ -57168,6 +57377,10 @@
             "format": "int64",
             "minimum": 0
           },
+          "sr_filtered": {
+            "type": "boolean",
+            "description": "The viewer's sensitive-media setting withheld the file: `url` is empty (D-230)."
+          },
           "url": {
             "type": "string",
             "description": "Relative CDN path (`/cdn/attachments/...`); signing happens at the edge."
@@ -62595,6 +62808,10 @@
           "name": {
             "type": "string"
           },
+          "pending": {
+            "type": "boolean",
+            "description": "Staff preview of a request that is still waiting (H-40); never set in the public list."
+          },
           "preferred_locale": {
             "type": "string"
           },
@@ -63460,6 +63677,25 @@
               "null"
             ],
             "description": "Markdown, at most 16 KiB. Blank removes the override."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "EntranceHeroBody": {
+        "type": "object",
+        "description": "Body of `PUT /admin/entrance/hero`.",
+        "required": [
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "`data:image/png;base64,...`: PNG, JPEG or WebP, at most 8 MiB; the longest side is shrunk\nto 1600 px and the stored image may be at most 4 MiB."
           },
           "reason": {
             "type": [
@@ -68083,6 +68319,33 @@
           }
         }
       },
+      "MemberJoinObject": {
+        "type": "object",
+        "description": "`sr_join` of a member object (D-240).",
+        "required": [
+          "source"
+        ],
+        "properties": {
+          "invite_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The invite or vanity code used."
+          },
+          "inviter_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who made the invite (invite joins only)."
+          },
+          "source": {
+            "type": "string",
+            "description": "`invite`, `vanity`, `directory`, `application`, `creator`, `staff`, `bot` or `unknown`."
+          }
+        }
+      },
       "MemberObject": {
         "type": "object",
         "required": [
@@ -68183,6 +68446,27 @@
             "items": {
               "type": "string"
             }
+          },
+          "sr_join": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberJoinObject",
+                "description": "How the member joined; only for callers with `MANAGE_GUILD` (D-240)."
+              }
+            ]
+          },
+          "sr_signals": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Facts about the member: `new_account`, `rejoined`; only for callers with `MANAGE_GUILD`."
           },
           "theme_colors": {
             "type": [
