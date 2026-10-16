@@ -143,6 +143,8 @@ Modeled on Discord's DAVE:
 6. **Bots/apps in voice** must participate in MLS through the SDK to send or receive audio (as with DAVE).
 7. **Not E2EE:** watch-party HLS streams (library content), and text chat in voice.
 
+**Status (P14).** Built: the frame transform and its trailer format (`crates/sr-e2ee/src/frame.rs`, codec rules in `codec.rs`), the receiver key ring with a 10 s grace window, privacy codes, the op 101 relay with per-epoch commit ordering and a ready/execute transition (`crates/sr-gateway/src/voice_e2ee.rs`; server to client as the `E2EE_MLS` dispatch so messages survive a resume), the WASM build, the browser worker and identity keys. Not built: MLS itself (item 1, `openmls`), so `voice.e2ee` is off and calls are DTLS-SRTP only. Details and deviations: `docs/dev/handoff/feat-p14-e2ee.md`.
+
 ## 6. TURN
 coturn with ephemeral credentials from `GET /api/v1/sr/voice/turn` (HMAC, TTL 1h). ICE servers are delivered in `VOICE_SERVER_UPDATE`. TURN/TLS on 443 via Caddy layer-4 is optional for strict networks.
 
