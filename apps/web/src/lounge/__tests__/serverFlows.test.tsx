@@ -363,21 +363,12 @@ describe('Create Channel / Category', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Create Channel' }));
     await userEvent.click(screen.getByRole('radio', { name: /Watch party room/ }));
     await userEvent.type(screen.getByLabelText('Channel name'), 'Movie night');
-    // The room needs a title before it can be made.
-    await userEvent.click(screen.getByRole('button', { name: 'Create Channel' }));
-    expect(await screen.findByText('Pick the title the room starts with.')).toBeInTheDocument();
-    expect(body).toEqual({});
-    await userEvent.type(await screen.findByLabelText('Search the cinema'), 'aki');
-    await userEvent.click(await screen.findByRole('button', { name: 'Select Akira' }));
-    expect(screen.getByText(/Starts with Akira/)).toBeInTheDocument();
+    // D-227: no title is asked for; the room starts empty.
+    expect(screen.getByText(/The room starts empty/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Search the cinema')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Create Channel' }));
     await waitFor(() => expect(body.name).toBe('Movie night'));
-    expect(body).toEqual({
-      name: 'Movie night',
-      type: 2,
-      sr_watch_party_room: true,
-      sr_watch_party_title_id: '10',
-    });
+    expect(body).toEqual({ name: 'Movie night', type: 2, sr_watch_party_room: true });
   });
 
   it('private voice channel sends a VIEW_CHANNEL overwrite for @everyone', async () => {

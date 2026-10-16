@@ -77,7 +77,7 @@ export function ReadyCheck() {
   const party = useParty((s) => s.party);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const key = party ? [party.media.asset_id, party.media.episode_id].join(':') : '';
+  const key = party?.media ? [party.media.asset_id, party.media.episode_id].join(':') : '';
   const started = !!party?.playback.playing;
   useEffect(() => {
     if (started) setDismissed(key);

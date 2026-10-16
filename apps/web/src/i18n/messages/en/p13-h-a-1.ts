@@ -5,4 +5,6 @@ export default {
   'cinema.reminders.none': 'No reminders set.',
   'cinema.reminders.gone': 'No longer in the guide',
   'cinema.reminders.remove': 'Remove',
+  'lounge.createChannelDialog.partyEmptyRoom':
+    'The room starts empty. The first person to join hosts it and picks what to watch.',
 } as const;

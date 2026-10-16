@@ -509,17 +509,35 @@ impl PartyService {
                 "Only a server channel party can be persistent.".to_owned(),
             ));
         }
-        let media = self
-            .resolve_media(
-                v,
-                input.title_id,
-                input.tv_channel_id,
-                input.episode_id,
-                input.variant_id,
+        let media: Option<Resolved> = if input.empty {
+            if settings.persistent != Some(true)
+                || binding != Binding::Channel
+                || input.title_id > 0
+                || input.tv_channel_id.is_some()
+                || input.episode_id.is_some()
+                || input.variant_id.is_some()
+            {
+                return Err(PartyError::Invalid(
+                    "An empty watch party must be a persistent server channel party without media."
+                        .to_owned(),
+                ));
+            }
+            None
+        } else {
+            Some(
+                self.resolve_media(
+                    v,
+                    input.title_id,
+                    input.tv_channel_id,
+                    input.episode_id,
+                    input.variant_id,
+                )
+                .await?,
             )
-            .await?;
+        };
         let now = self.now();
-        let start = clamp_start(input.start_ms, media.duration_ms, media.live)?;
+        let (duration, live) = media.as_ref().map_or((None, false), |m| (m.duration_ms, m.live));
+        let start = clamp_start(input.start_ms, duration, live)?;
         let max_participants = settings.max_participants.unwrap_or_else(|| {
             match voice_limit {
                 Some(l) if l > 0 => i32::try_from(l)
@@ -529,7 +547,7 @@ impl PartyService {
             }
             .max(2)
         });
-        let state = Playback::new(now, start, media.duration_ms, media.live);
+        let state = Playback::new(now, start, duration, live);
         let code = (binding == Binding::Private).then(|| {
             let mut b = [0u8; 16];
             if getrandom::fill(&mut b).is_err() {
@@ -572,15 +590,15 @@ impl PartyService {
         .bind(guild)
         .bind(input.channel_id)
         .bind(&code)
-        .bind(media.title_id)
-        .bind(media.episode_id)
-        .bind(media.variant_id)
-        .bind(media.asset_id)
-        .bind(&media.title)
-        .bind(&media.episode_label)
-        .bind(media.duration_ms)
-        .bind(media.age_restricted)
-        .bind(media.live)
+        .bind(media.as_ref().map(|m| m.title_id))
+        .bind(media.as_ref().map_or(0, |m| m.episode_id))
+        .bind(media.as_ref().and_then(|m| m.variant_id))
+        .bind(media.as_ref().map(|m| m.asset_id))
+        .bind(media.as_ref().map_or("", |m| m.title.as_str()))
+        .bind(media.as_ref().and_then(|m| m.episode_label.clone()))
+        .bind(duration)
+        .bind(media.as_ref().is_some_and(|m| m.age_restricted))
+        .bind(live)
         .bind(state.playing)
         .bind(state.position_ms)
         .bind(state.rate_milli)
@@ -617,7 +635,8 @@ impl PartyService {
             Some(v.user_id),
             "created",
             None,
-            json!({"title_id": media.title_id.to_string(), "episode_id": media.episode_id.to_string(),
+            json!({"title_id": media.as_ref().map(|m| m.title_id.to_string()),
+                   "episode_id": media.as_ref().map(|m| m.episode_id.to_string()),
                    "binding": binding.as_str(), "channel_id": input.channel_id.map(|c| c.to_string())}),
         )
         .await?;
@@ -632,8 +651,8 @@ impl PartyService {
                 party_id: id,
                 channel_id: ch,
                 host_id: v.user_id,
-                title: media.title.clone(),
-                episode_label: media.episode_label.clone(),
+                title: media.as_ref().map_or_else(String::new, |m| m.title.clone()),
+                episode_label: media.as_ref().and_then(|m| m.episode_label.clone()),
                 viewers: 1,
                 kind: AnnouncementKind::Started,
             }));
@@ -1456,12 +1475,14 @@ impl PartyService {
 
 /// Hide what a viewer without age confirmation must not see of a restricted title.
 pub(crate) fn mask(mut v: PartyView) -> PartyView {
-    v.media.title = "Age-restricted content".to_owned();
-    v.media.episode_label = None;
-    v.media.title_id = 0;
-    v.media.episode_id = 0;
-    v.media.variant_id = None;
-    v.media.asset_id = 0;
+    if let Some(m) = v.media.as_mut() {
+        m.title = "Age-restricted content".to_owned();
+        m.episode_label = None;
+        m.title_id = 0;
+        m.episode_id = 0;
+        m.variant_id = None;
+        m.asset_id = 0;
+    }
     v.queue.clear();
     v.invite_code = None;
     v

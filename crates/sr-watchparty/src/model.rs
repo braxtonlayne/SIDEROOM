@@ -208,7 +208,8 @@ pub struct PartyView {
     pub channel_id: Option<i64>,
     /// The secret of the share link. Only members see it (and only on private parties).
     pub invite_code: Option<String>,
-    pub media: MediaView,
+    /// What is playing; `null` for an empty watch party room (state idle, D-227).
+    pub media: Option<MediaView>,
     pub playback: PlaybackView,
     pub settings: SettingsView,
     pub participants: Vec<ParticipantView>,
@@ -243,6 +244,10 @@ pub struct CreateInput {
     #[serde(with = "id", default)]
     #[schema(value_type = String)]
     pub title_id: i64,
+    /// An empty watch party room (D-227): no media yet, the first member to join hosts and picks one. Only
+    /// a persistent party bound to a server channel can be empty; `title_id` and `tv_channel_id` stay unset.
+    #[serde(default)]
+    pub empty: bool,
     /// A Live TV channel to watch together (no seeking; everyone follows the live edge).
     #[serde(with = "opt_id", default)]
     #[schema(value_type = Option<String>)]

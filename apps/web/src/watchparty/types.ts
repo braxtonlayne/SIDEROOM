@@ -79,7 +79,8 @@ export interface Party {
   guild_id: string | null;
   channel_id: string | null;
   invite_code: string | null;
-  media: PartyMedia;
+  /** `null` for an empty watch party room (state idle, D-227): nothing is playing until its host picks media. */
+  media: PartyMedia | null;
   playback: Playback;
   settings: PartySettings;
   participants: Participant[];
