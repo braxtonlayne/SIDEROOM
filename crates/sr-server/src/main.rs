@@ -18,12 +18,19 @@ fn main() -> anyhow::Result<()> {
             );
             Ok(())
         }
+        Some("healthcheck") => {
+            // Container health probe (XC-OPS-001): GET /readyz on the configured listener.
+            let path = std::env::var_os("SR_CONFIG").map(PathBuf::from);
+            let cfg = Config::load(path.as_deref()).context("loading configuration")?;
+            sr_server::healthcheck::run(&cfg.server.bind)
+        }
         None | Some("serve") => serve(),
         Some("-h" | "--help" | "help") => {
             println!(
-                "usage: sr-server [serve|openapi]\n\n\
-                 serve    run the server (default); config from SR_CONFIG (TOML path) and SR_* env\n\
-                 openapi  print the OpenAPI document as JSON"
+                "usage: sr-server [serve|openapi|healthcheck]\n\n\
+                 serve        run the server (default); config from SR_CONFIG (TOML path) and SR_* env\n\
+                 openapi      print the OpenAPI document as JSON\n\
+                 healthcheck  exit 0 when GET /readyz on the local listener answers 200 (container probe)"
             );
             Ok(())
         }

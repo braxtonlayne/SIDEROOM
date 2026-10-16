@@ -1,0 +1,52 @@
+name: Load test
+# XC-PERF-003: the full run (2,000 gateway sessions, 200 messages/s, REST p95 < 100 ms) against a release build.
+# Manual: it is long and wants a quiet runner. See docs/dev/load-testing.md.
+on:
+  workflow_dispatch:
+    inputs:
+      sessions: { description: Gateway sessions, default: "2000" }
+      msg_rate: { description: Messages per second, default: "200" }
+      duration: { description: Steady-state seconds, default: "60" }
+permissions:
+  contents: read
+env:
+  SR_DATABASE__URL: postgres://sideroom:sideroom_ci@localhost:5432/sr_loadtest
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: sideroom
+          POSTGRES_PASSWORD: sideroom_ci
+          POSTGRES_DB: sr_loadtest
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sideroom" --health-interval 5s
+          --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p sr-server -p sr-cli -p sr-loadtest
+      - run: ./target/release/sr-cli migrate
+      - name: Start the server
+        run: |
+          SR_SERVER__BIND=127.0.0.1:8080 SR_SERVER__PUBLIC_URL=http://127.0.0.1:8080 \
+          SR_STORAGE__ENDPOINT=http://127.0.0.1:1 SR_STORAGE__ACCESS_KEY=x SR_STORAGE__SECRET_KEY=y SR_STORAGE__BUCKET=lt \
+          SR_SEARCH__DIR=$RUNNER_TEMP/search ./target/release/sr-server > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
+      - name: Load test
+        run: >-
+          ./target/release/sr-loadtest --base-url http://127.0.0.1:8080
+          --sessions ${{ inputs.sessions }} --msg-rate ${{ inputs.msg_rate }} --duration ${{ inputs.duration }}
+          --report load-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-report
+          path: |
+            load-report.json
+            server.log

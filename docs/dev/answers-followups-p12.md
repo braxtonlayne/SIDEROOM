@@ -77,7 +77,7 @@ Items marked **NEEDS-OWNER** are blocked on the owner's answer; the default in t
 
 ## Tests, tooling and ops
 
-- [ ] **G-19 (P9-SEC-1) AUTHZ column pass.** One PR hand-verifies the `other` rows of `crates/sr-api/tests/route_matrix.tsv` (about 160) against their handlers; PR template gains "route matrix rows verified". Size: M.
+- [x] **G-19 (P9-SEC-1) AUTHZ column pass.** One PR hand-verifies the `other` rows of `crates/sr-api/tests/route_matrix.tsv` (about 160) against their handlers; PR template gains "route matrix rows verified". Size: M. *Done on feat/p13-foundation: all 203 rows now carry the real check (new values user, author, author_or_staff, visibility, bot, party_access/member/control/manager; `other` is no longer valid); test `authz_agrees_with_handler_extractors`; PR template updated.*
 - [x] **G-20 (P9-SEC-4, D-203) `reqwest` ban.** `deny.toml` `[bans]`: `reqwest` allowed only from `sr-net`, `sr-auth` (Discord OAuth) and the GIF proxy module; a `cargo deny` wrapper test or a workspace lint that fails on a new direct dependency. Size: S. *Done: `deny.toml` `wrappers` list (sr-net, sr-unfurl, sr-push, sr-storage, sr-transcoder, plus the transitive oauth2 and object_store); `cargo deny check bans` fails on a new direct dependency. The GIF proxy and Discord OAuth reach reqwest through sr-net/oauth2, so no per-module exception is needed.*
 
 ## Docs and inventory only

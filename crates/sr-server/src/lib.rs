@@ -14,6 +14,7 @@ pub mod external_jobs;
 pub mod feature_actions;
 pub mod features_store;
 pub mod gateway_pg;
+pub mod healthcheck;
 pub mod inbox_pg;
 pub mod jobs;
 pub mod lag_bus;

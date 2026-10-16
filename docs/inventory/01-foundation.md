@@ -3,8 +3,8 @@
 Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 
 ## FND-REPO — Repository & tooling
-- [ ] **FND-REPO-001** [OPS] Cargo workspace root (`Cargo.toml`, `rust-toolchain.toml` pinned stable, edition 2024, workspace lints: `unsafe_code = "forbid"` except FFI crates)
-- [ ] **FND-REPO-002** [OPS] Crate skeletons per doc 02 §3 (`sr-core`, `sr-db`, `sr-auth`, `sr-features`, `sr-events`, `sr-gateway`, `sr-api`, `sr-chat`, `sr-markdown`, `sr-search`, `sr-storage`, `sr-media`, `sr-reader`, `sr-tv`, `sr-review`, `sr-payments`, `sr-voice-proto`, `sr-e2ee`, `sr-theme`, `sr-server`, `sr-voice`, `sr-transcoder`, `sr-cli`, `sr-sdk`)
+- [x] **FND-REPO-001** [OPS] Cargo workspace root (`Cargo.toml`, `rust-toolchain.toml` pinned stable, edition 2024, workspace lints: `unsafe_code = "forbid"` except FFI crates) *Done: workspace `Cargo.toml` (resolver 3, edition 2024, `unsafe_code = "forbid"` in `[workspace.lints]`, every crate opts in; no FFI crate needs an exception) and `rust-toolchain.toml`.*
+- [x] **FND-REPO-002** [OPS] Crate skeletons per doc 02 §3 (`sr-core`, `sr-db`, `sr-auth`, `sr-features`, `sr-events`, `sr-gateway`, `sr-api`, `sr-chat`, `sr-markdown`, `sr-search`, `sr-storage`, `sr-media`, `sr-reader`, `sr-tv`, `sr-review`, `sr-payments`, `sr-voice-proto`, `sr-e2ee`, `sr-theme`, `sr-server`, `sr-voice`, `sr-transcoder`, `sr-cli`, `sr-sdk`) *Done: all 24 listed crates exist under `crates/` (plus the feature crates added since).*
 - [x] **FND-REPO-003** [OPS] pnpm workspace (`apps/web`, `packages/ui`, `packages/api-client`, `packages/wasm`)
 - [x] **FND-REPO-004** [OPS] Vite + React 19 + TS strict app scaffold with TanStack Router, Query, Zustand
 - [x] **FND-REPO-005** [OPS] wasm-pack build pipeline producing `packages/wasm` (ESM, typed bindings) for each `*-wasm` target
@@ -17,9 +17,9 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 
 ## FND-CI — Continuous integration
 - [x] **FND-CI-001** [OPS] GitHub Actions: Rust fmt + clippy (`-D warnings`) + nextest with Postgres service
-- [ ] **FND-CI-002** [OPS] `sqlx prepare --check` (offline query metadata committed)
+- [x] **FND-CI-002** [OPS] `sqlx prepare --check` (offline query metadata committed) *Not applicable by design: queries are runtime-checked (`sqlx::query`), so there is no offline metadata; the CI step is a documented no-op in `.github/workflows/rust.yml`.*
 - [x] **FND-CI-003** [OPS] Web lint, typecheck, Vitest
-- [ ] **FND-CI-004** [OPS] Playwright e2e job against the compose stack (Chromium, Firefox, WebKit)
+- [x] **FND-CI-004** [OPS] Playwright e2e job against the compose stack (Chromium, Firefox, WebKit) *Done: `.github/workflows/e2e.yml` runs the Playwright suite per browser against Postgres and Garage with `e2e-run.sh` (first green run is on CI; not run on the authoring machine).*
 - [x] **FND-CI-005** [OPS] WASM build + wasm tests (`wasm-bindgen-test` headless)
 - [x] **FND-CI-006** [OPS] OpenAPI drift check (generated client must match committed)
 - [x] **FND-CI-007** [OPS] Release workflow: static musl binaries (x86_64, aarch64), container images (server, voice, transcoder-cuda), checksums, changelog
@@ -44,7 +44,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **FND-DB-006** [BE] Job runner (tokio tasks, concurrency per kind, graceful shutdown)
 - [x] **FND-DB-007** [DB] Monthly partition manager for `messages` (create-ahead job)
 - [x] **FND-DB-008** [BE] Repository pattern + transaction helper (`with_tx`) + advisory lock helper
-- [ ] **FND-DB-009** [OPS] Seed command (dev data: users, servers, messages, library samples with CC0 media)
+- [ ] **FND-DB-009** [OPS] Seed command (dev data: users, servers, messages, library samples with CC0 media) _(`sr-cli seed` creates users and the dev guild with 200 messages; library samples with CC0 media are not seeded)_
 
 ## FND-EVT — `sr-events`
 - [x] **FND-EVT-001** [BE] `EventBus` trait + `InProcessBus` (tokio broadcast per topic)
@@ -56,9 +56,9 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **FND-FEAT-002** [BE] `SettingsSchema` types (bool, int, enum, string, duration, color, role/channel/emoji pickers, list, group) + JSON serialization
 - [x] **FND-FEAT-003** [BE] Scoped settings storage (platform/guild/channel/user) + defaults resolution + validation
 - [x] **FND-FEAT-004** [BE] `is_enabled(id, scope)` with moka cache + invalidation events
-- [ ] **FND-FEAT-005** [BE] `/sr/features` API (list registry, get/set settings per scope, permission-gated)
-- [ ] **FND-FEAT-006** [FE] `<SchemaForm>` auto-renderer for every schema field type, with unsaved-changes bar
-- [ ] **FND-FEAT-007** [FE] Feature custom-UI slot registry (feature id → lazy React component)
+- [x] **FND-FEAT-005** [BE] `/sr/features` API (list registry, get/set settings per scope, permission-gated) *Done for the scopes that have features: platform (`/admin/features`, `MANAGE_FEATURES`) and guild (`/guilds/{id}/sr/features`, `MANAGE_GUILD`) list the registry and read/write settings; no registered feature uses channel or user scope, so no endpoint exists for them yet.*
+- [x] **FND-FEAT-006** [FE] `<SchemaForm>` auto-renderer for every schema field type, with unsaved-changes bar *Done: `admin/SchemaForm.tsx` renders all eleven field kinds; `admin/UnsavedBar.tsx` (message plus Save/Discard, pinned while dirty) is used in the server and platform feature screens. Test `schemaform.test.tsx`.*
+- [x] **FND-FEAT-007** [FE] Feature custom-UI slot registry (feature id → lazy React component) *Done: `settings/server/sections/featureSlots.tsx` (`registerFeatureSlot(featureId, lazyLoader)`, `<FeatureSlot>`); temporary roles, RSS feeds and slowmode presets register there. Test `featureSlots.test.tsx`.*
 
 ## FND-API — HTTP & gateway plumbing
 - [x] **FND-API-001** [BE] axum app state, router composition, tower layers (trace, compression, timeout, CORS, request id)
@@ -74,7 +74,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 ## FND-STOR — Storage
 - [x] **FND-STOR-001** [BE] `sr-storage` over `object_store` S3: put/get/delete/list, presigned PUT/GET, multipart create/complete/abort
 - [x] **FND-STOR-002** [BE] Signed CDN URL scheme (`/cdn/...?ex=&sig=`) + verification middleware + Range support
-- [ ] **FND-STOR-003** [BE] Image proxy/resizer for avatars/icons/emoji (`?size=` 16–4096, WebP/AVIF/PNG/GIF, animated support)
+- [ ] **FND-STOR-003** [BE] Image proxy/resizer for avatars/icons/emoji (`?size=` 16–4096, WebP/AVIF/PNG/GIF, animated support) _(built: `size` 16 to 4096, PNG/JPEG/WebP (lossless)/GIF, animated GIF kept, signed variants cached; AVIF output and animated WebP are not offered (pure-Rust encoders only))_
 - [x] **FND-STOR-004** [BE] Upload slot service (size limit from entitlements, content-type sniffing, EXIF strip on images)
 
 ## FND-OBS — Observability
@@ -84,15 +84,15 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 
 ## FND-CLI — `sr-cli`
 - [x] **FND-CLI-001** [BE] `migrate`, `bootstrap` (Owner, Staff Server with the default staff roles, system user, one-time login link); `staff ensure-roles` re-runs the role step idempotently
-- [ ] **FND-CLI-002** [BE] `invite create` (operator emergency), `user reset-2fa`, `staff transfer-owner`
-- [ ] **FND-CLI-003** [BE] `backup`, `restore`, `reindex`, `verify-access-log`, `upgrade`
+- [x] **FND-CLI-002** [BE] `invite create` (operator emergency), `user reset-2fa`, `staff transfer-owner` *Done: `sr-cli invite create`, `user reset-2fa`, `staff transfer-owner`.*
+- [x] **FND-CLI-003** [BE] `backup`, `restore`, `reindex`, `verify-access-log`, `upgrade` *Done: `backup`, `restore` (pg_dump/pg_restore, same layout and manifest as `deploy/scripts/backup.sh`), `reindex` (queues `search.reindex`), `verify-access-log`, `upgrade` (status check, backup, migrate; `--dry-run`). Tests in `crates/sr-cli/src/ops.rs`.*
 
 ## DS-TOK — Design tokens & theming runtime
-- [ ] **DS-TOK-001** [FE] Token schema (TS types generated from `sr-theme` JSON schema)
+- [x] **DS-TOK-001** [FE] Token schema (TS types generated from `sr-theme` JSON schema) *Done: theme ids and token names are generated from the `sr-theme` registry into `packages/ui/src/theme/tokens.generated.ts` (`sr-theme-emit`).*
 - [x] **DS-TOK-002** [FE] `lounge-dark`, `lounge-light`, `lounge-ash`, `lounge-onyx` token sets
 - [x] **DS-TOK-003** [FE] `sideroom` and `sideroom-broadcast` token sets (calibrated to mockups)
 - [x] **DS-TOK-004** [FE] Theme provider: per-section theme resolution (platform default → user global → per-section override → server accent)
-- [ ] **DS-TOK-005** [FE] Font loading (Newsreader, Hanken Grotesk, IBM Plex Mono, a Lounge sans), `font-display: swap`, self-hosted WOFF2
+- [x] **DS-TOK-005** [FE] Font loading (Newsreader, Hanken Grotesk, IBM Plex Mono, a Lounge sans), `font-display: swap`, self-hosted WOFF2 *Done: self-hosted WOFF2 files in `apps/web/public/fonts/`, faces and `font-display: swap` in `packages/ui/src/theme/fonts.ts`.*
 - [x] **DS-TOK-006** [FE] Reduced-motion, contrast, saturation, and font-scale runtime variables
 
 ## DS-PRIM — Primitives (`packages/ui`)
@@ -111,7 +111,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **DS-PRIM-013** [FE] Kbd, ColorPicker (swatches + hex + eyedropper), DatePicker/TimePicker, FileDrop zone
 - [x] **DS-PRIM-014** [FE] Icon set (original SVGs, 24/20/16 grid) + Icon component
 - [x] **DS-PRIM-015** [FE] Full-screen settings layout (sidebar sections, ESC close, unsaved-changes bar)
-- [ ] **DS-PRIM-016** [FE] Ladle stories for every primitive + axe a11y tests
+- [x] **DS-PRIM-016** [FE] Ladle stories for every primitive + axe a11y tests *Done: a story for every exported primitive (`packages/ui/src/stories/*.stories.tsx`), all axe-checked; `coverage.test.ts` fails when a component is exported without one.*
 
 ## DS-SR — Side Room editorial kit
 - [x] **DS-SR-001** [FE] Eyebrow (hairline + letter-spaced caps), DisplayHeading (serif, italic accent span)
@@ -119,6 +119,6 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **DS-SR-003** [FE] Section top bar (`SIDE ROOM / The lounge · The cinema · The library`, active underline, voice indicator slot)
 - [x] **DS-SR-004** [FE] ArrowLink/ArrowButton (↗), GoldButton, OutlineButton
 - [x] **DS-SR-005** [FE] PosterCard (2:3, hover actions, progress, corner tag), PosterRow (horizontal scroller with arrows, "Explore all ↗")
-- [ ] **DS-SR-006** [FE] Spotlight/Hero (backdrop, gradient, carousel index, auto-advance)
+- [x] **DS-SR-006** [FE] Spotlight/Hero (backdrop, gradient, carousel index, auto-advance) *Done as the Cinema hero (`cinema/Discover.tsx` `Hero`: backdrop, gradient shade, index dots, auto-advance with pause); not extracted into `packages/ui`.*
 - [x] **DS-SR-007** [FE] FilterChips row (single/multi), Dropdown chip ("Room selection ▾")
 - [x] **DS-SR-008** [FE] Door logo mark (SVG) + favicon/PWA icon set

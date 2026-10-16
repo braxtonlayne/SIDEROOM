@@ -176,6 +176,7 @@ pub async fn register(
     }
     spawn_verification(svc.clone(), state.now_secs(), registered.account_id, email);
     announce_new_member(&svc, registered.account_id, registered.issuer_id).await;
+    svc.notify_invite_credits(registered.issuer_id).await;
 
     Ok((
         StatusCode::CREATED,

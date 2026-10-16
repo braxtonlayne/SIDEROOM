@@ -16,6 +16,7 @@
 //!   rate limiter).
 
 mod account;
+mod alerts;
 mod common;
 mod discord;
 mod identity;
@@ -131,6 +132,7 @@ pub fn router() -> Router<AppState> {
             "/sr/auth/discord/pending",
             get(discord::pending).delete(discord::forget),
         )
+        .route("/sr/auth/login-alerts", get(alerts::get).put(alerts::put))
         .route("/sr/auth/trusted-devices", get(trusted::list))
         .route("/sr/auth/trusted-devices/{id}", delete(trusted::revoke))
         .route("/sr/auth/totp/enroll", post(mfa::enroll))

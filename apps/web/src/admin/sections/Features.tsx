@@ -4,6 +4,10 @@ import * as api from '../api';
 import { useT } from '../../i18n';
 import { SchemaForm, overridesOf, schemaFields, type SettingsValues } from '../SchemaForm';
 import { Async, ReasonDialog, SectionHeader, useResource } from '../ui';
+import { UnsavedBar } from '../UnsavedBar';
+
+const savedSettings = (f: api.FeatureView): SettingsValues =>
+  f.settings && typeof f.settings === 'object' ? (f.settings as SettingsValues) : {};
 
 export function FeaturesSection() {
   const t = useT();
@@ -15,6 +19,10 @@ export function FeaturesSection() {
   const [configuring, setConfiguring] = useState<api.FeatureView | null>(null);
   const [draft, setDraft] = useState<SettingsValues>({});
   const [saving, setSaving] = useState(false);
+  const dirty =
+    !!configuring &&
+    JSON.stringify(overridesOf(schemaFields(configuring.schema), draft)) !==
+      JSON.stringify(overridesOf(schemaFields(configuring.schema), savedSettings(configuring)));
 
   return (
     <>
@@ -50,11 +58,7 @@ export function FeaturesSection() {
                       variant="secondary"
                       aria-label={t('admin.features.settingsAria', { name: f.name })}
                       onClick={() => {
-                        setDraft(
-                          f.settings && typeof f.settings === 'object'
-                            ? (f.settings as SettingsValues)
-                            : {},
-                        );
+                        setDraft(savedSettings(f));
                         setConfiguring(f);
                       }}
                     >
@@ -95,11 +99,18 @@ export function FeaturesSection() {
               values={draft}
               onChange={setDraft}
             />
-            <div className="adm-actions">
-              <Button loading={saving} onClick={() => setSaving(true)}>
+            <UnsavedBar dirty={dirty}>
+              <Button loading={saving} disabled={!dirty} onClick={() => setSaving(true)}>
                 {t('admin.features.saveSettings')}
               </Button>
-            </div>
+              <Button
+                variant="secondary"
+                disabled={!dirty || saving}
+                onClick={() => setDraft(savedSettings(configuring))}
+              >
+                {t('admin.features.discardChanges')}
+              </Button>
+            </UnsavedBar>
           </div>
         )}
       </Drawer>

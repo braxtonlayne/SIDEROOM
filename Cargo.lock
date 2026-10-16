@@ -5315,6 +5315,7 @@ dependencies = [
  "clap",
  "rpassword",
  "serde_json",
+ "sha2 0.11.0",
  "sqlx",
  "sr-admin",
  "sr-api",
@@ -5326,6 +5327,7 @@ dependencies = [
  "sr-theme",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -5495,6 +5497,27 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-test",
  "zip",
+]
+
+[[package]]
+name = "sr-loadtest"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "data-encoding",
+ "futures",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
+ "sr-api",
+ "sr-auth",
+ "sr-chat",
+ "sr-core",
+ "sr-db",
+ "tokio",
+ "tokio-tungstenite",
 ]
 
 [[package]]

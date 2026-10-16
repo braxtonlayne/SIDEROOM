@@ -226,6 +226,49 @@ describe('Devices', () => {
   });
 });
 
+describe('Sign-in alerts (ENT-AUTH-015)', () => {
+  it('shows the switch from the server and saves a change', async () => {
+    let sent: unknown;
+    server.use(
+      http.get('*/api/v1/sr/auth/sessions', () => HttpResponse.json([])),
+      http.get('*/api/v1/sr/auth/trusted-devices', () => HttpResponse.json([])),
+      http.get('*/api/v1/sr/auth/login-alerts', () => HttpResponse.json({ enabled: true })),
+      http.put('*/api/v1/sr/auth/login-alerts', async ({ request }) => {
+        sent = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    openSettings('devices');
+    const sw = await screen.findByRole('switch', {
+      name: 'Email me about sign-ins from new devices',
+    });
+    expect(sw).toBeChecked();
+    await user.click(sw);
+    await waitFor(() => expect(sent).toEqual({ enabled: false }));
+    await waitFor(() => expect(sw).not.toBeChecked());
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it('says so when the change is refused and leaves the switch where it was', async () => {
+    server.use(
+      http.get('*/api/v1/sr/auth/sessions', () => HttpResponse.json([])),
+      http.get('*/api/v1/sr/auth/trusted-devices', () => HttpResponse.json([])),
+      http.put('*/api/v1/sr/auth/login-alerts', () =>
+        HttpResponse.json({ message: 'Nope.' }, { status: 500 }),
+      ),
+    );
+    const user = userEvent.setup();
+    openSettings('devices');
+    const sw = await screen.findByRole('switch', {
+      name: 'Email me about sign-ins from new devices',
+    });
+    await user.click(sw);
+    expect(await screen.findByText('Could not change the setting')).toBeInTheDocument();
+    expect(sw).toBeChecked();
+  });
+});
+
 describe('Language', () => {
   it('stores the region and the 12 or 24-hour clock and shows an example', async () => {
     const user = userEvent.setup();

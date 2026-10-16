@@ -56,6 +56,13 @@ export const revokeTrustedDevice = (id: string) =>
     retries: 0,
   });
 
+/** `GET /sr/auth/login-alerts`: whether a mail goes out when a new device signs in (default on). */
+export const getLoginAlerts = () =>
+  apiFetch<{ enabled: boolean }>('/sr/auth/login-alerts', { retries: 0 });
+/** `PUT /sr/auth/login-alerts` (204). */
+export const setLoginAlerts = (enabled: boolean) =>
+  apiFetch<void>('/sr/auth/login-alerts', { method: 'PUT', json: { enabled }, retries: 0 });
+
 export const resendVerification = () => apiPost<void>('/sr/auth/verify-email/resend');
 /** The emailed reset link (for people who forgot the current password). */
 export const sendPasswordReset = (email: string) => apiPost<void>('/sr/auth/forgot', { email });

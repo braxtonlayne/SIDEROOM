@@ -408,6 +408,16 @@ pub fn register(runner: JobRunner, pool: &PgPool, indexer: Arc<Indexer>) -> JobR
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `sr-cli reindex` queues this job by name (the CLI does not depend on this crate).
+    #[test]
+    fn the_cli_queues_the_job_kind_registered_here() {
+        let ops = include_str!("../../sr-cli/src/ops.rs");
+        assert!(
+            ops.contains(&format!("REINDEX_JOB: &str = \"{REINDEX_KIND}\";")),
+            "sr-cli ops.rs REINDEX_JOB must equal {REINDEX_KIND}"
+        );
+    }
     use sr_chat::memory::MemoryBackend;
     use sr_chat::repo::GuildRepository;
     use sr_chat::{Member, SendMessage};

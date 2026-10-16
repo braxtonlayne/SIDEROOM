@@ -2,6 +2,18 @@
 
 This guide installs a single-node instance: one `sr-server` process behind a TLS reverse proxy, with Postgres, S3-compatible object storage and an SMTP server. The steps follow [docs/dev/server.md](../docs/dev/server.md), which describes the commands and configuration keys in more detail. Doc 12 covers the production architecture.
 
+## Quick install (Docker Compose, one host)
+
+`deploy/install.sh` does sections 3 to 5 for the Compose stack. It asks for the domain, the mail server and the Owner account, generates every secret fresh (`deploy/compose/.env.prod` and `garage.prod.toml`, mode 0600), then starts Postgres and Garage, creates the bucket and key, applies the migrations and the bucket CORS rule, creates the Owner and brings the whole stack up. The server image carries `sr-cli`, so no host binary is needed.
+
+```
+deploy/install.sh              # interactive
+deploy/install.sh --yes        # answers from SR_DOMAIN, SMTP_HOST, SR_OWNER_EMAIL, ... (see the header of the script)
+deploy/install.sh --no-start   # write the files and print the commands instead of running them
+```
+
+It refuses to touch an existing installation unless `--force` (which regenerates every secret and keeps the old files as `*.bak`). The web build must be unpacked into `SR_WEB_DIR` (`/opt/sideroom/web` by default) before Caddy can serve it. Back up `.env.prod`: `SR_SECRET_KEY` decrypts every stored TOTP secret. The rest of this page is the manual route and the reference for what the script does.
+
 ## 1. What you need
 
 | Piece | Notes |
@@ -97,7 +109,7 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
    The rule allows `PUT`, `GET` and `HEAD` from the origin, allows the `Content-Type` request header and exposes `ETag`. Without `--origin` it uses `server.public_url`. If the web app is also served from another origin (a second hostname, a dev URL), repeat `--origin`.
 
-5. **Start the server.** `sr-server` (or `sr-server serve`) reads `SR_CONFIG`. Check `GET /healthz` (liveness) and `GET /readyz` (checks Postgres and object storage).
+5. **Start the server.** `sr-server` (or `sr-server serve`) reads `SR_CONFIG`. Check `GET /healthz` (liveness) and `GET /readyz` (checks Postgres and object storage); `sr-server healthcheck` runs the `/readyz` probe from the command line and is what the container health check uses.
 
 6. **Put the reverse proxy in front.** Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*`, and keep `metrics_bind` on loopback. `deploy/compose/caddy/Caddyfile.prod` does this and also serves the web app with the security headers and the Content-Security-Policy; `deploy/compose/prod.yml` is the whole stack as Docker Compose, and `deploy/systemd/` has the units for the plain-binary route. For everything around the install see [BACKUP.md](BACKUP.md), [UPGRADE.md](UPGRADE.md), [RUNBOOK.md](RUNBOOK.md), [GARAGE.md](GARAGE.md) and the [FAQ](FAQ.md).
 
@@ -105,7 +117,7 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
 Do not run `sr-cli seed` on an installation you care about. It refuses unless `server.public_url` is local, and `--force` overrides that check.
 
-Backups: there is no `sr-cli backup` command yet; the scripts in `deploy/scripts` do the work (nightly dumps, object snapshots, retention, a restore drill). See [BACKUP.md](BACKUP.md). Keep the `server.secret_key` value with the backups, because the TOTP secrets in the database cannot be read without it.
+Backups: `sr-cli backup` takes a one-off dump with a checksum manifest and `sr-cli restore` loads one back (both need the PostgreSQL client tools); the scripts in `deploy/scripts` add the schedule, retention, object snapshots, WAL archiving and the restore drill. See [BACKUP.md](BACKUP.md). Keep the `server.secret_key` value with the backups, because the TOTP secrets in the database cannot be read without it.
 
 ## 6. Reverse proxy and client IP
 
