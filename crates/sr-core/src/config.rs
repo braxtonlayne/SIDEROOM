@@ -316,8 +316,30 @@ impl GifConfig {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct IngestConfig {
-    /// Absolute directories, for example a mounted Storage Box.
+    /// Absolute directories, for example a mounted Storage Box. From the environment this may be a
+    /// single path or a comma-separated list (`SR_INGEST__ROOTS=/srv/sideroom/ingest`); empty means none.
+    #[serde(deserialize_with = "roots_from_list_or_csv")]
     pub roots: Vec<String>,
+}
+
+/// Accept a TOML array of paths, or one string with comma-separated paths (what a compose
+/// environment line can carry). Blank entries are dropped.
+fn roots_from_list_or_csv<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Roots {
+        List(Vec<String>),
+        Csv(String),
+    }
+    let all = match Roots::deserialize(d)? {
+        Roots::List(l) => l,
+        Roots::Csv(s) => s.split(',').map(str::to_owned).collect(),
+    };
+    Ok(all
+        .into_iter()
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .collect())
 }
 
 /// `[lookup]`: metadata lookup providers behind the submission editor's "Fetch details"
@@ -667,6 +689,23 @@ impl Config {
 mod tests {
     use super::*;
 
+
+    #[test]
+    fn ingest_roots_accept_a_list_or_a_comma_separated_string() {
+        let load = |toml: &str| {
+            Config::from_figment(
+                &Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(toml)),
+            )
+            .unwrap()
+            .ingest
+            .roots
+        };
+        assert!(load("").is_empty());
+        assert_eq!(load("[ingest]\nroots = [\"/a\", \"/b\"]"), ["/a", "/b"]);
+        assert_eq!(load("[ingest]\nroots = \"/srv/sideroom/ingest\""), ["/srv/sideroom/ingest"]);
+        assert_eq!(load("[ingest]\nroots = \"/a, /b,\""), ["/a", "/b"]);
+        assert!(load("[ingest]\nroots = \"\"").is_empty());
+    }
     #[test]
     fn voice_is_off_by_default_and_validated_when_on() {
         let c = Config::default();

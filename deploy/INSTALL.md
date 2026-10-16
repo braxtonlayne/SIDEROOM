@@ -14,6 +14,8 @@ deploy/install.sh --no-start   # write the files and print the commands instead 
 
 It refuses to touch an existing installation unless `--force` (which regenerates every secret and keeps the old files as `*.bak`). The web build must be unpacked into `SR_WEB_DIR` (`/opt/sideroom/web` by default) before Caddy can serve it. Back up `.env.prod`: `SR_SECRET_KEY` decrypts every stored TOTP secret. The rest of this page is the manual route and the reference for what the script does.
 
+**Local import folder.** The installer also asks for a folder on the host (default `/srv/sideroom/ingest`, created when missing; type `none` to leave local folders off). Compose mounts it into `sr-server` read-only at the same path and sets `SR_INGEST__ROOTS` to it (`SR_INGEST_DIR` and `SR_INGEST_ROOTS` in `.env.prod`; an empty `SR_INGEST_ROOTS` turns local folders off). There is one root; put the series under a `library/` sub-folder, named as in [ingest-naming-conventions](../docs/specs/ingest-naming-conventions.md). The mount is read-only and the ingest ledger never moves, renames or deletes files in it. The Hetzner Storage Box is a backup target, not a mount: until the owner mounts one on the host, pointing `SR_INGEST_DIR` at the mounted path is the only change needed.
+
 ## 1. What you need
 
 | Piece | Notes |

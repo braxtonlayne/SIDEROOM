@@ -280,6 +280,12 @@ fn the_server_environment_loads_through_the_real_config_loader() {
             .unwrap_or_else(|| panic!("{k} sets no field of the server config"));
         let text = match got {
             serde_json::Value::String(s) => s.clone(),
+            // A list setting (SR_INGEST__ROOTS) travels as one comma-separated string.
+            serde_json::Value::Array(a) => a
+                .iter()
+                .filter_map(|x| x.as_str())
+                .collect::<Vec<_>>()
+                .join(","),
             other => other.to_string(),
         };
         assert_eq!(&text, v, "{k} did not reach the config unchanged");
@@ -601,4 +607,37 @@ fn systemd_units_reference_things_that_exist() {
     // The server unit starts what the image's entrypoint starts.
     let unit = fs::read_to_string(dir.join("sr-server.service")).unwrap();
     assert!(unit.contains("ExecStart=/opt/sideroom/bin/sr-server serve"));
+}
+
+/// H-48: the ingest folder reaches the server read-only, and the root is the in-container path.
+#[test]
+fn the_ingest_folder_is_a_read_only_mount_with_a_matching_root() {
+    let env = env_file("deploy/compose/.env.prod.example");
+    let c = compose();
+    let server = &c.services["sr-server"];
+    let mounts = server.section("volumes");
+    let mount = mounts
+        .iter()
+        .find(|m| m.contains("/srv/sideroom/ingest"))
+        .unwrap_or_else(|| panic!("sr-server has no ingest mount: {mounts:?}"));
+    assert!(
+        mount.trim_end().ends_with("/srv/sideroom/ingest:ro"),
+        "the ingest mount must be read-only: {mount}"
+    );
+    assert!(mount.contains("${SR_INGEST_DIR:-/srv/sideroom/ingest}"));
+    assert_eq!(
+        env.get("SR_INGEST_ROOTS").map(String::as_str),
+        Some("/srv/sideroom/ingest")
+    );
+    assert_eq!(
+        env.get("SR_INGEST_DIR").map(String::as_str),
+        Some("/srv/sideroom/ingest")
+    );
+    assert!(
+        server
+            .section("environment")
+            .iter()
+            .any(|l| l.starts_with("SR_INGEST__ROOTS:") && l.contains("${SR_INGEST_ROOTS:-}")),
+        "SR_INGEST__ROOTS must come from SR_INGEST_ROOTS (empty = local folders off)"
+    );
 }
