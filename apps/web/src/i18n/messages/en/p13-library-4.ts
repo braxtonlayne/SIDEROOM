@@ -1,4 +1,17 @@
 export default {
+  // Share to Lounge (lib/ShareToLounge.tsx)
+  'share.title': 'Share to Lounge',
+  'share.place': 'Where',
+  'share.channel': 'Channel',
+  'share.directMessages': 'Direct messages',
+  'share.noChannels': 'No channels to post in',
+  'share.note': 'Add a note (optional)',
+  'share.cancel': 'Cancel',
+  'share.send': 'Send',
+  'share.sent': 'Shared',
+  'share.failed': 'Could not post there. You may not be allowed to send messages in that channel.',
+  'share.kindLibrary': 'The library',
+  'share.kindCinema': 'The cinema',
   // EPUB reader (EpubReader.tsx)
   'library.epub.failedTitle': 'This book could not be opened',
   'library.epub.failedDescription':

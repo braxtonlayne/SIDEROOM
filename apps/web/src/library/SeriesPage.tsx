@@ -269,7 +269,7 @@ function Actions({
         {following ? t('library.series.following') : t('library.series.follow')}
       </Button>
       <AddToListButton seriesId={series.id} />
-      <ShareButton seriesId={series.id} />
+      <ShareButton seriesId={series.id} title={series.title} />
       {target && (
         <ChapterDownload
           chapterId={target.chapter.id}

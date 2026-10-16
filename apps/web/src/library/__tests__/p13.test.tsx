@@ -7,6 +7,7 @@ import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { http, HttpResponse, server } from '../../test/server';
 import { useReaderPrefsStore } from '../prefs';
 import { localProgress, setProgressApi } from '../progress';
+import { useStore } from '../../store';
 import { A, DONE, manifest, renderAt, useLibraryApi } from './harness';
 
 const comment = (id: string, o: Record<string, unknown> = {}) => ({
@@ -165,22 +166,37 @@ describe('downloads and sharing (LIB-SER-002/004, LIB-RDR-016)', () => {
     click.mockRestore();
   });
 
-  it('hides them without the perk, and copies the series link', async () => {
+  it('hides them without the perk, and shares the series link into a picked channel', async () => {
     useLibraryApi();
     server.use(
       http.get('*/api/v1/library/me/downloads', () =>
         HttpResponse.json({ entitled: false, per_day: 0, left: 0 }),
       ),
     );
+    const sent: [string, string][] = [];
+    useStore.setState({
+      guilds: {},
+      guildOrder: [],
+      channels: { d1: { id: 'd1', type: 1, recipients: [{ id: '9', username: 'ana' }] } as never },
+      channelIdsByGuild: { '@me': ['d1'] },
+      sendMessage: (async (channelId: string, content: string) => {
+        sent.push([channelId, content]);
+        return {} as never;
+      }) as never,
+    });
     const user = userEvent.setup();
-    const write = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
     renderAt('/library/s/1');
     await screen.findByText(/Chapter 3/, { selector: '.lib-chapter-title' });
     expect(screen.queryByRole('button', { name: /Download chapter/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Share to Lounge' }));
-    await waitFor(() =>
-      expect(write).toHaveBeenCalledWith(expect.stringContaining('/library/s/1')),
-    );
+    const dialog = await screen.findByRole('dialog', { name: 'Share to Lounge' });
+    await user.type(within(dialog).getByLabelText('Add a note (optional)'), 'Try this');
+    await user.click(within(dialog).getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]![0]).toBe('d1');
+    const [first, second] = sent[0]![1].split('\n');
+    expect(first).toBe('Try this');
+    expect(second).toMatch(/\/library\/s\/1$/);
   });
 });
 

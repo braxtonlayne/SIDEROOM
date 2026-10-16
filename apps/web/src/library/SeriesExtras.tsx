@@ -2,6 +2,8 @@
 // download buttons (LIB-SER-002/004/005, LIB-SOC-005, LIB-RDR-016).
 import { Button, EmptyState, Icon, Notice, Skeleton, useToast } from '@sideroom/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { ShareToLoungeDialog } from '../lib/ShareToLounge';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import {
@@ -95,27 +97,28 @@ export function ChapterDownload({
   );
 }
 
-/** "Share to Lounge": copies the link, which unfurls in a Lounge channel (as in the Cinema). */
-export function ShareButton({ seriesId }: { seriesId: string }) {
+/** "Share to Lounge": posts the series link into a channel or DM the person picks. */
+export function ShareButton({ seriesId, title }: { seriesId: string; title: string }) {
   const t = useT();
-  const toast = useToast();
-  const share = async () => {
-    const url = `${window.location.origin}/library/s/${seriesId}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.show({
-        title: t('library.series.linkCopied'),
-        description: t('library.series.linkCopiedBody'),
-      });
-    } catch {
-      toast.show({ title: t('library.series.copyFailed'), variant: 'warning' });
-    }
-  };
+  const [open, setOpen] = useState(false);
   return (
-    <Button variant="secondary" onClick={() => void share()}>
-      <Icon name="link" size={16} />
-      {t('library.series.shareToLounge')}
-    </Button>
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Icon name="link" size={16} />
+        {t('library.series.shareToLounge')}
+      </Button>
+      {open && (
+        <ShareToLoungeDialog
+          open
+          onClose={() => setOpen(false)}
+          target={{
+            url: `${window.location.origin}/library/s/${seriesId}`,
+            title,
+            kind: t('share.kindLibrary'),
+          }}
+        />
+      )}
+    </>
   );
 }
 
