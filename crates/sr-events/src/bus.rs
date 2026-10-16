@@ -27,6 +27,11 @@ pub trait EventBus: Send + Sync {
     /// Slow subscribers may miss events (lagged items are skipped).
     /// [`Topic::Firehose`] sees everything published to any topic.
     fn subscribe(&self, topic: Topic) -> BoxStream<'static, DomainEvent>;
+    /// Whether every publisher and subscriber of this bus lives in this process. Only then can
+    /// in-memory state (voice occupancy, say) answer for the whole deployment. Default: no.
+    fn is_single_node(&self) -> bool {
+        false
+    }
 }
 
 type TopicMap = HashMap<Topic, broadcast::Sender<DomainEvent>>;
@@ -108,6 +113,10 @@ impl EventBus for InProcessBus {
         BroadcastStream::new(rx)
             .filter_map(|r| async move { r.ok() }) // skip Lagged
             .boxed()
+    }
+
+    fn is_single_node(&self) -> bool {
+        true
     }
 }
 

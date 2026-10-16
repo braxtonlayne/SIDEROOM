@@ -1821,7 +1821,7 @@ async fn scheduled_events_validate_and_follow_discord_shapes() {
         .map(|e| e["name"].as_str().unwrap())
         .collect();
     assert_eq!(names, ["Park meetup", "Movie night"]);
-    assert_eq!(list[0]["user_count"], 0);
+    assert_eq!(list[0]["user_count"], 1, "the creator is interested (D-228)");
     let (_, plain) = w.get(BOB, &path).await;
     assert!(plain[0].get("user_count").is_none());
 }
@@ -1965,6 +1965,53 @@ async fn scheduled_event_rsvp_status_and_permissions() {
             >= 3,
         "{seen:?}"
     );
+}
+
+#[tokio::test]
+async fn the_creator_of_an_event_is_marked_interested_and_can_unmark_themselves() {
+    // D-228. Everybody here is a person with a browser session, so this covers the user path; a bot
+    // creator marks nobody (the `AuthKind::Bot` branch of `create_event`).
+    let w = world().await;
+    let (gid, _) = w.guild("Interest Club").await;
+    let mut bus = w.events(&gid);
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let (s, ev) = w
+        .post(
+            BOB,
+            &path,
+            json!({
+                "name": "Quiz", "entity_type": 3, "entity_metadata": { "location": "online" },
+                "scheduled_start_time": at(HOUR), "scheduled_end_time": at(2 * HOUR)
+            }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ev}");
+    assert_eq!(ev["user_rsvp"], true, "returned already interested");
+    assert_eq!(ev["user_count"], 1);
+    let one = format!("{path}/{}", ev["id"].as_str().unwrap());
+    let (_, got) = w.get(OWNER, &format!("{one}?with_user_count=true")).await;
+    assert_eq!((got["user_count"].as_u64(), got["user_rsvp"].as_bool()), (Some(1), Some(false)));
+    // CREATE first, then USER_ADD for the creator.
+    let mut seen = Vec::new();
+    while let Ok(Some(e)) = tokio::time::timeout(Duration::from_millis(50), bus.next()).await {
+        if let DomainEvent::ScheduledEvent { kind, payload, .. } = e {
+            seen.push((kind.dispatch_name(), payload["user_id"].as_str().map(str::to_owned)));
+        }
+    }
+    assert_eq!(
+        seen,
+        [
+            ("GUILD_SCHEDULED_EVENT_CREATE", None),
+            ("GUILD_SCHEDULED_EVENT_USER_ADD", Some(BOB.to_string())),
+        ]
+    );
+    // They can un-mark themselves.
+    assert_eq!(
+        w.delete(BOB, &format!("{one}/users/@me")).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, got) = w.get(BOB, &format!("{one}?with_user_count=true")).await;
+    assert_eq!((got["user_count"].as_u64(), got["user_rsvp"].as_bool()), (Some(0), Some(false)));
 }
 
 #[tokio::test]

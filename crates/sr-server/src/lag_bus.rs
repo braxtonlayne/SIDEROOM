@@ -58,6 +58,10 @@ impl EventBus for LagTapBus {
     fn subscribe(&self, topic: Topic) -> BoxStream<'static, DomainEvent> {
         self.inner.subscribe(topic)
     }
+
+    fn is_single_node(&self) -> bool {
+        self.inner.is_single_node()
+    }
 }
 
 #[cfg(test)]

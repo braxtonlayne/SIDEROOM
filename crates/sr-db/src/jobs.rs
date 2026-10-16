@@ -220,15 +220,19 @@ pub fn delay_until_daily_utc(now_unix_ms: i64, hour: u32, minute: u32) -> Durati
 }
 
 /// Return jobs stuck in `running` longer than `older_than` (crashed workers) to the queue.
-pub async fn reap_stale<'e>(ex: impl PgExecutor<'e>, older_than: Duration) -> DbResult<u64> {
-    let r = sqlx::query(
+/// Returns the `(id, kind)` of every job it returned, so the caller can log each one.
+pub async fn reap_stale<'e>(
+    ex: impl PgExecutor<'e>,
+    older_than: Duration,
+) -> DbResult<Vec<(i64, String)>> {
+    Ok(sqlx::query_as::<_, (i64, String)>(
         "UPDATE jobs SET state = 'queued', locked_at = NULL, locked_by = NULL, updated_at = now() \
-         WHERE state = 'running' AND locked_at < now() - make_interval(secs => $1)",
+         WHERE state = 'running' AND locked_at < now() - make_interval(secs => $1) \
+         RETURNING id, kind",
     )
     .bind(older_than.as_secs_f64())
-    .execute(ex)
-    .await?;
-    Ok(r.rows_affected())
+    .fetch_all(ex)
+    .await?)
 }
 
 /// List dead-lettered jobs, newest first.

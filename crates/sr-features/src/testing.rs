@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use sr_events::{ChannelId, GuildId, UserId};
 
 use crate::actions::{
-    ActionError, ActionResult, ChannelInfo, FeatureActions, GuildInfo, MessageInfo, OutMessage,
-    UserInfo,
+    ActionError, ActionResult, ChannelInfo, FeatureActions, GuildInfo, MessageInfo, Occupancy,
+    OutMessage, UserInfo,
 };
 
 /// What the fake was asked to do.
@@ -44,6 +44,8 @@ struct Inner {
     /// Connected members per voice channel.
     voice: BTreeMap<u64, BTreeSet<u64>>,
     fail_posts: bool,
+    /// Voice occupancy answers `Unknown` (a multi-node deployment).
+    occupancy_unknown: bool,
 }
 
 /// The system user id the fake posts as.
@@ -164,6 +166,11 @@ impl FakeActions {
 
     pub fn channel_exists(&self, channel: u64) -> bool {
         self.with(|i| i.channels.contains_key(&channel))
+    }
+
+    /// Make `voice_occupants` answer `Unknown`, as a multi-node deployment does.
+    pub fn set_occupancy_unknown(&self, unknown: bool) {
+        self.with(|i| i.occupancy_unknown = unknown);
     }
 
     pub fn fail_posts(&self, fail: bool) {
@@ -349,12 +356,16 @@ impl FeatureActions for FakeActions {
         Ok(())
     }
 
-    async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Vec<UserId>> {
-        Ok(self
-            .occupants_of(channel.get())
-            .into_iter()
-            .map(UserId::new)
-            .collect())
+    async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Occupancy> {
+        if self.with(|i| i.occupancy_unknown) {
+            return Ok(Occupancy::Unknown);
+        }
+        Ok(Occupancy::Known(
+            self.occupants_of(channel.get())
+                .into_iter()
+                .map(UserId::new)
+                .collect(),
+        ))
     }
 
     async fn move_member(&self, guild: GuildId, user: UserId, to: ChannelId) -> ActionResult<()> {

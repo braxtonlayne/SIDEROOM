@@ -437,9 +437,16 @@ pub struct VoiceView {
     pub occupants: HashMap<ChannelId, usize>,
     /// Stage channels that have a live stage instance.
     pub live_stages: HashSet<ChannelId>,
+    /// Channels whose occupancy this node cannot tell (a multi-node deployment): never counted as
+    /// empty, so an event is not completed for emptiness there (H-15).
+    pub unknown_occupancy: HashSet<ChannelId>,
 }
 
 impl VoiceView {
+    pub fn occupancy_unknown(&self, channel: ChannelId) -> bool {
+        self.unknown_occupancy.contains(&channel)
+    }
+
     pub fn occupants_in(&self, channel: ChannelId) -> usize {
         self.occupants.get(&channel).copied().unwrap_or(0)
     }
@@ -483,6 +490,7 @@ impl EventWorld for NoWorld {
         VoiceView {
             occupants: channels.iter().map(|c| (*c, 1)).collect(),
             live_stages: channels.iter().copied().collect(),
+            ..VoiceView::default()
         }
     }
 
@@ -540,7 +548,7 @@ pub fn advance(ev: &ScheduledEvent, now_ms: i64, view: &VoiceView) -> Option<Sch
                     && !view.stage_live(ch)
                 {
                     out.status = EventStatus::Completed;
-                } else if view.occupants_in(ch) > 0 {
+                } else if view.occupants_in(ch) > 0 || view.occupancy_unknown(ch) {
                     out.empty_since_ms = None;
                 } else {
                     match ev.empty_since_ms {
@@ -961,6 +969,21 @@ mod tests {
         let back = advance(&marked, NOW + 10 * MIN, &occupied(7, 1)).unwrap();
         assert_eq!(back.empty_since_ms, None);
         assert!(advance(&back, NOW + 40 * MIN, &occupied(7, 1)).is_none());
+    }
+
+    #[test]
+    fn unknown_occupancy_never_ends_an_event_for_emptiness() {
+        let e = running(EntityType::Voice);
+        let mut unknown = VoiceView::default();
+        unknown.unknown_occupancy.insert(ChannelId::new(7));
+        // Not even after a day: no empty countdown starts, nothing completes.
+        assert!(advance(&e, NOW, &unknown).is_none());
+        assert!(advance(&e, NOW + 24 * HOUR, &unknown).is_none());
+        // A countdown that already started is cleared when the answer turns unknown.
+        let marked = advance(&e, NOW, &VoiceView::default()).unwrap();
+        let cleared = advance(&marked, NOW + HOUR, &unknown).unwrap();
+        assert_eq!(cleared.status, EventStatus::Active);
+        assert_eq!(cleared.empty_since_ms, None);
     }
 
     #[test]

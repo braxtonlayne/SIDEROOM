@@ -79,16 +79,23 @@ pub fn spawn_voice_listener(
 }
 
 /// The gateway behind the event clock.
-pub struct GatewayEventWorld(pub sr_gateway::Gateway);
+/// The second field is `EventBus::is_single_node()`: on a multi-node bus the gateway's in-memory voice
+/// state is only this node's share, so occupancy is reported as unknown and the clock never ends an
+/// event for emptiness (H-15).
+pub struct GatewayEventWorld(pub sr_gateway::Gateway, pub bool);
 
 #[async_trait]
 impl EventWorld for GatewayEventWorld {
     async fn view(&self, channels: &[ChannelId]) -> VoiceView {
         let mut view = VoiceView::default();
         for ch in channels {
-            let n = self.0.voice_occupants(*ch).len();
-            if n > 0 {
-                view.occupants.insert(*ch, n);
+            if self.1 {
+                let n = self.0.voice_occupants(*ch).len();
+                if n > 0 {
+                    view.occupants.insert(*ch, n);
+                }
+            } else {
+                view.unknown_occupancy.insert(*ch);
             }
             if self.0.stage_instance(*ch).is_some() {
                 view.live_stages.insert(*ch);
