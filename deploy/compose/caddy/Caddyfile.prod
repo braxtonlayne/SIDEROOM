@@ -6,8 +6,9 @@
 #
 # The Content-Security-Policy on the app shell is the one built by
 # apps/web/src/security/csp.ts; csp.test.ts fails if the two drift apart. If you enable
-# activities, append `https://*.activities.<domain>` to frame-src below and to the web build's
-# SR_CSP_FRAME env (docs/12 section 1).
+# activities, follow deploy/compose/caddy/activities.snippet (wildcard host with a DNS-challenge certificate,
+# and `https://*.activities.<domain>` in frame-src below and in the web build's SR_CSP_FRAME env; docs/12
+# section 1). It is off by default: the feature is not built yet and the certificate needs a DNS provider.
 {
 	servers {
 		protocols h1 h2 h3

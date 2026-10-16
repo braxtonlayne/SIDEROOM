@@ -4,8 +4,9 @@
 #   docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod up -d
 #   docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod --profile monitoring up -d
 #
-# Status: written from the same pieces as dev.yml and Caddyfile.prod, but not yet run end to end on a clean
-# host (no Docker on the build machines). Treat the first install as the test and report what breaks.
+# Status: no Docker on the build machines, so the stack is checked statically instead: crates/sr-core/tests/deploy_files.rs
+# feeds this file's server environment through the real config loader and cross-checks the services, volumes, env
+# file, Caddyfile and systemd units. The first install on a clean host is still the final test; report what breaks.
 name: sideroom
 
 x-restart: &restart
@@ -19,14 +20,40 @@ services:
       POSTGRES_USER: sideroom
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
       POSTGRES_DB: sideroom
+    # Continuous WAL archiving for point-in-time recovery (XC-OPS-003, deploy/BACKUP.md). Finished WAL segments
+    # go to the wal-archive volume; deploy/scripts/basebackup.sh provides the starting points.
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=300
+      - -c
+      - archive_command=sh /opt/sideroom/scripts/wal-archive.sh /var/lib/postgresql/wal-archive %p %f
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - wal-archive:/var/lib/postgresql/wal-archive
+      - pg-backups:/var/backups/sideroom
+      - ../scripts:/opt/sideroom/scripts:ro
+    depends_on:
+      wal-archive-init: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sideroom -d sideroom"]
       interval: 10s
       timeout: 3s
       retries: 10
     # No published port: only the compose network (and docker exec for backups) reaches Postgres.
+
+  # The named volumes are created root-owned; the postgres user (uid 999) must be able to write to them.
+  wal-archive-init:
+    image: postgres:17
+    user: root
+    command: ["sh", "-c", "chown postgres:postgres /var/lib/postgresql/wal-archive /var/backups/sideroom && chmod 700 /var/lib/postgresql/wal-archive /var/backups/sideroom"]
+    volumes:
+      - wal-archive:/var/lib/postgresql/wal-archive
+      - pg-backups:/var/backups/sideroom
 
   garage:
     <<: *restart
@@ -64,14 +91,18 @@ services:
       SR_SMTP__PASSWORD: ${SMTP_PASSWORD:-}
     stop_grace_period: 60s # server drains for 2 x shutdown_grace_secs (docs/dev/server.md)
     healthcheck:
-      # The distroless image has no shell or curl; the server binary has no health subcommand yet, so
-      # readiness is checked by Caddy upstream health and by `curl /readyz` from the host.
-      disable: true
+      # The distroless image has no shell or curl; the binary probes its own /readyz (database and storage).
+      test: ["CMD", "/usr/local/bin/sr-server", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 90s # migrations and the search index can take a while on first boot
 
   caddy:
     <<: *restart
     image: caddy:2
-    depends_on: [sr-server]
+    depends_on:
+      sr-server: { condition: service_started }
     ports:
       - "80:80"
       - "443:443"
@@ -116,6 +147,8 @@ services:
 
 volumes:
   pgdata:
+  wal-archive:
+  pg-backups:
   garage-meta:
   garage-data:
   caddy-data:
