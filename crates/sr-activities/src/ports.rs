@@ -14,6 +14,8 @@ pub const EVENT_INSTANCE_UPDATE: &str = "SR_ACTIVITY_INSTANCE_UPDATE";
 pub struct ChannelPerms {
     pub guild_id: i64,
     pub voice: bool,
+    /// A guild text or announcement channel (an Activity may run there without a call).
+    pub text: bool,
     /// `VIEW_CHANNEL`.
     pub view: bool,
     /// `CONNECT`.

@@ -802,6 +802,52 @@ async fn authorize_requests_are_validated_without_redirecting_on_errors() {
     );
 }
 
+#[tokio::test]
+async fn an_implicit_redirect_uri_is_accepted_without_being_stored() {
+    let e = env();
+    let (c, _) = oauth_app(&e).await;
+    let activity = "https://7.activities.chat.example.org/".to_owned();
+    let p = AuthorizeParams {
+        redirect_uri: Some(activity.clone()),
+        ..params(&c, "identify")
+    };
+    // Not registered and not implicit: refused.
+    assert!(e.svc.validate_authorize(&p).await.is_err());
+    assert!(e.svc.validate_authorize_with(&p, &[]).await.is_err());
+    // The caller names the Activity URI as implicit: accepted, and it is what the code goes back to.
+    let v = e
+        .svc
+        .validate_authorize_with(&p, std::slice::from_ref(&activity))
+        .await
+        .unwrap();
+    assert_eq!(v.redirect_uri.as_deref(), Some(activity.as_str()));
+    // Only exactly that URI: a different path or host on the same origin is still refused.
+    for other in [
+        "https://7.activities.chat.example.org/cb",
+        "https://8.activities.chat.example.org/",
+        "https://7.activities.chat.example.org",
+    ] {
+        let q = AuthorizeParams {
+            redirect_uri: Some(other.to_owned()),
+            ..params(&c, "identify")
+        };
+        assert!(
+            e.svc
+                .validate_authorize_with(&q, std::slice::from_ref(&activity))
+                .await
+                .is_err(),
+            "{other}"
+        );
+    }
+    // The registered URI keeps working beside it.
+    assert!(
+        e.svc
+            .validate_authorize_with(&params(&c, "identify"), std::slice::from_ref(&activity))
+            .await
+            .is_ok()
+    );
+}
+
 async fn code_for(
     e: &Env,
     c: &Created,

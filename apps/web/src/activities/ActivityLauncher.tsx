@@ -68,6 +68,9 @@ export function ActivityLauncher({
             <li key={a.application_id} className="act-item">
               <span className="act-item-text">
                 <strong>{a.name}</strong>
+                {a.development && (
+                  <span className="act-badge">{t('activities.launcher.development')}</span>
+                )}
                 {a.description ? <span className="act-muted"> {a.description}</span> : null}
               </span>
               <Button

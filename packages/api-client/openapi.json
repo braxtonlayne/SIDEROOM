@@ -20,7 +20,7 @@
         "tags": [
           "activities"
         ],
-        "summary": "The approved Activities a member can start in a voice channel.",
+        "summary": "The Activities a member can start: released ones with a reviewed bundle, and the development builds\nthey own or test.",
         "operationId": "shelf",
         "responses": {
           "200": {
@@ -6428,7 +6428,7 @@
         "tags": [
           "activities"
         ],
-        "summary": "Staff: Activities waiting for review, oldest first.",
+        "summary": "Staff: Activities waiting for review, oldest first, each with the bundle's hash and files.",
         "operationId": "admin_pending",
         "responses": {
           "200": {
@@ -6462,12 +6462,83 @@
         ]
       }
     },
+    "/admin/developers/activities/{application_id}/bundles/{bundle_id}/download": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Staff: the zip of a submitted bundle, as the owner uploaded it, to read before deciding.",
+        "operationId": "admin_download",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bundle_id",
+            "in": "path",
+            "description": "Bundle snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/developers/activities/{application_id}/decision": {
       "post": {
         "tags": [
           "activities"
         ],
-        "summary": "Staff: approve (the proxy then serves the submitted entry document) or reject an Activity.",
+        "summary": "Staff: approve (the proxy then serves that bundle once the application is released) or reject the\npending bundle.",
         "operationId": "admin_decide",
         "parameters": [
           {
@@ -18443,7 +18514,7 @@
         "tags": [
           "activities"
         ],
-        "summary": "Set the entry URL and URL mappings. A change withdraws any approval and asks for a new review.",
+        "summary": "Set the development URL and the URL mappings. A change to the mappings withdraws the approval of the\nreviewed bundle until a new review.",
         "operationId": "put_config",
         "parameters": [
           {
@@ -18505,18 +18576,109 @@
         ]
       }
     },
-    "/applications/{application_id}/activity/submit": {
+    "/applications/{application_id}/activity/bundles": {
       "post": {
         "tags": [
           "activities"
         ],
-        "summary": "Submit for review. The server fetches the entry document now and pins its SHA-256: only a document with\nthat hash is served once staff approves.",
-        "operationId": "submit",
+        "summary": "Upload a bundle: the request body is a zip of static files (at most 32 MiB unpacked and 2,000 entries,\n`index.html` at the root, allow-listed file types, no symbolic links, absolute paths or `..`). A refusal\nnames the offending entry. The new bundle is a `draft`; earlier drafts and rejected bundles are\nsuperseded. Uploading the same zip again returns the same bundle.",
+        "operationId": "upload_bundle",
         "parameters": [
           {
             "name": "application_id",
             "in": "path",
             "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/zip": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BundleDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The zip was refused; the error names the entry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/activity/bundles/{bundle_id}": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "One uploaded bundle with the list of its files.",
+        "operationId": "get_bundle",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bundle_id",
+            "in": "path",
+            "description": "Bundle snowflake",
             "required": true,
             "schema": {
               "type": "string"
@@ -18529,17 +18691,64 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConfigResponse"
+                  "$ref": "#/components/schemas/BundleDetail"
                 }
               }
             }
           },
-          "400": {
-            "description": "The entry document could not be fetched.",
+          "404": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/activity/submit": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Submit an uploaded bundle for review. An earlier pending bundle is replaced; a reviewed bundle keeps\nbeing served until staff decide.",
+        "operationId": "submit",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivitySubmitBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
                 }
               }
             }
@@ -20868,7 +21077,7 @@
         "tags": [
           "activities"
         ],
-        "summary": "The Activity running in a voice channel, if any.",
+        "summary": "The Activity running in a voice or text channel, if any.",
         "operationId": "in_channel",
         "parameters": [
           {
@@ -20913,7 +21122,7 @@
         "tags": [
           "activities"
         ],
-        "summary": "Start an approved Activity in a voice channel (needs Connect and Use Activities there). One Activity\nruns per channel; the starter is its first participant.",
+        "summary": "Start an Activity in a guild voice channel (needs Connect and Use Activities there) or text channel\n(needs View Channel and Use Activities). One Activity runs per channel; the starter is its first\nparticipant. A direct message channel is refused.",
         "operationId": "launch",
         "parameters": [
           {
@@ -56900,9 +57109,14 @@
       "ActivityDecisionBody": {
         "type": "object",
         "required": [
-          "decision"
+          "decision",
+          "bundle_id"
         ],
         "properties": {
+          "bundle_id": {
+            "type": "string",
+            "description": "The pending bundle being decided: a decision about another bundle is refused."
+          },
           "decision": {
             "type": "string",
             "description": "`approve` or `reject`."
@@ -56912,6 +57126,18 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "ActivitySubmitBody": {
+        "type": "object",
+        "required": [
+          "bundle_id"
+        ],
+        "properties": {
+          "bundle_id": {
+            "type": "string",
+            "description": "The uploaded bundle to put in front of staff."
           }
         }
       },
@@ -59417,6 +59643,107 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "BundleDetail": {
+        "type": "object",
+        "description": "A bundle with the files it holds.",
+        "required": [
+          "bundle",
+          "entries"
+        ],
+        "properties": {
+          "bundle": {
+            "$ref": "#/components/schemas/BundleView"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BundleEntry"
+            }
+          }
+        }
+      },
+      "BundleEntry": {
+        "type": "object",
+        "description": "One file of a bundle.",
+        "required": [
+          "path",
+          "size",
+          "content_type"
+        ],
+        "properties": {
+          "content_type": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BundleState": {
+        "type": "string",
+        "description": "Where a bundle is in review.",
+        "enum": [
+          "draft",
+          "pending",
+          "approved",
+          "rejected",
+          "superseded"
+        ]
+      },
+      "BundleView": {
+        "type": "object",
+        "description": "One uploaded bundle.",
+        "required": [
+          "id",
+          "sha256",
+          "byte_size",
+          "entry_count",
+          "state",
+          "uploaded_at_ms"
+        ],
+        "properties": {
+          "byte_size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total unpacked size in bytes."
+          },
+          "entry_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewed_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 (hex) of the uploaded zip: what staff approve."
+          },
+          "state": {
+            "$ref": "#/components/schemas/BundleState"
+          },
+          "uploaded_at_ms": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -62019,12 +62346,12 @@
         "type": "object",
         "description": "What the owner may change.",
         "properties": {
-          "entry_url": {
+          "dev_entry_url": {
             "type": [
               "string",
               "null"
             ],
-            "description": "`null` or empty clears it."
+            "description": "`null` or empty clears it. Only an application in development may set one."
           },
           "url_mappings": {
             "type": "array",
@@ -62050,9 +62377,16 @@
             "type": "boolean",
             "description": "`[activities] enabled`: when off, nothing here is served."
           },
+          "implicit_redirect_uri": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`<origin>/`: accepted as a redirect URI of the application without being stored (J-13), present once\nthe application has an Activity."
+          },
           "origin": {
             "type": "string",
-            "description": "`https://<application-id>.activities.<host>`. Register `<origin>/` as a redirect URI of the\napplication so the Embedded App SDK's `authorize` can return a code."
+            "description": "`https://<application-id>.activities.<host>`."
           }
         }
       },
@@ -62063,24 +62397,26 @@
           "application_id",
           "url_mappings",
           "review_state",
+          "bundles",
           "updated_at_ms"
         ],
         "properties": {
           "application_id": {
             "type": "string"
           },
-          "entry_url": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "bundles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BundleView"
+            },
+            "description": "Recent bundles (the review history), newest first, superseded ones included."
           },
-          "pinned_sha256": {
+          "dev_entry_url": {
             "type": [
               "string",
               "null"
             ],
-            "description": "SHA-256 (hex) of the entry document the owner submitted."
+            "description": "Live URL served only while the application is in development (never reviewed)."
           },
           "review_note": {
             "type": [
@@ -62089,14 +62425,19 @@
             ]
           },
           "review_state": {
-            "$ref": "#/components/schemas/ReviewState"
+            "$ref": "#/components/schemas/ReviewState",
+            "description": "Summary of the review: `pending` while a bundle waits, `approved` while a bundle is reviewed."
           },
-          "reviewed_sha256": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "SHA-256 (hex) of the entry document staff approved; the proxy serves only this one."
+          "reviewed_bundle": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BundleView",
+                "description": "The bundle staff approved; the proxy serves only this one."
+              }
+            ]
           },
           "updated_at_ms": {
             "type": "integer",
@@ -67342,13 +67683,15 @@
       },
       "InstanceView": {
         "type": "object",
-        "description": "A running activity in a voice channel.",
+        "description": "A running activity in a voice or text channel.",
         "required": [
           "id",
           "application_id",
           "application_name",
           "guild_id",
           "channel_id",
+          "channel_type",
+          "development",
           "started_by",
           "created_at_ms",
           "participants"
@@ -67363,9 +67706,17 @@
           "channel_id": {
             "type": "string"
           },
+          "channel_type": {
+            "type": "string",
+            "description": "`voice` or `text`."
+          },
           "created_at_ms": {
             "type": "integer",
             "format": "int64"
+          },
+          "development": {
+            "type": "boolean",
+            "description": "Running a development build (live entry URL)."
           },
           "guild_id": {
             "type": "string"
@@ -72964,11 +73315,16 @@
         "required": [
           "application_name",
           "owner_id",
-          "config"
+          "config",
+          "bundle"
         ],
         "properties": {
           "application_name": {
             "type": "string"
+          },
+          "bundle": {
+            "$ref": "#/components/schemas/BundleDetail",
+            "description": "The bundle waiting for a decision."
           },
           "config": {
             "$ref": "#/components/schemas/ConfigView"
@@ -77157,11 +77513,12 @@
       },
       "ShelfItem": {
         "type": "object",
-        "description": "An approved Activity in the launcher's shelf.",
+        "description": "An Activity in the launcher's shelf.",
         "required": [
           "application_id",
           "name",
-          "description"
+          "description",
+          "development"
         ],
         "properties": {
           "application_id": {
@@ -77169,6 +77526,10 @@
           },
           "description": {
             "type": "string"
+          },
+          "development": {
+            "type": "boolean",
+            "description": "A development build only the owner and testers see."
           },
           "name": {
             "type": "string"

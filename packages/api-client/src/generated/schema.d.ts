@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The approved Activities a member can start in a voice channel. */
+        /**
+         * The Activities a member can start: released ones with a reviewed bundle, and the development builds
+         *     they own or test.
+         */
         get: operations["shelf"];
         put?: never;
         post?: never;
@@ -1213,8 +1216,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Staff: Activities waiting for review, oldest first. */
+        /** Staff: Activities waiting for review, oldest first, each with the bundle's hash and files. */
         get: operations["admin_pending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/activities/{application_id}/bundles/{bundle_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: the zip of a submitted bundle, as the owner uploaded it, to read before deciding. */
+        get: operations["admin_download"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1232,7 +1252,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Staff: approve (the proxy then serves the submitted entry document) or reject an Activity. */
+        /**
+         * Staff: approve (the proxy then serves that bundle once the application is released) or reject the
+         *     pending bundle.
+         */
         post: operations["admin_decide"];
         delete?: never;
         options?: never;
@@ -3694,8 +3717,50 @@ export interface paths {
         };
         /** The Activity settings of my application. */
         get: operations["get_config"];
-        /** Set the entry URL and URL mappings. A change withdraws any approval and asks for a new review. */
+        /**
+         * Set the development URL and the URL mappings. A change to the mappings withdraws the approval of the
+         *     reviewed bundle until a new review.
+         */
         put: operations["put_config"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/activity/bundles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a bundle: the request body is a zip of static files (at most 32 MiB unpacked and 2,000 entries,
+         *     `index.html` at the root, allow-listed file types, no symbolic links, absolute paths or `..`). A refusal
+         *     names the offending entry. The new bundle is a `draft`; earlier drafts and rejected bundles are
+         *     superseded. Uploading the same zip again returns the same bundle.
+         */
+        post: operations["upload_bundle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/activity/bundles/{bundle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One uploaded bundle with the list of its files. */
+        get: operations["get_bundle"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -3713,8 +3778,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Submit for review. The server fetches the entry document now and pins its SHA-256: only a document with
-         *     that hash is served once staff approves.
+         * Submit an uploaded bundle for review. An earlier pending bundle is replaced; a reviewed bundle keeps
+         *     being served until staff decide.
          */
         post: operations["submit"];
         delete?: never;
@@ -4130,12 +4195,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The Activity running in a voice channel, if any. */
+        /** The Activity running in a voice or text channel, if any. */
         get: operations["in_channel"];
         put?: never;
         /**
-         * Start an approved Activity in a voice channel (needs Connect and Use Activities there). One Activity
-         *     runs per channel; the starter is its first participant.
+         * Start an Activity in a guild voice channel (needs Connect and Use Activities there) or text channel
+         *     (needs View Channel and Use Activities). One Activity runs per channel; the starter is its first
+         *     participant. A direct message channel is refused.
          */
         post: operations["launch"];
         delete?: never;
@@ -11403,9 +11469,15 @@ export interface components {
             type: number;
         };
         ActivityDecisionBody: {
+            /** @description The pending bundle being decided: a decision about another bundle is refused. */
+            bundle_id: string;
             /** @description `approve` or `reject`. */
             decision: string;
             note?: string | null;
+        };
+        ActivitySubmitBody: {
+            /** @description The uploaded bundle to put in front of staff. */
+            bundle_id: string;
         };
         /** @description `POST /users/@me/relationships`: send a friend request by username. */
         AddRelationshipBody: {
@@ -12187,6 +12259,42 @@ export interface components {
         };
         BulkDeleteBody: {
             messages: string[];
+        };
+        /** @description A bundle with the files it holds. */
+        BundleDetail: {
+            bundle: components["schemas"]["BundleView"];
+            entries: components["schemas"]["BundleEntry"][];
+        };
+        /** @description One file of a bundle. */
+        BundleEntry: {
+            content_type: string;
+            path: string;
+            /** Format: int64 */
+            size: number;
+        };
+        /**
+         * @description Where a bundle is in review.
+         * @enum {string}
+         */
+        BundleState: "draft" | "pending" | "approved" | "rejected" | "superseded";
+        /** @description One uploaded bundle. */
+        BundleView: {
+            /**
+             * Format: int64
+             * @description Total unpacked size in bytes.
+             */
+            byte_size: number;
+            /** Format: int32 */
+            entry_count: number;
+            id: string;
+            note?: string | null;
+            /** Format: int64 */
+            reviewed_at_ms?: number | null;
+            /** @description SHA-256 (hex) of the uploaded zip: what staff approve. */
+            sha256: string;
+            state: components["schemas"]["BundleState"];
+            /** Format: int64 */
+            uploaded_at_ms: number;
         };
         CallRecipientsBody: {
             /**
@@ -12974,8 +13082,8 @@ export interface components {
         };
         /** @description What the owner may change. */
         ConfigInput: {
-            /** @description `null` or empty clears it. */
-            entry_url?: string | null;
+            /** @description `null` or empty clears it. Only an application in development may set one. */
+            dev_entry_url?: string | null;
             url_mappings?: components["schemas"]["UrlMapping"][];
         };
         /** @description The owner's settings, with the origin the Activity will run on. */
@@ -12984,21 +13092,24 @@ export interface components {
             /** @description `[activities] enabled`: when off, nothing here is served. */
             enabled: boolean;
             /**
-             * @description `https://<application-id>.activities.<host>`. Register `<origin>/` as a redirect URI of the
-             *     application so the Embedded App SDK's `authorize` can return a code.
+             * @description `<origin>/`: accepted as a redirect URI of the application without being stored (J-13), present once
+             *     the application has an Activity.
              */
+            implicit_redirect_uri?: string | null;
+            /** @description `https://<application-id>.activities.<host>`. */
             origin: string;
         };
         /** @description An application's Activity settings. */
         ConfigView: {
             application_id: string;
-            entry_url?: string | null;
-            /** @description SHA-256 (hex) of the entry document the owner submitted. */
-            pinned_sha256?: string | null;
+            /** @description Recent bundles (the review history), newest first, superseded ones included. */
+            bundles: components["schemas"]["BundleView"][];
+            /** @description Live URL served only while the application is in development (never reviewed). */
+            dev_entry_url?: string | null;
             review_note?: string | null;
+            /** @description Summary of the review: `pending` while a bundle waits, `approved` while a bundle is reviewed. */
             review_state: components["schemas"]["ReviewState"];
-            /** @description SHA-256 (hex) of the entry document staff approved; the proxy serves only this one. */
-            reviewed_sha256?: string | null;
+            reviewed_bundle?: null | components["schemas"]["BundleView"];
             /** Format: int64 */
             updated_at_ms: number;
             url_mappings: components["schemas"]["UrlMapping"][];
@@ -14642,13 +14753,17 @@ export interface components {
             permissions: string;
             scopes: string[];
         };
-        /** @description A running activity in a voice channel. */
+        /** @description A running activity in a voice or text channel. */
         InstanceView: {
             application_id: string;
             application_name: string;
             channel_id: string;
+            /** @description `voice` or `text`. */
+            channel_type: string;
             /** Format: int64 */
             created_at_ms: number;
+            /** @description Running a development build (live entry URL). */
+            development: boolean;
             guild_id: string;
             id: string;
             participants: components["schemas"]["ParticipantView"][];
@@ -16339,6 +16454,8 @@ export interface components {
         /** @description A submitted Activity in the staff queue. */
         PendingView: {
             application_name: string;
+            /** @description The bundle waiting for a decision. */
+            bundle: components["schemas"]["BundleDetail"];
             config: components["schemas"]["ConfigView"];
             owner_id: string;
         };
@@ -17651,10 +17768,12 @@ export interface components {
          * @enum {string}
          */
         Shelf: "reading" | "plan_to_read" | "completed" | "on_hold" | "dropped";
-        /** @description An approved Activity in the launcher's shelf. */
+        /** @description An Activity in the launcher's shelf. */
         ShelfItem: {
             application_id: string;
             description: string;
+            /** @description A development build only the owner and testers see. */
+            development: boolean;
             name: string;
         };
         ShelfResponse: {
@@ -23760,6 +23879,46 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Bundle snowflake */
+                bundle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": number[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -31798,13 +31957,66 @@ export interface operations {
             };
         };
     };
-    submit: {
+    upload_bundle: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 /** @description Application snowflake */
                 application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/zip": number[];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundleDetail"];
+                };
+            };
+            /** @description The zip was refused; the error names the entry. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_bundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Bundle snowflake */
+                bundle_id: string;
             };
             cookie?: never;
         };
@@ -31815,16 +32027,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ConfigResponse"];
+                    "application/json": components["schemas"]["BundleDetail"];
                 };
             };
-            /** @description The entry document could not be fetched. */
-            400: {
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivitySubmitBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigResponse"];
                 };
             };
             404: {

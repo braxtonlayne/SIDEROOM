@@ -10,6 +10,10 @@ export interface ActivityInstance {
   application_name: string;
   guild_id: string;
   channel_id: string;
+  /** `voice` or `text`. */
+  channel_type: 'voice' | 'text';
+  /** A development build (live entry URL), only for the owner and testers. */
+  development: boolean;
   started_by: string;
   created_at_ms: number;
   participants: ActivityParticipant[];
@@ -19,6 +23,8 @@ export interface ShelfItem {
   application_id: string;
   name: string;
   description: string;
+  /** A development build only the owner and testers see. */
+  development: boolean;
 }
 
 export interface Shelf {

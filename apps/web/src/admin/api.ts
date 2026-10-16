@@ -850,14 +850,31 @@ export interface PendingActivity {
   owner_id: string;
   config: {
     application_id: string;
-    entry_url: string | null;
     url_mappings: { prefix: string; target: string }[];
-    pinned_sha256: string | null;
+  };
+  /** The bundle waiting for a decision, with the files it holds (J-12). */
+  bundle: {
+    bundle: {
+      id: string;
+      sha256: string;
+      byte_size: number;
+      entry_count: number;
+    };
+    entries: { path: string; size: number; content_type: string }[];
   };
 }
 export const listPendingActivities = () => get<PendingActivity[]>('/admin/developers/activities');
-export const decideActivity = (applicationId: string, approve: boolean, note: string) =>
+/** Where the reviewer downloads the zip of a submitted bundle. */
+export const activityBundleUrl = (applicationId: string, bundleId: string) =>
+  `/api/v1/admin/developers/activities/${applicationId}/bundles/${bundleId}/download`;
+export const decideActivity = (
+  applicationId: string,
+  bundleId: string,
+  approve: boolean,
+  note: string,
+) =>
   send<unknown>(`/admin/developers/activities/${applicationId}/decision`, 'POST', {
     decision: approve ? 'approve' : 'reject',
+    bundle_id: bundleId,
     note: note || null,
   });

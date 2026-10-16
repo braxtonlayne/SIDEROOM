@@ -96,3 +96,18 @@ export const httpOAuthApi: OAuthApi = {
     };
   },
 };
+
+/** Rich Presence assets of an application (any signed-in session may read the list, D-237). */
+export interface AssetsApi {
+  list(applicationId: string): Promise<{ id: string; name: string }[]>;
+}
+
+export const httpAssetsApi: AssetsApi = {
+  list: async (applicationId) => {
+    const rows = await apiFetch<{ id: string; name: string }[]>(
+      `/applications/${enc(applicationId)}/assets`,
+      NO_RETRY,
+    );
+    return rows.map((a) => ({ id: a.id, name: a.name }));
+  },
+};

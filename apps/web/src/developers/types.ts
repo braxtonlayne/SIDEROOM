@@ -232,15 +232,46 @@ export interface ActivityMapping {
 
 export type ActivityReviewState = 'draft' | 'pending' | 'approved' | 'rejected';
 
+export type BundleState = ActivityReviewState | 'superseded';
+
+/** One uploaded Activity bundle (a zip of static files, J-12). */
+export interface ActivityBundle {
+  id: string;
+  /** SHA-256 (hex) of the uploaded zip: what staff approve. */
+  sha256: string;
+  /** Total unpacked size in bytes. */
+  byte_size: number;
+  entry_count: number;
+  state: BundleState;
+  uploaded_at_ms: number;
+  reviewed_at_ms: number | null;
+  note: string | null;
+}
+
+export interface ActivityBundleEntry {
+  path: string;
+  size: number;
+  content_type: string;
+}
+
+/** `GET /applications/{id}/activity/bundles/{bundle}`. */
+export interface ActivityBundleDetail {
+  bundle: ActivityBundle;
+  entries: ActivityBundleEntry[];
+}
+
 /** `GET /applications/{id}/activity`. */
 export interface ActivityConfig {
   config: {
     application_id: string;
-    entry_url: string | null;
+    /** Live URL served only while the application is in development; never reviewed. */
+    dev_entry_url: string | null;
     url_mappings: ActivityMapping[];
     review_state: ActivityReviewState;
-    pinned_sha256: string | null;
-    reviewed_sha256: string | null;
+    /** The bundle staff approved; the only one served. */
+    reviewed_bundle: ActivityBundle | null;
+    /** Recent bundles, newest first. */
+    bundles: ActivityBundle[];
     review_note: string | null;
     updated_at_ms: number;
   };
@@ -248,4 +279,6 @@ export interface ActivityConfig {
   enabled: boolean;
   /** `https://<application-id>.activities.<host>`. */
   origin: string;
+  /** `<origin>/`: a redirect URI of the application without being stored (J-13). */
+  implicit_redirect_uri: string | null;
 }

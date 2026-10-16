@@ -173,15 +173,37 @@ export function AppsReview() {
             <li key={a.config.application_id} className="ss-row">
               <div className="ss-grow">
                 <div className="ss-name">{a.application_name}</div>
-                <div className="ss-meta adm-mono">{a.config.entry_url}</div>
                 {a.config.url_mappings.map((m) => (
                   <div key={m.prefix} className="ss-meta adm-mono">
                     {m.prefix} → {m.target}
                   </div>
                 ))}
                 <div className="ss-meta">
-                  {t('admin.appsReview.activityHash', { hash: a.config.pinned_sha256 ?? '' })}
+                  {t('admin.appsReview.activityHash', { hash: a.bundle.bundle.sha256 })}
                 </div>
+                <div className="ss-meta">
+                  {t('admin.appsReview.activityBundle', {
+                    n: a.bundle.bundle.entry_count,
+                    size: (a.bundle.bundle.byte_size / (1024 * 1024)).toFixed(1),
+                  })}
+                </div>
+                <details>
+                  <summary>{t('admin.appsReview.activityFiles')}</summary>
+                  <ul className="ss-meta" aria-label={t('admin.appsReview.activityFiles')}>
+                    {a.bundle.entries.map((e) => (
+                      <li key={e.path} className="adm-mono">
+                        {e.path} ({e.size} B)
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+                <a
+                  href={api.activityBundleUrl(a.config.application_id, a.bundle.bundle.id)}
+                  download
+                  rel="noreferrer"
+                >
+                  {t('admin.appsReview.activityDownload', { name: a.application_name })}
+                </a>
               </div>
               <Button
                 size="sm"
@@ -241,7 +263,12 @@ export function AppsReview() {
             await api.decideDeveloperRequest(pending.row.id, pending.approve, note);
             requests.reload();
           } else if (pending.kind === 'activity') {
-            await api.decideActivity(pending.row.config.application_id, pending.approve, note);
+            await api.decideActivity(
+              pending.row.config.application_id,
+              pending.row.bundle.bundle.id,
+              pending.approve,
+              note,
+            );
             activities.reload();
           } else {
             await api.decideAppVersion(pending.row.id, pending.decision, note);

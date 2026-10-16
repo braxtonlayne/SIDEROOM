@@ -2,6 +2,7 @@
  * Host for the server-flow dialogs. Any menu opens one through `useLoungeUi().openDialog(...)`; the shell
  * renders this once.
  */
+import { lazy, Suspense } from 'react';
 import { AddServerDialog } from './AddServerDialog';
 import { CreateChannelDialog } from './CreateChannelDialog';
 import { CreateEventDialog } from './events/CreateEventDialog';
@@ -27,6 +28,10 @@ import { CommunityDialog } from './community/CommunityDialog';
 import { CreateThreadDialog } from './threads/CreateThreadDialog';
 import { useLoungeUi } from './store';
 import './shell/shell.css';
+
+const ActivityLauncher = lazy(() =>
+  import('../activities/ActivityLauncher').then((m) => ({ default: m.ActivityLauncher })),
+);
 
 export function LoungeDialogs() {
   const dialog = useLoungeUi((s) => s.dialog);
@@ -110,6 +115,12 @@ export function LoungeDialogs() {
     case 'transferOwnership':
       return (
         <TransferOwnershipDialog guildId={dialog.guildId} userId={dialog.userId} onClose={close} />
+      );
+    case 'startActivity':
+      return (
+        <Suspense fallback={null}>
+          <ActivityLauncher open onClose={close} channelId={dialog.channelId} />
+        </Suspense>
       );
     case 'createThread':
       return (

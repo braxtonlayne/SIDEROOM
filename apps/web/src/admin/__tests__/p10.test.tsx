@@ -828,7 +828,7 @@ describe('platform audit log', () => {
 });
 
 describe('review queues hub: Activities (DEV-ACT-001)', () => {
-  it('approves a submitted Activity with the pinned hash shown', async () => {
+  it('approves a submitted Activity bundle, naming the bundle it decided', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'REVIEW_APPS'] });
     let sent: unknown;
     server.use(
@@ -841,9 +841,19 @@ describe('review queues hub: Activities (DEV-ACT-001)', () => {
             owner_id: '9',
             config: {
               application_id: '500',
-              entry_url: 'https://app.example.com/index.html',
               url_mappings: [{ prefix: '/api', target: 'https://api.example.com' }],
-              pinned_sha256: 'ab'.repeat(32),
+            },
+            bundle: {
+              bundle: {
+                id: '801',
+                sha256: 'ab'.repeat(32),
+                byte_size: 3 * 1024 * 1024,
+                entry_count: 3,
+              },
+              entries: [
+                { path: 'index.html', size: 120, content_type: 'text/html' },
+                { path: 'app.js', size: 900, content_type: 'text/javascript' },
+              ],
             },
           },
         ]),
@@ -855,12 +865,19 @@ describe('review queues hub: Activities (DEV-ACT-001)', () => {
     );
     openAdmin('review');
     const user = userEvent.setup();
-    expect(await screen.findByText('https://app.example.com/index.html')).toBeInTheDocument();
-    expect(screen.getByText(/Entry document SHA-256: abab/)).toBeInTheDocument();
+    expect(await screen.findByText(/Bundle SHA-256: abab/)).toBeInTheDocument();
+    expect(screen.getByText('3 files, 3.0 MiB unpacked')).toBeInTheDocument();
+    expect(screen.getByText('app.js (900 B)')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Download the zip of Chess' })).toHaveAttribute(
+      'href',
+      '/api/v1/admin/developers/activities/500/bundles/801/download',
+    );
     await user.click(screen.getByRole('button', { name: 'Approve the Activity of Chess' }));
     const dialog = await screen.findByRole('dialog', { name: /Approve this Activity/ });
     await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
-    await waitFor(() => expect(sent).toEqual({ decision: 'approve', note: null }));
+    await waitFor(() =>
+      expect(sent).toEqual({ decision: 'approve', bundle_id: '801', note: null }),
+    );
     expect(await screen.findByText('Decision recorded.')).toBeInTheDocument();
   });
 });

@@ -110,7 +110,40 @@ fn path_is_clean(path: &str) -> bool {
     !path.split('/').any(|s| s == ".." || s == ".")
 }
 
-/// Where the proxy fetches `path_and_query` from. `/` is the entry URL itself; a path under a mapping prefix
+/// The longest mapping whose prefix covers `path` (whole segments only).
+fn mapping_of<'a>(mappings: &'a [UrlMapping], path: &str) -> Option<&'a UrlMapping> {
+    mappings
+        .iter()
+        .filter(|m| path == m.prefix || path.starts_with(&format!("{}/", m.prefix)))
+        .max_by_key(|m| m.prefix.len())
+}
+
+/// Where a request under a URL mapping goes: `Ok(Some(target))` when `path_and_query` is under a mapping
+/// prefix, `Ok(None)` when it is not (the bundle answers), `Err` for an unsafe path.
+pub fn mapping_target(
+    mappings: &[UrlMapping],
+    path_and_query: &str,
+) -> Result<Option<Url>, Refusal> {
+    let (path, query) = match path_and_query.split_once('?') {
+        Some((p, q)) => (p, Some(q).filter(|q| !q.is_empty())),
+        None => (path_and_query, None),
+    };
+    if !path_is_clean(path) {
+        return Err(Refusal::BadPath);
+    }
+    let Some(m) = mapping_of(mappings, path) else {
+        return Ok(None);
+    };
+    let t = Url::parse(&m.target).map_err(|_| Refusal::NoEntry)?;
+    let base = t.path().trim_end_matches('/').to_owned();
+    let mut u = t;
+    u.set_path(&format!("{base}{}", &path[m.prefix.len()..]));
+    u.set_query(query);
+    u.set_fragment(None);
+    Ok(Some(u))
+}
+
+/// Where the development proxy fetches `path_and_query` from. `/` is the entry URL itself; a path under a mapping prefix
 /// goes to the mapping's target (longest prefix wins); anything else is looked up on the entry URL's origin.
 pub fn target_for(
     entry_url: &str,
@@ -126,13 +159,10 @@ pub fn target_for(
         return Err(Refusal::BadPath);
     }
     if path == "/" {
-        // The entry document is exactly the URL the owner submitted.
+        // The entry document is exactly the URL the owner set.
         return Ok(entry);
     }
-    let best = mappings
-        .iter()
-        .filter(|m| path == m.prefix || path.starts_with(&format!("{}/", m.prefix)))
-        .max_by_key(|m| m.prefix.len());
+    let best = mapping_of(mappings, path);
     let mut u = match best {
         Some(m) => {
             let rest = &path[m.prefix.len()..];
@@ -236,6 +266,32 @@ mod tests {
         // A prefix only matches whole segments.
         assert_eq!(t("/apix").unwrap(), "https://app.example.com/apix");
         for bad in ["/api/../x", "/a/%2e%2e/b", "/a%2Fb", "/a\\b", "/./x"] {
+            assert_eq!(t(bad), Err(Refusal::BadPath), "{bad}");
+        }
+    }
+
+    #[test]
+    fn mapping_targets_only_under_a_prefix() {
+        let maps = [m("/api", "https://api.example.com/v1/")];
+        let t = |p| mapping_target(&maps, p).map(|u| u.map(|u| u.to_string()));
+        assert_eq!(t("/main.js").unwrap(), None);
+        assert_eq!(t("/").unwrap(), None);
+        assert_eq!(t("/apix").unwrap(), None);
+        assert_eq!(
+            t("/api/rooms?x=1").unwrap().as_deref(),
+            Some("https://api.example.com/v1/rooms?x=1")
+        );
+        assert_eq!(
+            t("/api").unwrap().as_deref(),
+            Some("https://api.example.com/v1")
+        );
+        for bad in [
+            "/api/../x",
+            "/api/%2e%2e/x",
+            "/api%2Fx",
+            "/api\\x",
+            "/../api",
+        ] {
             assert_eq!(t(bad), Err(Refusal::BadPath), "{bad}");
         }
     }

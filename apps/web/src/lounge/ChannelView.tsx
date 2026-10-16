@@ -23,6 +23,7 @@ import { DmCallStage } from './voice/DmCallStage';
 import { StageView } from './voice/StageView';
 import { VoiceChannelView } from './voice/VoiceChannelView';
 import { WatchPartyStrip } from '../watchparty/WatchPartyStrip';
+import { ActivityPanel } from '../activities/ActivityPanel';
 import { useLoungeGoto } from './nav';
 import { usePublicUpdatesChannel } from './header/useUpdatesChannel';
 import { useMyTimeout } from './timeout';
@@ -164,6 +165,9 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         }
       />
       <WatchPartyStrip channelId={channelId} />
+      {!isDm && (channel?.type === 'text' || channel?.type === 'announcement') && (
+        <ActivityPanel channelId={channelId} here />
+      )}
       {isDm && inCallHere && <DmCallStage channelId={channelId} />}
       {gate.state !== 'open' ? (
         <div className="lng-agegate-wrap">
@@ -231,6 +235,9 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
             target={target}
             timedOutUntil={timedOutUntil}
             canTts={!isDm && (channel?.permissions?.sendTts ?? true)}
+            canStartActivity={
+              !isDm && (channel?.type === 'text' || channel?.type === 'announcement')
+            }
             canStartThread={
               !isDm &&
               (channel?.type === 'text' || channel?.type === 'announcement') &&

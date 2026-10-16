@@ -6,16 +6,22 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+bytes = "1"
+data-encoding = "2"
+futures.workspace = true
+sha2 = "0.11"
 serde.workspace = true
 serde_json.workspace = true
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
 sr-core = { path = "../sr-core", default-features = false }
 sr-events = { path = "../sr-events" }
+sr-storage = { path = "../sr-storage" }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time"] }
 tracing = "0.1"
 url = "2"
 utoipa = "5"
+zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }
 
 [dev-dependencies]
 sr-db = { path = "../sr-db" }

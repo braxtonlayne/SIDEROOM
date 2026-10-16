@@ -59,3 +59,31 @@ export function useShelf(open: boolean, api: ActivityApi = httpActivityApi) {
   }, [open, api]);
   return { shelf, failed };
 }
+
+const enabledByApi = new WeakMap<ActivityApi, Promise<boolean>>();
+
+/**
+ * Whether the server runs Activities (`[activities] enabled`). One read per session, shared by every caller,
+ * so the composer can offer "Start an Activity" without a request per channel.
+ */
+export function useActivitiesEnabled(api: ActivityApi = httpActivityApi): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    let dead = false;
+    let p = enabledByApi.get(api);
+    if (!p) {
+      p = api
+        .shelf()
+        .then((s) => s.enabled)
+        .catch(() => false);
+      enabledByApi.set(api, p);
+    }
+    void p.then((v) => {
+      if (!dead) setOn(v);
+    });
+    return () => {
+      dead = true;
+    };
+  }, [api]);
+  return on;
+}

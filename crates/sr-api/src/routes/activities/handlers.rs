@@ -11,13 +11,22 @@ use crate::{
         messages::error::{ApiJson, MsgError, MsgResult},
     },
 };
-use axum::{Json, extract::Path, http::StatusCode};
-use data_encoding::HEXLOWER;
+use axum::{
+    Json,
+    body::Bytes,
+    extract::Path,
+    http::{HeaderValue, StatusCode, header},
+    response::{IntoResponse, Response},
+};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use sr_activities::model::{ConfigInput, ConfigView, InstanceView, PendingView, ShelfItem};
+use sr_activities::model::{
+    BundleDetail, ConfigInput, ConfigView, InstanceView, PendingView, ShelfItem,
+};
 use sr_core::{ApiError, ErrorCode, PlatformPermissions};
 use utoipa::ToSchema;
+
+/// Largest bundle upload: the 32 MiB limit of a bundle plus headroom for the zip's own framing.
+pub const MAX_UPLOAD: usize = sr_activities::bundle::MAX_UNPACKED_BYTES as usize + 64 * 1024;
 
 fn id(raw: &str, unknown: ErrorCode) -> MsgResult<i64> {
     raw.parse::<i64>()
@@ -36,16 +45,22 @@ pub struct ConfigResponse {
     pub config: ConfigView,
     /// `[activities] enabled`: when off, nothing here is served.
     pub enabled: bool,
-    /// `https://<application-id>.activities.<host>`. Register `<origin>/` as a redirect URI of the
-    /// application so the Embedded App SDK's `authorize` can return a code.
+    /// `https://<application-id>.activities.<host>`.
     pub origin: String,
+    /// `<origin>/`: accepted as a redirect URI of the application without being stored (J-13), present once
+    /// the application has an Activity.
+    pub implicit_redirect_uri: Option<String>,
 }
 
 fn response(deps: &ActivitiesDeps, app: i64, config: ConfigView) -> Json<ConfigResponse> {
+    let origin = deps.activity_origin(app);
+    // A settings row exists as soon as anything was saved or uploaded.
+    let implicit = (config.updated_at_ms > 0).then(|| format!("{origin}/"));
     Json(ConfigResponse {
         config,
         enabled: deps.enabled,
-        origin: deps.activity_origin(app),
+        origin,
+        implicit_redirect_uri: implicit,
     })
 }
 
@@ -71,7 +86,8 @@ pub async fn get_config(
     Ok(response(&deps, app, c))
 }
 
-/// Set the entry URL and URL mappings. A change withdraws any approval and asks for a new review.
+/// Set the development URL and the URL mappings. A change to the mappings withdraws the approval of the
+/// reviewed bundle until a new review.
 #[utoipa::path(
     put, path = "/applications/{application_id}/activity", tag = "activities",
     params(("application_id" = String, Path, description = "Application snowflake")),
@@ -96,13 +112,78 @@ pub async fn put_config(
     Ok(response(&deps, app, c))
 }
 
-/// Submit for review. The server fetches the entry document now and pins its SHA-256: only a document with
-/// that hash is served once staff approves.
+/// Upload a bundle: the request body is a zip of static files (at most 32 MiB unpacked and 2,000 entries,
+/// `index.html` at the root, allow-listed file types, no symbolic links, absolute paths or `..`). A refusal
+/// names the offending entry. The new bundle is a `draft`; earlier drafts and rejected bundles are
+/// superseded. Uploading the same zip again returns the same bundle.
+#[utoipa::path(
+    post, path = "/applications/{application_id}/activity/bundles", tag = "activities",
+    params(("application_id" = String, Path, description = "Application snowflake")),
+    request_body(content = Vec<u8>, content_type = "application/zip"),
+    responses((status = 201, body = BundleDetail),
+              (status = 400, body = ErrorBody, description = "The zip was refused; the error names the entry."),
+              (status = 404, body = ErrorBody), (status = 413, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn upload_bundle(
+    SessionOnly(p): SessionOnly,
+    Ext(dev): Ext<DevDeps>,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path(app): Path<String>,
+    body: Bytes,
+) -> MsgResult<(StatusCode, Json<BundleDetail>)> {
+    let app = id(&app, ErrorCode::UnknownApplication)?;
+    dev.apps
+        .owned(p.user_id, app)
+        .await
+        .map_err(crate::routes::developer::app_err)?;
+    let detail = deps
+        .service
+        .upload_bundle(app, p.user_id, body.to_vec())
+        .await
+        .map_err(act)?;
+    Ok((StatusCode::CREATED, Json(detail)))
+}
+
+/// One uploaded bundle with the list of its files.
+#[utoipa::path(
+    get, path = "/applications/{application_id}/activity/bundles/{bundle_id}", tag = "activities",
+    params(("application_id" = String, Path, description = "Application snowflake"),
+           ("bundle_id" = String, Path, description = "Bundle snowflake")),
+    responses((status = 200, body = BundleDetail), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn get_bundle(
+    SessionOnly(p): SessionOnly,
+    Ext(dev): Ext<DevDeps>,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path((app, bundle)): Path<(String, String)>,
+) -> MsgResult<Json<BundleDetail>> {
+    let app = id(&app, ErrorCode::UnknownApplication)?;
+    let bundle = id(&bundle, sr_not_found())?;
+    dev.apps
+        .owned(p.user_id, app)
+        .await
+        .map_err(crate::routes::developer::app_err)?;
+    Ok(Json(
+        deps.service.bundle_detail(app, bundle).await.map_err(act)?,
+    ))
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = ActivitySubmitBody)]
+pub struct SubmitBody {
+    /// The uploaded bundle to put in front of staff.
+    pub bundle_id: String,
+}
+
+/// Submit an uploaded bundle for review. An earlier pending bundle is replaced; a reviewed bundle keeps
+/// being served until staff decide.
 #[utoipa::path(
     post, path = "/applications/{application_id}/activity/submit", tag = "activities",
     params(("application_id" = String, Path, description = "Application snowflake")),
+    request_body = SubmitBody,
     responses((status = 200, body = ConfigResponse),
-              (status = 400, body = ErrorBody, description = "The entry document could not be fetched."),
               (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
     security(("session" = []))
 )]
@@ -111,39 +192,15 @@ pub async fn submit(
     Ext(dev): Ext<DevDeps>,
     Ext(deps): Ext<ActivitiesDeps>,
     Path(app): Path<String>,
+    ApiJson(body): ApiJson<SubmitBody>,
 ) -> MsgResult<Json<ConfigResponse>> {
     let app = id(&app, ErrorCode::UnknownApplication)?;
+    let bundle = id(&body.bundle_id, sr_not_found())?;
     dev.apps
         .owned(p.user_id, app)
         .await
         .map_err(crate::routes::developer::app_err)?;
-    let cfg = deps.service.config(app).await.map_err(act)?;
-    let Some(entry) = cfg.entry_url.clone() else {
-        return Err(ApiError::with_message(
-            ErrorCode::SrConflict,
-            "Set an entry URL before submitting.",
-        )
-        .into());
-    };
-    let Some(fetcher) = deps.fetcher.clone() else {
-        return Err(ApiError::with_message(
-            ErrorCode::SrConflict,
-            "Fetching entry documents is not available on this server.",
-        )
-        .into());
-    };
-    let doc = fetcher
-        .get(&entry, super::MAX_PROXIED_BYTES)
-        .await
-        .map_err(|why| {
-            MsgError::Api(ApiError::invalid_form().field(
-                "entry_url",
-                "INVALID_VALUE",
-                format!("The entry URL could not be fetched: {why}."),
-            ))
-        })?;
-    let sha = HEXLOWER.encode(Sha256::digest(&doc.body).as_slice());
-    let c = deps.service.submit(app, &sha).await.map_err(act)?;
+    let c = deps.service.submit(app, bundle).await.map_err(act)?;
     Ok(response(&deps, app, c))
 }
 
@@ -163,7 +220,7 @@ fn require_review(staff: &StaffCtx) -> MsgResult<()> {
     }
 }
 
-/// Staff: Activities waiting for review, oldest first.
+/// Staff: Activities waiting for review, oldest first, each with the bundle's hash and files.
 #[utoipa::path(
     get, path = "/admin/developers/activities", tag = "activities",
     responses((status = 200, body = Vec<PendingView>), (status = 403, body = ErrorBody)),
@@ -177,15 +234,68 @@ pub async fn admin_pending(
     Ok(Json(deps.service.pending(50).await.map_err(act)?))
 }
 
+/// Staff: the zip of a submitted bundle, as the owner uploaded it, to read before deciding.
+#[utoipa::path(
+    get, path = "/admin/developers/activities/{application_id}/bundles/{bundle_id}/download", tag = "activities",
+    params(("application_id" = String, Path, description = "Application snowflake"),
+           ("bundle_id" = String, Path, description = "Bundle snowflake")),
+    responses((status = 200, content_type = "application/zip", body = Vec<u8>),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn admin_download(
+    staff: StaffCtx,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path((app, bundle)): Path<(String, String)>,
+) -> MsgResult<Response> {
+    require_review(&staff)?;
+    let app = id(&app, ErrorCode::UnknownApplication)?;
+    let bundle = id(&bundle, sr_not_found())?;
+    let (sha, zip) = deps.service.bundle_zip(app, bundle).await.map_err(act)?;
+    if let Err(e) = staff
+        .svc()
+        .record_action(
+            &staff.caller,
+            "developer.activity_download",
+            Some(("application", app)),
+            serde_json::json!({"sha256": sha}),
+        )
+        .await
+    {
+        tracing::error!(error = %e, "activity download was not written to the access log");
+    }
+    let mut r = (StatusCode::OK, zip).into_response();
+    let h = r.headers_mut();
+    h.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/zip"),
+    );
+    if let Ok(v) = HeaderValue::from_str(&format!(
+        "attachment; filename=\"activity-{app}-{}.zip\"",
+        &sha[..12]
+    )) {
+        h.insert(header::CONTENT_DISPOSITION, v);
+    }
+    h.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    Ok(r)
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 #[schema(as = ActivityDecisionBody)]
 pub struct DecisionBody {
     /// `approve` or `reject`.
     pub decision: String,
+    /// The pending bundle being decided: a decision about another bundle is refused.
+    pub bundle_id: String,
     pub note: Option<String>,
 }
 
-/// Staff: approve (the proxy then serves the submitted entry document) or reject an Activity.
+/// Staff: approve (the proxy then serves that bundle once the application is released) or reject the
+/// pending bundle.
 #[utoipa::path(
     post, path = "/admin/developers/activities/{application_id}/decision", tag = "activities",
     params(("application_id" = String, Path, description = "Application snowflake")),
@@ -202,6 +312,7 @@ pub async fn admin_decide(
 ) -> MsgResult<Json<ConfigView>> {
     require_review(&staff)?;
     let app = id(&app, ErrorCode::UnknownApplication)?;
+    let bundle = id(&body.bundle_id, sr_not_found())?;
     let approve = match body.decision.as_str() {
         "approve" => true,
         "reject" => false,
@@ -215,16 +326,28 @@ pub async fn admin_decide(
     };
     let c = deps
         .service
-        .decide(app, staff.caller.user_id, approve, body.note.as_deref())
+        .decide(
+            app,
+            staff.caller.user_id,
+            bundle,
+            approve,
+            body.note.as_deref(),
+        )
         .await
         .map_err(act)?;
+    let sha = deps
+        .service
+        .bundle_detail(app, bundle)
+        .await
+        .ok()
+        .map(|d| d.bundle.sha256);
     if let Err(e) = staff
         .svc()
         .record_action(
             &staff.caller,
             "developer.activity_decision",
             Some(("application", app)),
-            serde_json::json!({"decision": body.decision, "sha256": c.reviewed_sha256}),
+            serde_json::json!({"decision": body.decision, "bundle_id": body.bundle_id, "sha256": sha}),
         )
         .await
     {
@@ -240,14 +363,15 @@ pub struct ShelfResponse {
     pub items: Vec<ShelfItem>,
 }
 
-/// The approved Activities a member can start in a voice channel.
+/// The Activities a member can start: released ones with a reviewed bundle, and the development builds
+/// they own or test.
 #[utoipa::path(
     get, path = "/activities", tag = "activities",
     responses((status = 200, body = ShelfResponse), (status = 401, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn shelf(
-    UserOnly(_p): UserOnly,
+    UserOnly(p): UserOnly,
     Ext(deps): Ext<ActivitiesDeps>,
 ) -> MsgResult<Json<ShelfResponse>> {
     if !deps.enabled {
@@ -258,7 +382,7 @@ pub async fn shelf(
     }
     Ok(Json(ShelfResponse {
         enabled: true,
-        items: deps.service.shelf().await.map_err(act)?,
+        items: deps.service.shelf(p.user_id).await.map_err(act)?,
     }))
 }
 
@@ -268,7 +392,7 @@ pub struct ChannelActivity {
     pub instance: Option<InstanceView>,
 }
 
-/// The Activity running in a voice channel, if any.
+/// The Activity running in a voice or text channel, if any.
 #[utoipa::path(
     get, path = "/channels/{channel_id}/activity", tag = "activities",
     params(("channel_id" = String, Path, description = "Channel snowflake")),
@@ -303,8 +427,9 @@ pub struct LaunchBody {
     pub application_id: String,
 }
 
-/// Start an approved Activity in a voice channel (needs Connect and Use Activities there). One Activity
-/// runs per channel; the starter is its first participant.
+/// Start an Activity in a guild voice channel (needs Connect and Use Activities there) or text channel
+/// (needs View Channel and Use Activities). One Activity runs per channel; the starter is its first
+/// participant. A direct message channel is refused.
 #[utoipa::path(
     post, path = "/channels/{channel_id}/activity", tag = "activities",
     params(("channel_id" = String, Path, description = "Channel snowflake")),

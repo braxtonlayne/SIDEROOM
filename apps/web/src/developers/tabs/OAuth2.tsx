@@ -7,9 +7,10 @@ import {
   useToast,
   type TriState,
 } from '@sideroom/ui';
+import { useQuery } from '@tanstack/react-query';
 import { useId, useMemo, useState } from 'react';
 import { bitsToValues, permissionGroups, toBig } from '../../settings/server/permissions';
-import { errorText, resetClientSecret } from '../api';
+import { errorText, getActivity, keys, resetClientSecret } from '../api';
 import { useT } from '../../i18n';
 import { usePatchApp } from '../hooks';
 import {
@@ -77,6 +78,13 @@ function Redirects({ app }: { app: DevApp }) {
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const dirty = uris.join('\n') !== app.redirect_uris.join('\n');
+  // The Activity address is accepted without being stored (J-13); it only appears once there is an Activity.
+  const activity = useQuery({
+    queryKey: keys.activity(app.id),
+    queryFn: () => getActivity(app.id),
+    retry: false,
+  });
+  const implicit = activity.data?.implicit_redirect_uri ?? null;
 
   const add = () => {
     const value = draft.trim();
@@ -116,6 +124,14 @@ function Redirects({ app }: { app: DevApp }) {
               </Button>
             </li>
           ))}
+        </ul>
+      )}
+      {implicit && (
+        <ul className="dev-uri-list" aria-label={t('developers.oauth2.implicitLabel')}>
+          <li>
+            <code>{implicit}</code>
+            <span className="dev-muted">{t('developers.oauth2.implicitNote')}</span>
+          </li>
         </ul>
       )}
       <form

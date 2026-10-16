@@ -3,6 +3,7 @@
 //! section 3 and docs/dev/server.md.
 
 pub mod activities;
+pub mod activities_jobs;
 pub mod admin_jobs;
 pub mod app;
 pub mod apps_jobs;

@@ -108,6 +108,55 @@ describe('SideRoomSDK', () => {
     expect(r.sent.some((s) => (s.msg as { cmd?: string }).cmd === 'unsubscribe')).toBe(true);
   });
 
+  it('sends setActivity with the activity, and null to clear', async () => {
+    const r = rig();
+    const sdk = new SideRoomSDK('7', { env: r.env });
+    const p = sdk.commands.setActivity({
+      activity: { details: 'Round 2', state: 'In a match', timestamps: { start: 5 } },
+    });
+    const req = r.sent[0]?.msg as Extract<Frame, { kind: 'request' }>;
+    expect(req.cmd).toBe('setActivity');
+    expect(req.args).toEqual({
+      activity: { details: 'Round 2', state: 'In a match', timestamps: { start: 5 } },
+    });
+    r.deliver({
+      sr: 1,
+      kind: 'response',
+      nonce: req.nonce,
+      ok: true,
+      data: { details: 'Round 2' },
+    });
+    await expect(p).resolves.toEqual({ details: 'Round 2' });
+    const c = sdk.commands.setActivity({ activity: null });
+    const clear = r.sent[1]?.msg as Extract<Frame, { kind: 'request' }>;
+    expect(clear.args).toEqual({ activity: null });
+    r.deliver({ sr: 1, kind: 'response', nonce: clear.nonce, ok: true, data: null });
+    await expect(c).resolves.toBeNull();
+  });
+
+  it('subscribes to voice events for a channel and delivers them', () => {
+    const r = rig();
+    const sdk = new SideRoomSDK('7', { env: r.env });
+    const got: unknown[] = [];
+    sdk.subscribe('SPEAKING_START', (d) => got.push(d), { channel_id: '3' });
+    const sub = r.sent[0]?.msg as Extract<Frame, { kind: 'request' }>;
+    expect(sub.cmd).toBe('subscribe');
+    expect(sub.args).toEqual({ event: 'SPEAKING_START', args: { channel_id: '3' } });
+    r.deliver({
+      sr: 1,
+      kind: 'event',
+      event: 'SPEAKING_START',
+      data: { channel_id: '3', user_id: '9' },
+    });
+    r.deliver({
+      sr: 1,
+      kind: 'event',
+      event: 'SPEAKING_STOP',
+      data: { channel_id: '3', user_id: '9' },
+    });
+    expect(got).toEqual([{ channel_id: '3', user_id: '9' }]);
+  });
+
   it('fails clearly outside a host and after close', async () => {
     const r = rig();
     const lone = new SideRoomSDK('7', { env: { ...r.env, parent: null } });

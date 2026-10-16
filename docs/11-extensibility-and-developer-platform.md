@@ -10,7 +10,7 @@ There are four layers of extensibility, from most to least trusted:
 |---|---|---|---|
 | 1. **Feature modules** | Platform developers (PRs to this repo) | Inside `sr-server` + web app | Code review + merge by the owner |
 | 2. **Apps & bots** | App developers | Their own servers, talking to our API | Developer application approval, then per-version app review |
-| 3. **Activities** | App developers | Sandboxed cross-origin iframe in the client | Per-version review |
+| 3. **Activities** | App developers | Sandboxed cross-origin iframe in the client | Reviewed per Activity submission; any change withdraws the approval (D-246) |
 | 4. **Declarative packages** (themes, profile layouts, sticker/emoji/sound packs, "recipes") | Anyone with a developer or creator approval | Data only. No code | Per-version review |
 
 ## 1. Feature modules (layer 1)
@@ -47,10 +47,10 @@ Slowmode presets, auto-thread for channels, "starboard," welcome DMs, birthday r
    - in guilds owned by the developer or by an accepted app tester (up to 25 testers per application, invitations included, D-204, D-220), or where the developer or an accepted tester has `MANAGE_GUILD`, **and**
    - where the guild has **≤ 25 members** (test servers).
    Installs into larger guilds are refused with error `900120 App not released`.
-4. **Release:** the developer submits a version (manifest: name, description, scopes, requested intents, command list, interaction endpoint, privacy policy URL) for review. Approved → `released`, installable anywhere. New versions that change scopes, intents, or activity code need re-review. Command or description changes need re-review only if flagged by the diff.
+4. **Release:** the developer submits a version (manifest: name, description, scopes, requested intents, command list, interaction endpoint, privacy policy URL) for review. Approved → `released`, installable anywhere. New versions that change scopes or intents need re-review. The Activity is reviewed separately, per Activity submission: any change to it withdraws its approval, and it is served only while the application is released and not suspended (D-246, section 3). Command or description changes need re-review only if flagged by the diff.
 
 ### 2.2 Developer portal (`/developers/applications`)
-Discord parity: General Information, Installation (install link generator, default scopes/permissions), OAuth2 (redirects, URL generator), Bot (token reset, privileged intents toggles requiring review, public bot toggle), Emojis (app emoji), Webhooks, Rich Presence assets, App Testers (up to 25 testers, invitations included, D-220), Activities (URL mappings), and **Review** (submission status, reviewer messages).
+Discord parity: General Information, Installation (install link generator, default scopes/permissions), OAuth2 (redirects, URL generator), Bot (token reset, privileged intents toggles requiring review, public bot toggle), Emojis (app emoji), Webhooks, Rich Presence assets, App Testers (up to 25 testers, invitations included, D-220), Activities (bundle upload and review history, URL mappings, development URL), and **Review** (submission status, reviewer messages).
 
 ### 2.3 SDKs
 - `sr-sdk` (Rust): ergonomics similar to `serenity`/`twilight`.
@@ -59,9 +59,11 @@ Discord parity: General Information, Installation (install link generator, defau
 
 ## 3. Activities (layer 3)
 
-- Hosted at `https://<app-id>.activities.<host>/` (proxied through our server with URL mappings, as Discord does). Rendered in an iframe with `sandbox="allow-scripts allow-same-origin allow-forms allow-popups"` (same-origin refers to the activity's own origin) and a strict `Permissions-Policy`.
-- The Embedded App SDK (`@sideroom/embedded-app-sdk`) uses a `postMessage` RPC: `authorize`, `authenticate`, `getChannel`, `getInstanceConnectedParticipants`, `setActivity`, `openExternalLink` (with confirmation), and voice-state events. The API surface mirrors Discord's Embedded App SDK.
-- Activity bundles are reviewed per version. The proxy serves only the reviewed bundle hash. Network calls go through URL mappings declared in the manifest.
+- An Activity is a zip of static files the developer uploads in the portal (at most 32 MiB unpacked and 2,000 entries, allow-listed file types, `index.html` at the root). The server unpacks it into object storage under its SHA-256 and staff approve that hash (D-247).
+- Hosted at `https://<app-id>.activities.<host>/` (served by our server from the reviewed bundle, with URL mappings to the developer's own servers, as Discord does). Rendered in an iframe with `sandbox="allow-scripts allow-same-origin allow-forms allow-popups"` (same-origin refers to the activity's own origin) and a strict `Permissions-Policy`.
+- The Embedded App SDK (`@sideroom/embedded-app-sdk`) uses a `postMessage` RPC: `authorize`, `authenticate`, `getChannel`, `getInstanceConnectedParticipants`, `setActivity` (the person's Rich Presence, through the gateway presence update, with images resolved through the application's Rich Presence assets), `openExternalLink` (with confirmation), and the events `VOICE_STATE_UPDATE`, `SPEAKING_START` and `SPEAKING_STOP` for the Activity's own voice channel (D-248). Scopes an Activity may request are `identify` and `guilds`; `<origin>/` is an implicit redirect URI of any application with an Activity. The API surface mirrors Discord's Embedded App SDK.
+- **The proxy serves only the reviewed bundle**; a development live URL is served only for `development` applications, to their owner and testers (D-247). Network calls go through URL mappings the developer declares; `GET` and `HEAD` for files, and `POST`, `PUT`, `PATCH` and `DELETE` to a mapping's target only (body at most 1 MiB).
+- An instance runs in a voice or text channel (one per channel). In a voice channel the participants follow the call; the Activity window follows the person through the Lounge (docked while they are elsewhere). Starting needs `VIEW_CHANNEL` and `USE_EMBEDDED_ACTIVITIES` (and `CONNECT` in voice) and no install.
 
 ## 4. Declarative packages (layer 4)
 

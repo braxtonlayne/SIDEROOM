@@ -6,12 +6,14 @@ import {
   PROTOCOL_VERSION,
   parseFrame,
   type AuthenticateResult,
+  type ActivityInput,
   type ChannelInfo,
   type EventName,
   type Frame,
   type Participant,
   type ReadyConfig,
   type RpcErrorBody,
+  type SubscribeArgs,
 } from './protocol';
 
 /** The slice of `window` the SDK needs, injectable for tests. */
@@ -129,15 +131,24 @@ export class SideRoomSDK {
     /** Open a link in a new tab after the person confirms. Resolves `{ opened }`. */
     openExternalLink: (args: { url: string }) =>
       this.call<{ opened: boolean }>('openExternalLink', args),
+    /**
+     * Set what the person is shown doing (their Rich Presence) while the Activity runs. Resolves with the
+     * activity as the host stored it; `null` clears it. The host clears it when the Activity closes.
+     */
+    setActivity: (args: { activity: ActivityInput | null }) =>
+      this.call<ActivityInput | null>('setActivity', args),
   };
 
-  /** Listen to an event. Returns the unsubscribe function. */
-  subscribe(event: EventName, listener: Listener): () => void {
+  /**
+   * Listen to an event. Returns the unsubscribe function. `args.channel_id`, when given, must be the channel
+   * of the instance (voice events are only ever about that channel).
+   */
+  subscribe(event: EventName, listener: Listener, args?: SubscribeArgs): () => void {
     let set = this.listeners.get(event);
     if (!set) {
       set = new Set();
       this.listeners.set(event, set);
-      void this.call('subscribe', { event }).catch(() => undefined);
+      void this.call('subscribe', { event, args }).catch(() => undefined);
     }
     set.add(listener);
     return () => {

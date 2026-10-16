@@ -56,6 +56,7 @@ export type LoungeDialog =
   | { kind: 'slowmode'; guildId: string; channelId: string }
   | { kind: 'notifications'; guildId: string; channelId?: string | undefined }
   | { kind: 'createThread'; guildId: string; channelId: string; messageId?: string | undefined }
+  | { kind: 'startActivity'; channelId: string }
   | { kind: 'transferOwnership'; guildId: string; userId: string }
   | {
       kind: 'community';

@@ -20,7 +20,7 @@ pub enum ReviewState {
     Draft,
     /// Submitted: staff has not decided.
     Pending,
-    /// Staff approved the submitted entry document; the proxy serves it.
+    /// Staff approved a bundle; the proxy serves it.
     Approved,
     /// Staff turned it down; the owner edits and submits again.
     Rejected,
@@ -46,17 +46,87 @@ impl ReviewState {
     }
 }
 
+/// Where a bundle is in review.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BundleState {
+    /// Uploaded; not submitted.
+    Draft,
+    /// Submitted: staff has not decided.
+    Pending,
+    /// Staff approved this bundle; it is the one the proxy serves (once the application is released).
+    Approved,
+    /// Staff turned it down; the owner uploads a new bundle.
+    Rejected,
+    /// Replaced by a newer bundle; its files are deleted by `activities.gc`.
+    Superseded,
+}
+
+impl BundleState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Pending => "pending",
+            Self::Approved => "approved",
+            Self::Rejected => "rejected",
+            Self::Superseded => "superseded",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "pending" => Self::Pending,
+            "approved" => Self::Approved,
+            "rejected" => Self::Rejected,
+            "superseded" => Self::Superseded,
+            _ => Self::Draft,
+        }
+    }
+}
+
+/// One uploaded bundle.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct BundleView {
+    pub id: String,
+    /// SHA-256 (hex) of the uploaded zip: what staff approve.
+    pub sha256: String,
+    /// Total unpacked size in bytes.
+    pub byte_size: i64,
+    pub entry_count: i32,
+    pub state: BundleState,
+    pub uploaded_at_ms: i64,
+    pub reviewed_at_ms: Option<i64>,
+    pub note: Option<String>,
+}
+
+/// One file of a bundle.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct BundleEntry {
+    pub path: String,
+    pub size: i64,
+    pub content_type: String,
+}
+
+/// A bundle with the files it holds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct BundleDetail {
+    pub bundle: BundleView,
+    pub entries: Vec<BundleEntry>,
+}
+
 /// An application's Activity settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ConfigView {
     pub application_id: String,
-    pub entry_url: Option<String>,
+    /// Live URL served only while the application is in development (never reviewed).
+    pub dev_entry_url: Option<String>,
     pub url_mappings: Vec<UrlMapping>,
+    /// Summary of the review: `pending` while a bundle waits, `approved` while a bundle is reviewed.
     pub review_state: ReviewState,
-    /// SHA-256 (hex) of the entry document the owner submitted.
-    pub pinned_sha256: Option<String>,
-    /// SHA-256 (hex) of the entry document staff approved; the proxy serves only this one.
-    pub reviewed_sha256: Option<String>,
+    /// The bundle staff approved; the proxy serves only this one.
+    pub reviewed_bundle: Option<BundleView>,
+    /// Recent bundles (the review history), newest first, superseded ones included.
+    pub bundles: Vec<BundleView>,
     pub review_note: Option<String>,
     pub updated_at_ms: i64,
 }
@@ -64,8 +134,8 @@ pub struct ConfigView {
 /// What the owner may change.
 #[derive(Debug, Clone, PartialEq, Deserialize, ToSchema)]
 pub struct ConfigInput {
-    /// `null` or empty clears it.
-    pub entry_url: Option<String>,
+    /// `null` or empty clears it. Only an application in development may set one.
+    pub dev_entry_url: Option<String>,
     #[serde(default)]
     pub url_mappings: Vec<UrlMapping>,
 }
@@ -76,14 +146,18 @@ pub struct PendingView {
     pub application_name: String,
     pub owner_id: String,
     pub config: ConfigView,
+    /// The bundle waiting for a decision.
+    pub bundle: BundleDetail,
 }
 
-/// An approved Activity in the launcher's shelf.
+/// An Activity in the launcher's shelf.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ShelfItem {
     pub application_id: String,
     pub name: String,
     pub description: String,
+    /// A development build only the owner and testers see.
+    pub development: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -92,7 +166,7 @@ pub struct ParticipantView {
     pub joined_at_ms: i64,
 }
 
-/// A running activity in a voice channel.
+/// A running activity in a voice or text channel.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct InstanceView {
     pub id: String,
@@ -100,6 +174,10 @@ pub struct InstanceView {
     pub application_name: String,
     pub guild_id: String,
     pub channel_id: String,
+    /// `voice` or `text`.
+    pub channel_type: String,
+    /// Running a development build (live entry URL).
+    pub development: bool,
     pub started_by: String,
     pub created_at_ms: i64,
     pub participants: Vec<ParticipantView>,
