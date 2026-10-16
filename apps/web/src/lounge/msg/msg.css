@@ -1236,3 +1236,30 @@
 .lng-inbox-markall {
   margin-block-start: 8px;
 }
+
+/* Custom emoji button and popout (LNG-EXP-011) */
+.lng-custom-emoji {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.lng-emoji-popout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 220px;
+  padding: 12px;
+}
+.lng-emoji-popout-head,
+.lng-emoji-popout-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lng-emoji-popout p {
+  margin: 0;
+}

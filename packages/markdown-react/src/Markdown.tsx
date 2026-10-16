@@ -111,6 +111,12 @@ function renderNode(n: MdNode, ctx: Ctx): ReactNode {
     case "here":
       return <span className="sr-md-mention sr-md-mention-here">@here</span>;
     case "custom_emoji": {
+      const custom = ctx.resolvers.customEmoji?.({
+        id: String(n.id),
+        name: n.name,
+        animated: n.animated,
+      });
+      if (custom) return <>{custom}</>;
       const url = ctx.resolvers.customEmojiUrl?.(String(n.id), n.animated);
       if (!url) return <span className="sr-md-emoji-fallback">{`:${n.name}:`}</span>;
       return (

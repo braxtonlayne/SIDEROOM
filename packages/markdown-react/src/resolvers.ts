@@ -17,6 +17,11 @@ export interface Resolvers {
   channel?: (id: string) => ResolvedName | undefined;
   /** Image URL for a custom emoji. Without it the emoji renders as `:name:`. */
   customEmojiUrl?: (id: string, animated: boolean) => string | undefined;
+  /**
+   * Replaces the whole rendering of a custom emoji (the web app draws a clickable emoji with a popout). When it
+   * returns a node, `customEmojiUrl` is not used.
+   */
+  customEmoji?: (emoji: { id: string; name: string; animated: boolean }) => ReactNode;
   /** Rich card for `<cinema:id>`. Without it a plain chip is shown. */
   cinema?: (id: string) => ReactNode;
   /** Rich card for `<library:id>`. Without it a plain chip is shown. */

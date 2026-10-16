@@ -5,6 +5,7 @@ import {
   type Virtualizer,
 } from '@tanstack/react-virtual';
 import { hasKeyword, useKeywordMatcher } from './keywords';
+import { CustomEmoji } from './msg/CustomEmoji';
 import type { Resolvers } from '@sideroom/markdown-react';
 import { Icon } from '@sideroom/ui';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -177,6 +178,7 @@ export function MessageList({
         const c = channels.find((x) => x.id === id);
         return c ? { name: c.name } : undefined;
       },
+      customEmoji: (e) => <CustomEmoji id={e.id} name={e.name} animated={e.animated} />,
     }),
     [users, roles, channels, roleColor],
   );
