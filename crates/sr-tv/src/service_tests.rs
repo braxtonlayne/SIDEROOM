@@ -677,6 +677,31 @@ async fn a_reminder_fires_once_five_minutes_before_the_programme() {
 }
 
 #[tokio::test]
+async fn the_lead_setting_applies_when_no_lead_is_asked_and_the_list_follows_the_guide() {
+    let e = env();
+    let (_, block) = next_block(&e).await;
+    e.repo.set_lead_setting(MEMBER.user_id, 20);
+    e.repo.set_lead_setting(ADULT.user_id, 9_999);
+    e.svc.set_reminder(MEMBER, block, None).await.unwrap();
+    // An out-of-range blob value falls back to 5; an explicit lead beats the setting.
+    e.svc.set_reminder(ADULT, block, None).await.unwrap();
+    let mine = e.svc.list_reminders(MEMBER).await.unwrap();
+    assert_eq!(mine.len(), 1);
+    assert_eq!(mine[0].lead_minutes, 20);
+    assert!(mine[0].title.as_deref().unwrap().starts_with("Cowboy Bebop"));
+    assert_eq!(e.svc.list_reminders(ADULT).await.unwrap()[0].lead_minutes, 5);
+    e.svc.set_reminder(MEMBER, block, Some(0)).await.unwrap();
+    assert_eq!(e.svc.list_reminders(MEMBER).await.unwrap()[0].lead_minutes, 0);
+    // The reminder fires at the setting's lead: 20 minutes before 20:30 is 20:10.
+    e.svc.set_reminder(MEMBER, block, None).await.unwrap();
+    e.clock.advance_ms(9 * MIN);
+    assert_eq!(e.svc.fire_reminders(&Sink::default()).await.unwrap(), 0);
+    e.clock.advance_ms(MIN);
+    assert_eq!(e.svc.fire_reminders(&Sink::default()).await.unwrap(), 1);
+    assert!(e.svc.list_reminders(MEMBER).await.unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn a_reminder_can_be_cancelled_and_a_lead_can_be_chosen() {
     let e = env();
     let (_, block) = next_block(&e).await;

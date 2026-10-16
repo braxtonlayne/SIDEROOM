@@ -208,6 +208,8 @@ export function useTvApi(
     guide?: TvGuide;
     guideStatus?: number;
     favourites?: string[];
+    /** Block ids that already have a reminder. */
+    reminders?: string[];
     perms?: string | null;
     /** Override the tune answer for a channel (return undefined for the default). */
     tune?: (id: string) => Response | undefined;
@@ -215,6 +217,7 @@ export function useTvApi(
 ) {
   const calls: TvCalls = { guide: [], settingsPatches: [], tunes: [], reminders: [] };
   let favourites = o.favourites ?? [];
+  let pendingReminders: string[] = o.reminders ?? [];
   const g = () => o.guide ?? guide();
   const wireNow = (id: string) => {
     const list = g().blocks[id] ?? [];
@@ -281,8 +284,25 @@ export function useTvApi(
       const c = WIRE_CHANNELS.find((x) => x.id === params.id);
       return c ? HttpResponse.json(c) : HttpResponse.json({ message: 'nf' }, { status: 404 });
     }),
+    http.get('*/api/v1/tv/reminders', () =>
+      HttpResponse.json({
+        items: pendingReminders.map((id) => ({
+          block_id: id,
+          channel_id: '1',
+          title: id === 'gone' ? null : `Reminder ${id}`,
+          starts_at: NOW + 3_600_000,
+          remind_at: NOW + 3_300_000,
+          lead_minutes: 5,
+        })),
+      }),
+    ),
     http.put('*/api/v1/tv/reminders/:id', ({ params }) => {
       calls.reminders.push(String(params.id));
+      pendingReminders.push(String(params.id));
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.delete('*/api/v1/tv/reminders/:id', ({ params }) => {
+      pendingReminders = pendingReminders.filter((x) => x !== String(params.id));
       return new HttpResponse(null, { status: 204 });
     }),
   );

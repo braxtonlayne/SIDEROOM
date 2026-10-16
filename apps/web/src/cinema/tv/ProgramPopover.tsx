@@ -1,12 +1,12 @@
 // Programme detail (TV-UI-006): synopsis, next airings, Tune in (when on now), Remind me (when upcoming) and a
 // link to the Cinema title page. A floating panel anchored to the cell on desktop, a modal on a phone.
 import { Modal, useFloating, usePortalTarget } from '@sideroom/ui';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { formatDate, useT } from '../../i18n';
 import { AgeBadge } from '../ui';
-import { isNotAvailable, setReminder, useBlockInfo } from './api';
+import { isNotAvailable, listReminders, setReminder, tvKeys, useBlockInfo } from './api';
 import {
   formatDuration,
   isNow,
@@ -65,10 +65,22 @@ function Body({
   const href = titleHrefOf(block);
   const airings = useMemo(() => nextAirings(block, allBlocks, nowMs), [block, allBlocks, nowMs]);
   const byId = useMemo(() => new Map(channels.map((c) => [c.id, c])), [channels]);
-  const [reminded, setReminded] = useState(false);
+  const qc = useQueryClient();
+  // The server's list is the truth, so "Reminder set" survives a reload.
+  const pending = useQuery({
+    queryKey: tvKeys.reminders(),
+    queryFn: listReminders,
+    retry: false,
+    staleTime: 30_000,
+  });
+  const [override, setOverride] = useState<boolean | null>(null);
+  const reminded = override ?? !!pending.data?.some((r) => r.block_id === block.id);
   const remind = useMutation({
     mutationFn: () => setReminder(block.id, !reminded),
-    onSuccess: () => setReminded((v) => !v),
+    onSuccess: () => {
+      setOverride(!reminded);
+      void qc.invalidateQueries({ queryKey: tvKeys.reminders() });
+    },
   });
   const min = block.runtime_min ?? runtimeMinutes(block);
   return (

@@ -1121,6 +1121,27 @@ const REMINDER_BATCH: i64 = 100;
 /// A failed notice is tried again after this long while the programme has not started.
 const REMINDER_RETRY_MS: i64 = 30_000;
 
+/// One pending reminder of the caller, joined to the current guide (H-01).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = TvReminder)]
+pub struct ReminderView {
+    #[serde(with = "crate::model::id")]
+    #[schema(value_type = String)]
+    pub block_id: i64,
+    #[serde(with = "crate::model::id")]
+    #[schema(value_type = String)]
+    pub channel_id: i64,
+    /// The programme title now in the guide; `null` when the block is gone (the next tick drops the
+    /// reminder with a notice).
+    pub title: Option<String>,
+    /// Programme start, Unix milliseconds.
+    pub starts_at: i64,
+    /// When the reminder fires, Unix milliseconds.
+    pub remind_at: i64,
+    /// Minutes before the start the reminder fires.
+    pub lead_minutes: i64,
+}
+
 /// What a member is told.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReminderNotice {
@@ -1164,7 +1185,17 @@ impl TvService {
         block_id: i64,
         lead_min: Option<i64>,
     ) -> TvResult<()> {
-        let lead = lead_min.unwrap_or(REMINDER_LEAD_MIN);
+        // Without `?lead_minutes=` the member's `tv.reminder_lead_minutes` setting applies (a value
+        // outside 0 to 120 in the blob falls back to the default rather than failing the request).
+        let lead = match lead_min {
+            Some(v) => v,
+            None => self
+                .repo
+                .reminder_lead_setting(viewer.user_id)
+                .await?
+                .filter(|v| (0..=REMINDER_MAX_LEAD_MIN).contains(v))
+                .unwrap_or(REMINDER_LEAD_MIN),
+        };
         if !(0..=REMINDER_MAX_LEAD_MIN).contains(&lead) {
             return Err(TvError::Invalid(format!(
                 "lead_minutes must be between 0 and {REMINDER_MAX_LEAD_MIN}"
@@ -1197,6 +1228,26 @@ impl TvService {
                 remind_at_ms: (block.start_ms - lead * 60_000).max(now),
             })
             .await
+    }
+
+    /// The caller's pending reminders, soonest first, joined to the current guide.
+    pub async fn list_reminders(&self, viewer: Viewer) -> TvResult<Vec<ReminderView>> {
+        let mut out = Vec::new();
+        for r in self.repo.list_reminders(viewer.user_id).await? {
+            let block = self.repo.get_block(r.block_id).await?;
+            let title = block
+                .filter(|b| b.start_ms == r.start_ms && b.kind == BlockKind::Program)
+                .map(|b| block_label(&b));
+            out.push(ReminderView {
+                block_id: r.block_id,
+                channel_id: r.channel_id,
+                title,
+                starts_at: r.start_ms,
+                remind_at: r.remind_at_ms,
+                lead_minutes: ((r.start_ms - r.remind_at_ms) / 60_000).max(0),
+            });
+        }
+        Ok(out)
     }
 
     /// Cancel a reminder. Cancelling one that does not exist is fine.
