@@ -65,3 +65,22 @@ jobs:
           f=$(ls "$SR_BACKUP_DIR"/db/*.dump | head -n 1)
           echo tamper >> "$f"
           if deploy/scripts/restore-drill.sh; then echo "tampered dump was accepted" >&2; exit 1; fi
+
+  # XC-OPS-003: continuous archiving. A scratch cluster archives WAL through wal-archive.sh, a base backup is
+  # taken with basebackup.sh, and pitr-restore.sh must bring back exactly the rows written before the chosen
+  # moment (deploy/scripts/wal-drill.sh).
+  wal-drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the PostgreSQL 17 server binaries
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+      - name: Point-in-time recovery drill
+        run: deploy/scripts/wal-drill.sh
