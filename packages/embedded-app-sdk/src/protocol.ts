@@ -42,6 +42,8 @@ export interface UserInfo {
   username: string | null;
   global_name: string | null;
   avatar: string | null;
+  /** An absolute, possibly short-lived image URL (SIDE ROOM extension; there is no avatar hash). */
+  avatar_url?: string | null;
 }
 
 export interface ChannelInfo {

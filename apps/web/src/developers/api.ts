@@ -3,6 +3,8 @@
 // create/reset calls only and must never be stored by callers beyond the reveal dialog.
 import { ApiError, apiFetch, apiPost } from '../api/client';
 import type {
+  ActivityConfig,
+  ActivityMapping,
   AppCreated,
   AppAsset,
   AppEmoji,
@@ -147,6 +149,7 @@ export const keys = {
   assets: (appId: string) => ['dev', 'assets', appId] as const,
   versions: (appId: string) => ['dev', 'versions', appId] as const,
   status: ['dev', 'status'] as const,
+  activity: (appId: string) => ['dev', 'activity', appId] as const,
 };
 
 /** True when the server does not have this endpoint (yet): show an honest "not available" state. */
@@ -170,3 +173,18 @@ export function errorText(e: unknown, fallback = 'Something went wrong. Try agai
   }
   return fallback;
 }
+
+// ---- activities ----
+export const getActivity = (appId: string) =>
+  apiFetch<ActivityConfig>(`/applications/${id(appId)}/activity`, ro);
+export const saveActivity = (
+  appId: string,
+  body: { entry_url: string | null; url_mappings: ActivityMapping[] },
+) =>
+  apiFetch<ActivityConfig>(`/applications/${id(appId)}/activity`, {
+    method: 'PUT',
+    json: body,
+    ...ro,
+  });
+export const submitActivity = (appId: string) =>
+  apiPost<ActivityConfig>(`/applications/${id(appId)}/activity/submit`);

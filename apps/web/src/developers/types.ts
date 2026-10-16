@@ -223,3 +223,29 @@ export interface AppAsset {
   type: 1 | 2;
   url: string;
 }
+
+/** One URL mapping of an Activity (DEV-PORT-003 Activities tab). */
+export interface ActivityMapping {
+  prefix: string;
+  target: string;
+}
+
+export type ActivityReviewState = 'draft' | 'pending' | 'approved' | 'rejected';
+
+/** `GET /applications/{id}/activity`. */
+export interface ActivityConfig {
+  config: {
+    application_id: string;
+    entry_url: string | null;
+    url_mappings: ActivityMapping[];
+    review_state: ActivityReviewState;
+    pinned_sha256: string | null;
+    reviewed_sha256: string | null;
+    review_note: string | null;
+    updated_at_ms: number;
+  };
+  /** The server runs Activities (`[activities] enabled`). */
+  enabled: boolean;
+  /** `https://<application-id>.activities.<host>`. */
+  origin: string;
+}

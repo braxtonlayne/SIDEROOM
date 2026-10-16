@@ -9,6 +9,7 @@ import { useVoiceSession } from '../../voice/session';
 import { useVoiceSettings } from '../../voice/settings';
 import { useLocalVideo } from '../../voice/video';
 import { StartPartyButton } from '../../watchparty/StartPartyButton';
+import { ActivityButton } from '../../activities/ActivityButton';
 import { CameraPreviewDialog } from './CameraPreview';
 import { ScreenSharePicker } from './ScreenSharePicker';
 import { SoundboardButton } from './SoundboardPopover';
@@ -280,6 +281,7 @@ export function CallControls({
         )}
         {guildId !== DM_GUILD_ID && <SoundboardButton guildId={guildId} channelId={channelId} />}
         <StartPartyButton channelId={channelId} />
+        {guildId !== DM_GUILD_ID && <ActivityButton channelId={channelId} />}
         <DropdownMenu
           label={t('lounge.callControls.more')}
           placement="top"
