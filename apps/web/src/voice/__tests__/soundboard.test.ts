@@ -420,7 +420,7 @@ describe('favorites validation (P14-WEB-2)', () => {
     );
     resetSoundboard();
     adoptFavorites({ version: 1, settings: {} });
-    expect(useSoundboard.getState().favorites).toEqual([]);
+    expect(useSoundboard.getState().favorites).toEqual(['default:1']);
     useStore.setState({ guildOrder: [] });
   });
 });

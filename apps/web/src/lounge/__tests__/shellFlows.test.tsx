@@ -559,6 +559,42 @@ describe('Create a Server wizard', () => {
     await waitFor(() => expect(posted).toEqual({ name: "Me Myself's server" }));
   });
 
+  it('sends the picked icon with the create request instead of a second PATCH (J-06)', async () => {
+    let posted: Record<string, unknown> | undefined;
+    let patched = false;
+    server.use(
+      http.get('*/api/v1/guilds/templates/builtin', () => HttpResponse.json([])),
+      http.post('*/api/v1/guilds', async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { id: 'g7', name: 'Iconic', owner_id: '1', icon: 'abc', channels: [], roles: [] },
+          { status: 201 },
+        );
+      }),
+      http.patch('*/api/v1/guilds/g7', () => {
+        patched = true;
+        return HttpResponse.json({});
+      }),
+    );
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Create My Own' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'skip this question' }));
+    // A GIF skips the crop step, so the data URI is the file as read.
+    await userEvent.upload(
+      screen.getByLabelText('Server icon file'),
+      new File([new Uint8Array([71, 73, 70, 56, 57, 97])], 'logo.gif', { type: 'image/gif' }),
+    );
+    const name = screen.getByLabelText('Server name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Iconic');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(posted).toBeDefined());
+    expect(posted).toMatchObject({ name: 'Iconic' });
+    expect(String(posted!.icon)).toMatch(/^data:image\/gif;base64,/);
+    expect(patched).toBe(false);
+  });
+
   it('goes back through the steps and lists the invite examples on Join', async () => {
     at('/channels/g1/c1');
     await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
