@@ -19,7 +19,7 @@
     "mocks:check": "node scripts/gen-msw.mjs --check"
   },
   "dependencies": {
-    "openapi-fetch": "^0.13.4"
+    "openapi-fetch": "^0.17.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
