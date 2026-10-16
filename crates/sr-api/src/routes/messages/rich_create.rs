@@ -409,7 +409,11 @@ mod tests {
         assert_eq!(ups[0].0.waveform.as_deref(), Some("AAEC"));
         assert_eq!(ups[0].0.duration_ms, Some(2_000));
         // Inconsistent duration, or a malformed waveform: the measured envelope stays.
-        for r in [declared(3.0, "AAEC"), declared(2.0, "!!!"), declared(2.0, "")] {
+        for r in [
+            declared(3.0, "AAEC"),
+            declared(2.0, "!!!"),
+            declared(2.0, ""),
+        ] {
             let mut ups = measured();
             apply_voice_meta(&mut ups, &[&r]);
             assert_eq!(ups[0].0.waveform.as_deref(), Some("TUVBU1VSRUQ="));
