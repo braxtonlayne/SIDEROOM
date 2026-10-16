@@ -87,6 +87,14 @@ function useSubmissionsApi(
       current = { ...current, items: [...current.items, item(chapters.length, { ref_id: c.id })] };
       return HttpResponse.json(c, { status: 201 });
     }),
+    http.put('*/api/v1/submissions/:id/library/chapters/:c', async ({ request, params }) => {
+      const b = (await request.clone().json()) as { number: number; title: string | null };
+      log.posts.push({ path: `put:${String(params.c)}`, body: b });
+      chapters = chapters.map((c) =>
+        c.id === params.c ? { ...c, number: b.number, title: b.title } : c,
+      );
+      return HttpResponse.json(chapters.find((c) => c.id === params.c));
+    }),
     http.delete('*/api/v1/submissions/:id/library/chapters/:c', async ({ params }) => {
       log.posts.push({ path: `delete:${String(params.c)}`, body: undefined });
       chapters = chapters.filter((c) => c.id !== params.c);
@@ -392,6 +400,51 @@ describe('Library submission page', () => {
     renderAt('/library/submissions/1');
     expect(await screen.findByText('page 4 is not an image')).toBeInTheDocument();
     expect(screen.getByText('skipped Thumbs.db')).toBeInTheDocument();
+  });
+
+  it('renames and reorders chapters, and shows the checks before sending (REV-ED-001, REV-ED-004)', async () => {
+    const log = useSubmissionsApi({
+      chapters: [draftChapter(1), draftChapter(2), draftChapter(5)],
+      detail: detail({ state: 'draft' }, [
+        item(1, { ref_id: 'c1' }),
+        item(2, { ref_id: 'c2' }),
+        item(5, { ref_id: 'c5' }),
+      ]),
+    });
+    const user = userEvent.setup();
+    renderAt('/library/submissions/1');
+    // No chapter has pages, and 3 and 4 are missing from the numbering.
+    const summary = await screen.findByText('Checks before sending');
+    const box = summary.closest('[role="status"]') as HTMLElement;
+    expect(within(box).getByText(/3 chapters have no pages yet/)).toBeInTheDocument();
+    expect(within(box).getByText(/missing in the numbering: 3, 4/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Rename Chapter 2' }));
+    const form = await screen.findByRole('form', { name: 'Rename chapter' });
+    await user.type(
+      within(form).getByRole('textbox', { name: 'Chapter title (optional)' }),
+      'The door',
+    );
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(log.posts.find((p) => p.path === 'put:c2')?.body).toEqual({
+        number: 2,
+        title: 'The door',
+        format: 'images',
+        release_group: null,
+      }),
+    );
+
+    // Move chapter 1 down: it takes number 2 and chapter 2 takes number 1, through a spare number.
+    log.posts.length = 0;
+    await user.click(await screen.findByRole('button', { name: 'Move Chapter 1 down' }));
+    await waitFor(() => expect(log.posts.filter((p) => p.path.startsWith('put:'))).toHaveLength(4));
+    expect(log.posts.map((p) => `${p.path}=${(p.body as { number: number }).number}`)).toEqual([
+      'put:c2=6',
+      'put:c1=7',
+      'put:c2=1',
+      'put:c1=2',
+    ]);
   });
 
   it('removes a chapter and edits the details', async () => {

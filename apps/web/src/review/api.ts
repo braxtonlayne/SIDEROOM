@@ -66,7 +66,7 @@ export const updateDraftChapter = (
 ) =>
   apiFetch<DraftChapter>(`/submissions/${enc(id)}/library/chapters/${enc(chapter)}`, {
     method: 'PUT',
-    body: b,
+    json: b,
     retries: 0,
   });
 export const deleteDraftChapter = (id: string, chapter: string) =>

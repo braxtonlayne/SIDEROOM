@@ -864,6 +864,35 @@ impl CinemaRepository for PgCinemaRepo {
         }))
     }
 
+    async fn title_contributors(&self, title_id: i64) -> CinemaResult<Vec<Contributor>> {
+        let rows = sqlx::query(
+            "SELECT c.user_id, COALESCE(a.display_name, a.username::text) AS name, \
+                    count(*) FILTER (WHERE c.ref_id = $1)::bigint AS titles, \
+                    count(*) FILTER (WHERE c.ref_id <> $1)::bigint AS episodes \
+               FROM contribution_credits c \
+               JOIN accounts a ON a.id = c.user_id \
+               LEFT JOIN donor_preferences p ON p.user_id = c.user_id \
+              WHERE c.section = 'cinema' AND c.revoked_at IS NULL AND c.user_id IS NOT NULL \
+                AND (c.ref_id = $1 OR c.ref_id IN (SELECT id FROM video_episodes WHERE title_id = $1)) \
+                AND NOT COALESCE(p.hide_contributions, FALSE) AND NOT COALESCE(p.staff_hidden, FALSE) \
+              GROUP BY c.user_id, name ORDER BY count(*) DESC, c.user_id LIMIT 50",
+        )
+        .bind(title_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(Contributor {
+                    user_id: r.try_get("user_id").map_err(db)?,
+                    name: r.try_get("name").map_err(db)?,
+                    titles: r.try_get("titles").map_err(db)?,
+                    episodes: r.try_get("episodes").map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
     // ---- title writes --------------------------------------------------
 
     async fn create_title(&self, t: &NewTitle) -> CinemaResult<TitleRecord> {

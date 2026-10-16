@@ -196,6 +196,18 @@ impl CinemaRepository for Stub {
     async fn list_trailers(&self, _: i64) -> CinemaResult<Vec<TrailerRecord>> {
         Ok(vec![])
     }
+    async fn title_contributors(&self, title: i64) -> CinemaResult<Vec<Contributor>> {
+        Ok(if title == 7 {
+            vec![Contributor {
+                user_id: 42,
+                name: "Mina".into(),
+                titles: 1,
+                episodes: 0,
+            }]
+        } else {
+            vec![]
+        })
+    }
     async fn list_markers(&self, title: i64, _: Option<i64>) -> CinemaResult<Vec<MarkerRecord>> {
         Ok(if title == 7 {
             vec![MarkerRecord {
@@ -642,6 +654,7 @@ fn member_routes() -> Vec<Route> {
         (Method::GET, "/cinema/titles/7", None),
         (Method::GET, "/cinema/titles/7/episodes", None),
         (Method::GET, "/cinema/titles/7/markers", None),
+        (Method::GET, "/cinema/titles/7/contributors", None),
         (Method::GET, "/cinema/titles/7/play", None),
         (Method::GET, "/cinema/episodes/5", None),
         (Method::GET, "/cinema/episodes/5/markers", None),
@@ -740,6 +753,32 @@ fn admin_routes() -> Vec<Route> {
             Some(json!({ "title_ids": ["7"] })),
         ),
     ]
+}
+
+#[tokio::test]
+async fn a_title_lists_its_credited_contributors() {
+    let e = env().await;
+    let (s, body) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/cinema/titles/7/contributors",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["contributors"][0]["name"], "Mina");
+    assert_eq!(body["contributors"][0]["titles"], 1);
+    // An unknown or unpublished title answers 404, not an empty list.
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/cinema/titles/8/contributors",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
