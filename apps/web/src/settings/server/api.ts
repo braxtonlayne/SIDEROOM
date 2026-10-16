@@ -419,10 +419,11 @@ export interface AuditLog {
 export const AUDIT_PAGE = 50;
 export function listAuditLog(
   g: string,
-  q: { user_id?: string; action_type?: number; before?: string },
+  q: { user_id?: string; target_id?: string; action_type?: number; before?: string },
 ) {
   const p = new URLSearchParams({ limit: String(AUDIT_PAGE) });
   if (q.user_id) p.set('user_id', q.user_id);
+  if (q.target_id) p.set('target_id', q.target_id);
   if (q.action_type !== undefined) p.set('action_type', String(q.action_type));
   if (q.before) p.set('before', q.before);
   return apiFetch<AuditLog>(`/guilds/${g}/audit-logs?${p}`, { retries: 0 });
@@ -502,6 +503,10 @@ export interface CommunityObject {
   /** Warn moderators about accounts younger than this many days; 0 = off. */
   warn_new_account_days?: number;
   age_restricted: boolean;
+  /** Membership screening (LNG-SSET-041): new members agree to the rules before they may talk. */
+  screening_enabled?: boolean;
+  screening_description?: string | null;
+  screening_rules?: string[];
 }
 export type CommunityPatch = Partial<
   Omit<
@@ -511,8 +516,10 @@ export type CommunityPatch = Partial<
     | 'public_updates_channel_id'
     | 'safety_alerts_channel_id'
     | 'description'
+    | 'screening_description'
   >
 > & {
+  screening_description?: string | null;
   rules_channel_id?: string | null;
   public_updates_channel_id?: string | null;
   safety_alerts_channel_id?: string | null;

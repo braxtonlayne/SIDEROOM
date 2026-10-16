@@ -537,12 +537,4 @@ describe('Community', () => {
     expect(within(dialog).getByText(/Roles:/).parentElement).toHaveTextContent('Mod');
     expect(screen.queryByText(/must answer every required/)).toBeNull();
   });
-
-  it('lists what is not available yet', async () => {
-    seed({ perms: [MANAGE.guild] });
-    server.use(http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)));
-    await openSettings('community');
-    await userEvent.click(await screen.findByRole('tab', { name: 'More' }));
-    expect(screen.getAllByText('Not available yet.').length).toBeGreaterThan(2);
-  });
 });

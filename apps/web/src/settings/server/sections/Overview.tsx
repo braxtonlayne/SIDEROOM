@@ -410,8 +410,7 @@ function ServerCard({
           <strong>{name}</strong>
           {members !== undefined && (
             <div className="ss-sub">
-              {online !== undefined &&
-                `${t('settings.overview.cardOnline', { count: online })} 00b7 `}
+              {online !== undefined && `${t('settings.overview.cardOnline', { count: online })} · `}
               {t('settings.overview.cardMembers', { count: members })}
             </div>
           )}
