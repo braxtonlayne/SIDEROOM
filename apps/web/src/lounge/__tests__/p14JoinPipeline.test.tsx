@@ -297,7 +297,7 @@ describe('Security actions (LNG-GLD-034, J-02)', () => {
     );
     const dialog = await openDialog();
     await userEvent.click(
-      await within(dialog).findByRole('switch', { name: 'Pause invites for 24 hours' }),
+      await within(dialog).findByRole('switch', { name: /Pause invites for 24 hours/ }),
     );
     await waitFor(() => expect(puts).toHaveLength(1));
     const first = puts[0]!;
@@ -315,7 +315,7 @@ describe('Security actions (LNG-GLD-034, J-02)', () => {
 
     // The DM pause keeps the invite pause's time and writes its own.
     await userEvent.click(
-      within(dialog).getByRole('switch', { name: 'Pause direct messages for 24 hours' }),
+      within(dialog).getByRole('switch', { name: /Pause direct messages for 24 hours/ }),
     );
     await waitFor(() => expect(puts).toHaveLength(2));
     expect(puts[1]!.invites_disabled_until).toBe(first.invites_disabled_until);
@@ -323,7 +323,7 @@ describe('Security actions (LNG-GLD-034, J-02)', () => {
 
     // Turning one off clears only it.
     await userEvent.click(
-      within(dialog).getByRole('switch', { name: 'Pause invites for 24 hours' }),
+      within(dialog).getByRole('switch', { name: /Pause invites for 24 hours/ }),
     );
     await waitFor(() => expect(puts).toHaveLength(3));
     expect(puts[2]!.invites_disabled_until).toBeNull();
@@ -420,7 +420,7 @@ describe('Per-server DM switch (J-01, LNG-GLD-025)', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Privacy Settings' }));
     const dialog = await screen.findByRole('dialog', { name: 'Privacy Settings' });
     const toggle = await within(dialog).findByRole('switch', {
-      name: 'Allow direct messages from server members',
+      name: /Allow direct messages from server members/,
     });
     expect(toggle).toBeChecked();
     await userEvent.click(toggle);
@@ -445,7 +445,7 @@ describe('Per-server DM switch (J-01, LNG-GLD-025)', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit Per-server Profile' }));
     const dialog = await screen.findByRole('dialog', { name: /profile/i });
     const toggle = await within(dialog).findByRole('switch', {
-      name: 'Allow direct messages from server members',
+      name: /Allow direct messages from server members/,
     });
     expect(toggle).not.toBeChecked();
   });

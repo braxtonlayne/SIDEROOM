@@ -10,6 +10,7 @@ import {
   HttpResponse,
   MANAGE,
   openSettings,
+  restRoles,
   seed,
   server,
 } from './helpers';
@@ -459,6 +460,19 @@ describe('Integrations overview and followed channels (LNG-SSET-044, LNG-SSET-04
         http.get('*/api/v1/guilds/g1/integrations', () =>
           HttpResponse.json([integration('50', 'Helper')]),
         ),
+        http.get('*/api/v1/guilds/g1/roles', () => HttpResponse.json(restRoles())),
+        http.get('*/api/v1/guilds/g1/channels', () =>
+          HttpResponse.json([
+            {
+              id: 'c1',
+              type: 0,
+              guild_id: 'g1',
+              name: 'general',
+              position: 0,
+              permission_overwrites: [],
+            },
+          ]),
+        ),
         http.get('*/api/v1/guilds/g1/members', () =>
           HttpResponse.json([
             { user: { id: '2', username: 'bob' }, roles: [], joined_at: '2026-01-01T00:00:00Z' },
@@ -518,7 +532,7 @@ describe('Integrations overview and followed channels (LNG-SSET-044, LNG-SSET-04
       '2:2',
     );
     await userEvent.selectOptions(within(dialog).getByLabelText('Rule for bob'), 'deny');
-    expect(within(dialog).getByLabelText('Rule for @Mod')).toHaveValue('allow');
+    expect(within(dialog).getByLabelText('Rule for Mod')).toHaveValue('allow');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(put.calls).toHaveLength(1));
     // 18446744073709551615 stands for nothing here: "All channels" is the server id minus one.

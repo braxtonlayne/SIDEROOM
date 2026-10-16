@@ -99,7 +99,8 @@ export function SecurityActionsDialog({
   const invitesUntil =
     inc && pauseActive(inc.invites_disabled_until) ? inc.invites_disabled_until : null;
   const dmsUntil = inc && pauseActive(inc.dms_disabled_until) ? inc.dms_disabled_until : null;
-  const until = (v: string) => t('lounge.securityActions.pausedUntil', { time: formatTime(Date.parse(v)) });
+  const until = (v: string) =>
+    t('lounge.securityActions.pausedUntil', { time: formatTime(Date.parse(v)) });
 
   return (
     <Modal
@@ -115,7 +116,9 @@ export function SecurityActionsDialog({
         <>
           <Switch
             label={t('lounge.securityActions.pauseInvitesDay')}
-            description={invitesUntil ? until(invitesUntil) : t('lounge.securityActions.pauseInvitesDayHint')}
+            description={
+              invitesUntil ? until(invitesUntil) : t('lounge.securityActions.pauseInvitesDayHint')
+            }
             checked={!!invitesUntil}
             disabled={busy}
             onChange={(e) => void timed('invites_disabled_until', e.target.checked)}

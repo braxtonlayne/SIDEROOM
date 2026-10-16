@@ -172,7 +172,7 @@ pub async fn post_system_card(
         .ok_or_else(|| MsgError::from(sr_core::ErrorCode::UnknownChannel))?;
     let user = UserId::new(sr_chat::SYSTEM_USER_ID);
     let msg = Message {
-        id: id,
+        id,
         channel_id,
         guild_id: ch.guild_id,
         author_id: user,

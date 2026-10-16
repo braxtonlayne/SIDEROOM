@@ -19599,7 +19599,7 @@
         "tags": [
           "bot"
         ],
-        "summary": "Commands of the application in one server.",
+        "summary": "Commands of the application in one server. The application's bot, its owner and the server's\nmanagers may read them (J-10: the command permission editor lists them).",
         "operationId": "list_guild",
         "parameters": [
           {
@@ -19618,6 +19618,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "include_global",
+            "in": "path",
+            "description": "SIDE ROOM extension for the command permission editor: also list the application's global\ncommands (the ones with `guild_id` absent).",
+            "required": true,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -19649,6 +19658,9 @@
         "security": [
           {
             "authorization": []
+          },
+          {
+            "session": []
           }
         ]
       },
@@ -19802,7 +19814,7 @@
         "tags": [
           "bot"
         ],
-        "summary": "Overwrites of every command in a server.",
+        "summary": "Overwrites of every command in a server. The application's bot, its owner and the server's\nmanagers may read them.",
         "operationId": "guild_permissions",
         "parameters": [
           {
@@ -19837,11 +19849,24 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         },
         "security": [
           {
             "authorization": []
+          },
+          {
+            "session": []
           }
         ]
       }
@@ -20055,7 +20080,7 @@
         "tags": [
           "bot"
         ],
-        "summary": "Overwrites of one command.",
+        "summary": "Overwrites of one command. The application's bot, its owner and the server's managers may\nread them.",
         "operationId": "command_permissions",
         "parameters": [
           {
@@ -20097,6 +20122,16 @@
               }
             }
           },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "",
             "content": {
@@ -20111,6 +20146,9 @@
         "security": [
           {
             "authorization": []
+          },
+          {
+            "session": []
           }
         ]
       },
@@ -20118,7 +20156,7 @@
         "tags": [
           "bot"
         ],
-        "summary": "Replace the overwrites of one command. Needs a bearer token with\n`applications.commands.permissions.update`, issued to this application, of a user who\nmanages the server. Bot tokens and sessions are refused (as on Discord).",
+        "summary": "Replace the overwrites of one command (audit log entry 121 in the server). Needs a person:\nthe application's owner, a member who holds `MANAGE_GUILD` in the server, or an OAuth2\nbearer token with `applications.commands.permissions.update` of such a manager. Bot tokens\nare refused (as on Discord).",
         "operationId": "set_command_permissions",
         "parameters": [
           {
@@ -20184,6 +20222,9 @@
         "security": [
           {
             "authorization": []
+          },
+          {
+            "session": []
           }
         ]
       }
@@ -31702,6 +31743,83 @@
         ]
       }
     },
+    "/guilds/{guild_id}/alert-actions": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Press a button on an AutoMod alert or a join-rate alert. The message must be a system card of\nthis server in a channel the caller can see; the action runs with the caller's own\npermission (checked now, not when the card was posted) and second factor, through the\nordinary service, and the card is rewritten without the used button.",
+        "operationId": "alert_action",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertActionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/audit-logs": {
       "get": {
         "tags": [
@@ -33466,6 +33584,211 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/incident-actions": {
+      "put": {
+        "tags": [
+          "community"
+        ],
+        "summary": "Security Actions (`MANAGE_GUILD`, second factor when the server requires it): pause invites\nand direct messages between members for up to 24 hours. Answers the guild's\n`incidents_data` and dispatches `GUILD_UPDATE`.",
+        "operationId": "put_incident_actions",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentActionsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentsDataObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/integrations": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "The applications installed in the server (`MANAGE_GUILD`).",
+        "operationId": "list_integrations",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/integrations/{integration_id}": {
+      "delete": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Remove an installed application from the server (`MANAGE_GUILD`; a second factor when the\nserver requires one). The bot leaves and its managed role is deleted.",
+        "operationId": "delete_integration",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "integration_id",
+            "in": "path",
+            "description": "The application id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
           },
           "403": {
             "description": "",
@@ -57304,6 +57627,49 @@
           "only"
         ]
       },
+      "AlertActionBody": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "message_id",
+          "custom_id"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "custom_id": {
+            "type": "string",
+            "description": "The `custom_id` of the pressed button or select (`sr:automod:...`, `sr:incident:...`)."
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The chosen value of the Timeout select (seconds)."
+          }
+        }
+      },
+      "AlertActionResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "False when the press changed nothing (\"already handled\")."
+          }
+        }
+      },
       "AllowedMentionsBody": {
         "type": "object",
         "description": "Discord's `allowed_mentions` object. `parse` may hold `users`, `roles` and\n`everyone`; listed `users`/`roles` ids may ping even when their kind is not parsed.",
@@ -59744,6 +60110,13 @@
             "format": "int32",
             "minimum": 0
           },
+          "rtc_region": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Voice and stage channels: always `null` (this installation has one voice region)."
+          },
           "thread_metadata": {
             "oneOf": [
               {
@@ -59779,6 +60152,15 @@
               "null"
             ],
             "format": "int32",
+            "minimum": 0
+          },
+          "video_quality_mode": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Voice and stage channels: 1 auto (the adaptive default), 2 full (camera tracks may use the\n720p tier whatever the occupancy).",
             "minimum": 0
           }
         }
@@ -61817,6 +62199,7 @@
           "guide_enabled",
           "invites_paused",
           "raid_alert_joins_per_minute",
+          "raid_auto_pause_invites",
           "dm_spam_filter",
           "explicit_media_filter_dms",
           "hide_suspicious_links",
@@ -61877,6 +62260,10 @@
             "format": "int32",
             "description": "Alert when more than this many members join per minute; 0 = off.",
             "minimum": 0
+          },
+          "raid_auto_pause_invites": {
+            "type": "boolean",
+            "description": "The join-rate alert pauses invites for 24 hours by itself (default on, D-243)."
           },
           "rules_channel_id": {
             "type": [
@@ -62481,6 +62868,13 @@
                 "format": "int32",
                 "minimum": 0
               },
+              "rtc_region": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Only `null` is accepted: this installation has one voice region."
+              },
               "sr_watch_party_episode_id": {
                 "type": [
                   "string",
@@ -62522,6 +62916,15 @@
                   "null"
                 ],
                 "format": "int32",
+                "minimum": 0
+              },
+              "video_quality_mode": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "description": "Voice and stage channels: 1 auto (default), 2 full.",
                 "minimum": 0
               }
             }
@@ -66457,7 +66860,8 @@
           "widget_enabled",
           "preferred_locale",
           "features",
-          "hide_suspicious_links"
+          "hide_suspicious_links",
+          "incidents_data"
         ],
         "properties": {
           "afk_channel_id": {
@@ -66542,6 +66946,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "incidents_data": {
+            "$ref": "#/components/schemas/IncidentsDataObject",
+            "description": "Incident actions (D-243): the timed invite and DM pauses and the last join-rate alert.\nFields are `null` when unset; a time in the past means the pause ended."
           },
           "is_staff_guild": {
             "type": "boolean",
@@ -66983,6 +67391,53 @@
           }
         }
       },
+      "IncidentActionsBody": {
+        "type": "object",
+        "description": "Body of `PUT /guilds/{id}/incident-actions`. Both fields are replaced: omitted or `null`\nclears the pause.",
+        "properties": {
+          "dms_disabled_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pause direct messages between members who are not friends until this time, at most 24\nhours ahead."
+          },
+          "invites_disabled_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pause invites until this time (ISO8601), at most 24 hours ahead."
+          }
+        }
+      },
+      "IncidentsDataObject": {
+        "type": "object",
+        "description": "`incidents_data` of the guild object (D-243).",
+        "properties": {
+          "dms_disabled_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Direct messages between members who are not friends are refused until this time, or `null`."
+          },
+          "invites_disabled_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Invites cannot be used until this time (ISO8601), or `null`."
+          },
+          "raid_detected_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the join-rate alert last fired, or `null`."
+          }
+        }
+      },
       "IngestSource": {
         "type": "object",
         "description": "A configured source.",
@@ -67270,6 +67725,100 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "IntegrationAccountObject": {
+        "type": "object",
+        "description": "`account` of an integration: for an application it is the application itself.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationApplicationObject": {
+        "type": "object",
+        "description": "The application part of an integration (Discord shape).",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "bot"
+        ],
+        "properties": {
+          "bot": {
+            "$ref": "#/components/schemas/GuildUserRef"
+          },
+          "description": {
+            "type": "string"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Icon hash, served at `/cdn/avatars/{bot.id}/{hash}.png`."
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationObject": {
+        "type": "object",
+        "description": "One installed application as a Discord integration object.",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "enabled",
+          "account",
+          "application",
+          "user",
+          "scopes"
+        ],
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/IntegrationAccountObject"
+          },
+          "application": {
+            "$ref": "#/components/schemas/IntegrationApplicationObject"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "description": "The application id."
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The scopes the install was granted."
+          },
+          "type": {
+            "type": "string",
+            "description": "Always `discord`, as for Discord's own application integrations."
+          },
+          "user": {
+            "$ref": "#/components/schemas/GuildUserRef",
+            "description": "Who installed it."
           }
         }
       },
@@ -70105,6 +70654,13 @@
           "channel_id": {
             "type": "string"
           },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Buttons and select menus (action rows), as the author or the system sent them; present only\nwhen the message has any."
+          },
           "content": {
             "type": "string"
           },
@@ -70517,6 +71073,13 @@
                 "format": "int32",
                 "minimum": 0
               },
+              "rtc_region": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Only `null` is accepted: this installation has one voice region."
+              },
               "topic": {
                 "type": [
                   "string",
@@ -70537,6 +71100,15 @@
                   "null"
                 ],
                 "format": "int32",
+                "minimum": 0
+              },
+              "video_quality_mode": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "description": "Voice and stage channels (`MANAGE_CHANNELS`): 1 auto, 2 full.",
                 "minimum": 0
               }
             }
@@ -70619,6 +71191,12 @@
             ],
             "format": "int32",
             "minimum": 0
+          },
+          "raid_auto_pause_invites": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "rules_channel_id": {
             "type": [
