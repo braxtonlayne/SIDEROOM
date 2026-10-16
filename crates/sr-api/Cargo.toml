@@ -54,7 +54,7 @@ url = "2"
 oauth2 = "5"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 utoipa = "5"
-utoipa-scalar = { version = "0.3", features = ["axum"] }
+utoipa-scalar = { version = "0.4", features = ["axum"] }
 moka.workspace = true
 
 [dev-dependencies]
