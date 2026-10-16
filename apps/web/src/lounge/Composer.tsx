@@ -55,6 +55,7 @@ import {
   type Trigger,
 } from './msg/autocomplete';
 import { AutocompletePopup } from './msg/AutocompletePopup';
+import { MarkdownPreview, StickerSuggestions } from './msg/ComposerExtras';
 import { ScheduleDialog } from './features/ScheduleDialog';
 import { CommandForm } from './apps/CommandForm';
 import {
@@ -218,6 +219,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   handle,
 ) {
   const t = useT();
+  const savedPrefs = useSavedPrefs();
   const actions = useLoungeActions();
   const me = useCurrentUser();
   const users = useUsers();
@@ -837,6 +839,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         </div>
       )}
       <UploadTray files={files} busy={sending} onChange={patchFile} onRemove={removeFile} />
+      {savedPrefs.stickerSuggestions && !acOpen && !files.length && (
+        <StickerSuggestions guildId={guildId} text={text} onPick={sendSticker} />
+      )}
+      {savedPrefs.markdownPreview && <MarkdownPreview text={text} />}
       {hasSel && (
         <div className="lng-format" role="toolbar" aria-label={t('lounge.composer.textFormatting')}>
           {FORMATS.map((f) => (

@@ -653,7 +653,10 @@ function MessageItemImpl(props: MessageItemProps) {
                 )}
               </header>
             )}
-            <div className="lng-msg-content">
+            <div
+              className="lng-msg-content"
+              {...(isOwn && prefs.spoilers === 'mine' ? { 'data-spoilers': 'hover' } : {})}
+            >
               {editing && onSaveEdit && onCancelEdit ? (
                 <InlineEdit
                   initial={m.content}

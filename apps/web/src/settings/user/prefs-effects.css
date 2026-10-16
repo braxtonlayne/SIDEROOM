@@ -41,3 +41,10 @@
 [data-streamer-personal='true'] .sr-personal:focus-within {
   filter: none;
 }
+
+/* "On hover for mine": a spoiler in your own message shows while the pointer is over it (LNG-USET-051). */
+.lng-msg-content[data-spoilers='hover']
+  .sr-md-spoiler[data-revealed='false']:hover
+  .sr-md-spoiler-content {
+  opacity: 1;
+}

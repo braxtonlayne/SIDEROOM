@@ -1361,3 +1361,23 @@
 .lng-emoji-popout p {
   margin: 0;
 }
+.lng-sticker-suggest {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-block-end: 4px;
+  border-radius: 8px;
+  background: var(--ui-bg-elevated, var(--ui-bg-hover));
+}
+.lng-sticker-suggest .lng-sticker-tile {
+  width: 64px;
+}
+.lng-md-preview {
+  padding: 6px 10px;
+  margin-block-end: 4px;
+  border-inline-start: 3px solid var(--ui-accent, currentColor);
+  border-radius: 4px;
+  background: var(--ui-bg-hover);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}

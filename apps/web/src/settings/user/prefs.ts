@@ -33,7 +33,7 @@ export type SectionThemes = Partial<Record<ThemedSection, ThemeId>>;
 
 export type RoleColors = 'name' | 'dot' | 'off';
 export type Animation = 'always' | 'hover' | 'never';
-export type SpoilerMode = 'click' | 'always';
+export type SpoilerMode = 'click' | 'mine' | 'always';
 export type TimeFormat = 'auto' | '12h' | '24h';
 export type MediaSize = 'small' | 'medium' | 'large';
 
@@ -72,7 +72,12 @@ export interface UserPrefs {
   inlineAttachments: boolean;
   showReactions: boolean;
   convertEmoticons: boolean;
+  /** 'mine' reveals a spoiler in your own messages while the pointer is over it (LNG-USET-051). */
   spoilers: SpoilerMode;
+  /** Offer matching stickers while the box holds just a word or two (LNG-USET-051). */
+  stickerSuggestions: boolean;
+  /** Show the rendered Markdown under the message box while typing (LNG-USET-051). */
+  markdownPreview: boolean;
   /** Largest an attached image or video is drawn inline in a message (LNG-USET-051). */
   inlineMediaSize: MediaSize;
   // Notifications (the default level itself is stored on the server: /users/@me/notification-defaults)
@@ -140,6 +145,8 @@ export const DEFAULT_PREFS: UserPrefs = {
   showReactions: true,
   convertEmoticons: true,
   spoilers: 'click',
+  stickerSuggestions: true,
+  markdownPreview: false,
   inlineMediaSize: 'medium',
   desktopNotifications: false,
   soundMessage: true,
@@ -232,7 +239,9 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     inlineAttachments: bool(r.inlineAttachments, d.inlineAttachments),
     showReactions: bool(r.showReactions, d.showReactions),
     convertEmoticons: bool(r.convertEmoticons, d.convertEmoticons),
-    spoilers: oneOf(r.spoilers, ['click', 'always'] as const, d.spoilers),
+    spoilers: oneOf(r.spoilers, ['click', 'mine', 'always'] as const, d.spoilers),
+    stickerSuggestions: bool(r.stickerSuggestions, d.stickerSuggestions),
+    markdownPreview: bool(r.markdownPreview, d.markdownPreview),
     inlineMediaSize: oneOf(
       r.inlineMediaSize,
       ['small', 'medium', 'large'] as const,
