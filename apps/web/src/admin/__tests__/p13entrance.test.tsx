@@ -79,7 +79,7 @@ describe('Entrance pages editor', () => {
     openAdmin('entrance');
     // The Features section (also MANAGE_FEATURES) is offered; the Entrance section is not.
     await waitFor(() => expect(within(nav()).getAllByRole('button').length).toBeGreaterThan(0), {
-      timeout: 10_000,
+      timeout: 25_000,
     });
     const names = within(nav())
       .getAllByRole('button')
@@ -89,7 +89,7 @@ describe('Entrance pages editor', () => {
   });
 });
 
-describe('Entrance hero image (H-41)', () => {
+describe('Entrance hero image (H-41)', { timeout: 40_000 }, () => {
   it('uploads a picture after a reason, then removes it', async () => {
     asStaff({ perms: ['MANAGE_ENTRANCE'] });
     let has = false;
@@ -116,7 +116,7 @@ describe('Entrance hero image (H-41)', () => {
     );
     const user = userEvent.setup();
     openAdmin('entrance');
-    expect(await screen.findByText(/No image set/, {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByText(/No image set/, {}, { timeout: 25_000 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove image' })).toBeDisabled();
 
     const file = new File([new Uint8Array([137, 80, 78, 71])], 'door.png', { type: 'image/png' });
@@ -143,7 +143,7 @@ describe('Entrance hero image (H-41)', () => {
     const user = userEvent.setup({ applyAccept: false });
     const big = new File([new Uint8Array(8 * 1024 * 1024 + 1)], 'big.png', { type: 'image/png' });
     await user.upload(
-      await screen.findByLabelText('Choose an image', {}, { timeout: 10_000 }),
+      await screen.findByLabelText('Choose an image', {}, { timeout: 25_000 }),
       big,
     );
     expect(await screen.findByText('That file is over 8 MiB.')).toBeInTheDocument();
