@@ -53,6 +53,53 @@ After the merge:
 - `check-doc-links`, `check-ops-files`, `check-dependabot` ok. `node --test scripts/*.test.mjs`: 12 pass (install tests included).
 - Shell: shellcheck is not installed. I read the `install.sh` diff by eye: expansions are quoted, there is no `ls | grep` and no `local` assignment from a command substitution. CI's shellcheck covers only `deploy/scripts/*.sh`, and none of those changed.
 
+## Wave J (merged after the e2ee gates)
+
+9. `feat/p14-j-profile`: clean (09b8d3c).
+10. `feat/p14-j-activities`: clean (b378f3e).
+11. `feat/p14-j-lounge`: merged as a0d2eca with the owner's go-ahead. Conflicts, all resolved by keeping both sides:
+    - `crates/sr-chat/src/domain.rs`: `Guild` has j-profile's `traits` and j-lounge's `incidents` (`IncidentsData`).
+    - `crates/sr-db/src/chat_repo.rs`: `GUILD_COLS` merged on its own (`traits` plus the three `guild_community` time
+      columns); `guild_from` maps both. `video_quality_mode` and the member flags did not conflict.
+    - `docs/dev/answers-followups-p14.md`: tick-union script (J-01 from j-lounge, J-06, J-09 and J-18 from j-profile).
+    - `docs/inventory/04-lounge-servers-channels.md` LNG-CHN-017: j-lounge's note, which already carries the J-21
+      `rtc_region` closure and adds the Video Quality switch.
+    - `openapi.json`, `schema.d.ts` and the MSW handlers: regenerated from the merged code (834 operations).
+
+Fixes after the merge:
+
+- 8f228f0: prettier on two j-profile files (`ChannelTabs.tsx`, `store/types.ts`).
+- d8c7299: `p14JoinPipeline` "keeps a GIF icon" still waited for the second `PATCH /guilds/{id}`, which j-profile removed
+  (the icon now travels in `POST /guilds`). The test now checks the create body and that no `PATCH` is sent. The J-06 note
+  in the answers checklist said the dialog was unchanged; corrected.
+
+j-lounge started serialising message `components` (they were never sent before). The shape is Discord's and the web's
+`RawComponent`; `liveMap` passes them to `ComponentRows`, and `staffCards`, `testerCards`, `p14AlertCards`, `messages`
+and `msgActions` pass. A side effect to know about: offer, tester and review cards that were answered before this change
+now show their buttons after a reload (the "answered" state is per page view); pressing one goes to the server, which
+decides. Only alert cards are rewritten by the server (`replace_card`).
+
+### Gates on the final tree (d8c7299)
+
+- `cargo fmt --check` clean; `cargo clippy --workspace --all-targets -j 2 -- -D warnings` clean.
+- WASM `cargo check --tests --target wasm32-unknown-unknown`: all six `*-wasm` crates pass.
+- Route matrix (`SR_UPDATE_ROUTE_MATRIX=1`): no diff, no `?` or `other` cells; `route_matrix` 5 and `openapi_names` 2 pass,
+  `KNOWN_CLASHES` empty. Migrations 0960 to 0966 are new and the prefixes are unique (`migration_versions` passes).
+- `cargo test --workspace -j 2 --no-fail-fast`: 2587 passed, 0 failed, 391 ignored.
+- Postgres suites (sr-activities, sr-api, sr-cinema-social, sr-cli, sr-db, sr-library-social, sr-server, sr-storage, sr-tv,
+  sr-userfeat, sr-watchparty) with `--include-ignored --test-threads=1` on a fresh scratch database (dropped, with the
+  template it made): 1360 passed, 0 failed.
+- `cargo deny check`: advisories, bans, licenses, sources ok.
+- Web: `pnpm install --offline --frozen-lockfile`, wasm build, `pnpm -r typecheck` and `pnpm -r lint` clean, prettier clean
+  (after 8f228f0), i18n-verify-diff against main MISSING 0, `mocks:check` up to date (834 operations).
+- apps/web vitest `--maxWorkers=2`: 2177 of 2178 on the full run; the one failure was the stale test fixed in d8c7299,
+  and its file then passed 15 of 15.
+- Package tests: api-client 6, markdown-react 45, wasm 14 (`SR_WASM_REQUIRED=1`), bot 18, ui 278, embedded-app-sdk 8.
+- Web build and bundle budget: all within budget (lounge 400.6 of 600 KB, developers 224.7 of 400 KB, settings 277.6).
+- `check-doc-links`, `check-ops-files`, `check-dependabot` ok; `node --test scripts/*.test.mjs` 12 pass.
+- Not run: Playwright, real browsers (Activity iframe, alert cards, video quality on a real SFU), live S3. The full vitest
+  suite was not re-run after d8c7299 (only the changed file).
+
 ## Not verified
 
 - Playwright, real browsers and live S3 were not run.
