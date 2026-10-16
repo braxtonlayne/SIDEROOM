@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../../router';
 import userEvent from '@testing-library/user-event';
@@ -367,5 +367,38 @@ describe('Members: join source and signals (H-37, LNG-SSET-027)', () => {
     expect(await screen.findByText('3 members')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Joined via' })).toBeNull();
     expect(screen.queryByLabelText('Unusual activity only')).toBeNull();
+  });
+});
+
+describe('Members: join-date filter (H-49, LNG-SSET-027)', () => {
+  it('filters the loaded members by the joined-after and joined-before days, inclusive', async () => {
+    seed({ perms: [MANAGE.kick] });
+    server.use(
+      http.get('*/api/v1/guilds/:gid/members', () =>
+        HttpResponse.json([
+          memberObj('1', 'me', ['mine'], { joined_at: '2026-01-10T12:00:00' }),
+          memberObj('2', 'bob', ['low'], { joined_at: '2026-02-10T12:00:00' }),
+          memberObj('3', 'carol', ['mod'], { joined_at: '2026-03-10T12:00:00' }),
+        ]),
+      ),
+    );
+    server.use(http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 't' })));
+    render(
+      <RouterProvider
+        router={createAppRouter(
+          createMemoryHistory({ initialEntries: ['/settings/server/g1/members'] }),
+        )}
+      />,
+    );
+    expect(await screen.findByText('3 members', {}, { timeout: 10_000 })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Joined after'), { target: { value: '2026-02-10' } });
+    await waitFor(() => expect(screen.getByText('2 members')).toBeInTheDocument());
+    expect(screen.queryByText('me')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Joined before'), { target: { value: '2026-02-10' } });
+    await waitFor(() => expect(screen.getByText('1 member')).toBeInTheDocument());
+    expect(screen.getByText('bob')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Joined after'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Joined before'), { target: { value: '' } });
+    await waitFor(() => expect(screen.getByText('3 members')).toBeInTheDocument());
   });
 });

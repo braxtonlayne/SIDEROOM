@@ -23,6 +23,8 @@ export interface Guild {
   id: string;
   name: string;
   icon?: string | null;
+  /** Banner hash, served from the same CDN kind as the icon (LNG-GLD-019). */
+  banner?: string | null;
   owner_id?: string;
   member_count?: number;
   /** True for READY stubs until GUILD_CREATE arrives. */
@@ -35,8 +37,18 @@ export interface Guild {
   safety_alerts_channel_id?: string | null;
   /** Server Protection (D-224): links whose text names another host show their raw target and a warning. */
   hide_suspicious_links?: boolean;
+  /** Timed invite and DM pauses and the last join-rate alert (D-243); a time in the past means it ended. */
+  incidents_data?: {
+    invites_disabled_until: string | null;
+    dms_disabled_until: string | null;
+    raid_detected_at: string | null;
+  };
   /** Largest file the viewer may upload in this server, in bytes (D-233); absent until `GET /guilds/{id}` is read. */
   sr_max_upload_bytes?: number;
+  /** Side Room's profile extras: the server's traits (J-07). */
+  sr_profile?: {
+    traits?: { emoji_id?: string | null; emoji_name?: string | null; label: string }[];
+  };
 }
 
 export interface Channel {
@@ -82,7 +94,7 @@ export interface Role {
   hoist?: boolean;
   /** Role icon emoji (shown next to the name in messages). */
   unicode_emoji?: string | null;
-  /** Discord gradient roles: secondary and tertiary colours (integers). Not sent by the server yet. */
+  /** Gradient stops (integers); `primary_color` mirrors `color` (J-08). */
   colors?: {
     primary_color?: number;
     secondary_color?: number | null;
@@ -193,6 +205,8 @@ export interface RawEmbed {
   provider?: { name?: string; url?: string };
   author?: { name: string; url?: string; icon_url?: string; proxy_icon_url?: string };
   fields?: { name: string; value: string; inline?: boolean }[];
+  /** Set by the server on a preview of a link the author wrote inside a spoiler (LNG-MSG-015). */
+  sr_spoiler?: boolean;
 }
 
 export interface RawPoll {

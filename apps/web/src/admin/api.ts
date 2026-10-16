@@ -60,13 +60,22 @@ export interface Probe {
   ok: boolean;
   error?: string | null;
 }
+/** Whether an optional integration is set up; never carries a secret (ADM-DASH-003). */
+export interface Integration {
+  id: string;
+  configured: boolean;
+  detail?: string | null;
+}
 export interface SystemView {
   counts: SystemCounts;
+  integrations?: Integration[];
   gateway_sessions?: number | null;
   probes: Probe[];
   version: string;
 }
 export const getSystem = () => get<SystemView>('/admin/system');
+/** Sends a test message to the caller's own address (OPERATOR, fresh second factor). */
+export const sendEmailTest = () => send<{ sent_to: string }>('/admin/system/email-test', 'POST');
 
 export interface JobRow {
   id: string;
@@ -833,3 +842,39 @@ export const decideDirectoryListing = (
   guildId: string,
   body: { decision: 'approve' | 'reject' | 'remove'; featured?: boolean; note?: string },
 ) => send<DirectoryListing>(`/admin/directory/${guildId}`, 'PATCH', body);
+
+// ---- Activity review (REVIEW_APPS, DEV-ACT-001) ----
+
+export interface PendingActivity {
+  application_name: string;
+  owner_id: string;
+  config: {
+    application_id: string;
+    url_mappings: { prefix: string; target: string }[];
+  };
+  /** The bundle waiting for a decision, with the files it holds (J-12). */
+  bundle: {
+    bundle: {
+      id: string;
+      sha256: string;
+      byte_size: number;
+      entry_count: number;
+    };
+    entries: { path: string; size: number; content_type: string }[];
+  };
+}
+export const listPendingActivities = () => get<PendingActivity[]>('/admin/developers/activities');
+/** Where the reviewer downloads the zip of a submitted bundle. */
+export const activityBundleUrl = (applicationId: string, bundleId: string) =>
+  `/api/v1/admin/developers/activities/${applicationId}/bundles/${bundleId}/download`;
+export const decideActivity = (
+  applicationId: string,
+  bundleId: string,
+  approve: boolean,
+  note: string,
+) =>
+  send<unknown>(`/admin/developers/activities/${applicationId}/decision`, 'POST', {
+    decision: approve ? 'approve' : 'reject',
+    bundle_id: bundleId,
+    note: note || null,
+  });

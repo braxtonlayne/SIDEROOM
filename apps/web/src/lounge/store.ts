@@ -38,6 +38,11 @@ export type LoungeDialog =
   | { kind: 'addServer' }
   | { kind: 'directory' }
   | { kind: 'guildProfile'; guildId: string }
+  | { kind: 'serverGuide'; guildId: string }
+  | { kind: 'browseChannels'; guildId: string }
+  | { kind: 'securityActions'; guildId: string }
+  | { kind: 'onboarding'; guildId: string }
+  | { kind: 'serverPrivacy'; guildId: string }
   | { kind: 'createChannel'; guildId: string; parentId?: string | undefined; category?: boolean }
   | { kind: 'invite'; guildId: string; channelId?: string | undefined }
   | { kind: 'leaveServer'; guildId: string }
@@ -53,6 +58,7 @@ export type LoungeDialog =
   | { kind: 'slowmode'; guildId: string; channelId: string }
   | { kind: 'notifications'; guildId: string; channelId?: string | undefined }
   | { kind: 'createThread'; guildId: string; channelId: string; messageId?: string | undefined }
+  | { kind: 'startActivity'; channelId: string }
   | { kind: 'transferOwnership'; guildId: string; userId: string }
   | {
       kind: 'community';

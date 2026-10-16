@@ -69,10 +69,22 @@ impl AppsService {
             .ok_or(AppsError::NotFound("emoji"))
     }
 
-    /// Record an emoji whose image is stored under `media_key` already.
+    /// Record an emoji whose image is stored under `media_key` already (audited as the owner).
     pub async fn add_app_emoji(
         &self,
         owner: i64,
+        app: i64,
+        new: NewAppEmoji,
+    ) -> AppsResult<AppEmoji> {
+        self.add_app_emoji_as(owner, owner, app, new).await
+    }
+
+    /// As `add_app_emoji`, with the audit row naming `actor`: the bot user when the bot token
+    /// acted, the owner otherwise (H-51).
+    pub async fn add_app_emoji_as(
+        &self,
+        owner: i64,
+        actor: i64,
         app: i64,
         new: NewAppEmoji,
     ) -> AppsResult<AppEmoji> {
@@ -103,7 +115,7 @@ impl AppsService {
         };
         let audit = self.audit(
             app.id,
-            owner,
+            actor,
             "app.emoji_added",
             json!({"emoji_id": id.to_string(), "name": name}),
         );
@@ -113,6 +125,18 @@ impl AppsService {
     pub async fn rename_app_emoji(
         &self,
         owner: i64,
+        app: i64,
+        id: i64,
+        name: &str,
+    ) -> AppsResult<AppEmoji> {
+        self.rename_app_emoji_as(owner, owner, app, id, name).await
+    }
+
+    /// As `rename_app_emoji`, with the audit row naming `actor` (H-51).
+    pub async fn rename_app_emoji_as(
+        &self,
+        owner: i64,
+        actor: i64,
         app: i64,
         id: i64,
         name: &str,
@@ -127,7 +151,7 @@ impl AppsService {
         }
         let audit = self.audit(
             app.id,
-            owner,
+            actor,
             "app.emoji_renamed",
             json!({"emoji_id": id.to_string(), "name": name}),
         );
@@ -136,10 +160,21 @@ impl AppsService {
 
     /// Delete an emoji; the returned row names the image to remove.
     pub async fn delete_app_emoji(&self, owner: i64, app: i64, id: i64) -> AppsResult<AppEmoji> {
+        self.delete_app_emoji_as(owner, owner, app, id).await
+    }
+
+    /// As `delete_app_emoji`, with the audit row naming `actor` (H-51).
+    pub async fn delete_app_emoji_as(
+        &self,
+        owner: i64,
+        actor: i64,
+        app: i64,
+        id: i64,
+    ) -> AppsResult<AppEmoji> {
         let app = self.owned(owner, app).await?;
         let audit = self.audit(
             app.id,
-            owner,
+            actor,
             "app.emoji_deleted",
             json!({"emoji_id": id.to_string()}),
         );

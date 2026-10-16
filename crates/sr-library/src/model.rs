@@ -664,6 +664,7 @@ pub struct Upload {
 
 /// Body of `POST /admin/library/chapters/{id}/uploads`.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = LibraryUploadRequest)]
 pub struct UploadRequest {
     /// Original file name; its extension must fit the chapter's format.
     pub filename: String,
@@ -676,6 +677,7 @@ pub struct UploadRequest {
 
 /// A new upload slot: PUT the file to `upload_url`, then complete the upload.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryUploadSlot)]
 pub struct UploadSlot {
     pub upload: Upload,
     /// Set for a multipart upload (then `upload_url` is empty).

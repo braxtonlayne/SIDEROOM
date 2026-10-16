@@ -5,11 +5,13 @@ import { useGuild } from '../../../store';
 import { onDispatch } from '../../../store/events';
 import { BulkDialog, type BulkKind, type BulkResult } from './MemberBulk';
 import { PruneDialog } from './PruneDialog';
+import { describeEntry, type Names } from '../auditText';
 import * as api from '../api';
-import type { Viewer } from '../hooks';
+import { useResource, type Viewer } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import {
   ActionStatus,
+  Async,
   ColorDot,
   Loading,
   LoadError,
@@ -54,6 +56,9 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   const [applied, setApplied] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [unusual, setUnusual] = useState(false);
+  /** `YYYY-MM-DD` from the date inputs; empty means no bound. Applied here to the loaded members. */
+  const [joinedAfter, setJoinedAfter] = useState('');
+  const [joinedBefore, setJoinedBefore] = useState('');
   const [page, setPage] = useState(0);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [details, setDetails] = useState<api.MemberObject | null>(null);
@@ -157,7 +162,15 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   const roleById = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles]);
   // The server did the filtering (search text, role); the order is applied here to the members loaded so far.
   const filtered = useMemo(() => {
-    const out = [...members];
+    // Bounds are whole local days, both inclusive.
+    const from = joinedAfter ? new Date(`${joinedAfter}T00:00:00`).getTime() : NaN;
+    const to = joinedBefore ? new Date(`${joinedBefore}T23:59:59.999`).getTime() : NaN;
+    const out = members.filter((m) => {
+      if (Number.isNaN(from) && Number.isNaN(to)) return true;
+      const at = new Date(m.joined_at).getTime();
+      if (Number.isNaN(at)) return false;
+      return (Number.isNaN(from) || at >= from) && (Number.isNaN(to) || at <= to);
+    });
     if (sort === 'name')
       out.sort((a, b) =>
         memberName(a).localeCompare(memberName(b), undefined, { sensitivity: 'base' }),
@@ -167,7 +180,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       out.sort((a, b) => (sort === 'newest' ? at(b) - at(a) : at(a) - at(b)));
     }
     return out;
-  }, [members, sort]);
+  }, [members, sort, joinedAfter, joinedBefore]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / VIEW_PAGE));
   const safePage = Math.min(page, pageCount - 1);
   const visible = filtered.slice(safePage * VIEW_PAGE, (safePage + 1) * VIEW_PAGE);
@@ -275,6 +288,38 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
                 </option>
               ))}
           </select>
+        </div>
+        <div>
+          <label className="ss-field-label" htmlFor="ss-member-after">
+            {t('settings.members.joinedAfter')}
+          </label>
+          <input
+            id="ss-member-after"
+            type="date"
+            className="ss-select"
+            value={joinedAfter}
+            max={joinedBefore || undefined}
+            onChange={(e) => {
+              setJoinedAfter(e.target.value);
+              setPage(0);
+            }}
+          />
+        </div>
+        <div>
+          <label className="ss-field-label" htmlFor="ss-member-before">
+            {t('settings.members.joinedBefore')}
+          </label>
+          <input
+            id="ss-member-before"
+            type="date"
+            className="ss-select"
+            value={joinedBefore}
+            min={joinedAfter || undefined}
+            onChange={(e) => {
+              setJoinedBefore(e.target.value);
+              setPage(0);
+            }}
+          />
         </div>
         {viewer.can('MANAGE_GUILD') && (
           <Checkbox
@@ -458,6 +503,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       {details && (
         <MemberDetails
           member={members.find((m) => m.user.id === details.user.id) ?? details}
+          guildId={guildId}
+          canAudit={viewer.can('VIEW_AUDIT_LOG')}
           roleById={roleById}
           onClose={() => setDetails(null)}
         />
@@ -908,10 +955,14 @@ function MemberRolesDialog({
 
 function MemberDetails({
   member,
+  guildId,
+  canAudit,
   roleById,
   onClose,
 }: {
   member: api.MemberObject;
+  guildId: string;
+  canAudit: boolean;
   roleById: Map<string, { id: string; name: string; color: number }>;
   onClose: () => void;
 }) {
@@ -970,6 +1021,42 @@ function MemberDetails({
           </dd>
         </div>
       </dl>
+      {canAudit && <MemberHistory guildId={guildId} userId={member.user.id} />}
     </Modal>
+  );
+}
+
+/** Audit history of one member: the entries whose target is them (LNG-SSET-030). */
+function MemberHistory({ guildId, userId }: { guildId: string; userId: string }) {
+  const t = useT();
+  const res = useResource(`member-audit:${guildId}:${userId}`, () =>
+    api.listAuditLog(guildId, { target_id: userId }),
+  );
+  return (
+    <section className="ss-history" aria-label={t('settings.members.history')}>
+      <h3>{t('settings.members.history')}</h3>
+      <Async res={res} label={t('settings.members.historyLoading')}>
+        {(log) => {
+          if (log.audit_log_entries.length === 0)
+            return <p className="ss-meta">{t('settings.members.historyEmpty')}</p>;
+          const users = new Map(log.users.map((u) => [u.id, api.userName(u)]));
+          const names: Names = {
+            user: (id) => users.get(id) ?? t('settings.auditLog.userFallback', { id }),
+            role: (id) => t('settings.auditLog.roleFallback', { id }),
+            channel: (id) => t('settings.auditLog.channelFallback', { id }),
+          };
+          return (
+            <ul className="ss-list">
+              {log.audit_log_entries.map((e) => (
+                <li key={e.id}>
+                  {describeEntry(e, names.user(e.user_id), names)}
+                  {e.reason && <span className="ss-meta">{` (${e.reason})`}</span>}
+                </li>
+              ))}
+            </ul>
+          );
+        }}
+      </Async>
+    </section>
   );
 }

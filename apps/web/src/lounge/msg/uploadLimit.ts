@@ -36,6 +36,12 @@ function loadLimits(): Promise<UploadLimits | null> {
   return cached;
 }
 
+/**
+ * Whether the caller is a Patron, for the hint on a refused file. Unknown (offline) counts as a Patron so the
+ * hint never claims something untrue. Read once and shared with the tray's own lookup.
+ */
+export const isPatron = (): Promise<boolean> => loadLimits().then((l) => !l || l.patron);
+
 /** The member's upload limits, fetched only once a large file is in the tray (LNG-CMP-005). */
 export function useUploadLimits(needed: boolean): UploadLimits | null {
   const [limits, setLimits] = useState<UploadLimits | null>(null);
@@ -51,8 +57,9 @@ export function useUploadLimits(needed: boolean): UploadLimits | null {
 }
 
 /**
- * Whether a file is above the member's own limit. The server has the last word (server boosts can raise the
- * limit inside a server), so this only warns and never blocks.
+ * Whether a file is above the member's own limit, for the tray's fallback warning when the server's limit for
+ * this channel is unknown (`sr_max_upload_bytes` missing). With the limit known the composer refuses the file
+ * before it is queued (D-233) and the server's 413 stays the real limit.
  */
 export const limitHint = (size: number, limits: UploadLimits | null): boolean =>
   !!limits && limits.bytes > 0 && size > limits.bytes;

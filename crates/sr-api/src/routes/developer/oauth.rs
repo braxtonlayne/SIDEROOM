@@ -11,6 +11,7 @@ use crate::{
     rate_limit::Decision,
     routes::{
         Ext, MaybeExt,
+        activities::ActivitiesDeps,
         guilds::dto::{MemberObject, RoleObject},
         messages::error::{ApiJson, ApiQuery, MsgError, MsgResult},
     },
@@ -49,6 +50,21 @@ fn params_of(q: &AuthorizeQuery) -> AuthorizeParams {
     }
 }
 
+/// The redirect URI an Activity gets without registering it (J-13, D-248): `<activity origin>/` for an
+/// application that has an Activity, while Activities are enabled on this server.
+async fn implicit_redirects(activities: Option<&ActivitiesDeps>, client_id: &str) -> Vec<String> {
+    let (Some(a), Ok(app)) = (activities, client_id.parse::<i64>()) else {
+        return Vec::new();
+    };
+    if !a.enabled || app <= 0 {
+        return Vec::new();
+    }
+    match a.service.has_activity(app).await {
+        Ok(true) => vec![format!("{}/", a.activity_origin(app))],
+        _ => Vec::new(),
+    }
+}
+
 fn reason_for(e: &AppsError) -> &'static str {
     match e {
         AppsError::MissingPermissions => "missing_permission",
@@ -69,11 +85,13 @@ fn reason_for(e: &AppsError) -> &'static str {
 pub async fn authorize_info(
     SessionOnly(p): SessionOnly,
     Ext(deps): Ext<DevDeps>,
+    MaybeExt(activities): MaybeExt<ActivitiesDeps>,
     ApiQuery(q): ApiQuery<AuthorizeQuery>,
 ) -> MsgResult<Json<AuthorizeInfo>> {
+    let implicit = implicit_redirects(activities.as_deref(), &q.client_id).await;
     let v = deps
         .apps
-        .validate_authorize(&params_of(&q))
+        .validate_authorize_with(&params_of(&q), &implicit)
         .await
         .map_err(app_err)?;
     let ids = [v.app.owner_id, v.app.bot_user_id, p.user_id];
@@ -239,6 +257,7 @@ async fn install(deps: &DevDeps, user: i64, v: &ValidatedAuthorize) -> MsgResult
 pub async fn authorize(
     SessionOnly(p): SessionOnly,
     Ext(deps): Ext<DevDeps>,
+    MaybeExt(activities): MaybeExt<ActivitiesDeps>,
     ApiJson(body): ApiJson<AuthorizeBody>,
 ) -> MsgResult<Json<AuthorizeResult>> {
     let params = AuthorizeParams {
@@ -252,9 +271,10 @@ pub async fn authorize(
         permissions: body.permissions,
         guild_id: body.guild_id,
     };
+    let implicit = implicit_redirects(activities.as_deref(), &params.client_id).await;
     let v = deps
         .apps
-        .validate_authorize(&params)
+        .validate_authorize_with(&params, &implicit)
         .await
         .map_err(app_err)?;
     let state_pair = v.state.clone();

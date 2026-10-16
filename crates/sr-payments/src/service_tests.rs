@@ -335,6 +335,13 @@ async fn server_contributions_build_a_pool_and_a_level_with_grace() {
     let g = r.svc.entitlements().guild(77).await.unwrap();
     assert_eq!(g.pool_cents, 1100);
     assert_eq!(g.level, 1);
+    // Each credited contribution reported who supported the server and its level afterwards.
+    {
+        let sup = r.events.supported.lock().unwrap();
+        assert_eq!(sup.len(), 2);
+        assert_eq!((sup[0].0, sup[0].1), (77, 1));
+        assert_eq!((sup[1].0, sup[1].1, sup[1].2), (77, 2, Some(1)));
+    }
     assert!(
         r.events
             .guild

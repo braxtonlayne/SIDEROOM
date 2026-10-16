@@ -5,7 +5,13 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-ignore = []
+ignore = [
+  # proc-macro-error2 is unmaintained with no safe upgrade. It is a compile-time helper of
+  # hax-lib-macros, reached only through hpke-rs -> libcrux-sha3, which openmls_rust_crypto (the
+  # approved MLS provider, D-249) needs; it never ends up in the shipped binary. Revisit when
+  # hpke-rs or libcrux drop it.
+  { id = "RUSTSEC-2026-0173", reason = "build-time proc-macro of the MLS crypto provider; no safe upgrade" },
+]
 
 [licenses]
 version = 2

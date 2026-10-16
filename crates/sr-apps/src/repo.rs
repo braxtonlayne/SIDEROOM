@@ -345,6 +345,10 @@ pub trait AppsRepository: Send + Sync {
     async fn guild_installs(&self, guild: i64) -> AppsResult<Vec<Install>>;
     /// Is the application installed (and its bot still a member when it needs to be)?
     async fn is_installed(&self, app: i64, guild: i64) -> AppsResult<bool>;
+    /// Remove an install (`DELETE /guilds/{id}/integrations/{id}`): the managed role, the
+    /// install row and the bot's membership. The removed install, or `None` when the
+    /// application was not installed there.
+    async fn uninstall(&self, app: i64, guild: i64) -> AppsResult<Option<Install>>;
 
     // ----- commands
     /// Commands of one scope (`None` = global), by name.

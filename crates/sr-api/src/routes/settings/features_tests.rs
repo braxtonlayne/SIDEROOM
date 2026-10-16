@@ -87,6 +87,8 @@ fn add_role(e: &Env, name: &str, position: i32) -> RoleId {
         guild_id: e.guild,
         name: name.into(),
         color: 0,
+        secondary_color: None,
+        tertiary_color: None,
         hoist: false,
         position,
         permissions: Permissions::empty(),

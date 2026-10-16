@@ -462,3 +462,46 @@
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
+
+/* Insights (LNG-SSET-068): inline bars drawn above the numbers. */
+.ss-bar {
+  display: block;
+  block-size: 6px;
+  min-inline-size: 2px;
+  max-inline-size: 100%;
+  margin-block-end: 2px;
+  border-radius: 3px;
+  background: var(--ui-accent, currentColor);
+  opacity: 0.6;
+}
+
+/* J-08: the role name preview in the colour editor; the inline style carries the first stop as plain colour. */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .ss-role-preview[data-gradient] {
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+}
+.ss-role-preview {
+  font-weight: 600;
+}
+
+/* J-06: the soundboard trimmer. */
+.ss-trimmer {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--ui-border, rgb(127 127 127 / 0.3));
+  border-radius: 8px;
+}
+.ss-trimmer-wave {
+  inline-size: 100%;
+  block-size: 64px;
+  fill: var(--ui-text-faint, #888);
+}
+.ss-trimmer-window {
+  fill: var(--brand, #5865f2);
+  fill-opacity: 0.25;
+}

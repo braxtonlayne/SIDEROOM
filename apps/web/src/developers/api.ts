@@ -1,8 +1,11 @@
 // Data layer for the developer portal and the OAuth2 screens. Components never build URLs: they call these.
 // Paths follow docs/specs/developer-platform.md section 3. Secrets (client secret, bot token) come back from
 // create/reset calls only and must never be stored by callers beyond the reveal dialog.
-import { ApiError, apiFetch, apiPost } from '../api/client';
+import { ApiError, apiFetch, apiPost, getCsrf } from '../api/client';
 import type {
+  ActivityBundleDetail,
+  ActivityConfig,
+  ActivityMapping,
   AppCreated,
   AppAsset,
   AppEmoji,
@@ -147,6 +150,7 @@ export const keys = {
   assets: (appId: string) => ['dev', 'assets', appId] as const,
   versions: (appId: string) => ['dev', 'versions', appId] as const,
   status: ['dev', 'status'] as const,
+  activity: (appId: string) => ['dev', 'activity', appId] as const,
 };
 
 /** True when the server does not have this endpoint (yet): show an honest "not available" state. */
@@ -169,4 +173,62 @@ export function errorText(e: unknown, fallback = 'Something went wrong. Try agai
     if (e.message) return e.message;
   }
   return fallback;
+}
+
+// ---- activities ----
+export const getActivity = (appId: string) =>
+  apiFetch<ActivityConfig>(`/applications/${id(appId)}/activity`, ro);
+export const saveActivity = (
+  appId: string,
+  body: { dev_entry_url: string | null; url_mappings: ActivityMapping[] },
+) =>
+  apiFetch<ActivityConfig>(`/applications/${id(appId)}/activity`, {
+    method: 'PUT',
+    json: body,
+    ...ro,
+  });
+export const getActivityBundle = (appId: string, bundleId: string) =>
+  apiFetch<ActivityBundleDetail>(`/applications/${id(appId)}/activity/bundles/${id(bundleId)}`, ro);
+export const submitActivity = (appId: string, bundleId: string) =>
+  apiPost<ActivityConfig>(`/applications/${id(appId)}/activity/submit`, { bundle_id: bundleId });
+
+/** Largest bundle upload, matching the server (32 MiB unpacked; a zip is never larger than that). */
+export const MAX_BUNDLE_BYTES = 32 * 1024 * 1024;
+
+/** Upload a bundle zip with progress (`POST .../activity/bundles`, the body is the zip itself). */
+export async function uploadActivityBundle(
+  appId: string,
+  file: File,
+  onProgress: (fraction: number) => void,
+): Promise<ActivityBundleDetail> {
+  const token = await getCsrf();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/v1/applications/${id(appId)}/activity/bundles`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('content-type', 'application/zip');
+    if (token) xhr.setRequestHeader('X-SR-CSRF', token);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      let body: unknown = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        /* no JSON body */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body as ActivityBundleDetail);
+      else
+        reject(
+          new ApiError(
+            xhr.status,
+            (body as { message?: string } | null)?.message ?? `Upload failed (${xhr.status}).`,
+            body as ConstructorParameters<typeof ApiError>[2],
+          ),
+        );
+    };
+    xhr.onerror = () => reject(new Error('The upload could not be completed.'));
+    xhr.send(file);
+  });
 }

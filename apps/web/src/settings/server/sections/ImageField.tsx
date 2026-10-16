@@ -2,6 +2,7 @@ import { Button } from '@sideroom/ui';
 import { useId, useRef, useState } from 'react';
 import { useT } from '../../../i18n';
 import { cdnUrl, type CdnKind } from '../../../store';
+import { ImageCropDialog } from '../../user/ImageCropDialog';
 import { readDataUri } from './Expressions';
 
 /** Largest file the API accepts for a guild image (sr-storage MAX_UPLOAD_BYTES). */
@@ -21,6 +22,7 @@ export function ImageField({
   onChange,
   shape = 'wide',
   disabled,
+  crop,
 }: {
   label: string;
   hint?: string;
@@ -30,11 +32,14 @@ export function ImageField({
   onChange: (next: string | null) => void;
   shape?: 'square' | 'wide';
   disabled?: boolean;
+  /** Ask for a crop window (aspect = width / height) before the picture is used; GIFs skip it so they keep moving. */
+  crop?: { aspect: number; outWidth: number };
 }) {
   const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const hintId = useId();
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const src = value
     ? value.startsWith('data:')
       ? value
@@ -49,6 +54,11 @@ export function ImageField({
     }
     if (file.size > MAX_IMAGE_BYTES) {
       setError(t('settings.imageField.tooLarge', { name: file.name }));
+      return;
+    }
+    if (crop && !/.gif$/i.test(file.name)) {
+      setError(null);
+      setCropFile(file);
       return;
     }
     try {
@@ -114,6 +124,20 @@ export function ImageField({
           }}
         />
       </div>
+      {crop && (
+        <ImageCropDialog
+          open={!!cropFile}
+          file={cropFile}
+          title={t('settings.imageField.cropTitle', { label })}
+          aspect={crop.aspect}
+          outWidth={crop.outWidth}
+          onCancel={() => setCropFile(null)}
+          onApply={(uri) => {
+            setCropFile(null);
+            onChange(uri);
+          }}
+        />
+      )}
       {error && (
         <p role="alert" className="ss-error-text">
           {error}

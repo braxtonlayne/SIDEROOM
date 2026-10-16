@@ -50,6 +50,10 @@ pub struct JoinClaims {
     /// The allowance tier for the egress governor (server level, or 4 for a Patron).
     #[serde(default)]
     pub tier: u8,
+    /// The channel's `video_quality_mode` (J-11): 2 = full, camera layers are not reduced when the
+    /// room is busy; 0 and 1 = auto (the adaptive default).
+    #[serde(default)]
+    pub video_quality: u8,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -155,6 +159,7 @@ mod tests {
             camera: false,
             screen: false,
             tier: 0,
+            video_quality: 0,
         }
     }
 

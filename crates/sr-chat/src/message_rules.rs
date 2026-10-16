@@ -254,6 +254,10 @@ pub fn validate_create(
     }
 
     let parsed = sr_markdown::check_limits(&content, &ctx.limits.markdown()).map_err(map_limit)?;
+    // Library and Cinema cards need USE_LIBRARY_EMBEDS in the channel (D-241).
+    if parsed.cards > 0 {
+        require(ctx.perms, Permissions::USE_LIBRARY_EMBEDS)?;
+    }
     let mentions = resolve_mentions(&parsed, ctx.perms, ctx.guild_roles);
 
     // Reply: needs history access, and a visible message in this same channel.
@@ -398,6 +402,14 @@ pub fn validate_edit(input: &EditMessageInput, ctx: &EditContext<'_>) -> ChatRes
         }
     }
     let parsed = sr_markdown::check_limits(&content, &ctx.limits.markdown()).map_err(map_limit)?;
+    // A new card token needs USE_LIBRARY_EMBEDS too (D-241); unchanged content is not re-checked.
+    if content_changes && parsed.cards > 0 && !ctx.perms.has(Permissions::USE_LIBRARY_EMBEDS) {
+        let had =
+            sr_markdown::check_limits(&m.content, &ctx.limits.markdown()).map_or(0, |p| p.cards);
+        if parsed.cards > had {
+            return Err(ChatError::MissingPermissions);
+        }
+    }
     // Mentions are recomputed with the *author's* permissions; a manager toggling
     // flags must not grant pings the author never had, so unchanged content keeps
     // its stored mentions.

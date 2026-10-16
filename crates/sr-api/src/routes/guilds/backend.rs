@@ -48,6 +48,7 @@ fn guild_changes(before: &Guild, after: &Guild) -> Vec<AuditChange> {
         json!(after.explicit_content_filter),
     );
     push("mfa_level", json!(before.mfa_level), json!(after.mfa_level));
+    push("traits", json!(before.traits), json!(after.traits));
     push(
         "system_channel_flags",
         json!(before.system_channel_flags),
@@ -226,6 +227,17 @@ pub trait GuildBackend: Send + Sync {
         patch: MemberPatch,
     ) -> ChatResult<Member>;
     async fn kick_member(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<()>;
+    /// [`Self::kick_member`] with the reason that goes on the audit row (the AutoMod alert
+    /// buttons of D-244 give "AutoMod alert: <rule>").
+    async fn kick_member_with_reason(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        user: UserId,
+        _reason: Option<String>,
+    ) -> ChatResult<()> {
+        self.kick_member(actor, guild, user).await
+    }
     // bans
     async fn list_bans(
         &self,
@@ -549,9 +561,10 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         guild: GuildId,
         roles: &[RoleId],
     ) -> ChatResult<Vec<RoleId>> {
+        let before = self.svc.get_member_view(user, guild, user).await?;
         let added = self.svc.apply_onboarding_roles(user, guild, roles).await?;
-        if !added.is_empty() {
-            let m = self.svc.get_member_view(user, guild, user).await?;
+        let m = self.svc.get_member_view(user, guild, user).await?;
+        if !added.is_empty() || m.extras.flags != before.extras.flags {
             self.emit_member_updated(&m).await;
         }
         Ok(added)
@@ -773,6 +786,12 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         role: RoleId,
         patch: RolePatch,
     ) -> ChatResult<Role> {
+        let before = self
+            .svc
+            .list_roles(actor, guild)
+            .await
+            .ok()
+            .and_then(|v| v.into_iter().find(|x| x.id == role));
         let r = self.svc.edit_role(actor, guild, role, patch).await?;
         self.emit(DomainEvent::RoleUpdated {
             guild,
@@ -780,8 +799,29 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
             payload: role_payload(guild, &r),
         })
         .await;
-        self.audit(guild, actor, AuditAction::RoleUpdate, role.get(), None)
+        // J-08: the two gradient stops are audited under their own keys.
+        let mut changes = Vec::new();
+        if let Some(b) = &before {
+            for (key, old, new) in [
+                ("secondary_color", b.secondary_color, r.secondary_color),
+                ("tertiary_color", b.tertiary_color, r.tertiary_color),
+            ] {
+                if old != new {
+                    changes.push(AuditChange::new(key, Some(json!(old)), Some(json!(new))));
+                }
+            }
+        }
+        if let Some(a) = &self.audit {
+            a.record(
+                guild,
+                actor,
+                AuditAction::RoleUpdate,
+                Some(role.get()),
+                changes,
+                None,
+            )
             .await;
+        }
         Ok(r)
     }
 
@@ -937,6 +977,26 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         self.emit_member_left(guild, user).await;
         self.audit(guild, actor, AuditAction::MemberKick, user.get(), None)
             .await;
+        Ok(())
+    }
+
+    async fn kick_member_with_reason(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        user: UserId,
+        reason: Option<String>,
+    ) -> ChatResult<()> {
+        self.svc.kick_member(actor, guild, user).await?;
+        self.emit_member_left(guild, user).await;
+        self.audit(
+            guild,
+            actor,
+            AuditAction::MemberKick,
+            user.get(),
+            reason.as_deref(),
+        )
+        .await;
         Ok(())
     }
 

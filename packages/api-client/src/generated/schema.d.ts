@@ -4,6 +4,78 @@
  */
 
 export interface paths {
+    "/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Activities a member can start: released ones with a reviewed bundle, and the development builds
+         *     they own or test.
+         */
+        get: operations["shelf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity-instances/{instance_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A running Activity and who is in it. */
+        get: operations["get_instance"];
+        put?: never;
+        post?: never;
+        /** End an Activity for everybody (its starter, or Manage Channels). */
+        delete: operations["end"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity-instances/{instance_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Join a running Activity. */
+        post: operations["join"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity-instances/{instance_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave an Activity; the last one out ends it. */
+        post: operations["leave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/access-log": {
         parameters: {
             query?: never;
@@ -1132,6 +1204,60 @@ export interface paths {
         post?: never;
         /** Delete a variant (`PUBLISH_MEDIA`). */
         delete: operations["admin_cinema_delete_variant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: Activities waiting for review, oldest first, each with the bundle's hash and files. */
+        get: operations["admin_pending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/activities/{application_id}/bundles/{bundle_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: the zip of a submitted bundle, as the owner uploaded it, to read before deciding. */
+        get: operations["admin_download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/activities/{application_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Staff: approve (the proxy then serves that bundle once the application is released) or reject the
+         *     pending bundle.
+         */
+        post: operations["admin_decide"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3582,6 +3708,86 @@ export interface paths {
         patch: operations["patch_app"];
         trace?: never;
     };
+    "/applications/{application_id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Activity settings of my application. */
+        get: operations["get_config"];
+        /**
+         * Set the development URL and the URL mappings. A change to the mappings withdraws the approval of the
+         *     reviewed bundle until a new review.
+         */
+        put: operations["put_config"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/activity/bundles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a bundle: the request body is a zip of static files (at most 32 MiB unpacked and 2,000 entries,
+         *     `index.html` at the root, allow-listed file types, no symbolic links, absolute paths or `..`). A refusal
+         *     names the offending entry. The new bundle is a `draft`; earlier drafts and rejected bundles are
+         *     superseded. Uploading the same zip again returns the same bundle.
+         */
+        post: operations["upload_bundle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/activity/bundles/{bundle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One uploaded bundle with the list of its files. */
+        get: operations["get_bundle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/activity/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit an uploaded bundle for review. An earlier pending bundle is replaced; a reviewed bundle keeps
+         *     being served until staff decide.
+         */
+        post: operations["submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications/{application_id}/assets": {
         parameters: {
             query?: never;
@@ -3769,7 +3975,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Commands of the application in one server. */
+        /**
+         * Commands of the application in one server. The application's bot, its owner and the server's
+         *     managers may read them (J-10: the command permission editor lists them).
+         */
         get: operations["list_guild"];
         /** Replace all commands of one server. */
         put: operations["overwrite_guild"];
@@ -3788,7 +3997,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Overwrites of every command in a server. */
+        /**
+         * Overwrites of every command in a server. The application's bot, its owner and the server's
+         *     managers may read them.
+         */
         get: operations["guild_permissions"];
         put?: never;
         post?: never;
@@ -3824,12 +4036,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Overwrites of one command. */
+        /**
+         * Overwrites of one command. The application's bot, its owner and the server's managers may
+         *     read them.
+         */
         get: operations["command_permissions"];
         /**
-         * Replace the overwrites of one command. Needs a bearer token with
-         *     `applications.commands.permissions.update`, issued to this application, of a user who
-         *     manages the server. Bot tokens and sessions are refused (as on Discord).
+         * Replace the overwrites of one command (audit log entry 121 in the server). Needs a person:
+         *     the application's owner, a member who holds `MANAGE_GUILD` in the server, or an OAuth2
+         *     bearer token with `applications.commands.permissions.update` of such a manager. Bot tokens
+         *     are refused (as on Discord).
          */
         put: operations["set_command_permissions"];
         post?: never;
@@ -3980,6 +4196,28 @@ export interface paths {
         head?: never;
         /** Modify a guild channel. Needs `MANAGE_CHANNELS`. */
         patch: operations["modify_channel"];
+        trace?: never;
+    };
+    "/channels/{channel_id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Activity running in a voice or text channel, if any. */
+        get: operations["in_channel"];
+        put?: never;
+        /**
+         * Start an Activity in a guild voice channel (needs Connect and Use Activities there) or text channel
+         *     (needs View Channel and Use Activities). One Activity runs per channel; the starter is its first
+         *     participant. A direct message channel is refused.
+         */
+        post: operations["launch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/channels/{channel_id}/application-commands": {
@@ -6159,6 +6397,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/alert-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Press a button on an AutoMod alert or a join-rate alert. The message must be a system card of
+         *     this server in a channel the caller can see; the action runs with the caller's own
+         *     permission (checked now, not when the card was posted) and second factor, through the
+         *     ordinary service, and the card is rewritten without the used button.
+         */
+        post: operations["alert_action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/audit-logs": {
         parameters: {
             query?: never;
@@ -6394,6 +6654,64 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/incident-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Security Actions (`MANAGE_GUILD`, second factor when the server requires it): pause invites
+         *     and direct messages between members for up to 24 hours. Answers the guild's
+         *     `incidents_data` and dispatches `GUILD_UPDATE`.
+         */
+        put: operations["put_incident_actions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The applications installed in the server (`MANAGE_GUILD`). */
+        get: operations["list_integrations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/integrations/{integration_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove an installed application from the server (`MANAGE_GUILD`; a second factor when the
+         *     server requires one). The bot leaves and its managed role is deleted.
+         */
+        delete: operations["delete_integration"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7145,6 +7463,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/sr/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit the Side Room profile extras of a server: today its traits (J-07). `MANAGE_GUILD`;
+         *     emits `GUILD_UPDATE`.
+         */
+        patch: operations["modify_sr_profile"];
         trace?: never;
     };
     "/guilds/{guild_id}/sr/slowmode/apply": {
@@ -11220,6 +11558,17 @@ export interface components {
              */
             type: number;
         };
+        ActivityDecisionBody: {
+            /** @description The pending bundle being decided: a decision about another bundle is refused. */
+            bundle_id: string;
+            /** @description `approve` or `reject`. */
+            decision: string;
+            note?: string | null;
+        };
+        ActivitySubmitBody: {
+            /** @description The uploaded bundle to put in front of staff. */
+            bundle_id: string;
+        };
         /** @description `POST /users/@me/relationships`: send a friend request by username. */
         AddRelationshipBody: {
             /**
@@ -11240,6 +11589,16 @@ export interface components {
         AdjustResult: {
             /** Format: int64 */
             balance: number;
+        };
+        /** @description Ban body: the reason is the ban note. */
+        AdminBanBody: {
+            category?: null | components["schemas"]["BanCategory"];
+            reason?: string | null;
+            reason_category?: null | components["schemas"]["BanReason"];
+        };
+        AdminChangeEmailBody: {
+            email: string;
+            reason?: string | null;
         };
         /** @description A server in the platform-wide list (staff only). */
         AdminGuild: {
@@ -11296,6 +11655,18 @@ export interface components {
             guild_name?: string | null;
             requested_by: string;
         };
+        AdminReauthBody: {
+            code: string;
+            /** @description `totp`, `recovery` or `passkey` (then `code` is the JSON of the passkey assertion). */
+            method: string;
+        };
+        AdminRenameBody: {
+            /** @description New display name; `null` or empty clears it. Leave out to keep it. */
+            display_name?: string | null;
+            reason?: string | null;
+            /** @description New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it. */
+            username?: string | null;
+        };
         /** @description An open session of an account, as the staff drawer lists it. No token material. */
         AdminSession: {
             /** Format: int64 */
@@ -11334,6 +11705,19 @@ export interface components {
          * @enum {string}
          */
         AgeFilter: "hide" | "include" | "only";
+        AlertActionBody: {
+            channel_id: string;
+            /** @description The `custom_id` of the pressed button or select (`sr:automod:...`, `sr:incident:...`). */
+            custom_id: string;
+            message_id: string;
+            /** @description The chosen value of the Timeout select (seconds). */
+            values?: string[];
+        };
+        AlertActionResult: {
+            message: string;
+            /** @description False when the press changed nothing ("already handled"). */
+            ok: boolean;
+        };
         /**
          * @description Discord's `allowed_mentions` object. `parse` may hold `users`, `roles` and
          *     `everyone`; listed `users`/`roles` ids may ping even when their kind is not parsed.
@@ -11701,7 +12085,7 @@ export interface components {
             guild_scheduled_events: Record<string, never>[];
             integrations: Record<string, never>[];
             threads: Record<string, never>[];
-            users: components["schemas"]["UserRef"][];
+            users: components["schemas"]["GuildUserRef"][];
             webhooks: Record<string, never>[];
         };
         AuditView: {
@@ -11725,7 +12109,7 @@ export interface components {
         /** @description Consent screen data. */
         AuthorizeInfo: {
             already_authorized: boolean;
-            application: components["schemas"]["ApplicationObject"];
+            application: components["schemas"]["DeveloperApplicationObject"];
             bot?: null | components["schemas"]["BotUserObject"];
             guilds: components["schemas"]["GuildChoice"][];
             /** @description Decimal permission bitfield the bot would ask for. */
@@ -11781,11 +12165,19 @@ export interface components {
             /** @description Badge names to remove. */
             revoke?: string[];
         };
-        /** @description Ban body: the reason is the ban note. */
         BanBody: {
-            category?: null | components["schemas"]["BanCategory"];
+            /**
+             * Format: int32
+             * @description Deprecated Discord field, 0 to 7.
+             */
+            delete_message_days?: number | null;
+            /**
+             * Format: int32
+             * @description Seconds of message history to delete, 0 to 604800.
+             */
+            delete_message_seconds?: number | null;
+            /** @description Convenience; Discord carries the reason in `X-Audit-Log-Reason`. */
             reason?: string | null;
-            reason_category?: null | components["schemas"]["BanReason"];
         };
         /**
          * @description Reason category of a platform ban (doc 06 section 5.4, doc 09). Only
@@ -11795,7 +12187,7 @@ export interface components {
         BanCategory: "serious" | "standard";
         BanObject: {
             reason?: string | null;
-            user: components["schemas"]["UserRef"];
+            user: components["schemas"]["GuildUserRef"];
         };
         /** @description Outcome of banning a Person. */
         BanOutcome: {
@@ -11891,26 +12283,20 @@ export interface components {
             window: string;
         };
         Bookmark: {
-            chapter_id: string;
-            /** Format: int64 */
-            created_at_ms: number;
-            id: string;
+            channel_id: string;
+            created_at: string;
+            guild_id?: string | null;
+            message_id: string;
             note: string;
-            /** Format: int32 */
-            page_index: number;
-            series_id: string;
         };
         BookmarkBody: {
             /** @description A private note (up to 500 characters). */
             note?: string | null;
         };
-        /** @description A bookmark with the titles the "my bookmarks" list shows. */
+        /** @description A bookmark and the message it points at, when the owner can still see it. */
         BookmarkEntry: {
             bookmark: components["schemas"]["Bookmark"];
-            /** Format: double */
-            chapter_number: number;
-            chapter_title?: string | null;
-            series_title: string;
+            message?: null | components["schemas"]["MessageObject"];
         };
         /** @description Body of `PUT /library/chapters/{id}/bookmarks`. */
         BookmarkInput: {
@@ -11919,10 +12305,10 @@ export interface components {
             page_index: number;
         };
         BookmarkList: {
-            bookmarks: components["schemas"]["Bookmark"][];
+            bookmarks: components["schemas"]["ReadingBookmark"][];
         };
         BookmarkPage: {
-            items: components["schemas"]["BookmarkEntry"][];
+            items: components["schemas"]["ReadingBookmarkEntry"][];
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
         };
@@ -11977,6 +12363,42 @@ export interface components {
         BulkDeleteBody: {
             messages: string[];
         };
+        /** @description A bundle with the files it holds. */
+        BundleDetail: {
+            bundle: components["schemas"]["BundleView"];
+            entries: components["schemas"]["BundleEntry"][];
+        };
+        /** @description One file of a bundle. */
+        BundleEntry: {
+            content_type: string;
+            path: string;
+            /** Format: int64 */
+            size: number;
+        };
+        /**
+         * @description Where a bundle is in review.
+         * @enum {string}
+         */
+        BundleState: "draft" | "pending" | "approved" | "rejected" | "superseded";
+        /** @description One uploaded bundle. */
+        BundleView: {
+            /**
+             * Format: int64
+             * @description Total unpacked size in bytes.
+             */
+            byte_size: number;
+            /** Format: int32 */
+            entry_count: number;
+            id: string;
+            note?: string | null;
+            /** Format: int64 */
+            reviewed_at_ms?: number | null;
+            /** @description SHA-256 (hex) of the uploaded zip: what staff approve. */
+            sha256: string;
+            state: components["schemas"]["BundleState"];
+            /** Format: int64 */
+            uploaded_at_ms: number;
+        };
         CallRecipientsBody: {
             /**
              * @description Users to ring or stop ringing; absent means everyone who is not connected (ring) or
@@ -12029,9 +12451,12 @@ export interface components {
             /** Format: int64 */
             rows_checked: number;
         };
+        /** @description Body for `POST /sr/auth/email/change`. */
         ChangeEmailBody: {
-            email: string;
-            reason?: string | null;
+            mfa?: null | components["schemas"]["MfaProof"];
+            new_email: string;
+            /** @description Current password. */
+            password: string;
         };
         /** @description Body for `POST /sr/auth/password`. */
         ChangePasswordBody: {
@@ -12051,6 +12476,10 @@ export interface components {
             password: string;
             /** @description 2 to 32 characters of `a-z 0-9 _ .` (case-insensitive), not reserved. */
             username: string;
+        };
+        ChannelActivity: {
+            enabled: boolean;
+            instance?: null | components["schemas"]["InstanceView"];
         };
         ChannelObject: {
             /** @description Forum tag ids applied to a post. */
@@ -12094,6 +12523,8 @@ export interface components {
             position: number;
             /** Format: int32 */
             rate_limit_per_user: number;
+            /** @description Voice and stage channels: always `null` (this installation has one voice region). */
+            rtc_region?: string | null;
             thread_metadata?: null | components["schemas"]["ThreadMetadataObject"];
             topic?: string | null;
             /**
@@ -12105,6 +12536,12 @@ export interface components {
             type: number;
             /** Format: int32 */
             user_limit?: number | null;
+            /**
+             * Format: int32
+             * @description Voice and stage channels: 1 auto (the adaptive default), 2 full (camera tracks may use the
+             *     720p tier whatever the occupancy).
+             */
+            video_quality_mode?: number | null;
         };
         ChannelOverrideBody: {
             /**
@@ -12304,6 +12741,13 @@ export interface components {
         CinemaHistorySettings: {
             paused: boolean;
         };
+        CinemaInstantSearch: {
+            genres: string[];
+            /** @description Matching cast, directors, writers and studios. */
+            people: string[];
+            tags: string[];
+            titles: components["schemas"]["Title"][];
+        };
         CinemaList: {
             /** Format: int64 */
             created_at_ms: number;
@@ -12353,6 +12797,10 @@ export interface components {
         };
         CinemaListsResponse: {
             lists: components["schemas"]["CinemaList"][];
+        };
+        CinemaMergeBody: {
+            /** @description The title that stays; this one is merged into it. */
+            target_id: string;
         };
         /** @description A fresh manifest grant. */
         CinemaPlaybackGrant: {
@@ -12723,6 +13171,8 @@ export interface components {
              * @description Alert when more than this many members join per minute; 0 = off.
              */
             raid_alert_joins_per_minute: number;
+            /** @description The join-rate alert pauses invites for 24 hours by itself (default on, D-243). */
+            raid_auto_pause_invites: boolean;
             rules_channel_id?: string | null;
             safety_alerts_channel_id?: string | null;
             screening_description?: string | null;
@@ -12742,6 +13192,40 @@ export interface components {
         CompleteUploadRequest: {
             parts: components["schemas"]["PartDone"][];
             upload_id: string;
+        };
+        /** @description What the owner may change. */
+        ConfigInput: {
+            /** @description `null` or empty clears it. Only an application in development may set one. */
+            dev_entry_url?: string | null;
+            url_mappings?: components["schemas"]["UrlMapping"][];
+        };
+        /** @description The owner's settings, with the origin the Activity will run on. */
+        ConfigResponse: {
+            config: components["schemas"]["ConfigView"];
+            /** @description `[activities] enabled`: when off, nothing here is served. */
+            enabled: boolean;
+            /**
+             * @description `<origin>/`: accepted as a redirect URI of the application without being stored (J-13), present once
+             *     the application has an Activity.
+             */
+            implicit_redirect_uri?: string | null;
+            /** @description `https://<application-id>.activities.<host>`. */
+            origin: string;
+        };
+        /** @description An application's Activity settings. */
+        ConfigView: {
+            application_id: string;
+            /** @description Recent bundles (the review history), newest first, superseded ones included. */
+            bundles: components["schemas"]["BundleView"][];
+            /** @description Live URL served only while the application is in development (never reviewed). */
+            dev_entry_url?: string | null;
+            review_note?: string | null;
+            /** @description Summary of the review: `pending` while a bundle waits, `approved` while a bundle is reviewed. */
+            review_state: components["schemas"]["ReviewState"];
+            reviewed_bundle?: null | components["schemas"]["BundleView"];
+            /** Format: int64 */
+            updated_at_ms: number;
+            url_mappings: components["schemas"]["UrlMapping"][];
         };
         /** @description Body of `PUT /users/@me/connections/link`. */
         ConnectionLinkBody: {
@@ -12882,6 +13366,8 @@ export interface components {
             position?: number | null;
             /** Format: int32 */
             rate_limit_per_user?: number | null;
+            /** @description Only `null` is accepted: this installation has one voice region. */
+            rtc_region?: string | null;
             /** @description An episode of that title, for a series. */
             sr_watch_party_episode_id?: string | null;
             /**
@@ -12901,6 +13387,11 @@ export interface components {
             type?: number | null;
             /** Format: int32 */
             user_limit?: number | null;
+            /**
+             * Format: int32
+             * @description Voice and stage channels: 1 auto (default), 2 full.
+             */
+            video_quality_mode?: number | null;
         };
         CreateDmBody: {
             name?: string | null;
@@ -12942,7 +13433,10 @@ export interface components {
             scheduled_start_time: string;
         };
         CreateGuildBody: {
-            /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
+            /**
+             * @description Image data URI for the server icon (the `PATCH` rules: PNG, JPEG, GIF or WebP, cropped
+             *     to a square); a refused image fails the whole request and no server is left behind.
+             */
             icon?: string | null;
             name: string;
             /**
@@ -12965,10 +13459,26 @@ export interface components {
              */
             type: number;
         };
-        /** @description Body of `POST /sr/invites`. */
+        /** @description Body of `POST /channels/{id}/invites`. Every field is optional. */
         CreateInviteBody: {
-            /** @description Private note ("for Sam"), at most 100 characters. */
-            note?: string | null;
+            /**
+             * @description SIDE ROOM: the invite is for sharing outside the platform ("Copy link").
+             *     It defaults to a single use (open question 134).
+             */
+            external?: boolean | null;
+            /**
+             * Format: int32
+             * @description Seconds until expiry, 0 to 604800 (default 86400).
+             */
+            max_age?: number | null;
+            /**
+             * Format: int32
+             * @description 0 to 100 (default 0 = unlimited; 1 for `external`).
+             */
+            max_uses?: number | null;
+            temporary?: boolean | null;
+            /** @description Accepted for Discord compatibility; every call creates a new invite. */
+            unique?: boolean | null;
         };
         CreateInvoiceBody: {
             /** @description Contribute without showing the name (server contributions). */
@@ -13028,6 +13538,7 @@ export interface components {
         CreateRoleBody: {
             /** Format: int32 */
             color?: number | null;
+            colors?: null | components["schemas"]["RoleColorsBody"];
             hoist?: boolean | null;
             mentionable?: boolean | null;
             name?: string | null;
@@ -13105,7 +13616,7 @@ export interface components {
         };
         /** @description `POST /applications` response: the secrets are shown once. */
         CreatedApplication: {
-            application: components["schemas"]["ApplicationObject"];
+            application: components["schemas"]["DeveloperApplicationObject"];
             bot_token: string;
             client_secret: string;
         };
@@ -13253,6 +13764,57 @@ export interface components {
             id: string;
             state: string;
         };
+        /** @description An application. The client secret is never part of it. */
+        DeveloperApplicationObject: {
+            bot: components["schemas"]["BotUserObject"];
+            bot_public: boolean;
+            bot_require_code_grant: boolean;
+            /** @description Last four characters of the client secret (owner view only). */
+            client_secret_hint?: string | null;
+            created_at: string;
+            description: string;
+            /**
+             * Format: int64
+             * @description Discord application flags (`GATEWAY_*` intent bits).
+             */
+            flags: number;
+            /** @description Icon hash, served at `/cdn/avatars/{bot.id}/{hash}.png`. */
+            icon?: string | null;
+            id: string;
+            install_params?: null | components["schemas"]["InstallParamsObject"];
+            /**
+             * @description `enabled` or `disabled` (owner view only, with an endpoint URL): the endpoint is switched
+             *     off after 25 consecutive failed deliveries within 10 minutes.
+             */
+            interactions_endpoint_state?: string | null;
+            /** @description HTTP interactions endpoint URL (owner view only; absent = gateway delivery). */
+            interactions_endpoint_url?: string | null;
+            name: string;
+            owner: components["schemas"]["OwnerObject"];
+            privacy_policy_url?: string | null;
+            privileged_intents: components["schemas"]["IntentsObject"];
+            /** @description Owner view only. */
+            redirect_uris?: string[] | null;
+            /** @description `development`, `in_review`, `released` or `suspended`. */
+            release_state: string;
+            /** @description Staff view of a suspension. */
+            suspended_reason?: string | null;
+            tags: string[];
+            terms_of_service_url?: string | null;
+            /**
+             * @description Ed25519 public key (hex) that verifies the platform's signed requests (owner view
+             *     only, present once the key exists).
+             */
+            verify_key?: string | null;
+        };
+        /** @description One row of an application's audit trail. */
+        DeveloperAuditEntryObject: {
+            action: string;
+            actor_id: string;
+            created_at: string;
+            details: Record<string, never>;
+            id: string;
+        };
         /** @description A request with its applicant, for staff. */
         DeveloperRequestAdmin: components["schemas"]["DeveloperRequestObject"] & {
             account: components["schemas"]["OwnerObject"];
@@ -13305,6 +13867,15 @@ export interface components {
              */
             type: number;
         };
+        /** @description Body of `PATCH /admin/directory/{guild_id}`. */
+        DirectoryDecisionBody: {
+            /** @description `approve`, `reject` or `remove`. */
+            decision: string;
+            /** @description Pin the server to the top (approved listings only). */
+            featured?: boolean | null;
+            /** @description A note to the server's managers, up to 500 characters. */
+            note?: string | null;
+        };
         /** @description A server card in the directory. */
         DirectoryGuildObject: {
             /** Format: int64 */
@@ -13329,6 +13900,8 @@ export interface components {
             pending?: boolean;
             preferred_locale: string;
             splash?: string | null;
+            /** @description The server's traits (J-07), at most five. */
+            traits: components["schemas"]["GuildTraitObject"][];
             vanity_url_code?: string | null;
         };
         DirectoryPage: {
@@ -13591,7 +14164,7 @@ export interface components {
             name: string;
             require_colons: boolean;
             roles: string[];
-            user: components["schemas"]["UserRef"];
+            user: components["schemas"]["GuildUserRef"];
         };
         /** @description State of an application's HTTP interactions endpoint (D-186). */
         EndpointStatusObject: {
@@ -13683,7 +14256,7 @@ export interface components {
         EventUserObject: {
             guild_scheduled_event_id: string;
             member?: null | components["schemas"]["MemberObject"];
-            user: components["schemas"]["UserRef"];
+            user: components["schemas"]["GuildUserRef"];
         };
         ExecuteWebhookBody: {
             avatar_url?: string | null;
@@ -14070,6 +14643,11 @@ export interface components {
             icon?: string | null;
             id: string;
             /**
+             * @description Incident actions (D-243): the timed invite and DM pauses and the last join-rate alert.
+             *     Fields are `null` when unset; a time in the past means the pause ended.
+             */
+            incidents_data: components["schemas"]["IncidentsDataObject"];
+            /**
              * @description Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
              *     in the rail and show the staff badge.
              */
@@ -14095,6 +14673,8 @@ export interface components {
              * @description The largest file the caller may upload here, in bytes (D-233). Only on `GET /guilds/{id}`.
              */
             sr_max_upload_bytes?: number | null;
+            /** @description Side Room's profile extras (server traits). */
+            sr_profile: components["schemas"]["GuildSrProfileObject"];
             /**
              * Format: int32
              * @description Discord `system_channel_flags` bits (1 suppress join messages, 2 boost messages,
@@ -14139,6 +14719,11 @@ export interface components {
             suppress_highlights?: boolean | null;
             suppress_roles?: boolean | null;
         };
+        /** @description Side Room's server profile extras on the server object (`sr_profile`). */
+        GuildSrProfileObject: {
+            /** @description At most five. */
+            traits: components["schemas"]["GuildTraitObject"][];
+        };
         GuildSupportPatch: {
             hidden_from_leaderboard: boolean;
         };
@@ -14179,6 +14764,27 @@ export interface components {
             members_can_display: boolean;
             tag: string;
         };
+        /** @description One server trait (J-07): a label with an optional emoji. */
+        GuildTraitObject: {
+            /** @description Custom emoji of the server. */
+            emoji_id?: string | null;
+            /** @description Unicode emoji, or the custom emoji's name. */
+            emoji_name?: string | null;
+            /** @description 1 to 24 characters, no mentions or markdown. */
+            label: string;
+        };
+        /**
+         * @description User object embedded in members, bans and messages. Name fields come from the
+         *     user lookup (open question 157); without one only the id is known.
+         */
+        GuildUserRef: {
+            /** @description Present (true) for bot accounts only. */
+            bot?: boolean;
+            global_name?: string | null;
+            id: string;
+            primary_guild?: null | components["schemas"]["PrimaryGuildObject"];
+            username?: string | null;
+        };
         HideBody: {
             guild_id?: string | null;
             hidden: boolean;
@@ -14203,6 +14809,28 @@ export interface components {
             donated_this_month_cents: number;
             /** Format: int64 */
             month_start_ms: number;
+        };
+        /**
+         * @description Body of `PUT /guilds/{id}/incident-actions`. Both fields are replaced: omitted or `null`
+         *     clears the pause.
+         */
+        IncidentActionsBody: {
+            /**
+             * @description Pause direct messages between members who are not friends until this time, at most 24
+             *     hours ahead.
+             */
+            dms_disabled_until?: string | null;
+            /** @description Pause invites until this time (ISO8601), at most 24 hours ahead. */
+            invites_disabled_until?: string | null;
+        };
+        /** @description `incidents_data` of the guild object (D-243). */
+        IncidentsDataObject: {
+            /** @description Direct messages between members who are not friends are refused until this time, or `null`. */
+            dms_disabled_until?: string | null;
+            /** @description Invites cannot be used until this time (ISO8601), or `null`. */
+            invites_disabled_until?: string | null;
+            /** @description When the join-rate alert last fired, or `null`. */
+            raid_detected_at?: string | null;
         };
         /** @description A configured source. */
         IngestSource: {
@@ -14272,12 +14900,57 @@ export interface components {
             permissions: string;
             scopes: string[];
         };
+        /** @description A running activity in a voice or text channel. */
+        InstanceView: {
+            application_id: string;
+            application_name: string;
+            channel_id: string;
+            /** @description `voice` or `text`. */
+            channel_type: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** @description Running a development build (live entry URL). */
+            development: boolean;
+            guild_id: string;
+            id: string;
+            participants: components["schemas"]["ParticipantView"][];
+            started_by: string;
+        };
         /** @description Instant-search result. */
         InstantSearch: {
             authors: string[];
             genres: string[];
             series: components["schemas"]["Series"][];
             tags: string[];
+        };
+        /** @description `account` of an integration: for an application it is the application itself. */
+        IntegrationAccountObject: {
+            id: string;
+            name: string;
+        };
+        /** @description The application part of an integration (Discord shape). */
+        IntegrationApplicationObject: {
+            bot: components["schemas"]["GuildUserRef"];
+            description: string;
+            /** @description Icon hash, served at `/cdn/avatars/{bot.id}/{hash}.png`. */
+            icon?: string | null;
+            id: string;
+            name: string;
+        };
+        /** @description One installed application as a Discord integration object. */
+        IntegrationObject: {
+            account: components["schemas"]["IntegrationAccountObject"];
+            application: components["schemas"]["IntegrationApplicationObject"];
+            enabled: boolean;
+            /** @description The application id. */
+            id: string;
+            name: string;
+            /** @description The scopes the install was granted. */
+            scopes: string[];
+            /** @description Always `discord`, as for Discord's own application integrations. */
+            type: string;
+            /** @description Who installed it. */
+            user: components["schemas"]["GuildUserRef"];
         };
         /** @description Whether an optional integration is set up. Never carries a secret. */
         IntegrationStatus: {
@@ -14378,7 +15051,7 @@ export interface components {
             created_at: string;
             expires_at?: string | null;
             guild?: null | components["schemas"]["InviteGuild"];
-            inviter: components["schemas"]["UserRef"];
+            inviter: components["schemas"]["GuildUserRef"];
             /**
              * Format: int32
              * @description Seconds; 0 = never expires.
@@ -14554,6 +15227,9 @@ export interface components {
             id: string;
             label: string;
         };
+        LaunchBody: {
+            application_id: string;
+        };
         LeaderboardEntry: {
             avatar_key?: string | null;
             display_name?: string | null;
@@ -14698,6 +15374,11 @@ export interface components {
             /** Format: int32 */
             per_day: number;
         };
+        LibraryFollowBody: {
+            /** @description New-chapter notifications; default on. */
+            notify?: boolean | null;
+            shelf?: null | components["schemas"]["Shelf"];
+        };
         /** @description A friend who is reading something now. */
         LibraryFriendReading: {
             chapter_id: string;
@@ -14814,6 +15495,33 @@ export interface components {
         };
         /** @enum {string} */
         LibraryReviewSort: "helpful" | "recent";
+        /** @description Body of `POST /admin/library/chapters/{id}/uploads`. */
+        LibraryUploadRequest: {
+            /** @description Original file name; its extension must fit the chapter's format. */
+            filename: string;
+            /**
+             * @description Ask for a resumable multipart upload: parts of 64 MB sent in parallel, resumable after a
+             *     refresh. Without it the slot is one presigned `PUT`.
+             */
+            multipart?: boolean;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        /** @description A new upload slot: PUT the file to `upload_url`, then complete the upload. */
+        LibraryUploadSlot: {
+            /** Format: int64 */
+            expires_in_secs: number;
+            /**
+             * Format: int64
+             * @description The operator's size limit for this upload.
+             */
+            max_bytes: number;
+            multipart?: null | components["schemas"]["MultipartSlot"];
+            upload: components["schemas"]["Upload"];
+            /** @description Always `PUT`. */
+            upload_method: string;
+            upload_url: string;
+        };
         /** @enum {string} */
         LibraryVisibility: "private" | "friends" | "public";
         /** @description Body of `POST /admin/persons/{person_id}/link`. */
@@ -15007,6 +15715,16 @@ export interface components {
             /** @description The item (episode or title) the video is for. */
             ref_id: string;
         };
+        MediaWorkerPartUrl: {
+            /** Format: int32 */
+            part_number: number;
+            url: string;
+        };
+        /** @description Body of `POST /sr/invites`. */
+        MemberCreateInviteBody: {
+            /** @description Private note ("for Sam"), at most 100 characters. */
+            note?: string | null;
+        };
         /** @description One of the account's platform invites. */
         MemberInvite: {
             /** @description Display form, `XXXXX-XXXXX`. */
@@ -15070,7 +15788,7 @@ export interface components {
             sr_signals?: string[] | null;
             /** @description Per-server profile theme, `[primary, accent]` as 0xRRGGBB. */
             theme_colors?: number[] | null;
-            user: components["schemas"]["UserRef"];
+            user: components["schemas"]["GuildUserRef"];
         };
         /** @description What a new member sees before they may talk (`GET /guilds/{id}/member-verification`). */
         MemberVerificationObject: {
@@ -15089,6 +15807,11 @@ export interface components {
             /** @description `CALL` messages: who was in the call and when it ended. */
             call?: Record<string, never> | null;
             channel_id: string;
+            /**
+             * @description Buttons and select menus (action rows), as the author or the system sent them; present only
+             *     when the message has any.
+             */
+            components?: Record<string, never>[];
             content: string;
             edited_timestamp?: string | null;
             embeds: Record<string, never>[];
@@ -15154,6 +15877,27 @@ export interface components {
             /** @description `accepted`, `ignored` or `spam`. */
             state: string;
         };
+        MessageUploadSlot: {
+            /**
+             * Format: int64
+             * @description Large files expire after this many seconds; absent for normal files.
+             */
+            expires_after?: number | null;
+            /** @description Echo of the client id (or the upload id when none was sent). */
+            id: string;
+            /**
+             * Format: int64
+             * @description The maximum accepted size for this caller.
+             */
+            max_size: number;
+            /** @description Opaque name to pass as `uploaded_filename` when creating the message. */
+            upload_filename: string;
+            /** @description Server-side upload id; reference it from the message. */
+            upload_id: string;
+            upload_url: string;
+            /** Format: int64 */
+            upload_url_expires_in: number;
+        };
         /** @description Body of `POST /guilds/{id}/mfa`. */
         MfaLevelBody: {
             /**
@@ -15213,6 +15957,8 @@ export interface components {
             position?: number | null;
             /** Format: int32 */
             rate_limit_per_user?: number | null;
+            /** @description Only `null` is accepted: this installation has one voice region. */
+            rtc_region?: string | null;
             topic?: string | null;
             /**
              * Format: int32
@@ -15222,6 +15968,11 @@ export interface components {
             type?: number | null;
             /** Format: int32 */
             user_limit?: number | null;
+            /**
+             * Format: int32
+             * @description Voice and stage channels (`MANAGE_CHANNELS`): 1 auto, 2 full.
+             */
+            video_quality_mode?: number | null;
         };
         ModifyCommunityBody: {
             age_restricted?: boolean | null;
@@ -15237,6 +15988,7 @@ export interface components {
             public_updates_channel_id?: string | null;
             /** Format: int32 */
             raid_alert_joins_per_minute?: number | null;
+            raid_auto_pause_invites?: boolean | null;
             rules_channel_id?: string | null;
             safety_alerts_channel_id?: string | null;
             screening_description?: string | null;
@@ -15339,6 +16091,7 @@ export interface components {
         ModifyRoleBody: {
             /** Format: int32 */
             color?: number | null;
+            colors?: null | components["schemas"]["RoleColorsBody"];
             hoist?: boolean | null;
             /**
              * @description Image data URI for the role icon (PNG, JPEG, GIF or WebP, cropped to a square);
@@ -15357,6 +16110,11 @@ export interface components {
             name?: string | null;
             /** Format: double */
             volume?: number | null;
+        };
+        /** @description Body of `PATCH /guilds/{id}/sr/profile`. */
+        ModifySrProfileBody: {
+            /** @description Replaces all traits; at most five. */
+            traits?: components["schemas"]["GuildTraitObject"][] | null;
         };
         ModifyStageInstanceBody: {
             /** Format: int32 */
@@ -15522,7 +16280,7 @@ export interface components {
         };
         /** @description `GET /oauth2/@me`. */
         OAuthMe: {
-            application: components["schemas"]["ApplicationObject"];
+            application: components["schemas"]["DeveloperApplicationObject"];
             expires: string;
             scopes: string[];
             user?: Record<string, never> | null;
@@ -15740,6 +16498,11 @@ export interface components {
             id?: string | null;
             name: string;
         };
+        ParticipantView: {
+            /** Format: int64 */
+            joined_at_ms: number;
+            user_id: string;
+        };
         /** @description A passkey as the settings page shows it. */
         PasskeyView: {
             /** @description Synced (multi-device) passkey. */
@@ -15876,6 +16639,14 @@ export interface components {
             started_ms?: number | null;
             /** Format: int64 */
             until_ms?: number | null;
+        };
+        /** @description A submitted Activity in the staff queue. */
+        PendingView: {
+            application_name: string;
+            /** @description The bundle waiting for a decision. */
+            bundle: components["schemas"]["BundleDetail"];
+            config: components["schemas"]["ConfigView"];
+            owner_id: string;
         };
         PersonBanBody: {
             category?: null | components["schemas"]["BanCategory"];
@@ -16459,6 +17230,24 @@ export interface components {
         };
         /** @enum {string} */
         ReaderRole: "page" | "archive" | "document" | "series_json" | "comic_info" | "folder" | "unknown";
+        ReadingBookmark: {
+            chapter_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            note: string;
+            /** Format: int32 */
+            page_index: number;
+            series_id: string;
+        };
+        /** @description A bookmark with the titles the "my bookmarks" list shows. */
+        ReadingBookmarkEntry: {
+            bookmark: components["schemas"]["ReadingBookmark"];
+            /** Format: double */
+            chapter_number: number;
+            chapter_title?: string | null;
+            series_title: string;
+        };
         /**
          * @description Default reading mode of a series.
          * @enum {string}
@@ -16493,6 +17282,7 @@ export interface components {
              */
             reason?: string | null;
         };
+        /** @description Body of `POST /sr/auth/reauth`. */
         ReauthBody: {
             code: string;
             /** @description `totp`, `recovery` or `passkey` (then `code` is the JSON of the passkey assertion). */
@@ -16605,12 +17395,10 @@ export interface components {
         RenameAppEmojiBody: {
             name: string;
         };
+        /** @description Body for `PATCH /sr/auth/passkeys/{id}`. */
         RenameBody: {
-            /** @description New display name; `null` or empty clears it. Leave out to keep it. */
-            display_name?: string | null;
-            reason?: string | null;
-            /** @description New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it. */
-            username?: string | null;
+            /** @description New label, 1 to 64 characters. */
+            name: string;
         };
         ReorderChannelEntry: {
             id: string;
@@ -16712,6 +17500,11 @@ export interface components {
             asset_id: string;
             reason: string;
         };
+        /**
+         * @description Where an application's Activity is in review.
+         * @enum {string}
+         */
+        ReviewState: "draft" | "pending" | "approved" | "rejected";
         /** @description Body of `POST /admin/review/submissions/{id}/revoke-credits`. */
         RevokeCreditsBody: {
             /** @description Only these published items (item snowflakes); omitted: every credit of the submission. */
@@ -16729,9 +17522,32 @@ export interface components {
          * @enum {string}
          */
         Role: "video" | "subtitle" | "artwork" | "unknown";
+        /**
+         * @description `colors` in a role create or edit; replaces all three stops. A tertiary stop needs a
+         *     secondary one.
+         */
+        RoleColorsBody: {
+            /** Format: int32 */
+            primary_color: number;
+            /** Format: int32 */
+            secondary_color?: number | null;
+            /** Format: int32 */
+            tertiary_color?: number | null;
+        };
+        /** @description The gradient stops of a role, Discord's `colors` object. */
+        RoleColorsObject: {
+            /** Format: int32 */
+            primary_color: number;
+            /** Format: int32 */
+            secondary_color?: number | null;
+            /** Format: int32 */
+            tertiary_color?: number | null;
+        };
         RoleObject: {
             /** Format: int32 */
             color: number;
+            /** @description Gradient stops (J-08); `primary_color` mirrors `color`. */
+            colors: components["schemas"]["RoleColorsObject"];
             /** Format: int32 */
             flags: number;
             hoist: boolean;
@@ -16878,7 +17694,7 @@ export interface components {
         /** @description Discord's guild scheduled event object. */
         ScheduledEventObject: {
             channel_id?: string | null;
-            creator: components["schemas"]["UserRef"];
+            creator: components["schemas"]["GuildUserRef"];
             creator_id: string;
             description?: string | null;
             /** @description The stage instance (the stage channel id) of a running stage event. */
@@ -17141,6 +17957,19 @@ export interface components {
          * @enum {string}
          */
         Shelf: "reading" | "plan_to_read" | "completed" | "on_hold" | "dropped";
+        /** @description An Activity in the launcher's shelf. */
+        ShelfItem: {
+            application_id: string;
+            description: string;
+            /** @description A development build only the owner and testers see. */
+            development: boolean;
+            name: string;
+        };
+        ShelfResponse: {
+            /** @description `[activities] enabled`. */
+            enabled: boolean;
+            items: components["schemas"]["ShelfItem"][];
+        };
         /** @description A short-lived signed CDN URL. */
         SignedUrlObject: {
             /**
@@ -17348,7 +18177,7 @@ export interface components {
              * @description 2 = guild sticker.
              */
             type: number;
-            user: components["schemas"]["UserRef"];
+            user: components["schemas"]["GuildUserRef"];
         };
         /** @description A sticker pack. */
         StickerPackObject: {
@@ -17614,7 +18443,7 @@ export interface components {
         TemplateObject: {
             code: string;
             created_at: string;
-            creator: components["schemas"]["UserRef"];
+            creator: components["schemas"]["GuildUserRef"];
             creator_id: string;
             description?: string | null;
             /** @description Whether the guild changed since the last sync (guild-scoped reads only). */
@@ -18326,50 +19155,49 @@ export interface components {
             part_size: number;
             received: components["schemas"]["ReceivedPart"][];
         };
-        /** @description Body of `POST /admin/library/chapters/{id}/uploads`. */
         UploadRequest: {
-            /** @description Original file name; its extension must fit the chapter's format. */
+            /** @description Queue the ladder right after the probe (default true for staff uploads). */
+            auto_ladder?: boolean | null;
+            episode_id?: string | null;
+            /** @description The file name on the member's disk; only its extension is used. */
             filename: string;
-            /**
-             * @description Ask for a resumable multipart upload: parts of 64 MB sent in parallel, resumable after a
-             *     refresh. Without it the slot is one presigned `PUT`.
-             */
-            multipart?: boolean;
             /** Format: int64 */
             size_bytes: number;
+            /** @description The catalog item the video is for. Linking it as the playable asset is a separate step. */
+            title_id?: string | null;
         };
         UploadSlot: {
-            /**
-             * Format: int64
-             * @description Large files expire after this many seconds; absent for normal files.
-             */
-            expires_after?: number | null;
-            /** @description Echo of the client id (or the upload id when none was sent). */
-            id: string;
-            /**
-             * Format: int64
-             * @description The maximum accepted size for this caller.
-             */
-            max_size: number;
-            /** @description Opaque name to pass as `uploaded_filename` when creating the message. */
-            upload_filename: string;
-            /** @description Server-side upload id; reference it from the message. */
-            upload_id: string;
-            upload_url: string;
+            asset: components["schemas"]["Asset"];
+            content_type: string;
             /** Format: int64 */
-            upload_url_expires_in: number;
+            expires_in_secs: number;
+            /** Format: int64 */
+            part_size: number;
+            /**
+             * @description One presigned `PUT` per part (a file no larger than `part_size` has one). Send each part
+             *     with `PUT` and keep the `ETag` response header.
+             */
+            parts: components["schemas"]["MediaWorkerPartUrl"][];
+            upload_id: string;
         };
         UploadSlotsBody: {
             files: components["schemas"]["FileSpec"][];
         };
         UploadSlotsResponse: {
-            attachments: components["schemas"]["UploadSlot"][];
+            attachments: components["schemas"]["MessageUploadSlot"][];
         };
         /**
          * @description Where an upload is in its life.
          * @enum {string}
          */
         UploadStatus: "awaiting_upload" | "queued" | "running" | "done" | "failed" | "expired";
+        /** @description One URL mapping: requests to `<activity origin><prefix>/...` are fetched from `target`. */
+        UrlMapping: {
+            /** @description `/api`: a path of one or more segments, never `/`. */
+            prefix: string;
+            /** @description `https://api.example.com/v1`: https, no query. */
+            target: string;
+        };
         UserGuildSettingsObject: {
             channel_overrides: components["schemas"]["ChannelOverrideObject"][];
             /** @description `null` for the DM scope. */
@@ -18859,7 +19687,7 @@ export interface components {
             type: number;
             /** @description Execution path, only when the token is known. */
             url?: string | null;
-            user?: null | components["schemas"]["UserRef"];
+            user?: null | components["schemas"]["GuildUserRef"];
         };
         WelcomeChannelDto: {
             channel_id: string;
@@ -18923,6 +19751,165 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    shelf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_instance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    end: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    join: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     access_log: {
         parameters: {
             query?: {
@@ -19188,7 +20175,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BanBody"];
+                "application/json": components["schemas"]["AdminBanBody"];
             };
         };
         responses: {
@@ -19254,7 +20241,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ChangeEmailBody"];
+                "application/json": components["schemas"]["AdminChangeEmailBody"];
             };
         };
         responses: {
@@ -19810,7 +20797,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RenameBody"];
+                "application/json": components["schemas"]["AdminRenameBody"];
             };
         };
         responses: {
@@ -22507,7 +23494,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["MergeBody"];
+                "application/json": components["schemas"]["CinemaMergeBody"];
             };
         };
         responses: {
@@ -23063,6 +24050,115 @@ export interface operations {
             };
         };
     };
+    admin_pending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingView"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Bundle snowflake */
+                bundle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": number[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivityDecisionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_suspend: {
         parameters: {
             query?: never;
@@ -23084,7 +24180,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationObject"];
+                    "application/json": components["schemas"]["DeveloperApplicationObject"];
                 };
             };
             409: {
@@ -23118,7 +24214,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationObject"];
+                    "application/json": components["schemas"]["DeveloperApplicationObject"];
                 };
             };
             409: {
@@ -23371,7 +24467,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DecisionBody"];
+                "application/json": components["schemas"]["DirectoryDecisionBody"];
             };
         };
         responses: {
@@ -25606,7 +26702,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UploadRequest"];
+                "application/json": components["schemas"]["LibraryUploadRequest"];
             };
         };
         responses: {
@@ -25615,7 +26711,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UploadSlot"];
+                    "application/json": components["schemas"]["LibraryUploadSlot"];
                 };
             };
             400: {
@@ -27540,7 +28636,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReauthBody"];
+                "application/json": components["schemas"]["AdminReauthBody"];
             };
         };
         responses: {
@@ -30803,7 +31899,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationObject"][];
+                    "application/json": components["schemas"]["DeveloperApplicationObject"][];
                 };
             };
         };
@@ -30853,7 +31949,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationObject"];
+                    "application/json": components["schemas"]["DeveloperApplicationObject"];
                 };
             };
             401: {
@@ -30883,7 +31979,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationObject"];
+                    "application/json": components["schemas"]["DeveloperApplicationObject"];
                 };
             };
             404: {
@@ -30957,7 +32053,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationObject"];
+                    "application/json": components["schemas"]["DeveloperApplicationObject"];
                 };
             };
             400: {
@@ -30969,6 +32065,203 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    upload_bundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/zip": number[];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundleDetail"];
+                };
+            };
+            /** @description The zip was refused; the error names the entry. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_bundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Bundle snowflake */
+                bundle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundleDetail"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivitySubmitBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -31108,7 +32401,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditEntryObject"][];
+                    "application/json": components["schemas"]["DeveloperAuditEntryObject"][];
                 };
             };
         };
@@ -31134,7 +32427,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationObject"];
+                    "application/json": components["schemas"]["DeveloperApplicationObject"];
                 };
             };
             400: {
@@ -31602,6 +32895,11 @@ export interface operations {
                 application_id: string;
                 /** @description Guild snowflake */
                 guild_id: string;
+                /**
+                 * @description SIDE ROOM extension for the command permission editor: also list the application's global
+                 *     commands (the ones with `guild_id` absent).
+                 */
+                include_global: boolean;
             };
             cookie?: never;
         };
@@ -31725,6 +33023,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -31863,6 +33169,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             404: {
@@ -32322,6 +33636,95 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    in_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelActivity"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    launch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LaunchBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description One is already running. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -36419,7 +37822,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstantSearch"];
+                    "application/json": components["schemas"]["CinemaInstantSearch"];
                 };
             };
             401: {
@@ -39057,6 +40460,56 @@ export interface operations {
             };
         };
     };
+    alert_action: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertActionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertActionResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_audit_log: {
         parameters: {
             query?: {
@@ -40112,6 +41565,132 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_incident_actions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentActionsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentsDataObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_integrations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_integration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description The application id */
+                integration_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             403: {
                 headers: {
@@ -42927,6 +44506,56 @@ export interface operations {
             };
         };
     };
+    modify_sr_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifySrProfileBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     apply_slowmode: {
         parameters: {
             query?: never;
@@ -44885,7 +46514,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Bookmark"];
+                    "application/json": components["schemas"]["ReadingBookmark"];
                 };
             };
             400: {
@@ -46932,7 +48561,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["FollowBody"];
+                "application/json": components["schemas"]["LibraryFollowBody"];
             };
         };
         responses: {
@@ -48840,7 +50469,7 @@ export interface operations {
             query?: {
                 /** @description Power of two, 16 to 4096 */
                 size?: number;
-                /** @description png, jpg, webp or gif */
+                /** @description png, jpg, webp, gif or avif (answers webp) */
                 format?: string;
             };
             header?: never;
@@ -49004,7 +50633,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateInviteBody"];
+                "application/json": components["schemas"]["MemberCreateInviteBody"];
             };
         };
         responses: {
@@ -50332,7 +51961,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UploadRequest"];
+                "application/json": components["schemas"]["LibraryUploadRequest"];
             };
         };
         responses: {
@@ -50341,7 +51970,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UploadSlot"];
+                    "application/json": components["schemas"]["LibraryUploadSlot"];
                 };
             };
             400: {

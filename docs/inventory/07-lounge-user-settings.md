@@ -79,7 +79,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-038** [FE] Per-section themes (Lounge / Cinema / Library / Entrance) pickers (Lounge, Cinema, Library and Entrance pickers (Cinema applies when its shell reads the preference))
 - [ ] **LNG-USET-039** [FE] Theme Store entry (approved packages) *Still open: no approved-packages Theme Store endpoint for the web client yet.*
    - Theme Store entry not built (there is no theme package store yet).
-- [ ] **LNG-USET-040** [FE] Message display (Cozy/Compact), show avatars in compact, chat font scaling, space between message groups, zoom level *Partial: Cozy/Compact, chat font scale, message gap and zoom are built (sections/Appearance.tsx). Missing: "show avatars in compact".*
+- [x] **LNG-USET-040** [FE] Message display (Cozy/Compact), show avatars in compact, chat font scaling, space between message groups, zoom level *Partial: Cozy/Compact, chat font scale, message gap and zoom are built (sections/Appearance.tsx). p14: "Show avatars in Compact mode" (`compactAvatars` pref, MessageItem.tsx, msgGaps.test.tsx).* 
    - Built: cozy/compact, chat font scale, space between groups, zoom. Not offered: show avatars in compact (compact has no avatar column).
 - [x] **LNG-USET-041** [FE] Allow server theming toggle, show section top bar toggle (allow server theming; the section top bar toggle stays device-local in the Lounge store)
 

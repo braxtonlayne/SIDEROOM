@@ -171,6 +171,11 @@ pub struct MessageObject {
     pub attachments: Vec<AttachmentObject>,
     #[schema(value_type = Vec<Object>)]
     pub embeds: Vec<serde_json::Value>,
+    /// Buttons and select menus (action rows), as the author or the system sent them; present only
+    /// when the message has any.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[schema(value_type = Vec<Object>)]
+    pub components: Vec<serde_json::Value>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub reactions: Vec<ReactionObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -247,6 +252,11 @@ impl MessageObject {
                 .embeds
                 .iter()
                 .map(|e| serde_json::to_value(e).unwrap_or(serde_json::Value::Null))
+                .collect(),
+            components: m
+                .components
+                .iter()
+                .map(|c| serde_json::to_value(c).unwrap_or(serde_json::Value::Null))
                 .collect(),
             reactions: reactions
                 .iter()
@@ -471,6 +481,7 @@ pub struct UploadSlotsBody {
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = MessageUploadSlot)]
 pub struct UploadSlot {
     /// Echo of the client id (or the upload id when none was sent).
     pub id: String,

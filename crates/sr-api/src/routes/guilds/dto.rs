@@ -4,6 +4,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use sr_chat::admin_repo::Ban;
 use sr_chat::domain::{Channel, ChannelType, ChannelWithOverwrites, Guild, Member, Role};
+use sr_chat::guild_traits::GuildTrait;
 use sr_chat::repo::UserSummary;
 use sr_chat::threads::model::{ThreadInfo, ThreadMember};
 use sr_core::UserId;
@@ -115,6 +116,7 @@ where
 /// User object embedded in members, bans and messages. Name fields come from the
 /// user lookup (open question 157); without one only the id is known.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = GuildUserRef)]
 pub struct UserRef {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -173,6 +175,37 @@ pub struct RoleObject {
     pub icon: Option<String>,
     pub unicode_emoji: Option<String>,
     pub flags: u32,
+    /// Gradient stops (J-08); `primary_color` mirrors `color`.
+    pub colors: RoleColorsObject,
+}
+
+/// The gradient stops of a role, Discord's `colors` object.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RoleColorsObject {
+    pub primary_color: u32,
+    pub secondary_color: Option<u32>,
+    pub tertiary_color: Option<u32>,
+}
+
+/// `colors` in a role create or edit; replaces all three stops. A tertiary stop needs a
+/// secondary one.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct RoleColorsBody {
+    pub primary_color: u32,
+    #[serde(default)]
+    pub secondary_color: Option<u32>,
+    #[serde(default)]
+    pub tertiary_color: Option<u32>,
+}
+
+impl From<RoleColorsBody> for sr_chat::role_rules::RoleColors {
+    fn from(b: RoleColorsBody) -> Self {
+        Self {
+            primary: b.primary_color,
+            secondary: b.secondary_color,
+            tertiary: b.tertiary_color,
+        }
+    }
 }
 
 impl From<&Role> for RoleObject {
@@ -189,6 +222,11 @@ impl From<&Role> for RoleObject {
             icon: r.icon_key.clone(),
             unicode_emoji: r.unicode_emoji.clone(),
             flags: 0,
+            colors: RoleColorsObject {
+                primary_color: r.color,
+                secondary_color: r.secondary_color,
+                tertiary_color: r.tertiary_color,
+            },
         }
     }
 }
@@ -304,6 +342,14 @@ pub struct ChannelObject {
     pub default_thread_rate_limit_per_user: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_auto_archive_duration: Option<u32>,
+    /// Voice and stage channels: 1 auto (the adaptive default), 2 full (camera tracks may use the
+    /// 720p tier whatever the occupancy).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_quality_mode: Option<u8>,
+    /// Voice and stage channels: always `null` (this installation has one voice region).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<String>)]
+    pub rtc_region: Option<Option<String>>,
 }
 
 impl ChannelObject {
@@ -359,6 +405,8 @@ impl ChannelObject {
             default_forum_layout: c.forum.default_forum_layout.filter(|_| forum),
             default_thread_rate_limit_per_user: c.forum.default_thread_rate_limit,
             default_auto_archive_duration: c.forum.default_auto_archive_duration,
+            video_quality_mode: c.kind.is_voice_like().then_some(c.video_quality_mode),
+            rtc_region: c.kind.is_voice_like().then_some(None),
         }
     }
 
@@ -374,6 +422,53 @@ impl From<&ChannelWithOverwrites> for ChannelObject {
     fn from(c: &ChannelWithOverwrites) -> Self {
         Self::new(&c.channel, &c.overwrites)
     }
+}
+
+/// One server trait (J-07): a label with an optional emoji.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct GuildTraitObject {
+    /// Custom emoji of the server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub emoji_id: Option<String>,
+    /// Unicode emoji, or the custom emoji's name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub emoji_name: Option<String>,
+    /// 1 to 24 characters, no mentions or markdown.
+    pub label: String,
+}
+
+impl From<&GuildTrait> for GuildTraitObject {
+    fn from(t: &GuildTrait) -> Self {
+        Self {
+            emoji_id: t.emoji_id.clone(),
+            emoji_name: t.emoji_name.clone(),
+            label: t.label.clone(),
+        }
+    }
+}
+
+impl From<GuildTraitObject> for GuildTrait {
+    fn from(t: GuildTraitObject) -> Self {
+        Self {
+            emoji_id: t.emoji_id,
+            emoji_name: t.emoji_name,
+            label: t.label,
+        }
+    }
+}
+
+/// Side Room's server profile extras on the server object (`sr_profile`).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct GuildSrProfileObject {
+    /// At most five.
+    pub traits: Vec<GuildTraitObject>,
+}
+
+/// Body of `PATCH /guilds/{id}/sr/profile`.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct ModifySrProfileBody {
+    /// Replaces all traits; at most five.
+    pub traits: Option<Vec<GuildTraitObject>>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -420,6 +515,9 @@ pub struct GuildObject {
     /// Server Protection (D-224): a link whose text names another host is shown as its raw
     /// target with a warning. Visible to every member; set in `/sr/community`.
     pub hide_suspicious_links: bool,
+    /// Incident actions (D-243): the timed invite and DM pauses and the last join-rate alert.
+    /// Fields are `null` when unset; a time in the past means the pause ended.
+    pub incidents_data: IncidentsDataObject,
     /// Only with `?with_counts=true` on `GET /guilds/{id}` (Discord shape).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub approximate_member_count: Option<u64>,
@@ -433,6 +531,8 @@ pub struct GuildObject {
     pub roles: Option<Vec<RoleObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channels: Option<Vec<ChannelObject>>,
+    /// Side Room's profile extras (server traits).
+    pub sr_profile: GuildSrProfileObject,
 }
 
 impl GuildObject {
@@ -463,12 +563,46 @@ impl GuildObject {
             public_updates_channel_id: g.public_updates_channel_id.map(|c| c.to_string()),
             safety_alerts_channel_id: g.safety_alerts_channel_id.map(|c| c.to_string()),
             hide_suspicious_links: g.hide_suspicious_links,
+            incidents_data: IncidentsDataObject::of(&g.incidents),
             approximate_member_count: None,
             approximate_presence_count: None,
             sr_max_upload_bytes: None,
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
+            sr_profile: GuildSrProfileObject {
+                traits: g.traits.iter().map(GuildTraitObject::from).collect(),
+            },
         }
+    }
+}
+
+/// `incidents_data` of the guild object (D-243).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct IncidentsDataObject {
+    /// Invites cannot be used until this time (ISO8601), or `null`.
+    pub invites_disabled_until: Option<String>,
+    /// Direct messages between members who are not friends are refused until this time, or `null`.
+    pub dms_disabled_until: Option<String>,
+    /// When the join-rate alert last fired, or `null`.
+    pub raid_detected_at: Option<String>,
+}
+
+impl IncidentsDataObject {
+    pub fn of(i: &sr_chat::domain::IncidentsData) -> Self {
+        Self {
+            invites_disabled_until: i.invites_disabled_until_ms.map(iso8601),
+            dms_disabled_until: i.dms_disabled_until_ms.map(iso8601),
+            raid_detected_at: i.raid_detected_at_ms.map(iso8601),
+        }
+    }
+
+    /// From the saved community settings (what a write just stored).
+    pub fn of_settings(s: &sr_chat::settings::community::CommunitySettings) -> Self {
+        Self::of(&sr_chat::domain::IncidentsData {
+            invites_disabled_until_ms: s.invites_disabled_until_ms,
+            dms_disabled_until_ms: s.dms_disabled_until_ms,
+            raid_detected_at_ms: s.raid_detected_at_ms,
+        })
     }
 }
 
@@ -596,7 +730,7 @@ impl MemberObject {
             premium_since: None,
             deaf: false,
             mute: false,
-            flags: 0,
+            flags: m.extras.flags,
             pending: m.pending,
             communication_disabled_until: m.communication_disabled_until_ms.map(iso8601),
             guild_id: with_guild_id.then(|| m.guild_id.to_string()),
@@ -626,7 +760,8 @@ impl BanObject {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateGuildBody {
     pub name: String,
-    /// Accepted for compatibility; icon upload arrives with the media pipeline.
+    /// Image data URI for the server icon (the `PATCH` rules: PNG, JPEG, GIF or WebP, cropped
+    /// to a square); a refused image fails the whole request and no server is left behind.
     #[serde(default)]
     pub icon: Option<String>,
     /// A built-in template id (see `GET /guilds/templates/builtin`) or a template code.
@@ -735,6 +870,12 @@ pub struct CreateChannelBody {
     pub rate_limit_per_user: Option<u32>,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    /// Voice and stage channels: 1 auto (default), 2 full.
+    pub video_quality_mode: Option<u8>,
+    /// Only `null` is accepted: this installation has one voice region.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub rtc_region: Option<Option<String>>,
     #[serde(default)]
     pub permission_overwrites: Vec<OverwriteBody>,
     /// Forum and media channels: `REQUIRE_TAG` (1 << 4) and similar settings bits.
@@ -767,6 +908,12 @@ pub struct ModifyChannelBody {
     pub rate_limit_per_user: Option<u32>,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    /// Voice and stage channels (`MANAGE_CHANNELS`): 1 auto, 2 full.
+    pub video_quality_mode: Option<u8>,
+    /// Only `null` is accepted: this installation has one voice region.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub rtc_region: Option<Option<String>>,
     pub position: Option<i32>,
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
@@ -803,6 +950,8 @@ pub struct CreateRoleBody {
     /// Decimal permission bitfield.
     pub permissions: Option<String>,
     pub color: Option<u32>,
+    /// Gradient stops; wins over `color` when both are sent.
+    pub colors: Option<RoleColorsBody>,
     pub hoist: Option<bool>,
     pub mentionable: Option<bool>,
     pub unicode_emoji: Option<String>,
@@ -813,6 +962,8 @@ pub struct ModifyRoleBody {
     pub name: Option<String>,
     pub permissions: Option<String>,
     pub color: Option<u32>,
+    /// Gradient stops; replaces all three and wins over `color` when both are sent.
+    pub colors: Option<RoleColorsBody>,
     pub hoist: Option<bool>,
     pub mentionable: Option<bool>,
     /// A single emoji shown beside the role; `null` clears it. Replaces an image icon.

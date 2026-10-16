@@ -199,6 +199,10 @@ pub struct SharedProtection {
     pub explicit_media_any: bool,
     /// The largest `warn_new_account_days` among the shared servers (0 = off).
     pub warn_new_account_days: u32,
+    /// At least one server is shared and every shared server has its DM pause running
+    /// (`dms_disabled_until` in the future, D-243). A pause blocks; it does not file into Message
+    /// Requests.
+    pub dms_paused_all: bool,
 }
 
 /// Why a conversation sits in Message Requests because of a server's Protection settings
@@ -245,6 +249,10 @@ pub fn dm_access_protected(
         && pair.theirs == Some(RelationshipKind::Friend);
     if friends || base == DmAccess::Denied {
         return (base, None);
+    }
+    // D-243: while every shared server has paused DMs, non-friends are refused outright.
+    if protection.dms_paused_all {
+        return (DmAccess::Denied, None);
     }
     let reason = if protection.warn_new_account_days > 0
         && sender_age_days < i64::from(protection.warn_new_account_days)

@@ -194,9 +194,14 @@ pub struct VoiceConfig {
     /// it off, layer selection falls back to loss reports.
     pub video_bwe: bool,
     /// Media actors the SFU shards its rooms over (one per channel id hash, each with its own
-    /// UDP sockets). `0` picks half the available cores, at most 8; it never exceeds the number
-    /// of bound media sockets. `1` is the old single-actor SFU.
+    /// UDP sockets). Defaults to `1` (single actor) until the AX42 run is recorded; `0` picks half
+    /// the available cores, at most 8; it never exceeds the number
+    /// of bound media sockets.
     pub shards: usize,
+    /// End-to-end encryption for calls (`voice.e2ee`, D-053, D-249): the gateway is the MLS
+    /// delivery service over op 101 E2EE_MLS. Off by default until the media path has run in real
+    /// browsers; use it together with the web build flag `VITE_SR_VOICE_E2EE`.
+    pub e2ee: bool,
     pub turn: TurnSection,
 }
 
@@ -238,7 +243,8 @@ impl Default for VoiceConfig {
             session_grace_secs: 20,
             egress_budget_mbps: 0,
             video_bwe: false,
-            shards: 0,
+            e2ee: false,
+            shards: 1,
             turn: TurnSection::default(),
         }
     }
@@ -316,8 +322,30 @@ impl GifConfig {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct IngestConfig {
-    /// Absolute directories, for example a mounted Storage Box.
+    /// Absolute directories, for example a mounted Storage Box. From the environment this may be a
+    /// single path or a comma-separated list (`SR_INGEST__ROOTS=/srv/sideroom/ingest`); empty means none.
+    #[serde(deserialize_with = "roots_from_list_or_csv")]
     pub roots: Vec<String>,
+}
+
+/// Accept a TOML array of paths, or one string with comma-separated paths (what a compose
+/// environment line can carry). Blank entries are dropped.
+fn roots_from_list_or_csv<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Roots {
+        List(Vec<String>),
+        Csv(String),
+    }
+    let all = match Roots::deserialize(d)? {
+        Roots::List(l) => l,
+        Roots::Csv(s) => s.split(',').map(str::to_owned).collect(),
+    };
+    Ok(all
+        .into_iter()
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .collect())
 }
 
 /// `[lookup]`: metadata lookup providers behind the submission editor's "Fetch details"
@@ -421,6 +449,16 @@ pub struct Config {
     pub lookup: LookupConfig,
     pub ingest: IngestConfig,
     pub voice: VoiceConfig,
+    pub activities: ActivitiesConfig,
+}
+/// `[activities]`: Activities (DEV-ACT, docs/11 section 3). Off by default: when on, the server answers on
+/// `https://<application-id>.activities.<host>` (the wildcard host of `deploy/compose/caddy/activities.snippet`,
+/// `<host>` taken from `server.public_url`), the voice call bar shows the Activities button and launching
+/// works. The web build's `VITE_ACTIVITIES_ENABLED` and the Caddy CSP are switched on with it (OQ-XC-3).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ActivitiesConfig {
+    pub enabled: bool,
 }
 
 /// `[discord]`: OAuth sign-in and registration (open question 79). An empty
@@ -668,6 +706,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn ingest_roots_accept_a_list_or_a_comma_separated_string() {
+        let load = |toml: &str| {
+            Config::from_figment(
+                &Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(toml)),
+            )
+            .unwrap()
+            .ingest
+            .roots
+        };
+        assert!(load("").is_empty());
+        assert_eq!(load("[ingest]\nroots = [\"/a\", \"/b\"]"), ["/a", "/b"]);
+        assert_eq!(
+            load("[ingest]\nroots = \"/srv/sideroom/ingest\""),
+            ["/srv/sideroom/ingest"]
+        );
+        assert_eq!(load("[ingest]\nroots = \"/a, /b,\""), ["/a", "/b"]);
+        assert!(load("[ingest]\nroots = \"\"").is_empty());
+    }
+    #[test]
     fn voice_is_off_by_default_and_validated_when_on() {
         let c = Config::default();
         assert!(!c.voice.enabled);
@@ -676,6 +733,8 @@ mod tests {
             (50_000, 50_099)
         );
         assert_eq!(c.voice.turn.ttl_secs, 3600);
+        // One media actor until the AX42 run is recorded (H-44); 0 keeps the auto rule.
+        assert_eq!(c.voice.shards, 1);
         let on = |toml: &str| {
             Config::from_figment(
                 &Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(
@@ -688,6 +747,7 @@ enabled = true
             )
         };
         assert!(on("").is_ok());
+        assert_eq!(on("shards = 0").unwrap().voice.shards, 0);
         assert!(
             on("udp_port_min = 60000
 udp_port_max = 50000")

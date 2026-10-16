@@ -275,6 +275,15 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
             }
         }
     }
+    // Voice messages: the server measures the duration and builds the waveform itself
+    // (LNG-MSG-019); the values the client declares only fill in when it cannot.
+    if content_type == "audio/ogg" && info.size <= super::rich_create::MAX_VOICE_BYTES {
+        let whole = deps.storage.get(&att.key).await?;
+        if let Some(m) = sr_chat::voice_meta::analyze_ogg_opus(&whole) {
+            att.duration_ms = Some(m.duration_ms);
+            att.waveform = Some(data_encoding::BASE64.encode(&m.waveform));
+        }
+    }
     att.content_type = Some(content_type);
     att.state = UploadState::Ready;
     deps.store.update_attachment(att).await?;

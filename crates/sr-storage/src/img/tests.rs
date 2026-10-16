@@ -111,7 +111,9 @@ fn outputs_every_format() {
 fn pick_format_rules() {
     use ImgFormat::*;
     assert_eq!(pick_format(Some(Png), Jpeg, false, true), Png);
-    assert_eq!(pick_format(None, Gif, true, true), Gif);
+    assert_eq!(pick_format(None, Gif, true, true), Webp);
+    assert_eq!(pick_format(None, Gif, true, false), Gif);
+    assert_eq!(pick_format(None, Webp, true, false), Gif);
     assert_eq!(pick_format(None, Gif, false, true), Webp);
     assert_eq!(pick_format(None, Jpeg, false, true), Jpeg);
     assert_eq!(pick_format(None, Png, false, false), Png);
@@ -239,4 +241,55 @@ fn webp_source_decodes() {
     assert_eq!((r.width, r.height), (16, 16));
     let n = normalize(&w.bytes, Fit::Square { max: 1024 }, &l).unwrap();
     assert_eq!(n.format, ImgFormat::Png);
+}
+
+fn frame_count(webp_bytes: &[u8]) -> usize {
+    let dec = image::codecs::webp::WebPDecoder::new(Cursor::new(webp_bytes)).unwrap();
+    assert!(dec.has_animation());
+    image::AnimationDecoder::into_frames(dec).count()
+}
+
+#[test]
+fn animated_gif_becomes_animated_webp() {
+    let src = animated_gif(64, 32, 4);
+    let l = Limits::default();
+    let r = render(&src, Some(32), ImgFormat::Webp, &l).unwrap();
+    assert_eq!(r.format, ImgFormat::Webp);
+    assert!(r.animated);
+    assert_eq!((r.width, r.height), (32, 16));
+    assert_eq!(ImgFormat::sniff(&r.bytes), Some(ImgFormat::Webp));
+    assert!(webp_header_animated(&r.bytes));
+    assert_eq!(frame_count(&r.bytes), 4);
+}
+
+#[test]
+fn animated_webp_round_trips() {
+    let l = Limits::default();
+    let w = render(&animated_gif(48, 48, 3), None, ImgFormat::Webp, &l).unwrap();
+    let (p, d) = decode(&w.bytes, &l).unwrap();
+    assert_eq!(p.format, ImgFormat::Webp);
+    assert!(d.is_animated());
+    // Resized animated WebP stays animated WebP, or falls back to GIF.
+    let r = render(&w.bytes, Some(16), ImgFormat::Webp, &l).unwrap();
+    assert!(r.animated);
+    assert_eq!(frame_count(&r.bytes), 3);
+    let g = render(&w.bytes, Some(16), ImgFormat::Gif, &l).unwrap();
+    assert!(g.animated);
+    // PNG: first frame only.
+    let s = render(&w.bytes, None, ImgFormat::Png, &l).unwrap();
+    assert!(!s.animated);
+    // Animated WebP uploads keep moving (as GIF).
+    let n = normalize(&w.bytes, Fit::Square { max: 32 }, &l).unwrap();
+    assert!(n.animated);
+}
+
+#[test]
+fn animated_webp_obeys_the_frame_budget() {
+    let l = Limits::default();
+    let w = render(&animated_gif(32, 32, 6), None, ImgFormat::Webp, &l).unwrap();
+    let l = Limits {
+        max_frames: 3,
+        ..Limits::default()
+    };
+    assert_eq!(decode(&w.bytes, &l).err(), Some(ImgError::TooLarge));
 }

@@ -25,9 +25,13 @@ Everything ships as **Docker Compose** (`deploy/compose/`) **and** as systemd un
 4. Open the printed one-time link, log in as Owner, and finish the **Setup Wizard** in Admin → Setup: SMTP, Discord OAuth app credentials (optional), BTC xpub (optional), storage check, voice connectivity test, and default limits.
 5. Create the first platform invites from your account.
 
+**Switching Activities on (off by default).** Activities run each on `https://<application-id>.activities.<host>/`, served by `sr-server` from the bundle staff reviewed, so turning them on is four things that must agree: set `activities.enabled = true` (`SR_ACTIVITIES__ENABLED=true`); build the web app with `VITE_ACTIVITIES_ENABLED=true` (the call bar and the composer offer Activities only then); re-render the Caddyfile with `--activities` so the wildcard site block reverse-proxies `*.activities.<host>` to `sr-server` and the app's CSP `frame-src` lists the wildcard; and add the DNS wildcard `*.activities.<host>` plus a certificate that covers it (Caddy needs a DNS-challenge provider for a wildcard certificate). Uploaded bundles are stored in the same object storage as every other upload under `activities/` and need no other setting; the hourly `activities.gc` job deletes the files of superseded bundles. Turn the flag off and every activity host answers 404 at once, the shelf and the launcher disappear and nothing else changes.
+
 ## 3. Configuration
 
 `/etc/sideroom/config.toml` (figment, overridable by `SR_*` env vars). Contains infrastructure only: DB URL, storage endpoint and keys, domains, secrets, voice ports, TURN shared secret. **Everything product-level** (limits, prices, feature toggles, cap) lives in the database and is edited in Admin pages, so changing it never needs a restart.
+
+**Local import folder (H-48).** The Compose stack mounts one optional folder, `${SR_INGEST_DIR:-/srv/sideroom/ingest}`, read-only into `sr-server` at `/srv/sideroom/ingest` and sets `SR_INGEST__ROOTS` to it, which is what lets staff point a watched folder at it (REV-UP-005); an empty `SR_INGEST_ROOTS` leaves local folders off. One root, a `library/` sub-folder per the naming conventions, read-only, and the ledger never moves files. `deploy/install.sh` asks for the folder and creates it when missing. The Storage Box stays a backup target; mounting it as the ingest folder is the owner's action on the production box.
 
 ### 3.1 Secrets: files, stored credentials and rotation (XC-SEC-004)
 

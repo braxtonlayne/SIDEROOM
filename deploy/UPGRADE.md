@@ -21,3 +21,7 @@ Roll back the binary and web build to the previous release. Do **not** restore t
 ## When the version skips
 
 Upgrading across several releases: step through each release in order, running `sr-cli migrate` at each, unless the release notes say a jump is safe.
+
+## Release notes: the plaintext signing seed is gone (migration 0803, G-85)
+
+Migration `0803_drop_plaintext_signing_seed.sql` drops `applications.interactions_signing_seed`. Seeds have lived encrypted in `interactions_signing_seed_sealed` since `0771`, and the old column was emptied by the startup job `apps.seal_seeds` of the release that shipped `0771`. The upgrade order is therefore: first run a release that contains `0771` (any release after it) once, with `server.secret_key` set, then upgrade. If a plaintext seed is left, the migration stops with "run the previous release once to seal seeds" and changes nothing; start the previous release, then retry. The one-version rule does not cover this migration: the release before it still reads the dropped column at startup, so go back to the pre-upgrade dump (BACKUP.md) if you must roll back past it.

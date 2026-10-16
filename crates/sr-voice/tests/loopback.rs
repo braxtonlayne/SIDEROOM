@@ -64,6 +64,7 @@ impl World {
             camera: false,
             screen: false,
             tier: 0,
+            video_full: false,
         }
     }
 
@@ -557,4 +558,79 @@ fn garbage_signalling_is_rejected_not_fatal() {
         sfu_addr(),
         b"random bytes"
     ));
+}
+
+/// VOX-E2E-008, the SFU plaintext assertion (spec section 9: "the SFU never sees plaintext").
+/// A sends Opus frames through the E2EE transform (sr-e2ee, the same code the browser runs as
+/// WASM). The SFU, which has no keys and does not link sr-e2ee, forwards them byte for byte:
+/// what B receives is the ciphertext, the plaintext appears nowhere in it, nothing without the
+/// sender's key can decrypt it, and B with the key gets the original frame back.
+#[test]
+fn e2ee_frames_cross_the_sfu_opaque_and_undecodable_without_keys() {
+    use sr_e2ee::frame::{FrameDecryptor, FrameEncryptor, InstanceId};
+    use sr_e2ee::{Codec as E2eeCodec, FrameError, KeyRing, SenderSecret};
+
+    let mut w = World::new();
+    let a = w.join(1, World::flags());
+    let b = w.join(2, World::flags());
+    w.connect_all();
+
+    let secret = SenderSecret::new(*b"call-epoch-1-key");
+    let iid = InstanceId([7, 7, 7, 7]);
+    let mut tx = FrameEncryptor::new(&secret, iid).unwrap();
+    const MARKER: &[u8] = b"PLAINTEXT-OPUS-FRAME";
+    let mut sent = Vec::new();
+    for n in 0..40u8 {
+        // An Opus TOC byte, the marker, a counter: obviously recognisable if it leaked.
+        let plain = [&[0xfc][..], MARKER, &[n; 40]].concat();
+        let enc = tx.encrypt(E2eeCodec::Opus, &plain).unwrap();
+        let time = (w.now - w.start).into();
+        let wall = w.now;
+        let c = &mut w.clients[a];
+        let mut wr = c.rtc.writer(c.mic).unwrap();
+        let pt = wr
+            .payload_params()
+            .find(|p| p.spec().codec == Codec::Opus)
+            .unwrap()
+            .pt();
+        wr = wr.audio_level(-30, true);
+        wr.write(pt, wall, time, enc.clone()).unwrap();
+        sent.push((plain, enc));
+        for _ in 0..4 {
+            w.step();
+        }
+    }
+    w.run(Duration::from_millis(200));
+
+    let heard: Vec<&Vec<u8>> = w.clients[b]
+        .heard
+        .iter()
+        .filter(|(s, _)| s == "1")
+        .map(|(_, p)| p)
+        .collect();
+    assert!(heard.len() >= 30, "B heard only {} frames", heard.len());
+
+    let rx = FrameDecryptor::new(&secret, iid);
+    let wrong = FrameDecryptor::new(&SenderSecret::new([0; 16]), iid);
+    let mut ring_without_a = KeyRing::default();
+    ring_without_a
+        .set_epoch(1, [(3, SenderSecret::new([3; 16]))], 0)
+        .unwrap();
+    for got in heard {
+        // Forwarded unchanged: exactly one of the ciphertexts A produced.
+        let (plain, _) = sent
+            .iter()
+            .find(|(_, enc)| enc == got)
+            .expect("the SFU altered an encrypted frame");
+        // No plaintext in what crossed the SFU.
+        assert!(!got.windows(MARKER.len()).any(|win| win == MARKER));
+        // Undecodable without A's key...
+        assert_eq!(wrong.decrypt(E2eeCodec::Opus, got), Err(FrameError::Auth));
+        assert_eq!(
+            ring_without_a.decrypt(1, E2eeCodec::Opus, got, 0),
+            Err(FrameError::NoKey)
+        );
+        // ...and exact with it.
+        assert_eq!(&rx.decrypt(E2eeCodec::Opus, got).unwrap(), plain);
+    }
 }

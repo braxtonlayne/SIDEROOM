@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use sr_chat::repo::RepoResult;
 use sr_chat::settings::applications::{Application, ApplicationForm, ApplicationStatus};
 use sr_chat::settings::audit::{AuditEntry, AuditQuery};
-use sr_chat::settings::automod::AutoModRule;
+use sr_chat::settings::automod::{AutoModAlert, AutoModRule};
 use sr_chat::settings::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use sr_chat::settings::expressions::{Emoji, Sticker};
 use sr_chat::settings::guide::Guide;
@@ -147,6 +147,15 @@ impl AutoModRepository for DynRepo {
     async fn delete_rule(&self, guild: GuildId, id: u64) -> RepoResult<bool> {
         self.0.delete_rule(guild, id).await
     }
+    async fn insert_alert(&self, alert: &AutoModAlert) -> RepoResult<()> {
+        self.0.insert_alert(alert).await
+    }
+    async fn get_alert(&self, id: u64) -> RepoResult<Option<AutoModAlert>> {
+        self.0.get_alert(id).await
+    }
+    async fn resolve_alert(&self, id: u64, user: UserId, now_ms: i64) -> RepoResult<bool> {
+        self.0.resolve_alert(id, user, now_ms).await
+    }
 }
 
 #[async_trait]
@@ -200,6 +209,20 @@ impl CommunityRepository for DynRepo {
     }
     async fn put_community(&self, settings: &CommunitySettings) -> RepoResult<()> {
         self.0.put_community(settings).await
+    }
+    async fn mark_raid(
+        &self,
+        guild: GuildId,
+        now_ms: i64,
+        cooldown_ms: i64,
+        pause_until_ms: i64,
+    ) -> RepoResult<Option<bool>> {
+        self.0
+            .mark_raid(guild, now_ms, cooldown_ms, pause_until_ms)
+            .await
+    }
+    async fn clear_invite_pause(&self, guild: GuildId) -> RepoResult<bool> {
+        self.0.clear_invite_pause(guild).await
     }
     async fn get_onboarding(&self, guild: GuildId) -> RepoResult<Onboarding> {
         self.0.get_onboarding(guild).await

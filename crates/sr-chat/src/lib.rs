@@ -13,6 +13,7 @@ pub mod domain;
 pub mod embed_rules;
 pub mod error;
 pub mod guild_rules;
+pub mod guild_traits;
 pub mod limits;
 pub mod message;
 pub mod message_hooks;
@@ -28,6 +29,7 @@ pub mod service;
 pub mod settings;
 pub mod social;
 pub mod threads;
+pub mod voice_meta;
 
 #[cfg(test)]
 mod admin_tests;

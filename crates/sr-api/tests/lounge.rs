@@ -1075,6 +1075,11 @@ async fn onboarding_answers_grant_safe_roles_and_unlock_channels() {
         StatusCode::FORBIDDEN
     );
 
+    // D-245: nobody has completed onboarding yet.
+    let (_, before) = w.get(OWNER, &format!("{g}/members/{BOB}")).await;
+    assert_eq!(before["flags"], 0, "{before}");
+    let mut events = w.events(&gid);
+
     // A good answer grants the harmless role, never the powerful one, and lists channels.
     let (s, r) = w
         .post(BOB, &answer, json!({ "option_ids": [opt_games] }))
@@ -1084,11 +1089,138 @@ async fn onboarding_answers_grant_safe_roles_and_unlock_channels() {
     assert_eq!(r["channel_ids"], json!([general, games]));
     let (_, m) = w.get(OWNER, &format!("{g}/members/{BOB}")).await;
     assert_eq!(m["roles"], json!([gamer_id]));
+    // COMPLETED_ONBOARDING (2) is on the member, and the change was announced.
+    assert_eq!(m["flags"], 2, "{m}");
+    let mut updated = false;
+    while let Some(ev) = next_event(&mut events).await {
+        updated |= matches!(ev, DomainEvent::MemberUpdated { user, .. } if user == UserId::new(BOB as u64));
+    }
+    assert!(updated, "GUILD_MEMBER_UPDATE after answering");
     // Answering again changes nothing more.
     let (_, r) = w
         .post(BOB, &answer, json!({ "option_ids": [opt_games] }))
         .await;
     assert_eq!(r["role_ids"], json!([]));
+    let (_, again) = w.get(OWNER, &format!("{g}/members/{BOB}")).await;
+    assert_eq!(again["flags"], 2, "the flag stays set");
+    // Answering with no new role still completes onboarding for someone else.
+    w.add_member(&gid, DAVE);
+    let (s, _) = w
+        .post(DAVE, &answer, json!({ "option_ids": [opt_none] }))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, dave) = w.get(OWNER, &format!("{g}/members/{DAVE}")).await;
+    assert_eq!(dave["flags"], 2, "{dave}");
+}
+
+// ------------------------------------------------------------------ D-243 incident actions
+
+#[tokio::test]
+async fn incident_actions_pause_invites_for_a_while_and_show_in_incidents_data() {
+    let w = world().await;
+    let (gid, general) = w.guild("Club House").await;
+    let g = format!("/guilds/{gid}");
+    let hours = |h: i64| sr_api::routes::guilds::dto::iso8601(T0 + h * 3_600_000);
+    let path = format!("{g}/incident-actions");
+    let (_, inv) = w
+        .post(OWNER, &format!("/channels/{general}/invites"), json!({}))
+        .await;
+    let code = inv["code"].as_str().unwrap().to_owned();
+
+    // Nothing is paused to begin with, and the guild object says so with nulls.
+    let (_, guild) = w.get(BOB, &g).await;
+    assert_eq!(
+        guild["incidents_data"],
+        json!({ "invites_disabled_until": null, "dms_disabled_until": null, "raid_detected_at": null })
+    );
+
+    // Each time is bounded: at most 24 hours ahead, and in the future; the error names the field.
+    let (s, e) = w
+        .put(OWNER, &path, json!({ "invites_disabled_until": hours(25) }))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    assert!(e["errors"]["invites_disabled_until"].is_object(), "{e}");
+    let (s, e) = w
+        .put(OWNER, &path, json!({ "dms_disabled_until": hours(-1) }))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    assert!(e["errors"]["dms_disabled_until"].is_object(), "{e}");
+    let (s, _) = w
+        .put(OWNER, &path, json!({ "dms_disabled_until": "soon" }))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // A member without MANAGE_GUILD is refused.
+    assert_eq!(
+        w.put(BOB, &path, json!({ "invites_disabled_until": hours(1) }))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Pause invites for an hour and DMs for two.
+    let mut events = w.events(&gid);
+    let (s, out) = w
+        .put(
+            OWNER,
+            &path,
+            json!({ "invites_disabled_until": hours(1), "dms_disabled_until": hours(2) }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{out}");
+    assert_eq!(out["invites_disabled_until"], hours(1));
+    assert_eq!(out["dms_disabled_until"], hours(2));
+    let mut announced = None;
+    while let Some(ev) = next_event(&mut events).await {
+        if let DomainEvent::GuildUpdated { payload, .. } = ev {
+            announced = Some(payload);
+        }
+    }
+    let announced = announced.expect("GUILD_UPDATE after the change");
+    assert_eq!(
+        announced["incidents_data"]["invites_disabled_until"],
+        hours(1)
+    );
+    assert_eq!(announced["incidents_data"]["dms_disabled_until"], hours(2));
+    // The indefinite switch is its own setting and stays off.
+    let (_, c) = w.get(OWNER, &format!("{g}/sr/community")).await;
+    assert_eq!(c["invites_paused"], false);
+    assert_eq!(c["raid_auto_pause_invites"], true, "on by default");
+
+    // While the pause runs, the invite is refused with the code the indefinite pause uses.
+    let (s, e) = w.post(CAROL, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{e}");
+    assert_eq!(e["code"], 40006);
+    assert!(!w.is_member(&gid, CAROL));
+
+    // The audit log names the change.
+    let (_, log) = w.get(OWNER, &format!("{g}/audit-logs?action_type=1")).await;
+    let changed: Vec<&str> = log["audit_log_entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|e| e["changes"].as_array().into_iter().flatten())
+        .filter_map(|c| c["key"].as_str())
+        .collect();
+    assert!(changed.contains(&"invites_disabled_until"), "{log}");
+
+    // An hour later the invite works again; clearing a pause early is `null`.
+    w.clock.advance_ms(3_600_001);
+    let (s, e) = w.post(CAROL, &format!("/invites/{code}"), json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{e}");
+    let (s, out) = w.put(OWNER, &path, json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{out}");
+    assert_eq!(out["dms_disabled_until"], serde_json::Value::Null);
+
+    // The raid alert switch can be turned off.
+    let (s, c) = w
+        .patch(
+            OWNER,
+            &format!("{g}/sr/community"),
+            json!({ "raid_auto_pause_invites": false }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(c["raid_auto_pause_invites"], false);
 }
 
 // ------------------------------------------------------------------ LNG-INV-005
@@ -2976,4 +3108,120 @@ async fn member_objects_show_the_join_source_and_signals_to_managers_only() {
     assert!(one.get("sr_join").is_none(), "{one}");
     let (s, _) = w.get(BOB, &format!("{members}&signals=true")).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+// ------------------------------------------------------------------ J-11 video quality
+
+#[tokio::test]
+async fn video_quality_mode_is_a_voice_and_stage_setting_and_the_region_stays_null() {
+    let w = world().await;
+    let (gid, general) = w.guild("Club House").await;
+    let g = format!("/guilds/{gid}");
+
+    // A new voice channel starts on auto and reports no region; text channels carry neither.
+    let (s, voice) = w
+        .post(
+            OWNER,
+            &format!("{g}/channels"),
+            json!({ "name": "Lounge", "type": 2 }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{voice}");
+    let vid = voice["id"].as_str().unwrap().to_owned();
+    assert_eq!(voice["video_quality_mode"], 1);
+    assert!(
+        voice.get("rtc_region").is_some_and(Value::is_null),
+        "{voice}"
+    );
+    let (_, text) = w.get(OWNER, &format!("/channels/{general}")).await;
+    assert!(text.get("video_quality_mode").is_none() && text.get("rtc_region").is_none());
+
+    // MANAGE_CHANNELS sets it; the value persists and reads back.
+    let (s, edited) = w
+        .patch(
+            OWNER,
+            &format!("/channels/{vid}"),
+            json!({ "video_quality_mode": 2 }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{edited}");
+    assert_eq!(edited["video_quality_mode"], 2);
+    let (_, back) = w.get(OWNER, &format!("/channels/{vid}")).await;
+    assert_eq!(back["video_quality_mode"], 2);
+    // Other edits leave it alone.
+    let (_, renamed) = w
+        .patch(
+            OWNER,
+            &format!("/channels/{vid}"),
+            json!({ "name": "Lounge 2" }),
+        )
+        .await;
+    assert_eq!(renamed["video_quality_mode"], 2);
+    assert_eq!(
+        w.patch(
+            BOB,
+            &format!("/channels/{vid}"),
+            json!({ "video_quality_mode": 1 })
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Only 1 and 2; not on text channels.
+    let (s, e) = w
+        .patch(
+            OWNER,
+            &format!("/channels/{vid}"),
+            json!({ "video_quality_mode": 3 }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    assert!(e["errors"]["video_quality_mode"].is_object(), "{e}");
+    let (s, e) = w
+        .patch(
+            OWNER,
+            &format!("/channels/{general}"),
+            json!({ "video_quality_mode": 2 }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+
+    // The region is read-only: one region, so only null is accepted.
+    let (s, e) = w
+        .patch(
+            OWNER,
+            &format!("/channels/{vid}"),
+            json!({ "rtc_region": "us-east" }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    assert!(e["errors"]["rtc_region"].is_object(), "{e}");
+    let (s, _) = w
+        .patch(
+            OWNER,
+            &format!("/channels/{vid}"),
+            json!({ "rtc_region": null }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, e) = w
+        .post(
+            OWNER,
+            &format!("{g}/channels"),
+            json!({ "name": "Far", "type": 2, "rtc_region": "eu" }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+
+    // A stage can be created on full quality.
+    let (s, stage) = w
+        .post(
+            OWNER,
+            &format!("{g}/channels"),
+            json!({ "name": "Talks", "type": 13, "video_quality_mode": 2 }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{stage}");
+    assert_eq!(stage["video_quality_mode"], 2);
 }

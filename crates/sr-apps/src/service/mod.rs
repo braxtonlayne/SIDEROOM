@@ -595,6 +595,35 @@ impl AppsService {
         Ok(self.repo.installs(app).await?.len())
     }
 
+    /// The applications installed in a guild whose bot is still a member (the server's
+    /// Integrations list, `GET /guilds/{id}/integrations`), oldest install first.
+    pub async fn guild_integrations(&self, guild: i64) -> AppsResult<Vec<(Install, Application)>> {
+        let mut out = Vec::new();
+        for install in self.repo.guild_installs(guild).await? {
+            if !self
+                .repo
+                .is_installed(install.application_id, guild)
+                .await?
+            {
+                continue;
+            }
+            if let Some(app) = self.repo.application(install.application_id).await? {
+                out.push((install, app));
+            }
+        }
+        out.sort_by_key(|(i, _)| (i.created_at_ms, i.application_id));
+        Ok(out)
+    }
+
+    /// Remove an application from a guild (`DELETE /guilds/{id}/integrations/{id}`): its
+    /// managed role, install and bot membership. The caller checked `MANAGE_GUILD`.
+    pub async fn uninstall(&self, app: i64, guild: i64) -> AppsResult<Install> {
+        self.repo
+            .uninstall(app, guild)
+            .await?
+            .ok_or(AppsError::NotFound("integration"))
+    }
+
     // ------------------------------------------------------------ bot credentials
 
     /// Resolve a presented bot token to its record, or `None` for anything wrong: unknown,

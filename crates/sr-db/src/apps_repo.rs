@@ -58,63 +58,6 @@ impl PgAppsRepo {
         }
     }
 
-    /// Rows whose seed is still stored in the legacy plaintext column of migration 0710.
-    pub async fn legacy_seed_count(&self) -> AppsResult<i64> {
-        sqlx::query_scalar(
-            "SELECT count(*) FROM applications WHERE interactions_signing_seed IS NOT NULL",
-        )
-        .fetch_one(&self.pool)
-        .await
-        .map_err(db)
-    }
-
-    /// Job `apps.seal_seeds` (D-185): encrypt every plaintext seed once with the server
-    /// secret and clear the plaintext column. Idempotent; returns the rows converted.
-    pub async fn seal_legacy_seeds(&self) -> AppsResult<u64> {
-        let mut tx = self.pool.begin().await.map_err(db)?;
-        let rows = sqlx::query(
-            "SELECT id, interactions_signing_seed, interactions_signing_seed_sealed \
-             FROM applications WHERE interactions_signing_seed IS NOT NULL FOR UPDATE",
-        )
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(db)?;
-        let mut n = 0;
-        for r in &rows {
-            let app: i64 = r.try_get("id").map_err(db)?;
-            let plain: Vec<u8> = r.try_get("interactions_signing_seed").map_err(db)?;
-            let sealed: Option<Vec<u8>> =
-                r.try_get("interactions_signing_seed_sealed").map_err(db)?;
-            let blob = match (sealed, SigningSeed::from_slice(&plain)) {
-                (Some(existing), _) => existing,
-                (None, Some(seed)) => self.seal_seed(app, &seed)?,
-                (None, None) => {
-                    // Not a valid seed (cannot happen: 0710 checks the length): drop it.
-                    sqlx::query(
-                        "UPDATE applications SET interactions_signing_seed = NULL WHERE id = $1",
-                    )
-                    .bind(app)
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(db)?;
-                    continue;
-                }
-            };
-            sqlx::query(
-                "UPDATE applications SET interactions_signing_seed_sealed = $2, \
-                 interactions_signing_seed = NULL WHERE id = $1",
-            )
-            .bind(app)
-            .bind(blob)
-            .execute(&mut *tx)
-            .await
-            .map_err(db)?;
-            n += 1;
-        }
-        tx.commit().await.map_err(db)?;
-        Ok(n)
-    }
-
     /// Re-encrypt every sealed seed under the current key (`sr-cli rotate-secret-key`).
     pub async fn rotate_sealed_seeds(&self) -> AppsResult<u64> {
         let mut tx = self.pool.begin().await.map_err(db)?;
@@ -2145,6 +2088,60 @@ impl AppsRepository for PgAppsRepo {
         .fetch_one(&self.pool)
         .await
         .map_err(db)
+    }
+
+    async fn uninstall(&self, app: i64, guild: i64) -> AppsResult<Option<Install>> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let sql = format!(
+            "SELECT application_id, guild_id, installed_by, scopes, permissions, role_id, {} \
+             FROM application_installs WHERE application_id = $1 AND guild_id = $2 FOR UPDATE",
+            ms("created_at", "created_ms")
+        );
+        let Some(r) = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(app)
+            .bind(guild)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db)?
+        else {
+            return Ok(None);
+        };
+        let p: i64 = r.try_get("permissions").map_err(db)?;
+        let install = Install {
+            application_id: app,
+            guild_id: guild,
+            installed_by: r.try_get("installed_by").map_err(db)?,
+            scopes: r.try_get("scopes").map_err(db)?,
+            permissions: p as u64,
+            role_id: r.try_get("role_id").map_err(db)?,
+            created_at_ms: r.try_get("created_ms").map_err(db)?,
+        };
+        // The managed role first (member_roles rows cascade), then the membership and the row.
+        if let Some(role) = install.role_id {
+            sqlx::query("DELETE FROM roles WHERE id = $1 AND guild_id = $2")
+                .bind(role)
+                .bind(guild)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+        }
+        sqlx::query(
+            "DELETE FROM guild_members WHERE guild_id = $2 AND user_id = \
+             (SELECT bot_user_id FROM applications WHERE id = $1)",
+        )
+        .bind(app)
+        .bind(guild)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        sqlx::query("DELETE FROM application_installs WHERE application_id = $1 AND guild_id = $2")
+            .bind(app)
+            .bind(guild)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        tx.commit().await.map_err(db)?;
+        Ok(Some(install))
     }
 
     async fn commands(&self, app: i64, guild: Option<i64>) -> AppsResult<Vec<Command>> {

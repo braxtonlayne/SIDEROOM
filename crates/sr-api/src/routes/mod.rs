@@ -19,6 +19,7 @@
 //! * `library`: `/library/*` catalog for members, `/admin/library/*` for publishers.
 //! * `cinema`: `/cinema/*` catalog for members, `/admin/cinema/*` for publishers.
 //! * `watchparty`: `/watch-parties/*` and `GET /channels/{id}/watch-party` (Watch Parties).
+//! * `activities`: `/applications/{id}/activity*`, `/admin/developers/activities*`, `/activities`, `/channels/{id}/activity`, `/activity-instances/*` and the proxy for `<app-id>.activities.<host>` (Activities).
 //! * `voice`: `GET /sr/voice/turn` and `PATCH /guilds/{id}/voice-states/{user_id}`.
 //! * `developer`: `/developers/*`, `/applications*`, `/oauth2/*`, `/interactions*`, `/gateway*`,
 //!   `/applications/{id}/commands*`, `/webhooks/{app}/{token}/messages/*` and `/admin/developers/*`.
@@ -37,6 +38,7 @@ use axum::{Router, extract::FromRequestParts, http::request::Parts};
 use sr_core::ErrorCode;
 use std::{any::type_name, sync::Arc};
 
+pub mod activities;
 pub mod admin;
 pub mod auth;
 pub mod cdn;
@@ -125,6 +127,7 @@ pub fn all() -> Router<AppState> {
         .merge(cinema_social::router())
         .merge(tv::router())
         .merge(watchparty::router())
+        .merge(activities::router())
         .merge(developer::router())
         .merge(directory::router())
         .merge(donations::router())
@@ -166,6 +169,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(cinema_social::openapi());
     doc.merge(tv::openapi());
     doc.merge(watchparty::openapi());
+    doc.merge(activities::openapi());
     doc.merge(developer::openapi());
     doc.merge(donations::openapi());
     doc.merge(userset::openapi());

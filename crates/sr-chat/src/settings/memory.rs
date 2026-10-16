@@ -10,7 +10,7 @@ use crate::repo::RepoResult;
 
 use super::applications::{Application, ApplicationForm, ApplicationStatus};
 use super::audit::{AuditEntry, AuditQuery};
-use super::automod::AutoModRule;
+use super::automod::{AutoModAlert, AutoModRule};
 use super::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use super::expressions::{Emoji, Sticker};
 use super::invites::{GuildInvite, InviteStatus};
@@ -38,6 +38,7 @@ pub struct Store {
     pub stickers: Vec<Sticker>,
     pub sounds: Vec<Sound>,
     pub rules: Vec<AutoModRule>,
+    pub alerts: Vec<AutoModAlert>,
     pub webhooks: Vec<Webhook>,
     pub templates: Vec<GuildTemplate>,
     pub community: HashMap<GuildId, CommunitySettings>,
@@ -337,6 +338,31 @@ impl AutoModRepository for MemorySettingsRepo {
             n != s.rules.len()
         }))
     }
+
+    async fn insert_alert(&self, alert: &AutoModAlert) -> RepoResult<()> {
+        self.with(|s| s.alerts.push(alert.clone()));
+        Ok(())
+    }
+
+    async fn get_alert(&self, id: u64) -> RepoResult<Option<AutoModAlert>> {
+        Ok(self.with(|s| s.alerts.iter().find(|a| a.id == id).cloned()))
+    }
+
+    async fn resolve_alert(&self, id: u64, user: UserId, _now_ms: i64) -> RepoResult<bool> {
+        Ok(self.with(|s| {
+            match s
+                .alerts
+                .iter_mut()
+                .find(|a| a.id == id && a.resolved_by.is_none())
+            {
+                Some(a) => {
+                    a.resolved_by = Some(user);
+                    true
+                }
+                None => false,
+            }
+        }))
+    }
 }
 
 #[async_trait]
@@ -450,6 +476,36 @@ impl CommunityRepository for MemorySettingsRepo {
     async fn put_community(&self, settings: &CommunitySettings) -> RepoResult<()> {
         self.with(|s| s.community.insert(settings.guild_id, settings.clone()));
         Ok(())
+    }
+
+    async fn mark_raid(
+        &self,
+        guild: GuildId,
+        now_ms: i64,
+        cooldown_ms: i64,
+        pause_until_ms: i64,
+    ) -> RepoResult<Option<bool>> {
+        Ok(self.with(|s| {
+            let c = s.community.get_mut(&guild)?;
+            if c.raid_detected_at_ms
+                .is_some_and(|t| t > now_ms - cooldown_ms)
+            {
+                return None;
+            }
+            c.raid_detected_at_ms = Some(now_ms);
+            if c.raid_auto_pause_invites {
+                c.invites_disabled_until_ms = Some(pause_until_ms);
+            }
+            Some(c.raid_auto_pause_invites)
+        }))
+    }
+
+    async fn clear_invite_pause(&self, guild: GuildId) -> RepoResult<bool> {
+        Ok(self.with(|s| {
+            s.community
+                .get_mut(&guild)
+                .is_some_and(|c| c.invites_disabled_until_ms.take().is_some())
+        }))
     }
 
     async fn get_onboarding(&self, guild: GuildId) -> RepoResult<Onboarding> {
@@ -777,7 +833,7 @@ impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
                     return Ok(InviteJoin::AlreadyMember { invite: inv });
                 }
                 let community = s.community.get(&inv.guild_id);
-                if community.is_some_and(|c| c.invites_paused) {
+                if community.is_some_and(|c| c.invites_blocked(now_ms)) {
                     return Err(SettingsError::InvitesPaused);
                 }
                 if s.bans.contains(&(inv.guild_id, user)) {
@@ -835,7 +891,7 @@ impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
                     return Ok(None);
                 }
                 let community = s.community.get(&guild);
-                if community.is_some_and(|c| c.invites_paused) {
+                if community.is_some_and(|c| c.invites_blocked(now_ms)) {
                     return Err(SettingsError::InvitesPaused);
                 }
                 if s.bans.contains(&(guild, user)) {

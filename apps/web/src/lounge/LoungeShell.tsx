@@ -6,10 +6,12 @@ import { useT } from '../i18n';
 import { useAppBadge } from '../pwa/useAppBadge';
 import { useDesktopNotify } from './shell/desktopNotify';
 import { DmToasts } from './shell/DmToasts';
+import { JoinGate } from './shell/JoinGate';
 import { Welcome } from './shell/Welcome';
 import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
 import { useVisualViewport } from './useVisualViewport';
 import { ChannelSidebar } from './ChannelSidebar';
+import { ActivityDock } from '../activities/ActivityDock';
 import { ChannelView } from './ChannelView';
 import { SectionBar, TitleStrip } from './Chrome';
 import { MOBILE_QUERY, useMediaQuery } from '@sideroom/ui';
@@ -302,6 +304,7 @@ function Shell() {
       <ToastProvider>
         <DmToasts />
         <Welcome />
+        <JoinGate />
         <SectionBar />
         <EventAlerts />
         {!isMobile && <TitleStrip title={title} />}
@@ -395,6 +398,7 @@ function Shell() {
           <p>{t('lounge.loungeShell.inboxNote')}</p>
         </ComingSoon>
         <LoungeDialogs />
+        <ActivityDock />
         <InteractionModalHost />
         <PopoutHost />
         <ReminderTicker />

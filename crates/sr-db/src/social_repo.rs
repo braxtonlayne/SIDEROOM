@@ -283,7 +283,7 @@ impl RelationshipRepository for PgSocialRepo {
 
     async fn list_guild_memberships(&self, user: UserId) -> RepoResult<Vec<GuildMembership>> {
         let sql = format!(
-            "SELECT guild_id, nick, avatar_key, banner_key, bio, pronouns, theme_primary, theme_accent, profile_effect, avatar_decoration, {} AS joined_ms \
+            "SELECT guild_id, nick, avatar_key, banner_key, bio, pronouns, theme_primary, theme_accent, profile_effect, avatar_decoration, flags, {} AS joined_ms \
              FROM guild_members WHERE user_id = $1 ORDER BY guild_id",
             ms("joined_at")
         );
@@ -777,8 +777,8 @@ impl DmRepository for PgSocialRepo {
     }
 
     async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection> {
-        let (shared, filtered, explicit, days): (i64, i64, bool, i32) = sqlx::query_as(
-            "SELECT count(*), \n                    count(*) FILTER (WHERE COALESCE(c.dm_spam_filter, FALSE)), \n                    COALESCE(bool_or(c.explicit_media_filter_dms), FALSE), \n                    COALESCE(max(c.warn_new_account_days), 0) \n             FROM guild_members x \n             JOIN guild_members y ON y.guild_id = x.guild_id \n             LEFT JOIN guild_community c ON c.guild_id = x.guild_id \n             WHERE x.user_id = $1 AND y.user_id = $2",
+        let (shared, filtered, explicit, days, paused): (i64, i64, bool, i32, i64) = sqlx::query_as(
+            "SELECT count(*), \n                    count(*) FILTER (WHERE COALESCE(c.dm_spam_filter, FALSE)), \n                    COALESCE(bool_or(c.explicit_media_filter_dms), FALSE), \n                    COALESCE(max(c.warn_new_account_days), 0), \n                    count(*) FILTER (WHERE c.dms_disabled_until > now()) \n             FROM guild_members x \n             JOIN guild_members y ON y.guild_id = x.guild_id \n             LEFT JOIN guild_community c ON c.guild_id = x.guild_id \n             WHERE x.user_id = $1 AND y.user_id = $2",
         )
         .bind(i(a.get()))
         .bind(i(b.get()))
@@ -790,6 +790,7 @@ impl DmRepository for PgSocialRepo {
             spam_filter_all: shared > 0 && filtered == shared,
             explicit_media_any: explicit,
             warn_new_account_days: u32::try_from(days).unwrap_or(0),
+            dms_paused_all: shared > 0 && paused == shared,
         })
     }
 

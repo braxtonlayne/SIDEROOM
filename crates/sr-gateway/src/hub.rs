@@ -651,6 +651,7 @@ impl Gateway {
             tx,
         );
         fresh.shard = shard;
+        fresh.bot = user.bot;
         let session = Arc::new(fresh);
         let mut sessions: Vec<Value> = self
             .user_sessions(user.user_id)
@@ -1408,7 +1409,7 @@ fn session_entry(s: &Session) -> Value {
 }
 
 /// `PRESENCE_UPDATE` body for friends, who see it outside any guild.
-fn friend_presence_body(user: UserId, p: &PresenceUpdate) -> Value {
+pub(crate) fn friend_presence_body(user: UserId, p: &PresenceUpdate) -> Value {
     json!({
         "user": { "id": user },
         "status": p.visible_status(), "activities": p.activities,

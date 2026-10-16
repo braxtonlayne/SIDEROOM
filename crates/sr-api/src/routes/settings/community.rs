@@ -31,6 +31,10 @@ pub fn routes() -> Router<AppState> {
             get(get_community).patch(modify_community),
         )
         .route(
+            "/guilds/{guild_id}/incident-actions",
+            axum::routing::put(put_incident_actions),
+        )
+        .route(
             "/guilds/{guild_id}/onboarding",
             get(get_onboarding).put(put_onboarding),
         )
@@ -89,8 +93,26 @@ pub(super) async fn require_guild_channels(
 /// or safety settings changed, as a `GUILD_UPDATE` with the full guild object
 /// (core fields plus the community fields clients read from the guild).
 async fn publish_guild_update(deps: &SettingsDeps, acc: &GuildAccess) {
-    let gid = acc.guild.id;
-    let settings = match deps.service.community(acc.perms, gid).await {
+    publish_update(deps, &acc.guild, &acc.roles).await;
+}
+
+/// [`publish_guild_update`] for a change nobody asked for (the join-rate alert of D-243): the
+/// roles are read from the store.
+pub(super) async fn publish_guild_update_for(deps: &SettingsDeps, guild: &sr_chat::Guild) {
+    let roles = match deps.chat.list_roles(guild.id).await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(error = %e, "GUILD_UPDATE skipped: roles unreadable");
+            return;
+        }
+    };
+    publish_update(deps, guild, &roles).await;
+}
+
+async fn publish_update(deps: &SettingsDeps, guild: &sr_chat::Guild, roles: &[sr_chat::Role]) {
+    let gid = guild.id;
+    let perms = Permissions::MANAGE_GUILD;
+    let settings = match deps.service.community(perms, gid).await {
         Ok(s) => s,
         Err(e) => {
             tracing::warn!(error = %e, "GUILD_UPDATE skipped: community settings unreadable");
@@ -108,11 +130,11 @@ async fn publish_guild_update(deps: &SettingsDeps, acc: &GuildAccess) {
     let onboarding_on = settings.onboarding_enabled
         || deps
             .service
-            .onboarding(acc.perms, gid)
+            .onboarding(perms, gid)
             .await
             .is_ok_and(|o| o.enabled);
-    let mut payload = serde_json::to_value(GuildObject::new(&acc.guild, Some(&acc.roles), None))
-        .unwrap_or_default();
+    let mut payload =
+        serde_json::to_value(GuildObject::new(guild, Some(roles), None)).unwrap_or_default();
     if let Some(o) = payload.as_object_mut() {
         let ch = |c: Option<ChannelId>| c.map(|c| c.to_string());
         let mut features = Vec::new();
@@ -141,6 +163,12 @@ async fn publish_guild_update(deps: &SettingsDeps, acc: &GuildAccess) {
         o.insert(
             "hide_suspicious_links".into(),
             serde_json::json!(settings.hide_suspicious_links),
+        );
+        o.insert(
+            "incidents_data".into(),
+            serde_json::json!(
+                crate::routes::guilds::dto::IncidentsDataObject::of_settings(&settings)
+            ),
         );
         o.insert(
             "preferred_locale".into(),
@@ -178,6 +206,8 @@ pub struct CommunityObject {
     pub invites_paused: bool,
     /// Alert when more than this many members join per minute; 0 = off.
     pub raid_alert_joins_per_minute: u32,
+    /// The join-rate alert pauses invites for 24 hours by itself (default on, D-243).
+    pub raid_auto_pause_invites: bool,
     /// DM and spam protection: flag spam in direct messages between members.
     pub dm_spam_filter: bool,
     /// Blur explicit media in direct messages between members.
@@ -210,6 +240,7 @@ impl CommunityObject {
             guide_enabled: s.guide_enabled,
             invites_paused: s.invites_paused,
             raid_alert_joins_per_minute: s.raid_alert_joins_per_minute,
+            raid_auto_pause_invites: s.raid_auto_pause_invites,
             dm_spam_filter: s.dm_spam_filter,
             explicit_media_filter_dms: s.explicit_media_filter_dms,
             hide_suspicious_links: s.hide_suspicious_links,
@@ -243,6 +274,7 @@ pub struct ModifyCommunityBody {
     pub guide_enabled: Option<bool>,
     pub invites_paused: Option<bool>,
     pub raid_alert_joins_per_minute: Option<u32>,
+    pub raid_auto_pause_invites: Option<bool>,
     pub dm_spam_filter: Option<bool>,
     pub explicit_media_filter_dms: Option<bool>,
     pub hide_suspicious_links: Option<bool>,
@@ -329,6 +361,9 @@ pub async fn modify_community(
     if let Some(v) = body.invites_paused {
         s.invites_paused = v;
     }
+    if let Some(v) = body.raid_auto_pause_invites {
+        s.raid_auto_pause_invites = v;
+    }
     if let Some(v) = body.raid_alert_joins_per_minute {
         s.raid_alert_joins_per_minute = v;
     }
@@ -389,6 +424,67 @@ pub async fn modify_community(
         .map_err(se)?;
     publish_guild_update(&deps, &acc).await;
     Ok(Json(CommunityObject::of(&saved)))
+}
+
+// ---- incident actions (D-243) ---------------------------------------------------
+
+/// Body of `PUT /guilds/{id}/incident-actions`. Both fields are replaced: omitted or `null`
+/// clears the pause.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct IncidentActionsBody {
+    /// Pause invites until this time (ISO8601), at most 24 hours ahead.
+    #[serde(default)]
+    pub invites_disabled_until: Option<String>,
+    /// Pause direct messages between members who are not friends until this time, at most 24
+    /// hours ahead.
+    #[serde(default)]
+    pub dms_disabled_until: Option<String>,
+}
+
+fn incident_time(field: &str, raw: &Option<String>) -> ApiResult<Option<i64>> {
+    raw.as_deref()
+        .map(|s| {
+            crate::routes::guilds::dto::parse_iso8601(s)
+                .ok_or_else(|| invalid(field, "DATE_TYPE_PARSE", "Not a valid ISO8601 timestamp."))
+        })
+        .transpose()
+}
+
+/// Security Actions (`MANAGE_GUILD`, second factor when the server requires it): pause invites
+/// and direct messages between members for up to 24 hours. Answers the guild's
+/// `incidents_data` and dispatches `GUILD_UPDATE`.
+#[utoipa::path(
+    put,
+    path = "/guilds/{guild_id}/incident-actions",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    request_body = IncidentActionsBody,
+    responses((status = 200, body = crate::routes::guilds::dto::IncidentsDataObject), (status = 400, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn put_incident_actions(
+    p: Principal,
+    gate: MfaGate,
+    Ext(deps): Ext<SettingsDeps>,
+    Path(guild_id): Path<String>,
+    ApiJson(body): ApiJson<IncidentActionsBody>,
+) -> ApiResult<Json<crate::routes::guilds::dto::IncidentsDataObject>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    let acc = deps.guild_access(user, gid).await?;
+    acc.require_mfa(&gate, user, Permissions::MANAGE_GUILD)
+        .await?;
+    let invites = incident_time("invites_disabled_until", &body.invites_disabled_until)?;
+    let dms = incident_time("dms_disabled_until", &body.dms_disabled_until)?;
+    let saved = deps
+        .service
+        .set_incident_actions(acc.perms, user, gid, invites, dms)
+        .await
+        .map_err(se)?;
+    publish_guild_update(&deps, &acc).await;
+    Ok(Json(
+        crate::routes::guilds::dto::IncidentsDataObject::of_settings(&saved),
+    ))
 }
 
 // ---- onboarding ------------------------------------------------------------------

@@ -2,6 +2,8 @@
 //! the gateway and the HTTP API into one process. See docs/02-architecture.md
 //! section 3 and docs/dev/server.md.
 
+pub mod activities;
+pub mod activities_jobs;
 pub mod admin_jobs;
 pub mod app;
 pub mod apps_jobs;

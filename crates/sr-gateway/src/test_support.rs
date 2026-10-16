@@ -70,6 +70,8 @@ pub struct TestDirectory {
     hidden: Mutex<HashSet<(UserId, ChannelId)>>,
     restricted: Mutex<HashSet<ChannelId>>,
     adults: Mutex<HashSet<UserId>>,
+    /// Guild -> (user, display name) rows served by op 8.
+    roster: Mutex<HashMap<GuildId, Vec<(UserId, String)>>>,
 }
 
 #[async_trait]
@@ -85,6 +87,39 @@ impl GuildDirectory for TestDirectory {
     }
     async fn age_confirmed(&self, user: UserId) -> bool {
         lock(&self.adults).contains(&user)
+    }
+    async fn request_members(
+        &self,
+        guild: GuildId,
+        request: &crate::MemberRequest,
+    ) -> Option<crate::RequestedMembers> {
+        let roster = lock(&self.roster).get(&guild).cloned().unwrap_or_default();
+        let object = |id: UserId, name: &str| json!({ "user": { "id": id.to_string(), "username": name }, "roles": [] });
+        Some(match request {
+            crate::MemberRequest::Search { query, limit } => {
+                let q = query.to_lowercase();
+                let hits = roster
+                    .iter()
+                    .filter(|(_, n)| n.to_lowercase().contains(&q))
+                    .take(if *limit == 0 { usize::MAX } else { *limit })
+                    .map(|(id, n)| object(*id, n))
+                    .collect();
+                crate::RequestedMembers {
+                    members: hits,
+                    not_found: Vec::new(),
+                }
+            }
+            crate::MemberRequest::Ids(ids) => {
+                let mut out = crate::RequestedMembers::default();
+                for id in ids {
+                    match roster.iter().find(|(u, _)| u == id) {
+                        Some((u, n)) => out.members.push(object(*u, n)),
+                        None => out.not_found.push(*id),
+                    }
+                }
+                out
+            }
+        })
     }
 }
 
@@ -116,6 +151,15 @@ impl TestWorld {
         if !list.contains(&guild) {
             list.push(guild);
         }
+    }
+
+    /// Give `guild` a member list op 8 can read: `n` members with ids `first..first + n`, named
+    /// `member<id>`. They need not have sessions.
+    pub fn add_roster(&self, guild: GuildId, first: u64, n: u64) {
+        lock(&self.dir.roster)
+            .entry(guild)
+            .or_default()
+            .extend((first..first + n).map(|i| (UserId::new(i), format!("member{i}"))));
     }
 
     /// Deny `user` `VIEW_CHANNEL` on `channel`.

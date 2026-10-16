@@ -257,24 +257,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         pool.clone(),
         sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys),
     ));
-    // Job apps.seal_seeds (D-185): encrypt interactions signing seeds still stored in the
-    // plaintext column of migration 0710. Refuses to run without a configured secret: an
-    // ephemeral key would make the sealed seeds unreadable after the next restart.
-    let legacy_seeds = apps_repo
-        .legacy_seed_count()
-        .await
-        .map_err(|e| anyhow::anyhow!("apps.seal_seeds: {e}"))?;
-    if legacy_seeds > 0 {
-        anyhow::ensure!(
-            !cfg.server.secret_key.expose().is_empty(),
-            "apps.seal_seeds: {legacy_seeds} interactions signing seeds need sealing; set server.secret_key first"
-        );
-        let sealed = apps_repo
-            .seal_legacy_seeds()
-            .await
-            .map_err(|e| anyhow::anyhow!("apps.seal_seeds: {e}"))?;
-        tracing::info!(sealed, "apps.seal_seeds: interactions signing seeds sealed");
-    }
+    // The plaintext signing-seed column is gone (migration 0803, G-85); seeds are sealed at rest.
+    // Upgrading from before 0771: run the previous release once so its apps.seal_seeds job runs.
     let apps_service = Arc::new(sr_apps::AppsService::new(
         apps_repo,
         clock.clone(),
@@ -783,9 +767,35 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         watchparty_service.clone(),
     ));
 
+    // Activities (DEV-ACT): settings and review, instances tied to voice channels, and the proxy for
+    // `<app-id>.activities.<host>`. Everything but the owner's settings is off unless `[activities] enabled`.
+    let activities_deps = Arc::new(routes::activities::ActivitiesDeps::new(
+        sr_activities::ActivityService::new(pool.clone(), id_src.clone())
+            .with_channels(Arc::new(crate::activities::ChatActivityChannels::new(
+                PgChatRepo::new(pool.clone()),
+                clock.clone(),
+            )))
+            .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone())))
+            .with_storage(storage.clone()),
+        cfg.activities.enabled,
+        &cfg.server.public_url,
+        Some(Arc::new(
+            crate::activities::SafeActivityFetcher::production(),
+        )),
+    ));
+    // J-16: participants follow the voice call (a leave from the channel removes them from the Activity).
+    if cfg.activities.enabled {
+        sr_activities::VoiceFollower::new(
+            activities_deps.service.clone(),
+            sr_activities::voice::DEFAULT_DEBOUNCE,
+        )
+        .spawn(bus.clone());
+    }
+
     // The review pipeline (REV-*): submissions of the Library kinds, reviewed by staff with
     // REVIEW_READING and published through the same Library service. The submitter hears
     // about every step as SR_SUBMISSION_UPDATE.
+    let review_dm = routes::review::DmSlot::default();
     let review_deps = Arc::new(
         routes::review::ReviewDeps::new(
             sr_review::ReviewService::new(
@@ -808,7 +818,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 clock.clone(),
                 id_src.clone(),
             )
-            .with_events(Arc::new(routes::review::BusReviewEvents::new(bus.clone())))
+            .with_events(Arc::new(
+                routes::review::BusReviewEvents::new(bus.clone()).with_dm_slot(review_dm.clone()),
+            ))
             .with_allowance(Arc::new(crate::review_jobs::PlatformAllowance::new(
                 pool.clone(),
             ))),
@@ -950,6 +962,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_dm_announcer(social_api.clone())
             .with_viewer_safety(social_api.clone()),
     );
+    // Server-level payments post their "supported this server" notice through the chat module.
+    let _ = payments.chat.set(messages.clone());
 
     // Web Push (LNG-NTF-003): the VAPID key lives in the database sealed with the server
     // secret; without a configured secret it is per-boot (nothing could open it later).
@@ -1073,6 +1087,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     ));
     // Tester invitations and endpoint warnings reach developers as system DMs.
     dev_deps.set_system_dm(staff_voice.clone());
+    // Review decisions reach the submitter as a system DM too (REV-CORE-007).
+    let _ = review_dm.set(staff_voice.clone());
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
         .with_extras(admin_repo)
         .with_notifier(staff_voice.clone())
@@ -1210,6 +1226,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(media_deps)
         .extension(cinema_social_deps)
         .extension(watchparty_deps)
+        .extension(activities_deps.clone())
         .extension(user_feature_deps)
         .extension(Arc::new(routes::donations::DonationsDeps::new(
             payments.service.clone(),
@@ -1307,6 +1324,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
+    let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
@@ -1345,6 +1363,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::admin_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
+    crate::activities_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::library_jobs::schedule_sources(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
@@ -1412,6 +1431,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     if let Some(s) = &sfu {
         app = app.merge(with_request_id(sr_voice::router(s.clone())));
     }
+    // Last, so every route (gateway, CDN, SFU included) answers an activity host the same way: not at all.
+    let app = routes::activities::proxy::wrap_activity_host(app, activities_deps.clone());
 
     let gw = gateway.clone();
     let sfu_for_drain = sfu.clone();

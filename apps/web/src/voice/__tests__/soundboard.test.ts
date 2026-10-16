@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/client';
+import { useStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { VoiceController, type ControllerDeps } from '../controller';
 import type { EngineEvents, VoiceEngine } from '../engine';
 import { resetSession, useVoiceSession } from '../session';
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../settings';
 import {
+  adoptFavorites,
   applySoundboardEvent,
+  cleanFavorites,
   audioUrl,
   loadSounds,
   parseSound,
@@ -15,6 +18,7 @@ import {
   setAudioFetcher,
   soundAudio,
   soundKey,
+  startFavoritesSync,
   useSoundboard,
   type Sound,
 } from '../soundboard';
@@ -107,13 +111,13 @@ describe('sound data', () => {
   it('keeps favorites and the volume across reloads', () => {
     const s = useSoundboard.getState();
     s.toggleFavorite('default:1');
-    s.toggleFavorite('g1:77');
+    s.toggleFavorite('501:77');
     s.toggleFavorite('default:1');
     s.setVolume(40);
     s.setVolume(900);
     s.setVolume(40);
     expect(JSON.parse(localStorage.getItem('sr.soundboard')!)).toEqual({
-      favorites: ['g1:77'],
+      favorites: ['501:77'],
       volume: 40,
     });
   });
@@ -305,5 +309,118 @@ describe('playing into the call', () => {
       throw new Error('offline');
     });
     expect(await c.previewSound({ ...deft, id: '2' })).toBe(false);
+  });
+});
+
+describe('synced favorites (H-45)', () => {
+  const patches: unknown[] = [];
+  beforeEach(() => {
+    patches.length = 0;
+    useStore.setState({ userSettings: null });
+    server.use(
+      http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
+        const body = (await request.json()) as { settings: Record<string, unknown> };
+        patches.push(body.settings);
+        return HttpResponse.json({ version: 9, settings: body.settings });
+      }),
+    );
+  });
+
+  it('imports the localStorage list once when the blob has no key, and keeps the volume local', async () => {
+    localStorage.setItem(
+      'sr.soundboard',
+      JSON.stringify({ favorites: ['default:1', '501:77'], volume: 40 }),
+    );
+    resetSoundboard();
+    useSoundboard.setState({ favorites: ['default:1', '501:77'], volume: 40 });
+    adoptFavorites({ version: 1, settings: {} });
+    await vi.waitFor(() =>
+      expect(patches).toEqual([{ soundboardFavorites: ['default:1', '501:77'] }]),
+    );
+    expect(JSON.parse(localStorage.getItem('sr.soundboard')!)).toEqual({ volume: 40 });
+    // Later the blob wins over any local list.
+    adoptFavorites({ version: 2, settings: { soundboardFavorites: ['default:2'] } });
+    expect(useSoundboard.getState().favorites).toEqual(['default:2']);
+    expect(patches).toHaveLength(1);
+  });
+
+  it('writes a toggle to the blob and caps the list at 50, newest last', async () => {
+    const fifty = Array.from({ length: 50 }, (_, i) => `default:${i}`);
+    adoptFavorites({ version: 1, settings: { soundboardFavorites: fifty } });
+    useSoundboard.getState().toggleFavorite('501:77');
+    const next = useSoundboard.getState().favorites;
+    expect(next).toHaveLength(50);
+    expect(next[49]).toBe('501:77');
+    expect(next[0]).toBe('default:1');
+    await vi.waitFor(() => expect(patches).toEqual([{ soundboardFavorites: next }]));
+  });
+
+  it('follows SR_USER_SETTINGS_UPDATE from another session', () => {
+    const stop = startFavoritesSync();
+    useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', {
+      version: 3,
+      settings: { soundboardFavorites: ['default:2', 5] },
+    });
+    expect(useSoundboard.getState().favorites).toEqual(['default:2']);
+    stop();
+  });
+});
+
+describe('favorites validation (P14-WEB-2)', () => {
+  it('keeps only well-formed keys, the newest 50, and drops servers the person left', () => {
+    const servers = new Set(['501']);
+    expect(
+      cleanFavorites(
+        [
+          'default:1',
+          '501:77',
+          '502:5', // a server the person is not in
+          'g1:77', // not a snowflake
+          'default:', // no id
+          ':5',
+          'default:1:2',
+          '501:77 ',
+          '9'.repeat(21) + ':1', // too long
+          7,
+          null,
+        ],
+        servers,
+      ),
+    ).toEqual(['default:1', '501:77']);
+    // The server list is not known yet: every well-formed entry stays.
+    expect(cleanFavorites(['502:5', 'bad'], null)).toEqual(['502:5']);
+    expect(cleanFavorites('nope', null)).toEqual([]);
+    const many = Array.from({ length: 60 }, (_, i) => `default:${i}`);
+    const cut = cleanFavorites(many, null);
+    expect(cut).toHaveLength(50);
+    expect(cut[0]).toBe('default:10');
+    expect(cut[49]).toBe('default:59');
+  });
+
+  it('applies it when the blob is read and when the server list changes', () => {
+    useStore.setState({ userSettings: null, guildOrder: ['501'] });
+    const stop = startFavoritesSync();
+    useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', {
+      version: 4,
+      settings: { soundboardFavorites: ['default:2', '501:77', '502:8', 'x:1'] },
+    });
+    expect(useSoundboard.getState().favorites).toEqual(['default:2', '501:77']);
+    // Leaving the server drops its sounds from what is shown.
+    useStore.setState({ guildOrder: ['503'] });
+    expect(useSoundboard.getState().favorites).toEqual(['default:2']);
+    stop();
+    useStore.setState({ guildOrder: [] });
+  });
+
+  it('reads the old local list through the same filter', () => {
+    useStore.setState({ userSettings: null, guildOrder: ['501'] });
+    localStorage.setItem(
+      'sr.soundboard',
+      JSON.stringify({ favorites: ['default:1', '502:3', 'junk'], volume: 70 }),
+    );
+    resetSoundboard();
+    adoptFavorites({ version: 1, settings: {} });
+    expect(useSoundboard.getState().favorites).toEqual(['default:1']);
+    useStore.setState({ guildOrder: [] });
   });
 });

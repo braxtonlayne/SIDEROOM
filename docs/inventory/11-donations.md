@@ -27,12 +27,12 @@ Phase 3. Spec: doc 08, ADR-0006.
 - [x] **DON-UI-002** [FE] Invoice modal (amount USD + sats/BTC, address with copy, QR, countdown, live status steps, explorer link, "I've paid" polling)
 - [x] **DON-UI-003** [FE] Patron purchase flow (1/3/6/12 months)
 - [x] **DON-UI-004** [FE] Server contribution flow (amount presets + custom, attribution: show name / anonymous)
-- [ ] **DON-UI-005** [FE] Patron badge + donor ring on avatar (toggle)
-- [ ] **DON-UI-006** [FE] Upgrade hints in limit-hit toasts (upload, camera, stream quality, downloads)
+- [ ] **DON-UI-005** [FE] Patron badge + donor ring on avatar (toggle) _(p14 misc: needs the backend to expose patron status on member objects and a privacy toggle; not built)_
+- [x] **DON-UI-006** [FE] Upgrade hints in limit-hit toasts (upload, camera, stream quality, downloads) _(p14 misc audit: upload tray (overLimit with a Patron hint), the call panel (support and Patron links on a video limit refusal) and the download modal (Patron pitch on 403) all carry upgrade hints)_
 
 ## DON-LB — Leaderboards
 - [x] **DON-LB-001** [BE] Leaderboard queries (donors lifetime/30d, servers 30d, contributors movies/episodes/chapters) with privacy flags, cached hourly *(phase 8: donors and servers boards; p12: `GET /donations/leaderboards/contributors/{kind}` over `contribution_credits`, opt-out `hide_contributions` (0781), staff hide honoured; tests in `sr-api` donations, `sr-db` payments_repo)*
-- [ ] **DON-LB-002** [FE] `/support/leaderboards` page (tabs, rank, avatar/name or "Anonymous patron", amount or hidden, your rank) *(phase 8: `/support/leaderboards` has the donors and servers tabs; p12: movie, episode and chapter contributor tabs; no avatars yet)*
+- [x] **DON-LB-002** [FE] `/support/leaderboards` page (tabs, rank, avatar/name or "Anonymous patron", amount or hidden, your rank) *(phase 8: `/support/leaderboards` has the donors and servers tabs; p12: movie, episode and chapter contributor tabs; no avatars yet)* _(p14 misc: rows show the donor or server picture from the board's `avatar` hash (`support/Leaderboards.tsx`), initials for anonymous rows; test in settings/server support.test.tsx)_
 - [x] **DON-LB-003** [FE] Contributor leaderboard links from Cinema & Library footers *(p12: both footers link to `/support/leaderboards?tab=movies|chapters`)*
 
 ## DON-ADM — Admin

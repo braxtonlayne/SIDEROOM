@@ -2,7 +2,6 @@ import { useNavigate } from '@tanstack/react-router';
 import type { MenuEntry } from '@sideroom/ui';
 import { useEffect } from 'react';
 import { t } from '../../i18n';
-import { useOpenUserSettings } from '../../settings/user/nav';
 import { useDeveloperMode } from '../../settings/user/prefs';
 import { useCurrentUser, useLoungeActions, type Guild } from '../data';
 import { useLoungeUi } from '../store';
@@ -50,7 +49,6 @@ export function useGuildMenuCore(guild: Guild) {
   const hideMuted = useLoungeUi((s) => !!s.hideMutedChannels[guild.id]);
   const toggleHideMuted = useLoungeUi((s) => s.toggleHideMuted);
   const mute = useMuteEntry(guild.id);
-  const openUserSettings = useOpenUserSettings();
   const p = guild.permissions;
   const isOwner = guild.ownerId === me.id;
   return {
@@ -105,10 +103,10 @@ export function useGuildMenuCore(guild: Guild) {
           }),
       })),
     } as MenuEntry,
-    /** Privacy lives in the person's own settings (there is no per-server switch in the API). */
+    /** Per-server privacy: the DM switch over the existing override; the rest lives in the person's own settings. */
     privacy: {
       label: t('lounge.guildMenu.privacySettings'),
-      onSelect: () => openUserSettings('privacy'),
+      onSelect: () => openDialog({ kind: 'serverPrivacy', guildId: guild.id }),
     } as MenuEntry,
     editProfile: {
       label: t('lounge.guildMenu.editProfile'),

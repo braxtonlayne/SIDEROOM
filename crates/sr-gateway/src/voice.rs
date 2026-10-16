@@ -48,6 +48,8 @@ pub struct VoiceConfig {
     pub session_grace: Duration,
     /// Told when a DM call ends, to write the call record. `None`: no record.
     pub calls: Option<Arc<dyn crate::voice_call::CallHooks>>,
+    /// `voice.e2ee`: the MLS delivery service over op 101 E2EE_MLS (VOX-E2E-004). Off by default.
+    pub e2ee: bool,
 }
 
 impl std::fmt::Debug for VoiceConfig {
@@ -78,6 +80,8 @@ pub struct VoiceChannelInfo {
     pub bitrate: Option<u32>,
     /// Age-restricted (NSFW) channel: joining needs the 18+ confirmation (D-032).
     pub age_restricted: bool,
+    /// The channel's `video_quality_mode`: 1 auto, 2 full (J-11).
+    pub video_quality: u8,
 }
 
 /// Per-guild voice settings the gateway acts on (VOX-SIG-003).
@@ -148,6 +152,8 @@ pub struct VoiceState {
     pub exempt: bool,
     /// The allowance tier for the egress governor: the server level, or 4 for a Patron.
     pub tier: u8,
+    /// The channel's `video_quality_mode` at join (1 auto, 2 full), told to the SFU in the token.
+    pub video_quality: u8,
 }
 
 impl VoiceState {
@@ -415,6 +421,10 @@ pub(crate) struct VoiceExtra {
     /// Voice channel status lines by channel (VOX-UI-015); gone when the channel empties.
     pub statuses: HashMap<ChannelId, crate::voice_status::ChannelStatus>,
     pub calls: HashMap<ChannelId, crate::voice_call::CallState>,
+    /// E2EE commit ordering per voice channel or call (VOX-E2E-004); gone when it empties.
+    pub e2ee: HashMap<ChannelId, crate::voice_e2ee::E2eeCall>,
+    /// The delivery service's MLS external-sender key (VOX-E2E-004), made on first use.
+    pub e2ee_ds: Option<Arc<sr_e2ee::mls::ExternalSenderKey>>,
     /// One soundboard play per member per few seconds.
     pub cooldown: sr_chat::settings::soundboard::PlayCooldown,
 }
@@ -648,6 +658,7 @@ impl Gateway {
                 camera: flags.camera,
                 screen: flags.screen,
                 tier: st.tier,
+                video_quality: st.video_quality,
             })
             .ok_or(JoinDenied::Unavailable)?;
         let session = self.st().sessions.get(&st.session_id).cloned();
@@ -733,6 +744,7 @@ impl Gateway {
                     user_limit: 0,
                     bitrate: None,
                     age_restricted: false,
+                    video_quality: 1,
                 };
                 (info, DM_PERMS)
             }
@@ -810,6 +822,7 @@ impl Gateway {
             afk,
             exempt: limits.exempt,
             tier: limits.tier,
+            video_quality: info.video_quality,
         };
         let flags = media_flags(perms, &new);
         // Refuse before changing anything if no SFU can be named.
@@ -956,6 +969,7 @@ impl Gateway {
         self.stream_member_left(old).await;
         self.stage_member_left(old).await;
         self.voice_status_member_left(old).await;
+        self.e2ee_member_left(old);
         if old.guild_id.is_none() {
             self.call_member_left(old).await;
         }
@@ -1172,6 +1186,7 @@ impl Gateway {
         }
         self.voice_afk_sweep(now).await;
         self.call_sweep(now).await;
+        self.e2ee_sweep();
     }
 
     /// Move members who have been silent for the guild's AFK timeout to its AFK channel
@@ -1288,6 +1303,7 @@ impl Gateway {
             st.vx.streams.retain(|_, s| s.guild_id != Some(guild));
             st.vx.stages.retain(|_, s| s.guild_id != guild);
             st.vx.statuses.retain(|_, s| s.guild_id != guild);
+            st.vx.e2ee.retain(|c, _| !channels.contains(c));
         }
         for c in channels {
             self.relay(VoiceCommand::CloseRoom { channel: c }).await;
@@ -1376,6 +1392,7 @@ mod tests {
             user_limit: limit,
             bitrate: Some(64_000),
             age_restricted: false,
+            video_quality: 1,
         }
     }
 
@@ -1400,6 +1417,7 @@ mod tests {
             afk: false,
             exempt: false,
             tier: 0,
+            video_quality: 1,
         }
     }
 

@@ -1,6 +1,6 @@
 //! Pure channel CRUD and permission-overwrite rules (LNG-CHN-002, LNG-CHN-003).
 
-use crate::domain::{Channel, ChannelType, Role};
+use crate::domain::{Channel, ChannelType, Role, VIDEO_QUALITY_AUTO, VIDEO_QUALITY_FULL};
 use crate::error::{ChatError, ChatResult};
 use crate::limits::ChatLimits;
 use crate::perms::GuildActor;
@@ -28,6 +28,8 @@ pub struct NewChannel {
     pub rate_limit_per_user: u32,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    /// Voice and stage only: 1 auto, 2 full (`video_quality_mode`).
+    pub video_quality_mode: Option<u8>,
     /// Forum, media and thread-default settings.
     pub forum: ForumPatch,
 }
@@ -44,6 +46,7 @@ impl NewChannel {
             rate_limit_per_user: 0,
             bitrate: None,
             user_limit: None,
+            video_quality_mode: None,
             forum: ForumPatch::default(),
         }
     }
@@ -128,6 +131,19 @@ fn validate_common(
     Ok(name)
 }
 
+/// `video_quality_mode` is 1 (auto) or 2 (full).
+fn check_video_quality(v: Option<u8>) -> ChatResult<Option<u8>> {
+    match v {
+        None => Ok(None),
+        Some(m @ (VIDEO_QUALITY_AUTO | VIDEO_QUALITY_FULL)) => Ok(Some(m)),
+        Some(_) => Err(ChatError::invalid(
+            "video_quality_mode",
+            "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+            "Must be 1 or 2.",
+        )),
+    }
+}
+
 /// Build a new guild channel. `parent` must be the loaded category when
 /// `input.parent_id` is set; `existing_channel_count` includes categories.
 pub fn plan_create_channel(
@@ -189,6 +205,8 @@ pub fn plan_create_channel(
     if input.kind.is_voice_like() {
         c.bitrate = Some(input.bitrate.unwrap_or(64_000));
         c.user_limit = input.user_limit;
+        c.video_quality_mode =
+            check_video_quality(input.video_quality_mode)?.unwrap_or(VIDEO_QUALITY_AUTO);
     }
     c.parent_id = input.parent_id;
     c.position = input.position.unwrap_or(0).max(0);
@@ -207,6 +225,8 @@ pub struct ChannelPatch {
     pub rate_limit_per_user: Option<u32>,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    /// Voice and stage only: 1 auto, 2 full (`video_quality_mode`, J-11).
+    pub video_quality_mode: Option<u8>,
     pub forum: ForumPatch,
 }
 
@@ -271,6 +291,15 @@ pub fn plan_edit_channel(
     if channel.kind.is_voice_like() {
         out.bitrate = patch.bitrate.or(channel.bitrate);
         out.user_limit = patch.user_limit.or(channel.user_limit);
+        if let Some(v) = check_video_quality(patch.video_quality_mode)? {
+            out.video_quality_mode = v;
+        }
+    } else if patch.video_quality_mode.is_some() {
+        return Err(ChatError::invalid(
+            "video_quality_mode",
+            "CHANNEL_TYPE_INVALID",
+            "Only voice and stage channels have a video quality.",
+        ));
     }
     apply_forum_patch(&mut out, &patch.forum)?;
     Ok(out)
@@ -498,6 +527,78 @@ mod tests {
         assert_eq!((c.topic, c.nsfw, c.rate_limit_per_user), (None, false, 0));
     }
 
+    #[test]
+    fn video_quality_is_a_voice_and_stage_setting_with_two_values() {
+        let a = manager();
+        let make = |kind, vq| {
+            let mut i = NewChannel::new(kind, "Room");
+            i.video_quality_mode = vq;
+            plan_create_channel(
+                &a,
+                GuildId::new(GUILD),
+                ChannelId::new(9),
+                0,
+                None,
+                i,
+                &ChatLimits::default(),
+            )
+        };
+        assert_eq!(
+            make(ChannelType::Voice, None).unwrap().video_quality_mode,
+            1
+        );
+        assert_eq!(
+            make(ChannelType::Stage, Some(2))
+                .unwrap()
+                .video_quality_mode,
+            2
+        );
+        assert!(make(ChannelType::Voice, Some(3)).is_err());
+        assert!(make(ChannelType::Voice, Some(0)).is_err());
+
+        let mut voice = Channel::new(
+            ChannelId::new(5),
+            Some(GuildId::new(GUILD)),
+            ChannelType::Voice,
+        );
+        voice.name = Some("Lounge".into());
+        let full = ChannelPatch {
+            video_quality_mode: Some(2),
+            ..Default::default()
+        };
+        let out = plan_edit_channel(&a, &voice, full).unwrap();
+        assert_eq!(out.video_quality_mode, 2);
+        // Other edits keep it.
+        let renamed = plan_edit_channel(
+            &a,
+            &out,
+            ChannelPatch {
+                name: Some("Other".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(renamed.video_quality_mode, 2);
+        // Not 0 or 3, and not on a text channel.
+        for bad in [0, 3] {
+            let p = ChannelPatch {
+                video_quality_mode: Some(bad),
+                ..Default::default()
+            };
+            assert!(plan_edit_channel(&a, &voice, p).is_err(), "{bad}");
+        }
+        let mut text = Channel::new(
+            ChannelId::new(6),
+            Some(GuildId::new(GUILD)),
+            ChannelType::Text,
+        );
+        text.name = Some("general".into());
+        let p = ChannelPatch {
+            video_quality_mode: Some(2),
+            ..Default::default()
+        };
+        assert!(plan_edit_channel(&a, &text, p).is_err());
+    }
     #[test]
     fn edit_and_delete() {
         let a = manager();

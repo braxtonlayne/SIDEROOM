@@ -5,8 +5,9 @@
  * not pretend to offer them.
  */
 import { Button, ConfirmDialog, EmptyState, Modal, TextInput } from '@sideroom/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
+import { MAX_STATUS, setChannelStatus, useChannelStatus } from '../../../voice/channelStatus';
 import { expiryLabel, inviteUrl } from '../../../lounge/inviteFlow';
 import * as api from '../api';
 import { useResource } from '../hooks';
@@ -201,8 +202,10 @@ export function ChannelIntegrations({
         </div>
       )}
       <Async res={res} label={t('settings.channelTabs.loadingWebhooks')}>
-        {(hooks) =>
-          hooks.length === 0 ? (
+        {(all) => {
+          // Channel followers (type 2) are listed below; they have no URL to reset.
+          const hooks = all.filter((w) => w.type !== 2);
+          return hooks.length === 0 ? (
             <EmptyState
               title={t('settings.channelTabs.noWebhooksTitle')}
               description={t('settings.channelTabs.noWebhooksDescription')}
@@ -241,10 +244,38 @@ export function ChannelIntegrations({
                 </li>
               ))}
             </ul>
-          )
-        }
+          );
+        }}
       </Async>
-      <p className="ss-na">{t('settings.channelTabs.followedNote')}</p>
+      <Async res={res} label={t('settings.channelTabs.loadingWebhooks')}>
+        {(all) => {
+          const followers = all.filter((w) => w.type === 2);
+          return (
+            <section aria-label={t('settings.channelTabs.followedLabel')}>
+              <h3 className="ss-sub">{t('settings.channelTabs.followedLabel')}</h3>
+              {followers.length === 0 ? (
+                <p className="ss-meta">{t('settings.channelTabs.followedNone')}</p>
+              ) : (
+                <ul className="ss-list">
+                  {followers.map((w) => (
+                    <li key={w.id} className="ss-row">
+                      <span className="ss-grow">{w.name}</span>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        aria-label={t('settings.channelTabs.unfollowNamed', { name: w.name })}
+                        onClick={() => setToDelete(w)}
+                      >
+                        {t('settings.channelTabs.unfollow')}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        }}
+      </Async>
       <Modal
         open={creating}
         onClose={() => setCreating(false)}
@@ -312,6 +343,69 @@ const slow = (s: number) =>
       : s < 3600
         ? `${s / 60}m`
         : `${s / 3600}h`;
+
+/**
+ * The voice tab of the channel editor (J-09, LNG-CHN-010): the status line under a voice or stage channel's
+ * name, over `PUT /channels/{id}/voice-status` (clearing it sends null). The server also ends a status when
+ * the last person leaves, and pushes `VOICE_CHANNEL_STATUS_UPDATE`, which the store applies.
+ */
+export function ChannelVoice({ channel }: { channel: api.ChannelObject }) {
+  const t = useT();
+  const action = useAction();
+  const current = useChannelStatus((s) => s.byChannel[channel.id] ?? '');
+  const [text, setText] = useState(current);
+  const [edited, setEdited] = useState(false);
+  // Follow the live status until the person starts typing.
+  useEffect(() => {
+    if (!edited) setText(current);
+  }, [current, edited]);
+  const save = async (next: string | null) => {
+    const ok = await action.run(
+      async () => {
+        await setChannelStatus(channel.id, next);
+        return true;
+      },
+      next
+        ? t('settings.channelTabs.voiceStatusSaved')
+        : t('settings.channelTabs.voiceStatusCleared'),
+    );
+    if (ok) {
+      setEdited(false);
+      if (!next) setText('');
+    }
+  };
+  return (
+    <div className="ss-form">
+      <ActionStatus error={action.error} done={action.done} />
+      <TextInput
+        label={t('settings.channelTabs.voiceStatusLabel')}
+        hint={t('settings.channelTabs.voiceStatusHint')}
+        value={text}
+        maxLength={MAX_STATUS}
+        onChange={(e) => {
+          setText(e.target.value);
+          setEdited(true);
+        }}
+      />
+      <div className="ss-actions">
+        <Button
+          loading={action.busy}
+          disabled={text.trim() === current}
+          onClick={() => void save(text.trim() || null)}
+        >
+          {t('settings.channelTabs.voiceStatusSave')}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={action.busy || (!current && !text)}
+          onClick={() => void save(null)}
+        >
+          {t('settings.channelTabs.voiceStatusClear')}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /** Thread defaults for a text or announcement channel. Saved as soon as a value changes. */
 export function ChannelFeatures({

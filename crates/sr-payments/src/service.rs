@@ -34,6 +34,9 @@ pub trait PaymentEvents: Send + Sync {
     async fn entitlement_guild(&self, guild_id: i64, payload: Value);
     /// A staff alert (never contains the descriptor or addresses of other people).
     async fn staff_alert(&self, detail: String);
+    /// A server-level contribution was credited; `level` is the server's level after it.
+    /// Default: nothing (LNG-MSG-016 posts the "supported this server" notice).
+    async fn server_supported(&self, _guild_id: i64, _user_id: i64, _level: Option<u8>) {}
 }
 
 pub struct NoEvents;
@@ -53,10 +56,18 @@ pub struct RecordingEvents {
     pub user: Mutex<Vec<(i64, Value)>>,
     pub guild: Mutex<Vec<(i64, Value)>>,
     pub alerts: Mutex<Vec<String>>,
+    /// `(guild, user, level)` of each credited server-level contribution.
+    pub supported: Mutex<Vec<(i64, i64, Option<u8>)>>,
 }
 
 #[async_trait]
 impl PaymentEvents for RecordingEvents {
+    async fn server_supported(&self, g: i64, u: i64, level: Option<u8>) {
+        self.supported
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push((g, u, level));
+    }
     async fn payment_update(&self, u: i64, p: Value) {
         self.payment
             .lock()
@@ -524,6 +535,10 @@ impl PaymentService {
                 Purpose::ServerLevel => {
                     if let Some(g) = inv.guild_id {
                         self.refresh_guild(g).await;
+                        if out.credit == CreditChange::Applied {
+                            let level = self.ents.guild(g).await.ok().map(|e| e.level);
+                            self.events.server_supported(g, inv.user_id, level).await;
+                        }
                     }
                     self.notify_user(inv.user_id, word).await;
                 }

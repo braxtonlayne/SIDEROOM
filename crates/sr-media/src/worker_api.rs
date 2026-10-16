@@ -214,6 +214,7 @@ pub struct InitUploadRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[schema(as = MediaWorkerPartUrl)]
 pub struct PartUrl {
     pub part_number: u32,
     pub url: String,

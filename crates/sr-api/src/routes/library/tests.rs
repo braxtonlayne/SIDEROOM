@@ -1517,8 +1517,8 @@ fn openapi_lists_the_phase_4_paths() {
     }
     for s in [
         "ProgressSaved",
-        "Bookmark",
-        "UploadSlot",
+        "ReadingBookmark",
+        "LibraryUploadSlot",
         "Upload",
         "HistoryPage",
     ] {

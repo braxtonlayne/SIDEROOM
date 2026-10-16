@@ -13,6 +13,7 @@ fn double_option<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Option<String
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = AdminRenameBody)]
 pub struct RenameBody {
     /// New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it.
     pub username: Option<String>,
@@ -53,6 +54,7 @@ pub async fn rename(
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = AdminChangeEmailBody)]
 pub struct ChangeEmailBody {
     pub email: String,
     pub reason: Option<String>,

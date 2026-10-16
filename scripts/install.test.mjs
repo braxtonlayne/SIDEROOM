@@ -19,6 +19,8 @@ import { test } from 'node:test';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const posix = (p) => p.replaceAll('\\', '/');
+// An absolute POSIX path for the install script (Git Bash sees C:/x as /c/x).
+const shPath = (p) => posix(p).replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`);
 
 function sandbox() {
   const dir = mkdtempSync(join(tmpdir(), 'sr-install-'));
@@ -65,7 +67,13 @@ const answers = {
 
 function run(sb, args, extra = {}) {
   const r = spawnSync('sh', [posix(sb.script), ...args], {
-    env: { ...process.env, PATH: `${posix(sb.bin)}:${process.env.PATH}`, ...answers, ...extra },
+    env: {
+      ...process.env,
+      PATH: `${posix(sb.bin)}:${process.env.PATH}`,
+      ...answers,
+      SR_INGEST_DIR: shPath(join(sb.dir, 'ingest')),
+      ...extra,
+    },
     encoding: 'utf8',
     input: '',
   });
@@ -227,4 +235,30 @@ test('a missing docker or compose plugin is a clear error', () => {
   const r = run(sb, ['--yes', '--no-start']);
   assert.notEqual(r.status, 0);
   assert.match(r.out, /compose plugin is missing/);
+});
+
+test('the ingest folder is asked for, created, and wired as a read-only root (H-48)', () => {
+  const sb = sandbox();
+  const dir = shPath(join(sb.dir, 'ingest'));
+  const r = run(sb, ['--yes', '--no-start']);
+  assert.equal(r.status, 0, r.out);
+  const env = envOf(sb.env);
+  assert.equal(env.SR_INGEST_DIR, dir);
+  assert.equal(env.SR_INGEST_ROOTS, '/srv/sideroom/ingest');
+  assert.ok(existsSync(join(sb.dir, 'ingest')), 'the missing folder was created');
+
+  // "none" turns local folders off: no root, the mount source stays the default folder.
+  const off = sandbox();
+  const r2 = run(off, ['--yes', '--no-start'], { SR_INGEST_DIR: 'none' });
+  assert.equal(r2.status, 0, r2.out);
+  assert.equal(envOf(off.env).SR_INGEST_ROOTS, '');
+  assert.equal(envOf(off.env).SR_INGEST_DIR, '/srv/sideroom/ingest');
+
+  for (const bad of ['relative/dir', '/srv/in gest', '/srv/../etc']) {
+    const sb3 = sandbox();
+    const r3 = run(sb3, ['--yes', '--no-start'], { SR_INGEST_DIR: bad });
+    assert.notEqual(r3.status, 0, bad);
+    assert.match(r3.out, /SR_INGEST_DIR/, bad);
+    assert.ok(!existsSync(sb3.env), `${bad} left an env file behind`);
+  }
 });

@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { useT } from '../../../i18n';
 import { cdnUrl, useChannels } from '../../../store';
 import * as api from '../api';
+import { FollowedChannels, IntegrationsOverview } from './IntegrationsOverview';
 import { useResource, type Viewer } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, SectionHeader, formatDate, useAction } from '../ui';
@@ -33,8 +34,18 @@ async function copyText(text: string): Promise<boolean> {
 export function IntegrationsSection({ guildId, viewer }: SectionProps) {
   const t = useT();
   const tabs = [
+    {
+      id: 'overview',
+      label: t('settings.integrationsOverview.tabOverview'),
+      content: <IntegrationsOverview guildId={guildId} viewer={viewer} />,
+    },
     ...(viewer.can('MANAGE_WEBHOOKS')
       ? [
+          {
+            id: 'followed',
+            label: t('settings.integrationsOverview.tabFollowed'),
+            content: <FollowedChannels guildId={guildId} />,
+          },
           {
             id: 'webhooks',
             label: t('settings.integrations.tabWebhooks'),
@@ -144,8 +155,10 @@ function Webhooks({ guildId }: { guildId: string }) {
         </div>
       )}
       <Async res={res} label={t('settings.integrations.loadingWebhooks')}>
-        {(list) =>
-          list.length === 0 ? (
+        {(all) => {
+          // Channel followers (type 2) have their own tab.
+          const list = all.filter((w) => w.type !== 2);
+          return list.length === 0 ? (
             <EmptyState
               title={t('settings.integrations.noWebhooksTitle')}
               description={t('settings.integrations.noWebhooksDescription')}
@@ -196,8 +209,8 @@ function Webhooks({ guildId }: { guildId: string }) {
                 </li>
               ))}
             </ul>
-          )
-        }
+          );
+        }}
       </Async>
       {creating && (
         <WebhookDialog

@@ -1,9 +1,8 @@
 import { Link } from '@tanstack/react-router';
 import { Icon, Tooltip } from '@sideroom/ui';
-import { useState } from 'react';
-import { ComingSoon } from '@sideroom/ui';
 import { useT } from '../i18n';
 import { useVoiceSession } from '../voice/session';
+import { HelpButton } from './header/HelpButton';
 import { InboxButton } from './inbox/InboxButton';
 import { useLoungeUi } from './store';
 
@@ -42,7 +41,6 @@ export function TitleStrip({ title }: { title: string }) {
   const t = useT();
   const showSectionBar = useLoungeUi((s) => s.showSectionBar);
   const setShow = useLoungeUi((s) => s.setShowSectionBar);
-  const [coming, setComing] = useState<string | null>(null);
   return (
     <div className="lng-titlestrip">
       <div className="lng-titlestrip-nav">
@@ -83,18 +81,8 @@ export function TitleStrip({ title }: { title: string }) {
           </button>
         </Tooltip>
         <InboxButton iconSize={16} />
-        <button
-          type="button"
-          className="lng-icon-btn"
-          aria-label={t('lounge.chrome.help')}
-          onClick={() => setComing(t('lounge.chrome.help'))}
-        >
-          <Icon name="info" size={16} />
-        </button>
+        <HelpButton iconSize={16} />
       </div>
-      <ComingSoon open={coming !== null} onClose={() => setComing(null)} title={coming ?? ''}>
-        <p>{t('lounge.chrome.comingSoon')}</p>
-      </ComingSoon>
     </div>
   );
 }

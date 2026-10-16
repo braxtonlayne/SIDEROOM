@@ -245,6 +245,25 @@ impl Conn {
                 }
                 Ok(())
             }
+            op::REQUEST_GUILD_MEMBERS => {
+                if let Some(s) = self.session.clone()
+                    && let Err(code) = self.gw.request_guild_members(&s, &p.d).await
+                {
+                    let reason = if code == close::DECODE_ERROR {
+                        "bad member request"
+                    } else {
+                        "disallowed intents"
+                    };
+                    return Err(Stop::Close(code, reason));
+                }
+                Ok(())
+            }
+            op::E2EE_MLS => {
+                if let Some(s) = self.session.clone() {
+                    self.gw.e2ee_mls(&s, p.d).await;
+                }
+                Ok(())
+            }
             op::REQUEST_SOUNDBOARD_SOUNDS => {
                 if let Some(s) = self.session.clone() {
                     self.gw.soundboard_request(&s, p.d).await;

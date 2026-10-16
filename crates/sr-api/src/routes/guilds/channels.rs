@@ -258,6 +258,8 @@ pub async fn create_channel(
     input.rate_limit_per_user = body.rate_limit_per_user.unwrap_or(0);
     input.bitrate = body.bitrate;
     input.user_limit = body.user_limit;
+    refuse_region(&body.rtc_region)?;
+    input.video_quality_mode = body.video_quality_mode;
     input.forum = forum_patch(&body.forum, body.flags)?;
     let mut overwrites = Vec::with_capacity(body.permission_overwrites.len());
     for (n, o) in body.permission_overwrites.iter().enumerate() {
@@ -499,6 +501,7 @@ pub async fn modify_channel(
             ))
         })?),
     };
+    refuse_region(&body.rtc_region)?;
     let patch = ChannelPatch {
         kind,
         name: body.name,
@@ -507,6 +510,7 @@ pub async fn modify_channel(
         rate_limit_per_user: body.rate_limit_per_user,
         bitrate: body.bitrate,
         user_limit: body.user_limit,
+        video_quality_mode: body.video_quality_mode,
         forum: forum_patch(&body.forum, body.flags)?,
     };
     let mv = ChannelMove {
@@ -617,4 +621,17 @@ pub async fn delete_overwrite(
     let target: Snowflake = id("overwrite_id", &overwrite_id)?;
     api.delete_overwrite(user, cid, target).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// `rtc_region` is read-only here: the installation has one voice region (J-11), so only `null`
+/// (no preference) is accepted.
+fn refuse_region(region: &Option<Option<String>>) -> ApiResult<()> {
+    if matches!(region, Some(Some(_))) {
+        return Err(invalid(
+            "rtc_region",
+            "CHANNEL_REGION_UNSUPPORTED",
+            "This installation has one voice region.",
+        ));
+    }
+    Ok(())
 }

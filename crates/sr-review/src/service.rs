@@ -59,6 +59,33 @@ pub trait ReviewEvents: Send + Sync {
     /// A submission entered review (`outcome: None`) or reached `outcome`; the Staff Server's
     /// `#review-queue` card follows (G-68). Does nothing unless the implementation cares.
     async fn card(&self, _submission_id: i64, _outcome: Option<&str>) {}
+
+    /// A plain direct message from the system user to the submitter about a decision
+    /// (REV-CORE-007). Does nothing unless the implementation can deliver one.
+    async fn dm(&self, _user: i64, _text: String) {}
+}
+
+/// The system DM that tells a submitter about a decision, or `None` for events that only show up
+/// in the submission timeline (comments, claims, warnings).
+fn decision_text(s: &Submission, kind: &str, reason: Option<&str>) -> Option<String> {
+    let title = if s.title.trim().is_empty() {
+        "your submission".to_owned()
+    } else {
+        format!("\"{}\"", s.title.trim())
+    };
+    let note = reason
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .map(|r| format!(" Note from the reviewer: {r}"))
+        .unwrap_or_default();
+    Some(match kind {
+        "approved" => format!("Good news: {title} was approved.{note}"),
+        "published" => format!("{title} is now published. Thank you for contributing!"),
+        "rejected" => format!("{title} was not accepted.{note}"),
+        "changes_requested" => format!("Reviewers asked for changes to {title}.{note}"),
+        "abandoned" => format!("{title} was closed because it sat untouched for too long."),
+        _ => return None,
+    })
 }
 
 /// The acting account and its platform permissions (empty for a plain member).
@@ -228,6 +255,10 @@ impl ReviewService {
         let (Some(ev), Some(user)) = (&self.events, s.submitter_id) else {
             return;
         };
+        let extra_reason = extra
+            .get("reason")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
         let mut p = json!({
             "type": kind,
             "submission_id": s.id.to_string(),
@@ -240,6 +271,9 @@ impl ReviewService {
             m.extend(x);
         }
         ev.emit(vec![user], p).await;
+        if let Some(text) = decision_text(s, kind, extra_reason.as_deref()) {
+            ev.dm(user, text).await;
+        }
     }
 
     async fn detail(

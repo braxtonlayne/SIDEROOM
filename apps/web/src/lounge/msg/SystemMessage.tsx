@@ -15,8 +15,16 @@ export const SYSTEM_FOLLOW_ADD = 12;
 export const SYSTEM_THREAD_CREATED = 18;
 export const SYSTEM_THREAD_STARTER = 21;
 
+/** AutoMod and incident alert cards (type 24) are the system user's messages with embeds and buttons; they render like one. */
+export const SYSTEM_AUTOMOD_ACTION = 24;
+
 export const isSystemMessage = (m: Pick<Message, 'type'>) =>
-  m.type !== undefined && m.type !== 0 && m.type !== 19 && m.type !== 20 && m.type !== 23;
+  m.type !== undefined &&
+  m.type !== 0 &&
+  m.type !== 19 &&
+  m.type !== 20 &&
+  m.type !== 23 &&
+  m.type !== SYSTEM_AUTOMOD_ACTION;
 
 /**
  * Fills a catalog message that has `{name}`-style slots with React nodes: the message is formatted with

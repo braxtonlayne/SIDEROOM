@@ -313,6 +313,30 @@ impl MessageRepository for MemoryRepo {
         Ok(())
     }
 
+    async fn replace_card(
+        &self,
+        channel: ChannelId,
+        id: MessageId,
+        content: &str,
+        embeds: &[crate::message::Embed],
+        components: &[crate::message::Component],
+        now_ms: i64,
+    ) -> RepoResult<bool> {
+        let mut s = self.lock()?;
+        let Some(m) = s
+            .messages
+            .iter_mut()
+            .find(|m| m.channel_id == channel && m.id == id)
+        else {
+            return Ok(false);
+        };
+        m.content = content.to_owned();
+        m.embeds = embeds.to_vec();
+        m.components = components.to_vec();
+        m.edited_at_ms = Some(now_ms);
+        Ok(true)
+    }
+
     async fn apply_edit(&self, plan: &EditPlan) -> RepoResult<()> {
         let mut s = self.lock()?;
         if let Some(prev) = &plan.history_previous_content {

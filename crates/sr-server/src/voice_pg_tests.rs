@@ -191,6 +191,7 @@ async fn voice_joins_and_moderation_run_on_postgres_data() {
                 relay: None,
                 session_grace: Duration::from_secs(20),
                 calls: None,
+                e2ee: false,
             }),
             ..GatewayConfig::default()
         },

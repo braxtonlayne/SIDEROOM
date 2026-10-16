@@ -1,7 +1,9 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Button, Icon, Modal, TextInput } from '@sideroom/ui';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
+import { ImageCropDialog } from '../settings/user/ImageCropDialog';
+import { readAsDataUri } from '../settings/user/imageCrop';
 import { useT } from '../i18n';
 import { useStore } from '../store';
 import type { Channel as StoreChannel } from '../store';
@@ -40,6 +42,10 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
   const goto = useGotoGuild();
   const [name, setName] = useState(me.displayName ? `${me.displayName}'s server` : '');
   const [link, setLink] = useState('');
+  // The server icon picked in the customise step (LNG-GLD-017): cropped to a square, GIFs kept as they are.
+  const [icon, setIcon] = useState<string | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const iconInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The starter layouts come from the server (GET /guilds/templates/builtin).
@@ -70,7 +76,8 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const guild = await useStore.getState().createGuild(trimmed, templateId ?? undefined);
+      // The icon travels with the create call (J-06); a refused image fails the request and no server is made.
+      const guild = await useStore.getState().createGuild(trimmed, templateId ?? undefined, icon);
       onClose();
       goto(guild.id, firstText(guild.channels));
     } catch (err) {
@@ -217,6 +224,39 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
               {t('lounge.addServerDialog.period')}
             </p>
           )}
+          <div className="lng-icon-pick">
+            <span
+              className="lng-icon-preview"
+              role="img"
+              aria-label={t('lounge.addServerDialog.iconPreview')}
+            >
+              {icon ? <img src={icon} alt="" /> : <Icon name="image" size={24} />}
+            </span>
+            <Button variant="secondary" onClick={() => iconInput.current?.click()}>
+              {icon
+                ? t('lounge.addServerDialog.iconChange')
+                : t('lounge.addServerDialog.iconUpload')}
+            </Button>
+            {icon && (
+              <Button variant="ghost" onClick={() => setIcon(null)}>
+                {t('lounge.addServerDialog.iconRemove')}
+              </Button>
+            )}
+            <input
+              ref={iconInput}
+              type="file"
+              hidden
+              accept=".png,.jpg,.jpeg,.gif,.webp"
+              aria-label={t('lounge.addServerDialog.iconFile')}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (!f) return;
+                if (/.gif$/i.test(f.name)) void readAsDataUri(f).then(setIcon, () => undefined);
+                else setCropFile(f);
+              }}
+            />
+          </div>
           <TextInput
             label={t('lounge.addServerDialog.serverName')}
             value={name}
@@ -236,6 +276,18 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
           </div>
         </form>
       )}
+      <ImageCropDialog
+        open={!!cropFile}
+        file={cropFile}
+        title={t('lounge.addServerDialog.cropTitle')}
+        aspect={1}
+        outWidth={512}
+        onCancel={() => setCropFile(null)}
+        onApply={(uri) => {
+          setCropFile(null);
+          setIcon(uri);
+        }}
+      />
       {step === 'join' && (
         <form className="lng-form" onSubmit={(e) => void join(e)} noValidate>
           <TextInput

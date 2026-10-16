@@ -28,6 +28,7 @@ url = "2.5.8"
 thiserror.workspace = true
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
 sr-admin = { path = "../sr-admin" }
+sr-activities = { path = "../sr-activities" }
 sr-api = { path = "../sr-api" }
 sr-apps = { path = "../sr-apps" }
 sr-auth = { path = "../sr-auth", features = ["webauthn"] }

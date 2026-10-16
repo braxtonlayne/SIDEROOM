@@ -24,6 +24,8 @@ pub struct Mentions {
     pub everyone: bool,
     /// Contains `@here`.
     pub here: bool,
+    /// Library and Cinema card tokens (`<library:id>`, `<cinema:id>`) outside code, counted with repeats.
+    pub cards: usize,
 }
 
 fn push_unique(v: &mut Vec<u64>, id: u64) {
@@ -48,6 +50,7 @@ fn walk(nodes: &[Node], m: &mut Mentions) {
             Node::CustomEmoji { id, .. } => push_unique(&mut m.emoji, *id),
             Node::Everyone => m.everyone = true,
             Node::Here => m.here = true,
+            Node::Library { .. } | Node::Cinema { .. } => m.cards += 1,
             Node::List { items, .. } => items.iter().for_each(|i| walk(i, m)),
             Node::Bold { children }
             | Node::Italic { children }

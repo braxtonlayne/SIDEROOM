@@ -59,7 +59,17 @@ export interface GuildObject {
   approximate_member_count?: number;
   /** Members visibly online; present only for servers of up to 1000 members. */
   approximate_presence_count?: number;
+  /** Side Room's profile extras (J-07). */
+  sr_profile?: { traits: GuildTrait[] };
 }
+/** A server trait: a label with an optional emoji (at most five per server). */
+export interface GuildTrait {
+  emoji_id?: string | null;
+  emoji_name?: string | null;
+  label: string;
+}
+export const TRAITS_MAX = 5;
+export const TRAIT_LABEL_MAX = 24;
 export interface ModifyGuildBody {
   name?: string;
   description?: string | null;
@@ -104,6 +114,9 @@ export const getGuild = (id: string) =>
   apiFetch<GuildObject>(`/guilds/${id}?with_counts=true`, { retries: 0 });
 export const modifyGuild = (id: string, body: ModifyGuildBody) =>
   send<GuildObject>(`/guilds/${id}`, 'PATCH', body);
+/** `PATCH /guilds/{id}/sr/profile`: replaces the server's traits (`MANAGE_GUILD`). */
+export const modifySrProfile = (id: string, body: { traits: GuildTrait[] }) =>
+  send<GuildObject>(`/guilds/${id}/sr/profile`, 'PATCH', body);
 export const deleteGuild = (id: string) => send<void>(`/guilds/${id}`, 'DELETE');
 
 // ---- roles ----
@@ -119,8 +132,17 @@ export interface RoleObject {
   mentionable: boolean;
   icon?: string | null;
   unicode_emoji?: string | null;
+  /** Gradient stops (J-08); `primary_color` mirrors `color`. */
+  colors?: RoleColors;
+}
+export interface RoleColors {
+  primary_color: number;
+  secondary_color?: number | null;
+  tertiary_color?: number | null;
 }
 export interface RoleBody {
+  /** Replaces all three stops; a tertiary stop needs a secondary one. */
+  colors?: RoleColors;
   /** One emoji, or null to clear. Replaces an image icon. */
   unicode_emoji?: string | null;
   /** Image data URI, or null to remove. Replaces the emoji. */
@@ -166,6 +188,10 @@ export interface ChannelObject {
   rate_limit_per_user: number;
   user_limit?: number;
   bitrate?: number;
+  /** Voice and stage channels: 1 auto (the adaptive default), 2 full (camera layers up to 720p whatever the load). */
+  video_quality_mode?: 1 | 2;
+  /** Voice and stage channels: always null, the installation has one voice region. */
+  rtc_region?: string | null;
   /** Minutes of inactivity before new threads in this channel archive. */
   default_auto_archive_duration?: number | null;
   default_thread_rate_limit_per_user?: number | null;
@@ -200,6 +226,9 @@ export interface ChannelBody {
   default_reaction_emoji?: { emoji_name: string } | null;
   default_sort_order?: number | null;
   default_forum_layout?: number;
+  user_limit?: number;
+  bitrate?: number;
+  video_quality_mode?: 1 | 2;
 }
 export const listChannels = (g: string) =>
   apiFetch<ChannelObject[]>(`/guilds/${g}/channels`, { retries: 0 });
@@ -259,6 +288,75 @@ export const getMember = (g: string, u: string) =>
   apiFetch<MemberObject>(`/guilds/${g}/members/${u}`, { retries: 0 });
 export const kickMember = (g: string, u: string, reason?: string) =>
   send<void>(`/guilds/${g}/members/${u}`, 'DELETE', undefined, reasonHeader(reason));
+// ---- installed applications (J-05) and their command permissions (J-10) ----
+
+/** `GET /guilds/{id}/integrations`: one entry per application installed in the server. */
+export interface IntegrationObject {
+  /** The application id. */
+  id: string;
+  name: string;
+  type: string;
+  enabled: boolean;
+  application: {
+    id: string;
+    name: string;
+    icon: string | null;
+    description: string;
+    bot: UserRef & { bot?: boolean; avatar?: string | null };
+  };
+  /** Who installed it. */
+  user: UserRef;
+  scopes: string[];
+}
+export const listIntegrations = (g: string) =>
+  apiFetch<IntegrationObject[]>(`/guilds/${g}/integrations`, { retries: 0 });
+/** Removes the application: its bot leaves and its managed role is deleted. */
+export const removeIntegration = (g: string, appId: string) =>
+  send<void>(`/guilds/${g}/integrations/${appId}`, 'DELETE');
+
+/** Discord's command permission targets: 1 role, 2 member, 3 channel. */
+export interface CommandPermissionEntry {
+  id: string;
+  type: 1 | 2 | 3;
+  permission: boolean;
+}
+export interface CommandPermissionsObject {
+  /** The command id, or the application id for the application default. */
+  id: string;
+  application_id: string;
+  guild_id: string;
+  permissions: CommandPermissionEntry[];
+}
+/** A command of the application as the editor needs it. */
+export interface AppCommand {
+  id: string;
+  name: string;
+  /** Absent for a global command. */
+  guild_id?: string | null;
+}
+/** The application's commands in this server, with its global commands when `includeGlobal`. */
+export const listAppCommands = (appId: string, g: string, includeGlobal = true) =>
+  apiFetch<AppCommand[]>(
+    `/applications/${appId}/guilds/${g}/commands${includeGlobal ? '?include_global=true' : ''}`,
+    { retries: 0 },
+  );
+export const listCommandPermissions = (appId: string, g: string) =>
+  apiFetch<CommandPermissionsObject[]>(`/applications/${appId}/guilds/${g}/commands/permissions`, {
+    retries: 0,
+  });
+/** Replaces the overrides of one command; the application id as `commandId` is the application default. */
+export const putCommandPermissions = (
+  appId: string,
+  g: string,
+  commandId: string,
+  permissions: CommandPermissionEntry[],
+) =>
+  send<CommandPermissionsObject>(
+    `/applications/${appId}/guilds/${g}/commands/${commandId}/permissions`,
+    'PUT',
+    { permissions },
+  );
+
 /** `until` is an ISO timestamp, or null to clear the timeout. */
 export const timeoutMember = (g: string, u: string, until: string | null) =>
   send<MemberObject>(`/guilds/${g}/members/${u}`, 'PATCH', { communication_disabled_until: until });
@@ -419,10 +517,11 @@ export interface AuditLog {
 export const AUDIT_PAGE = 50;
 export function listAuditLog(
   g: string,
-  q: { user_id?: string; action_type?: number; before?: string },
+  q: { user_id?: string; target_id?: string; action_type?: number; before?: string },
 ) {
   const p = new URLSearchParams({ limit: String(AUDIT_PAGE) });
   if (q.user_id) p.set('user_id', q.user_id);
+  if (q.target_id) p.set('target_id', q.target_id);
   if (q.action_type !== undefined) p.set('action_type', String(q.action_type));
   if (q.before) p.set('before', q.before);
   return apiFetch<AuditLog>(`/guilds/${g}/audit-logs?${p}`, { retries: 0 });
@@ -502,6 +601,10 @@ export interface CommunityObject {
   /** Warn moderators about accounts younger than this many days; 0 = off. */
   warn_new_account_days?: number;
   age_restricted: boolean;
+  /** Membership screening (LNG-SSET-041): new members agree to the rules before they may talk. */
+  screening_enabled?: boolean;
+  screening_description?: string | null;
+  screening_rules?: string[];
 }
 export type CommunityPatch = Partial<
   Omit<
@@ -511,8 +614,10 @@ export type CommunityPatch = Partial<
     | 'public_updates_channel_id'
     | 'safety_alerts_channel_id'
     | 'description'
+    | 'screening_description'
   >
 > & {
+  screening_description?: string | null;
   rules_channel_id?: string | null;
   public_updates_channel_id?: string | null;
   safety_alerts_channel_id?: string | null;

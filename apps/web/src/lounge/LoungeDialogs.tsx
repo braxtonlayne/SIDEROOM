@@ -2,6 +2,7 @@
  * Host for the server-flow dialogs. Any menu opens one through `useLoungeUi().openDialog(...)`; the shell
  * renders this once.
  */
+import { lazy, Suspense } from 'react';
 import { AddServerDialog } from './AddServerDialog';
 import { CreateChannelDialog } from './CreateChannelDialog';
 import { CreateEventDialog } from './events/CreateEventDialog';
@@ -18,12 +19,21 @@ import { MemberActionDialog } from './shell/MemberDialogs';
 import { NicknameDialog, NoteDialog } from './shell/UserDialogs';
 import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
+import { BrowseChannelsDialog } from './shell/BrowseChannelsDialog';
+import { SecurityActionsDialog } from './shell/SecurityActionsDialog';
+import { OnboardingEntryDialog } from './shell/JoinGate';
+import { ServerPrivacyDialog } from './shell/ServerDmToggle';
+import { ServerGuideDialog } from './shell/ServerGuideDialog';
 import { SlowmodeDialog } from './shell/SlowmodeDialog';
 import { TransferOwnershipDialog } from './shell/TransferOwnershipDialog';
 import { CommunityDialog } from './community/CommunityDialog';
 import { CreateThreadDialog } from './threads/CreateThreadDialog';
 import { useLoungeUi } from './store';
 import './shell/shell.css';
+
+const ActivityLauncher = lazy(() =>
+  import('../activities/ActivityLauncher').then((m) => ({ default: m.ActivityLauncher })),
+);
 
 export function LoungeDialogs() {
   const dialog = useLoungeUi((s) => s.dialog);
@@ -36,6 +46,16 @@ export function LoungeDialogs() {
       return <AddServerDialog onClose={close} />;
     case 'guildProfile':
       return <GuildProfileDialog guildId={dialog.guildId} onClose={close} />;
+    case 'serverGuide':
+      return <ServerGuideDialog guildId={dialog.guildId} onClose={close} />;
+    case 'browseChannels':
+      return <BrowseChannelsDialog guildId={dialog.guildId} onClose={close} />;
+    case 'serverPrivacy':
+      return <ServerPrivacyDialog guildId={dialog.guildId} onClose={close} />;
+    case 'onboarding':
+      return <OnboardingEntryDialog guildId={dialog.guildId} onClose={close} />;
+    case 'securityActions':
+      return <SecurityActionsDialog guildId={dialog.guildId} onClose={close} />;
     case 'directory':
       return <DirectoryDialog onClose={close} />;
     case 'createChannel':
@@ -101,6 +121,12 @@ export function LoungeDialogs() {
     case 'transferOwnership':
       return (
         <TransferOwnershipDialog guildId={dialog.guildId} userId={dialog.userId} onClose={close} />
+      );
+    case 'startActivity':
+      return (
+        <Suspense fallback={null}>
+          <ActivityLauncher open onClose={close} channelId={dialog.channelId} />
+        </Suspense>
       );
     case 'createThread':
       return (

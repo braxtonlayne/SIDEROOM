@@ -958,6 +958,7 @@ impl Actor {
             camera: c.camera,
             screen: c.screen,
             tier: c.tier,
+            video_full: c.video_quality == 2,
         };
         if let Some((f, at)) = self.pending_flags.remove(&(c.channel_id, c.user_id))
             && now.saturating_duration_since(at) <= PENDING_FLAGS_TTL
@@ -1075,11 +1076,11 @@ impl Actor {
                 screen,
             } => {
                 // The tier is fixed at join; a level change applies from the next join.
-                let tier = self
+                let (tier, video_full) = self
                     .core
                     .participant_of(user)
                     .and_then(|p| self.core.flags_of(p))
-                    .map_or(0, |f| f.tier);
+                    .map_or((0, false), |f| (f.tier, f.video_full));
                 let flags = Flags {
                     speak,
                     deaf,
@@ -1088,6 +1089,7 @@ impl Actor {
                     camera,
                     screen,
                     tier,
+                    video_full,
                 };
                 if !self.core.set_flags(now, channel, user, flags) {
                     self.pending_flags.insert((channel, user), (flags, now));

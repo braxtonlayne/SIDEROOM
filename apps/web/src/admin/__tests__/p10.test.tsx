@@ -393,6 +393,7 @@ describe('review queues hub', () => {
     server.use(
       http.get('*/api/v1/admin/developers/requests', () => HttpResponse.json([])),
       http.get('*/api/v1/admin/developers/versions', () => HttpResponse.json([])),
+      http.get('*/api/v1/admin/developers/activities', () => HttpResponse.json([])),
       http.get('*/api/v1/admin/cinema/reports', () =>
         HttpResponse.json({ items: [], next_before: null }),
       ),
@@ -420,6 +421,7 @@ describe('review queues hub', () => {
         ]),
       ),
       http.get('*/api/v1/admin/developers/versions', () => HttpResponse.json([])),
+      http.get('*/api/v1/admin/developers/activities', () => HttpResponse.json([])),
       http.post('*/api/v1/admin/developers/requests/5/decision', async ({ request }) => {
         sent = await readJson(request);
         return HttpResponse.json({});
@@ -671,6 +673,7 @@ describe('dashboard tiles and setup checklist', () => {
         HttpResponse.json({ items: [], total: 12, limit: 1, offset: 0 }),
       ),
       http.get('*/api/v1/admin/developers/requests', () => HttpResponse.json([{ id: '1' }])),
+      http.get('*/api/v1/admin/developers/activities', () => HttpResponse.json([])),
       http.get('*/api/v1/admin/developers/versions', () =>
         HttpResponse.json([{ id: '2' }, { id: '3' }]),
       ),
@@ -821,5 +824,60 @@ describe('platform audit log', () => {
     await user.type(screen.getByLabelText('Action'), 'settings.patch');
     await user.click(screen.getByRole('button', { name: 'Apply' }));
     await waitFor(() => expect(queries.at(-1)).toContain('action=settings.patch'));
+  });
+});
+
+describe('review queues hub: Activities (DEV-ACT-001)', () => {
+  it('approves a submitted Activity bundle, naming the bundle it decided', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'REVIEW_APPS'] });
+    let sent: unknown;
+    server.use(
+      http.get('*/api/v1/admin/developers/requests', () => HttpResponse.json([])),
+      http.get('*/api/v1/admin/developers/versions', () => HttpResponse.json([])),
+      http.get('*/api/v1/admin/developers/activities', () =>
+        HttpResponse.json([
+          {
+            application_name: 'Chess',
+            owner_id: '9',
+            config: {
+              application_id: '500',
+              url_mappings: [{ prefix: '/api', target: 'https://api.example.com' }],
+            },
+            bundle: {
+              bundle: {
+                id: '801',
+                sha256: 'ab'.repeat(32),
+                byte_size: 3 * 1024 * 1024,
+                entry_count: 3,
+              },
+              entries: [
+                { path: 'index.html', size: 120, content_type: 'text/html' },
+                { path: 'app.js', size: 900, content_type: 'text/javascript' },
+              ],
+            },
+          },
+        ]),
+      ),
+      http.post('*/api/v1/admin/developers/activities/500/decision', async ({ request }) => {
+        sent = await readJson(request);
+        return HttpResponse.json({});
+      }),
+    );
+    openAdmin('review');
+    const user = userEvent.setup();
+    expect(await screen.findByText(/Bundle SHA-256: abab/)).toBeInTheDocument();
+    expect(screen.getByText('3 files, 3.0 MiB unpacked')).toBeInTheDocument();
+    expect(screen.getByText('app.js (900 B)')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Download the zip of Chess' })).toHaveAttribute(
+      'href',
+      '/api/v1/admin/developers/activities/500/bundles/801/download',
+    );
+    await user.click(screen.getByRole('button', { name: 'Approve the Activity of Chess' }));
+    const dialog = await screen.findByRole('dialog', { name: /Approve this Activity/ });
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    await waitFor(() =>
+      expect(sent).toEqual({ decision: 'approve', bundle_id: '801', note: null }),
+    );
+    expect(await screen.findByText('Decision recorded.')).toBeInTheDocument();
   });
 });

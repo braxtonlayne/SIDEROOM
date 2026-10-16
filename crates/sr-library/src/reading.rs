@@ -117,6 +117,7 @@ pub struct BookmarkInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = ReadingBookmark)]
 pub struct Bookmark {
     #[serde(with = "id")]
     #[schema(value_type = String)]
@@ -139,6 +140,7 @@ pub struct BookmarkList {
 
 /// A bookmark with the titles the "my bookmarks" list shows.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = ReadingBookmarkEntry)]
 pub struct BookmarkEntry {
     pub bookmark: Bookmark,
     pub series_title: String,

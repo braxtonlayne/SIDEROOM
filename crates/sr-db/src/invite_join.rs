@@ -144,9 +144,10 @@ impl InviteJoinRepository for PgInviteJoinRepo {
             return Ok(InviteJoin::AlreadyMember { invite: inv });
         }
         let paused: bool = sqlx::query_scalar(
-            "SELECT COALESCE((SELECT invites_paused FROM guild_community WHERE guild_id = $1), FALSE)",
+            "SELECT COALESCE((SELECT invites_paused OR COALESCE(invites_disabled_until > to_timestamp($2::bigint / 1000.0), FALSE) \n             FROM guild_community WHERE guild_id = $1), FALSE)",
         )
         .bind(guild)
+        .bind(now_ms)
         .fetch_one(&mut *tx)
         .await
         .map_err(db)?;
@@ -262,9 +263,10 @@ impl InviteJoinRepository for PgInviteJoinRepo {
         let (g, uid) = (i(guild.get()), i(user.get()));
         let mut tx = self.pool.begin().await.map_err(db)?;
         let paused: bool = sqlx::query_scalar(
-            "SELECT COALESCE((SELECT invites_paused FROM guild_community WHERE guild_id = $1), FALSE)",
+            "SELECT COALESCE((SELECT invites_paused OR COALESCE(invites_disabled_until > to_timestamp($2::bigint / 1000.0), FALSE) \n             FROM guild_community WHERE guild_id = $1), FALSE)",
         )
         .bind(g)
+        .bind(now_ms)
         .fetch_one(&mut *tx)
         .await
         .map_err(db)?;

@@ -13,6 +13,8 @@
  */
 import { create } from 'zustand';
 import { apiFetch } from '../api/client';
+import { rest, useStore } from '../store';
+import type { UserSettingsBlob } from '../store';
 
 export interface Sound {
   id: string;
@@ -50,6 +52,38 @@ const parseList = (raw: unknown): Sound[] =>
 
 const STORAGE_KEY = 'sr.soundboard';
 
+/** The synced settings key holding the favorites (H-45): sound keys, newest last, at most FAVORITES_MAX. */
+export const FAVORITES_KEY = 'soundboardFavorites';
+export const FAVORITES_MAX = 50;
+/** A well-formed favorite: `default:<id>` or `<server id>:<id>` (P14-WEB-2). */
+const FAVORITE_SHAPE = /^(default|[0-9]{1,20}):[0-9]{1,20}$/;
+
+/**
+ * Entries read from the settings blob or the old local list are kept only when they match
+ * {@link FAVORITE_SHAPE}; the list is cut to the newest {@link FAVORITES_MAX}; and a server entry whose
+ * server is not in `servers` (the person left it) is dropped. `servers` is null while the server list is
+ * not known yet, which keeps every well-formed entry.
+ */
+export function cleanFavorites(raw: unknown, servers: ReadonlySet<string> | null): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((f): f is string => typeof f === 'string' && FAVORITE_SHAPE.test(f))
+    .filter((f) => {
+      const server = f.slice(0, f.indexOf(':'));
+      return server === 'default' || !servers || servers.has(server);
+    })
+    .slice(-FAVORITES_MAX);
+}
+
+/** The servers the person is in, or null before the first READY (nothing is dropped then). */
+function knownServers(): ReadonlySet<string> | null {
+  const order = useStore.getState().guildOrder;
+  return order.length ? new Set(order) : null;
+}
+
+/** True once the settings blob has been read; until then the localStorage list is the first paint. */
+let favoritesAdopted = false;
+
 interface Saved {
   favorites: string[];
   volume: number;
@@ -59,9 +93,7 @@ function load(): Saved {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Partial<Saved>;
     return {
-      favorites: Array.isArray(raw.favorites)
-        ? raw.favorites.filter((f): f is string => typeof f === 'string')
-        : [],
+      favorites: cleanFavorites(raw.favorites, knownServers()),
       volume: typeof raw.volume === 'number' ? Math.min(100, Math.max(0, raw.volume)) : 100,
     };
   } catch {
@@ -69,9 +101,10 @@ function load(): Saved {
   }
 }
 
+/** Writes the per-device volume, plus the legacy favorites list only while the synced one is not known. */
 function save(s: Saved): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(favoritesAdopted ? { volume: s.volume } : s));
   } catch {
     /* private mode: the choice lasts until the page closes */
   }
@@ -91,9 +124,12 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   guilds: {},
   toggleFavorite: (key) => {
     const cur = get().favorites;
-    const favorites = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+    const favorites = (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]).slice(
+      -FAVORITES_MAX,
+    );
     set({ favorites });
     save({ favorites, volume: get().volume });
+    if (favoritesAdopted) writeFavorites(favorites);
   },
   setVolume: (percent) => {
     const volume = Math.min(100, Math.max(0, Math.round(percent)));
@@ -102,8 +138,65 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   },
 }));
 
-export const resetSoundboard = () =>
+export const resetSoundboard = () => {
+  favoritesAdopted = false;
   useSoundboard.setState({ defaults: null, guilds: {}, favorites: [], volume: 100 });
+};
+
+/** Saves the favorites into the settings blob and records the new version; a failure keeps the local state. */
+function writeFavorites(list: string[]): void {
+  void rest
+    .patchUserSettings({ [FAVORITES_KEY]: list })
+    .then((saved) => useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', saved))
+    .catch(() => undefined);
+}
+
+/**
+ * Takes the favorites from the settings blob. A blob without the key imports this device's old localStorage
+ * list once (written up, then the local copy is dropped); a blob with it wins and the local list is ignored.
+ */
+export function adoptFavorites(blob: UserSettingsBlob | null): void {
+  if (!blob) return;
+  const raw = blob.settings[FAVORITES_KEY];
+  if (Array.isArray(raw)) {
+    const favorites = cleanFavorites(raw, knownServers());
+    const cur = useSoundboard.getState().favorites;
+    favoritesAdopted = true;
+    if (favorites.length !== cur.length || favorites.some((f, i) => f !== cur[i])) {
+      useSoundboard.setState({ favorites });
+    }
+    save({ favorites, volume: useSoundboard.getState().volume });
+    return;
+  }
+  const legacy = load().favorites;
+  favoritesAdopted = true;
+  if (legacy.length) {
+    useSoundboard.setState({ favorites: legacy });
+    writeFavorites(legacy);
+  }
+  const { favorites, volume } = useSoundboard.getState();
+  save({ favorites, volume });
+}
+
+/** Follows the settings blob (loading it when this session has not): call on mount, call the result on unmount. */
+export function startFavoritesSync(): () => void {
+  let last = useStore.getState().userSettings;
+  let lastOrder = useStore.getState().guildOrder;
+  adoptFavorites(last);
+  if (!last) {
+    rest
+      .fetchUserSettings()
+      .then((blob) => useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', blob))
+      .catch(() => undefined);
+  }
+  return useStore.subscribe((st) => {
+    // A change of the server list re-reads the blob, so favorites of a server just left drop out.
+    if (st.userSettings === last && st.guildOrder === lastOrder) return;
+    last = st.userSettings;
+    lastOrder = st.guildOrder;
+    adoptFavorites(last);
+  });
+}
 
 /** Load the default sounds once and a server's own sounds (again each time, so a new upload shows). */
 export async function loadSounds(guildId: string | null): Promise<void> {

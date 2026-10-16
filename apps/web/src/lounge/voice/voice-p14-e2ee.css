@@ -1,0 +1,58 @@
+/* VOX-E2E-007: privacy codes popover. Logical properties only. */
+.vc-e2ee-popover {
+  max-inline-size: 22rem;
+  padding: 0.75rem;
+}
+
+.vc-e2ee-shield[data-verified] {
+  color: var(--sr-gold);
+}
+
+.vc-e2ee-intro {
+  margin-block: 0 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.vc-e2ee-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.vc-e2ee-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.5rem;
+  align-items: center;
+}
+
+.vc-e2ee-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vc-e2ee-code {
+  grid-column: 1 / -1;
+  font-family: var(--sr-font-mono, monospace);
+  letter-spacing: 0.05em;
+}
+
+.vc-e2ee-verify {
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: end;
+}
+
+.vc-e2ee-shield[data-pending] {
+  opacity: 0.6;
+}
+
+.vc-e2ee-call {
+  display: grid;
+  gap: 0.25rem;
+  margin-block-end: 0.75rem;
+}

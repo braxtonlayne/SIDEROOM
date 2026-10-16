@@ -19,6 +19,7 @@ import {
   RtcVoiceEngine,
   VoiceConnectError,
   type EngineEvents,
+  type EngineE2ee,
   type EngineFactory,
   type VoiceEngine,
   type VoiceError,
@@ -35,6 +36,8 @@ import {
 import { streamerState } from '../settings/user/prefs';
 import { CuePlayer, cueEnabled, type Cue } from './sounds';
 import { VadGate } from './vad';
+import { e2eeFlagEnabled } from './e2ee/flag';
+import type { E2eeRuntime, E2eeStartContext, E2eeStarter } from './e2ee/runtime';
 import { VIDEO_PUBLISH } from './protocol';
 import { PreviewUploader, type PreviewDeps, browserPreviewDeps } from './preview';
 import { LocalSoundPlayer } from './soundPlayer';
@@ -95,12 +98,21 @@ export interface ControllerDeps {
   preview?: PreviewDeps;
   /** Announce a soundboard play (VOX-SB-003); `POST /channels/{id}/send-soundboard-sound` by default. */
   sendSound?: (channelId: string, body: SendSoundBody) => Promise<void>;
+  /**
+   * VOX-E2E-003: start end-to-end encryption for a call (`voice.e2ee`). Absent: calls are
+   * DTLS-SRTP only. `unsupported`: the browser has no encoded-frame API, so the join fails.
+   */
+  e2ee?: E2eeStarter;
 }
 
 export type SoundResult = { ok: true } | { ok: false; message: string };
 
 /** Wait this long after the last tile resize / watch change before sending subscription hints. */
 export const HINT_DEBOUNCE_MS = 200;
+
+// (`t` is shadowed by the join target inside the start path.)
+const e2eeUnsupportedText = () => t('voice.e2ee.unsupported');
+const e2eeFailedText = () => t('voice.e2ee.failed');
 
 export const DM_GUILD_ID = '@me';
 export const SERVER_WAIT_MS = 10_000;
@@ -115,6 +127,12 @@ const defaultDeps = (): ControllerDeps => ({
   voiceStatesOf: (g) => useStore.getState().voiceStates[g] ?? {},
   audio: browserAudioDeps,
   now: () => Date.now(),
+  ...(e2eeFlagEnabled()
+    ? {
+        e2ee: (ctx: E2eeStartContext) =>
+          import('./e2ee/runtime').then((m) => m.startBrowserE2ee(ctx)),
+      }
+    : {}),
 });
 
 export class VoiceController {
@@ -146,6 +164,9 @@ export class VoiceController {
   private offHints: (() => void) | null = null;
   private hintTimer: ReturnType<typeof setTimeout> | undefined;
   private lastHints = '';
+  private e2ee: E2eeRuntime | null = null;
+  /** Bumped per engine start, so a late E2EE start for an abandoned attempt is dropped. */
+  private startSeq = 0;
 
   constructor(private deps: ControllerDeps = defaultDeps()) {
     const s = getVoiceSettings();
@@ -673,6 +694,10 @@ export class VoiceController {
       return;
     }
     if (!t) return;
+    if (event === 'E2EE_MLS') {
+      this.e2ee?.call.onMessage(d);
+      return;
+    }
     if (event === 'STREAM_CREATE' || event === 'STREAM_UPDATE' || event === 'STREAM_DELETE') {
       const r = applyStreamEvent(event, data, me);
       const started = r.started ? ownerOfKey(r.started) : null;
@@ -787,6 +812,8 @@ export class VoiceController {
     const t = this.target;
     if (!t || !userId || useVoiceSession.getState().status !== 'connected') return;
     const here = channelId === t.channelId;
+    // The store applies the same event; read the roster once it has.
+    if (this.e2ee) queueMicrotask(() => this.e2ee?.call.onRosterChanged());
     if (here && !this.roster.has(userId)) {
       this.roster.add(userId);
       this.cue('join');
@@ -807,6 +834,47 @@ export class VoiceController {
     this.started = true;
     clearTimeout(this.waitTimer);
     patchSession({ status: 'connecting', error: null });
+    const starter = this.deps.e2ee;
+    if (!starter) {
+      this.startEngine(t, me);
+      return;
+    }
+    const seq = ++this.startSeq;
+    const guildId = t.guildId;
+    starter({
+      me,
+      channelId: t.channelId,
+      send: (d) => this.deps.sendGateway(Op.E2EE_MLS, d),
+      roster: () => {
+        const cur = this.target;
+        if (!cur) return [me];
+        const ids = Object.values(this.deps.voiceStatesOf(guildId))
+          .filter((v) => v.channel_id === cur.channelId)
+          .map((v) => v.user_id);
+        return ids.includes(me) ? ids : [...ids, me];
+      },
+    })
+      .then((rt) => {
+        if (seq !== this.startSeq || !this.started || this.target?.channelId !== t.channelId) {
+          if (rt !== 'unsupported') rt.stop();
+          return;
+        }
+        if (rt === 'unsupported') {
+          this.fail({ code: 'refused', message: e2eeUnsupportedText() });
+          return;
+        }
+        this.e2ee = rt;
+        this.startEngine(t, me, rt.engine);
+      })
+      .catch(() => {
+        if (seq !== this.startSeq) return;
+        this.fail({ code: 'connect', message: e2eeFailedText() });
+      });
+  }
+
+  private startEngine(t: JoinTarget, me: string, e2ee?: EngineE2ee): void {
+    const server = this.server;
+    if (!server) return;
     const engine = this.deps.createEngine(this.engineEvents());
     this.engine = engine;
     this.lastHints = '';
@@ -830,12 +898,13 @@ export class VoiceController {
     this.recompute();
     void engine
       .connect({
-        endpoint: this.server.endpoint,
-        token: this.server.token,
+        endpoint: server.endpoint,
+        token: server.token,
         userId: me,
-        ...(this.server.ice_servers ? { iceServers: this.server.ice_servers } : {}),
+        ...(server.ice_servers ? { iceServers: server.ice_servers } : {}),
         ...bitrateOf(t.channelId),
         mic: micOptions(s),
+        ...(e2ee ? { e2ee } : {}),
       })
       .then(() => {
         if (this.engine !== engine) return;
@@ -1064,6 +1133,9 @@ export class VoiceController {
     const e = this.engine;
     this.engine = null;
     e?.disconnect();
+    this.startSeq++;
+    this.e2ee?.stop();
+    this.e2ee = null;
     this.offHints?.();
     this.offHints = null;
     clearTimeout(this.hintTimer);

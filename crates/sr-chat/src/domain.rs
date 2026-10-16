@@ -153,6 +153,18 @@ pub struct Guild {
     pub widget_enabled: bool,
     /// The channel the widget invites to.
     pub widget_channel_id: Option<ChannelId>,
+    /// Server traits (J-07): at most five labels with an emoji.
+    pub traits: Vec<crate::guild_traits::GuildTrait>,
+    /// Timed incident actions and the last join-rate alert (D-243), read from `guild_community`.
+    pub incidents: IncidentsData,
+}
+
+/// `incidents_data` of the guild object (D-243). A time in the past means the pause ended.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct IncidentsData {
+    pub invites_disabled_until_ms: Option<i64>,
+    pub dms_disabled_until_ms: Option<i64>,
+    pub raid_detected_at_ms: Option<i64>,
 }
 
 /// Bits of [`Guild::system_channel_flags`] (Discord values).
@@ -173,6 +185,10 @@ pub struct Role {
     pub guild_id: GuildId,
     pub name: String,
     pub color: u32,
+    /// Second gradient stop (J-08); `color` is the first.
+    pub secondary_color: Option<u32>,
+    /// Third gradient stop; only with a second one (the holographic preset).
+    pub tertiary_color: Option<u32>,
     pub hoist: bool,
     pub position: i32,
     pub permissions: Permissions,
@@ -219,6 +235,8 @@ pub struct MemberExtras {
     pub theme_colors: Option<[u32; 2]>,
     pub profile_effect: Option<String>,
     pub avatar_decoration: Option<String>,
+    /// Discord's `GuildMemberFlags` (`sr_core::member_flags`, D-245); 0 until a setter runs.
+    pub flags: u32,
 }
 
 impl Member {
@@ -227,6 +245,11 @@ impl Member {
             .is_some_and(|until| until > now_ms)
     }
 }
+
+/// `video_quality_mode` 1: the adaptive default.
+pub const VIDEO_QUALITY_AUTO: u8 = 1;
+/// `video_quality_mode` 2: camera tracks may use the 720p tier regardless of occupancy.
+pub const VIDEO_QUALITY_FULL: u8 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Channel {
@@ -250,6 +273,10 @@ pub struct Channel {
     pub thread: Option<ThreadInfo>,
     /// Forum/media settings and thread defaults.
     pub forum: ForumConfig,
+    /// Voice and stage channels: 1 auto (the adaptive default), 2 full (camera tracks may use
+    /// the 720p tier whatever the occupancy). Discord's `video_quality_mode`; always 1 on other
+    /// channels.
+    pub video_quality_mode: u8,
 }
 
 impl Channel {
@@ -271,6 +298,7 @@ impl Channel {
             flags: 0,
             thread: None,
             forum: ForumConfig::default(),
+            video_quality_mode: VIDEO_QUALITY_AUTO,
         }
     }
 }
@@ -293,11 +321,21 @@ pub enum MessageType {
     ChannelIconChange,
     ChannelPinnedMessage,
     UserJoin,
+    /// A member supported the server (Discord's boost type 8; tiers 9 to 11 follow the level).
+    ServerSupport,
+    ServerSupportLevel1,
+    ServerSupportLevel2,
+    ServerSupportLevel3,
+    /// An announcement channel was followed into this channel (type 12).
+    ChannelFollowAdd,
     ThreadCreated,
     Reply,
     ChatInputCommand,
     ThreadStarterMessage,
     ContextMenuCommand,
+    /// An AutoMod alert or an incident alert the system user posted, with moderation buttons
+    /// (type 24, D-243/D-244).
+    AutoModerationAction,
 }
 
 impl MessageType {
@@ -311,11 +349,17 @@ impl MessageType {
             Self::ChannelIconChange => 5,
             Self::ChannelPinnedMessage => 6,
             Self::UserJoin => 7,
+            Self::ServerSupport => 8,
+            Self::ServerSupportLevel1 => 9,
+            Self::ServerSupportLevel2 => 10,
+            Self::ServerSupportLevel3 => 11,
+            Self::ChannelFollowAdd => 12,
             Self::ThreadCreated => 18,
             Self::Reply => 19,
             Self::ChatInputCommand => 20,
             Self::ThreadStarterMessage => 21,
             Self::ContextMenuCommand => 23,
+            Self::AutoModerationAction => 24,
         }
     }
 
@@ -329,11 +373,17 @@ impl MessageType {
             5 => Self::ChannelIconChange,
             6 => Self::ChannelPinnedMessage,
             7 => Self::UserJoin,
+            8 => Self::ServerSupport,
+            9 => Self::ServerSupportLevel1,
+            10 => Self::ServerSupportLevel2,
+            11 => Self::ServerSupportLevel3,
+            12 => Self::ChannelFollowAdd,
             18 => Self::ThreadCreated,
             19 => Self::Reply,
             20 => Self::ChatInputCommand,
             21 => Self::ThreadStarterMessage,
             23 => Self::ContextMenuCommand,
+            24 => Self::AutoModerationAction,
             _ => return None,
         })
     }

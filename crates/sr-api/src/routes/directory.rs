@@ -118,6 +118,8 @@ pub struct DirectoryGuildObject {
     pub approximate_presence_count: Option<u64>,
     pub preferred_locale: String,
     pub vanity_url_code: Option<String>,
+    /// The server's traits (J-07), at most five.
+    pub traits: Vec<crate::routes::guilds::dto::GuildTraitObject>,
     /// The caller already is a member.
     pub joined: bool,
     /// Staff preview of a request that is still waiting (H-40); never set in the public list.
@@ -227,6 +229,7 @@ async fn build_card(
         approximate_presence_count: presence,
         preferred_locale: g.preferred_locale.clone(),
         vanity_url_code: g.vanity_code.clone(),
+        traits: g.traits.iter().map(Into::into).collect(),
         joined,
         pending: preview && entry.status == DirectoryStatus::Pending,
     }))
@@ -389,7 +392,7 @@ pub async fn get_emoji_info(
     params(
         ("emoji_id" = String, Path, description = "Emoji snowflake"),
         ("size" = Option<u32>, Query, description = "Power of two, 16 to 4096"),
-        ("format" = Option<String>, Query, description = "png, jpg, webp or gif"),
+        ("format" = Option<String>, Query, description = "png, jpg, webp, gif or avif (answers webp)"),
     ),
     responses((status = 200, body = crate::routes::settings::expressions::SignedUrlObject),
               (status = 400, body = ErrorBody), (status = 404, body = ErrorBody)),
@@ -608,6 +611,7 @@ pub async fn join(
         Some(m) => {
             if let Some(msgs) = &messages {
                 crate::routes::messages::system::post_user_join(msgs, gid, user).await;
+                crate::routes::settings::alerts::after_join(&deps, msgs, gid).await;
             }
             m
         }
@@ -836,6 +840,7 @@ pub async fn admin_preview(
 
 /// Body of `PATCH /admin/directory/{guild_id}`.
 #[derive(Debug, Default, Deserialize, ToSchema)]
+#[schema(as = DirectoryDecisionBody)]
 pub struct DecisionBody {
     /// `approve`, `reject` or `remove`.
     pub decision: String,

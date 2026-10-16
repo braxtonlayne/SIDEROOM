@@ -802,6 +802,52 @@ async fn authorize_requests_are_validated_without_redirecting_on_errors() {
     );
 }
 
+#[tokio::test]
+async fn an_implicit_redirect_uri_is_accepted_without_being_stored() {
+    let e = env();
+    let (c, _) = oauth_app(&e).await;
+    let activity = "https://7.activities.chat.example.org/".to_owned();
+    let p = AuthorizeParams {
+        redirect_uri: Some(activity.clone()),
+        ..params(&c, "identify")
+    };
+    // Not registered and not implicit: refused.
+    assert!(e.svc.validate_authorize(&p).await.is_err());
+    assert!(e.svc.validate_authorize_with(&p, &[]).await.is_err());
+    // The caller names the Activity URI as implicit: accepted, and it is what the code goes back to.
+    let v = e
+        .svc
+        .validate_authorize_with(&p, std::slice::from_ref(&activity))
+        .await
+        .unwrap();
+    assert_eq!(v.redirect_uri.as_deref(), Some(activity.as_str()));
+    // Only exactly that URI: a different path or host on the same origin is still refused.
+    for other in [
+        "https://7.activities.chat.example.org/cb",
+        "https://8.activities.chat.example.org/",
+        "https://7.activities.chat.example.org",
+    ] {
+        let q = AuthorizeParams {
+            redirect_uri: Some(other.to_owned()),
+            ..params(&c, "identify")
+        };
+        assert!(
+            e.svc
+                .validate_authorize_with(&q, std::slice::from_ref(&activity))
+                .await
+                .is_err(),
+            "{other}"
+        );
+    }
+    // The registered URI keeps working beside it.
+    assert!(
+        e.svc
+            .validate_authorize_with(&params(&c, "identify"), std::slice::from_ref(&activity))
+            .await
+            .is_ok()
+    );
+}
+
 async fn code_for(
     e: &Env,
     c: &Created,
@@ -1722,4 +1768,40 @@ async fn a_failing_endpoint_is_disabled_and_verification_re_enables_it() {
         .collect();
     assert!(actions.contains(&"app.interactions_endpoint_disabled".to_string()));
     assert!(actions.contains(&"app.interactions_endpoint_reenabled".to_string()));
+}
+
+#[tokio::test]
+async fn integrations_list_the_installed_applications_and_uninstall_removes_the_bot() {
+    let e = env();
+    let c = app(&e).await;
+    e.repo.add_guild(60, OWNER, &[]);
+    e.repo.add_guild(61, OWNER, &[]);
+    e.svc
+        .install(install_req(&c, OWNER, 60, Permissions::MANAGE_GUILD, 8))
+        .await
+        .unwrap();
+    // Only the server the application is installed in lists it, with the installer.
+    let list = e.svc.guild_integrations(60).await.unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].1.id, c.application.id);
+    assert_eq!(list[0].0.installed_by, OWNER);
+    assert!(e.svc.guild_integrations(61).await.unwrap().is_empty());
+    // A kicked bot drops out of the list.
+    e.repo.remove_member(60, c.application.bot_user_id);
+    assert!(e.svc.guild_integrations(60).await.unwrap().is_empty());
+    e.svc
+        .install(install_req(&c, OWNER, 60, Permissions::MANAGE_GUILD, 8))
+        .await
+        .unwrap();
+    assert_eq!(e.svc.guild_integrations(60).await.unwrap().len(), 1);
+
+    // Uninstalling removes the install and the bot's membership; a second try finds nothing.
+    let gone = e.svc.uninstall(c.application.id, 60).await.unwrap();
+    assert_eq!(gone.guild_id, 60);
+    assert!(!e.repo.is_member(60, c.application.bot_user_id));
+    assert!(!e.svc.is_installed(c.application.id, 60).await.unwrap());
+    assert_eq!(
+        e.svc.uninstall(c.application.id, 60).await.err(),
+        Some(AppsError::NotFound("integration"))
+    );
 }

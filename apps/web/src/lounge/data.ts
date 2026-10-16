@@ -90,7 +90,11 @@ export interface GuildPermissions {
 export interface Guild {
   id: Snowflake;
   name: string;
+  /** The server's traits (J-07), at most five. */
+  traits?: { emoji_id?: string | null; emoji_name?: string | null; label: string }[];
   iconUrl?: string | null;
+  /** Server banner shown behind the name in the channel list header (LNG-GLD-019). */
+  bannerUrl?: string | null;
   ownerId: Snowflake;
   /** Any non-muted channel unread. */
   unread: boolean;
@@ -207,6 +211,8 @@ export interface Role {
   position: number;
   /** Second colour of a gradient role (CSS hex). */
   colorSecondary?: string | null;
+  /** Third colour of a gradient role; only with a second one (the holographic preset). */
+  colorTertiary?: string | null;
   /** Emoji shown as the role icon next to the name. */
   emoji?: string | null;
 }

@@ -152,6 +152,7 @@ export function MessageList({
         out.set(mem.user.id, {
           ...(best?.color ? { color: best.color } : {}),
           ...(best?.colorSecondary ? { secondary: best.colorSecondary } : {}),
+          ...(best?.colorSecondary && best.colorTertiary ? { tertiary: best.colorTertiary } : {}),
           ...(iconRole?.emoji ? { icon: iconRole.emoji, iconName: iconRole.name } : {}),
         });
     }

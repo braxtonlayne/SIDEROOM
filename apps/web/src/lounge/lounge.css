@@ -1831,3 +1831,17 @@
 .lng-emoji-btn[data-favorite] {
   background: var(--ui-bg-hover);
 }
+
+/* A server with a banner shows it behind the name (LNG-GLD-019). */
+.lng-guild-header[data-banner] {
+  block-size: 96px;
+  align-items: flex-end;
+  padding-block-end: 8px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  background-size: cover;
+  background-position: center;
+}
+.lng-guild-header[data-banner]:hover {
+  filter: brightness(1.1);
+}

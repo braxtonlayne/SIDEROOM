@@ -43,6 +43,8 @@ export interface UserPrefs {
   /** Per-section overrides; a missing section follows the theme above (Lounge) or its own default. */
   sectionThemes: SectionThemes;
   messageDisplay: MessageDisplay;
+  /** A small avatar before the name on every line in Compact mode (LNG-USET-040). */
+  compactAvatars: boolean;
   /** Pixels between message groups, 0..24. */
   messageGap: number;
   /** Percent of the 16px base font, 75..150. */
@@ -117,6 +119,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   theme: 'lounge-dark',
   sectionThemes: {},
   messageDisplay: 'cozy',
+  compactAvatars: false,
   messageGap: 16,
   fontScale: 100,
   saturation: 100,
@@ -209,6 +212,7 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     theme: oneOf(r.theme, ['system', ...THEME_CHOICES] as const, d.theme),
     sectionThemes,
     messageDisplay: oneOf(r.messageDisplay, ['cozy', 'compact'] as const, d.messageDisplay),
+    compactAvatars: bool(r.compactAvatars, d.compactAvatars),
     messageGap: clamp(r.messageGap, ...MESSAGE_GAP_RANGE, d.messageGap),
     fontScale: clamp(r.fontScale, ...FONT_SCALE_RANGE, d.fontScale),
     saturation: clamp(r.saturation, 0, 100, d.saturation),

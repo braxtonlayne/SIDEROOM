@@ -12,6 +12,7 @@ import { useGuild } from '../data';
 import { PingGraph } from './PingGraph';
 import { QualityBars } from './QualityBars';
 import { ScreenSharePicker } from './ScreenSharePicker';
+import { E2eeShield } from './PrivacyCodes';
 import { SoundboardButton } from './SoundboardPopover';
 import './voice-p10.css';
 
@@ -163,6 +164,7 @@ export function VoicePanel() {
             <Icon name="screen-share" size={20} />
           </button>
         </Tooltip>
+        <E2eeShield />
         {s.guildId && s.channelId && s.guildId !== DM_GUILD_ID && (
           <SoundboardButton guildId={s.guildId} channelId={s.channelId} compact />
         )}

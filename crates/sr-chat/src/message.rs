@@ -44,6 +44,10 @@ pub struct Embed {
     /// embeds never keep it, so its presence marks an embed as server-generated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<EmbedProvider>,
+    /// Server-set on link previews whose link the author wrote inside a spoiler: clients keep
+    /// the preview hidden until it is revealed (LNG-MSG-015). Never kept from client embeds.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sr_spoiler: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -206,8 +210,23 @@ pub struct Component {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disabled: Option<bool>,
+    /// Select menus: the text shown while nothing is chosen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder: Option<String>,
+    /// String select menus (type 3): the choices.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<SelectOption>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub components: Vec<Component>,
+}
+
+/// One choice of a string select menu (Discord `select option`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SelectOption {
+    pub label: String,
+    pub value: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 #[cfg(test)]

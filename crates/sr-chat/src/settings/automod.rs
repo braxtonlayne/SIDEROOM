@@ -96,6 +96,38 @@ pub enum TriggerKind {
     Links,
 }
 
+impl TriggerKind {
+    /// The name the alert message shows for the rule's trigger.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Keyword => "Keyword",
+            Self::Spam => "Spam",
+            Self::KeywordPreset => "Keyword preset",
+            Self::MentionSpam => "Mention spam",
+            Self::Links => "Links",
+        }
+    }
+}
+
+/// One `send_alert_message` alert the system user posted into a rule's alert channel
+/// (D-244). Its id is the id of the alert message; the buttons on the message carry only that
+/// id, and who was flagged and which message is read here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutoModAlert {
+    pub id: u64,
+    pub guild_id: GuildId,
+    pub rule_id: u64,
+    pub rule_name: String,
+    /// The channel the alert was posted into.
+    pub channel_id: ChannelId,
+    pub target_user_id: UserId,
+    /// The channel the flagged message was written in.
+    pub flagged_channel_id: ChannelId,
+    /// The flagged message; `None` when AutoMod blocked it before it was stored.
+    pub flagged_message_id: Option<u64>,
+    pub resolved_by: Option<UserId>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
     /// Delete the message and optionally explain why to the author.

@@ -32,6 +32,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 tokio-tungstenite = "0.29"
+# VOX-E2E-008: the SFU plaintext assertion encrypts test frames; the SFU itself never links it.
+sr-e2ee = { path = "../sr-e2ee" }
 
 [lints]
 workspace = true

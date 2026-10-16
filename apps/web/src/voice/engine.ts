@@ -58,6 +58,16 @@ export interface ConnectParams {
   /** The channel's audio bitrate in bits per second (advertised to the SFU and set on the sender, spec 4.4). */
   maxBitrate?: number;
   mic: MicOptions;
+  /** VOX-E2E-003: end-to-end encrypt every track through the call's media worker. */
+  e2ee?: EngineE2ee;
+}
+
+/** How the engine hooks the E2EE frame transform into its senders and receivers. */
+export interface EngineE2ee {
+  /** Extra RTCPeerConnection options (the createEncodedStreams fallback needs one). */
+  peerConfig: Record<string, unknown>;
+  attachSender(sender: unknown, kind: 'audio' | 'video'): void;
+  attachReceiver(receiver: unknown, kind: 'audio' | 'video', userId: string): void;
 }
 
 export interface EngineEvents {
@@ -135,6 +145,8 @@ export type EngineFactory = (events: EngineEvents) => VoiceEngine;
 /** The part of an RTCRtpTransceiver the engine reads: its mid (set by the first local description) and stop. */
 export interface TransceiverLike {
   readonly mid: string | null;
+  /** The RTCRtpSender (absent in some fakes). */
+  readonly sender?: unknown;
   stop?(): void;
 }
 
@@ -146,7 +158,13 @@ export interface PeerLike {
   readonly localDescription: { type: string; sdp?: string } | null;
   onconnectionstatechange: (() => void) | null;
   onicegatheringstatechange: (() => void) | null;
-  ontrack: ((ev: { track: MediaStreamTrack; streams: readonly MediaStream[] }) => void) | null;
+  ontrack:
+    | ((ev: {
+        track: MediaStreamTrack;
+        streams: readonly MediaStream[];
+        receiver?: unknown;
+      }) => void)
+    | null;
   addTransceiver(
     track: MediaStreamTrack,
     init: {
@@ -165,7 +183,7 @@ export interface PeerLike {
 
 export interface EngineDeps {
   createSocket: SocketFactory;
-  createPeer(config: { iceServers: VoiceIceServer[] }): PeerLike;
+  createPeer(config: { iceServers: VoiceIceServer[]; [option: string]: unknown }): PeerLike;
   audio: AudioDeps;
   /** Browser online/offline hooks (network change -> ICE restart). */
   onOnline(cb: () => void): () => void;
@@ -467,10 +485,17 @@ export class RtcVoiceEngine implements VoiceEngine {
   // ---- WebRTC ----
 
   private buildPeer(): PeerLike {
-    const pc = this.deps.createPeer({ iceServers: this.params?.iceServers ?? [] });
+    const e2ee = this.params?.e2ee;
+    const pc = this.deps.createPeer({
+      iceServers: this.params?.iceServers ?? [],
+      ...(e2ee?.peerConfig ?? {}),
+    });
     const out = this.mic.outStream;
     const track = this.mic.track;
-    if (track && out) pc.addTransceiver(track, { direction: 'sendonly', streams: [out] });
+    if (track && out) {
+      const tx = pc.addTransceiver(track, { direction: 'sendonly', streams: [out] });
+      if (e2ee) e2ee.attachSender(tx?.sender, 'audio');
+    }
     for (const o of this.outgoing.values()) this.attach(pc, o);
     pc.ontrack = (ev) => {
       const stream = ev.streams[0];
@@ -478,6 +503,8 @@ export class RtcVoiceEngine implements VoiceEngine {
       // The SFU labels each forwarded line's msid stream: the speaker's user id for the mic (spec 4.4),
       // `<user>-camera` and `<user>-screen` for video (the screen's audio shares the screen's stream).
       const id = parseStreamId(stream.id);
+      if (e2ee)
+        e2ee.attachReceiver(ev.receiver, ev.track.kind === 'video' ? 'video' : 'audio', id.userId);
       if (id.kind !== 'mic') {
         this.addRemoteVideo(id.userId, id.kind, stream);
       } else if (ev.track.kind === 'audio') {
@@ -759,6 +786,7 @@ export class RtcVoiceEngine implements VoiceEngine {
         streams: [o.stream],
         ...(sendEncodings ? { sendEncodings } : {}),
       }) ?? null;
+    this.params?.e2ee?.attachSender(o.tx?.sender, o.track.kind === 'audio' ? 'audio' : 'video');
     o.announced = null;
   }
 

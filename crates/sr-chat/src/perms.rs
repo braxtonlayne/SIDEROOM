@@ -14,6 +14,7 @@ pub fn default_everyone_permissions() -> Permissions {
         | P::SEND_MESSAGES
         | P::SEND_TTS_MESSAGES
         | P::EMBED_LINKS
+        | P::USE_LIBRARY_EMBEDS
         | P::ATTACH_FILES
         | P::READ_MESSAGE_HISTORY
         | P::USE_EXTERNAL_EMOJIS
@@ -43,6 +44,7 @@ pub fn dm_permissions() -> Permissions {
     P::VIEW_CHANNEL
         | P::SEND_MESSAGES
         | P::EMBED_LINKS
+        | P::USE_LIBRARY_EMBEDS
         | P::ATTACH_FILES
         | P::READ_MESSAGE_HISTORY
         | P::ADD_REACTIONS
@@ -173,10 +175,12 @@ pub(crate) mod fixtures {
             system_channel_flags: 0,
             widget_enabled: false,
             widget_channel_id: None,
+            traits: Vec::new(),
             rules_channel_id: None,
             public_updates_channel_id: None,
             safety_alerts_channel_id: None,
             hide_suspicious_links: false,
+            incidents: Default::default(),
             owner_id: UserId::new(OWNER),
             is_staff_guild: false,
             system_channel_id: None,
@@ -195,6 +199,8 @@ pub(crate) mod fixtures {
             guild_id: GuildId::new(GUILD),
             name: format!("r{id}"),
             color: 0,
+            secondary_color: None,
+            tertiary_color: None,
             hoist: false,
             position,
             permissions,

@@ -14,6 +14,8 @@ export interface DirectoryGuild {
   approximate_presence_count?: number | null;
   preferred_locale: string;
   vanity_url_code: string | null;
+  /** The server's traits (J-07), at most five. */
+  traits?: { emoji_id?: string | null; emoji_name?: string | null; label: string }[];
   /** The caller already is a member. */
   joined: boolean;
 }
