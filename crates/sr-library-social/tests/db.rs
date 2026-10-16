@@ -5,12 +5,12 @@
 
 use std::sync::atomic::{AtomicI64, Ordering};
 
+use serde_json::json;
 use sr_db::{
     PgPool,
     accounts::{self, NewAccount},
     testing::TestDb,
 };
-use serde_json::json;
 use sr_library_social::model::*;
 use sr_library_social::{LibrarySocial, SocialError};
 
@@ -1177,12 +1177,23 @@ async fn reading_presence_follows_library_share_reading() {
     assert!(svc.friends_reading(mate).await.unwrap().items.is_empty());
 
     // everyone: the friend and the server mate, never a stranger or someone who blocked the reader.
-    set_blob(&e, me.user_id, json!({"library": {"share_reading": "everyone"}})).await;
+    set_blob(
+        &e,
+        me.user_id,
+        json!({"library": {"share_reading": "everyone"}}),
+    )
+    .await;
     svc.heartbeat_reading(me, c1).await.unwrap();
     let last = audience().pop().unwrap();
     assert_eq!(last, sorted(vec![friend.user_id, mate.user_id]));
     assert_eq!(svc.friends_reading(mate).await.unwrap().items.len(), 1);
-    assert!(svc.friends_reading(stranger).await.unwrap().items.is_empty());
+    assert!(
+        svc.friends_reading(stranger)
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
     assert!(svc.friends_reading(blocker).await.unwrap().items.is_empty());
 
     // Age-restricted stays with friends, masked, even at everyone.

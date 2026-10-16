@@ -440,16 +440,25 @@ async fn epub_progress_keeps_the_cfi_beside_the_page_index() {
         .await
         .unwrap();
     assert!(saved.applied);
-    assert_eq!((saved.progress.page_index, saved.progress.cfi.as_deref()), (4, Some(cfi)));
+    assert_eq!(
+        (saved.progress.page_index, saved.progress.cfi.as_deref()),
+        (4, Some(cfi))
+    );
     // It comes back on read and in the chapter list; either may be null.
     let got = w.svc.progress(w.member, ch).await.unwrap();
     assert_eq!(got.cfi.as_deref(), Some(cfi));
-    let none = w.svc.save_progress(w.member, ch, input(None, 5)).await.unwrap();
+    let none = w
+        .svc
+        .save_progress(w.member, ch, input(None, 5))
+        .await
+        .unwrap();
     assert_eq!((none.progress.page_index, none.progress.cfi), (5, None));
     // Over 1024 characters is refused by the service, and by the column check beneath it.
     let long = "x".repeat(1025);
     assert!(matches!(
-        w.svc.save_progress(w.member, ch, input(Some(&long), 1)).await,
+        w.svc
+            .save_progress(w.member, ch, input(Some(&long), 1))
+            .await,
         Err(LibraryError::Invalid(_))
     ));
     let direct = sqlx::query("UPDATE reading_progress SET cfi = $1 WHERE chapter_id = $2")

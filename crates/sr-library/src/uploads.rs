@@ -188,7 +188,7 @@ pub struct GcReport {
     pub exports_deleted: u64,
 }
 
-fn wiring(s: &LibraryService) -> LibraryResult<&IngestWiring> {
+pub(crate) fn wiring(s: &LibraryService) -> LibraryResult<&IngestWiring> {
     s.ingest
         .as_ref()
         .ok_or_else(|| LibraryError::Conflict("uploads are not available on this server".into()))

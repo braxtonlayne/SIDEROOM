@@ -78,6 +78,37 @@ describe('page editor (LIB-ADM-001)', () => {
   });
 });
 
+describe('single-page replacement (H-43)', () => {
+  it('sends the chosen image for that page index as a data URI and reloads the list', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'PUBLISH_READING'] });
+    let sent: { image: string } | null = null;
+    let reloads = 0;
+    server.use(
+      http.get('*/api/v1/admin/library/chapters/11/pages', () => {
+        reloads += 1;
+        return HttpResponse.json({ chapter, pages: [page(0), page(1), page(2)] });
+      }),
+      http.put('*/api/v1/admin/library/chapters/11/pages/1', async ({ request }) => {
+        sent = (await readJson(request)) as { image: string };
+        return HttpResponse.json(chapter);
+      }),
+    );
+    const user = userEvent.setup();
+    render(<PagesDialog chapter={chapter} onClose={() => undefined} onChanged={() => undefined} />);
+    await screen.findByRole('list', { name: 'Pages in reading order' });
+    await user.click(screen.getByRole('button', { name: 'Replace page 2' }));
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'new.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText('New image for the page'), file);
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(sent!.image).toMatch(/^data:image\/png;base64,/);
+    await waitFor(() => expect(reloads).toBe(2));
+    expect(await screen.findByText('The page list was saved.')).toBeInTheDocument();
+    // Reordering first locks Replace (indexes are the server's).
+    await user.click(screen.getByRole('button', { name: 'Move page 3 up' }));
+    expect(screen.getByRole('button', { name: 'Replace page 1' })).toBeDisabled();
+  });
+});
+
 describe('credits and comment reports (LIB-ADM-002)', () => {
   it('loads a submission, revokes its credits with a reason, and resolves a report', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'PUBLISH_READING', 'REVIEW_READING'] });

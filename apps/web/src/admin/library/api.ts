@@ -195,6 +195,10 @@ export const getPages = (chapterId: string) =>
 export const replacePages = (chapterId: string, pages: PageInput[]) =>
   send<Chapter>(`/admin/library/chapters/${chapterId}/pages`, 'PUT', pages);
 
+/** `PUT /admin/library/chapters/{id}/pages/{index}`: swap one page for a new image (a data URI). */
+export const replacePage = (chapterId: string, index: number, image: string) =>
+  send<Chapter>(`/admin/library/chapters/${chapterId}/pages/${index}`, 'PUT', { image });
+
 export type UploadStatus = 'awaiting_upload' | 'queued' | 'running' | 'done' | 'failed' | 'expired';
 export interface Upload {
   id: string;
