@@ -5,14 +5,81 @@ use super::dto::{StartFromMessageBody, StartThreadBody, ThreadResponse};
 use crate::routes::Ext;
 use crate::routes::guilds::dto::ChannelObject;
 use crate::routes::messages::MessagesDeps;
+use crate::routes::messages::attachments::{finalize, load_upload};
 use crate::routes::messages::error::{ApiJson, MsgResult, invalid, parse_id};
 use crate::routes::messages::render::{actor, event_payload, render_one};
+use crate::routes::messages::store::Attachment;
 use crate::{Principal, openapi::ErrorBody};
 use axum::{Json, extract::Path, http::StatusCode};
+use sr_chat::repo::UploadState;
 use sr_chat::threads::{ForumPost, StartThread, StartedThread};
 use sr_chat::{ChannelType, Message, SendMessage, message_flags};
-use sr_core::{ChannelId, ErrorCode, MessageId};
+use sr_core::permissions::Permissions;
+use sr_core::{AttachmentId, ChannelId, ErrorCode, MessageId, UserId};
 use sr_events::DomainEvent;
+
+/// The upload slots named by a forum post's starter message: the caller's own, in the forum
+/// channel (a slot of another channel is `50035`), not used yet, verified (H-38). Needs
+/// `ATTACH_FILES` on the forum.
+async fn forum_uploads(
+    m: &MessagesDeps,
+    user: UserId,
+    forum: ChannelId,
+    refs: Option<&[crate::routes::messages::model::AttachmentRef]>,
+) -> MsgResult<Vec<(Attachment, Option<String>)>> {
+    let refs = refs.unwrap_or_default();
+    if refs.is_empty() {
+        return Ok(Vec::new());
+    }
+    m.access(user, forum)
+        .await?
+        .require(Permissions::ATTACH_FILES)?;
+    if refs.len() > m.limits.max_attachments {
+        return Err(invalid(
+            "message.attachments",
+            "BASE_TYPE_BAD_LENGTH",
+            &format!("Must provide at most {} files.", m.limits.max_attachments),
+        ));
+    }
+    let mut out: Vec<(Attachment, Option<String>)> = Vec::with_capacity(refs.len());
+    for r in refs {
+        let raw = r
+            .uploaded_filename
+            .as_deref()
+            .and_then(|f| f.split('/').next())
+            .or(r.id.as_deref())
+            .ok_or_else(|| {
+                invalid(
+                    "message.attachments",
+                    "BASE_TYPE_REQUIRED",
+                    "Each attachment needs `id` or `uploaded_filename`.",
+                )
+            })?;
+        let id: AttachmentId = raw
+            .parse()
+            .map_err(|_| invalid("message.attachments", "BASE_TYPE_BAD_ID", "Unknown upload."))?;
+        if out.iter().any(|(a, _)| a.id == id) {
+            return Err(invalid(
+                "message.attachments",
+                "DUPLICATE",
+                "Duplicate attachment.",
+            ));
+        }
+        let mut att = load_upload(m, user, forum, id)
+            .await
+            .map_err(|_| invalid("message.attachments", "BASE_TYPE_BAD_ID", "Unknown upload."))?;
+        if att.state == UploadState::Attached {
+            return Err(invalid(
+                "message.attachments",
+                "UPLOAD_USED",
+                "This upload is already attached to a message.",
+            ));
+        }
+        finalize(m, &mut att).await?;
+        out.push((att, r.description.clone()));
+    }
+    Ok(out)
+}
 
 /// Announce a stored system message as `MESSAGE_CREATE`.
 async fn announce_message(m: &MessagesDeps, msg: &Message) -> MsgResult<()> {
@@ -178,13 +245,9 @@ pub async fn start_thread(
             "A forum post needs a message.",
         )
     })?;
-    if msg_body.attachments.as_ref().is_some_and(|a| !a.is_empty()) {
-        return Err(invalid(
-            "message.attachments",
-            "NOT_SUPPORTED",
-            "Attachments on forum posts are not available yet.",
-        ));
-    }
+    // Files for the starter message are the caller's own upload slots of the forum channel
+    // (H-38); they are checked before the thread exists, so a bad slot leaves nothing behind.
+    let uploads = forum_uploads(&m, user, parent, msg_body.attachments.as_deref()).await?;
     if msg_body.poll.is_some() || msg_body.sticker_ids.as_ref().is_some_and(|s| !s.is_empty()) {
         return Err(invalid(
             "message",
@@ -224,6 +287,7 @@ pub async fn start_thread(
         content: msg_body.content.unwrap_or_default(),
         embeds: msg_body.embeds.unwrap_or_default(),
         components: msg_body.components.unwrap_or_default(),
+        attachment_ids: uploads.iter().map(|(a, _)| a.id).collect(),
         flags,
         ..SendMessage::default()
     };
@@ -237,6 +301,15 @@ pub async fn start_thread(
             return Err(e.into());
         }
     };
+    // The slots now belong to the starter message.
+    for (mut att, description) in uploads {
+        att.state = UploadState::Attached;
+        att.message_id = Some(msg.id);
+        if description.is_some() {
+            att.description = description;
+        }
+        m.store.update_attachment(&att).await?;
+    }
     let fresh = t.ops.view(user, tid).await?;
     t.publish_created(&fresh.channel).await;
     if let Some(member) = &fresh.member {

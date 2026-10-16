@@ -89,7 +89,8 @@ pub async fn request_slots(
     let channel_id: ChannelId = parse_id(&channel_id, ErrorCode::UnknownChannel)?;
     let acc = deps.access(user, channel_id).await?;
     acc.require(Permissions::ATTACH_FILES)?;
-    if !acc.channel.kind.accepts_messages() {
+    // Forum and media channels take slots too: the starter message of a post carries the files (H-38).
+    if !acc.channel.kind.accepts_messages() && !acc.channel.kind.is_forum_like() {
         return Err(invalid(
             "channel_id",
             "CHANNEL_TYPE_INVALID",

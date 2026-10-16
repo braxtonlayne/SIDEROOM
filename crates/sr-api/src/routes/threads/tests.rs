@@ -36,6 +36,7 @@ const DAVE: u64 = 4; // not a guild member
 
 struct Env {
     app: Router,
+    storage: Arc<ObjectStoreStorage>,
     repo: MemoryRepo,
     clock: Arc<ManualClock>,
     bus: Arc<InProcessBus>,
@@ -105,10 +106,11 @@ async fn env() -> Env {
         )
         .with_audit(audit.clone()),
     );
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
     let messages = MessagesDeps::new(
         repo.clone(),
         Arc::new(backend.clone()),
-        Arc::new(ObjectStoreStorage::in_memory()),
+        storage.clone(),
         bus.clone(),
         Arc::new(FixedEntitlements(1 << 20)),
         Arc::new(backend),
@@ -131,6 +133,7 @@ async fn env() -> Env {
     );
     Env {
         app,
+        storage,
         repo,
         clock,
         bus,
@@ -722,6 +725,100 @@ async fn forum_posts_create_thread_and_starter_message_together() {
         e.say(&forum, "bob", "direct").await.0,
         StatusCode::BAD_REQUEST
     );
+}
+
+#[tokio::test]
+async fn forum_posts_carry_the_callers_upload_slots_of_the_forum() {
+    use bytes::Bytes;
+    use sr_storage::ObjectStorage;
+    let e = env().await;
+    let (forum, tags) = make_forum(&e, 0).await;
+    let general = e.ch.to_string();
+    // A slot per file in the forum, the bytes in storage (the client's direct upload).
+    let slots = |channel: String, files: Vec<(&'static str, Vec<u8>)>| {
+        let e = &e;
+        async move {
+            let (s, v) = e
+                .post(
+                    &format!("/channels/{channel}/attachments"),
+                    "bob",
+                    json!({"files": files.iter().map(|(n, b)| json!({"filename": n, "file_size": b.len()})).collect::<Vec<_>>()}),
+                )
+                .await;
+            assert_eq!(s, StatusCode::OK, "{v}");
+            let mut ids = Vec::new();
+            for (slot, (name, bytes)) in v["attachments"].as_array().unwrap().iter().zip(files) {
+                let id = slot["upload_id"].as_str().unwrap().to_owned();
+                e.storage
+                    .put(&format!("chat/{channel}/{id}/{name}"), Bytes::from(bytes))
+                    .await
+                    .unwrap();
+                ids.push(id);
+            }
+            ids
+        }
+    };
+    let url = format!("/channels/{forum}/threads");
+
+    // A slot of another channel is refused (50035) and leaves no post behind.
+    let foreign = slots(general.clone(), vec![("x.bin", vec![1; 10])]).await;
+    let (s, v) = e
+        .post(
+            &url,
+            "bob",
+            json!({"name": "wrong channel", "applied_tags": [tags[0]],
+                   "message": {"content": "hi", "attachments": [{"id": foreign[0]}]}}),
+        )
+        .await;
+    assert_eq!(code(&(s, v.clone())), (400, Some(50_035)), "{v}");
+    // Someone else's slot too.
+    let theirs = slots(forum.clone(), vec![("y.bin", vec![2; 10])]).await;
+    let (s, v) = e
+        .post(
+            &url,
+            "carol",
+            json!({"name": "not mine", "applied_tags": [tags[0]],
+                   "message": {"content": "hi", "attachments": [{"id": theirs[0]}]}}),
+        )
+        .await;
+    assert_eq!(code(&(s, v)), (400, Some(50_035)));
+    assert_eq!(
+        e.active("bob").await["threads"].as_array().unwrap().len(),
+        0
+    );
+
+    // Two files from the forum's own slots ride on the starter message.
+    let ids = slots(
+        forum.clone(),
+        vec![("a.bin", vec![3; 32]), ("b.txt", b"hello".to_vec())],
+    )
+    .await;
+    let (s, post) = e
+        .post(
+            &url,
+            "bob",
+            json!({"name": "with files", "applied_tags": [tags[0]],
+                   "message": {"content": "see attached",
+                               "attachments": [{"id": ids[0]}, {"id": ids[1], "description": "greeting"}]}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{post}");
+    let files = post["message"]["attachments"]
+        .as_array()
+        .expect(&post.to_string());
+    assert_eq!(files.len(), 2, "{post}");
+    assert_eq!(files[0]["filename"], "a.bin");
+    assert_eq!(files[1]["description"], "greeting");
+    // A used slot cannot start a second post.
+    let (s, v) = e
+        .post(
+            &url,
+            "bob",
+            json!({"name": "again", "applied_tags": [tags[0]],
+                   "message": {"content": "reuse", "attachments": [{"id": ids[0]}]}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{v}");
 }
 
 #[test]
