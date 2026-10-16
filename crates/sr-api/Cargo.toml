@@ -48,7 +48,7 @@ subtle = "2"
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "time", "sync"] }
 tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.6", features = ["trace", "compression-gzip", "compression-br", "timeout", "cors", "request-id", "propagate-header"] }
+tower-http = { version = "0.7", features = ["trace", "compression-gzip", "compression-br", "timeout", "cors", "request-id", "propagate-header"] }
 tracing = "0.1"
 url = "2"
 oauth2 = "5"
