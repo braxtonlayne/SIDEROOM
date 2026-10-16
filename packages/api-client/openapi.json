@@ -6484,7 +6484,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DecisionBody"
+                "$ref": "#/components/schemas/ActivityDecisionBody"
               }
             }
           },
@@ -56814,6 +56814,24 @@
             "format": "int32",
             "description": "1 block message, 2 send alert message, 3 timeout.",
             "minimum": 0
+          }
+        }
+      },
+      "ActivityDecisionBody": {
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "description": "`approve` or `reject`."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

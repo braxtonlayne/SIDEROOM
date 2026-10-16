@@ -11382,6 +11382,11 @@ export interface components {
              */
             type: number;
         };
+        ActivityDecisionBody: {
+            /** @description `approve` or `reject`. */
+            decision: string;
+            note?: string | null;
+        };
         /** @description `POST /users/@me/relationships`: send a friend request by username. */
         AddRelationshipBody: {
             /**
@@ -23705,7 +23710,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DecisionBody"];
+                "application/json": components["schemas"]["ActivityDecisionBody"];
             };
         };
         responses: {

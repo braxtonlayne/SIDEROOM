@@ -178,6 +178,7 @@ pub async fn admin_pending(
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = ActivityDecisionBody)]
 pub struct DecisionBody {
     /// `approve` or `reject`.
     pub decision: String,
