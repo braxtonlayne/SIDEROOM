@@ -14,6 +14,7 @@ use sr_db::{
     library_repo::PgLibraryRepo,
 };
 use sr_library::model::*;
+use sr_library::reading::ProgressInput;
 use sr_library::{Actor, LibraryError, LibraryService, SeriesIndex, Viewer};
 use sr_storage::cdn::CdnSigner;
 
@@ -417,6 +418,46 @@ async fn neighbours_and_reordering_pages() {
         w.svc.replace_pages(w.publisher, c2, vec![]).await,
         Err(LibraryError::Conflict(_))
     ));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn epub_progress_keeps_the_cfi_beside_the_page_index() {
+    let w = world().await;
+    let (_, _, ch) = w.published("Cfi", false, 1.0).await;
+    let input = |cfi: Option<&str>, page: i32| ProgressInput {
+        page_index: page,
+        percent: 12.5,
+        cfi: cfi.map(str::to_owned),
+        completed: None,
+        base_updated_at_ms: None,
+        force: None,
+    };
+    let cfi = "epubcfi(/6/14[chap05]!/4/2/16/1:0)";
+    let saved = w
+        .svc
+        .save_progress(w.member, ch, input(Some(cfi), 4))
+        .await
+        .unwrap();
+    assert!(saved.applied);
+    assert_eq!((saved.progress.page_index, saved.progress.cfi.as_deref()), (4, Some(cfi)));
+    // It comes back on read and in the chapter list; either may be null.
+    let got = w.svc.progress(w.member, ch).await.unwrap();
+    assert_eq!(got.cfi.as_deref(), Some(cfi));
+    let none = w.svc.save_progress(w.member, ch, input(None, 5)).await.unwrap();
+    assert_eq!((none.progress.page_index, none.progress.cfi), (5, None));
+    // Over 1024 characters is refused by the service, and by the column check beneath it.
+    let long = "x".repeat(1025);
+    assert!(matches!(
+        w.svc.save_progress(w.member, ch, input(Some(&long), 1)).await,
+        Err(LibraryError::Invalid(_))
+    ));
+    let direct = sqlx::query("UPDATE reading_progress SET cfi = $1 WHERE chapter_id = $2")
+        .bind(&long)
+        .bind(ch)
+        .execute(&w.pool)
+        .await;
+    assert!(direct.is_err(), "the 0873 check holds below the service");
 }
 
 #[tokio::test]
