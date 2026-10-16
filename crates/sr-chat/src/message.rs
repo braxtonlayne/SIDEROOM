@@ -44,6 +44,10 @@ pub struct Embed {
     /// embeds never keep it, so its presence marks an embed as server-generated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<EmbedProvider>,
+    /// Server-set on link previews whose link the author wrote inside a spoiler: clients keep
+    /// the preview hidden until it is revealed (LNG-MSG-015). Never kept from client embeds.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sr_spoiler: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

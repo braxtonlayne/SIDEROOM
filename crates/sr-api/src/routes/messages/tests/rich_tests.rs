@@ -776,3 +776,24 @@ async fn voice_duration_and_waveform_are_measured_from_the_file() {
     assert_eq!(s, StatusCode::OK, "{m}");
     assert_eq!(m["attachments"][0]["duration_secs"], 1.0);
 }
+
+#[tokio::test]
+async fn spoilered_links_get_a_spoiler_preview() {
+    let e = env().await;
+    e.web.page("https://news.test/a", &article("Alpha"));
+    e.web.page("https://news.test/b", &article("Beta"));
+    let m = e
+        .say("bob", "||https://news.test/a|| and https://news.test/b")
+        .await;
+    let id = id_of(&m);
+    rich_jobs::run_unfurl(&e.deps, e.ch, id.parse().unwrap())
+        .await
+        .unwrap();
+    let (_, got) = e.get(&format!("/messages/{id}"), "owner").await;
+    let embeds = got["embeds"].as_array().unwrap();
+    assert_eq!(embeds.len(), 2);
+    assert_eq!(embeds[0]["title"], "Alpha");
+    assert_eq!(embeds[0]["sr_spoiler"], true);
+    assert_eq!(embeds[1]["title"], "Beta");
+    assert!(embeds[1].get("sr_spoiler").is_none());
+}
