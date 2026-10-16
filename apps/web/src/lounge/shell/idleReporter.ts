@@ -5,9 +5,7 @@
  * holds Web Push back while any session is active (D-191), so a forgotten tab does not keep silencing
  * the phone.
  */
-import { Op } from '../../gateway/protocol';
-import { getGateway } from '../../store';
-import { useSelfPresence } from './selfPresence';
+import { reportPresence } from '../../activities/presence';
 
 /** Idle after ten minutes without input. */
 export const IDLE_AFTER_MS = 10 * 60_000;
@@ -17,8 +15,8 @@ const INPUT_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchst
 type Sender = (afk: boolean) => void;
 
 function sendAfk(afk: boolean): void {
-  const status = useSelfPresence.getState().status;
-  getGateway()?.send(Op.PRESENCE_UPDATE, { status, afk, since: null, activities: [] });
+  // Carries the running Activity's presence along: an idle flip must not clear it.
+  reportPresence({ afk });
 }
 
 /** Starts watching input; returns the stop function. `send` is injectable for tests. */

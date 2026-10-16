@@ -506,3 +506,41 @@
   gap: 0.25rem;
   font-size: 0.875rem;
 }
+
+/* Activity bundles (J-12). */
+.dev-dropzone {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed var(--sr-border, #4a4333);
+  border-radius: var(--sr-radius, 4px);
+}
+.dev-dropzone[data-over] {
+  border-color: var(--sr-gold, #c9a24d);
+  background: var(--sr-bg-1, #14120f);
+}
+.dev-bundle-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.dev-bundle {
+  display: grid;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--sr-border, #4a4333);
+  border-radius: var(--sr-radius, 4px);
+}
+.dev-hash {
+  overflow-wrap: anywhere;
+  font-size: 0.8em;
+}
+.dev-file-list {
+  margin: 0;
+  padding-inline-start: 18px;
+  max-block-size: 220px;
+  overflow: auto;
+}

@@ -149,7 +149,7 @@ export function VoiceChannelView({
       />
       <VoiceStatusBar channel={channel} here={here} />
       <WatchPartyStrip channelId={channel.id} />
-      <ActivityPanel channelId={channel.id} channelName={channel.name} here={here} />
+      <ActivityPanel channelId={channel.id} here={here} />
       <div className="vc-body" data-chat={layout.chatOpen && here ? 'open' : undefined}>
         <div className="vc-main">
           <div className="vc-stage" ref={stage}>

@@ -6,8 +6,10 @@ import { Button, Modal } from '@sideroom/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { useUsers } from '../lounge/data';
-import { activityOrigin, httpOAuthApi } from './api';
-import { createActivityHost, type HostEnv } from './host';
+import { useVoiceParticipants } from '../voice/hooks';
+import { activityOrigin, httpAssetsApi, httpOAuthApi } from './api';
+import { createActivityHost, type HostEnv, type VoicePerson } from './host';
+import { reportPresence } from './presence';
 import type { ActivityInstance } from './types';
 
 type Ask = Parameters<HostEnv['confirm']>[0];
@@ -59,9 +61,14 @@ export function ActivityFrame({
         confirm: (a) => new Promise<boolean>((answer) => setAsk({ ask: a, answer })),
         openLink: (url) => void window.open(url, '_blank', 'noopener,noreferrer'),
         post: (f) => frame.current?.contentWindow?.postMessage(f, origin),
+        setPresence: (activity) => reportPresence({ activity }),
+        assets: () => httpAssetsApi.list(instance.application_id),
       }),
     [origin, instance.application_id],
   );
+
+  // The Activity's Rich Presence goes away with the frame.
+  useEffect(() => () => host.dispose(), [host]);
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
@@ -71,6 +78,25 @@ export function ActivityFrame({
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [host]);
+
+  // Voice events (J-14) are about the voice channel the instance runs in; a text-channel instance has none.
+  const voice = useVoiceParticipants(
+    instance.channel_type === 'voice' ? instance.channel_id : undefined,
+  );
+  useEffect(() => {
+    if (instance.channel_type !== 'voice') return;
+    host.voiceChanged(
+      voice.map((p): VoicePerson => ({
+        userId: p.userId,
+        speaking: p.speaking,
+        muted: p.muted,
+        deafened: p.deafened,
+        serverMuted: p.serverMuted,
+        serverDeafened: p.serverDeafened,
+        suppressed: p.suppressed,
+      })),
+    );
+  }, [host, voice, instance.channel_type]);
 
   // Tell the Activity when people join or leave.
   const roster = instance.participants.map((p) => p.user_id).join(',');

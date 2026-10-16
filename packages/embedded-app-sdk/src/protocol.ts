@@ -10,6 +10,27 @@
 //   { sr: 1, kind: 'ready', config }                         answer to the handshake
 //   { sr: 1, kind: 'response', nonce, ok: true, data }       or { ok: false, error: { code, message } }
 //   { sr: 1, kind: 'event', event, data }                    after `subscribe`
+//
+// Commands (args -> result):
+//   authorize { scope: ['identify' | 'guilds'][] } -> { code }
+//   authenticate { access_token } -> AuthenticateResult
+//   getChannel -> ChannelInfo
+//   getInstanceConnectedParticipants -> { participants }
+//   openExternalLink { url } -> { opened }
+//   setActivity { activity: ActivityInput } -> ActivityInput       the person's Rich Presence while the Activity
+//     runs (type Playing, this application). `details`, `state` (128 characters each), `timestamps`
+//     { start, end } in epoch milliseconds, `party` { id }, `assets` { large_image, large_text, small_image,
+//     small_text }: an image is the name of one of the application's Rich Presence assets and is dropped
+//     when no asset has that name. Calling it again replaces the activity; `{ activity: null }` clears it.
+//     The host clears it when the Activity closes or the instance ends.
+//   subscribe { event, args? } / unsubscribe { event }
+//
+// Events (after `subscribe`; `args.channel_id` is optional and, when given, must be the instance's channel):
+//   ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE { participants }
+//   VOICE_STATE_UPDATE { voice_state: { mute, deaf, self_mute, self_deaf, suppress }, user, nick, volume, mute,
+//     pan: { left, right } }     a member of the instance's voice channel changed their state (Discord's shape)
+//   SPEAKING_START / SPEAKING_STOP { channel_id, user_id }
+// Voice events exist only for an Activity in a voice channel and only for that channel.
 
 export const PROTOCOL_VERSION = 1;
 
@@ -20,13 +41,19 @@ export const COMMANDS = [
   'getChannel',
   'getInstanceConnectedParticipants',
   'openExternalLink',
+  'setActivity',
   'subscribe',
   'unsubscribe',
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
 /** Events a client can push after `subscribe`. */
-export const EVENTS = ['ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE'] as const;
+export const EVENTS = [
+  'ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE',
+  'VOICE_STATE_UPDATE',
+  'SPEAKING_START',
+  'SPEAKING_STOP',
+] as const;
 export type EventName = (typeof EVENTS)[number];
 
 /** What the client tells an Activity once the handshake succeeds. */
@@ -84,6 +111,7 @@ export const RPC_ERRORS = {
   notAuthorized: 'NOT_AUTHORIZED',
   denied: 'USER_DENIED',
   failed: 'FAILED',
+  rateLimited: 'RATE_LIMITED',
 } as const;
 
 /** Parse an unknown `MessageEvent.data` into a [`Frame`], or `null` when it is not ours. */
@@ -109,4 +137,45 @@ export function parseFrame(data: unknown): Frame | null {
     default:
       return null;
   }
+}
+
+/** Arguments of `subscribe`; `channel_id` must be the instance's channel when given. */
+export interface SubscribeArgs {
+  channel_id?: string;
+}
+
+/** The Rich Presence an Activity sets with `setActivity`. */
+export interface ActivityInput {
+  details?: string;
+  state?: string;
+  timestamps?: { start?: number; end?: number };
+  party?: { id?: string };
+  assets?: {
+    large_image?: string;
+    large_text?: string;
+    small_image?: string;
+    small_text?: string;
+  };
+}
+
+/** `VOICE_STATE_UPDATE` data (Discord's shape). */
+export interface VoiceStateUpdate {
+  voice_state: {
+    mute: boolean;
+    deaf: boolean;
+    self_mute: boolean;
+    self_deaf: boolean;
+    suppress: boolean;
+  };
+  user: Participant;
+  nick: string | null;
+  volume: number;
+  mute: boolean;
+  pan: { left: number; right: number };
+}
+
+/** `SPEAKING_START` / `SPEAKING_STOP` data. */
+export interface SpeakingUpdate {
+  channel_id: string;
+  user_id: string;
 }

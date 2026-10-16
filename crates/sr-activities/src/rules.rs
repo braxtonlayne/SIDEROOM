@@ -281,8 +281,17 @@ mod tests {
             t("/api/rooms?x=1").unwrap().as_deref(),
             Some("https://api.example.com/v1/rooms?x=1")
         );
-        assert_eq!(t("/api").unwrap().as_deref(), Some("https://api.example.com/v1"));
-        for bad in ["/api/../x", "/api/%2e%2e/x", "/api%2Fx", "/api\\x", "/../api"] {
+        assert_eq!(
+            t("/api").unwrap().as_deref(),
+            Some("https://api.example.com/v1")
+        );
+        for bad in [
+            "/api/../x",
+            "/api/%2e%2e/x",
+            "/api%2Fx",
+            "/api\\x",
+            "/../api",
+        ] {
             assert_eq!(t(bad), Err(Refusal::BadPath), "{bad}");
         }
     }

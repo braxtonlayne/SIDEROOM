@@ -11,6 +11,7 @@ import { Welcome } from './shell/Welcome';
 import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
 import { useVisualViewport } from './useVisualViewport';
 import { ChannelSidebar } from './ChannelSidebar';
+import { ActivityDock } from '../activities/ActivityDock';
 import { ChannelView } from './ChannelView';
 import { SectionBar, TitleStrip } from './Chrome';
 import { MOBILE_QUERY, useMediaQuery } from '@sideroom/ui';
@@ -397,6 +398,7 @@ function Shell() {
           <p>{t('lounge.loungeShell.inboxNote')}</p>
         </ComingSoon>
         <LoungeDialogs />
+        <ActivityDock />
         <InteractionModalHost />
         <PopoutHost />
         <ReminderTicker />

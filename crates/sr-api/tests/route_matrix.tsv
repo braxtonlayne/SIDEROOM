@@ -136,6 +136,7 @@ GET	/admin/cinema/reports	authenticated	staff	deny	-
 GET	/admin/cinema/titles	authenticated	staff	deny	-
 GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
 GET	/admin/developers/activities	authenticated	staff	deny	-
+GET	/admin/developers/activities/{application_id}/bundles/{bundle_id}/download	authenticated	staff	deny	-
 GET	/admin/developers/requests	authenticated	staff	deny	-
 GET	/admin/developers/versions	authenticated	staff	deny	-
 GET	/admin/directory	authenticated	staff	deny	-
@@ -204,6 +205,7 @@ GET	/applications	authenticated	owner	deny	-
 GET	/applications/@me	authenticated	owner	allow	-
 GET	/applications/{application_id}	authenticated	owner	deny	-
 GET	/applications/{application_id}/activity	authenticated	owner	deny	-
+GET	/applications/{application_id}/activity/bundles/{bundle_id}	authenticated	owner	deny	-
 GET	/applications/{application_id}/assets	authenticated	user	deny	-
 GET	/applications/{application_id}/audit-log	authenticated	owner	deny	-
 GET	/applications/{application_id}/commands	authenticated	owner	allow	-
@@ -606,6 +608,7 @@ POST	/admin/tv/channels/{channel_id}/blocks	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/preview	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-
 POST	/applications	authenticated	owner	deny	-
+POST	/applications/{application_id}/activity/bundles	authenticated	owner	deny	-
 POST	/applications/{application_id}/activity/submit	authenticated	owner	deny	-
 POST	/applications/{application_id}/assets	authenticated	owner	deny	-
 POST	/applications/{application_id}/bot/reset-token	authenticated	owner	deny	-

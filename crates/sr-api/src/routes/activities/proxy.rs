@@ -162,12 +162,7 @@ pub(crate) async fn serve(
 }
 
 /// One file of the reviewed bundle.
-async fn from_bundle(
-    d: &ActivitiesDeps,
-    app: i64,
-    sha256: &str,
-    path_and_query: &str,
-) -> Response {
+async fn from_bundle(d: &ActivitiesDeps, app: i64, sha256: &str, path_and_query: &str) -> Response {
     let path = path_and_query.split('?').next().unwrap_or("/");
     let Some(rel) = bundle::request_to_path(path) else {
         return page(d, StatusCode::BAD_REQUEST, "That path is not allowed.");

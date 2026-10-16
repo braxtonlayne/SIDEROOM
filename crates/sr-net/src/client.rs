@@ -292,7 +292,9 @@ impl HttpTransport for ReqwestTransport {
             .map_err(|e| NetError::Http(e.to_string()))?;
         let method = reqwest::Method::from_bytes(req.method.as_str().as_bytes())
             .map_err(|e| NetError::Http(e.to_string()))?;
-        let mut builder = client.request(method, req.url.clone()).body(req.body.clone());
+        let mut builder = client
+            .request(method, req.url.clone())
+            .body(req.body.clone());
         if let Some(ct) = &req.content_type {
             builder = builder.header(reqwest::header::CONTENT_TYPE, ct.as_str());
         }

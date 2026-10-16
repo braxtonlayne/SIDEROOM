@@ -54,12 +54,10 @@ impl ActivityFetcher for FakeFetcher {
         body: Vec<u8>,
         _max: usize,
     ) -> Result<Forwarded, String> {
-        self.sent.lock().unwrap().push((
-            method.to_string(),
-            url.to_owned(),
-            content_type,
-            body,
-        ));
+        self.sent
+            .lock()
+            .unwrap()
+            .push((method.to_string(), url.to_owned(), content_type, body));
         let status = if url.contains("/boom") {
             500
         } else if url.contains("/missing") {
@@ -89,7 +87,10 @@ fn lazy_service(storage: Arc<dyn ObjectStorage>) -> ActivityService {
 async fn rig(enabled: bool) -> (Arc<ActivitiesDeps>, Arc<FakeFetcher>) {
     let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
     for (path, data) in [
-        ("index.html", "<!doctype html><script src=\"/app.js\"></script>"),
+        (
+            "index.html",
+            "<!doctype html><script src=\"/app.js\"></script>",
+        ),
         ("app.js", "console.log('bundle')"),
         ("sub/index.html", "<p>sub</p>"),
         ("img/logo.png", "png"),
@@ -553,7 +554,10 @@ async fn member_routes_need_a_session() {
         (Method::GET, "/applications/1/activity/bundles/2"),
         (Method::POST, "/applications/1/activity/submit"),
         (Method::GET, "/admin/developers/activities"),
-        (Method::GET, "/admin/developers/activities/1/bundles/2/download"),
+        (
+            Method::GET,
+            "/admin/developers/activities/1/bundles/2/download",
+        ),
         (Method::POST, "/admin/developers/activities/1/decision"),
     ] {
         let mut req = Request::builder()

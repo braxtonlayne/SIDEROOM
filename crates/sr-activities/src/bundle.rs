@@ -283,7 +283,10 @@ pub fn unpack(zip_bytes: &[u8]) -> Result<Unpacked, BundleError> {
             .read_to_end(&mut data)
             .map_err(|_| BundleError::at(&name, "could not be read"))?;
         if n as u64 > room {
-            return Err(BundleError::at(&name, "makes the bundle larger than 32 MiB"));
+            return Err(BundleError::at(
+                &name,
+                "makes the bundle larger than 32 MiB",
+            ));
         }
         total += n as u64;
         files.push(BundleFile {
@@ -377,12 +380,24 @@ mod tests {
 
     #[test]
     fn extensions_are_allow_listed() {
-        for bad in ["run.exe", "a.php", "x.sh", "noext", "a.html.exe", "x.htm", "x.xml", "x.zip"] {
+        for bad in [
+            "run.exe",
+            "a.php",
+            "x.sh",
+            "noext",
+            "a.html.exe",
+            "x.htm",
+            "x.xml",
+            "x.zip",
+        ] {
             let e = err(&[("index.html", b"x"), (bad, b"x")]);
             assert_eq!(e.entry.as_deref(), Some(bad), "{bad}");
             assert!(e.message.contains("not allowed"));
         }
-        for ok in ["a.mjs", "a.map", "a.jpeg", "a.woff2", "a.mp3", "a.ogg", "a.webm", "a.txt", "a.ico", "a.svg", "a.webp", "a.gif", "a.jpg"] {
+        for ok in [
+            "a.mjs", "a.map", "a.jpeg", "a.woff2", "a.mp3", "a.ogg", "a.webm", "a.txt", "a.ico",
+            "a.svg", "a.webp", "a.gif", "a.jpg",
+        ] {
             unpack(&build(&[("index.html", b"x"), (ok, b"x")])).unwrap();
         }
     }
@@ -398,14 +413,19 @@ mod tests {
     fn duplicates_ignoring_case_and_file_directory_clashes_are_refused() {
         let e = err(&[("index.html", b"x"), ("A.js", b"1"), ("a.js", b"2")]);
         assert_eq!(e.entry.as_deref(), Some("a.js"));
-        let e = err(&[("index.html", b"x"), ("lib.js", b"1"), ("lib.js/x.js", b"2")]);
+        let e = err(&[
+            ("index.html", b"x"),
+            ("lib.js", b"1"),
+            ("lib.js/x.js", b"2"),
+        ]);
         assert_eq!(e.entry.as_deref(), Some("lib.js/x.js"));
     }
 
     #[test]
     fn symlinks_and_special_files_are_refused() {
         let mut z = zip::ZipWriter::new(Cursor::new(Vec::new()));
-        z.start_file("index.html", SimpleFileOptions::default()).unwrap();
+        z.start_file("index.html", SimpleFileOptions::default())
+            .unwrap();
         z.write_all(b"x").unwrap();
         z.add_symlink("link.txt", "/etc/passwd", SimpleFileOptions::default())
             .unwrap();
@@ -456,8 +476,17 @@ mod tests {
         assert_eq!(request_to_path("/sub/").as_deref(), Some("sub/index.html"));
         assert_eq!(request_to_path("/x/y.css").as_deref(), Some("x/y.css"));
         for bad in [
-            "", "x", "/..", "/a/../b.js", "/a/%2e%2e/b.js", "//a.js", "/a//b.js", "/a\\b.js",
-            "/.git/config.txt", "/a%2Fb.js", "/a b.js",
+            "",
+            "x",
+            "/..",
+            "/a/../b.js",
+            "/a/%2e%2e/b.js",
+            "//a.js",
+            "/a//b.js",
+            "/a\\b.js",
+            "/.git/config.txt",
+            "/a%2Fb.js",
+            "/a b.js",
         ] {
             assert_eq!(request_to_path(bad), None, "{bad:?}");
         }

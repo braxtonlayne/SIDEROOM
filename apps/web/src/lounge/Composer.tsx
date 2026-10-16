@@ -68,6 +68,7 @@ import {
 } from './apps/commands';
 import { newNonce, sendInteraction } from './apps/interactions';
 import { useAppCommands } from './apps/useAppCommands';
+import { useActivitiesEnabled } from '../activities/hooks';
 import { useReportOutcome } from './apps/useReportOutcome';
 import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
@@ -133,6 +134,8 @@ export interface ComposerProps {
   canTts?: boolean | undefined;
   /** May start a thread in this channel (not in a DM or inside a thread). */
   canStartThread?: boolean | undefined;
+  /** May offer "Start an Activity" here: a guild text channel (the server still checks the permission). */
+  canStartActivity?: boolean | undefined;
 }
 
 const FORMATS: {
@@ -210,6 +213,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     timedOutUntil,
     canTts,
     canStartThread,
+    canStartActivity,
   },
   handle,
 ) {
@@ -236,6 +240,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [pollOpen, setPollOpen] = useState(false);
   // Slash commands of installed apps (DEV-BOT-008).
   const appIndex = useAppCommands(channelId, !!guildId);
+  const activitiesOn = useActivitiesEnabled();
   const appCommands = useMemo(() => indexedCommands(appIndex, 1), [appIndex]);
   const reportOutcome = useReportOutcome();
   const [appForm, setAppForm] = useState<{ entry: IndexedCommand; prefill: TypedArgs } | null>(
@@ -878,6 +883,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 ]
               : []),
             { label: t('lounge.composer.createPoll'), onSelect: () => setPollOpen(true) },
+            ...(canStartActivity && activitiesOn
+              ? [
+                  {
+                    label: t('lounge.composer.startActivity'),
+                    onSelect: () => openDialog({ kind: 'startActivity', channelId }),
+                  },
+                ]
+              : []),
             { type: 'separator' as const },
             { label: t('lounge.composer.useApps'), disabled: true },
             { label: t('lounge.composer.shareCinema'), disabled: true },

@@ -67,9 +67,7 @@ impl VoiceFollower {
                             (w.get(&key) == Some(&generation)).then(|| w.remove(&key))
                         })
                         .is_some();
-                    if still
-                        && let Err(e) = me.service.voice_left(key.1, key.0).await
-                    {
+                    if still && let Err(e) = me.service.voice_left(key.1, key.0).await {
                         tracing::warn!(error = %e, "removing a voice leaver from an activity failed");
                     }
                 });

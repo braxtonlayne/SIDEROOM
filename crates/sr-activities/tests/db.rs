@@ -14,14 +14,14 @@ use serde_json::Value;
 use std::io::{Cursor, Write};
 
 use sr_activities::model::{BundleState, ConfigInput, ReviewState, UrlMapping};
-use sr_activities::{Lookup, Serving, VoiceFollower};
-use sr_storage::{ObjectStorage, ObjectStoreStorage};
 use sr_activities::{ActivityError, ActivityEvents, ActivityService, ChannelAccess, ChannelPerms};
+use sr_activities::{Lookup, Serving, VoiceFollower};
 use sr_db::{
     PgPool,
     accounts::{self, NewAccount},
     testing::TestDb,
 };
+use sr_storage::{ObjectStorage, ObjectStoreStorage};
 
 static SEQ: AtomicI64 = AtomicI64::new(0);
 
@@ -355,7 +355,11 @@ async fn a_bundle_goes_draft_pending_approved_and_only_the_approved_one_is_serve
     assert_eq!(r.svc.shelf(owner).await.unwrap().len(), 1);
 
     // A new upload and submission leave the approved bundle serving until staff decide.
-    let up3 = r.svc.upload_bundle(app, owner, site("three")).await.unwrap();
+    let up3 = r
+        .svc
+        .upload_bundle(app, owner, site("three"))
+        .await
+        .unwrap();
     let b3: i64 = up3.bundle.id.parse().unwrap();
     let c = r.svc.submit(app, b3).await.unwrap();
     assert_eq!(c.review_state, ReviewState::Pending);
@@ -653,7 +657,13 @@ async fn a_text_channel_needs_view_and_use_activities_but_no_call() {
     // A call ending does not touch a text-channel Activity.
     r.svc.voice_left(a, 3).await.unwrap();
     assert_eq!(
-        r.svc.in_channel(a, 3).await.unwrap().unwrap().participants.len(),
+        r.svc
+            .in_channel(a, 3)
+            .await
+            .unwrap()
+            .unwrap()
+            .participants
+            .len(),
         1
     );
     r.db.cleanup().await.unwrap();
@@ -707,7 +717,10 @@ async fn participants_follow_the_voice_session() {
     tokio::time::sleep(Duration::from_millis(400)).await;
     assert_eq!(count(&r).await.unwrap(), 1);
     let ev = r.events.0.lock().unwrap().last().cloned().unwrap();
-    assert_eq!(ev.1["instance"]["participants"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        ev.1["instance"]["participants"].as_array().unwrap().len(),
+        1
+    );
 
     // The last one out ends the instance and dispatches a null instance.
     bus.publish(guild, left(a)).await.unwrap();
