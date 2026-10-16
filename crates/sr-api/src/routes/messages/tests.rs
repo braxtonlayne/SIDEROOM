@@ -107,6 +107,15 @@ async fn env_full(
     gate: Option<crate::routes::settings::AutoModGateHandle>,
     age: Option<Arc<dyn crate::routes::search::AgeGate>>,
 ) -> Env {
+    env_build(entitlements, gate, age, None).await
+}
+
+async fn env_build(
+    entitlements: Arc<dyn UploadEntitlements>,
+    gate: Option<crate::routes::settings::AutoModGateHandle>,
+    age: Option<Arc<dyn crate::routes::search::AgeGate>>,
+    safety: Option<Arc<dyn super::ViewerSafety>>,
+) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
     let backend = MemoryBackend::new();
@@ -164,6 +173,10 @@ async fn env_full(
     .with_audit(audit.clone());
     let deps = match age {
         Some(a) => deps.with_age_gate(a),
+        None => deps,
+    };
+    let deps = match safety {
+        Some(sf) => deps.with_viewer_safety(sf),
         None => deps,
     };
     let jobs = Arc::new(rich_tests::RecordingScheduler::default());
@@ -1132,6 +1145,101 @@ async fn the_server_level_lifts_the_upload_limit_for_free_members_but_not_in_dms
             .await,
         500 * MIB
     );
+}
+
+/// Bob blocks media in age-restricted channels; nobody has friends.
+struct BlockServers;
+
+#[async_trait]
+impl super::ViewerSafety for BlockServers {
+    async fn sensitive_view(
+        &self,
+        viewer: UserId,
+    ) -> (
+        sr_chat::social::safety::SensitiveMedia,
+        std::collections::HashSet<UserId>,
+    ) {
+        use sr_chat::social::safety::MediaFilter;
+        let servers = if viewer.get() == BOB {
+            MediaFilter::Block
+        } else if viewer.get() == OWNER {
+            MediaFilter::Blur
+        } else {
+            MediaFilter::Show
+        };
+        (
+            sr_chat::social::safety::SensitiveMedia {
+                friends: MediaFilter::Show,
+                others: MediaFilter::Show,
+                servers,
+            },
+            Default::default(),
+        )
+    }
+}
+
+#[tokio::test]
+async fn age_restricted_media_is_filtered_per_viewer_on_the_list() {
+    let all = crate::routes::search::ConfirmedUsers(
+        [UserId::new(OWNER), UserId::new(BOB), UserId::new(CAROL)].into(),
+    );
+    let e = env_build(
+        Arc::new(FixedEntitlements(30 * MIB)),
+        None,
+        Some(Arc::new(all)),
+        Some(Arc::new(BlockServers)),
+    )
+    .await;
+    let png = png_with_secret();
+    let (s, v) = e
+        .post(
+            "/attachments",
+            "carol",
+            json!({"files": [{"id": "0", "filename": "cat.png", "file_size": png.len(), "content_type": "image/png"}]}),
+        )
+        .await;
+    // Carol is not a member: use the owner as the author instead.
+    assert_eq!(s, StatusCode::FORBIDDEN, "{v}");
+    let (s, v) = e
+        .post(
+            "/attachments",
+            "owner",
+            json!({"files": [{"id": "0", "filename": "cat.png", "file_size": png.len(), "content_type": "image/png"}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let slot = v["attachments"][0].clone();
+    e.storage
+        .put(&slot_key(e.ch, &slot, "cat.png"), Bytes::from(png))
+        .await
+        .unwrap();
+    e.backend.data().channels.get_mut(&e.ch).unwrap().nsfw = true;
+    let (s, sent) = e
+        .post(
+            "/messages",
+            "owner",
+            json!({"content": "pic", "attachments": [{"id": "0", "uploaded_filename": slot["upload_filename"]}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{sent}");
+    // The author sees the file as it is, whatever their own setting says.
+    assert_eq!(sent["attachments"][0]["filename"], "cat.png");
+    let (_, own) = e.get("/messages", "owner").await;
+    assert_eq!(own[0]["attachments"][0]["filename"], "cat.png");
+    assert!(own[0]["attachments"][0].get("sr_filtered").is_none());
+    // Bob blocks: the attachment is listed without a URL and flagged.
+    let (_, bob) = e.get("/messages", "bob").await;
+    let a = &bob[0]["attachments"][0];
+    assert_eq!(
+        (a["url"].as_str(), a["sr_filtered"].as_bool()),
+        (Some(""), Some(true)),
+        "{bob}"
+    );
+    assert_eq!(a["id"], sent["attachments"][0]["id"]);
+    // A single fetch goes through the same decorator.
+    let id = sent["id"].as_str().unwrap();
+    let (_, one) = e.get(&format!("/messages/{id}"), "bob").await;
+    assert_eq!(one["attachments"][0]["sr_filtered"], true, "{one}");
 }
 
 #[tokio::test]

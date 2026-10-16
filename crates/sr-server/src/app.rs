@@ -948,7 +948,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             sr_storage::upload::SizePolicy::default().standard_limit,
         ),
     ));
-    let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
+    let messages = Arc::new(
+        messages
+            .with_dm_announcer(social_api.clone())
+            .with_viewer_safety(social_api.clone()),
+    );
 
     // Web Push (LNG-NTF-003): the VAPID key lives in the database sealed with the server
     // secret; without a configured secret it is per-boot (nothing could open it later).

@@ -230,8 +230,12 @@ any subset: `sensitive_media` is a partial object, `server_dm_overrides` maps a 
 when a DM is opened: `non_friends` sends a stranger's first DM to Message Requests whatever the `message_requests` toggle says,
 `all` also sends a friend's first DM there, `off` leaves it to the toggle; with `allow_server_member_dms` as the default, the
 recipient is reachable if at least one shared server allows DMs (its override, else the default). Server settings may only tighten
-the filter (D-224; not wired yet). The `sensitive_media` values are stored and returned, but the per-viewer attachment handling
-(`blur` as a spoiler flag, `block` as a URL-less attachment with `sr_filtered: true`) is not applied by the message pipeline yet.
+the filter (D-224; not wired yet). The `sensitive_media` values act per viewer (H-33) on image and video attachments, through the one function
+`sr_chat::sensitive::apply`: the signals are a DM from someone who is not a friend (`others`) and an age-restricted channel (`servers`);
+`friends` has no signal until a scanner hook exists. `blur` sets the spoiler flag (the `SPOILER_` file name), `block` delivers the
+attachment with an empty `url` and `sr_filtered: true`; nothing is deleted and the author and bots are never filtered. REST applies it
+in the message decorators (list, get, search, pins); the gateway applies it per session to `MESSAGE_CREATE` and `MESSAGE_UPDATE` with
+the session's cached settings and friend set (dropped on `SR_USER_UPDATE` and `RELATIONSHIP_*`).
 `SR_PRIVACY_UPDATE` carries the same object.
 
 **Age confirmation (LNG-USET-015).** `GET /users/@me/age-confirmation` (session) answers

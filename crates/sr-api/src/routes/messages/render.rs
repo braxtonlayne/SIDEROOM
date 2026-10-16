@@ -93,6 +93,8 @@ pub async fn render_many(
     super::rich_model::decorate(deps, Some(viewer), msgs, &mut out).await?;
     attach_threads(deps, msgs, &mut out).await;
     sign_attachments(deps, &mut out);
+    // D-230: the viewer's sensitive-media settings, after signing so a blocked URL stays empty.
+    deps.apply_sensitive(viewer, msgs, &mut out).await;
     Ok(out)
 }
 

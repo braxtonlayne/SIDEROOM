@@ -98,6 +98,25 @@ pub struct AttachmentObject {
     /// BlurHash placeholder to show until the image loads.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blurhash: Option<String>,
+    /// The viewer's sensitive-media setting withheld the file: `url` is empty (D-230).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sr_filtered: bool,
+}
+
+impl sr_chat::sensitive::Attachment for AttachmentObject {
+    fn content_type(&self) -> Option<&str> {
+        self.content_type.as_deref()
+    }
+    fn filename(&self) -> &str {
+        &self.filename
+    }
+    fn blur(&mut self) {
+        self.filename = sr_chat::sensitive::spoiler_name(&self.filename);
+    }
+    fn block(&mut self) {
+        self.url.clear();
+        self.sr_filtered = true;
+    }
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -290,6 +309,7 @@ pub fn attachment_object(a: &Attachment) -> AttachmentObject {
         width: a.width,
         height: a.height,
         blurhash: a.blurhash.clone(),
+        sr_filtered: false,
     }
 }
 

@@ -33,7 +33,9 @@ export function AttachmentList({ attachments, voice }: AttachmentListProps) {
   const [lightbox, setLightbox] = useState<number | null>(null);
   // "Display attachments directly in chat" off: pictures and videos become file cards (voice messages stay).
   const inline = useSavedPrefs().inlineAttachments;
-  const media = attachments.filter((a) => inline && !a.expired && (isImage(a) || isVideo(a)));
+  const media = attachments.filter(
+    (a) => inline && !a.expired && !a.filtered && (isImage(a) || isVideo(a)),
+  );
   const mosaic = media.filter(isImage);
   const rest = attachments.filter((a) => !mosaic.includes(a));
   return (
@@ -46,6 +48,7 @@ export function AttachmentList({ attachments, voice }: AttachmentListProps) {
         </div>
       )}
       {rest.map((a) => {
+        if (a.filtered) return <FilteredChip key={a.id} a={a} />;
         if (a.expired) return <ExpiredChip key={a.id} a={a} />;
         if (isVideo(a) && inline) return <VideoPlayer key={a.id} a={a} />;
         if (isAudio(a) && (voice || a.waveform)) return <VoiceMessage key={a.id} a={a} />;
@@ -122,6 +125,21 @@ function MosaicTile({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
           </span>
         </Tooltip>
       )}
+    </div>
+  );
+}
+
+/** A file the viewer's own safety settings hid (D-230); it is not deleted. */
+export function FilteredChip({ a }: { a: Attachment }) {
+  const t = useT();
+  return (
+    <div className="lng-attach-file lng-expired" role="note">
+      <Icon name="eye-off" size={20} />
+      <span>
+        <strong>{a.filename}</strong>
+        <br />
+        <span className="lng-muted">{t('lounge.attachments.filtered')}</span>
+      </span>
     </div>
   );
 }

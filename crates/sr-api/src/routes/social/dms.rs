@@ -394,6 +394,34 @@ async fn remove_member(
     Ok(())
 }
 
+/// The viewer's sensitive-media settings and friends for the message pipeline (D-230).
+#[async_trait::async_trait]
+impl crate::routes::messages::ViewerSafety for SocialDeps {
+    async fn sensitive_view(
+        &self,
+        viewer: UserId,
+    ) -> (
+        sr_chat::social::safety::SensitiveMedia,
+        std::collections::HashSet<UserId>,
+    ) {
+        let prefs = match self.service.privacy(viewer).await {
+            Ok(p) => p.safety.sensitive_media,
+            Err(e) => {
+                tracing::warn!(error = %e, "reading sensitive-media settings failed");
+                Default::default()
+            }
+        };
+        let friends = match self.service.audience(viewer).await {
+            Ok(a) => a.friends.into_iter().collect(),
+            Err(e) => {
+                tracing::warn!(error = %e, "reading friends failed");
+                Default::default()
+            }
+        };
+        (prefs, friends)
+    }
+}
+
 /// The message path tells recipients about a DM when its first message (or the first
 /// after they closed it) reaches them. `acc.channel` carried `last_message_id`.
 #[async_trait::async_trait]

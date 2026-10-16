@@ -128,6 +128,19 @@ pub trait GuildDirectory: Send + Sync {
         false
     }
 
+    /// The sensitive-media settings and the friends of `user` (D-230, H-33), cached per session
+    /// until `SR_USER_UPDATE` or a `RELATIONSHIP_*` dispatch. `None` (the default, and for bots)
+    /// leaves message attachments as they are.
+    async fn sensitive_view(
+        &self,
+        _user: UserId,
+    ) -> Option<(
+        sr_chat::social::safety::SensitiveMedia,
+        std::collections::HashSet<UserId>,
+    )> {
+        None
+    }
+
     /// Whether `channel`, or the parent of a thread, is age-restricted (`nsfw`). The gateway
     /// withholds message, reaction, typing, pin and thread dispatches of such a channel from
     /// sessions whose account has not answered yes to the age gate (D-199). Default: no.

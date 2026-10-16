@@ -33,6 +33,20 @@ pub trait UploadEntitlements: Send + Sync {
     async fn max_upload_bytes(&self, user: UserId, guild: Option<GuildId>) -> u64;
 }
 
+/// What the message pipeline needs to know about a viewer to apply their safety settings
+/// (D-230): the `sensitive_media` preferences and who their friends are. Implemented by the
+/// social routes so the message path need not know about `SocialService`.
+#[async_trait]
+pub trait ViewerSafety: Send + Sync {
+    async fn sensitive_view(
+        &self,
+        viewer: UserId,
+    ) -> (
+        sr_chat::social::safety::SensitiveMedia,
+        std::collections::HashSet<UserId>,
+    );
+}
+
 /// The same limit for everyone.
 #[derive(Debug, Clone, Copy)]
 pub struct FixedEntitlements(pub u64);
@@ -160,6 +174,7 @@ pub struct MessagesDeps {
     dm_announcer: Option<Arc<dyn DmAnnouncer>>,
     /// Source of the 18+ confirmation for age-restricted channels (D-032).
     age: Option<Arc<dyn crate::routes::search::AgeGate>>,
+    safety: Option<Arc<dyn ViewerSafety>>,
     audit: Option<Arc<dyn crate::routes::guilds::backend::AuditSink>>,
     pub limits: ChatLimits,
     pub size_policy: SizePolicy,
@@ -210,6 +225,7 @@ impl MessagesDeps {
             cdn: None,
             dm_announcer: None,
             age: None,
+            safety: None,
             audit: None,
             limits,
             size_policy: SizePolicy::default(),
@@ -384,6 +400,70 @@ impl MessagesDeps {
         match self.repo.get_channel(channel).await {
             Ok(Some(c)) => c.guild_id,
             _ => None,
+        }
+    }
+
+    /// The viewer-safety source (sensitive-media settings and friends, D-230).
+    pub fn with_viewer_safety(mut self, s: Arc<dyn ViewerSafety>) -> Self {
+        self.safety = Some(s);
+        self
+    }
+
+    /// Apply the viewer's sensitive-media settings to rendered messages (REST list, get, search,
+    /// pins): the same `sr_chat::sensitive::apply` the gateway uses per session.
+    pub async fn apply_sensitive(
+        &self,
+        viewer: UserId,
+        msgs: &[sr_chat::Message],
+        out: &mut [super::model::MessageObject],
+    ) {
+        let Some(safety) = &self.safety else { return };
+        if !out.iter().any(|o| !o.attachments.is_empty()) {
+            return;
+        }
+        let (prefs, friends) = safety.sensitive_view(viewer).await;
+        let mut restricted: std::collections::HashMap<sr_core::ChannelId, bool> =
+            std::collections::HashMap::new();
+        for (m, o) in msgs.iter().zip(out.iter_mut()) {
+            if o.attachments.is_empty() {
+                continue;
+            }
+            let relation = if m.author_id == viewer || o.author.bot {
+                sr_chat::sensitive::Relation::Exempt
+            } else if friends.contains(&m.author_id) {
+                sr_chat::sensitive::Relation::Friend
+            } else {
+                sr_chat::sensitive::Relation::Other
+            };
+            let dm = m.guild_id.is_none();
+            let age_restricted = if dm {
+                false
+            } else if let Some(v) = restricted.get(&m.channel_id) {
+                *v
+            } else {
+                let v = self.channel_age_restricted(m.channel_id).await;
+                restricted.insert(m.channel_id, v);
+                v
+            };
+            let ctx = sr_chat::sensitive::ChannelCtx { dm, age_restricted };
+            sr_chat::sensitive::apply(&prefs, relation, &ctx, &mut o.attachments);
+        }
+    }
+
+    /// Whether the channel, or a thread's parent, is age-restricted.
+    async fn channel_age_restricted(&self, channel: sr_core::ChannelId) -> bool {
+        let Ok(Some(c)) = self.repo.get_channel(channel).await else {
+            return false;
+        };
+        if c.nsfw {
+            return true;
+        }
+        match c.parent_id {
+            Some(p) if c.kind.is_thread() => matches!(
+                self.repo.get_channel(p).await,
+                Ok(Some(parent)) if parent.nsfw
+            ),
+            _ => false,
         }
     }
 

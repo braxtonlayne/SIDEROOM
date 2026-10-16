@@ -169,6 +169,8 @@ export interface RawAttachment {
   /** BlurHash placeholder (images), declared by the uploader. */
   blurhash?: string | null;
   expires_at?: string | null;
+  /** The viewer's sensitive-media setting withheld the file; `url` is empty (D-230). */
+  sr_filtered?: boolean;
 }
 
 export interface RawEmbed {

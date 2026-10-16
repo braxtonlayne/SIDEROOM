@@ -73,6 +73,7 @@ fn snapshot_value(deps: &MessagesDeps, f: &ForwardSnapshot) -> Value {
                 width: a.width,
                 height: a.height,
                 blurhash: a.blurhash.clone(),
+                sr_filtered: false,
             };
             serde_json::to_value(o).unwrap_or(Value::Null)
         })

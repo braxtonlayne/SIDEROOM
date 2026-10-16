@@ -37,7 +37,7 @@ pub mod typing;
 #[cfg(test)]
 mod tests;
 
-pub use deps::{DmAnnouncer, FixedEntitlements, MessagesDeps, UploadEntitlements};
+pub use deps::{DmAnnouncer, FixedEntitlements, MessagesDeps, UploadEntitlements, ViewerSafety};
 pub use rich::{JobScheduler, RichDeps, UnfurlGate};
 
 use crate::{openapi::ErrorBody, state::AppState};
