@@ -6,6 +6,7 @@ export default {
   'lounge.voiceStream.previewOf': 'Preview of the stream of {name}',
   'lounge.voiceChannel.disableVideo': 'Disable video',
   'lounge.voiceChannel.enableVideo': 'Enable video',
+  'lounge.voiceChannel.videoDisabled': 'You turned off their video',
   'lounge.voiceMenu.call': 'Call',
   // VOX-SB-002/003: soundboard
   'lounge.soundboard.title': 'Soundboard',

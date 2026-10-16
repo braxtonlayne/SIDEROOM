@@ -512,6 +512,9 @@ describe('voice user menu (VOX-UI-008)', () => {
     menu = await screen.findByRole('menu', { name: 'Mara voice actions' });
     await user.click(within(menu).getByRole('menuitem', { name: 'Disable video' }));
     expect(useRemoteVideo.getState().videoOff['2']).toBe(true);
+    // The frozen frame goes away and the tile says why.
+    expect(await screen.findByLabelText('You turned off their video')).toBeInTheDocument();
+    expect(screen.getByTestId('voice-tile-2')).not.toHaveAttribute('data-video');
   });
 
   it('has no menu on your own tile', async () => {

@@ -98,7 +98,10 @@ export function ParticipantTile({
   const quality = useVoiceSession((s) => s.quality);
   const sessionCamera = useVoiceSession((s) => s.camera);
   const localCamera = useLocalVideo((s) => s.camera);
-  const remoteCamera = useRemoteVideo((s) => s.camera[p.userId]);
+  const cameraOff = useRemoteVideo((s) => !!s.videoOff[p.userId]);
+  const remoteCamera = useRemoteVideo((s) =>
+    s.videoOff[p.userId] ? undefined : s.camera[p.userId],
+  );
   const u = users[p.userId];
   const name = u?.displayName ?? t('lounge.voiceChannel.unknown');
   const self = p.userId === me.id;
@@ -157,8 +160,11 @@ export function ParticipantTile({
                 }
               />
             )}
-            {p.video && !hasVideo && (
+            {p.video && !hasVideo && !cameraOff && (
               <Icon name="video" size={16} label={t('lounge.voiceChannel.cameraOn')} />
+            )}
+            {cameraOff && (
+              <Icon name="video-off" size={16} label={t('lounge.voiceChannel.videoDisabled')} />
             )}
           </div>
           {self && (
