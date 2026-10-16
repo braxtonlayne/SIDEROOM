@@ -104,6 +104,19 @@ describe('message list gaps', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('compact display shows a small avatar on every line only when the preference is on (LNG-USET-040)', async () => {
+    seedLounge({
+      messages: [msg('100', { content: 'one' }), msg('101', { content: 'two' })],
+    });
+    usePrefsStore.setState({
+      prefs: { ...DEFAULT_PREFS, messageDisplay: 'compact', compactAvatars: true },
+    });
+    at('/channels/g1/c1');
+    const log = await screen.findByRole('log', { name: 'Messages in general' });
+    await within(log).findByText('two');
+    expect(log.querySelectorAll('article.lng-msg .lng-compact-avatar')).toHaveLength(2);
+  });
+
   it('compact display drops the avatar and puts the time on every line', async () => {
     seedLounge({
       messages: [msg('100', { content: 'one' }), msg('101', { content: 'two' })],
