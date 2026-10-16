@@ -1600,3 +1600,50 @@ async fn a_plain_upload_has_no_parts_to_resume() {
         .await;
     assert_eq!(s, StatusCode::CONFLICT);
 }
+
+#[tokio::test]
+async fn an_uploaded_archive_can_be_listed_before_it_is_converted() {
+    use sr_storage::ObjectStorage;
+    use std::io::Write;
+    let e = env().await;
+    let png = {
+        let img = image::RgbImage::from_pixel(4, 4, image::Rgb([9, 9, 9]));
+        let mut out = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+        out.into_inner()
+    };
+    let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for name in ["Ch 1/001.png", "Ch 1/002.png", "Ch 2/001.png"] {
+        w.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        w.write_all(&png).unwrap();
+    }
+    let bytes = w.finish().unwrap().into_inner();
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::POST,
+            "/admin/library/chapters/70/uploads",
+            Some(json!({ "filename": "Ch 1.cbz", "size_bytes": bytes.len() })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED);
+    let inspect = "/admin/library/uploads/4242/inspect";
+    // Nothing uploaded yet.
+    let (s, _) = e.call(Some(CURATOR), Method::GET, inspect, None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    e.storage
+        .put("library/7/70/src-4242.cbz", bytes::Bytes::from(bytes))
+        .await
+        .unwrap();
+    let (s, r) = e.call(Some(CURATOR), Method::GET, inspect, None).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["format"], "zip");
+    assert_eq!(r["pages"], 3);
+    assert_eq!(r["folders"][0]["path"], "Ch 1");
+    assert_eq!(r["folders"][0]["pages"], 2);
+    assert_eq!(r["folders"][1]["pages"], 1);
+    // Members without the publisher permission are refused.
+    let (s, _) = e.call(Some(MEMBER), Method::GET, inspect, None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}

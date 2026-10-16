@@ -419,6 +419,10 @@ pub fn router() -> Router<AppState> {
             get(uploads::parts),
         )
         .route(
+            "/admin/library/uploads/{upload_id}/inspect",
+            get(uploads::inspect),
+        )
+        .route(
             "/admin/library/uploads/{upload_id}/complete",
             post(uploads::complete),
         )
@@ -495,6 +499,7 @@ pub fn router() -> Router<AppState> {
         uploads::complete,
         uploads::status,
         uploads::parts,
+        uploads::inspect,
         uploads::abort,
         uploads::list,
     ),
@@ -536,6 +541,9 @@ pub fn router() -> Router<AppState> {
         sr_library::model::Upload,
         sr_library::model::UploadRequest,
         sr_library::model::UploadSlot,
+        sr_library::ingest::inspect::ArchiveReport,
+        sr_library::ingest::inspect::FolderGroup,
+        sr_library::ingest::inspect::ComicInfoFacts,
         sr_library::multipart::MultipartSlot,
         sr_library::multipart::PartUrl,
         sr_library::model::UploadList,

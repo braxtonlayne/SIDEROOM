@@ -151,3 +151,25 @@ pub async fn abort(ctx: PublisherCtx, Path(upload_id): Path<String>) -> ApiResul
     .await;
     Ok(Json(up))
 }
+
+/// List the contents of an uploaded archive without converting it: pages per folder, ignored
+/// files, `ComicInfo.xml` facts and why it would be refused (`PUBLISH_READING`). Available from
+/// the moment the file is in storage until its conversion has run.
+#[utoipa::path(
+    get, path = "/admin/library/uploads/{upload_id}/inspect", operation_id = "admin_library_inspect_upload",
+    params(("upload_id" = String, Path, description = "Upload snowflake")),
+    responses((status = 200, body = sr_library::ingest::inspect::ArchiveReport), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody),
+              (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn inspect(
+    ctx: PublisherCtx,
+    Path(upload_id): Path<String>,
+) -> ApiResult<Json<sr_library::ingest::inspect::ArchiveReport>> {
+    ctx.svc()
+        .inspect_upload(ctx.actor(), id(&upload_id, "upload")?)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}

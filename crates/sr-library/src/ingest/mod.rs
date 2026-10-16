@@ -18,6 +18,7 @@ pub mod comicinfo;
 pub mod crop;
 pub mod epub;
 pub mod image;
+pub mod inspect;
 pub mod pdf;
 pub mod pipeline;
 pub mod series_json;

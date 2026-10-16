@@ -329,6 +329,17 @@ impl LibraryDraftOps {
         Ok(self.svc.upload_parts(sponsor(user), upload).await?)
     }
 
+    /// List the archive of an upload without converting it.
+    pub async fn inspect_upload(
+        &self,
+        s: &Submission,
+        user: i64,
+        upload: i64,
+    ) -> ReviewResult<crate::ingest::inspect::ArchiveReport> {
+        self.own_upload(s, user, upload).await?;
+        Ok(self.svc.inspect_upload(sponsor(user), upload).await?)
+    }
+
     /// Cancel an upload that was not completed.
     pub async fn abort_upload(
         &self,

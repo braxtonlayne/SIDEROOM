@@ -407,3 +407,25 @@ pub async fn set_cover(
         .map(Json)
         .map_err(map_err)
 }
+
+/// List the contents of an uploaded archive of my submission without converting it: pages per
+/// chapter folder, ignored files, `ComicInfo.xml` facts and why it would be refused.
+#[utoipa::path(
+    get, path = "/submissions/{submission_id}/library/uploads/{upload_id}/inspect", operation_id = "submissions_library_inspect_upload",
+    params(("submission_id" = String, Path, description = "Submission snowflake"),
+           ("upload_id" = String, Path, description = "Upload snowflake")),
+    responses((status = 200, body = sr_library::ingest::inspect::ArchiveReport), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn inspect_upload(
+    ctx: MemberCtx,
+    Path((submission_id, upload_id)): Path<(String, String)>,
+) -> ApiResult<Json<sr_library::ingest::inspect::ArchiveReport>> {
+    let s = own(&ctx, &submission_id).await?;
+    ops(&ctx)?
+        .inspect_upload(&s, ctx.user(), id(&upload_id, "upload")?)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}

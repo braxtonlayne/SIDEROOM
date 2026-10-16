@@ -5215,6 +5215,7 @@ dependencies = [
  "url",
  "utoipa",
  "utoipa-scalar",
+ "zip",
 ]
 
 [[package]]

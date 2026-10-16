@@ -486,6 +486,44 @@ impl LibraryService {
         Ok(to_upload(queued))
     }
 
+    /// Pre-inspection (REV-UP-004): list the archive of an upload slot without converting it.
+    /// Works from the moment the file is in storage until the conversion has run.
+    pub async fn inspect_upload(
+        &self,
+        a: Actor,
+        id: i64,
+    ) -> LibraryResult<crate::ingest::inspect::ArchiveReport> {
+        a.publish()?;
+        let w = wiring(self)?;
+        let rec = self
+            .repo
+            .get_upload(id)
+            .await?
+            .ok_or(LibraryError::NotFound("upload"))?;
+        if rec.kind != UploadKind::Archive {
+            return Err(LibraryError::Invalid(
+                "only archives (CBZ, CB7, CBR) can be inspected".into(),
+            ));
+        }
+        if !matches!(
+            rec.status,
+            UploadStatus::AwaitingUpload | UploadStatus::Queued
+        ) {
+            return Err(LibraryError::Conflict(
+                "the archive is already converted; there is nothing left to inspect".into(),
+            ));
+        }
+        let s = w.settings.snapshot().await;
+        let limits = ArchiveLimits {
+            rar_enabled: s.rar_enabled,
+            max_archive_bytes: s.max_upload_bytes,
+            ..ArchiveLimits::default()
+        };
+        crate::ingest::inspect::inspect_stored(w.storage.clone(), &rec.object_key, limits)
+            .await
+            .map_err(|_| LibraryError::Invalid("the file has not been uploaded yet".into()))
+    }
+
     /// The status of an upload.
     pub async fn upload_status(&self, a: Actor, id: i64) -> LibraryResult<Upload> {
         a.publish()?;
