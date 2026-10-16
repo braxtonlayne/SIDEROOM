@@ -5,7 +5,7 @@ Phase 5. Spec: [cinema-live-tv](../specs/cinema-live-tv.md). Mockup: `cinema-liv
 ## TV-ENG — Schedule engine (`sr-tv`)
 - [ ] **TV-ENG-001** [DB] tv_channels, tv_schedule_slots, tv_guide_imports, tv_favorites, tv_reminders _(p8: tv_channels and tv_blocks exist (0460, 0461); p12: tv_reminders (0780); slots, guide imports and favorites do not)_
 - [x] **TV-ENG-002** [BE] Channel model (number, call sign, name, era label, logo, kind, timezone, age-restricted, filler policy, rules) _(p8: sr-tv model; kinds rule_based and manual, no imported_guide yet)_
-- [ ] **TV-ENG-003** [BE] Resolver for `imported_guide` (weekly slots → concrete blocks, skip missing, overrun/cut policies) _(p8: not built)_
+- [ ] **TV-ENG-003** [BE] Resolver for `imported_guide` (weekly slots → concrete blocks, skip missing, overrun/cut policies) _(p8: not built)_ _(p14 misc: not built in p14 misc: needs tv_schedule_slots and a guide import first (TV-ENG-001, TV-ADM-004))_
 - [x] **TV-ENG-004** [BE] Resolver for `rule_based` (content pool filters, ordering sequential/shuffle/weighted, dayparts, rerun spacing, seeded RNG per channel-week) _(p8: sr-tv engine, seeded RNG kept in a cursor so the schedule rolls on)_
 - [x] **TV-ENG-005** [BE] Resolver for `manual` (calendar placements) _(p8: staff placement with trim and split, POST /admin/tv/channels/{id}/blocks)_
 - [x] **TV-ENG-006** [BE] Filler policies (bumpers, next_program_early, slate, off_air bars+tone) _(p8: bumpers, next_program_early, slate and off_air blocks; the bars and tone media themselves do not exist)_
