@@ -101,3 +101,7 @@ Events are hints for latency; the heartbeat answer and `GET /watch-parties/{id}`
 
 ### 7.4 Not in this build
 A dedicated "Watch Party" channel *type* (D-208: the "Watch party room" preset covers it) and the live-updating chat card (the `ChatHook` port exists; no chat message type for it yet). Concurrent parties per server follow the server level (2, 4, 8, 16 for Level 0 to 3, `sr_server::watchparty::EntitlementLimits` over `Entitlements`, refreshed on `SR_ENTITLEMENT_UPDATE`).
+
+### 7.5 Phase 13 rules
+- **Empty rooms (D-227).** A persistent party bound to a voice channel may have `media: null` and state `idle`. The room preset does not ask for a title; the first person to join an idle room hosts and picks the media, and the play gate, limits and age rule run at that moment. Ad-hoc parties still need media at creation.
+- **Live party media (P12-TVW-3).** Live TV media is identified by `title_id` with `live: true` and is gated at tune time (the channel's own access rules), not at party creation.

@@ -72,3 +72,50 @@ export function securityHeaders(
   if (opts.hsts) h['Strict-Transport-Security'] = HSTS;
   return h;
 }
+
+/** The deployment settings the policy depends on (H-27): mirrored from `config.toml`, never typed twice. */
+export interface CspConfig {
+  /** `server.public_url`, for example `https://chat.example.org`. */
+  publicUrl?: string;
+  /** `activities.enabled`: iframes on `*.activities.<host>` are allowed only then. */
+  activitiesEnabled?: boolean;
+  /** `voice.public_url`: listed in `connect-src` only when it names another origin than `publicUrl`. */
+  voicePublicUrl?: string;
+}
+
+const originOf = (url: string | undefined): URL | null => {
+  if (!url) return null;
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+};
+
+/** CSP options derived from the deployment settings. Unusable values add nothing (the policy stays tight). */
+export function cspOptionsFromConfig(cfg: CspConfig): CspOptions {
+  const site = originOf(cfg.publicUrl);
+  const extraFrame: string[] = [];
+  if (cfg.activitiesEnabled && site && site.protocol === 'https:')
+    extraFrame.push(`https://*.activities.${site.host}`);
+  const extraConnect: string[] = [];
+  const voice = originOf(cfg.voicePublicUrl);
+  if (voice && /^(https?|wss?):$/.test(voice.protocol)) {
+    const secure = voice.protocol === 'https:' || voice.protocol === 'wss:';
+    if (voice.host !== site?.host) {
+      const http = `${secure ? 'https' : 'http'}://${voice.host}`;
+      const ws = `${secure ? 'wss' : 'ws'}://${voice.host}`;
+      extraConnect.push(http, ws);
+    }
+  }
+  return { extraFrame, extraConnect };
+}
+
+/** `Content-Security-Policy` line of `Caddyfile.prod`; `deploy/scripts/render-caddyfile.mjs` rewrites it. */
+export const caddyCspLine = (opts: CspOptions = {}) =>
+  `header Content-Security-Policy "${buildCsp(opts)}"`;
+
+/** Replaces the CSP line of a Caddyfile with the one built from `opts`. */
+export function renderCaddyfile(caddyfile: string, opts: CspOptions = {}): string {
+  return caddyfile.replace(/header Content-Security-Policy "[^"\n]*"/, caddyCspLine(opts));
+}

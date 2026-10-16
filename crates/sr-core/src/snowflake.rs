@@ -216,4 +216,23 @@ mod tests {
         assert!(serde_json::from_str::<Snowflake>("\"abc\"").is_err());
         assert!(serde_json::from_str::<Snowflake>("-1").is_err());
     }
+
+    /// The web client keeps one copy of the epoch (`apps/web/src/lounge/liveMap.ts`, imported by every
+    /// TypeScript caller); it must match this one.
+    #[test]
+    fn web_epoch_copy_matches() {
+        let web = include_str!("../../../apps/web/src/lounge/liveMap.ts");
+        let digits: String = SIDEROOM_EPOCH_MS
+            .to_string()
+            .as_bytes()
+            .rchunks(3)
+            .rev()
+            .map(|c| std::str::from_utf8(c).unwrap())
+            .collect::<Vec<_>>()
+            .join("_");
+        assert!(
+            web.contains(&format!("export const SIDEROOM_EPOCH_MS = {digits}n;")),
+            "apps/web/src/lounge/liveMap.ts must export SIDEROOM_EPOCH_MS = {digits}n"
+        );
+    }
 }

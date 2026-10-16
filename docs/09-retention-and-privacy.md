@@ -44,6 +44,8 @@ Settings → Activity Privacy:
 - Reviews and ratings are public to all logged-in members regardless of these toggles (D-120). Users can delete their reviews.
 - "Pause history" (incognito): nothing recorded while on.
 - Discord-parity toggles: display current activity as a status message, allow DMs from server members, message requests, friend requests from (everyone / friends of friends / server members), and so on.
+- **Reading presence audiences (D-229).** `library.share_reading` is `off`, `friends` (default) or `everyone` (friends and people who share a server, never strangers), under the D-190 master switches; age-restricted series are masked beyond friends.
+- **Sensitive media (D-230).** `sensitive_media` has three scopes with defaults: `friends` show (no signal until a scanner hook exists), `others` blur (image and video attachments in DMs from non-friends), `servers` show (attachments in age-restricted channels). `blur` is the spoiler flag for that viewer; `block` delivers the attachment without a URL and with `sr_filtered: true`; nothing is deleted and nothing is scanned.
 
 ## 4. Data export
 

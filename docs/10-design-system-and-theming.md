@@ -26,6 +26,7 @@ Users can pick **one theme for everything** (e.g. "Side Room everywhere") or **p
 | `--sr-text` | `#ece6d6` | primary (cream) |
 | `--sr-text-2` | `#a9a493` | secondary |
 | `--sr-text-3` | `#6f6c60` | muted labels |
+| `--sr-entrance-text-muted` | `#8c8878` | entrance copy that must be read (scoped to `.ent-root`; 5.1:1 on `--sr-bg-1`, where `--sr-text-3` is about 3.6:1, OQ-XC-6) |
 | `--sr-gold` | `#c2b08f` | primary buttons, active tab underline, eyebrow labels |
 | `--sr-gold-ink` | `#1b1a15` | text on gold |
 | `--sr-olive-accent` | `#8c9a6a` | small accents ("Good reception" dot, quiet links) |
