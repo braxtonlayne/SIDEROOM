@@ -63,4 +63,10 @@ export default {
   'lounge.stage.audienceMic': 'You are in the audience. Raise your hand to ask to speak.',
   'lounge.stage.errPermission': 'You do not have permission to do that on this stage.',
   'lounge.stage.errOther': 'That did not work. Try again in a moment.',
+  // VOX-UI-010/011: DM call view and outgoing ringing
+  'lounge.dmCall.people': 'People in the call',
+  'lounge.dmCall.calling': 'Calling {name}',
+  'lounge.dmCall.callingShort': 'Calling...',
+  'lounge.dmCall.cancel': 'Cancel call',
+  'lounge.dmCall.resize': 'Resize the call',
 } satisfies Record<string, string>;

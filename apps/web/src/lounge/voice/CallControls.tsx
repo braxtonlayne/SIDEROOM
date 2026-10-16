@@ -27,6 +27,8 @@ export interface CallControlsProps {
   onLayout(patch: Partial<ViewLayout>): void;
   onFullscreen(): void;
   onPopOut?: (() => void) | undefined;
+  /** The conversation itself is on screen (a DM call): no text chat button. */
+  hideChat?: boolean;
 }
 
 /** A round toggle with a drop-down arrow beside it. */
@@ -67,6 +69,7 @@ export function CallControls({
   onLayout,
   onFullscreen,
   onPopOut,
+  hideChat,
 }: CallControlsProps) {
   const t = useT();
   const session = useVoiceSession();
@@ -261,18 +264,20 @@ export function CallControls({
             </button>
           }
         />
-        <Tooltip content={t('lounge.callControls.textChat')}>
-          <button
-            type="button"
-            className="vc-ctl"
-            aria-label={t('lounge.callControls.textChat')}
-            aria-pressed={layout.chatOpen}
-            data-active={layout.chatOpen || undefined}
-            onClick={() => onLayout({ chatOpen: !layout.chatOpen })}
-          >
-            <Icon name="message" size={24} />
-          </button>
-        </Tooltip>
+        {!hideChat && (
+          <Tooltip content={t('lounge.callControls.textChat')}>
+            <button
+              type="button"
+              className="vc-ctl"
+              aria-label={t('lounge.callControls.textChat')}
+              aria-pressed={layout.chatOpen}
+              data-active={layout.chatOpen || undefined}
+              onClick={() => onLayout({ chatOpen: !layout.chatOpen })}
+            >
+              <Icon name="message" size={24} />
+            </button>
+          </Tooltip>
+        )}
         {guildId !== DM_GUILD_ID && <SoundboardButton guildId={guildId} channelId={channelId} />}
         <StartPartyButton channelId={channelId} />
         <DropdownMenu

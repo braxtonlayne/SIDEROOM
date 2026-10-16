@@ -1,5 +1,5 @@
 /**
- * Incoming call state (VOX-UI-010; the outgoing ringing state waits for DM calls, VOX-SIG-008). DM and group calls ring: the server tells the person with
+ * Call ringing state (VOX-UI-010). DM and group calls ring: the server tells the person with
  * `CALL_CREATE` / `CALL_UPDATE` / `CALL_DELETE` (VOX-SIG-008, sr-gateway `voice_call.rs`):
  *
  *   CALL_CREATE  { channel_id, message_id, region, ringing: string[], initiator_id, group, voice_states }
@@ -8,6 +8,9 @@
  *   CALL_DELETE  { channel_id }                          (the call ended or nobody answered)
  *
  * The gateway does not say whether the caller started with video, so `video` stays false unless sent.
+ *
+ * Outgoing ringing: the same events list who is still ringing for every call the viewer takes part in, so
+ * `ringing[channelId]` (everyone except the viewer) drives the "Calling ..." state of the DM call view.
  *
  * A ring stops when the server says so; `RING_TIMEOUT_MS` is only a local fallback.
  */
@@ -34,6 +37,8 @@ export interface IncomingCall {
 
 interface CallsState {
   incoming: IncomingCall[];
+  /** Who is still ringing in each running call (user ids), by DM channel id. */
+  ringing: Record<string, string[]>;
   ring(call: IncomingCall): void;
   /** Stop ringing for a call (declined, accepted, ended or timed out). */
   dismiss(channelId: string): void;
@@ -41,13 +46,14 @@ interface CallsState {
 
 export const useCalls = create<CallsState>()((set) => ({
   incoming: [],
+  ringing: {},
   ring: (call) =>
     set((s) => ({ incoming: [...s.incoming.filter((c) => c.channelId !== call.channelId), call] })),
   dismiss: (channelId) =>
     set((s) => ({ incoming: s.incoming.filter((c) => c.channelId !== channelId) })),
 }));
 
-export const resetCalls = () => useCalls.setState({ incoming: [] });
+export const resetCalls = () => useCalls.setState({ incoming: [], ringing: {} });
 
 const ids = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
@@ -59,9 +65,19 @@ export function applyCallEvent(event: string, data: unknown, now = Date.now()): 
   const channelId = typeof d.channel_id === 'string' ? d.channel_id : null;
   if (!channelId) return;
   const calls = useCalls.getState();
-  if (event === 'CALL_DELETE') return calls.dismiss(channelId);
+  if (event === 'CALL_DELETE') {
+    useCalls.setState((s) => {
+      const next = { ...s.ringing };
+      delete next[channelId];
+      return { ringing: next };
+    });
+    return calls.dismiss(channelId);
+  }
   const me = useStore.getState().currentUserId;
   const ringing = ids(d.ringing);
+  useCalls.setState((s) => ({
+    ringing: { ...s.ringing, [channelId]: ringing.filter((id) => id !== me) },
+  }));
   if (!me || !ringing.includes(me)) {
     // Not ringing for the viewer (or no longer): drop a stale ring for the same call.
     if (event === 'CALL_UPDATE' || calls.incoming.some((c) => c.channelId === channelId))

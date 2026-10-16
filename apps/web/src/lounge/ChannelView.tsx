@@ -19,6 +19,7 @@ import {
 import { AgeConfirmPrompt, useAgeGate } from './AgeGate';
 import { MessageList } from './MessageList';
 import { ForumView } from './forum/ForumView';
+import { DmCallStage } from './voice/DmCallStage';
 import { StageView } from './voice/StageView';
 import { VoiceChannelView } from './voice/VoiceChannelView';
 import { WatchPartyStrip } from '../watchparty/WatchPartyStrip';
@@ -163,6 +164,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         }
       />
       <WatchPartyStrip channelId={channelId} />
+      {isDm && inCallHere && <DmCallStage channelId={channelId} />}
       {gate.state !== 'open' ? (
         <div className="lng-agegate-wrap">
           {gate.state === 'wait' ? (

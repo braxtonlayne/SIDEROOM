@@ -2,8 +2,8 @@ import type { MenuEntry } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useDeveloperMode } from '../../settings/user/prefs';
 import { useViewer } from '../../settings/server/hooks';
-import { DM_GUILD_ID, voiceController } from '../../voice/controller';
 import { setVideoOff, useRemoteVideo } from '../../voice/video';
+import { startDmCall } from '../shell/dmCall';
 import { useGuild, useMembers, useRoles } from '../data';
 import { openProfilePopout } from '../profile/popoutStore';
 import { useOpenDm } from '../shell/dm';
@@ -96,9 +96,7 @@ export function useVoiceUserMenu(
       disabled: isBot,
       onSelect: () =>
         void openDm([user.id])
-          .then((dm) =>
-            voiceController().join({ guildId: DM_GUILD_ID, channelId: dm.id, name: user.name }),
-          )
+          .then((dm) => startDmCall(dm.id, user.name, false))
           .catch(() => onError?.(t('lounge.voiceMenu.dmFailed'))),
     },
     ...(userEntries.note ? [userEntries.note] : []),
