@@ -5432,6 +5432,7 @@ dependencies = [
  "serde_json",
  "sr-chat",
  "sr-core",
+ "sr-e2ee",
  "sr-events",
  "sr-voice-proto",
  "thiserror 2.0.21",

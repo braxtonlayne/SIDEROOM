@@ -1,0 +1,161 @@
+//! Op 101 E2EE_MLS relay tests (VOX-E2E-004): only channel members send and receive, the
+//! first commit per epoch wins, welcomes reach only their recipients, and transitions execute
+//! once everyone is ready. The payloads are opaque to the server.
+
+use super::*;
+
+async fn join(e: &Env, user: u64, channel: ChannelId) -> Client {
+    let mut c = client(e, user).await;
+    c.voice(1, Some(channel.get()), false, false).await;
+    c.event("VOICE_SERVER_UPDATE").await;
+    c.drain().await;
+    c
+}
+
+fn mls(kind: &str, extra: Value) -> Value {
+    let mut d = json!({ "type": kind, "channel_id": LOBBY.get().to_string() });
+    for (k, v) in extra.as_object().unwrap() {
+        d[k] = v.clone();
+    }
+    json!({ "op": 101, "d": d })
+}
+
+/// The `E2EE_MLS` dispatches among `events`.
+fn mls_events(events: &[Value]) -> Vec<Value> {
+    events
+        .iter()
+        .filter(|v| v["t"] == "E2EE_MLS")
+        .map(|v| v["d"].clone())
+        .collect()
+}
+
+#[tokio::test]
+async fn relay_orders_commits_and_reaches_only_members() {
+    let e = env();
+    let mut a = join(&e, MEMBER, LOBBY).await;
+    let mut b = join(&e, FRIEND, LOBBY).await;
+    let mut elsewhere = join(&e, MOD, ROOM_B).await;
+    a.drain().await;
+
+    // A key package goes to the other members only.
+    b.send(mls("key_package", json!({ "data": "S1AtRlJJRU5E" })))
+        .await;
+    let got = mls_events(&a.drain().await);
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0]["type"], "key_package");
+    assert_eq!(got[0]["from"], "2");
+    assert_eq!(got[0]["data"], "S1AtRlJJRU5E");
+    assert!(mls_events(&b.drain().await).is_empty());
+    assert!(mls_events(&elsewhere.drain().await).is_empty());
+
+    // A commits on epoch 0 and welcomes B.
+    a.send(mls(
+        "commit",
+        json!({ "epoch": 0, "data": "Q09NTUlU", "welcome": "V0VMQ09NRQ==", "to": ["2", "4"] }),
+    ))
+    .await;
+    let at_a = mls_events(&a.drain().await);
+    assert_eq!(at_a.len(), 1, "{at_a:?}");
+    assert_eq!(at_a[0]["type"], "commit");
+    assert_eq!(at_a[0]["epoch"], 1);
+    let at_b = mls_events(&b.drain().await);
+    let kinds: Vec<_> = at_b.iter().map(|d| d["type"].as_str().unwrap()).collect();
+    assert_eq!(kinds, ["commit", "welcome"]);
+    assert_eq!(at_b[1]["data"], "V0VMQ09NRQ==");
+    assert_eq!(at_b[1]["epoch"], 1);
+    // MOD was named in `to` but is not in the channel: nothing.
+    assert!(mls_events(&elsewhere.drain().await).is_empty());
+    assert_eq!(e.gw.e2ee_epoch(LOBBY), 1);
+
+    // B raced on epoch 0: rejected, told the current epoch, nobody else hears of it.
+    b.send(mls("commit", json!({ "epoch": 0, "data": "TE9TRVI=" })))
+        .await;
+    let at_b = mls_events(&b.drain().await);
+    assert_eq!(at_b.len(), 1);
+    assert_eq!(at_b[0]["type"], "commit_rejected");
+    assert_eq!(at_b[0]["epoch"], 1);
+    assert!(mls_events(&a.drain().await).is_empty());
+
+    // B is ready for epoch 1: everyone executes.
+    b.send(mls("ready", json!({ "epoch": 1 }))).await;
+    for c in [&mut a, &mut b] {
+        let got = mls_events(&c.drain().await);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0]["type"], "execute");
+        assert_eq!(got[0]["epoch"], 1);
+    }
+
+    // When the channel empties the ordering state goes with it.
+    a.voice(1, None, false, false).await;
+    b.voice(1, None, false, false).await;
+    a.drain().await;
+    b.drain().await;
+    assert_eq!(e.gw.e2ee_epoch(LOBBY), 0);
+}
+
+#[tokio::test]
+async fn non_members_and_bad_payloads_are_ignored() {
+    let e = env();
+    let mut a = join(&e, MEMBER, LOBBY).await;
+    let mut outside = join(&e, MOD, ROOM_B).await;
+    a.drain().await;
+
+    // Not in LOBBY.
+    outside
+        .send(mls("key_package", json!({ "data": "QUJD" })))
+        .await;
+    outside
+        .send(mls("commit", json!({ "epoch": 0, "data": "QUJD" })))
+        .await;
+    // Not base64, too large, missing epoch, unknown type.
+    a.send(mls("proposal", json!({ "data": "<script>" }))).await;
+    a.send(mls(
+        "proposal",
+        json!({ "data": "A".repeat(crate::voice_e2ee::MAX_MLS_CHARS + 1) }),
+    ))
+    .await;
+    a.send(mls("commit", json!({ "data": "QUJD" }))).await;
+    a.send(mls("shout", json!({ "data": "QUJD" }))).await;
+    assert!(mls_events(&a.drain().await).is_empty());
+    assert!(mls_events(&outside.drain().await).is_empty());
+    assert_eq!(e.gw.e2ee_epoch(LOBBY), 0);
+}
+
+#[tokio::test]
+async fn a_lone_committer_executes_at_once_and_leaving_unblocks_a_transition() {
+    let e = env();
+    let mut a = join(&e, MEMBER, LOBBY).await;
+    a.send(mls("commit", json!({ "epoch": 0, "data": "QUJD" })))
+        .await;
+    let kinds: Vec<_> = mls_events(&a.drain().await)
+        .iter()
+        .map(|d| d["type"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(kinds, ["commit", "execute"]);
+
+    let mut b = join(&e, FRIEND, LOBBY).await;
+    a.drain().await;
+    a.send(mls("commit", json!({ "epoch": 1, "data": "QUJD" })))
+        .await;
+    assert_eq!(mls_events(&b.drain().await)[0]["epoch"], 2);
+    // B leaves without saying ready: A no longer waits.
+    b.voice(1, None, false, false).await;
+    let got = mls_events(&a.drain().await);
+    let exec: Vec<_> = got.iter().filter(|d| d["type"] == "execute").collect();
+    assert_eq!(exec.len(), 1);
+    assert_eq!(exec[0]["epoch"], 2);
+}
+
+#[tokio::test]
+async fn the_relay_is_off_unless_configured() {
+    let e = env_full(true, false);
+    let mut a = join(&e, MEMBER, LOBBY).await;
+    let mut b = join(&e, FRIEND, LOBBY).await;
+    a.drain().await;
+    b.send(mls("key_package", json!({ "data": "QUJD" }))).await;
+    b.send(mls("commit", json!({ "epoch": 0, "data": "QUJD" })))
+        .await;
+    assert!(mls_events(&a.drain().await).is_empty());
+    assert!(mls_events(&b.drain().await).is_empty());
+    assert_eq!(e.gw.e2ee_epoch(LOBBY), 0);
+}

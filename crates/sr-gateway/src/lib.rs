@@ -20,6 +20,7 @@ pub mod test_support;
 pub mod traits;
 pub mod voice;
 mod voice_call;
+mod voice_e2ee;
 mod voice_sound;
 mod voice_stage;
 mod voice_status;

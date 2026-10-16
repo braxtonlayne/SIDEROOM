@@ -12,6 +12,7 @@ test-support = []
 sr-core = { path = "../sr-core", default-features = false }
 sr-events = { path = "../sr-events" }
 sr-chat = { path = "../sr-chat" }
+sr-e2ee = { path = "../sr-e2ee" }
 sr-voice-proto = { path = "../sr-voice-proto" }
 async-trait.workspace = true
 axum = { version = "0.8", default-features = false, features = ["ws", "query"] }
