@@ -5,6 +5,8 @@ export interface MemberEntry {
   presence: Presence;
   /** Highest colored role color. */
   color: string | null;
+  /** All gradient stops of that role, first stop first (one entry for a plain colour; J-08). */
+  stops: string[];
 }
 
 export type MemberRow =
@@ -38,8 +40,17 @@ export function buildMemberRows(
       .map((id) => roleById.get(id))
       .filter((r): r is Role => !!r)
       .sort((a, b) => b.position - a.position);
-    const color = own.find((r) => r.color)?.color ?? null;
-    const entry: MemberEntry = { member, presence: p, color };
+    const coloured = own.find((r) => r.color);
+    const color = coloured?.color ?? null;
+    const stops = color
+      ? [
+          color,
+          ...(coloured?.colorSecondary
+            ? [coloured.colorSecondary, ...(coloured.colorTertiary ? [coloured.colorTertiary] : [])]
+            : []),
+        ]
+      : [];
+    const entry: MemberEntry = { member, presence: p, color, stops };
     if (p.status === 'offline') {
       offline.push(entry);
       continue;

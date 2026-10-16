@@ -278,6 +278,7 @@ export function toLoungeGuild(
     iconUrl: g.icon ? cdnUrl('icons', g.id, g.icon, { size: 128 }) : null,
     bannerUrl: g.banner ? cdnUrl('icons', g.id, g.banner, { size: 512 }) : null,
     ownerId: g.owner_id ?? '',
+    ...(g.sr_profile?.traits?.length ? { traits: g.sr_profile.traits } : {}),
     ...(g.is_staff_guild ? { isStaff: true } : {}),
     unread,
     mentionCount,
@@ -289,6 +290,7 @@ const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
 export function toLoungeRole(r: S.Role): Role {
   const secondary = r.colors?.secondary_color;
+  const tertiary = secondary ? r.colors?.tertiary_color : null;
   return {
     id: r.id,
     name: r.name,
@@ -296,6 +298,7 @@ export function toLoungeRole(r: S.Role): Role {
     hoist: !!r.hoist,
     position: r.position,
     ...(secondary ? { colorSecondary: hex(secondary) } : {}),
+    ...(tertiary ? { colorTertiary: hex(tertiary) } : {}),
     ...(r.unicode_emoji ? { emoji: r.unicode_emoji } : {}),
   };
 }

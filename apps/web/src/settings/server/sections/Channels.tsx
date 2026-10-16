@@ -25,7 +25,7 @@ import {
   valuesToOverwrite,
 } from '../permissions';
 import type { SectionProps } from '../ServerSettings';
-import { ChannelFeatures, ChannelIntegrations, ChannelInvites } from './ChannelTabs';
+import { ChannelFeatures, ChannelIntegrations, ChannelInvites, ChannelVoice } from './ChannelTabs';
 import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
 
 const GROUPS = permissionGroups();
@@ -330,6 +330,15 @@ export function ChannelEditor({
         />
       ),
     },
+    ...(channel.type === 2 || channel.type === 13
+      ? [
+          {
+            id: 'voice',
+            label: t('settings.channels.tabVoice'),
+            content: <ChannelVoice channel={channel} />,
+          },
+        ]
+      : []),
     ...(cat
       ? []
       : [

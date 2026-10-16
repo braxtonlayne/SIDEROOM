@@ -39,6 +39,8 @@ export interface Guild {
   hide_suspicious_links?: boolean;
   /** Largest file the viewer may upload in this server, in bytes (D-233); absent until `GET /guilds/{id}` is read. */
   sr_max_upload_bytes?: number;
+  /** Side Room's profile extras: the server's traits (J-07). */
+  sr_profile?: { traits?: { emoji_id?: string | null; emoji_name?: string | null; label: string }[] };
 }
 
 export interface Channel {
@@ -84,7 +86,7 @@ export interface Role {
   hoist?: boolean;
   /** Role icon emoji (shown next to the name in messages). */
   unicode_emoji?: string | null;
-  /** Discord gradient roles: secondary and tertiary colours (integers). Not sent by the server yet. */
+  /** Gradient stops (integers); `primary_color` mirrors `color` (J-08). */
   colors?: {
     primary_color?: number;
     secondary_color?: number | null;

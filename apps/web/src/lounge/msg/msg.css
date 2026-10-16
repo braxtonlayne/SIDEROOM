@@ -868,11 +868,16 @@
 }
 
 /* LNG-MSGUI-002 / 003 / 005 / 032 */
-.lng-msg-author[data-gradient] {
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+/* J-08: the inline style also sets the first stop as plain `color`, which is what shows where
+   `background-clip: text` is not supported. */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .lng-msg-author[data-gradient],
+  .lng-member-gradient[data-gradient] {
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
 }
 .lng-role-icon {
   font-size: 0.9em;

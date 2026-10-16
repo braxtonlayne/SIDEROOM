@@ -5,6 +5,8 @@ import {
   ConfirmDialog,
   Notice,
   PermissionMatrix,
+  Radio,
+  RadioGroup,
   Switch,
   Tabs,
   TextInput,
@@ -12,6 +14,7 @@ import {
 } from '@sideroom/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
+import { HOLOGRAPHIC, nameStyle, stopsOf } from '../../../lib/roleGradient';
 import { cdnUrl, useMembers, useStore } from '../../../store';
 import * as api from '../api';
 import {
@@ -296,9 +299,21 @@ function RolesEditor({
   );
 }
 
+/** How the role colour is built (J-08): one colour, two stops, or Discord's fixed holographic triple. */
+type ColorStyle = 'solid' | 'gradient' | 'holographic';
+
+export const colorStyleOf = (c: {
+  secondary: number | null;
+  tertiary: number | null;
+}): ColorStyle => (c.tertiary != null ? 'holographic' : c.secondary != null ? 'gradient' : 'solid');
+
 interface RoleFields {
   name: string;
   color: number;
+  /** Second gradient stop, or null. */
+  secondary: number | null;
+  /** Third stop (holographic only), or null. */
+  tertiary: number | null;
   hoist: boolean;
   mentionable: boolean;
   permissions: string;
@@ -331,6 +346,8 @@ function RoleEditor({
     () => ({
       name: isEveryone ? '@everyone' : role.name,
       color: role.color,
+      secondary: role.colors?.secondary_color ?? null,
+      tertiary: role.colors?.tertiary_color ?? null,
       hoist: role.hoist,
       mentionable: role.mentionable,
       permissions: role.permissions,
@@ -353,7 +370,14 @@ function RoleEditor({
     const c = draft.changed;
     const body: api.RoleBody = {};
     if (c.name !== undefined && !isEveryone) body.name = name;
-    if (c.color !== undefined) body.color = c.color;
+    if (c.color !== undefined || c.secondary !== undefined || c.tertiary !== undefined) {
+      const v = draft.value;
+      body.colors = {
+        primary_color: v.color,
+        secondary_color: v.secondary,
+        tertiary_color: v.secondary != null ? v.tertiary : null,
+      };
+    }
     if (c.hoist !== undefined) body.hoist = c.hoist;
     if (c.mentionable !== undefined) body.mentionable = c.mentionable;
     if (c.permissions !== undefined) body.permissions = c.permissions;
@@ -419,20 +443,93 @@ function RoleEditor({
                   onChange={(e) => draft.set('name', e.target.value)}
                 />
                 <div>
-                  <span className="ss-field-label">{t('settings.roles.colorLabel')}</span>
-                  <ColorPicker
-                    label={t('settings.roles.colorLabel')}
-                    value={draft.value.color ? hexFromInt(draft.value.color) : '#99aab5'}
-                    onValueChange={(hex) => !locked && draft.set('color', intFromHex(hex))}
-                  />
+                  <RadioGroup
+                    legend={t('settings.roles.styleLabel')}
+                    value={colorStyleOf(draft.value)}
+                    onValueChange={(v) => {
+                      if (locked) return;
+                      if (v === 'solid') {
+                        draft.set('secondary', null);
+                        draft.set('tertiary', null);
+                      } else if (v === 'gradient') {
+                        draft.set('secondary', draft.value.secondary ?? draft.value.color ?? 0x5865f2);
+                        draft.set('tertiary', null);
+                      } else {
+                        draft.set('color', HOLOGRAPHIC.primary);
+                        draft.set('secondary', HOLOGRAPHIC.secondary);
+                        draft.set('tertiary', HOLOGRAPHIC.tertiary);
+                      }
+                    }}
+                  >
+                    <Radio value="solid" label={t('settings.roles.styleSolid')} disabled={locked} />
+                    <Radio
+                      value="gradient"
+                      label={t('settings.roles.styleGradient')}
+                      disabled={locked}
+                    />
+                    <Radio
+                      value="holographic"
+                      label={t('settings.roles.styleHolographic')}
+                      disabled={locked}
+                    />
+                  </RadioGroup>
+                  {colorStyleOf(draft.value) !== 'holographic' && (
+                    <>
+                      <span className="ss-field-label">{t('settings.roles.colorLabel')}</span>
+                      <ColorPicker
+                        label={t('settings.roles.colorLabel')}
+                        value={draft.value.color ? hexFromInt(draft.value.color) : '#99aab5'}
+                        onValueChange={(hex) => !locked && draft.set('color', intFromHex(hex))}
+                      />
+                    </>
+                  )}
+                  {colorStyleOf(draft.value) === 'gradient' && (
+                    <>
+                      <span className="ss-field-label">{t('settings.roles.secondColorLabel')}</span>
+                      <ColorPicker
+                        label={t('settings.roles.secondColorLabel')}
+                        value={hexFromInt(draft.value.secondary ?? 0)}
+                        onValueChange={(hex) => !locked && draft.set('secondary', intFromHex(hex))}
+                      />
+                    </>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={locked || draft.value.color === 0}
-                    onClick={() => draft.set('color', 0)}
+                    disabled={
+                      locked ||
+                      (draft.value.color === 0 &&
+                        draft.value.secondary === null &&
+                        draft.value.tertiary === null)
+                    }
+                    onClick={() => {
+                      draft.set('color', 0);
+                      draft.set('secondary', null);
+                      draft.set('tertiary', null);
+                    }}
                   >
                     {t('settings.roles.defaultColor')}
                   </Button>
+                  <p className="ss-sub">
+                    {t('settings.roles.preview')}{' '}
+                    <span
+                      className="ss-role-preview"
+                      data-gradient={draft.value.secondary != null ? '' : undefined}
+                      data-testid="role-gradient-preview"
+                      style={nameStyle(
+                        stopsOf(
+                          {
+                            primary_color: draft.value.color,
+                            secondary_color: draft.value.secondary,
+                            tertiary_color: draft.value.tertiary,
+                          },
+                          draft.value.color,
+                        ),
+                      )}
+                    >
+                      {draft.value.name || role.name}
+                    </span>
+                  </p>
                 </div>
                 <ImageField
                   label={t('settings.roles.iconLabel')}

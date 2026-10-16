@@ -8,6 +8,7 @@ import { useDraft, useGuildEvents, useResource, useSettingsForm } from '../hooks
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, NotAvailable, SectionHeader, useAction } from '../ui';
 import { BannerPresets } from './BannerPresets';
+import { TraitsEditor, traitsValid } from './Traits';
 import { ImageField } from './ImageField';
 
 interface Fields {
@@ -22,6 +23,8 @@ interface Fields {
   icon: string | null;
   banner: string | null;
   splash: string | null;
+  /** Server traits (J-07), saved through `PATCH /guilds/{id}/sr/profile`. */
+  traits: api.GuildTrait[];
 }
 
 const toFields = (g: api.GuildObject): Fields => ({
@@ -35,6 +38,7 @@ const toFields = (g: api.GuildObject): Fields => ({
   icon: g.icon,
   banner: g.banner ?? null,
   splash: g.splash ?? null,
+  traits: g.sr_profile?.traits ?? [],
 });
 
 const COMMUNITY_FLAGS: [keyof api.CommunityObject, MessageKey][] = [
@@ -110,6 +114,10 @@ function OverviewForm({
   const save = useCallback(async () => {
     if (nameError) return;
     const c = draft.changed;
+    if (c.traits !== undefined && !traitsValid(c.traits)) {
+      action.setError(t('settings.traits.invalid'));
+      return;
+    }
     const body: api.ModifyGuildBody = {};
     if (c.name !== undefined) body.name = name;
     if (c.description !== undefined) body.description = c.description.trim() || null;
@@ -122,10 +130,12 @@ function OverviewForm({
     if (c.icon !== undefined) body.icon = c.icon;
     if (c.banner !== undefined) body.banner = c.banner;
     if (c.splash !== undefined) body.splash = c.splash;
-    const next = await action.run(
-      () => api.modifyGuild(guildId, body),
-      t('settings.overview.saved'),
-    );
+    const traits = c.traits?.map((tr) => ({ ...tr, label: tr.label.trim() }));
+    const next = await action.run(async () => {
+      // The profile extras have their own endpoint; run it after the main edit so the answer is the newest.
+      const main = Object.keys(body).length > 0 ? await api.modifyGuild(guildId, body) : undefined;
+      return traits ? await api.modifySrProfile(guildId, { traits }) : main!;
+    }, t('settings.overview.saved'));
     if (next) {
       onSaved(next);
       draft.reset();
@@ -196,6 +206,8 @@ function OverviewForm({
           online={guild.approximate_presence_count}
         />
       </section>
+
+      <TraitsEditor traits={draft.value.traits} onChange={(v) => draft.set('traits', v)} />
 
       <section className="ss-card" aria-labelledby="ss-system">
         <h2 id="ss-system">{t('settings.overview.systemTitle')}</h2>
@@ -312,7 +324,6 @@ function OverviewForm({
       <section className="ss-card" aria-labelledby="ss-not-backed">
         <h2 id="ss-not-backed">{t('settings.overview.notBackedTitle')}</h2>
         <NotAvailable>{t('settings.overview.vanity')}</NotAvailable>
-        <NotAvailable>{t('settings.overview.traits')}</NotAvailable>
       </section>
     </div>
   );

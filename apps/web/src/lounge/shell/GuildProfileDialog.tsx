@@ -15,6 +15,7 @@ import { readAsDataUri } from '../../settings/user/imageCrop';
 import { colorOfHex, hexOfColor } from '../../lib/serverTag';
 import { useStore } from '../../store';
 import { cdnUrl } from '../../store/cdn';
+import { TraitChips } from '../components/TraitChips';
 import { useCurrentUser, useGuild } from '../data';
 
 const BIO_MAX = 190;
@@ -207,6 +208,10 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
       description={t('lounge.guildProfile.subtitle', { name: guild.name })}
     >
       <form className="lng-form" onSubmit={(e) => void save(e)}>
+        <TraitChips
+          traits={guild.traits}
+          label={t('lounge.guildProfile.traits', { name: guild.name })}
+        />
         <TextInput
           label={t('lounge.guildProfile.nick')}
           value={nick}

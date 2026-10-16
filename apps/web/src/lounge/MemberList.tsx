@@ -1,6 +1,7 @@
 import { Avatar, ContextMenu, Icon, VirtualList, type MenuEntry } from '@sideroom/ui';
 import { useMemo, useRef } from 'react';
 import { useT } from '../i18n';
+import { nameStyle } from '../lib/roleGradient';
 import { useDeveloperMode } from '../settings/user/prefs';
 import { useViewer, type Viewer } from '../settings/server/hooks';
 import { useAppsMenu } from './apps/useAppsMenu';
@@ -32,7 +33,7 @@ function MemberRowView({
   const t = useT();
   const developerMode = useDeveloperMode();
   const rowRef = useRef<HTMLButtonElement | null>(null);
-  const { member, presence, color } = entry;
+  const { member, presence, stops } = entry;
   const u = member.user;
   const name = member.nick ?? u.displayName;
   const me = useCurrentUser();
@@ -165,8 +166,14 @@ function MemberRowView({
       >
         <Avatar name={name} src={u.avatarUrl ?? null} size={32} status={presence.status} />
         <span className="lng-member-text">
-          <span className="lng-member-name" style={color ? { color } : undefined}>
-            {name}
+          <span className="lng-member-name" style={stops[0] ? { color: stops[0] } : undefined}>
+            {stops.length > 1 ? (
+              <span className="lng-member-gradient" data-gradient="" style={nameStyle(stops)}>
+                {name}
+              </span>
+            ) : (
+              name
+            )}
             {ownerId === u.id && (
               <Icon name="star" size={16} label={t('lounge.memberList.serverOwner')} />
             )}

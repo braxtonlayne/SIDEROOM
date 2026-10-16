@@ -10,6 +10,7 @@ import {
 } from '@sideroom/ui';
 import { memo, useMemo, type CSSProperties } from 'react';
 import { useT } from '../i18n';
+import { nameStyle } from '../lib/roleGradient';
 import { useReportEntry } from '../moderation/reports';
 import { useDeveloperMode, useSavedPrefs } from '../settings/user/prefs';
 import { EmojiPicker } from './components/EmojiPicker';
@@ -39,6 +40,8 @@ export interface NameDecor {
   color?: string;
   /** Second colour of a gradient role. */
   secondary?: string;
+  /** Third colour (holographic roles). */
+  tertiary?: string;
   /** Role icon emoji and the role it comes from. */
   icon?: string;
   iconName?: string;
@@ -204,10 +207,9 @@ function MessageBody({
 }
 
 function authorStyle(color?: string, decor?: NameDecor): CSSProperties | undefined {
-  if (decor?.secondary && (decor.color ?? color)) {
-    return {
-      backgroundImage: `linear-gradient(90deg, ${decor.color ?? color}, ${decor.secondary})`,
-    };
+  const first = decor?.color ?? color;
+  if (decor?.secondary && first) {
+    return nameStyle([first, decor.secondary, ...(decor.tertiary ? [decor.tertiary] : [])]);
   }
   return color ? { color } : undefined;
 }

@@ -474,3 +474,16 @@
   background: var(--ui-accent, currentColor);
   opacity: 0.6;
 }
+
+/* J-08: the role name preview in the colour editor; the inline style carries the first stop as plain colour. */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .ss-role-preview[data-gradient] {
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+}
+.ss-role-preview {
+  font-weight: 600;
+}

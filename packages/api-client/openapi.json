@@ -38249,6 +38249,86 @@
         ]
       }
     },
+    "/guilds/{guild_id}/sr/profile": {
+      "patch": {
+        "tags": [
+          "guild"
+        ],
+        "summary": "Edit the Side Room profile extras of a server: today its traits (J-07). `MANAGE_GUILD`;\nemits `GUILD_UPDATE`.",
+        "operationId": "modify_sr_profile",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifySrProfileBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/sr/slowmode/apply": {
       "post": {
         "tags": [
@@ -62661,7 +62741,7 @@
               "string",
               "null"
             ],
-            "description": "Accepted for compatibility; icon upload arrives with the media pipeline."
+            "description": "Image data URI for the server icon (the `PATCH` rules: PNG, JPEG, GIF or WebP, cropped\nto a square); a refused image fails the whole request and no server is left behind."
           },
           "name": {
             "type": "string"
@@ -62967,6 +63047,17 @@
             ],
             "format": "int32",
             "minimum": 0
+          },
+          "colors": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RoleColorsBody",
+                "description": "Gradient stops; wins over `color` when both are sent."
+              }
+            ]
           },
           "hoist": {
             "type": [
@@ -64051,6 +64142,7 @@
           "featured",
           "approximate_member_count",
           "preferred_locale",
+          "traits",
           "joined"
         ],
         "properties": {
@@ -64116,6 +64208,13 @@
               "string",
               "null"
             ]
+          },
+          "traits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuildTraitObject"
+            },
+            "description": "The server's traits (J-07), at most five."
           },
           "vanity_url_code": {
             "type": [
@@ -66457,7 +66556,8 @@
           "widget_enabled",
           "preferred_locale",
           "features",
-          "hide_suspicious_links"
+          "hide_suspicious_links",
+          "sr_profile"
         ],
         "properties": {
           "afk_channel_id": {
@@ -66606,6 +66706,10 @@
             "description": "The largest file the caller may upload here, in bytes (D-233). Only on `GET /guilds/{id}`.",
             "minimum": 0
           },
+          "sr_profile": {
+            "$ref": "#/components/schemas/GuildSrProfileObject",
+            "description": "Side Room's profile extras (server traits)."
+          },
           "system_channel_flags": {
             "type": "integer",
             "format": "int32",
@@ -66748,6 +66852,22 @@
           }
         }
       },
+      "GuildSrProfileObject": {
+        "type": "object",
+        "description": "Side Room's server profile extras on the server object (`sr_profile`).",
+        "required": [
+          "traits"
+        ],
+        "properties": {
+          "traits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuildTraitObject"
+            },
+            "description": "At most five."
+          }
+        }
+      },
       "GuildSupportPatch": {
         "type": "object",
         "required": [
@@ -66851,6 +66971,33 @@
           },
           "tag": {
             "type": "string"
+          }
+        }
+      },
+      "GuildTraitObject": {
+        "type": "object",
+        "description": "One server trait (J-07): a label with an optional emoji.",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "emoji_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Custom emoji of the server."
+          },
+          "emoji_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Unicode emoji, or the custom emoji's name."
+          },
+          "label": {
+            "type": "string",
+            "description": "1 to 24 characters, no mentions or markdown."
           }
         }
       },
@@ -70978,6 +71125,17 @@
             "format": "int32",
             "minimum": 0
           },
+          "colors": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RoleColorsBody",
+                "description": "Gradient stops; replaces all three and wins over `color` when both are sent."
+              }
+            ]
+          },
           "hoist": {
             "type": [
               "boolean",
@@ -71045,6 +71203,22 @@
               "null"
             ],
             "format": "double"
+          }
+        }
+      },
+      "ModifySrProfileBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/sr/profile`.",
+        "properties": {
+          "traits": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/GuildTraitObject"
+            },
+            "description": "Replaces all traits; at most five."
           }
         }
       },
@@ -75476,6 +75650,66 @@
           "unknown"
         ]
       },
+      "RoleColorsBody": {
+        "type": "object",
+        "description": "`colors` in a role create or edit; replaces all three stops. A tertiary stop needs a\nsecondary one.",
+        "required": [
+          "primary_color"
+        ],
+        "properties": {
+          "primary_color": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "secondary_color": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "tertiary_color": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "RoleColorsObject": {
+        "type": "object",
+        "description": "The gradient stops of a role, Discord's `colors` object.",
+        "required": [
+          "primary_color"
+        ],
+        "properties": {
+          "primary_color": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "secondary_color": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "tertiary_color": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "RoleObject": {
         "type": "object",
         "required": [
@@ -75487,13 +75721,18 @@
           "permissions",
           "managed",
           "mentionable",
-          "flags"
+          "flags",
+          "colors"
         ],
         "properties": {
           "color": {
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          },
+          "colors": {
+            "$ref": "#/components/schemas/RoleColorsObject",
+            "description": "Gradient stops (J-08); `primary_color` mirrors `color`."
           },
           "flags": {
             "type": "integer",

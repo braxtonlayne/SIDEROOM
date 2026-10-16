@@ -1,0 +1,26 @@
+/* Server traits (J-07). Logical properties only. */
+.lng-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block: 8px 0;
+  margin-inline: 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-trait {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-block: 2px;
+  padding-inline: 8px;
+  border-radius: 999px;
+  background: var(--bg-base-lowest);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lng-trait-emoji {
+  inline-size: 14px;
+  block-size: 14px;
+  object-fit: contain;
+}

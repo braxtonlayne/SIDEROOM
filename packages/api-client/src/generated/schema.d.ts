@@ -7309,6 +7309,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/sr/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit the Side Room profile extras of a server: today its traits (J-07). `MANAGE_GUILD`;
+         *     emits `GUILD_UPDATE`.
+         */
+        patch: operations["modify_sr_profile"];
+        trace?: never;
+    };
     "/guilds/{guild_id}/sr/slowmode/apply": {
         parameters: {
             query?: never;
@@ -13182,7 +13202,10 @@ export interface components {
             scheduled_start_time: string;
         };
         CreateGuildBody: {
-            /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
+            /**
+             * @description Image data URI for the server icon (the `PATCH` rules: PNG, JPEG, GIF or WebP, cropped
+             *     to a square); a refused image fails the whole request and no server is left behind.
+             */
             icon?: string | null;
             name: string;
             /**
@@ -13284,6 +13307,7 @@ export interface components {
         CreateRoleBody: {
             /** Format: int32 */
             color?: number | null;
+            colors?: null | components["schemas"]["RoleColorsBody"];
             hoist?: boolean | null;
             mentionable?: boolean | null;
             name?: string | null;
@@ -13645,6 +13669,8 @@ export interface components {
             pending?: boolean;
             preferred_locale: string;
             splash?: string | null;
+            /** @description The server's traits (J-07), at most five. */
+            traits: components["schemas"]["GuildTraitObject"][];
             vanity_url_code?: string | null;
         };
         DirectoryPage: {
@@ -14411,6 +14437,8 @@ export interface components {
              * @description The largest file the caller may upload here, in bytes (D-233). Only on `GET /guilds/{id}`.
              */
             sr_max_upload_bytes?: number | null;
+            /** @description Side Room's profile extras (server traits). */
+            sr_profile: components["schemas"]["GuildSrProfileObject"];
             /**
              * Format: int32
              * @description Discord `system_channel_flags` bits (1 suppress join messages, 2 boost messages,
@@ -14455,6 +14483,11 @@ export interface components {
             suppress_highlights?: boolean | null;
             suppress_roles?: boolean | null;
         };
+        /** @description Side Room's server profile extras on the server object (`sr_profile`). */
+        GuildSrProfileObject: {
+            /** @description At most five. */
+            traits: components["schemas"]["GuildTraitObject"][];
+        };
         GuildSupportPatch: {
             hidden_from_leaderboard: boolean;
         };
@@ -14494,6 +14527,15 @@ export interface components {
             /** @description "Members can choose to display". */
             members_can_display: boolean;
             tag: string;
+        };
+        /** @description One server trait (J-07): a label with an optional emoji. */
+        GuildTraitObject: {
+            /** @description Custom emoji of the server. */
+            emoji_id?: string | null;
+            /** @description Unicode emoji, or the custom emoji's name. */
+            emoji_name?: string | null;
+            /** @description 1 to 24 characters, no mentions or markdown. */
+            label: string;
         };
         /**
          * @description User object embedded in members, bans and messages. Name fields come from the
@@ -15745,6 +15787,7 @@ export interface components {
         ModifyRoleBody: {
             /** Format: int32 */
             color?: number | null;
+            colors?: null | components["schemas"]["RoleColorsBody"];
             hoist?: boolean | null;
             /**
              * @description Image data URI for the role icon (PNG, JPEG, GIF or WebP, cropped to a square);
@@ -15763,6 +15806,11 @@ export interface components {
             name?: string | null;
             /** Format: double */
             volume?: number | null;
+        };
+        /** @description Body of `PATCH /guilds/{id}/sr/profile`. */
+        ModifySrProfileBody: {
+            /** @description Replaces all traits; at most five. */
+            traits?: components["schemas"]["GuildTraitObject"][] | null;
         };
         ModifyStageInstanceBody: {
             /** Format: int32 */
@@ -17168,9 +17216,32 @@ export interface components {
          * @enum {string}
          */
         Role: "video" | "subtitle" | "artwork" | "unknown";
+        /**
+         * @description `colors` in a role create or edit; replaces all three stops. A tertiary stop needs a
+         *     secondary one.
+         */
+        RoleColorsBody: {
+            /** Format: int32 */
+            primary_color: number;
+            /** Format: int32 */
+            secondary_color?: number | null;
+            /** Format: int32 */
+            tertiary_color?: number | null;
+        };
+        /** @description The gradient stops of a role, Discord's `colors` object. */
+        RoleColorsObject: {
+            /** Format: int32 */
+            primary_color: number;
+            /** Format: int32 */
+            secondary_color?: number | null;
+            /** Format: int32 */
+            tertiary_color?: number | null;
+        };
         RoleObject: {
             /** Format: int32 */
             color: number;
+            /** @description Gradient stops (J-08); `primary_color` mirrors `color`. */
+            colors: components["schemas"]["RoleColorsObject"];
             /** Format: int32 */
             flags: number;
             hoist: boolean;
@@ -43792,6 +43863,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InsightsObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_sr_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifySrProfileBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             403: {

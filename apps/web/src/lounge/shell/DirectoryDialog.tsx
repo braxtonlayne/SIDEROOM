@@ -5,6 +5,7 @@ import { useT } from '../../i18n';
 import { cdnUrl } from '../../store/cdn';
 import { useGuilds } from '../data';
 import { useGotoGuild } from '../AddServerDialog';
+import { TraitChips } from '../components/TraitChips';
 import {
   joinListedGuild,
   listDirectoryCategories,
@@ -53,6 +54,7 @@ function Card({ g, onJoined }: { g: DirectoryGuild; onJoined: (id: string) => vo
           {g.featured && <span className="lng-tag">{t('lounge.directory.featured')}</span>}
         </h3>
         <p className="lng-dir-desc">{g.description || t('lounge.directory.noDescription')}</p>
+        <TraitChips traits={g.traits} label={t('lounge.directory.traits', { name: g.name })} />
         <p className="lng-muted lng-dir-meta">
           {g.approximate_presence_count != null && (
             <span>{t('lounge.directory.online', { count: g.approximate_presence_count })}</span>

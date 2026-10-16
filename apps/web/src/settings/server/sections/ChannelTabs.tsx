@@ -5,8 +5,9 @@
  * not pretend to offer them.
  */
 import { Button, ConfirmDialog, EmptyState, Modal, TextInput } from '@sideroom/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
+import { MAX_STATUS, setChannelStatus, useChannelStatus } from '../../../voice/channelStatus';
 import { expiryLabel, inviteUrl } from '../../../lounge/inviteFlow';
 import * as api from '../api';
 import { useResource } from '../hooks';
@@ -342,6 +343,64 @@ const slow = (s: number) =>
       : s < 3600
         ? `${s / 60}m`
         : `${s / 3600}h`;
+
+/**
+ * The voice tab of the channel editor (J-09, LNG-CHN-010): the status line under a voice or stage channel's
+ * name, over `PUT /channels/{id}/voice-status` (clearing it sends null). The server also ends a status when
+ * the last person leaves, and pushes `VOICE_CHANNEL_STATUS_UPDATE`, which the store applies.
+ */
+export function ChannelVoice({ channel }: { channel: api.ChannelObject }) {
+  const t = useT();
+  const action = useAction();
+  const current = useChannelStatus((s) => s.byChannel[channel.id] ?? '');
+  const [text, setText] = useState(current);
+  const [edited, setEdited] = useState(false);
+  // Follow the live status until the person starts typing.
+  useEffect(() => {
+    if (!edited) setText(current);
+  }, [current, edited]);
+  const save = async (next: string | null) => {
+    const ok = await action.run(async () => {
+      await setChannelStatus(channel.id, next);
+      return true;
+    }, next ? t('settings.channelTabs.voiceStatusSaved') : t('settings.channelTabs.voiceStatusCleared'));
+    if (ok) {
+      setEdited(false);
+      if (!next) setText('');
+    }
+  };
+  return (
+    <div className="ss-form">
+      <ActionStatus error={action.error} done={action.done} />
+      <TextInput
+        label={t('settings.channelTabs.voiceStatusLabel')}
+        hint={t('settings.channelTabs.voiceStatusHint')}
+        value={text}
+        maxLength={MAX_STATUS}
+        onChange={(e) => {
+          setText(e.target.value);
+          setEdited(true);
+        }}
+      />
+      <div className="ss-actions">
+        <Button
+          loading={action.busy}
+          disabled={text.trim() === current}
+          onClick={() => void save(text.trim() || null)}
+        >
+          {t('settings.channelTabs.voiceStatusSave')}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={action.busy || (!current && !text)}
+          onClick={() => void save(null)}
+        >
+          {t('settings.channelTabs.voiceStatusClear')}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /** Thread defaults for a text or announcement channel. Saved as soon as a value changes. */
 export function ChannelFeatures({
