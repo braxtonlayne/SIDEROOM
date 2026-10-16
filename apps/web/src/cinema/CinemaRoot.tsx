@@ -22,7 +22,7 @@ function Frame() {
 
 /** The section frame: own query cache, age gate, theme and chrome. Loaded lazily by routes.tsx. */
 export function CinemaRoot() {
-  const theme = useAppliedTheme();
+  const theme = useAppliedTheme(undefined, 'cinema');
   const router = useRouter();
   const [client] = useState(
     () =>

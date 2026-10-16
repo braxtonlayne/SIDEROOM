@@ -9,6 +9,7 @@ import {
   TextInput,
   useToast,
 } from '@sideroom/ui';
+import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t, useT } from '../../../i18n';
 import { cdnUrl } from '../../../store';
@@ -643,6 +644,15 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
                 </Card>
                 <MediaCard form={form} />
                 <StaffBadgeCard badges={form.profile?.badges} />
+                <Card
+                  id="us-profile-page"
+                  title={t('settings.profile.pageTitle')}
+                  description={t('settings.profile.pageDesc')}
+                >
+                  <Link to="/profile-page/edit" className="us-link">
+                    {t('settings.profile.pageEdit')}
+                  </Link>
+                </Card>
                 <Card
                   id="us-profile-extras"
                   title={t('settings.profile.extrasTitle')}

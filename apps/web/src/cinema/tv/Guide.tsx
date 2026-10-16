@@ -54,7 +54,7 @@ function useCanManageTv() {
 }
 
 export function TvGuidePage() {
-  const theme = useAppliedTheme();
+  const theme = useAppliedTheme(undefined, 'cinema');
   return (
     // Broadcast theme for this page only. `perSection` keeps a viewer's own per-section choice; the global
     // theme choice does not apply here (the teletext layer needs its tokens).

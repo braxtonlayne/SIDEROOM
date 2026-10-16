@@ -1,0 +1,382 @@
+/* Customised profile pages (EXT-PRF). Everything is scoped to .pp-root and driven by the custom properties and
+   data attributes the renderer sets; a document can reach nothing else. Logical properties only. */
+.pp-root {
+  --pp-bg: #1e1f22;
+  --pp-panel: #2b2d31;
+  --pp-text: #f2f3f5;
+  --pp-accent: #5865f2;
+  --pp-font: 'Inter', system-ui, sans-serif;
+  position: relative;
+  isolation: isolate;
+  min-block-size: 100%;
+  padding: 16px;
+  color: var(--pp-text);
+  background-color: var(--pp-bg);
+  font-family: var(--pp-font);
+  overflow: hidden;
+}
+.pp-root[data-banner-bg='true'] {
+  background-image: var(--pp-banner);
+  background-size: cover;
+  background-position: center;
+}
+.pp-root[data-pattern='dots'] {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--pp-text) 18%, transparent) 1.5px,
+    transparent 1.5px
+  );
+  background-size: 18px 18px;
+}
+.pp-root[data-pattern='grid'] {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--pp-text) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--pp-text) 12%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.pp-root[data-pattern='stripes'] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--pp-text) 10%, transparent) 0 8px,
+    transparent 8px 16px
+  );
+}
+.pp-root[data-pattern='checks'] {
+  background-image: conic-gradient(
+    color-mix(in srgb, var(--pp-text) 12%, transparent) 25%,
+    transparent 0 50%,
+    color-mix(in srgb, var(--pp-text) 12%, transparent) 0 75%,
+    transparent 0
+  );
+  background-size: 28px 28px;
+}
+.pp-root[data-pattern='waves'] {
+  background-image: repeating-radial-gradient(
+    circle at 0 100%,
+    transparent 0 12px,
+    color-mix(in srgb, var(--pp-text) 12%, transparent) 12px 14px
+  );
+}
+.pp-root[data-cursor='pointer'] {
+  cursor: pointer;
+}
+.pp-root[data-cursor='crosshair'] {
+  cursor: crosshair;
+}
+.pp-root[data-cursor='cell'] {
+  cursor: cell;
+}
+.pp-root[data-cursor='help'] {
+  cursor: help;
+}
+.pp-grid {
+  display: grid;
+  grid-auto-rows: minmax(40px, auto);
+  gap: 12px;
+}
+.pp-root[data-compact] {
+  padding: 8px;
+}
+.pp-root[data-compact] .pp-grid {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.pp-block {
+  min-inline-size: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--pp-panel);
+  color: var(--pp-text);
+  overflow-wrap: anywhere;
+}
+.pp-block[data-type='header'] {
+  padding: 0;
+  overflow: hidden;
+}
+.pp-root[data-border='solid'] .pp-block {
+  border: 2px solid var(--pp-accent);
+}
+.pp-root[data-border='dashed'] .pp-block {
+  border: 2px dashed var(--pp-accent);
+}
+.pp-root[data-border='dotted'] .pp-block {
+  border: 3px dotted var(--pp-accent);
+}
+.pp-root[data-border='double'] .pp-block {
+  border: 5px double var(--pp-accent);
+}
+.pp-root[data-border='groove'] .pp-block {
+  border: 4px groove var(--pp-accent);
+}
+.pp-title {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pp-accent);
+}
+.pp-text,
+.pp-muted {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}
+.pp-muted {
+  opacity: 0.75;
+  font-size: 0.875rem;
+}
+.pp-error {
+  color: inherit;
+  font-weight: 600;
+}
+.pp-link {
+  color: var(--pp-accent);
+  text-decoration: underline;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.pp-header-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+.pp-banner {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 140px;
+  object-fit: cover;
+}
+.pp-name {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.pp-tagline {
+  margin: 4px 0 0;
+  font-style: italic;
+}
+.pp-friends,
+.pp-list,
+.pp-gallery,
+.pp-entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pp-friends {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.pp-friends li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.pp-rank {
+  inline-size: 1.25rem;
+  font-weight: 700;
+  color: var(--pp-accent);
+}
+.pp-list {
+  list-style: decimal inside;
+}
+.pp-list li {
+  margin-block-end: 2px;
+}
+.pp-entries li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding-block: 6px;
+  border-block-start: 1px solid color-mix(in srgb, var(--pp-text) 18%, transparent);
+}
+.pp-entries li > div {
+  flex: 1;
+  min-inline-size: 0;
+}
+.pp-sign {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-block-end: 8px;
+}
+/* Overlays are decoration only: they never take pointer input and stand still for reduced motion. */
+.pp-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-repeat: repeat;
+}
+.pp-root[data-overlay='sparkle'] .pp-overlay {
+  background-image:
+    radial-gradient(circle, #fff 1px, transparent 2px),
+    radial-gradient(circle, #fff 1px, transparent 2px);
+  background-size:
+    60px 60px,
+    90px 90px;
+  background-position:
+    0 0,
+    30px 40px;
+  animation: pp-twinkle 3s ease-in-out infinite alternate;
+}
+.pp-root[data-overlay='stars'] .pp-overlay {
+  background-image: radial-gradient(circle, var(--pp-accent) 2px, transparent 3px);
+  background-size: 70px 70px;
+  animation: pp-twinkle 4s ease-in-out infinite alternate;
+}
+.pp-root[data-overlay='hearts'] .pp-overlay {
+  background-image:
+    radial-gradient(circle at 30% 30%, #ff6b9a 3px, transparent 4px),
+    radial-gradient(circle at 70% 30%, #ff6b9a 3px, transparent 4px);
+  background-size: 64px 64px;
+  animation: pp-twinkle 3.5s ease-in-out infinite alternate;
+}
+.pp-root[data-overlay='snow'] .pp-overlay {
+  background-image: radial-gradient(circle, #fff 2px, transparent 3px);
+  background-size: 50px 50px;
+  animation: pp-fall 12s linear infinite;
+}
+@keyframes pp-twinkle {
+  from {
+    opacity: 0.2;
+  }
+  to {
+    opacity: 0.7;
+  }
+}
+@keyframes pp-fall {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 20px 50px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-overlay {
+    animation: none !important;
+  }
+}
+[data-reduced-motion='true'] .pp-overlay {
+  animation: none !important;
+}
+
+/* The page chrome and the editor. */
+.pp-page {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100dvh;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+}
+.pp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-block-end: 1px solid var(--ui-border);
+}
+.pp-bar h1 {
+  margin: 0;
+  font-size: 1rem;
+}
+.pp-body {
+  flex: 1;
+}
+.pp-plain {
+  max-inline-size: 560px;
+  margin-inline: auto;
+  padding: 32px 16px;
+  text-align: center;
+}
+.pp-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  padding: 16px;
+}
+@media (max-width: 900px) {
+  .pp-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.pp-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+}
+.pp-canvas {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background-color: var(--ui-bg-raised);
+  background-image:
+    linear-gradient(var(--ui-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ui-border) 1px, transparent 1px);
+  touch-action: none;
+}
+.pp-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px;
+  padding: 6px 8px;
+  border: 2px solid var(--ui-accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ui-accent) 18%, var(--ui-bg-raised));
+  color: var(--ui-text);
+  cursor: grab;
+  overflow: hidden;
+  font-size: 0.8125rem;
+  user-select: none;
+}
+.pp-tile[aria-pressed='true'] {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.pp-tile[data-dragging='true'] {
+  cursor: grabbing;
+  opacity: 0.85;
+}
+.pp-tile:focus-visible {
+  outline: 3px solid var(--ui-focus);
+}
+.pp-grip {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-end: 0;
+  inline-size: 16px;
+  block-size: 16px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, var(--ui-accent) 50%);
+}
+.pp-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pp-colors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pp-color {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.pp-color input[type='color'] {
+  inline-size: 36px;
+  block-size: 28px;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  background: none;
+}

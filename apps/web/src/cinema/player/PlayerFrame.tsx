@@ -30,7 +30,7 @@ function Session({ children }: { children: React.ReactNode }) {
 }
 
 export function PlayerFrame() {
-  const theme = useAppliedTheme();
+  const theme = useAppliedTheme(undefined, 'cinema');
   const router = useRouter();
   const [client] = useState(
     () =>
