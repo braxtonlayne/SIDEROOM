@@ -10,7 +10,7 @@ use serde_json::Value;
 use sr_core::PlatformPermissions as P;
 
 use crate::error::{ReviewError, ReviewResult};
-use crate::model::{KindInfo, Submission, SubmissionItem};
+use crate::model::{DuplicateMatch, KindInfo, Submission, SubmissionItem};
 use crate::repo::NewItem;
 
 /// What a kind derives from the creation payload.
@@ -58,6 +58,11 @@ pub trait SubmissionKind: Send + Sync {
         published: &[SubmissionItem],
     ) -> ReviewResult<Vec<i64>> {
         Ok(published.iter().map(|i| i.ref_id).collect())
+    }
+    /// Existing catalog entries this submission may duplicate, best match first (REV-ED-006).
+    /// The default finds none.
+    async fn duplicates(&self, _s: &Submission) -> ReviewResult<Vec<DuplicateMatch>> {
+        Ok(Vec::new())
     }
     /// Delete the files and draft content of a rejected or abandoned submission (the 14 day
     /// purge, REV-CORE-009). Idempotent; the default keeps everything.

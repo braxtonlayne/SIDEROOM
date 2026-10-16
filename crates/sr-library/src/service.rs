@@ -80,12 +80,13 @@ impl Actor {
 #[derive(Clone)]
 pub struct LibraryService {
     pub(crate) repo: Arc<dyn LibraryRepository>,
-    index: Option<Arc<SeriesIndex>>,
+    pub(crate) index: Option<Arc<SeriesIndex>>,
     signer: CdnSigner,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) ids: IdSource,
     pub(crate) ingest: Option<crate::uploads::IngestWiring>,
     pub(crate) multipart: Option<crate::multipart::MultipartWiring>,
+    pub(crate) cover_hashes: Option<Arc<dyn crate::duplicates::CoverHashes>>,
     pub(crate) events: Option<Arc<dyn crate::reading::LibraryEvents>>,
     pub(crate) audit: Option<Arc<dyn crate::uploads::LibraryAudit>>,
 }
@@ -105,6 +106,7 @@ impl LibraryService {
             ids,
             ingest: None,
             multipart: None,
+            cover_hashes: None,
             events: None,
             audit: None,
         }

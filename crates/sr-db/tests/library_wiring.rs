@@ -1556,3 +1556,104 @@ async fn a_multipart_upload_is_remembered_resumed_and_completed() {
     assert!(svc.upload_parts(w.publisher, slot.upload.id).await.is_err());
     assert!(svc.abort_upload(w.publisher, slot.upload.id).await.is_err());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn duplicates_match_by_title_and_by_cover_artwork() {
+    use sr_library::{CoverHashes, SeriesIndex};
+    let w = world().await;
+    let svc = w
+        .svc
+        .clone()
+        .with_index(Arc::new(SeriesIndex::in_ram().unwrap()))
+        .with_cover_hashes(Arc::new(PgLibraryRepo::new(w.pool.clone())));
+    let tag = uid();
+    let title = format!("Zephyr Quill {tag}");
+    let art = png(600, 900, 10);
+    let other_art = {
+        use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
+        let img = RgbImage::from_fn(600, 900, |x, _| {
+            if (x / 12) % 2 == 0 {
+                Rgb([15, 15, 15])
+            } else {
+                Rgb([240, 240, 240])
+            }
+        });
+        let mut out = Vec::new();
+        DynamicImage::ImageRgb8(img)
+            .write_to(&mut Cursor::new(&mut out), ImageFormat::Png)
+            .unwrap();
+        out
+    };
+    let put_cover = |name: String, bytes: Vec<u8>| {
+        let storage = w.storage.clone();
+        async move {
+            let key = format!("library/cover-{name}.png");
+            storage.put(&key, Bytes::from(bytes)).await.unwrap();
+            key
+        }
+    };
+    let make = |title: String, key: String, publish: bool| {
+        let svc = svc.clone();
+        let mut input = w.input("x", false);
+        input.title = title;
+        input.cover_key = Some(key);
+        let actor = w.publisher;
+        async move {
+            let s = svc.create_series(actor, input).await.unwrap();
+            if publish {
+                svc.set_series_published(actor, s.id, true).await.unwrap();
+            }
+            s.id
+        }
+    };
+    let same_title = make(
+        title.clone(),
+        put_cover(format!("a{tag}"), art.clone()).await,
+        true,
+    )
+    .await;
+    let same_art = make(
+        format!("Unrelated Words {tag}"),
+        put_cover(format!("b{tag}"), art.clone()).await,
+        true,
+    )
+    .await;
+    let _different = make(
+        format!("Nothing Alike {tag}"),
+        put_cover(format!("c{tag}"), other_art).await,
+        true,
+    )
+    .await;
+    let draft = make(
+        title.clone(),
+        put_cover(format!("d{tag}"), art).await,
+        false,
+    )
+    .await;
+
+    let found = svc.find_duplicates(draft).await.unwrap();
+    let by_id = |id: i64| found.iter().find(|m| m.ref_id == id);
+    let t = by_id(same_title).expect("the series with the same title");
+    assert_eq!(t.score, 100);
+    assert!(t.reasons.contains(&"title".to_owned()), "{t:?}");
+    assert!(t.reasons.contains(&"cover".to_owned()), "{t:?}");
+    let a = by_id(same_art).expect("the series with the same cover");
+    assert_eq!(a.reasons, vec!["cover".to_owned()]);
+    assert!(a.score >= 90, "{a:?}");
+    assert!(found.iter().all(|m| m.ref_id != draft), "never itself");
+    assert!(
+        found
+            .iter()
+            .all(|m| !m.title.starts_with("Nothing Alike") || !m.title.ends_with(&tag.to_string())),
+        "different artwork and title are not matches: {found:?}"
+    );
+    // The hashes were filled in as a side effect.
+    let left = CoverHashes::unhashed(&PgLibraryRepo::new(w.pool.clone()), 1000)
+        .await
+        .unwrap();
+    assert!(
+        left.iter()
+            .all(|(id, _)| *id != same_title && *id != same_art)
+    );
+}

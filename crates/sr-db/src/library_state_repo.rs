@@ -674,3 +674,64 @@ impl UploadRepository for PgLibraryRepo {
         Ok(n)
     }
 }
+
+#[async_trait]
+impl sr_library::CoverHashes for PgLibraryRepo {
+    async fn put(&self, series: i64, cover_key: &str, hash: u64) -> LibraryResult<()> {
+        sqlx::query(
+            "INSERT INTO library_cover_hashes (series_id, cover_key, phash) VALUES ($1, $2, $3) \
+             ON CONFLICT (series_id) DO UPDATE SET cover_key = EXCLUDED.cover_key, \
+               phash = EXCLUDED.phash, created_at = now()",
+        )
+        // The bit pattern is stored in a signed column; `as` keeps it.
+        .bind(series)
+        .bind(cover_key)
+        .bind(hash as i64)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn unhashed(&self, limit: u32) -> LibraryResult<Vec<(i64, String)>> {
+        sqlx::query_as(
+            "SELECT s.id, s.cover_key FROM reading_series s \
+             LEFT JOIN library_cover_hashes h ON h.series_id = s.id \
+             WHERE s.published AND s.merged_into IS NULL AND s.cover_key IS NOT NULL \
+               AND (h.series_id IS NULL OR h.cover_key <> s.cover_key) \
+             ORDER BY s.id LIMIT $1",
+        )
+        .bind(i64::from(limit))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn nearest(
+        &self,
+        hash: u64,
+        max_distance: u32,
+        exclude: i64,
+        limit: u32,
+    ) -> LibraryResult<Vec<(i64, u32)>> {
+        let rows: Vec<(i64, i32)> = sqlx::query_as(
+            "SELECT h.series_id, bit_count((h.phash # $1)::bit(64))::int AS d \
+             FROM library_cover_hashes h JOIN reading_series s ON s.id = h.series_id \
+             WHERE s.published AND s.merged_into IS NULL AND h.series_id <> $2 \
+               AND h.cover_key = s.cover_key \
+               AND bit_count((h.phash # $1)::bit(64)) <= $3 \
+             ORDER BY d, h.series_id LIMIT $4",
+        )
+        .bind(hash as i64)
+        .bind(exclude)
+        .bind(i64::from(max_distance))
+        .bind(i64::from(limit))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, d)| (id, u32::try_from(d).unwrap_or(u32::MAX)))
+            .collect())
+    }
+}

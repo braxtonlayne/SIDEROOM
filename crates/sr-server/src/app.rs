@@ -530,6 +530,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         id_src.clone(),
     )
     .with_index(library_index)
+    .with_cover_hashes(Arc::new(sr_db::library_repo::PgLibraryRepo::new(
+        pool.clone(),
+    )))
     .with_events(Arc::new(routes::library::BusLibraryEvents::new(
         bus.clone(),
     )))

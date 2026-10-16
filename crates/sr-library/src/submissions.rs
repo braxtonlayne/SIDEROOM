@@ -13,7 +13,7 @@
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use sr_core::PlatformPermissions as P;
-use sr_review::model::{ItemState, Submission, SubmissionItem};
+use sr_review::model::{DuplicateMatch, ItemState, Submission, SubmissionItem};
 use sr_review::repo::NewItem;
 use sr_review::{KindDraft, ReviewError, ReviewResult, SubmissionKind};
 
@@ -626,6 +626,14 @@ impl SubmissionKind for LibraryKind {
             self.svc.set_chapter_published(by, it.ref_id, true).await?;
         }
         Ok(())
+    }
+
+    /// Published series with the same or a similar title, or the same cover artwork.
+    async fn duplicates(&self, s: &Submission) -> ReviewResult<Vec<DuplicateMatch>> {
+        if !self.new_series {
+            return Ok(Vec::new());
+        }
+        Ok(self.svc.find_duplicates(series_of(s)?).await?)
     }
 
     /// Delete what a rejected or abandoned submission left: the draft series of a new

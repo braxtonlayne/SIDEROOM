@@ -432,3 +432,66 @@ pub struct SweepReport {
     pub purged: u32,
     pub failed: u32,
 }
+
+// ---- duplicate detection (REV-ED-006, REV-RV-003) ----
+
+/// One existing catalog entry that a submission may duplicate.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct DuplicateMatch {
+    /// Catalog section the match lives in (`library`, `cinema`).
+    pub section: String,
+    /// Id of the existing entry (a series or a title).
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub ref_id: i64,
+    pub title: String,
+    pub year: Option<i32>,
+    /// 0 to 100; higher is more alike.
+    pub score: u8,
+    /// Why it matched: `title`, `alt_title`, `year`, `cover`.
+    pub reasons: Vec<String>,
+    /// Where staff can open the existing entry (an app path).
+    pub href: Option<String>,
+}
+
+str_enum! {
+    /// What a reviewer decided about a possible duplicate.
+    DuplicateAction {
+        Merge => "merge",
+        Replacement => "replacement",
+        NotDuplicate => "not_duplicate",
+    }
+}
+
+/// The reviewer's resolution of the duplicate panel, kept on the timeline.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct DuplicateResolution {
+    pub action: DuplicateAction,
+    /// The existing entry the submission is merged into or replaces.
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub target: Option<i64>,
+    pub note: Option<String>,
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub decided_by: Option<i64>,
+    pub decided_at_ms: i64,
+}
+
+/// What `GET .../duplicates` returns.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct DuplicateReport {
+    pub matches: Vec<DuplicateMatch>,
+    pub resolution: Option<DuplicateResolution>,
+}
+
+/// Body of `PUT /admin/review/submissions/{id}/duplicate`.
+#[derive(Debug, Clone, PartialEq, Deserialize, ToSchema)]
+pub struct DuplicateResolutionInput {
+    pub action: DuplicateAction,
+    /// Required for `merge` and `replacement`: the existing entry.
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub target: Option<i64>,
+    pub note: Option<String>,
+}

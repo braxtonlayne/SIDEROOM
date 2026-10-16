@@ -6,6 +6,7 @@
 //! * [`service`]: member reads (visibility, age gate, signed URLs) and publisher writes (permissions).
 //! * [`search`]: the Tantivy series index behind the instant search.
 
+pub mod duplicates;
 pub mod error;
 pub mod ingest;
 pub mod model;
@@ -20,6 +21,7 @@ pub mod submissions;
 pub mod uploads;
 mod uploads_multipart;
 
+pub use duplicates::CoverHashes;
 pub use error::{LibraryError, LibraryResult};
 pub use multipart::{MemoryPartStore, MultipartWiring, PartStore};
 pub use reading::{LibraryEvents, ReadingStateRepository};

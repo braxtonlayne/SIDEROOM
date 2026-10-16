@@ -20,6 +20,7 @@
 //! ```
 //! Reviewers additionally need [`AdminDeps`](crate::routes::admin::AdminDeps).
 
+mod duplicates;
 mod library;
 mod member;
 mod requests;
@@ -367,6 +368,10 @@ pub fn router() -> Router<AppState> {
         )
         .route("/submissions/{submission_id}/preview", get(member::preview))
         .route("/submissions/{submission_id}/credits", get(member::credits))
+        .route(
+            "/submissions/{submission_id}/duplicates",
+            get(duplicates::mine),
+        )
         .route("/submissions/{submission_id}/submit", post(member::submit))
         .route(
             "/submissions/{submission_id}/withdraw",
@@ -485,6 +490,14 @@ pub fn router() -> Router<AppState> {
             post(reviewer::revoke_credits),
         )
         .route(
+            "/admin/review/submissions/{submission_id}/duplicates",
+            get(duplicates::review),
+        )
+        .route(
+            "/admin/review/submissions/{submission_id}/duplicate",
+            put(duplicates::resolve),
+        )
+        .route(
             "/admin/review/requests/{request_id}/decline",
             post(requests::decline),
         )
@@ -506,6 +519,9 @@ pub fn router() -> Router<AppState> {
         member::quota,
         member::naming_parse,
         member::credits,
+        duplicates::mine,
+        duplicates::review,
+        duplicates::resolve,
         library::update_series,
         library::set_cover,
         library::chapters,
@@ -588,6 +604,11 @@ pub fn router() -> Router<AppState> {
         sr_library::model::PageManifest,
         sr_library::model::Upload,
         sr_library::model::UploadRequest,
+        sr_review::model::DuplicateMatch,
+        sr_review::model::DuplicateAction,
+        sr_review::model::DuplicateResolution,
+        sr_review::model::DuplicateResolutionInput,
+        sr_review::model::DuplicateReport,
         sr_library::model::UploadSlot,
         sr_library::multipart::MultipartSlot,
         sr_library::multipart::PartUrl,

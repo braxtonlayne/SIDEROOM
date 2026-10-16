@@ -28,7 +28,7 @@ use sr_auth::{
 };
 use sr_core::{PlatformPermissions as P, SystemClock};
 use sr_review::memory::MemoryReviewRepo;
-use sr_review::model::{Submission, SubmissionItem};
+use sr_review::model::{DuplicateMatch, Submission, SubmissionItem};
 use sr_review::repo::NewItem;
 use sr_review::{
     KindDraft, KindRegistry, ReviewError, ReviewEvents, ReviewResult, ReviewService, SubmissionKind,
@@ -95,6 +95,21 @@ impl SubmissionKind for StubKind {
     }
     async fn publish(&self, _: &Submission, _: &[SubmissionItem]) -> ReviewResult<()> {
         Ok(())
+    }
+    async fn duplicates(&self, s: &Submission) -> ReviewResult<Vec<DuplicateMatch>> {
+        Ok(if s.title.starts_with("Dup") {
+            vec![DuplicateMatch {
+                section: "library".into(),
+                ref_id: 42,
+                title: "Existing".into(),
+                year: Some(1999),
+                score: 90,
+                reasons: vec!["title".into()],
+                href: Some("/library/series/42".into()),
+            }]
+        } else {
+            vec![]
+        })
     }
 }
 
@@ -280,6 +295,7 @@ fn member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
             Some(json!({ "section": "cinema", "names": ["a.mkv"] })),
         ),
         (Method::GET, "/submissions/7/credits", None),
+        (Method::GET, "/submissions/7/duplicates", None),
         (Method::GET, "/submissions", None),
         (
             Method::POST,
@@ -329,6 +345,12 @@ fn reviewer_routes() -> Vec<(Method, &'static str, Option<Value>)> {
         (Method::GET, "/admin/review/submissions/7", None),
         (Method::GET, "/admin/review/submissions/7/preview", None),
         (Method::GET, "/admin/review/submissions/7/credits", None),
+        (Method::GET, "/admin/review/submissions/7/duplicates", None),
+        (
+            Method::PUT,
+            "/admin/review/submissions/7/duplicate",
+            Some(json!({ "action": "not_duplicate" })),
+        ),
         (
             Method::POST,
             "/admin/review/submissions/7/revoke-credits",
@@ -883,6 +905,9 @@ fn openapi_lists_the_review_paths() {
         "/submissions/quota",
         "/submissions/naming/parse",
         "/submissions/{submission_id}/credits",
+        "/submissions/{submission_id}/duplicates",
+        "/admin/review/submissions/{submission_id}/duplicates",
+        "/admin/review/submissions/{submission_id}/duplicate",
         "/admin/review/submissions/{submission_id}/credits",
         "/admin/review/submissions/{submission_id}/revoke-credits",
         "/admin/review/submissions/{submission_id}/approve",
@@ -943,6 +968,88 @@ async fn the_naming_tester_parses_both_sections() {
             Method::POST,
             "/submissions/naming/parse",
             Some(json!({ "section": "cinema", "names": many })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn duplicates_are_listed_and_resolved_over_http() {
+    let e = env().await;
+    let id = e.create(MEMBER, "Dup Series").await;
+    let (st, mine) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            &format!("/submissions/{id}/duplicates"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{mine}");
+    assert_eq!(mine["matches"][0]["ref_id"], "42");
+    assert!(mine["resolution"].is_null());
+    // A stranger does not see the submission.
+    let (st, _) = e
+        .call(
+            Some(OTHER),
+            Method::GET,
+            &format!("/submissions/{id}/duplicates"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            &format!("/submissions/{id}/submit"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    let panel = format!("/admin/review/submissions/{id}/duplicates");
+    let resolve = format!("/admin/review/submissions/{id}/duplicate");
+    let merge = json!({ "action": "merge", "target": "42", "note": "same series" });
+    // Resolving needs the claim.
+    let (st, _) = e
+        .call(Some(REVIEWER), Method::PUT, &resolve, Some(merge.clone()))
+        .await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    let (st, _) = e
+        .call(
+            Some(REVIEWER),
+            Method::POST,
+            &format!("/admin/review/submissions/{id}/claim"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let (st, b) = e
+        .call(Some(REVIEWER), Method::PUT, &resolve, Some(merge))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    assert_eq!(b["resolution"]["action"], "merge");
+    assert_eq!(b["resolution"]["target"], "42");
+    let (st, b) = e.call(Some(REVIEWER), Method::GET, &panel, None).await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(b["resolution"]["target"], "42");
+    // The submitter's view hides the resolution.
+    let (_, mine) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            &format!("/submissions/{id}/duplicates"),
+            None,
+        )
+        .await;
+    assert!(mine["resolution"].is_null());
+    let (st, _) = e
+        .call(
+            Some(REVIEWER),
+            Method::PUT,
+            &resolve,
+            Some(json!({ "action": "replacement", "target": "7" })),
         )
         .await;
     assert_eq!(st, StatusCode::BAD_REQUEST);
