@@ -116,6 +116,7 @@ function Link({ href, children }: { href: string | undefined; children: string }
 export function EmbedView({ embed: e, resolvers }: { embed: Embed; resolvers?: Resolvers }) {
   const t = useT();
   const [loaded, setLoaded] = useState(false);
+  const [spoilerShown, setSpoilerShown] = useState(false);
   const [clicked, setImagesLoaded] = useState(false);
   // "Load remote images automatically" (default off) skips the click; the proxy copy never needed it.
   const auto = useLoadRemoteImages();
@@ -124,6 +125,19 @@ export function EmbedView({ embed: e, resolvers }: { embed: Embed; resolvers?: R
   const isVideo = isHttpUrl(e.video?.url);
   const thirdParty = t('lounge.embeds.thirdPartySite');
   const provider = e.provider?.name ?? (e.url ? hostOf(e.url, thirdParty) : thirdParty);
+
+  // A preview of a spoilered link stays hidden until the reader asks (LNG-MSG-015).
+  if (e.sr_spoiler && !spoilerShown) {
+    return (
+      <button
+        type="button"
+        className="lng-link-btn lng-embed-spoiler"
+        onClick={() => setSpoilerShown(true)}
+      >
+        {t('lounge.embeds.spoilerReveal')}
+      </button>
+    );
+  }
 
   const hosts = imagesLoaded ? [] : remoteImageHosts(e, thirdParty);
   const imageSrc = pick(e.image?.url, e.image?.proxy_url, imagesLoaded);

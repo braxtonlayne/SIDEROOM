@@ -193,6 +193,8 @@ export interface RawEmbed {
   provider?: { name?: string; url?: string };
   author?: { name: string; url?: string; icon_url?: string; proxy_icon_url?: string };
   fields?: { name: string; value: string; inline?: boolean }[];
+  /** Set by the server on a preview of a link the author wrote inside a spoiler (LNG-MSG-015). */
+  sr_spoiler?: boolean;
 }
 
 export interface RawPoll {

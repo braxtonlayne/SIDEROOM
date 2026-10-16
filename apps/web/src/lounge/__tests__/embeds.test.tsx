@@ -189,3 +189,18 @@ describe('embed images (LNG-MSG-014, D-176, F-20)', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 });
+
+describe('spoilered link previews (LNG-MSG-015)', () => {
+  it('hides the preview until the reader reveals it', async () => {
+    const e: Embed = {
+      type: 'link',
+      title: 'Hidden page',
+      url: 'https://x.test/',
+      sr_spoiler: true,
+    };
+    render(<EmbedList embeds={[e]} />);
+    expect(screen.queryByText('Hidden page')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Spoiler: show link preview' }));
+    expect(screen.getByRole('link', { name: 'Hidden page' })).toBeInTheDocument();
+  });
+});
