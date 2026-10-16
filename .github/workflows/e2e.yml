@@ -63,3 +63,78 @@ jobs:
             e2e/playwright-report
             e2e/test-results
             server.log
+
+  # VOX-E2E-003, DEV-ACT-001, D-243/D-244: features that need the SFU, voice E2EE and Activities switched on.
+  # One sr-server run per suite (registration allows 20 accounts per address and day, counted in memory).
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SR_VOICE__ENABLED: "true"
+      SR_VOICE__E2EE: "true"
+      SR_ACTIVITIES__ENABLED: "true"
+      # The staff offer card spec appoints staff; the e2e Owner has no second factor.
+      SR_ADMIN_REQUIRE_REAUTH: "0"
+      # The dev server forwards <id>.activities.localhost:5173 to sr-server (apps/web/vite/activityHosts.ts).
+      VITE_ACTIVITIES_ENABLED: "true"
+      SR_E2E_VOICE: "1"
+      SR_E2E_ACTIVITIES: "1"
+      SR_E2E_LIVE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-pack" }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Start Postgres and Garage
+        run: |
+          docker compose -f deploy/compose/dev.yml up -d --wait postgres
+          docker compose -f deploy/compose/dev.yml up -d garage
+          ./deploy/compose/garage/bootstrap.sh
+      - name: Build sr-server and sr-cli
+        run: cargo build -p sr-server -p sr-cli
+      - run: pnpm install --frozen-lockfile
+      - name: Build the WASM bundle
+        run: pnpm --filter @sideroom/wasm build
+      - name: Install the browsers
+        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium firefox webkit
+      - name: Voice, Activities and message components (Chromium)
+        run: |
+          ./target/debug/sr-cli migrate
+          ./deploy/compose/e2e-run.sh --project=chromium tests/voice-live.spec.ts tests/activities-live.spec.ts tests/message-components.spec.ts
+        env:
+          CI: "true"
+      - name: Voice E2EE (Chromium)
+        if: always()
+        run: |
+          cp server.log server-live.log || true
+          ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=chromium
+          cp server.log server-e2ee-chromium.log || true
+        env:
+          CI: "true"
+      # Not proven yet (Firefox does not start on the Windows dev host, Windows WebKit has no WebRTC): informational
+      # until it has passed here; the E2EE defaults stay off until it does (D-249, feat-p15-browser handoff).
+      - name: Voice E2EE (Firefox, WebKit)
+        if: always()
+        continue-on-error: true
+        run: ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=firefox --project=webkit
+        env:
+          CI: "true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-live
+          path: |
+            e2e/playwright-report
+            e2e/playwright-report-e2ee
+            e2e/test-results
+            e2e/test-results-e2ee
+            server.log
+            server-live.log
+            server-e2ee-chromium.log

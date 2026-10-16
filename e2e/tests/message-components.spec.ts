@@ -11,8 +11,13 @@ import { apiPost, expect, test } from '../support/fixtures';
  *  - an application tester invitation in a DM (Accept / Decline).
  *
  * The staff offer needs `SR_ADMIN_REQUIRE_REAUTH=0` on the server (staff changes otherwise want a fresh
- * second factor, which the e2e Owner has not enrolled).
+ * second factor, which the e2e Owner has not enrolled). Runs in the `live` CI job: set SR_E2E_LIVE=1.
  */
+
+test.skip(
+  process.env.SR_E2E_LIVE !== '1',
+  'Needs SR_ADMIN_REQUIRE_REAUTH=0 on the server; set SR_E2E_LIVE=1 (the live CI job does).',
+);
 
 const API = '/api/v1';
 

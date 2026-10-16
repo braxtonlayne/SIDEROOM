@@ -1,3 +1,5 @@
 .state/
 playwright-report/
 test-results/
+playwright-report-e2ee/
+test-results-e2ee/
