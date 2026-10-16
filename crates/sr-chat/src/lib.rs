@@ -28,6 +28,7 @@ pub mod service;
 pub mod settings;
 pub mod social;
 pub mod threads;
+pub mod voice_meta;
 
 #[cfg(test)]
 mod admin_tests;

@@ -17,7 +17,7 @@ pub const MAX_STICKERS: usize = 3;
 /// Longest voice message.
 pub const MAX_VOICE_SECS: f64 = 120.0;
 /// Largest voice-message waveform, in decoded bytes.
-pub const MAX_WAVEFORM_BYTES: usize = 256;
+pub const MAX_WAVEFORM_BYTES: usize = sr_chat::voice_meta::MAX_WAVEFORM_BYTES;
 /// Largest voice-message file. Two minutes of speech codec output is far below this;
 /// the cap bounds what a client can pass off as a voice message.
 pub const MAX_VOICE_BYTES: u64 = 8 * 1024 * 1024;
@@ -81,10 +81,13 @@ pub async fn resolve_stickers(
 /// Copy the client-declared voice metadata onto the upload rows.
 pub fn apply_voice_meta(uploads: &mut [(Attachment, Option<String>)], refs: &[&AttachmentRef]) {
     for ((att, _), r) in uploads.iter_mut().zip(refs) {
-        if let Some(d) = r.duration_secs.filter(|d| d.is_finite() && *d > 0.0) {
+        // Values the server measured from the file (LNG-MSG-019) win over the declared ones.
+        if att.duration_ms.is_none()
+            && let Some(d) = r.duration_secs.filter(|d| d.is_finite() && *d > 0.0)
+        {
             att.duration_ms = Some((d * 1000.0).round().min(f64::from(u32::MAX)) as u32);
         }
-        if r.waveform.is_some() {
+        if att.waveform.is_none() && r.waveform.is_some() {
             att.waveform.clone_from(&r.waveform);
         }
     }
