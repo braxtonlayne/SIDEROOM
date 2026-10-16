@@ -723,6 +723,34 @@ describe('Channel settings: announcement, voice limits, followers (LNG-CHN-017)'
     expect(cap.calls[0]!.body).toEqual({ user_limit: 5, bitrate: 96000 });
   });
 
+  it('switches a voice channel to full video quality and shows the single region (J-11)', async () => {
+    seed({ perms: [MANAGE.channels] });
+    const cap = capture();
+    await openWith('channels', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/channels', () =>
+          HttpResponse.json([
+            ch('v1', 'Lounge', 2, { user_limit: 0, bitrate: 64000, video_quality_mode: 1 }),
+          ]),
+        ),
+        http.patch('*/api/v1/channels/v1', async ({ request }) => {
+          await cap.record(request);
+          return HttpResponse.json(ch('v1', 'Lounge', 2, { video_quality_mode: 2 }));
+        }),
+      ),
+    );
+    await userEvent.click(
+      await screen.findAllByRole('button', { name: /Lounge/ }).then((l) => l[0]!),
+    );
+    const quality = await screen.findByRole('switch', { name: /Full video quality/ });
+    expect(quality).not.toBeChecked();
+    expect(screen.getByText(/Voice region: automatic/)).toBeVisible();
+    await userEvent.click(quality);
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(cap.calls).toHaveLength(1));
+    expect(cap.calls[0]!.body).toEqual({ video_quality_mode: 2 });
+  });
+
   it('lists followers of a channel and unfollows one', async () => {
     seed({ perms: [MANAGE.channels, MANAGE.webhooks] });
     const del = capture();

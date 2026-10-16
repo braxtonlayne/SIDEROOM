@@ -619,57 +619,68 @@ pub async fn alert_action(
             }
             acc.require_mfa(&gate, user, held).await?;
             let reason = format!("AutoMod alert: {}", alert.rule_name);
-            let mut timeout_secs = None;
-            let mut note_gone = false;
-            match press {
-                AutoModPress::Delete => {
-                    note_gone = delete_flagged(&messages, user, &alert, &reason).await?;
-                }
-                AutoModPress::Timeout => {
-                    let secs: u32 = body
-                        .values
-                        .first()
-                        .and_then(|v| v.parse().ok())
-                        .filter(|s| TIMEOUT_CHOICES.contains(s))
-                        .ok_or_else(|| {
-                            invalid(
-                                "values",
-                                "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
-                                "Choose a duration.",
+            // The ordinary services write their audit rows with the request's reason; here it is the rule.
+            let (timeout_secs, note_gone) =
+                sr_chat::settings::audit::with_ambient_reason(reason.clone(), async {
+                    let mut timeout_secs = None;
+                    let mut note_gone = false;
+                    match press {
+                        AutoModPress::Delete => {
+                            note_gone = delete_flagged(&messages, user, &alert).await?;
+                        }
+                        AutoModPress::Timeout => {
+                            let secs: u32 = body
+                                .values
+                                .first()
+                                .and_then(|v| v.parse().ok())
+                                .filter(|s| TIMEOUT_CHOICES.contains(s))
+                                .ok_or_else(|| {
+                                    invalid(
+                                        "values",
+                                        "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+                                        "Choose a duration.",
+                                    )
+                                })?;
+                            let until = deps.now_ms() + i64::from(secs) * 1000;
+                            api.edit_member(
+                                user,
+                                gid,
+                                alert.target_user_id,
+                                sr_chat::admin_rules::MemberPatch {
+                                    communication_disabled_until_ms: Some(Some(until)),
+                                    ..Default::default()
+                                },
                             )
-                        })?;
-                    let until = deps.now_ms() + i64::from(secs) * 1000;
-                    api.edit_member(
-                        user,
-                        gid,
-                        alert.target_user_id,
-                        sr_chat::admin_rules::MemberPatch {
-                            communication_disabled_until_ms: Some(Some(until)),
-                            ..Default::default()
-                        },
-                    )
-                    .await
-                    .map_err(ce)?;
-                    timeout_secs = Some(secs);
-                }
-                AutoModPress::Kick => {
-                    api.kick_member_with_reason(user, gid, alert.target_user_id, Some(reason))
-                        .await
-                        .map_err(ce)?;
-                }
-                AutoModPress::Ban => {
-                    api.ban_member(user, gid, alert.target_user_id, Some(reason), 0)
-                        .await
-                        .map_err(ce)?;
-                }
-                AutoModPress::Resolve => {
-                    deps.service
-                        .repo()
-                        .resolve_alert(alert_id, user, deps.now_ms())
-                        .await
-                        .map_err(re)?;
-                }
-            }
+                            .await
+                            .map_err(ce)?;
+                            timeout_secs = Some(secs);
+                        }
+                        AutoModPress::Kick => {
+                            api.kick_member_with_reason(
+                                user,
+                                gid,
+                                alert.target_user_id,
+                                Some(reason),
+                            )
+                            .await
+                            .map_err(ce)?;
+                        }
+                        AutoModPress::Ban => {
+                            api.ban_member(user, gid, alert.target_user_id, Some(reason), 0)
+                                .await
+                                .map_err(ce)?;
+                        }
+                        AutoModPress::Resolve => {
+                            deps.service
+                                .repo()
+                                .resolve_alert(alert_id, user, deps.now_ms())
+                                .await
+                                .map_err(re)?;
+                        }
+                    }
+                    Ok::<_, HttpError>((timeout_secs, note_gone))
+                })
+                .await?;
             let (embeds, components) = apply_automod_press(
                 msg.embeds.clone(),
                 msg.components.clone(),
@@ -695,7 +706,6 @@ async fn delete_flagged(
     messages: &MessagesDeps,
     user: UserId,
     alert: &AutoModAlert,
-    reason: &str,
 ) -> ApiResult<bool> {
     let Some(fid) = alert.flagged_message_id else {
         return Ok(true);
@@ -728,11 +738,7 @@ async fn delete_flagged(
             user,
             AuditAction::MessageDelete,
             Some(alert.target_user_id.get()),
-            serde_json::json!({
-                "channel_id": channel.to_string(),
-                "count": 1,
-                "reason": reason,
-            }),
+            serde_json::json!({ "channel_id": channel.to_string(), "count": 1 }),
         )
         .await;
     Ok(false)

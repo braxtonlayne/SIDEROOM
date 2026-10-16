@@ -506,6 +506,15 @@ impl IncidentsDataObject {
             raid_detected_at: i.raid_detected_at_ms.map(iso8601),
         }
     }
+
+    /// From the saved community settings (what a write just stored).
+    pub fn of_settings(s: &sr_chat::settings::community::CommunitySettings) -> Self {
+        Self::of(&sr_chat::domain::IncidentsData {
+            invites_disabled_until_ms: s.invites_disabled_until_ms,
+            dms_disabled_until_ms: s.dms_disabled_until_ms,
+            raid_detected_at_ms: s.raid_detected_at_ms,
+        })
+    }
 }
 
 /// Entry of `GET /users/@me/guilds`.

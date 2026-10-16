@@ -3748,6 +3748,16 @@ async fn automod_alerts_are_cards_whose_buttons_check_the_presser_when_pressed()
         .find(|m| m.user_id.get() == BOB)
         .and_then(|m| m.communication_disabled_until_ms);
     assert_eq!(until, Some(T0 + 3_600_000));
+    // Every row the ordinary services write carries the rule as its reason.
+    let (_, member_log) = e.get(&e.g("/audit-logs?action_type=24"), "owner").await;
+    assert_eq!(
+        member_log["audit_log_entries"][0]["reason"], "AutoMod alert: no bad words",
+        "{member_log}"
+    );
+    assert_eq!(
+        member_log["audit_log_entries"][0]["user_id"],
+        MOD.to_string()
+    );
     let card = cards(&e, log).await.remove(0);
     assert_eq!(
         card_field(&card, "Handled"),

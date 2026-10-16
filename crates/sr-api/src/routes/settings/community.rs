@@ -165,6 +165,12 @@ async fn publish_update(deps: &SettingsDeps, guild: &sr_chat::Guild, roles: &[sr
             serde_json::json!(settings.hide_suspicious_links),
         );
         o.insert(
+            "incidents_data".into(),
+            serde_json::json!(
+                crate::routes::guilds::dto::IncidentsDataObject::of_settings(&settings)
+            ),
+        );
+        o.insert(
             "preferred_locale".into(),
             serde_json::json!(settings.preferred_locale),
         );
@@ -470,15 +476,15 @@ pub async fn put_incident_actions(
         .await?;
     let invites = incident_time("invites_disabled_until", &body.invites_disabled_until)?;
     let dms = incident_time("dms_disabled_until", &body.dms_disabled_until)?;
-    deps.service
+    let saved = deps
+        .service
         .set_incident_actions(acc.perms, user, gid, invites, dms)
         .await
         .map_err(se)?;
-    let fresh = deps.guild_access(user, gid).await?;
-    publish_guild_update(&deps, &fresh).await;
-    Ok(Json(crate::routes::guilds::dto::IncidentsDataObject::of(
-        &fresh.guild.incidents,
-    )))
+    publish_guild_update(&deps, &acc).await;
+    Ok(Json(
+        crate::routes::guilds::dto::IncidentsDataObject::of_settings(&saved),
+    ))
 }
 
 // ---- onboarding ------------------------------------------------------------------

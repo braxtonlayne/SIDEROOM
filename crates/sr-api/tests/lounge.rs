@@ -1169,14 +1169,18 @@ async fn incident_actions_pause_invites_for_a_while_and_show_in_incidents_data()
     assert_eq!(s, StatusCode::OK, "{out}");
     assert_eq!(out["invites_disabled_until"], hours(1));
     assert_eq!(out["dms_disabled_until"], hours(2));
-    let (_, guild) = w.get(BOB, &g).await;
-    assert_eq!(guild["incidents_data"]["invites_disabled_until"], hours(1));
-    assert_eq!(guild["incidents_data"]["dms_disabled_until"], hours(2));
-    let mut updated = false;
+    let mut announced = None;
     while let Some(ev) = next_event(&mut events).await {
-        updated |= matches!(ev, DomainEvent::GuildUpdated { .. });
+        if let DomainEvent::GuildUpdated { payload, .. } = ev {
+            announced = Some(payload);
+        }
     }
-    assert!(updated, "GUILD_UPDATE carries the new incidents_data");
+    let announced = announced.expect("GUILD_UPDATE after the change");
+    assert_eq!(
+        announced["incidents_data"]["invites_disabled_until"],
+        hours(1)
+    );
+    assert_eq!(announced["incidents_data"]["dms_disabled_until"], hours(2));
     // The indefinite switch is its own setting and stays off.
     let (_, c) = w.get(OWNER, &format!("{g}/sr/community")).await;
     assert_eq!(c["invites_paused"], false);
