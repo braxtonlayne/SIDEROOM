@@ -119,6 +119,8 @@ export interface AccountDetail {
   account: AccountSummary;
   credit_balance: number;
   invited_by?: AccountRef | null;
+  /** Staff froze this account's invite creation (ADM-GRAPH-004). */
+  invites_frozen?: boolean;
   invites_issued: number;
   invites_redeemed: number;
   mfa_enabled: boolean;
@@ -129,6 +131,10 @@ export interface AccountDetail {
 }
 export const searchAccounts = (p: {
   q?: string;
+  /** Exact Discord user id (ADM-PPL-001). */
+  discord_id?: string;
+  /** An IP address seen in sign-ins; the lookup is written to the access log. */
+  ip?: string;
   state?: string;
   after?: string | null;
   limit?: number;
@@ -703,3 +709,76 @@ export const putEntranceCopy = (key: EntranceCopyKey, markdown: string, reason?:
   });
 export const deleteEntranceCopy = (key: EntranceCopyKey) =>
   send<void>(`/admin/entrance/copy/${key}`, 'DELETE');
+
+// ---- account drawer and Person additions (ADM-PPL-001/002/004, ADM-GRAPH-004) ----
+
+export interface AdminSession {
+  id: string;
+  created_at_ms: number;
+  last_seen_at_ms: number;
+  expires_at_ms: number;
+  ip?: string | null;
+  user_agent?: string | null;
+  device_label?: string | null;
+}
+/** Never carries token material; each read is written to the access log. */
+export const listAccountSessions = (id: string) =>
+  get<AdminSession[]>(`/admin/accounts/${id}/sessions`);
+export interface AdminGuildRef {
+  id: string;
+  name: string;
+  member_count: number;
+  joined_at_ms: number;
+  owner: boolean;
+}
+export const listAccountGuilds = (id: string) =>
+  get<AdminGuildRef[]>(`/admin/accounts/${id}/guilds`);
+export const freezeInvites = (id: string, reason: string) =>
+  send<void>(`/admin/accounts/${id}/freeze-invites`, 'POST', reasonBody(reason));
+export const unfreezeInvites = (id: string, reason: string) =>
+  send<void>(`/admin/accounts/${id}/unfreeze-invites`, 'POST', reasonBody(reason));
+export const setPersonNotes = (personId: string, notes: string, reason: string) =>
+  send<void>(`/admin/persons/${personId}/notes`, 'PUT', { notes, ...(reason ? { reason } : {}) });
+/** 409 while the Person is banned. */
+export const linkAccount = (personId: string, account_id: string, reason: string) =>
+  send<void>(`/admin/persons/${personId}/link`, 'POST', { account_id, reason });
+/** 409 while banned or when it is the Person's only account; moves the account to a new Person. */
+export const unlinkAccount = (id: string, reason: string) =>
+  send<{ person_id: string }>(`/admin/accounts/${id}/unlink`, 'POST', reasonBody(reason));
+export interface SuspicionEvent {
+  id: string;
+  created_at_ms: number;
+  delta: number;
+  level_after: number;
+  reason: string;
+  actor_id?: string | null;
+  source_account_id?: string | null;
+}
+export const listSuspicionLog = (personId: string, limit = 50) =>
+  get<SuspicionEvent[]>(`/admin/persons/${personId}/suspicion-log${qs({ limit })}`);
+
+// ---- servers (ADM-COM-002) ----
+
+export interface AdminGuild {
+  id: string;
+  name: string;
+  owner_id: string;
+  owner_username?: string | null;
+  member_count: number;
+  channel_count: number;
+  created_at_ms: number;
+  is_staff_guild: boolean;
+  deleted: boolean;
+  community_enabled: boolean;
+}
+export interface AdminGuildPage {
+  items: AdminGuild[];
+  next_after?: string | null;
+}
+export const listAdminGuilds = (p: { q?: string; after?: string | null; limit?: number } = {}) =>
+  get<AdminGuildPage>(`/admin/guilds${qs(p)}`);
+export const getAdminGuild = (id: string) => get<AdminGuild>(`/admin/guilds/${id}`);
+export const transferGuild = (id: string, new_owner_id: string, reason: string) =>
+  send<AdminGuild>(`/admin/guilds/${id}/transfer-ownership`, 'POST', { new_owner_id, reason });
+export const deleteAdminGuild = (id: string, reason: string) =>
+  send<void>(`/admin/guilds/${id}`, 'DELETE', reasonBody(reason));

@@ -4,6 +4,7 @@ import * as api from '../api';
 import * as donations from '../donations/api';
 import { useT, type MessageKey } from '../../i18n';
 import { DataTable, type Column } from '../DataTable';
+import { AccountExtras } from './AccountExtras';
 import { PersonDrawer } from './PersonDrawer';
 import {
   Async,
@@ -25,16 +26,27 @@ const STATE_OPTIONS: { value: string; label: MessageKey }[] = [
   { value: 'deleted', label: 'admin.accounts.stateDeleted' },
 ];
 
+type SearchBy = 'q' | 'discord_id' | 'ip';
+
+/** The text box searches name, email or id by default; Discord id and IP are exact lookups (ADM-PPL-001). */
+function searchParams(a: { q: string; state: string; by: SearchBy }) {
+  return { state: a.state, ...(a.q ? { [a.by]: a.q } : {}) };
+}
+
 export function AccountsSection() {
   const t = useT();
   const stateOptions = STATE_OPTIONS.map((o) => ({ value: o.value, label: t(o.label) }));
-  const [draft, setDraft] = useState({ q: '', state: '' });
-  const [applied, setApplied] = useState({ q: '', state: '' });
+  const [draft, setDraft] = useState({ q: '', state: '', by: 'q' as SearchBy });
+  const [applied, setApplied] = useState({ q: '', state: '', by: 'q' as SearchBy });
   const [open, setOpen] = useState<string | null>(null);
   const paged = usePaged<api.AccountSummary>(
-    `accounts:${applied.q}:${applied.state}`,
+    `accounts:${applied.by}:${applied.q}:${applied.state}`,
     async (after) => {
-      const p = await api.searchAccounts({ ...applied, after, limit: 50 });
+      const p = await api.searchAccounts({
+        ...searchParams(applied),
+        after,
+        limit: 50,
+      });
       return { items: p.items, next: p.next_after };
     },
   );
@@ -91,7 +103,7 @@ export function AccountsSection() {
   ];
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    setApplied({ q: draft.q.trim(), state: draft.state });
+    setApplied({ q: draft.q.trim(), state: draft.state, by: draft.by });
   };
 
   return (
@@ -125,6 +137,16 @@ export function AccountsSection() {
             role="search"
             aria-label={t('admin.accounts.searchForm')}
           >
+            <Select
+              aria-label={t('admin.accounts.searchBy')}
+              options={[
+                { value: 'q', label: t('admin.accounts.searchByName') },
+                { value: 'discord_id', label: t('admin.accounts.searchByDiscord') },
+                { value: 'ip', label: t('admin.accounts.searchByIp') },
+              ]}
+              value={draft.by}
+              onValueChange={(by) => setDraft({ ...draft, by: by as SearchBy })}
+            />
             <div className="ss-search">
               <TextInput
                 label={t('admin.accounts.searchLabel')}
@@ -140,7 +162,7 @@ export function AccountsSection() {
               value={draft.state}
               onValueChange={(state) => {
                 setDraft({ ...draft, state });
-                setApplied({ q: draft.q.trim(), state });
+                setApplied({ q: draft.q.trim(), state, by: draft.by });
               }}
             />
             <Button type="submit">{t('admin.accounts.search')}</Button>
@@ -468,6 +490,7 @@ function AccountDrawer({
                   )}
                 </section>
               )}
+              <AccountExtras account={a} det={det} onChanged={(text) => void finish(text)} />
               {personOpen && (
                 <PersonDrawer personId={a.person_id} onClose={() => setPersonOpen(false)} />
               )}

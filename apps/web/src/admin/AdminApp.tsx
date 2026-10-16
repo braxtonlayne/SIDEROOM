@@ -40,6 +40,7 @@ import { FeaturesSection } from './sections/Features';
 import { InviteGraphSection } from './sections/InviteGraph';
 import { InvitesSection } from './sections/Invites';
 import { LimitsSection } from './sections/Limits';
+import { ServersSection } from './sections/Servers';
 import { StaffSection } from './sections/Staff';
 import { ReviewHubSection } from './sections/ReviewHub';
 import { PrivateContentSection } from './sections/PrivateContent';
@@ -89,6 +90,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.people',
     visible: (v) => v.can('MANAGE_INVITES'),
     component: InviteGraphSection,
+  },
+  {
+    id: 'servers',
+    label: 'admin.adminApp.section.servers',
+    group: 'admin.adminApp.group.people',
+    visible: (v) => v.can('MANAGE_GUILDS_GLOBAL'),
+    component: ServersSection,
   },
   {
     id: 'staff',
