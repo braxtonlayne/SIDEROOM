@@ -59,7 +59,7 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [x] **CIN-PLY-001** [FE] hls.js / native HLS engine wrapper, ABR with manual override, data saver
 - [x] **CIN-PLY-002** [FE] Controls: play/pause, ±10s, scrubber with sprite thumbnails, volume, speed, audio track menu, subtitle menu + styling, full-screen, PiP, Remote Playback/AirPlay, optional Chromecast (Chromecast Web Sender SDK not included; Remote Playback and AirPlay are)
 - [x] **CIN-PLY-003** [FE] Keyboard shortcuts + on-screen feedback
-- [ ] **CIN-PLY-004** [FE] ASS subtitle renderer (JASSUB, worker) + WebVTT
+- [ ] **CIN-PLY-004** [FE] ASS subtitle renderer (JASSUB, worker) + WebVTT *(waits on owner item 11 (K-13); WebVTT fallback meanwhile)*
 - [x] **CIN-PLY-005** [FE] Skip intro / skip credits buttons (markers)
 - [x] **CIN-PLY-006** [FE] Next episode card with countdown, autoplay toggle, "Are you still watching?"
 - [x] **CIN-PLY-007** [BE] Watch progress API (10s heartbeat, ≥ 90% watched) + cross-device sync *(phase 6: `/cinema/titles/{id}[/episodes/{eid}]/progress`, history, continue watching, `SR_CINEMA_UPDATE`; spec section 8)*

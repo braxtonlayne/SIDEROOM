@@ -109,6 +109,7 @@ Prefix `/api/v1/sr/...`. These are first-party-only unless an OAuth scope is gra
 | Library sharing | `cfi` on the chapter-progress route stores the EPUB position beside the page index (D-225). The settings-blob key `library.share_reading` is `off`, `friends` (default) or `everyone` (D-229): `everyone` adds people who share a server (minus anyone who blocked or ignored the reader), `off` shares nothing; age-restricted series stay with friends, masked. Admin page replacement: `PUT /admin/library/chapters/{chapter_id}/pages/{index}` `{image: <data URI>}` (`PUBLISH_READING`, at most 16 MiB) converts that one page like an archive page, keeps its position and double-spread flag and writes the audit row `library.page.replace` |
 | Entrance copy | `GET /sr/entrance/copy` (public, `ETag`) → `{<key>: <markdown>}` for `no-invitation`, `house-notes`, `landing-note`; `PUT|DELETE /admin/entrance/copy/{key}` (`MANAGE_FEATURES`, re-auth, audited) |
 | Packages | `/sr/packages` (themes/extensions/layouts/activities) |
+| Application commands | `GET /applications/{app}/guilds/{guild}/commands?include_global=true` returns the guild commands together with the application's global ones (SIDE ROOM extension; Discord has no such parameter) |
 
 ### 5.1 Entrance and account auth endpoints
 

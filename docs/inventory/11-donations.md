@@ -11,7 +11,7 @@ Phase 3. Spec: doc 08, ADR-0006.
 - [x] **DON-PAY-006** [BE] Esplora watcher job (mempool seen, confirmations, reorg handling, idempotent tx matching)
 - [x] **DON-PAY-007** [BE] Invoice state machine (open/seen/confirmed/expired/underpaid/overpaid) + late-payment crediting
 - [x] **DON-PAY-008** [GW] `SR_INVOICE_UPDATE` dispatch *(named `SR_PAYMENT_UPDATE`)*
-- [ ] **DON-PAY-009** [TEST] Signet/regtest integration tests (regtest bitcoind + electrs in CI) *(not done: needs bitcoind + electrs in CI)*
+- [ ] **DON-PAY-009** [TEST] Signet/regtest integration tests (regtest bitcoind + electrs in CI) *(won't build in CI, D-257: `FakeChain` and the BIP-84 vectors cover CI; the opt-in `crates/sr-payments/tests/esplora_live.rs` runs by hand against a public signet Esplora, see `docs/dev/payments-live-test.md`)*
 
 ## DON-ENT — Entitlements
 - [x] **DON-ENT-001** [BE] Patron entitlement (30 days per month purchased, stacking, 3-day grace)
@@ -23,7 +23,7 @@ Phase 3. Spec: doc 08, ADR-0006.
 - [x] **DON-ENT-007** [JOB] Expiry/grace job + reminder notifications ("Your Patron perks end in 3 days") *(reminders are `SR_ENTITLEMENT_UPDATE` reason `expiring`; no notification-centre item yet)*
 
 ## DON-UI — Interfaces
-- [ ] **DON-UI-001** [FE] Support page `/support` (Side Room style: why donate, hosting cost vs this month's donations bar, Patron card, Server Levels explainer, invite credits, leaderboards link) *(phase 8: delivered as Settings > Support / Patron with the hosting bar, Patron card, levels explainer, invite credits and leaderboards link; the public `/support` help page is unchanged)*
+- [ ] **DON-UI-001** [FE] Support page `/support` (Side Room style: why donate, hosting cost vs this month's donations bar, Patron card, Server Levels explainer, invite credits, leaderboards link) *(phase 8: delivered as Settings > Support / Patron with the hosting bar, Patron card, levels explainer, invite credits and leaderboards link; the public `/support` help page is unchanged; waits on the owner's copy)*
 - [x] **DON-UI-002** [FE] Invoice modal (amount USD + sats/BTC, address with copy, QR, countdown, live status steps, explorer link, "I've paid" polling)
 - [x] **DON-UI-003** [FE] Patron purchase flow (1/3/6/12 months)
 - [x] **DON-UI-004** [FE] Server contribution flow (amount presets + custom, attribution: show name / anonymous)
