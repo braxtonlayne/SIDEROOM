@@ -3,7 +3,12 @@
  * WASM) and transforms every encoded frame of every track, sent and received.
  */
 import { loadE2ee } from '@sideroom/wasm';
-import { handleRtcTransform, handleWorkerMessage, type RtcTransformerLike } from './handler';
+import {
+  handleRtcTransform,
+  handleWorkerMessage,
+  statsOf,
+  type RtcTransformerLike,
+} from './handler';
 import { E2eeMedia } from './media';
 import type { WorkerIn, WorkerOut } from './protocol';
 
@@ -36,5 +41,7 @@ loadE2ee()
     for (const msg of queue.splice(0)) handleWorkerMessage(m, msg, post);
     for (const t of early.splice(0)) handleRtcTransform(m, t);
     post({ type: 'ready' });
+    // Frame counters for the call UI and the browser tests: whether media actually flows.
+    setInterval(() => post(statsOf(m)), 1000);
   })
   .catch((e: unknown) => post({ type: 'error', message: String(e) }));

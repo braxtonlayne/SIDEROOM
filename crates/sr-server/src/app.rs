@@ -282,16 +282,23 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
 
     let s = &cfg.storage;
-    let storage: Arc<dyn ObjectStorage> = Arc::new(
-        ObjectStoreStorage::s3(
-            &s.endpoint,
-            &s.bucket,
-            &s.region,
-            s.access_key.expose(),
-            s.secret_key.expose(),
+    // `storage.endpoint = "memory:"` keeps every object in this process (lost on restart, presigned
+    // URLs do not work). Only for local browser tests on hosts without an S3 service.
+    let storage: Arc<dyn ObjectStorage> = if s.endpoint == "memory:" {
+        tracing::warn!("object storage is in memory (storage.endpoint = \"memory:\"): test use only");
+        Arc::new(ObjectStoreStorage::in_memory())
+    } else {
+        Arc::new(
+            ObjectStoreStorage::s3(
+                &s.endpoint,
+                &s.bucket,
+                &s.region,
+                s.access_key.expose(),
+                s.secret_key.expose(),
+            )
+            .context("configuring object storage")?,
         )
-        .context("configuring object storage")?,
-    );
+    };
 
     // Feature crates register into the registry before it is shared (none
     // exist yet). Their routes are mounted below from `Feature::routes()`.
