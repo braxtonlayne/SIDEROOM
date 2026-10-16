@@ -74,6 +74,18 @@ export default {
   'review.upload.stateQueued': 'Waiting',
   'review.upload.total': 'All uploads: {percent}%',
   'review.upload.row': '{name}, {percent}%',
+  // Folder import (review/UploadDock.tsx)
+  'review.folder.drop':
+    'Drop a folder of chapter files here, or choose a folder. Names like "Series c012.cbz" are read into chapters.',
+  'review.folder.choose': 'Choose a folder',
+  'review.folder.proposal': 'How the names were read',
+  'review.folder.nothing': 'No chapter files (CBZ, ZIP, CB7, 7Z, CBR, RAR, EPUB, PDF) were found.',
+  'review.folder.unplaced': 'No chapter number in the name; it is left out',
+  'review.folder.chapter': 'Chapter {n}',
+  'review.folder.create': 'Create {count, plural, one {# chapter} other {# chapters}} and upload',
+  'review.folder.discard': 'Discard',
+  'review.folder.readError': 'The names could not be read. Try again.',
+  'review.folder.createError': 'Some chapters could not be created. Check the list and try again.',
   // Ingest sources (admin/sections/IngestSources.tsx)
   'review.ingest.title': 'Ingest sources',
   'review.ingest.intro':
