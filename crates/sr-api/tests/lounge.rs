@@ -278,6 +278,7 @@ async fn world() -> World {
             password_hash: "unused".into(),
             state: AuthAccountState::Active,
             age_confirmed: None,
+            age_confirmed_at: None,
             locale: "en-US".into(),
             flags: 0,
         });

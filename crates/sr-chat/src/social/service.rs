@@ -333,8 +333,7 @@ impl<R: SocialRepository> SocialService<R> {
         let age_days =
             (self.now() - sr_core::Snowflake::new(me.get()).unix_ms()).max(0) / 86_400_000;
         // D-224: the shared servers' Protection settings (with the reason shown to the recipient).
-        let (mut access, reason) =
-            dm_access_protected(st, &privacy, shares, &protection, age_days);
+        let (mut access, reason) = dm_access_protected(st, &privacy, shares, &protection, age_days);
         let spam = full.safety.dm_spam_filter;
         if existing.is_none() && access != DmAccess::Denied {
             // D-230: `non_friends` always routes a stranger's first DM to requests; `all` also routes

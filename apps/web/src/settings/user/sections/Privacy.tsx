@@ -19,7 +19,7 @@ import {
 } from '../../../lounge/msg/remoteImages';
 import { useT, type MessageKey } from '../../../i18n';
 import { DataExportCard } from './DataExport';
-import { Card, displayOf, Loaded, SectionTitle, Unavailable } from '../parts';
+import { Card, displayOf, Loaded, SectionTitle } from '../parts';
 import { AgeConfirmationCard, applyPatch, DmSafetyCard, SensitiveMediaCard } from './SafetyCards';
 
 function UserList({
