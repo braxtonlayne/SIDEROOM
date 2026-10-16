@@ -885,5 +885,20 @@ async fn a_submission_gets_a_review_queue_card_that_approves_once() {
         image.starts_with("https://sr.test/cdn/library/777001/cover.jpg"),
         "{image}"
     );
+    // H-47: the cover is signed for 7 days, not the 24 hours of an attachment URL.
+    let ex: u64 = image
+        .split(['?', '&'])
+        .find_map(|p| p.strip_prefix("ex="))
+        .and_then(|v| v.parse().ok())
+        .expect("signed url has ex");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let week = 7 * 24 * 3600;
+    assert!(
+        (now + week - 120..=now + week + 120).contains(&ex),
+        "ex {ex} now {now}"
+    );
     f.db.cleanup().await.unwrap();
 }

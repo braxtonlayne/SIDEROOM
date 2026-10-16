@@ -37,6 +37,9 @@ use sr_events::{DomainEvent, EventBus, StaffAlertKind, StaffFeedKind, Topic};
 const RED: u32 = 0xE74C3C;
 const AMBER: u32 = 0xF1C40F;
 const BLUE: u32 = 0x3498DB;
+/// How long the signed cover on a review card stays valid (H-47): the card is rewritten on every
+/// state change, and each rewrite signs again, but a card can sit in the queue for days.
+pub const REVIEW_CARD_IMAGE_TTL: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
 const GREEN: u32 = 0x2ECC71;
 
 /// Button styles (Discord).
@@ -392,9 +395,9 @@ impl StaffVoice {
         &self.base_url
     }
 
-    /// An absolute, signed CDN URL for a stored object (the signer attachments use).
-    pub fn signed_image(&self, key: &str) -> String {
-        let signed = self.messages.sign_attachment_url(&format!("/cdn/{key}"));
+    /// An absolute, signed CDN URL for a stored object, valid for `ttl` (the attachment signer).
+    pub fn signed_image(&self, key: &str, ttl: std::time::Duration) -> String {
+        let signed = self.messages.sign_url_for(&format!("/cdn/{key}"), ttl);
         format!("{}{signed}", self.base_url)
     }
 
@@ -759,7 +762,7 @@ impl StaffFeed {
                 submitter: submitter.unwrap_or_else(|| "deleted account".into()),
                 items,
                 decided_by,
-                image: cover.map(|key| self.voice.signed_image(&key)),
+                image: cover.map(|key| self.voice.signed_image(&key, REVIEW_CARD_IMAGE_TTL)),
             },
         )
     }

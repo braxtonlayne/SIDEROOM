@@ -314,10 +314,15 @@ impl MessagesDeps {
 
     /// `path?ex=..&sig=..` valid for 24 hours from now, when a signer is installed.
     pub fn sign_attachment_url(&self, path: &str) -> String {
+        self.sign_url_for(path, ATTACHMENT_URL_TTL)
+    }
+
+    /// `path?ex=..&sig=..` valid for `ttl` from now, when a signer is installed.
+    pub fn sign_url_for(&self, path: &str, ttl: Duration) -> String {
         match &self.cdn {
             Some(signer) => {
                 let now_s = u64::try_from(self.now_ms().div_euclid(1000)).unwrap_or(0);
-                signer.signed_url(path, now_s + ATTACHMENT_URL_TTL.as_secs())
+                signer.signed_url(path, now_s + ttl.as_secs())
             }
             None => path.to_owned(),
         }
