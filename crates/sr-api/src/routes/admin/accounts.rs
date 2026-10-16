@@ -221,6 +221,7 @@ reason_action!(
 
 /// Ban body: the reason is the ban note.
 #[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = AdminBanBody)]
 pub struct BanBody {
     /// `serious` raises suspicion on the inviter (D-031); `standard` does not. Omit it to
     /// take the default of `reason_category` (D-211).

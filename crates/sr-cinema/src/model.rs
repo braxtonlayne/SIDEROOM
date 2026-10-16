@@ -781,6 +781,7 @@ pub struct Facets {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaInstantSearch)]
 pub struct InstantSearch {
     pub titles: Vec<Title>,
     /// Matching cast, directors, writers and studios.

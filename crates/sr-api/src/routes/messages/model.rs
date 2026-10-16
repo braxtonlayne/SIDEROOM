@@ -471,6 +471,7 @@ pub struct UploadSlotsBody {
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = MessageUploadSlot)]
 pub struct UploadSlot {
     /// Echo of the client id (or the upload id when none was sent).
     pub id: String,

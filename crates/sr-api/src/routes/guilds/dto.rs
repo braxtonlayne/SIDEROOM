@@ -115,6 +115,7 @@ where
 /// User object embedded in members, bans and messages. Name fields come from the
 /// user lookup (open question 157); without one only the id is known.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = GuildUserRef)]
 pub struct UserRef {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]

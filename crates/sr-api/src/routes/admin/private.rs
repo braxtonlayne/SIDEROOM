@@ -50,6 +50,7 @@ pub async fn reauth_status(ctx: StaffCtx) -> ApiResult<Json<ReauthStatus>> {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = AdminReauthBody)]
 pub struct ReauthBody {
     /// `totp`, `recovery` or `passkey` (then `code` is the JSON of the passkey assertion).
     pub method: String,

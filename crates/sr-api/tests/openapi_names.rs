@@ -208,23 +208,6 @@ mod tests {
     assert_eq!(by_name["Twin"].len(), 2);
 }
 
-/// Schema names that were already shared by several types when the check was added (H-10).
-const KNOWN_CLASHES: &[&str] = &[
-    "ApplicationObject",
-    "AuditEntryObject",
-    "BanBody",
-    "Bookmark",
-    "BookmarkEntry",
-    "ChangeEmailBody",
-    "CreateInviteBody",
-    "DecisionBody",
-    "FollowBody",
-    "InstantSearch",
-    "MergeBody",
-    "PartUrl",
-    "ReauthBody",
-    "RenameBody",
-    "UploadRequest",
-    "UploadSlot",
-    "UserRef",
-];
+/// Schema names deliberately shared by several types. Empty: every clash found when the check
+/// was added (H-10) was fixed in P14 by giving one type a distinct `#[schema(as = ...)]` name.
+const KNOWN_CLASHES: &[&str] = &[];

@@ -473,7 +473,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BanBody"
+                "$ref": "#/components/schemas/AdminBanBody"
               }
             }
           },
@@ -570,7 +570,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChangeEmailBody"
+                "$ref": "#/components/schemas/AdminChangeEmailBody"
               }
             }
           },
@@ -1398,7 +1398,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RenameBody"
+                "$ref": "#/components/schemas/AdminRenameBody"
               }
             }
           },
@@ -5395,7 +5395,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MergeBody"
+                "$ref": "#/components/schemas/CinemaMergeBody"
               }
             }
           },
@@ -6229,7 +6229,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationObject"
+                  "$ref": "#/components/schemas/DeveloperApplicationObject"
                 }
               }
             }
@@ -6286,7 +6286,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationObject"
+                  "$ref": "#/components/schemas/DeveloperApplicationObject"
                 }
               }
             }
@@ -6714,7 +6714,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DecisionBody"
+                "$ref": "#/components/schemas/DirectoryDecisionBody"
               }
             }
           },
@@ -10070,7 +10070,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UploadRequest"
+                "$ref": "#/components/schemas/LibraryUploadRequest"
               }
             }
           },
@@ -10082,7 +10082,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UploadSlot"
+                  "$ref": "#/components/schemas/LibraryUploadSlot"
                 }
               }
             }
@@ -12974,7 +12974,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReauthBody"
+                "$ref": "#/components/schemas/AdminReauthBody"
               }
             }
           },
@@ -17795,7 +17795,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ApplicationObject"
+                    "$ref": "#/components/schemas/DeveloperApplicationObject"
                   }
                 }
               }
@@ -17866,7 +17866,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationObject"
+                  "$ref": "#/components/schemas/DeveloperApplicationObject"
                 }
               }
             }
@@ -17913,7 +17913,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationObject"
+                  "$ref": "#/components/schemas/DeveloperApplicationObject"
                 }
               }
             }
@@ -18026,7 +18026,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationObject"
+                  "$ref": "#/components/schemas/DeveloperApplicationObject"
                 }
               }
             }
@@ -18276,7 +18276,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/AuditEntryObject"
+                    "$ref": "#/components/schemas/DeveloperAuditEntryObject"
                   }
                 }
               }
@@ -18324,7 +18324,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationObject"
+                  "$ref": "#/components/schemas/DeveloperApplicationObject"
                 }
               }
             }
@@ -26865,7 +26865,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InstantSearch"
+                  "$ref": "#/components/schemas/CinemaInstantSearch"
                 }
               }
             }
@@ -40784,7 +40784,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Bookmark"
+                  "$ref": "#/components/schemas/ReadingBookmark"
                 }
               }
             }
@@ -43974,7 +43974,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FollowBody"
+                "$ref": "#/components/schemas/LibraryFollowBody"
               }
             }
           },
@@ -46960,7 +46960,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateInviteBody"
+                "$ref": "#/components/schemas/MemberCreateInviteBody"
               }
             }
           },
@@ -49030,7 +49030,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UploadRequest"
+                "$ref": "#/components/schemas/LibraryUploadRequest"
               }
             }
           },
@@ -49042,7 +49042,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UploadSlot"
+                  "$ref": "#/components/schemas/LibraryUploadSlot"
                 }
               }
             }
@@ -56217,6 +56217,57 @@
           }
         }
       },
+      "AdminBanBody": {
+        "type": "object",
+        "description": "Ban body: the reason is the ban note.",
+        "properties": {
+          "category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BanCategory",
+                "description": "`serious` raises suspicion on the inviter (D-031); `standard` does not. Omit it to\ntake the default of `reason_category` (D-211)."
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason_category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BanReason",
+                "description": "Why the account is banned. `illegal_content`, `child_safety`, `fraud` and\n`platform_abuse` default to `serious`; `harassment` and `ban_evasion` to `standard`."
+              }
+            ]
+          }
+        }
+      },
+      "AdminChangeEmailBody": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AdminGuild": {
         "type": "object",
         "description": "A server in the platform-wide list (staff only).",
@@ -56427,6 +56478,47 @@
           }
         ],
         "description": "A listing in the staff queue."
+      },
+      "AdminReauthBody": {
+        "type": "object",
+        "required": [
+          "method",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "description": "`totp`, `recovery` or `passkey` (then `code` is the JSON of the passkey assertion)."
+          }
+        }
+      },
+      "AdminRenameBody": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New display name; `null` or empty clears it. Leave out to keep it."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it."
+          }
+        }
       },
       "AdminSession": {
         "type": "object",
@@ -57698,7 +57790,7 @@
           "users": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/UserRef"
+              "$ref": "#/components/schemas/GuildUserRef"
             }
           },
           "webhooks": {
@@ -57805,7 +57897,7 @@
             "type": "boolean"
           },
           "application": {
-            "$ref": "#/components/schemas/ApplicationObject"
+            "$ref": "#/components/schemas/DeveloperApplicationObject"
           },
           "bot": {
             "oneOf": [
@@ -57984,35 +58076,31 @@
       },
       "BanBody": {
         "type": "object",
-        "description": "Ban body: the reason is the ban note.",
         "properties": {
-          "category": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BanCategory",
-                "description": "`serious` raises suspicion on the inviter (D-031); `standard` does not. Omit it to\ntake the default of `reason_category` (D-211)."
-              }
-            ]
+          "delete_message_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Deprecated Discord field, 0 to 7.",
+            "minimum": 0
+          },
+          "delete_message_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seconds of message history to delete, 0 to 604800.",
+            "minimum": 0
           },
           "reason": {
             "type": [
               "string",
               "null"
-            ]
-          },
-          "reason_category": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BanReason",
-                "description": "Why the account is banned. `illegal_content`, `child_safety`, `fraud` and\n`platform_abuse` default to `serious`; `harassment` and `ban_evasion` to `standard`."
-              }
-            ]
+            ],
+            "description": "Convenience; Discord carries the reason in `X-Audit-Log-Reason`."
           }
         }
       },
@@ -58037,7 +58125,7 @@
             ]
           },
           "user": {
-            "$ref": "#/components/schemas/UserRef"
+            "$ref": "#/components/schemas/GuildUserRef"
           }
         }
       },
@@ -58314,32 +58402,28 @@
       "Bookmark": {
         "type": "object",
         "required": [
-          "id",
-          "chapter_id",
-          "series_id",
-          "page_index",
+          "message_id",
+          "channel_id",
           "note",
-          "created_at_ms"
+          "created_at"
         ],
         "properties": {
-          "chapter_id": {
+          "channel_id": {
             "type": "string"
           },
-          "created_at_ms": {
-            "type": "integer",
-            "format": "int64"
+          "created_at": {
+            "type": "string"
           },
-          "id": {
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message_id": {
             "type": "string"
           },
           "note": {
-            "type": "string"
-          },
-          "page_index": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "series_id": {
             "type": "string"
           }
         }
@@ -58358,28 +58442,23 @@
       },
       "BookmarkEntry": {
         "type": "object",
-        "description": "A bookmark with the titles the \"my bookmarks\" list shows.",
+        "description": "A bookmark and the message it points at, when the owner can still see it.",
         "required": [
-          "bookmark",
-          "series_title",
-          "chapter_number"
+          "bookmark"
         ],
         "properties": {
           "bookmark": {
             "$ref": "#/components/schemas/Bookmark"
           },
-          "chapter_number": {
-            "type": "number",
-            "format": "double"
-          },
-          "chapter_title": {
-            "type": [
-              "string",
-              "null"
+          "message": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MessageObject"
+              }
             ]
-          },
-          "series_title": {
-            "type": "string"
           }
         }
       },
@@ -58411,7 +58490,7 @@
           "bookmarks": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Bookmark"
+              "$ref": "#/components/schemas/ReadingBookmark"
             }
           }
         }
@@ -58425,7 +58504,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BookmarkEntry"
+              "$ref": "#/components/schemas/ReadingBookmarkEntry"
             }
           },
           "next_before": {
@@ -58751,18 +58830,29 @@
       },
       "ChangeEmailBody": {
         "type": "object",
+        "description": "Body for `POST /sr/auth/email/change`.",
         "required": [
-          "email"
+          "new_email",
+          "password"
         ],
         "properties": {
-          "email": {
+          "mfa": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MfaProof",
+                "description": "Second factor. Required when the account has two-factor authentication on,\nunless this session passed a second-factor check in the last 15 minutes."
+              }
+            ]
+          },
+          "new_email": {
             "type": "string"
           },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "password": {
+            "type": "string",
+            "description": "Current password."
           }
         }
       },
@@ -59736,6 +59826,42 @@
           }
         }
       },
+      "CinemaInstantSearch": {
+        "type": "object",
+        "required": [
+          "titles",
+          "people",
+          "genres",
+          "tags"
+        ],
+        "properties": {
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Matching cast, directors, writers and studios."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Title"
+            }
+          }
+        }
+      },
       "CinemaList": {
         "type": "object",
         "required": [
@@ -59943,6 +60069,18 @@
             "items": {
               "$ref": "#/components/schemas/CinemaList"
             }
+          }
+        }
+      },
+      "CinemaMergeBody": {
+        "type": "object",
+        "required": [
+          "target_id"
+        ],
+        "properties": {
+          "target_id": {
+            "type": "string",
+            "description": "The title that stays; this one is merged into it."
           }
         }
       },
@@ -61803,14 +61941,45 @@
       },
       "CreateInviteBody": {
         "type": "object",
-        "description": "Body of `POST /sr/invites`.",
+        "description": "Body of `POST /channels/{id}/invites`. Every field is optional.",
         "properties": {
-          "note": {
+          "external": {
             "type": [
-              "string",
+              "boolean",
               "null"
             ],
-            "description": "Private note (\"for Sam\"), at most 100 characters."
+            "description": "SIDE ROOM: the invite is for sharing outside the platform (\"Copy link\").\nIt defaults to a single use (open question 134)."
+          },
+          "max_age": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seconds until expiry, 0 to 604800 (default 86400).",
+            "minimum": 0
+          },
+          "max_uses": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "0 to 100 (default 0 = unlimited; 1 for `external`).",
+            "minimum": 0
+          },
+          "temporary": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "unique": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Accepted for Discord compatibility; every call creates a new invite."
           }
         }
       },
@@ -62238,7 +62407,7 @@
         ],
         "properties": {
           "application": {
-            "$ref": "#/components/schemas/ApplicationObject"
+            "$ref": "#/components/schemas/DeveloperApplicationObject"
           },
           "bot_token": {
             "type": "string"
@@ -62705,6 +62874,172 @@
           }
         }
       },
+      "DeveloperApplicationObject": {
+        "type": "object",
+        "description": "An application. The client secret is never part of it.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tags",
+          "bot_public",
+          "bot_require_code_grant",
+          "flags",
+          "release_state",
+          "owner",
+          "bot",
+          "privileged_intents",
+          "created_at"
+        ],
+        "properties": {
+          "bot": {
+            "$ref": "#/components/schemas/BotUserObject"
+          },
+          "bot_public": {
+            "type": "boolean"
+          },
+          "bot_require_code_grant": {
+            "type": "boolean"
+          },
+          "client_secret_hint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last four characters of the client secret (owner view only)."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "flags": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Discord application flags (`GATEWAY_*` intent bits).",
+            "minimum": 0
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Icon hash, served at `/cdn/avatars/{bot.id}/{hash}.png`."
+          },
+          "id": {
+            "type": "string"
+          },
+          "install_params": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InstallParamsObject",
+                "description": "Owner view only."
+              }
+            ]
+          },
+          "interactions_endpoint_state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`enabled` or `disabled` (owner view only, with an endpoint URL): the endpoint is switched\noff after 25 consecutive failed deliveries within 10 minutes."
+          },
+          "interactions_endpoint_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "HTTP interactions endpoint URL (owner view only; absent = gateway delivery)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/OwnerObject"
+          },
+          "privacy_policy_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privileged_intents": {
+            "$ref": "#/components/schemas/IntentsObject"
+          },
+          "redirect_uris": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Owner view only."
+          },
+          "release_state": {
+            "type": "string",
+            "description": "`development`, `in_review`, `released` or `suspended`."
+          },
+          "suspended_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Staff view of a suspension."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "terms_of_service_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verify_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Ed25519 public key (hex) that verifies the platform's signed requests (owner view\nonly, present once the key exists)."
+          }
+        }
+      },
+      "DeveloperAuditEntryObject": {
+        "type": "object",
+        "description": "One row of an application's audit trail.",
+        "required": [
+          "id",
+          "actor_id",
+          "action",
+          "details",
+          "created_at"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "DeveloperRequestAdmin": {
         "allOf": [
           {
@@ -62897,6 +63232,33 @@
             "type": "integer",
             "format": "int32",
             "description": "1 slash command, 2 user menu, 3 message menu."
+          }
+        }
+      },
+      "DirectoryDecisionBody": {
+        "type": "object",
+        "description": "Body of `PATCH /admin/directory/{guild_id}`.",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "description": "`approve`, `reject` or `remove`."
+          },
+          "featured": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Pin the server to the top (approved listings only)."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A note to the server's managers, up to 500 characters."
           }
         }
       },
@@ -63826,7 +64188,7 @@
             }
           },
           "user": {
-            "$ref": "#/components/schemas/UserRef"
+            "$ref": "#/components/schemas/GuildUserRef"
           }
         }
       },
@@ -64112,7 +64474,7 @@
             ]
           },
           "user": {
-            "$ref": "#/components/schemas/UserRef"
+            "$ref": "#/components/schemas/GuildUserRef"
           }
         }
       },
@@ -65713,6 +66075,45 @@
           }
         }
       },
+      "GuildUserRef": {
+        "type": "object",
+        "description": "User object embedded in members, bans and messages. Name fields come from the\nuser lookup (open question 157); without one only the id is known.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "bot": {
+            "type": "boolean",
+            "description": "Present (true) for bot accounts only."
+          },
+          "global_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "primary_guild": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PrimaryGuildObject",
+                "description": "The server tag the user shows next to their name (LNG-SSET-012, read from\n`guild_tags` + `user_primary_guilds`; set with `PUT /users/@me/primary-guild`)."
+              }
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "HideBody": {
         "type": "object",
         "required": [
@@ -66382,7 +66783,7 @@
             ]
           },
           "inviter": {
-            "$ref": "#/components/schemas/UserRef"
+            "$ref": "#/components/schemas/GuildUserRef"
           },
           "max_age": {
             "type": "integer",
@@ -67441,6 +67842,29 @@
           }
         }
       },
+      "LibraryFollowBody": {
+        "type": "object",
+        "properties": {
+          "notify": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "New-chapter notifications; default on."
+          },
+          "shelf": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Shelf",
+                "description": "The \"My library\" shelf; default `reading`."
+              }
+            ]
+          }
+        }
+      },
       "LibraryFriendReading": {
         "type": "object",
         "description": "A friend who is reading something now.",
@@ -67818,6 +68242,74 @@
           "helpful",
           "recent"
         ]
+      },
+      "LibraryUploadRequest": {
+        "type": "object",
+        "description": "Body of `POST /admin/library/chapters/{id}/uploads`.",
+        "required": [
+          "filename",
+          "size_bytes"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Original file name; its extension must fit the chapter's format."
+          },
+          "multipart": {
+            "type": "boolean",
+            "description": "Ask for a resumable multipart upload: parts of 64 MB sent in parallel, resumable after a\nrefresh. Without it the slot is one presigned `PUT`."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "LibraryUploadSlot": {
+        "type": "object",
+        "description": "A new upload slot: PUT the file to `upload_url`, then complete the upload.",
+        "required": [
+          "upload",
+          "upload_url",
+          "upload_method",
+          "expires_in_secs",
+          "max_bytes"
+        ],
+        "properties": {
+          "expires_in_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The operator's size limit for this upload.",
+            "minimum": 0
+          },
+          "multipart": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MultipartSlot",
+                "description": "Set for a multipart upload (then `upload_url` is empty)."
+              }
+            ]
+          },
+          "upload": {
+            "$ref": "#/components/schemas/Upload"
+          },
+          "upload_method": {
+            "type": "string",
+            "description": "Always `PUT`."
+          },
+          "upload_url": {
+            "type": "string"
+          }
+        }
       },
       "LibraryVisibility": {
         "type": "string",
@@ -68422,6 +68914,36 @@
           }
         }
       },
+      "MediaWorkerPartUrl": {
+        "type": "object",
+        "required": [
+          "part_number",
+          "url"
+        ],
+        "properties": {
+          "part_number": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "MemberCreateInviteBody": {
+        "type": "object",
+        "description": "Body of `POST /sr/invites`.",
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Private note (\"for Sam\"), at most 100 characters."
+          }
+        }
+      },
       "MemberInvite": {
         "type": "object",
         "description": "One of the account's platform invites.",
@@ -68669,7 +69191,7 @@
             "description": "Per-server profile theme, `[primary, accent]` as 0xRRGGBB."
           },
           "user": {
-            "$ref": "#/components/schemas/UserRef"
+            "$ref": "#/components/schemas/GuildUserRef"
           }
         }
       },
@@ -68942,6 +69464,54 @@
           "state": {
             "type": "string",
             "description": "`accepted`, `ignored` or `spam`."
+          }
+        }
+      },
+      "MessageUploadSlot": {
+        "type": "object",
+        "required": [
+          "id",
+          "upload_id",
+          "upload_url",
+          "upload_filename",
+          "upload_url_expires_in",
+          "max_size"
+        ],
+        "properties": {
+          "expires_after": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Large files expire after this many seconds; absent for normal files.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "description": "Echo of the client id (or the upload id when none was sent)."
+          },
+          "max_size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The maximum accepted size for this caller.",
+            "minimum": 0
+          },
+          "upload_filename": {
+            "type": "string",
+            "description": "Opaque name to pass as `uploaded_filename` when creating the message."
+          },
+          "upload_id": {
+            "type": "string",
+            "description": "Server-side upload id; reference it from the message."
+          },
+          "upload_url": {
+            "type": "string"
+          },
+          "upload_url_expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -70132,7 +70702,7 @@
         ],
         "properties": {
           "application": {
-            "$ref": "#/components/schemas/ApplicationObject"
+            "$ref": "#/components/schemas/DeveloperApplicationObject"
           },
           "expires": {
             "type": "string"
@@ -73181,6 +73751,66 @@
           "unknown"
         ]
       },
+      "ReadingBookmark": {
+        "type": "object",
+        "required": [
+          "id",
+          "chapter_id",
+          "series_id",
+          "page_index",
+          "note",
+          "created_at_ms"
+        ],
+        "properties": {
+          "chapter_id": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "page_index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "series_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadingBookmarkEntry": {
+        "type": "object",
+        "description": "A bookmark with the titles the \"my bookmarks\" list shows.",
+        "required": [
+          "bookmark",
+          "series_title",
+          "chapter_number"
+        ],
+        "properties": {
+          "bookmark": {
+            "$ref": "#/components/schemas/ReadingBookmark"
+          },
+          "chapter_number": {
+            "type": "number",
+            "format": "double"
+          },
+          "chapter_title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "series_title": {
+            "type": "string"
+          }
+        }
+      },
       "ReadingDirection": {
         "type": "string",
         "description": "Default reading mode of a series.",
@@ -73275,6 +73905,7 @@
       },
       "ReauthBody": {
         "type": "object",
+        "description": "Body of `POST /sr/auth/reauth`.",
         "required": [
           "method",
           "code"
@@ -73570,26 +74201,14 @@
       },
       "RenameBody": {
         "type": "object",
+        "description": "Body for `PATCH /sr/auth/passkeys/{id}`.",
+        "required": [
+          "name"
+        ],
         "properties": {
-          "display_name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "New display name; `null` or empty clears it. Leave out to keep it."
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "username": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it."
+          "name": {
+            "type": "string",
+            "description": "New label, 1 to 64 characters."
           }
         }
       },
@@ -74543,7 +75162,7 @@
             ]
           },
           "creator": {
-            "$ref": "#/components/schemas/UserRef"
+            "$ref": "#/components/schemas/GuildUserRef"
           },
           "creator_id": {
             "type": "string"
@@ -76070,7 +76689,7 @@
             "minimum": 0
           },
           "user": {
-            "$ref": "#/components/schemas/UserRef"
+            "$ref": "#/components/schemas/GuildUserRef"
           }
         }
       },
@@ -76886,7 +77505,7 @@
             "type": "string"
           },
           "creator": {
-            "$ref": "#/components/schemas/UserRef"
+            "$ref": "#/components/schemas/GuildUserRef"
           },
           "creator_id": {
             "type": "string"
@@ -79300,72 +79919,78 @@
       },
       "UploadRequest": {
         "type": "object",
-        "description": "Body of `POST /admin/library/chapters/{id}/uploads`.",
         "required": [
           "filename",
           "size_bytes"
         ],
         "properties": {
+          "auto_ladder": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Queue the ladder right after the probe (default true for staff uploads)."
+          },
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "filename": {
             "type": "string",
-            "description": "Original file name; its extension must fit the chapter's format."
-          },
-          "multipart": {
-            "type": "boolean",
-            "description": "Ask for a resumable multipart upload: parts of 64 MB sent in parallel, resumable after a\nrefresh. Without it the slot is one presigned `PUT`."
+            "description": "The file name on the member's disk; only its extension is used."
           },
           "size_bytes": {
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The catalog item the video is for. Linking it as the playable asset is a separate step."
           }
         }
       },
       "UploadSlot": {
         "type": "object",
         "required": [
-          "id",
+          "asset",
           "upload_id",
-          "upload_url",
-          "upload_filename",
-          "upload_url_expires_in",
-          "max_size"
+          "part_size",
+          "parts",
+          "content_type",
+          "expires_in_secs"
         ],
         "properties": {
-          "expires_after": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Large files expire after this many seconds; absent for normal files.",
-            "minimum": 0
+          "asset": {
+            "$ref": "#/components/schemas/Asset"
           },
-          "id": {
-            "type": "string",
-            "description": "Echo of the client id (or the upload id when none was sent)."
-          },
-          "max_size": {
-            "type": "integer",
-            "format": "int64",
-            "description": "The maximum accepted size for this caller.",
-            "minimum": 0
-          },
-          "upload_filename": {
-            "type": "string",
-            "description": "Opaque name to pass as `uploaded_filename` when creating the message."
-          },
-          "upload_id": {
-            "type": "string",
-            "description": "Server-side upload id; reference it from the message."
-          },
-          "upload_url": {
+          "content_type": {
             "type": "string"
           },
-          "upload_url_expires_in": {
+          "expires_in_secs": {
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "part_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaWorkerPartUrl"
+            },
+            "description": "One presigned `PUT` per part (a file no larger than `part_size` has one). Send each part\nwith `PUT` and keep the `ETag` response header."
+          },
+          "upload_id": {
+            "type": "string"
           }
         }
       },
@@ -79392,7 +80017,7 @@
           "attachments": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/UploadSlot"
+              "$ref": "#/components/schemas/MessageUploadSlot"
             }
           }
         }
@@ -80885,7 +81510,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/UserRef"
+                "$ref": "#/components/schemas/GuildUserRef"
               }
             ]
           }

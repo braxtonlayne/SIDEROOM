@@ -247,6 +247,7 @@ pub async fn updates(
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = LibraryFollowBody)]
 pub struct FollowBody {
     /// The "My library" shelf; default `reading`.
     pub shelf: Option<Shelf>,

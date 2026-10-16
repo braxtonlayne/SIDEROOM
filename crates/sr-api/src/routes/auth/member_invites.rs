@@ -79,6 +79,7 @@ pub struct MemberInvitesObject {
 
 /// Body of `POST /sr/invites`.
 #[derive(Debug, Default, Deserialize, ToSchema)]
+#[schema(as = MemberCreateInviteBody)]
 pub struct CreateInviteBody {
     /// Private note ("for Sam"), at most 100 characters.
     #[serde(default)]
