@@ -58,7 +58,14 @@ export function Welcome() {
     };
   }, [prefs.welcomeDone]);
 
-  const open = ready && !prefs.welcomeDone && !!me && isNewAccount(me.id);
+  // The end-to-end dev server (e2e/playwright.config.ts) sets VITE_SR_E2E: every e2e account is brand
+  // new, and this modal would cover the Lounge in every flow those tests drive.
+  const open =
+    ready &&
+    !prefs.welcomeDone &&
+    !!me &&
+    isNewAccount(me.id) &&
+    import.meta.env.VITE_SR_E2E !== '1';
   const done = () => save({ ...usePrefsStore.getState().prefs, welcomeDone: true });
   const go = (section: 'profile' | 'account') => {
     done();
