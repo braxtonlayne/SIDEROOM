@@ -14,8 +14,11 @@ sr-library-rules = { path = "../sr-library-rules" }
 wasm-bindgen.workspace = true
 
 [dev-dependencies]
-sr-library = { path = "../sr-library" }
 wasm-bindgen-test = "0.3.79"
+
+# The parity tests run natively only; the server crate does not build for wasm32.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+sr-library = { path = "../sr-library" }
 zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }
 
 [lints]

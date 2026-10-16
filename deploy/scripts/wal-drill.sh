@@ -71,7 +71,16 @@ until [ -f "$work/archive/$last" ]; do
   [ "$tries" -le 60 ] || die "segment $last was not archived within 60 s (see $work/pg.log)"
   sleep 1
 done
-log "archive holds $(ls -1 "$work/archive" | grep -c '^[0-9A-F]\{24\}$') segment(s); newest $last"
+# WAL segment names in the archive: 24 upper-case hex digits (a glob, not ls | grep: SC2010).
+segments() {
+  for f in "$work/archive"/*; do
+    b=${f##*/}
+    case $b in *[!0-9A-F]*) continue ;; esac
+    [ ${#b} -eq 24 ] && printf '%s\n' "$b"
+  done
+  return 0
+}
+log "archive holds $(segments | wc -l | tr -d ' ') segment(s); newest $last"
 
 pg_ctl -D "$(native "$work/pg")" -m fast -w stop >/dev/null
 
@@ -97,7 +106,7 @@ log "recovered 200 rows, none after the target, timeline $tl"
 
 # The base backup recorded its first segment; nothing older than it may remain after trimming.
 first=$(sed -n 's/.*"start_wal":"\([0-9A-F]*\)".*/\1/p' "$base/backup.json")
-oldest=$(ls -1 "$work/archive" | grep '^[0-9A-F]\{24\}$' | sort | head -n 1)
+oldest=$(segments | sort | head -n 1)
 smallest=$(printf '%s\n%s\n' "$first" "$oldest" | sort | head -n 1)
 [ "$smallest" = "$first" ] || die "archive still holds $oldest, older than $first"
 log "drill ok"

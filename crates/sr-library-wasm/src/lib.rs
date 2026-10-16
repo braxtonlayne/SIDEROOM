@@ -331,7 +331,8 @@ pub fn precheck_archive(head: &[u8], tail: &[u8], file_len: f64, max_archive_byt
     precheck(head, tail, file_len as u64, &limits).to_string()
 }
 
-#[cfg(test)]
+// Native only: the parity test pulls the server crate, which does not build for wasm32.
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
     use std::io::{Cursor, Write};
