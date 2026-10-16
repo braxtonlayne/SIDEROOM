@@ -13082,7 +13082,7 @@ export interface components {
         /** @description An application's Activity settings. */
         ConfigView: {
             application_id: string;
-            /** @description Recent bundles, newest first, with the superseded ones left out. */
+            /** @description Recent bundles (the review history), newest first, superseded ones included. */
             bundles: components["schemas"]["BundleView"][];
             /** @description Live URL served only while the application is in development (never reviewed). */
             dev_entry_url?: string | null;

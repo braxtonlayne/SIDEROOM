@@ -62329,7 +62329,7 @@
             "items": {
               "$ref": "#/components/schemas/BundleView"
             },
-            "description": "Recent bundles, newest first, with the superseded ones left out."
+            "description": "Recent bundles (the review history), newest first, superseded ones included."
           },
           "dev_entry_url": {
             "type": [
