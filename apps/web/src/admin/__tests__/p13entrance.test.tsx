@@ -8,7 +8,7 @@ beforeEach(() => setEntranceCopy(null));
 
 describe('Entrance pages editor', () => {
   it('saves a block after a reason, with the second-factor retry, and resets another', async () => {
-    asStaff({ perms: ['MANAGE_ENTRANCE'] });
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ENTRANCE'] });
     let puts = 0;
     let body: unknown;
     let deleted = 0;
@@ -62,7 +62,7 @@ describe('Entrance pages editor', () => {
   });
 
   it('refuses text over 16 KiB', async () => {
-    asStaff({ perms: ['MANAGE_ENTRANCE'] });
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ENTRANCE'] });
     server.use(http.get('*/api/v1/sr/entrance/copy', () => HttpResponse.json({})));
     openAdmin('entrance');
     const box = (await screen.findAllByLabelText('Markdown', {}, { timeout: 10_000 }))[0]!;
@@ -91,7 +91,7 @@ describe('Entrance pages editor', () => {
 
 describe('Entrance hero image (H-41)', { timeout: 40_000 }, () => {
   it('uploads a picture after a reason, then removes it', async () => {
-    asStaff({ perms: ['MANAGE_ENTRANCE'] });
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ENTRANCE'] });
     let has = false;
     let body: { image?: string; reason?: string } | undefined;
     let deleted = 0;
@@ -138,7 +138,7 @@ describe('Entrance hero image (H-41)', { timeout: 40_000 }, () => {
   });
 
   it('refuses a file over 8 MiB before sending it', async () => {
-    asStaff({ perms: ['MANAGE_ENTRANCE'] });
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ENTRANCE'] });
     openAdmin('entrance');
     const user = userEvent.setup({ applyAccept: false });
     const big = new File([new Uint8Array(8 * 1024 * 1024 + 1)], 'big.png', { type: 'image/png' });
