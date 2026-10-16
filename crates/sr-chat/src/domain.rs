@@ -153,6 +153,16 @@ pub struct Guild {
     pub widget_enabled: bool,
     /// The channel the widget invites to.
     pub widget_channel_id: Option<ChannelId>,
+    /// Timed incident actions and the last join-rate alert (D-243), read from `guild_community`.
+    pub incidents: IncidentsData,
+}
+
+/// `incidents_data` of the guild object (D-243). A time in the past means the pause ended.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct IncidentsData {
+    pub invites_disabled_until_ms: Option<i64>,
+    pub dms_disabled_until_ms: Option<i64>,
+    pub raid_detected_at_ms: Option<i64>,
 }
 
 /// Bits of [`Guild::system_channel_flags`] (Discord values).
@@ -219,6 +229,8 @@ pub struct MemberExtras {
     pub theme_colors: Option<[u32; 2]>,
     pub profile_effect: Option<String>,
     pub avatar_decoration: Option<String>,
+    /// Discord's `GuildMemberFlags` (`sr_core::member_flags`, D-245); 0 until a setter runs.
+    pub flags: u32,
 }
 
 impl Member {
@@ -305,6 +317,9 @@ pub enum MessageType {
     ChatInputCommand,
     ThreadStarterMessage,
     ContextMenuCommand,
+    /// An AutoMod alert or an incident alert the system user posted, with moderation buttons
+    /// (type 24, D-243/D-244).
+    AutoModerationAction,
 }
 
 impl MessageType {
@@ -328,6 +343,7 @@ impl MessageType {
             Self::ChatInputCommand => 20,
             Self::ThreadStarterMessage => 21,
             Self::ContextMenuCommand => 23,
+            Self::AutoModerationAction => 24,
         }
     }
 
@@ -351,6 +367,7 @@ impl MessageType {
             20 => Self::ChatInputCommand,
             21 => Self::ThreadStarterMessage,
             23 => Self::ContextMenuCommand,
+            24 => Self::AutoModerationAction,
             _ => return None,
         })
     }

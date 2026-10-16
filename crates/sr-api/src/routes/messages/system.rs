@@ -2,7 +2,7 @@
 //! announcement channel and a server-level contribution (LNG-MSG-016).
 
 use super::deps::MessagesDeps;
-use super::error::MsgResult;
+use super::error::{MsgError, MsgResult};
 use super::render::event_payload;
 use sr_chat::{Message, MessageType, Visibility};
 use sr_core::{GuildId, MessageId, UserId};
@@ -151,6 +151,95 @@ async fn store_and_announce(
     })
     .await;
     Ok(())
+}
+
+/// Post a card (type 24, authored by the system user) with embeds and components into a
+/// guild channel: the AutoMod alerts and incident alerts of D-243/D-244. The system user is
+/// not a member of the server, so this stores the message directly instead of going through
+/// the send checks. Returns the stored message.
+pub async fn post_system_card(
+    deps: &MessagesDeps,
+    channel_id: sr_core::ChannelId,
+    embeds: Vec<sr_chat::message::Embed>,
+    components: Vec<sr_chat::message::Component>,
+) -> MsgResult<Message> {
+    let ch = deps
+        .repo
+        .get_channel(channel_id)
+        .await?
+        .ok_or_else(|| MsgError::from(sr_core::ErrorCode::UnknownChannel))?;
+    let user = UserId::new(sr_chat::SYSTEM_USER_ID);
+    let msg = Message {
+        id: MessageId::from(deps.next_id()),
+        channel_id,
+        guild_id: ch.guild_id,
+        author_id: user,
+        kind: MessageType::AutoModerationAction,
+        content: String::new(),
+        flags: 0,
+        edited_at_ms: None,
+        reference: None,
+        attachment_ids: Vec::new(),
+        embeds,
+        components,
+        sticker_ids: Vec::new(),
+        poll: None,
+        mention_everyone: false,
+        mention_user_ids: Vec::new(),
+        mention_role_ids: Vec::new(),
+        mention_channel_ids: Vec::new(),
+        pinned: false,
+        visibility: Visibility::Visible,
+        deleted_at_ms: None,
+        purge_after_ms: None,
+        hold_id: None,
+    };
+    deps.repo.insert_message(&msg).await?;
+    let data = event_payload(deps, &msg).await?;
+    deps.publish(DomainEvent::MessageSent {
+        guild: msg.guild_id,
+        channel: channel_id,
+        message_id: msg.id.get(),
+        author: user,
+        data,
+    })
+    .await;
+    Ok(msg)
+}
+
+/// Rewrite a system card in place (embeds and components) and tell the clients with
+/// `MESSAGE_UPDATE`. `false` when the message is gone.
+pub async fn rewrite_system_card(
+    deps: &MessagesDeps,
+    channel_id: sr_core::ChannelId,
+    message_id: MessageId,
+    embeds: &[sr_chat::message::Embed],
+    components: &[sr_chat::message::Component],
+) -> MsgResult<bool> {
+    let replaced = deps
+        .repo
+        .replace_card(
+            channel_id,
+            message_id,
+            "",
+            embeds,
+            components,
+            deps.now_ms(),
+        )
+        .await?;
+    if !replaced {
+        return Ok(false);
+    }
+    let msg = deps.visible_message(channel_id, message_id).await?;
+    let data = event_payload(deps, &msg).await?;
+    deps.publish(DomainEvent::MessageEdited {
+        guild: msg.guild_id,
+        channel: channel_id,
+        message_id: msg.id.get(),
+        data,
+    })
+    .await;
+    Ok(true)
 }
 
 #[cfg(test)]

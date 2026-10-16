@@ -17,6 +17,10 @@ pub const MAX_SCREENING_RULES: usize = 16;
 pub const MAX_SCREENING_RULE_CHARS: usize = 300;
 pub const MAX_SCREENING_DESCRIPTION: usize = 300;
 pub const MAX_NEW_ACCOUNT_DAYS: u32 = 365;
+/// The longest an incident pause may run ahead of now (D-243): 24 hours.
+pub const MAX_INCIDENT_PAUSE_MS: i64 = 24 * 60 * 60 * 1000;
+/// A join-rate alert does not fire again within this window (D-243).
+pub const RAID_ALERT_COOLDOWN_MS: i64 = 10 * 60 * 1000;
 
 /// Per-guild community and safety flags.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -35,6 +39,15 @@ pub struct CommunitySettings {
     pub invites_paused: bool,
     /// Raid protection: alert when joins per minute exceed this (0 = off).
     pub raid_alert_joins_per_minute: u32,
+    /// Incident actions (D-243): invites cannot be used before this time (ms since the epoch).
+    pub invites_disabled_until_ms: Option<i64>,
+    /// Incident actions (D-243): while every shared server has this in the future, a DM between
+    /// two members who are not friends is refused.
+    pub dms_disabled_until_ms: Option<i64>,
+    /// When the join-rate alert last fired.
+    pub raid_detected_at_ms: Option<i64>,
+    /// The join-rate alert pauses invites for 24 hours by itself (default on).
+    pub raid_auto_pause_invites: bool,
     /// DM and spam protection (LNG-SSET-052): flag direct messages that members of this
     /// server send to each other when they look like spam.
     pub dm_spam_filter: bool,
@@ -94,11 +107,51 @@ pub fn validate_screening(
     Ok((description, rules))
 }
 
+/// What a fired join-rate alert did (D-243).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RaidAlert {
+    pub detected_at_ms: i64,
+    /// Invites are paused until this time; `None` when `raid_auto_pause_invites` is off.
+    pub paused_until_ms: Option<i64>,
+}
+
+/// A timed incident pause (D-243) is `null` or in the future and at most 24 hours ahead.
+pub fn validate_incident_time(
+    field: &str,
+    until_ms: Option<i64>,
+    now_ms: i64,
+) -> SettingsResult<Option<i64>> {
+    let Some(until) = until_ms else {
+        return Ok(None);
+    };
+    if until <= now_ms {
+        return Err(SettingsError::invalid(
+            field,
+            "INCIDENT_TIME_PAST",
+            "must be in the future",
+        ));
+    }
+    if until > now_ms.saturating_add(MAX_INCIDENT_PAUSE_MS) {
+        return Err(SettingsError::invalid(
+            field,
+            "INCIDENT_TIME_TOO_FAR",
+            "must be at most 24 hours ahead",
+        ));
+    }
+    Ok(Some(until))
+}
+
 impl CommunitySettings {
+    /// Invites are paused at `now_ms`, indefinitely or by a timed incident action.
+    pub fn invites_blocked(&self, now_ms: i64) -> bool {
+        self.invites_paused || self.invites_disabled_until_ms.is_some_and(|t| t > now_ms)
+    }
+
     pub fn new(guild_id: GuildId) -> Self {
         Self {
             guild_id,
             preferred_locale: "en-US".into(),
+            raid_auto_pause_invites: true,
             ..Self::default()
         }
     }
@@ -534,5 +587,42 @@ mod tests {
         w.channels.truncate(1);
         w.description = Some("x".repeat(141));
         assert!(validate_welcome_screen(&w).is_err());
+    }
+}
+
+#[cfg(test)]
+mod incident_tests {
+    use super::*;
+
+    const NOW: i64 = 1_800_000_000_000;
+    const HOUR: i64 = 3_600_000;
+
+    #[test]
+    fn incident_times_are_bounded() {
+        assert_eq!(validate_incident_time("f", None, NOW).unwrap(), None);
+        assert_eq!(
+            validate_incident_time("f", Some(NOW + HOUR), NOW).unwrap(),
+            Some(NOW + HOUR)
+        );
+        assert!(validate_incident_time("f", Some(NOW + 24 * HOUR), NOW).is_ok());
+        assert!(validate_incident_time("f", Some(NOW + 24 * HOUR + 1), NOW).is_err());
+        assert!(validate_incident_time("f", Some(NOW), NOW).is_err());
+        assert!(validate_incident_time("f", Some(NOW - 1), NOW).is_err());
+    }
+
+    #[test]
+    fn timed_pause_blocks_invites_until_it_ends() {
+        let mut s = CommunitySettings::new(GuildId::new(1));
+        assert!(s.raid_auto_pause_invites, "auto pause is on by default");
+        assert!(!s.invites_blocked(NOW));
+        s.invites_disabled_until_ms = Some(NOW + HOUR);
+        assert!(s.invites_blocked(NOW));
+        assert!(!s.invites_blocked(NOW + HOUR));
+        s.invites_disabled_until_ms = None;
+        s.invites_paused = true;
+        assert!(
+            s.invites_blocked(NOW),
+            "the indefinite switch stays its own"
+        );
     }
 }

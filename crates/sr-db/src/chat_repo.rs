@@ -50,6 +50,7 @@ pub(crate) fn extras_from(r: &PgRow) -> Result<Box<sr_chat::domain::MemberExtras
         theme_colors: primary.zip(accent).map(|(p, a)| [p as u32, a as u32]),
         profile_effect: r.try_get("profile_effect")?,
         avatar_decoration: r.try_get("avatar_decoration")?,
+        flags: u32::try_from(r.try_get::<i32, _>("flags")?).unwrap_or(0),
     }))
 }
 
@@ -88,7 +89,7 @@ pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key
     vanity_code::text AS vanity_code, mfa_level, system_channel_flags, widget_enabled, \
     widget_channel_id, rules_channel_id, public_updates_channel_id, \
     (SELECT gc.safety_alerts_channel_id FROM guild_community gc WHERE gc.guild_id = guilds.id) \
-    AS safety_alerts_channel_id, \n    COALESCE((SELECT gc.hide_suspicious_links FROM guild_community gc WHERE gc.guild_id = guilds.id), \n    FALSE) AS hide_suspicious_links";
+    AS safety_alerts_channel_id, \n    COALESCE((SELECT gc.hide_suspicious_links FROM guild_community gc WHERE gc.guild_id = guilds.id), \n    FALSE) AS hide_suspicious_links, \n    (SELECT (extract(epoch FROM gc.invites_disabled_until) * 1000)::bigint FROM guild_community gc \n     WHERE gc.guild_id = guilds.id) AS invites_disabled_ms, \n    (SELECT (extract(epoch FROM gc.dms_disabled_until) * 1000)::bigint FROM guild_community gc \n     WHERE gc.guild_id = guilds.id) AS dms_disabled_ms, \n    (SELECT (extract(epoch FROM gc.raid_detected_at) * 1000)::bigint FROM guild_community gc \n     WHERE gc.guild_id = guilds.id) AS raid_detected_ms";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
     Ok(Guild {
@@ -133,6 +134,11 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
             .try_get::<Option<i64>, _>("safety_alerts_channel_id")?
             .map(|v| ChannelId::new(u(v))),
         hide_suspicious_links: r.try_get("hide_suspicious_links")?,
+        incidents: sr_chat::domain::IncidentsData {
+            invites_disabled_until_ms: r.try_get("invites_disabled_ms")?,
+            dms_disabled_until_ms: r.try_get("dms_disabled_ms")?,
+            raid_detected_at_ms: r.try_get("raid_detected_ms")?,
+        },
     })
 }
 
@@ -510,6 +516,20 @@ impl GuildRepository for PgChatRepo {
         Ok(u64::try_from(n).unwrap_or(0))
     }
 
+    async fn count_recent_joins(&self, guild: GuildId, since_ms: i64) -> RepoResult<u64> {
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT count(*) FROM guild_members gm WHERE gm.guild_id = $1 \
+             AND gm.joined_at >= to_timestamp($2::bigint / 1000.0) AND {}",
+            crate::accounts::NOT_SYSTEM_MEMBER
+        )))
+        .bind(i(guild.get()))
+        .bind(since_ms)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(u64::try_from(n).unwrap_or(0))
+    }
+
     async fn page_members(
         &self,
         guild: GuildId,
@@ -518,7 +538,7 @@ impl GuildRepository for PgChatRepo {
     ) -> RepoResult<Vec<Member>> {
         let rows = sqlx::query(
             "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
-    gm.profile_effect, gm.avatar_decoration, \
+    gm.profile_effect, gm.avatar_decoration, gm.flags, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -561,7 +581,7 @@ impl GuildRepository for PgChatRepo {
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>> {
         let row = sqlx::query(
             "SELECT gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
-    gm.profile_effect, gm.avatar_decoration, \
+    gm.profile_effect, gm.avatar_decoration, gm.flags, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -996,6 +1016,32 @@ impl MessageRepository for PgChatRepo {
             .await
             .map_err(db)?;
         tx.commit().await.map_err(db)
+    }
+
+    async fn replace_card(
+        &self,
+        channel: ChannelId,
+        id: MessageId,
+        content: &str,
+        embeds: &[sr_chat::message::Embed],
+        components: &[sr_chat::message::Component],
+        now_ms: i64,
+    ) -> RepoResult<bool> {
+        let r = sqlx::query(
+            "UPDATE messages SET content = $3, embeds = $4, components = $5, \
+             edited_at = to_timestamp($6::double precision / 1000.0) \
+             WHERE id = $1 AND channel_id = $2",
+        )
+        .bind(i(id.get()))
+        .bind(i(channel.get()))
+        .bind(content)
+        .bind(sqlx::types::Json(embeds))
+        .bind(sqlx::types::Json(components))
+        .bind(now_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(r.rows_affected() == 1)
     }
 
     async fn apply_edit(&self, plan: &EditPlan) -> RepoResult<()> {

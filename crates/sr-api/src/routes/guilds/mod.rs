@@ -104,6 +104,7 @@ pub fn router() -> Router<AppState> {
         dto::OverwriteObject,
         dto::ChannelObject,
         dto::GuildObject,
+        dto::IncidentsDataObject,
         dto::GuildPreviewObject,
         dto::MemberObject,
         dto::BanObject,

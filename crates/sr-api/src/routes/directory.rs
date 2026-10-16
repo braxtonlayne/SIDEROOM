@@ -608,6 +608,7 @@ pub async fn join(
         Some(m) => {
             if let Some(msgs) = &messages {
                 crate::routes::messages::system::post_user_join(msgs, gid, user).await;
+                crate::routes::settings::alerts::after_join(&deps, msgs, gid).await;
             }
             m
         }

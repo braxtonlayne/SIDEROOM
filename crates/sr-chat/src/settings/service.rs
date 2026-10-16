@@ -327,7 +327,7 @@ impl<R: SettingsRepository> SettingsService<R> {
             .repo
             .get_community(invite.guild_id)
             .await?
-            .invites_paused
+            .invites_blocked(now)
         {
             return Err(SettingsError::InvitesPaused);
         }

@@ -210,8 +210,23 @@ pub struct Component {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disabled: Option<bool>,
+    /// Select menus: the text shown while nothing is chosen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder: Option<String>,
+    /// String select menus (type 3): the choices.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<SelectOption>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub components: Vec<Component>,
+}
+
+/// One choice of a string select menu (Discord `select option`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SelectOption {
+    pub label: String,
+    pub value: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 #[cfg(test)]

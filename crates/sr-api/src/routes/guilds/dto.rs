@@ -421,6 +421,9 @@ pub struct GuildObject {
     /// Server Protection (D-224): a link whose text names another host is shown as its raw
     /// target with a warning. Visible to every member; set in `/sr/community`.
     pub hide_suspicious_links: bool,
+    /// Incident actions (D-243): the timed invite and DM pauses and the last join-rate alert.
+    /// Fields are `null` when unset; a time in the past means the pause ended.
+    pub incidents_data: IncidentsDataObject,
     /// Only with `?with_counts=true` on `GET /guilds/{id}` (Discord shape).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub approximate_member_count: Option<u64>,
@@ -464,11 +467,33 @@ impl GuildObject {
             public_updates_channel_id: g.public_updates_channel_id.map(|c| c.to_string()),
             safety_alerts_channel_id: g.safety_alerts_channel_id.map(|c| c.to_string()),
             hide_suspicious_links: g.hide_suspicious_links,
+            incidents_data: IncidentsDataObject::of(&g.incidents),
             approximate_member_count: None,
             approximate_presence_count: None,
             sr_max_upload_bytes: None,
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
+        }
+    }
+}
+
+/// `incidents_data` of the guild object (D-243).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct IncidentsDataObject {
+    /// Invites cannot be used until this time (ISO8601), or `null`.
+    pub invites_disabled_until: Option<String>,
+    /// Direct messages between members who are not friends are refused until this time, or `null`.
+    pub dms_disabled_until: Option<String>,
+    /// When the join-rate alert last fired, or `null`.
+    pub raid_detected_at: Option<String>,
+}
+
+impl IncidentsDataObject {
+    pub fn of(i: &sr_chat::domain::IncidentsData) -> Self {
+        Self {
+            invites_disabled_until: i.invites_disabled_until_ms.map(iso8601),
+            dms_disabled_until: i.dms_disabled_until_ms.map(iso8601),
+            raid_detected_at: i.raid_detected_at_ms.map(iso8601),
         }
     }
 }
@@ -597,7 +622,7 @@ impl MemberObject {
             premium_since: None,
             deaf: false,
             mute: false,
-            flags: 0,
+            flags: m.extras.flags,
             pending: m.pending,
             communication_disabled_until: m.communication_disabled_until_ms.map(iso8601),
             guild_id: with_guild_id.then(|| m.guild_id.to_string()),

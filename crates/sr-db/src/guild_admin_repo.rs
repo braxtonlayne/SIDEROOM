@@ -34,7 +34,7 @@ fn like_pattern(text: &str) -> String {
 
 const MEMBER_SELECT: &str = "SELECT gm.guild_id, gm.user_id, gm.nick, gm.pending, \
     gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
-    gm.profile_effect, gm.avatar_decoration, \
+    gm.profile_effect, gm.avatar_decoration, gm.flags, \
     (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
     (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
     COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -315,7 +315,7 @@ impl GuildAdminRepository for PgChatRepo {
              communication_disabled_until = to_timestamp($4::bigint::double precision / 1000.0), \
              pending = $5, avatar_key = $6, banner_key = $7, bio = $8, \
              pronouns = $9, theme_primary = $10, theme_accent = $11, profile_effect = $12, \
-             avatar_decoration = $13, updated_at = now() WHERE guild_id = $1 AND user_id = $2",
+             avatar_decoration = $13, flags = $14, updated_at = now() WHERE guild_id = $1 AND user_id = $2",
         )
         .bind(i(m.guild_id.get()))
         .bind(i(m.user_id.get()))
@@ -330,6 +330,7 @@ impl GuildAdminRepository for PgChatRepo {
         .bind(m.extras.theme_colors.map(|c| c[1] as i32))
         .bind(m.extras.profile_effect.as_deref())
         .bind(m.extras.avatar_decoration.as_deref())
+        .bind(i32::try_from(m.extras.flags).unwrap_or(0))
         .execute(&mut *tx)
         .await
         .map_err(db)?;

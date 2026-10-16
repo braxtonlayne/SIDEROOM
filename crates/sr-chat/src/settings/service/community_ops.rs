@@ -90,6 +90,21 @@ fn diff(old: &CommunitySettings, new: &CommunitySettings) -> Vec<AuditChange> {
         old.warn_new_account_days.into(),
         new.warn_new_account_days.into(),
     );
+    push(
+        "invites_disabled_until",
+        old.invites_disabled_until_ms.into(),
+        new.invites_disabled_until_ms.into(),
+    );
+    push(
+        "dms_disabled_until",
+        old.dms_disabled_until_ms.into(),
+        new.dms_disabled_until_ms.into(),
+    );
+    push(
+        "raid_auto_pause_invites",
+        old.raid_auto_pause_invites.into(),
+        new.raid_auto_pause_invites.into(),
+    );
     out
 }
 
@@ -167,6 +182,118 @@ impl<R: SettingsRepository> SettingsService<R> {
             .await?;
         }
         Ok(new)
+    }
+
+    /// `PUT /guilds/{id}/incident-actions` (D-243): set or clear the two timed pauses. Each is
+    /// `None` or at most 24 hours ahead. Audit `GUILD_UPDATE` with the changed fields.
+    pub async fn set_incident_actions(
+        &self,
+        perms: Permissions,
+        actor: UserId,
+        guild: GuildId,
+        invites_until_ms: Option<i64>,
+        dms_until_ms: Option<i64>,
+    ) -> SettingsResult<CommunitySettings> {
+        require(perms, Permissions::MANAGE_GUILD)?;
+        let now = self.now();
+        let invites =
+            community::validate_incident_time("invites_disabled_until", invites_until_ms, now)?;
+        let dms = community::validate_incident_time("dms_disabled_until", dms_until_ms, now)?;
+        let old = self.repo.get_community(guild).await?;
+        let mut new = old.clone();
+        new.invites_disabled_until_ms = invites;
+        new.dms_disabled_until_ms = dms;
+        self.repo.put_community(&new).await?;
+        let changes = diff(&old, &new);
+        if !changes.is_empty() {
+            self.record_audit(
+                guild,
+                actor,
+                AuditAction::GuildUpdate,
+                Some(guild.get()),
+                changes,
+                None,
+            )
+            .await?;
+        }
+        Ok(new)
+    }
+
+    /// The join-rate alert (D-243): called after a member joined with the number of joins in the
+    /// last minute. When it exceeds `raid_alert_joins_per_minute` (and no alert fired in the last
+    /// ten minutes) the guild records `raid_detected_at`, pauses invites for 24 hours unless
+    /// `raid_auto_pause_invites` is off, and an audit row names the system user and the
+    /// `community` module. `None` when nothing fired.
+    pub async fn register_join_rate(
+        &self,
+        guild: GuildId,
+        joins_last_minute: u64,
+    ) -> SettingsResult<Option<community::RaidAlert>> {
+        let s = self.repo.get_community(guild).await?;
+        if s.raid_alert_joins_per_minute == 0
+            || joins_last_minute <= u64::from(s.raid_alert_joins_per_minute)
+        {
+            return Ok(None);
+        }
+        let now = self.now();
+        let until = now.saturating_add(community::MAX_INCIDENT_PAUSE_MS);
+        let Some(paused) = self
+            .repo
+            .mark_raid(guild, now, community::RAID_ALERT_COOLDOWN_MS, until)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let mut changes = vec![AuditChange::new("raid_detected_at", None, Some(now.into()))];
+        if paused {
+            changes.push(AuditChange::new(
+                "invites_disabled_until",
+                s.invites_disabled_until_ms.map(Into::into),
+                Some(until.into()),
+            ));
+        }
+        self.record_audit_as_module(
+            guild,
+            AuditAction::GuildUpdate,
+            Some(guild.get()),
+            changes,
+            None,
+            ("community", "community"),
+        )
+        .await?;
+        Ok(Some(community::RaidAlert {
+            detected_at_ms: now,
+            paused_until_ms: paused.then_some(until),
+        }))
+    }
+
+    /// `Resume invites` on the alert message (D-243): clear the timed pause. The caller checked
+    /// `MANAGE_GUILD` at press time. Whether a pause was set.
+    pub async fn resume_invites(
+        &self,
+        perms: Permissions,
+        actor: UserId,
+        guild: GuildId,
+    ) -> SettingsResult<bool> {
+        require(perms, Permissions::MANAGE_GUILD)?;
+        let before = self.repo.get_community(guild).await?;
+        if !self.repo.clear_invite_pause(guild).await? {
+            return Ok(false);
+        }
+        self.record_audit(
+            guild,
+            actor,
+            AuditAction::GuildUpdate,
+            Some(guild.get()),
+            vec![AuditChange::new(
+                "invites_disabled_until",
+                before.invites_disabled_until_ms.map(Into::into),
+                None,
+            )],
+            None,
+        )
+        .await?;
+        Ok(true)
     }
 
     pub async fn onboarding(

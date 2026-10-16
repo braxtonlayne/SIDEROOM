@@ -562,6 +562,7 @@ pub async fn accept_invite(
         (&outcome, &messages)
     {
         crate::routes::messages::system::post_user_join(m, member.guild_id, member.user_id).await;
+        super::alerts::after_join(&deps, m, member.guild_id).await;
     }
     Ok(Json(render_one(&deps, outcome.invite()).await?))
 }

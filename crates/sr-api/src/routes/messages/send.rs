@@ -99,7 +99,7 @@ pub async fn create_message(
         };
         match gate.0.evaluate(&check).await {
             Ok(v) if v.block.is_some() => {
-                publish_alerts(&deps, guild, &v, None).await;
+                publish_alerts(&deps, settings.as_deref(), guild, &v, None).await;
                 return Err(ErrorCode::AutoModBlocked.into());
             }
             Ok(v) => verdict = Some(v),
@@ -242,7 +242,7 @@ pub async fn create_message(
     })
     .await;
     if let (Some(v), Some(guild)) = (&verdict, msg.guild_id) {
-        publish_alerts(&deps, guild, v, Some(msg.id)).await;
+        publish_alerts(&deps, settings.as_deref(), guild, v, Some(msg.id)).await;
     }
     // Announcement channels set to auto-publish send the message on to their followers
     // (LNG-CHN-004).
@@ -268,6 +268,7 @@ fn message_flags_suppress(flags: u32) -> bool {
 /// `AUTO_MODERATION_ACTION_EXECUTION` event (blocks are announced by the gate).
 async fn publish_alerts(
     deps: &MessagesDeps,
+    settings: Option<&crate::routes::settings::SettingsDeps>,
     guild: sr_core::GuildId,
     verdict: &crate::routes::settings::AutoModVerdict,
     message: Option<MessageId>,
@@ -278,6 +279,18 @@ async fn publish_alerts(
             payload: alert_execution_payload(guild, alert, message),
         })
         .await;
+        // D-244: the alert is also a message with moderation buttons in the alert channel.
+        if let Some(s) = settings {
+            crate::routes::settings::alerts::post_automod_alert(
+                s,
+                deps,
+                guild,
+                alert,
+                message.is_none(),
+                message,
+            )
+            .await;
+        }
     }
 }
 
