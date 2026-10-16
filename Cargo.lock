@@ -5198,6 +5198,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "sqlx",
+ "sr-activities",
  "sr-admin",
  "sr-apps",
  "sr-auth",
