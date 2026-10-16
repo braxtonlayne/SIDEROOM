@@ -33,6 +33,7 @@ use unrar::{
     Archive as RarArchive, CursorBeforeHeader, OpenArchive, Process, error::Code as RarCode,
 };
 use zip::ZipArchive;
+use zip::read::{ArchiveOffset, Config as ZipConfig};
 
 use super::IngestError;
 
@@ -223,8 +224,26 @@ fn read_capped(r: impl Read, cap: u64, name: &str) -> Result<Vec<u8>, IngestErro
 
 // ---------------------------------------------------------------- ZIP
 
+/// Open a ZIP without scanning the whole file. zip 9.0.4 dropped the "archive starts at byte 0"
+/// fast path from `ArchiveOffset::Detect`: it now reads every byte before the end-of-central-
+/// directory record looking for signatures, which downloads a stored archive in full through
+/// `RangeReader`. Probe the common case (nothing prepended) first and fall back to detection,
+/// for self-extracting or otherwise prefixed archives, only when the probe fails.
+pub(crate) fn zip_archive<R: Read + Seek>(mut reader: R) -> zip::result::ZipResult<ZipArchive<R>> {
+    let at_zero = ZipConfig {
+        archive_offset: ArchiveOffset::Known(0),
+    };
+    let archive_offset = if ZipArchive::with_config(at_zero, &mut reader).is_ok() {
+        ArchiveOffset::Known(0)
+    } else {
+        ArchiveOffset::Detect
+    };
+    reader.seek(SeekFrom::Start(0))?;
+    ZipArchive::with_config(ZipConfig { archive_offset }, reader)
+}
+
 fn open_zip<R: Read + Seek>(reader: R, limits: ArchiveLimits) -> Result<ZipReader<R>, IngestError> {
-    let mut zip = ZipArchive::new(reader).map_err(archive_err)?;
+    let mut zip = zip_archive(reader).map_err(archive_err)?;
     if zip.len() > limits.max_entries {
         return Err(IngestError::TooManyEntries);
     }
@@ -654,6 +673,27 @@ mod tests {
 
     fn names(r: &ArchiveReader<Cursor<Vec<u8>>>) -> Vec<&str> {
         r.pages().iter().map(|e| e.name.as_str()).collect()
+    }
+
+    #[test]
+    fn zip_archive_opens_plain_and_prefixed_archives() {
+        let z = build(&[("001.png", b"p"), ("002.png", b"q")]);
+        let plain = zip_archive(Cursor::new(z.clone())).unwrap();
+        assert_eq!(plain.len(), 2);
+        assert_eq!(plain.offset(), 0);
+        // Bytes before the archive (a self-extractor stub) fail the offset-0 probe; detection
+        // still finds the entries.
+        let mut prefixed = vec![0x4d; 300];
+        prefixed.extend_from_slice(&z);
+        let mut zip = zip_archive(Cursor::new(prefixed)).unwrap();
+        assert_eq!(zip.len(), 2);
+        assert_eq!(zip.offset(), 300);
+        let mut data = Vec::new();
+        zip.by_name("002.png")
+            .unwrap()
+            .read_to_end(&mut data)
+            .unwrap();
+        assert_eq!(data, b"q");
     }
 
     #[test]

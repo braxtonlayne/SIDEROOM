@@ -23,7 +23,7 @@ use quick_xml::{
 use zip::ZipArchive;
 
 use super::IngestError;
-use super::archive::{ArchiveLimits, safe_name};
+use super::archive::{ArchiveLimits, safe_name, zip_archive};
 
 const MIMETYPE: &str = "application/epub+zip";
 const MAX_XML_BYTES: u64 = 4 * 1024 * 1024;
@@ -335,7 +335,7 @@ pub fn inspect<R: Read + Seek>(
         return Err(IngestError::TooLarge("archive file"));
     }
     reader.seek(SeekFrom::Start(0)).map_err(zip_err)?;
-    let mut zip = ZipArchive::new(reader).map_err(zip_err)?;
+    let mut zip = zip_archive(reader).map_err(zip_err)?;
     if zip.len() > limits.max_entries {
         return Err(IngestError::TooManyEntries);
     }
