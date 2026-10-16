@@ -259,6 +259,10 @@ interface ChannelFields {
   nsfw: boolean;
   rate_limit_per_user: number;
   user_limit: number;
+  /** Voice bitrate in kbit/s. */
+  bitrate_kbps: number;
+  /** Text channel is an announcement channel (type 5). */
+  announcement: boolean;
   parent_id: string;
 }
 
@@ -404,6 +408,8 @@ function ChannelOverview({
       nsfw: channel.nsfw,
       rate_limit_per_user: channel.rate_limit_per_user,
       user_limit: channel.user_limit ?? 0,
+      bitrate_kbps: Math.round((channel.bitrate ?? 64_000) / 1000),
+      announcement: channel.type === 5,
       parent_id: channel.parent_id ?? '',
     }),
     [channel],
@@ -426,6 +432,9 @@ function ChannelOverview({
     if (c.nsfw !== undefined) body.nsfw = c.nsfw;
     if (c.rate_limit_per_user !== undefined) body.rate_limit_per_user = c.rate_limit_per_user;
     if (c.parent_id !== undefined) body.parent_id = c.parent_id || null;
+    if (c.user_limit !== undefined) body.user_limit = c.user_limit;
+    if (c.bitrate_kbps !== undefined) body.bitrate = c.bitrate_kbps * 1000;
+    if (c.announcement !== undefined) body.type = c.announcement ? 5 : 0;
     const ok = await action.run(
       () => api.modifyChannel(channel.id, body),
       t('settings.channels.saved'),
@@ -484,6 +493,45 @@ function ChannelOverview({
             checked={draft.value.nsfw}
             onChange={(e) => draft.set('nsfw', e.target.checked)}
           />
+          {(channel.type === 0 || channel.type === 5) && (
+            <Switch
+              label={t('settings.channels.announcement')}
+              description={t('settings.channels.announcementHint')}
+              checked={draft.value.announcement}
+              onChange={(e) => draft.set('announcement', e.target.checked)}
+            />
+          )}
+        </>
+      )}
+      {isVoice(channel) && (
+        <>
+          <div>
+            <label className="ss-field-label" htmlFor="ss-user-limit">
+              {t('settings.channels.userLimit', { count: draft.value.user_limit })}
+            </label>
+            <input
+              id="ss-user-limit"
+              type="range"
+              min={0}
+              max={99}
+              value={draft.value.user_limit}
+              onChange={(e) => draft.set('user_limit', Number(e.target.value))}
+            />
+          </div>
+          <div>
+            <label className="ss-field-label" htmlFor="ss-bitrate">
+              {t('settings.channels.bitrate', { kbps: draft.value.bitrate_kbps })}
+            </label>
+            <input
+              id="ss-bitrate"
+              type="range"
+              min={8}
+              max={384}
+              step={8}
+              value={draft.value.bitrate_kbps}
+              onChange={(e) => draft.set('bitrate_kbps', Number(e.target.value))}
+            />
+          </div>
         </>
       )}
       {!cat && (

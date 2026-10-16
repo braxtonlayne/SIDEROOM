@@ -29,6 +29,8 @@ interface ForumChannelInfo {
 interface Starter {
   text: string;
   thumb: string | null;
+  /** Reactions on the opening message, all emoji together (LNG-FRM-003). */
+  reactions: number;
 }
 
 const starters = new Map<string, Starter | null>();
@@ -43,7 +45,13 @@ function useStarter(threadId: string): Starter | null | undefined {
       .then((list) => {
         const m = list[0];
         const img = m?.attachments?.find((a) => (a.content_type ?? '').startsWith('image/'));
-        const s = m ? { text: m.content, thumb: img?.url ?? null } : null;
+        const s = m
+          ? {
+              text: m.content,
+              thumb: img?.url ?? null,
+              reactions: (m.reactions ?? []).reduce((n, r) => n + r.count, 0),
+            }
+          : null;
         starters.set(threadId, s);
         if (live) setV(s);
       })
@@ -98,6 +106,9 @@ function PostCard({
             {author}
             {' · '}
             {t('lounge.forum.messages', { count: post.messageCount })}
+            {starter && starter.reactions > 0
+              ? ` · ${t('lounge.forum.reactions', { count: starter.reactions })}`
+              : ''}
             {last ? ` · ${t('lounge.forum.lastActive', { when: formatMessageTime(last) })}` : ''}
           </span>
         </span>

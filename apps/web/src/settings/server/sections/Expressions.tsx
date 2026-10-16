@@ -17,6 +17,7 @@ import * as api from '../api';
 import { useGuildEvents, useResource } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
+import { SoundboardTab } from './SoundboardTab';
 
 const { EXPRESSION_DEFAULTS: LIMITS } = api;
 const IMAGE_ACCEPT = '.png,.jpg,.jpeg,.gif,.webp';
@@ -89,6 +90,11 @@ export function ExpressionsSection({ guildId }: SectionProps) {
                 {(list) => <StickerTab guildId={guildId} list={list} reload={stickers.reload} />}
               </Async>
             ),
+          },
+          {
+            id: 'soundboard',
+            label: t('settings.soundboard.tab'),
+            content: <SoundboardTab guildId={guildId} />,
           },
         ]}
       />

@@ -275,7 +275,8 @@ export function toLoungeGuild(
   return {
     id: g.id,
     name: g.name,
-    iconUrl: null,
+    iconUrl: g.icon ? cdnUrl('icons', g.id, g.icon, { size: 128 }) : null,
+    bannerUrl: g.banner ? cdnUrl('icons', g.id, g.banner, { size: 512 }) : null,
     ownerId: g.owner_id ?? '',
     ...(g.is_staff_guild ? { isStaff: true } : {}),
     unread,

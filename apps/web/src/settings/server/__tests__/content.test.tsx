@@ -212,6 +212,7 @@ describe('Integrations', () => {
       }),
     );
     await openSettings('integrations');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Webhooks' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Create webhook' }));
     await userEvent.type(screen.getByLabelText('Webhook name'), 'Deploys');
     await userEvent.click(
@@ -249,6 +250,7 @@ describe('Integrations', () => {
       }),
     );
     await openSettings('integrations');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Webhooks' }));
     await screen.findByRole('list', { name: 'Webhooks' });
     expect(screen.getByRole('img', { name: 'Deploys' })).toHaveAttribute(
       'src',
@@ -299,6 +301,7 @@ describe('Integrations', () => {
       }),
     );
     await openSettings('integrations');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Webhooks' }));
     await screen.findByRole('list', { name: 'Webhooks' });
     expect(screen.queryByRole('button', { name: /Copy URL/ })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Reset URL for Deploys' }));
@@ -340,6 +343,7 @@ describe('Integrations', () => {
       }),
     );
     await openSettings('integrations');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Webhooks' }));
     expect(screen.queryByRole('tab', { name: 'Server Template' })).toBeNull();
     await userEvent.click(await screen.findByRole('button', { name: 'Delete webhook Deploys' }));
     await userEvent.click(screen.getByRole('button', { name: 'Delete webhook' }));
@@ -362,6 +366,7 @@ describe('Integrations', () => {
       }),
     );
     await openSettings('integrations');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Server Template' }));
     expect(await screen.findByLabelText('Template code for Starter')).toHaveTextContent('TPL123');
     expect(screen.getByText('Out of date')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Sync template Starter' }));
@@ -536,13 +541,5 @@ describe('Community', () => {
     );
     expect(within(dialog).getByText(/Roles:/).parentElement).toHaveTextContent('Mod');
     expect(screen.queryByText(/must answer every required/)).toBeNull();
-  });
-
-  it('lists what is not available yet', async () => {
-    seed({ perms: [MANAGE.guild] });
-    server.use(http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)));
-    await openSettings('community');
-    await userEvent.click(await screen.findByRole('tab', { name: 'More' }));
-    expect(screen.getAllByText('Not available yet.').length).toBeGreaterThan(2);
   });
 });

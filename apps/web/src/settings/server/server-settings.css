@@ -462,3 +462,15 @@
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
+
+/* Insights (LNG-SSET-068): inline bars drawn above the numbers. */
+.ss-bar {
+  display: block;
+  block-size: 6px;
+  min-inline-size: 2px;
+  max-inline-size: 100%;
+  margin-block-end: 2px;
+  border-radius: 3px;
+  background: var(--ui-accent, currentColor);
+  opacity: 0.6;
+}

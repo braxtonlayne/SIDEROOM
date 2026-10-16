@@ -6,8 +6,9 @@ import * as api from '../api';
 import { useDraft, useGuildEvents, useResource, useSettingsForm } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import { CommunityWizard } from './CommunityWizard';
+import { AccessTab, DirectoryTab, GuideTab, InsightsTab, RulesTab } from './CommunityMore';
 import { OnboardingPreview } from './OnboardingPreview';
-import { ActionStatus, Async, NotAvailable, SectionHeader, useAction } from '../ui';
+import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
 
 export function CommunitySection({ guildId }: SectionProps) {
   const t = useT();
@@ -35,22 +36,34 @@ export function CommunitySection({ guildId }: SectionProps) {
             label: t('settings.community.tabWelcome'),
             content: <WelcomeTab guildId={guildId} />,
           },
-          { id: 'more', label: t('settings.community.tabMore'), content: <NotYet /> },
+          {
+            id: 'guide',
+            label: t('settings.communityMore.tabGuide'),
+            content: <GuideTab guildId={guildId} />,
+          },
+          {
+            id: 'rules',
+            label: t('settings.communityMore.tabRules'),
+            content: <RulesTab guildId={guildId} />,
+          },
+          {
+            id: 'access',
+            label: t('settings.communityMore.tabAccess'),
+            content: <AccessTab guildId={guildId} />,
+          },
+          {
+            id: 'insights',
+            label: t('settings.communityMore.tabInsights'),
+            content: <InsightsTab guildId={guildId} />,
+          },
+          {
+            id: 'directory',
+            label: t('settings.communityMore.tabDirectory'),
+            content: <DirectoryTab guildId={guildId} />,
+          },
         ]}
       />
     </>
-  );
-}
-
-function NotYet() {
-  const t = useT();
-  return (
-    <div className="ss-form">
-      <NotAvailable>{t('settings.community.notYetGuide')}</NotAvailable>
-      <NotAvailable>{t('settings.community.notYetRules')}</NotAvailable>
-      <NotAvailable>{t('settings.community.notYetInsights')}</NotAvailable>
-      <NotAvailable>{t('settings.community.notYetDirectory')}</NotAvailable>
-    </div>
   );
 }
 

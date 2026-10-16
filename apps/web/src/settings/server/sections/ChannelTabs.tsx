@@ -201,8 +201,10 @@ export function ChannelIntegrations({
         </div>
       )}
       <Async res={res} label={t('settings.channelTabs.loadingWebhooks')}>
-        {(hooks) =>
-          hooks.length === 0 ? (
+        {(all) => {
+          // Channel followers (type 2) are listed below; they have no URL to reset.
+          const hooks = all.filter((w) => w.type !== 2);
+          return hooks.length === 0 ? (
             <EmptyState
               title={t('settings.channelTabs.noWebhooksTitle')}
               description={t('settings.channelTabs.noWebhooksDescription')}
@@ -241,10 +243,38 @@ export function ChannelIntegrations({
                 </li>
               ))}
             </ul>
-          )
-        }
+          );
+        }}
       </Async>
-      <p className="ss-na">{t('settings.channelTabs.followedNote')}</p>
+      <Async res={res} label={t('settings.channelTabs.loadingWebhooks')}>
+        {(all) => {
+          const followers = all.filter((w) => w.type === 2);
+          return (
+            <section aria-label={t('settings.channelTabs.followedLabel')}>
+              <h3 className="ss-sub">{t('settings.channelTabs.followedLabel')}</h3>
+              {followers.length === 0 ? (
+                <p className="ss-meta">{t('settings.channelTabs.followedNone')}</p>
+              ) : (
+                <ul className="ss-list">
+                  {followers.map((w) => (
+                    <li key={w.id} className="ss-row">
+                      <span className="ss-grow">{w.name}</span>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        aria-label={t('settings.channelTabs.unfollowNamed', { name: w.name })}
+                        onClick={() => setToDelete(w)}
+                      >
+                        {t('settings.channelTabs.unfollow')}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        }}
+      </Async>
       <Modal
         open={creating}
         onClose={() => setCreating(false)}

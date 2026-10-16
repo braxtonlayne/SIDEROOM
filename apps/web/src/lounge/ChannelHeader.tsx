@@ -5,6 +5,7 @@ import { FollowButton } from './header/FollowButton';
 import { NotifyButton } from './header/NotifyButton';
 import { InboxButton } from './inbox/InboxButton';
 import { SavedButton } from './features/SavedButton';
+import { HelpButton } from './header/HelpButton';
 import { PinsButton } from './header/PinsButton';
 import { SearchBox } from './SearchBox';
 import { ThreadsButton } from './threads/ThreadsButton';
@@ -225,7 +226,7 @@ export function ChannelHeader({
           </label>
         )}
         <InboxButton />
-        <Soon icon="info" label={t('lounge.channelHeader.help')} />
+        <HelpButton />
       </div>
       <Modal
         open={topicOpen}
