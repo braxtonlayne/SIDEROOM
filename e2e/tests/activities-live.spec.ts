@@ -1,4 +1,4 @@
-import { expect, test, apiPost, registerUser } from '../support/fixtures';
+import { expect, test, apiPatch, apiPost, registerUser } from '../support/fixtures';
 import { testActivityBundle } from '../support/activityBundle';
 import {
   debugPage,
@@ -20,6 +20,17 @@ import {
  * Set SR_E2E_ACTIVITIES=1. Chromium only: it resolves `*.localhost` to loopback by itself.
  */
 const ACTIVITIES = process.env.SR_E2E_ACTIVITIES === '1';
+
+test.use({
+  launchOptions: {
+    args: [
+      '--use-fake-device-for-media-stream',
+      '--use-fake-ui-for-media-stream',
+      '--disable-features=WebRtcHideLocalIpsWithMdns',
+      '--allow-loopback-in-peer-connection',
+    ],
+  },
+});
 
 test.describe('Activities (real browser)', () => {
   test.skip(
@@ -52,9 +63,18 @@ test.describe('Activities (real browser)', () => {
     try {
       // --- An application with an approved version (the proxy serves only released applications).
       const name = `E2E Activity ${Date.now().toString(36)}`;
-      const app = await apiPost<{ id: string }>(a.context.request, '/applications', {
-        name,
-        description: 'Browser test Activity',
+      const { application: app } = await apiPost<{ application: { id: string } }>(
+        a.context.request,
+        '/applications',
+        {
+          name,
+          description: 'Browser test Activity',
+        },
+      );
+      // A version needs the policy links (doc 11).
+      await apiPatch(a.context.request, `/applications/${app.id}`, {
+        privacy_policy_url: 'https://example.test/privacy',
+        terms_of_service_url: 'https://example.test/terms',
       });
       const version = await apiPost<{ id: string }>(
         a.context.request,
@@ -73,7 +93,9 @@ test.describe('Activities (real browser)', () => {
         buffer: testActivityBundle(),
       });
       const bundles = a.page.getByRole('list', { name: 'Bundles' });
-      await expect(bundles.getByRole('listitem')).toHaveCount(1, { timeout: 30_000 });
+      await expect(bundles.getByRole('button', { name: 'Submit for review' })).toBeVisible({
+        timeout: 30_000,
+      });
       await bundles.getByRole('button', { name: 'Submit for review' }).click();
       await expect(bundles.getByText('In review')).toBeVisible();
 

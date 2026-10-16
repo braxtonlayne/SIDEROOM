@@ -191,3 +191,37 @@ async fn the_app_page_shows_install_parameters_and_commands_and_hides_everything
         StatusCode::NOT_FOUND
     );
 }
+
+/// The Owner holds every platform permission, `REVIEW_APPS` included: they can decide versions
+/// (found in the browser run, where the Owner was refused with "Missing platform permission").
+#[tokio::test]
+async fn the_owner_can_review_versions() {
+    let e = env().await;
+    let (id, ..) = e.new_app().await;
+    let (s, v) = e
+        .patch(
+            Who::Session(OWNER),
+            &format!("/applications/{id}"),
+            json!({"privacy_policy_url": "https://a.test/privacy"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let (s, v) = e
+        .post(
+            Who::Session(OWNER),
+            &format!("/applications/{id}/versions"),
+            json!({"note": "ready"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let vid = v["id"].as_str().unwrap().to_owned();
+    let (s, v) = e
+        .post(
+            Who::Session(OWNER),
+            &format!("/admin/developers/versions/{vid}/decision"),
+            json!({"decision": "approve"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["state"], "approved", "{v}");
+}

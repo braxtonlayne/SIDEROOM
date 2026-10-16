@@ -626,8 +626,18 @@ export function reduceDispatch(
       const id = str(d.id);
       const existing = s.messages[id];
       if (!existing) return {};
+      // A full message object (it has `content`) leaves out `components` when it has none: a card the
+      // server rewrote without its buttons must lose them here too, not keep the old rows.
+      const full = 'content' in d;
       return {
-        messages: { ...s.messages, [id]: { ...existing, ...(d as object) } as Message },
+        messages: {
+          ...s.messages,
+          [id]: {
+            ...existing,
+            ...(full ? { components: undefined } : {}),
+            ...(d as object),
+          } as Message,
+        },
         users: d.author ? addUser(s.users, d.author) : s.users,
       };
     }

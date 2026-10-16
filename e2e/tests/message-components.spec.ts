@@ -38,10 +38,32 @@ async function systemDm(request: APIRequestContext): Promise<string> {
   return found!;
 }
 
+/**
+ * Open `path` and wait for the gateway READY: READY drops cached message windows and the channel refetches,
+ * so a card found before it can vanish for a moment (slow on a debug build with many servers).
+ */
+async function gotoLive(page: Page, path: string) {
+  // Dev builds open the gateway twice (React strict mode): take READY from whichever socket sends it.
+  const ready = new Promise<void>((resolve) => {
+    page.on('websocket', (ws) => {
+      if (!ws.url().includes('/gateway')) return;
+      ws.on('framereceived', (f) => {
+        if (String(f.payload).includes('"t":"READY"')) resolve();
+      });
+    });
+  });
+  await page.goto(path);
+  await Promise.race([ready, page.waitForTimeout(60_000)]);
+}
+
+/** Messages by the system user (not the embed articles inside them). */
+function systemCard(page: Page) {
+  return page.getByRole('article', { name: /^SIDE ROOM,/ });
+}
+
 /** The message article that holds a button named `name`. */
 function cardWith(page: Page, name: string | RegExp) {
-  return page
-    .getByRole('article')
+  return systemCard(page)
     .filter({ has: page.getByRole('button', { name }) })
     .last();
 }
@@ -59,13 +81,30 @@ test('AutoMod alert card: buttons render, a press is run by the server and the c
     actions: [{ type: 2, metadata: { channel_id: channelId } }],
     enabled: true,
   });
-  await apiPost(b.context.request, `/channels/${channelId}/messages`, {
-    content: `hello ${word} there`,
-  });
+  const flagged = await apiPost<{ id: string }>(
+    b.context.request,
+    `/channels/${channelId}/messages`,
+    {
+      content: `hello ${word} there`,
+    },
+  );
 
+  // The alert is posted right after the flagged message, by the system user.
+  await expect
+    .poll(
+      async () => {
+        const msgs = await apiGet<{ author: { id: string }; components?: unknown[] }[]>(
+          a.context.request,
+          `/channels/${channelId}/messages?limit=10`,
+        );
+        return msgs.some((m) => m.author.id === '1' && (m.components?.length ?? 0) > 0);
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(true);
   const page = a.page;
-  await page.goto(`/channels/${guildId}/${channelId}`);
-  const card = cardWith(page, 'Mark resolved');
+  await gotoLive(page, `/channels/${guildId}/${channelId}`);
+  const card = systemCard(page).filter({ hasText: 'AutoMod flagged a message' }).last();
   await expect(card).toBeVisible({ timeout: 20_000 });
   await expect(card).toContainText('AutoMod flagged a message');
   for (const label of ['Delete message', 'Kick', 'Ban', 'Mark resolved'])
@@ -76,13 +115,23 @@ test('AutoMod alert card: buttons render, a press is run by the server and the c
   await card.getByRole('button', { name: 'Delete message' }).click();
   await expect(card.getByRole('button', { name: 'Delete message' })).toHaveCount(0);
   await expect(card).toContainText('Deleted by');
-  await expect(page.getByText(`hello ${word} there`)).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      (
+        await a.context.request.get(`/api/v1/channels/${channelId}/messages/${flagged.id}`)
+      ).status(),
+    )
+    .toBe(404);
+  // The flagged message is gone from the channel (only the card quotes it now).
+  await expect(
+    page.getByRole('article').filter({ hasNotText: 'AutoMod' }).filter({ hasText: word }),
+  ).toHaveCount(0);
 
   // Mark resolved: every remaining control goes, and stays gone after a reload (server state).
   await card.getByRole('button', { name: 'Mark resolved' }).click();
   await expect(card).toContainText('Resolved by');
-  await page.reload();
-  const after = page.getByRole('article').filter({ hasText: 'Resolved by' }).last();
+  await gotoLive(page, page.url());
+  const after = systemCard(page).filter({ hasText: 'Resolved by' }).last();
   await expect(after).toBeVisible({ timeout: 20_000 });
   await expect(after.getByRole('button', { name: 'Kick' })).toHaveCount(0);
   await expect(after.getByRole('combobox')).toHaveCount(0);
@@ -106,15 +155,15 @@ test('staff offer card: Decline reaches the server and the buttons stay gone aft
 
   const dm = await systemDm(b.context.request);
   const page = b.page;
-  await page.goto(`/channels/@me/${dm}`);
+  await gotoLive(page, `/channels/@me/${dm}`);
   const card = cardWith(page, 'Decline');
   await expect(card).toContainText('Staff appointment', { timeout: 20_000 });
   await expect(card.getByRole('button', { name: 'Accept' })).toBeVisible();
   await card.getByRole('button', { name: 'Decline' }).click();
   await expect(card.getByRole('button', { name: 'Decline' })).toHaveCount(0, { timeout: 15_000 });
 
-  await page.reload();
-  const after = page.getByRole('article').filter({ hasText: 'Staff appointment' }).last();
+  await gotoLive(page, page.url());
+  const after = systemCard(page).filter({ hasText: 'Staff appointment' }).last();
   await expect(after).toContainText('You declined this offer.', { timeout: 20_000 });
   await expect(after.getByRole('button', { name: 'Accept' })).toHaveCount(0);
   await expect(after.getByRole('button', { name: 'Decline' })).toHaveCount(0);
@@ -124,16 +173,20 @@ test('tester invitation card: Accept reaches the server and the buttons stay gon
   scenario,
 }) => {
   const { a, b } = await scenario.ownerAndMember();
-  const app = await apiPost<{ id: string }>(a.context.request, '/applications', {
-    name: `Tester card ${Date.now().toString(36)}`,
-  });
+  const { application: app } = await apiPost<{ application: { id: string } }>(
+    a.context.request,
+    '/applications',
+    {
+      name: `Tester card ${Date.now().toString(36)}`,
+    },
+  );
   await apiPost(a.context.request, `/applications/${app.id}/testers`, {
     username: b.user.username,
   });
 
   const dm = await systemDm(b.context.request);
   const page = b.page;
-  await page.goto(`/channels/@me/${dm}`);
+  await gotoLive(page, `/channels/@me/${dm}`);
   const card = cardWith(page, 'Accept');
   await expect(card).toContainText('Tester invitation', { timeout: 20_000 });
   await card.getByRole('button', { name: 'Accept' }).click();
@@ -145,8 +198,8 @@ test('tester invitation card: Accept reaches the server and the buttons stay gon
   );
   expect(testers.find((t) => t.user_id === b.user.id)?.state).toBe('accepted');
 
-  await page.reload();
-  const after = page.getByRole('article').filter({ hasText: 'Tester invitation' }).last();
+  await gotoLive(page, page.url());
+  const after = systemCard(page).filter({ hasText: 'Tester invitation' }).last();
   await expect(after).toContainText('You accepted this invitation.', { timeout: 20_000 });
   await expect(after.getByRole('button', { name: 'Accept' })).toHaveCount(0);
   await expect(after.getByRole('button', { name: 'Decline' })).toHaveCount(0);
