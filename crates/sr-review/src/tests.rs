@@ -104,12 +104,16 @@ impl SubmissionKind for FakeKind {
 }
 
 #[derive(Default)]
-struct Sink(Mutex<Vec<(Vec<i64>, Value)>>);
+struct Sink(Mutex<Vec<(Vec<i64>, Value)>>, Mutex<Vec<(i64, String)>>);
 
 #[async_trait]
 impl ReviewEvents for Sink {
     async fn emit(&self, users: Vec<i64>, payload: Value) {
         self.0.lock().unwrap().push((users, payload));
+    }
+
+    async fn dm(&self, user: i64, text: String) {
+        self.1.lock().unwrap().push((user, text));
     }
 }
 
@@ -1440,6 +1444,21 @@ async fn a_draft_first_seen_after_30_days_is_warned_before_it_is_abandoned() {
         w.svc.get_mine(MEMBER, id).await.unwrap().submission.state,
         SubmissionState::Withdrawn
     );
+}
+
+#[tokio::test]
+async fn a_decision_sends_the_submitter_a_system_dm_with_the_reviewer_note() {
+    let w = world();
+    let id = in_review(&w, reviewer(REVIEWER)).await;
+    w.svc
+        .reject(reviewer(REVIEWER), id, reason("not allowed"))
+        .await
+        .unwrap();
+    let dms = w.sink.1.lock().unwrap().clone();
+    assert_eq!(dms.len(), 1, "{dms:?}");
+    assert_eq!(dms[0].0, MEMBER);
+    assert!(dms[0].1.contains("was not accepted"), "{}", dms[0].1);
+    assert!(dms[0].1.contains("not allowed"), "{}", dms[0].1);
 }
 
 #[tokio::test]
