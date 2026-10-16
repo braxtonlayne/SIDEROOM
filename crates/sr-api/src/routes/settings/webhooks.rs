@@ -598,7 +598,7 @@ pub struct ExecuteWebhookBody {
         ("webhook_id" = String, Path, description = "Webhook snowflake"),
         ("token" = String, Path, description = "Execution token"),
         ("wait" = Option<bool>, Query, description = "Return the created message"),
-        ("thread_id" = Option<String>, Query, description = "Not supported yet"),
+        ("thread_id" = Option<String>, Query, description = "A thread of the webhook's channel to post into"),
     ),
     request_body = ExecuteWebhookBody,
     responses(
@@ -631,15 +631,40 @@ pub async fn execute_webhook(
         return Ok(resp);
     }
     let w = authed(&deps, &webhook_id, &token).await?;
-    if q.thread_id.is_some() {
-        return Err(MsgError::from(HttpError(
-            sr_core::ApiError::invalid_form().field(
-                "thread_id",
-                "NOT_SUPPORTED",
-                "Threads are not available yet.",
-            ),
-        )));
-    }
+    // DEV-BOT-006: `?thread_id=` posts into a thread of the webhook's channel.
+    let target = match q.thread_id.as_deref() {
+        None => w.channel_id,
+        Some(raw) => {
+            let bad = || {
+                MsgError::from(invalid(
+                    "thread_id",
+                    "CHANNEL_INVALID",
+                    "That is not a thread of this webhook's channel.",
+                ))
+            };
+            let tid: ChannelId = raw
+                .parse::<u64>()
+                .ok()
+                .filter(|v| *v > 0)
+                .map(ChannelId::new)
+                .ok_or_else(bad)?;
+            let thread = messages
+                .repo
+                .get_channel(tid)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "thread lookup failed");
+                    MsgError::from(ErrorCode::SrInternal)
+                })?
+                .filter(|c| {
+                    c.kind.is_thread()
+                        && c.parent_id == Some(w.channel_id)
+                        && c.guild_id == Some(w.guild_id)
+                })
+                .ok_or_else(bad)?;
+            thread.id
+        }
+    };
     let shown_as = webhook_display(
         &w.name,
         body.username.as_deref(),
@@ -672,7 +697,7 @@ pub async fn execute_webhook(
     let msg = messages
         .send(
             author,
-            w.channel_id,
+            target,
             SendMessage {
                 content,
                 embeds,
@@ -700,7 +725,7 @@ pub async fn execute_webhook(
     messages
         .publish(DomainEvent::MessageSent {
             guild: msg.guild_id,
-            channel: w.channel_id,
+            channel: target,
             message_id: msg.id.get(),
             author,
             data,

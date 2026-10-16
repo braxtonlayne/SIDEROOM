@@ -798,9 +798,17 @@ describe('documentation hub', () => {
     expect(screen.getByText(/no public status page/)).toBeInTheDocument();
   });
 
-  it('is honest that interactions are gateway only', async () => {
+  it('explains both ways of receiving interactions', async () => {
     openAt('/developers/docs/interactions');
-    expect(await screen.findByText(/no HTTP interactions endpoint yet/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/interactions endpoint URL in the General tab/),
+    ).toBeInTheDocument();
+  });
+
+  it('has pages for the bot SDKs and for porting from Discord', async () => {
+    openAt('/developers/docs/sdks');
+    expect(await screen.findByRole('heading', { name: 'Rust: sr-sdk' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'TypeScript: @sideroom/bot' })).toBeInTheDocument();
   });
 
   it('handles an unknown page', async () => {
