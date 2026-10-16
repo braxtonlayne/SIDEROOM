@@ -252,8 +252,9 @@ pub async fn create_emoji(
     put(&messages, &key, data).await?;
     let e = match deps
         .apps
-        .add_app_emoji(
+        .add_app_emoji_as(
             owner,
+            p.user_id,
             app,
             sr_apps::service::NewAppEmoji {
                 id,
@@ -297,7 +298,7 @@ pub async fn rename_emoji(
     let owner = emoji_owner(&p, &deps, app).await?;
     let e = deps
         .apps
-        .rename_app_emoji(owner, app, id, &body.name)
+        .rename_app_emoji_as(owner, p.user_id, app, id, &body.name)
         .await
         .map_err(app_err)?;
     Ok(Json(emoji_object(&state, &cdn, &e)?))
@@ -321,7 +322,7 @@ pub async fn delete_emoji(
     let owner = emoji_owner(&p, &deps, app).await?;
     let e = deps
         .apps
-        .delete_app_emoji(owner, app, id)
+        .delete_app_emoji_as(owner, p.user_id, app, id)
         .await
         .map_err(app_err)?;
     // The row is gone; a failed image delete only leaves an orphan object.
