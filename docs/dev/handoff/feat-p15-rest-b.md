@@ -45,3 +45,10 @@ environment problem in the other worktree: a stale or incomplete `node_modules` 
 ## Open owner questions
 - Should XC-TEST-001 (Garage bucket helper) and XC-CI-005 be closed as won't build?
 - Should Discord relink to a different account ever be allowed after an unlink (support request), and by whom?
+
+## Resume here
+- firstpaint test: passes 12/12 on the untouched base here (with and without the wasm build); not a code bug, likely a stale install or load in the other worktree (see above). Nothing to fix.
+- Done and ticked: see "Done" above. All committed, `git status` clean. Scratch DB `sr_rb_scratch` dropped; no processes left running.
+- Gates passed: tsc, eslint, prettier --check (web); vitest for the touched web directories (settings/user, lounge/voice, voice, activities, cinema/player, library, firstpaint); cargo fmt --check and clippy -D warnings for sr-api, sr-auth, sr-db; `routes::auth::tests::discord*` (7), route_matrix (5), `sr-db --test p15_rest_b` on a scratch DB.
+- NOT yet run (do these next, in this order, one at a time): (1) full `vitest run --maxWorkers=2` in apps/web (checks the i18n key guard, logical-CSS guard and the `openapi_names` / mocks checks); (2) `pnpm --filter @sideroom/api-client mocks:check`; (3) web build + `node scripts/check-bundle-budget.mjs`; (4) `cargo test -j 2 -p sr-api --lib` full (includes openapi_names, KNOWN_CLASHES must stay empty); (5) `cargo test -p sr-auth`.
+- Half-done: nothing partial in the code. VOX-UI-003 stays open (per-tile connection quality). Unstarted: the items listed under "Still open".
