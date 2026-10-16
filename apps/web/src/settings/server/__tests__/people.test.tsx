@@ -1,4 +1,6 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
+import { createAppRouter } from '../../../router';
 import userEvent from '@testing-library/user-event';
 import {
   capture,
@@ -306,5 +308,60 @@ describe('Bans', () => {
     fail = false;
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('No bans')).toBeInTheDocument();
+  });
+});
+
+describe('Members: join source and signals (H-37, LNG-SSET-027)', () => {
+  it('shows how members joined and their signals to managers, and filters on unusual activity', async () => {
+    seed({ perms: [MANAGE.guild, MANAGE.kick] });
+    const urls: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      if (request.url.includes('/guilds/g1/members?')) urls.push(new URL(request.url).search);
+    });
+    server.use(
+      http.get('*/api/v1/guilds/:gid/members', ({ request }) => {
+        const flagged = new URL(request.url).searchParams.get('signals') === 'true';
+        const all = [
+          memberObj('1', 'me', ['mine'], { sr_join: { source: 'creator' }, sr_signals: [] }),
+          memberObj('2', 'bob', ['low'], {
+            sr_join: { source: 'invite', invite_code: 'abc123', inviter_id: '1' },
+            sr_signals: [],
+          }),
+          memberObj('3', 'carol', ['mod'], {
+            sr_join: { source: 'directory' },
+            sr_signals: ['new_account', 'rejoined'],
+          }),
+        ];
+        return HttpResponse.json(flagged ? all.filter((m) => m.sr_signals.length) : all);
+      }),
+    );
+    // Not openSettings: its base handlers would answer the member list ahead of this one.
+    server.use(http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 't' })));
+    render(
+      <RouterProvider
+        router={createAppRouter(
+          createMemoryHistory({ initialEntries: ['/settings/server/g1/members'] }),
+        )}
+      />,
+    );
+    expect(await screen.findByText('3 members', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(within(row('bob')).getByText('Invite abc123')).toBeInTheDocument();
+    expect(within(row('carol')).getByText('Server Directory')).toBeInTheDocument();
+    expect(within(row('carol')).getByText('New account')).toBeInTheDocument();
+    expect(within(row('carol')).getByText('Rejoined')).toBeInTheDocument();
+    expect(screen.getByText('Created the server')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByLabelText('Unusual activity only'));
+    await waitFor(() => expect(screen.getByText('1 member')).toBeInTheDocument());
+    expect(urls.at(-1)).toContain('signals=true');
+    expect(screen.queryByText('bob')).toBeNull();
+  });
+
+  it('leaves the columns and the filter out without MANAGE_GUILD', async () => {
+    seed({ perms: [MANAGE.kick] });
+    await openSettings('members');
+    expect(await screen.findByText('3 members')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Joined via' })).toBeNull();
+    expect(screen.queryByLabelText('Unusual activity only')).toBeNull();
   });
 });
