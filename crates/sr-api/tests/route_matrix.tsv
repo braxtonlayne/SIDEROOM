@@ -411,6 +411,7 @@ GET	/tv/channels/{channel_id}/live/v/{file}	authenticated	membership	allow	-
 GET	/tv/channels/{channel_id}/now	authenticated	membership	allow	-
 GET	/tv/channels/{channel_id}/tune	authenticated	membership	allow	-
 GET	/tv/guide	authenticated	user	allow	-
+GET	/tv/reminders	authenticated	self	deny	-
 GET	/tv/timezones	authenticated	user	allow	-
 GET	/users/@me	authenticated	self	allow	identify
 GET	/users/@me/age-confirmation	authenticated	self	deny	-
@@ -738,6 +739,7 @@ PUT	/admin/donations/wallet	authenticated	staff	deny	-
 PUT	/admin/entrance/copy/{key}	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
 PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
+PUT	/admin/library/chapters/{chapter_id}/pages/{index}	authenticated	staff	deny	-
 PUT	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
 PUT	/admin/library/series/{series_id}	authenticated	staff	deny	-
 PUT	/admin/persons/{person_id}/notes	authenticated	staff	deny	-
@@ -842,5 +844,3 @@ PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-
 #undocumented	/sr/auth/verify-email/resend
 #undocumented	/sr/register
 #undocumented	/sr/usernames/check
-PUT	/admin/library/chapters/{chapter_id}/pages/{index}	authenticated	staff	deny	-
-GET	/tv/reminders	authenticated	self	deny	-
