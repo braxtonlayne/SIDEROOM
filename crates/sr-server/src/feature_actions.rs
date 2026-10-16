@@ -40,7 +40,7 @@ use sr_db::social_repo::PgSocialRepo;
 use sr_events::DomainEvent;
 use sr_features::actions::{
     ActionError, ActionResult, AttachmentInfo, ChannelInfo, FeatureActions, GuildInfo, MessageInfo,
-    OutMessage, UserInfo,
+    Occupancy, OutMessage, UserInfo,
 };
 
 /// Content limit of a message (Discord: 2000 characters).
@@ -57,8 +57,8 @@ pub enum VoiceMoveError {
 /// memory, so this cannot be answered from Postgres).
 #[async_trait]
 pub trait VoiceControl: Send + Sync {
-    /// Members connected to `channel`.
-    fn occupants(&self, channel: ChannelId) -> Vec<UserId>;
+    /// Members connected to `channel`, or `Unknown` when other nodes may hold members.
+    fn occupants(&self, channel: ChannelId) -> Occupancy;
     /// Move `user` to `to` as `actor` (a moderator action: checked and announced like one).
     async fn move_member(
         &self,
@@ -69,17 +69,23 @@ pub trait VoiceControl: Send + Sync {
     ) -> Result<(), VoiceMoveError>;
 }
 
-/// The gateway as a [`VoiceControl`].
-pub struct GatewayVoice(pub sr_gateway::Gateway);
+/// The gateway as a [`VoiceControl`]. `single_node` is `EventBus::is_single_node()`: only then is the
+/// gateway's in-memory voice state the whole picture, otherwise occupancy is `Unknown` (H-15).
+pub struct GatewayVoice(pub sr_gateway::Gateway, pub bool);
 
 #[async_trait]
 impl VoiceControl for GatewayVoice {
-    fn occupants(&self, channel: ChannelId) -> Vec<UserId> {
-        self.0
-            .voice_occupants(channel)
-            .into_iter()
-            .map(|s| s.user_id)
-            .collect()
+    fn occupants(&self, channel: ChannelId) -> Occupancy {
+        if !self.1 {
+            return Occupancy::Unknown;
+        }
+        Occupancy::Known(
+            self.0
+                .voice_occupants(channel)
+                .into_iter()
+                .map(|s| s.user_id)
+                .collect(),
+        )
     }
 
     async fn move_member(
@@ -676,12 +682,11 @@ impl FeatureActions for PgFeatureActions {
             .map_err(chat)
     }
 
-    async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Vec<UserId>> {
+    async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Occupancy> {
         Ok(self
             .voice
             .as_ref()
-            .map(|v| v.occupants(channel))
-            .unwrap_or_default())
+            .map_or(Occupancy::Known(Vec::new()), |v| v.occupants(channel)))
     }
 
     async fn move_member(&self, guild: GuildId, user: UserId, to: ChannelId) -> ActionResult<()> {

@@ -9570,6 +9570,113 @@
         ]
       }
     },
+    "/admin/library/chapters/{chapter_id}/pages/{index}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace one page of an image chapter with a new image (`PUBLISH_READING`). The image is converted like\nan archive page (limits, dimensions, crop data, sized variants); the page keeps its position and\ndouble-spread flag, and the page list changes key, so the offline cache and the CBZ export follow.",
+        "operationId": "admin_library_replace_page",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "description": "Page index from 0",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplacePageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chapter"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/library/chapters/{chapter_id}/publish": {
       "post": {
         "tags": [
@@ -49957,6 +50064,42 @@
         ]
       }
     },
+    "/tv/reminders": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The caller's pending reminders, soonest first. A reminder whose programme is gone from the guide is\nlisted with `title: null` until the next tick drops it.",
+        "operationId": "tv_reminders",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvReminderList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/tv/reminders/{block_id}": {
       "put": {
         "tags": [
@@ -49977,7 +50120,7 @@
           {
             "name": "lead_minutes",
             "in": "query",
-            "description": "Minutes before the start (0 to 120, default 5).",
+            "description": "Minutes before the start (0 to 120). Absent: the caller's `tv.reminder_lead_minutes` setting,\nelse 5.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -61208,7 +61351,7 @@
                   "boolean",
                   "null"
                 ],
-                "description": "SIDE ROOM \"Watch party room\" preset (D-208): with a voice channel (`type` 2), also start a persistent\nwatch party bound to it. Needs `sr_watch_party_title_id`; the party survives being empty and the first\nperson to join becomes host."
+                "description": "SIDE ROOM \"Watch party room\" preset (D-208): with a voice channel (`type` 2), also start a persistent\nwatch party bound to it. `sr_watch_party_title_id` is optional (D-227): without it the room starts\nempty (`media: null`); the party survives being empty and the first person to join becomes host and\npicks the media."
               },
               "sr_watch_party_title_id": {
                 "type": [
@@ -73146,6 +73289,19 @@
           }
         }
       },
+      "ReplacePageBody": {
+        "type": "object",
+        "description": "Body of `PUT /admin/library/chapters/{id}/pages/{index}`.",
+        "required": [
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "`data:image/<type>;base64,...`: one PNG, JPEG, WebP, GIF or AVIF image of at most 16 MiB."
+          }
+        }
+      },
       "ReportView": {
         "type": "object",
         "required": [
@@ -78125,6 +78281,61 @@
           }
         }
       },
+      "TvReminder": {
+        "type": "object",
+        "description": "One pending reminder of the caller, joined to the current guide (H-01).",
+        "required": [
+          "block_id",
+          "channel_id",
+          "starts_at",
+          "remind_at",
+          "lead_minutes"
+        ],
+        "properties": {
+          "block_id": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "lead_minutes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Minutes before the start the reminder fires."
+          },
+          "remind_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the reminder fires, Unix milliseconds."
+          },
+          "starts_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Programme start, Unix milliseconds."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The programme title now in the guide; `null` when the block is gone (the next tick drops the\nreminder with a notice)."
+          }
+        }
+      },
+      "TvReminderList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvReminder"
+            }
+          }
+        }
+      },
       "TvReport": {
         "type": "object",
         "required": [
@@ -79452,7 +79663,6 @@
           "id",
           "host_id",
           "binding",
-          "media",
           "playback",
           "settings",
           "participants",
@@ -79497,7 +79707,15 @@
             "description": "The secret of the share link. Only members see it (and only on private parties)."
           },
           "media": {
-            "$ref": "#/components/schemas/WatchPartyMedia"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartyMedia",
+                "description": "What is playing; `null` for an empty watch party room (state idle, D-227)."
+              }
+            ]
           },
           "participants": {
             "type": "array",
@@ -79689,6 +79907,10 @@
               "null"
             ],
             "description": "A guild channel (text or voice) or DM to bind to. Without it the party is private (link only)."
+          },
+          "empty": {
+            "type": "boolean",
+            "description": "An empty watch party room (D-227): no media yet, the first member to join hosts and picks one. Only\na persistent party bound to a server channel can be empty; `title_id` and `tv_channel_id` stay unset."
           },
           "episode_id": {
             "type": [

@@ -721,15 +721,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         media_service
     };
     // Donations (DON-*): watch-only Bitcoin payments, entitlements, and the Patron download perk
-    // on top of them (the legacy `cinema_download_grants` table is a fallback until the cutover).
+    // on top of them (the legacy `cinema_download_grants` fallback is gone, migration 0871).
     let payments = crate::payments_jobs::build(&pool, id_src.clone(), bus.clone()).await;
-    let download_entitlements: Arc<dyn sr_media::downloads::DownloadEntitlements> =
-        Arc::new(sr_db::media_repo::EntitlementDownloads::new(
-            payments.entitlements.clone(),
-            payments
-                .legacy_fallback
-                .then(|| sr_db::media_repo::PgDownloadEntitlements::new(pool.clone())),
-        ));
+    let download_entitlements: Arc<dyn sr_media::downloads::DownloadEntitlements> = Arc::new(
+        sr_db::media_repo::EntitlementDownloads::new(payments.entitlements.clone()),
+    );
     let download_service = Arc::new(sr_media::downloads::DownloadService::new(
         media_repo.clone(),
         media_repo.clone(),
@@ -893,6 +889,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // The event clock reads voice occupancy and stage instances from the gateway (G-91).
     settings_deps.set_event_world(Arc::new(crate::events_jobs::GatewayEventWorld(
         gateway.clone(),
+        bus.is_single_node(),
     )));
     gateway_presence.attach(gateway.clone());
     temporary_members.attach(gateway.clone());
@@ -1092,6 +1089,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             )
             .with_voice(Arc::new(crate::feature_actions::GatewayVoice(
                 gateway.clone(),
+                bus.is_single_node(),
             ))),
         ),
         state: Arc::new(crate::features_store::PgFeatureState::new(pool.clone())),
@@ -1251,6 +1249,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }
     });
 
+    // Jobs a crashed node left `running` go back to the queue now, and hourly (H-15).
+    if let Err(e) = crate::jobs::reap_stale_jobs(&pool).await {
+        tracing::warn!(error = %e, "could not reap stale jobs at startup");
+    }
     let (job_tx, job_rx) = watch::channel(false);
     let runner = crate::jobs::register(
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
@@ -1260,6 +1262,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
+    let runner = crate::jobs::register_reap(runner, &pool);
     let runner = crate::jobs::register_insights(runner, &pool);
     let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
@@ -1297,6 +1300,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
+    crate::jobs::schedule_reap(&pool).await?;
     crate::jobs::schedule_insights(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;

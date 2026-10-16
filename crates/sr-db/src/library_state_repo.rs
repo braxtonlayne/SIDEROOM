@@ -633,6 +633,71 @@ impl UploadRepository for PgLibraryRepo {
         Ok(())
     }
 
+    async fn export_touch(&self, chapter: i64, key: &str) -> LibraryResult<()> {
+        sqlx::query(
+            "INSERT INTO library_export_cache (export_key, chapter_id) VALUES ($1, $2) \
+             ON CONFLICT (export_key) DO UPDATE SET last_read_at = now()",
+        )
+        .bind(key)
+        .bind(chapter)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn export_adopt(&self, keys: &[String]) -> LibraryResult<u64> {
+        // `library/exports/{chapter}/{fingerprint}.cbz`; a key that does not parse is not ours.
+        let mut rows: Vec<(String, i64)> = Vec::new();
+        for k in keys {
+            if let Some(id) = k
+                .strip_prefix("library/exports/")
+                .and_then(|r| r.split('/').next())
+                .and_then(|c| c.parse::<i64>().ok())
+            {
+                rows.push((k.clone(), id));
+            }
+        }
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let (ks, cs): (Vec<String>, Vec<i64>) = rows.into_iter().unzip();
+        let done = sqlx::query(
+            "INSERT INTO library_export_cache (export_key, chapter_id) \
+             SELECT * FROM unnest($1::text[], $2::bigint[]) ON CONFLICT (export_key) DO NOTHING",
+        )
+        .bind(&ks)
+        .bind(&cs)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(done.rows_affected())
+    }
+
+    async fn exports_idle(&self, before_ms: i64, limit: u32) -> LibraryResult<Vec<String>> {
+        sqlx::query_scalar(
+            "SELECT export_key FROM library_export_cache \
+             WHERE last_read_at < to_timestamp($1::float8 / 1000.0) ORDER BY last_read_at LIMIT $2",
+        )
+        .bind(before_ms)
+        .bind(i64::from(limit))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn exports_forget(&self, keys: &[String]) -> LibraryResult<u64> {
+        if keys.is_empty() {
+            return Ok(0);
+        }
+        let done = sqlx::query("DELETE FROM library_export_cache WHERE export_key = ANY($1)")
+            .bind(keys)
+            .execute(&self.pool)
+            .await
+            .map_err(db)?;
+        Ok(done.rows_affected())
+    }
+
     async fn gc_due(&self, before_ms: i64, limit: u32) -> LibraryResult<Vec<String>> {
         // Queued objects that a page, cover, source or live upload still points at are dropped
         // from the queue instead of being deleted (a re-ingest may have reused a key).

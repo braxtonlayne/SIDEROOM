@@ -691,6 +691,7 @@ mod events_clock {
             VoiceView {
                 occupants: self.occupants.lock().unwrap().iter().copied().collect(),
                 live_stages: self.live.lock().unwrap().iter().copied().collect(),
+                ..VoiceView::default()
             }
         }
         async fn start_stage(

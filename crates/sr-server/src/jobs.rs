@@ -471,6 +471,43 @@ pub async fn schedule_audit_purge(pool: &PgPool) -> DbResult<()> {
     Ok(())
 }
 
+/// Reserved singleton id for `jobs.reap`.
+pub const REAP_JOB_ID: i64 = 6;
+/// Kind of the hourly return of crashed jobs to the queue (H-15).
+pub const REAP_KIND: &str = "jobs.reap";
+const REAP_INTERVAL: Duration = Duration::from_secs(3600);
+/// A job `running` longer than this belongs to a crashed worker.
+pub const REAP_THRESHOLD: Duration = Duration::from_secs(30 * 60);
+
+/// Return jobs left `running` by a crashed node to the queue, logging each one.
+pub async fn reap_stale_jobs(pool: &PgPool) -> DbResult<usize> {
+    let reaped = jobs::reap_stale(pool, REAP_THRESHOLD).await?;
+    for (id, kind) in &reaped {
+        tracing::warn!(job_id = id, kind = %kind, "returned a stale running job to the queue");
+    }
+    Ok(reaped.len())
+}
+
+async fn reap_handler(pool: PgPool, job: Job) -> Result<(), HandlerError> {
+    reap_stale_jobs(&pool).await?;
+    jobs::reschedule_running(&pool, job.id, REAP_INTERVAL).await?;
+    Ok(())
+}
+
+/// Register the hourly `jobs.reap` singleton on `runner`. Pair with [`schedule_reap`].
+pub fn register_reap(runner: JobRunner, pool: &PgPool) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(REAP_KIND, 1, move |job| {
+        Box::pin(reap_handler(pool.clone(), job))
+    })
+}
+
+/// Create or re-arm the reap singleton. Call only when [`register_reap`] is on the runner.
+pub async fn schedule_reap(pool: &PgPool) -> DbResult<()> {
+    jobs::schedule_singleton(pool, REAP_JOB_ID, REAP_KIND, &json!({}), REAP_INTERVAL).await?;
+    Ok(())
+}
+
 /// Reserved singleton id for `insights.daily`.
 pub const INSIGHTS_JOB_ID: i64 = 630;
 /// Kind of the daily Server Insights computation (LNG-SSET-068).

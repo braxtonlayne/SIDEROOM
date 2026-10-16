@@ -37,6 +37,10 @@ pub const UPLOAD_EXPIRY_MS: i64 = 24 * 60 * 60 * 1000;
 pub const GC_GRACE_MS: i64 = 10 * 60 * 1000;
 /// Most queued objects handled per sweep.
 pub const GC_BATCH: u32 = 500;
+/// A cached export nobody downloaded for this long is deleted (it is rebuilt on demand).
+pub const EXPORT_IDLE_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+/// Prefix of the cached chapter exports in the object store.
+pub const EXPORT_PREFIX: &str = "library/exports/";
 /// Default largest upload.
 pub const DEFAULT_MAX_UPLOAD_MB: u64 = 512;
 
@@ -154,6 +158,23 @@ pub trait UploadRepository: Send + Sync {
     async fn gc_due(&self, before_ms: i64, limit: u32) -> LibraryResult<Vec<String>>;
     /// Remove collected keys from the queue.
     async fn gc_done(&self, keys: &[String]) -> LibraryResult<u64>;
+    /// Record that the cached export `key` of `chapter` was just served or built (H-18).
+    async fn export_touch(&self, _chapter: i64, _key: &str) -> LibraryResult<()> {
+        Ok(())
+    }
+    /// Start tracking export objects found in the store that have no row yet (built before the
+    /// index existed), as read now. Returns how many were new.
+    async fn export_adopt(&self, _keys: &[String]) -> LibraryResult<u64> {
+        Ok(0)
+    }
+    /// Cached exports not read since `before_ms`.
+    async fn exports_idle(&self, _before_ms: i64, _limit: u32) -> LibraryResult<Vec<String>> {
+        Ok(Vec::new())
+    }
+    /// Forget collected exports.
+    async fn exports_forget(&self, _keys: &[String]) -> LibraryResult<u64> {
+        Ok(0)
+    }
 }
 
 /// What one collector sweep did.
@@ -163,9 +184,11 @@ pub struct GcReport {
     pub uploads_expired: u64,
     /// Objects whose deletion failed and stay queued.
     pub failed: u64,
+    /// Cached chapter exports deleted because nobody read them for [`EXPORT_IDLE_MS`].
+    pub exports_deleted: u64,
 }
 
-fn wiring(s: &LibraryService) -> LibraryResult<&IngestWiring> {
+pub(crate) fn wiring(s: &LibraryService) -> LibraryResult<&IngestWiring> {
     s.ingest
         .as_ref()
         .ok_or_else(|| LibraryError::Conflict("uploads are not available on this server".into()))
@@ -834,6 +857,33 @@ impl LibraryService {
             }
         }
         report.objects_deleted = self.repo.gc_done(&done).await?;
+
+        // Cached chapter exports: adopt any the index has not seen (the store listing is the
+        // fallback for exports built before it existed), then delete the ones idle for 7 days.
+        match w.storage.list(EXPORT_PREFIX).await {
+            Ok(found) => {
+                let keys: Vec<String> = found.into_iter().map(|o| o.key).collect();
+                for chunk in keys.chunks(500) {
+                    self.repo.export_adopt(chunk).await?;
+                }
+            }
+            Err(e) => tracing::warn!(error = %e, "listing cached library exports failed"),
+        }
+        let idle = self
+            .repo
+            .exports_idle(now - EXPORT_IDLE_MS, GC_BATCH)
+            .await?;
+        let mut gone = Vec::with_capacity(idle.len());
+        for key in idle {
+            match w.storage.delete(&key).await {
+                Ok(()) | Err(sr_storage::StorageError::NotFound(_)) => gone.push(key),
+                Err(e) => {
+                    report.failed += 1;
+                    tracing::warn!(key, error = %e, "deleting an idle library export failed; retrying later");
+                }
+            }
+        }
+        report.exports_deleted = self.repo.exports_forget(&gone).await?;
         Ok(report)
     }
 }

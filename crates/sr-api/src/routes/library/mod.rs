@@ -484,6 +484,12 @@ pub fn router() -> Router<AppState> {
             get(admin::pages).put(admin::replace_pages),
         )
         .route(
+            "/admin/library/chapters/{chapter_id}/pages/{index}",
+            axum::routing::put(admin::replace_page).layer(axum::extract::DefaultBodyLimit::max(
+                admin::REPLACE_PAGE_BODY_LIMIT,
+            )),
+        )
+        .route(
             "/admin/library/chapters/{chapter_id}/uploads",
             get(uploads::list).post(uploads::begin),
         )
@@ -593,6 +599,7 @@ pub fn router() -> Router<AppState> {
         admin::unpublish_chapter,
         admin::pages,
         admin::replace_pages,
+        admin::replace_page,
         uploads::begin,
         uploads::complete,
         uploads::status,
@@ -653,6 +660,7 @@ pub fn router() -> Router<AppState> {
         sr_library::model::ChapterProgress,
         sr_library::model::ChapterList,
         sr_library::model::PageInput,
+        admin::ReplacePageBody,
         sr_library::model::PageVariant,
         sr_library::model::PageEntry,
         sr_library::model::PageManifest,

@@ -233,6 +233,7 @@ async fn parties_run_on_the_real_catalog_and_chat_data() {
             clock.clone(),
         )));
     let create = |title: i64, channel: Option<i64>| CreateInput {
+        empty: false,
         title_id: title,
         tv_channel_id: None,
         episode_id: None,
@@ -262,7 +263,7 @@ async fn parties_run_on_the_real_catalog_and_chat_data() {
         .create(v(member).await, create(akira, Some(voice)))
         .await
         .unwrap();
-    assert_eq!(party.media.asset_id, 8001);
+    assert_eq!(party.media.as_ref().unwrap().asset_id, 8001);
     assert_eq!(party.guild_id, Some(guild));
     // The owner joins from the channel; the stranger cannot.
     svc.join(v(owner).await, party.id, JoinInput::default())
@@ -387,6 +388,7 @@ async fn rig(n: usize, limits: Option<Arc<dyn sr_watchparty::GuildLimits>>) -> R
 
 fn create(title: i64, channel: i64, persistent: bool) -> CreateInput {
     CreateInput {
+        empty: false,
         title_id: title,
         tv_channel_id: None,
         episode_id: None,

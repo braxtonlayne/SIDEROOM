@@ -153,13 +153,20 @@ async fn gc_handler(pool: PgPool, library: LibraryService, job: Job) -> Result<(
         .run_gc()
         .await
         .map_err(|e| -> HandlerError { Box::new(std::io::Error::other(e.to_string())) })?;
-    if report.objects_deleted > 0 || report.uploads_expired > 0 {
+    if report.objects_deleted > 0 || report.uploads_expired > 0 || report.exports_deleted > 0 {
         tracing::info!(
             deleted = report.objects_deleted,
             expired = report.uploads_expired,
+            exports = report.exports_deleted,
             failed = report.failed,
             "library storage swept"
         );
+    }
+    // Reading presence rows whose heartbeat lapsed (H-18).
+    match sr_library_social::presence::sweep_expired_presence(&pool).await {
+        Ok(n) if n > 0 => tracing::debug!(rows = n, "expired reading presence swept"),
+        Ok(_) => {}
+        Err(e) => tracing::warn!(error = %e, "sweeping reading presence failed"),
     }
     jobs::reschedule_running(&pool, job.id, GC_INTERVAL).await?;
     Ok(())

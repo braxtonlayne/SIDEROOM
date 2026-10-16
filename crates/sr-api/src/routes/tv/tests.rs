@@ -859,8 +859,27 @@ async fn reminders_are_set_and_cleared_by_a_session() {
         )
         .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
+    // H-01: the list shows the pending reminder (the last PUT set lead 15), only for its owner.
+    let (s, _) = e.call(None, Method::GET, "/tv/reminders", None).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let (s, list) = e
+        .call(Some(MEMBER), Method::GET, "/tv/reminders", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    assert_eq!(list["items"].as_array().unwrap().len(), 1);
+    assert_eq!(list["items"][0]["block_id"], next.as_str());
+    assert_eq!(list["items"][0]["lead_minutes"], 15);
+    assert!(list["items"][0]["title"].is_string());
+    let (_, other) = e
+        .call(Some(ADULT), Method::GET, "/tv/reminders", None)
+        .await;
+    assert!(other["items"].as_array().unwrap().is_empty());
     let (s, _) = e.call(Some(MEMBER), Method::DELETE, &path, None).await;
     assert_eq!(s, StatusCode::NO_CONTENT);
     let (s, _) = e.call(Some(MEMBER), Method::DELETE, &path, None).await;
     assert_eq!(s, StatusCode::NO_CONTENT, "clearing twice is fine");
+    let (_, list) = e
+        .call(Some(MEMBER), Method::GET, "/tv/reminders", None)
+        .await;
+    assert!(list["items"].as_array().unwrap().is_empty());
 }

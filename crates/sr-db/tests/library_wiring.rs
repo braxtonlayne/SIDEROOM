@@ -1556,6 +1556,164 @@ async fn a_chapter_export_is_a_cbz_of_the_pages_cached_by_page_list() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn one_page_is_replaced_in_place_keeping_position_and_spread() {
+    let w = world().await;
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 36.0, 3).await;
+    w.publish_series(s).await;
+    // Page 2 is a marked spread; the others are plain.
+    let mut list = pages(s, c, 3);
+    list[1].is_double_spread = true;
+    w.svc.replace_pages(w.publisher, c, list).await.unwrap();
+    let before = w.svc.admin_page_manifest(w.publisher, c).await.unwrap();
+    let export_before = {
+        for i in 0..3 {
+            w.storage
+                .put(
+                    &format!("library/{s}/{c}/{i:04}.webp"),
+                    Bytes::from(vec![i as u8; 10]),
+                )
+                .await
+                .unwrap();
+        }
+        w.svc.export_chapter(w.member, c).await.unwrap().url
+    };
+
+    let after = w
+        .svc
+        .replace_page(w.publisher, c, 1, png(900, 1300, 9))
+        .await
+        .unwrap();
+    assert_eq!(after.page_count, 3, "the page count is unchanged");
+    let m = w.svc.admin_page_manifest(w.publisher, c).await.unwrap();
+    assert_eq!(m.pages.len(), 3);
+    // Same position, spread flag kept, new converted dimensions and variants.
+    assert!(m.pages[1].is_double_spread);
+    assert_eq!((m.pages[1].width, m.pages[1].height), (900, 1300));
+    assert!(m.pages[1].blurhash.is_some());
+    assert!(!m.pages[1].variants.is_empty());
+    assert_ne!(
+        m.pages[1].url, before.pages[1].url,
+        "a new object, not an overwrite"
+    );
+    for i in [0, 2] {
+        assert_eq!(
+            m.pages[i].url, before.pages[i].url,
+            "other pages are untouched"
+        );
+    }
+    // The old page objects are queued for collection; the export fingerprint changed with the keys.
+    assert!(w.gc_queue(&format!("library/{s}/{c}/0001.webp")).await);
+    let export_after = w.svc.export_chapter(w.member, c).await.unwrap().url;
+    assert_ne!(
+        export_before.split('?').next(),
+        export_after.split('?').next()
+    );
+
+    // Bad input is refused: an index past the end, not an image, and a publisher is needed.
+    assert!(matches!(
+        w.svc.replace_page(w.publisher, c, 3, png(10, 10, 1)).await,
+        Err(LibraryError::NotFound(_))
+    ));
+    assert!(matches!(
+        w.svc
+            .replace_page(w.publisher, c, 0, b"not an image".to_vec())
+            .await,
+        Err(LibraryError::Invalid(_))
+    ));
+    assert!(
+        w.svc
+            .replace_page(
+                Actor {
+                    permissions: P::empty(),
+                    ..w.publisher
+                },
+                c,
+                0,
+                png(10, 10, 1)
+            )
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_collector_deletes_exports_nobody_read_for_a_week_and_adopts_strays() {
+    let w = world().await;
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 36.0, 2).await;
+    w.publish_series(s).await;
+    for i in 0..2 {
+        w.storage
+            .put(
+                &format!("library/{s}/{c}/{i:04}.webp"),
+                Bytes::from(vec![i as u8; 10]),
+            )
+            .await
+            .unwrap();
+    }
+    let export = w.svc.export_chapter(w.member, c).await.unwrap();
+    let key = export
+        .url
+        .split("/cdn/")
+        .nth(1)
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap()
+        .to_owned();
+    // Building it recorded a read; a fresh export survives the sweep.
+    let rows = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM library_export_cache WHERE export_key = $1",
+        )
+        .bind(&key)
+        .fetch_one(&w.pool)
+        .await
+        .unwrap()
+    };
+    assert_eq!(rows().await, 1);
+    w.svc.run_gc().await.unwrap();
+    assert!(w.exists(&key).await);
+
+    // A stray from before the index existed is adopted as read now, not deleted.
+    let stray = format!("library/exports/{c}/00000000deadbeef.cbz");
+    w.storage
+        .put(&stray, Bytes::from_static(b"zip"))
+        .await
+        .unwrap();
+    let r = w.svc.run_gc().await.unwrap();
+    assert_eq!(r.exports_deleted, 0);
+    assert!(w.exists(&stray).await);
+
+    // Serving it again refreshes the read; 8 idle days make the sweep delete it.
+    sqlx::query("UPDATE library_export_cache SET last_read_at = now() - interval '8 days' WHERE export_key = ANY($1)")
+        .bind(vec![key.clone(), stray.clone()])
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    w.svc.export_chapter(w.member, c).await.unwrap();
+    let r = w.svc.run_gc().await.unwrap();
+    assert_eq!(r.exports_deleted, 1, "only the stray was idle: {r:?}");
+    assert!(w.exists(&key).await, "a read keeps the export");
+    assert!(!w.exists(&stray).await);
+    sqlx::query("UPDATE library_export_cache SET last_read_at = now() - interval '8 days' WHERE export_key = $1")
+        .bind(&key)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    let r = w.svc.run_gc().await.unwrap();
+    assert_eq!(r.exports_deleted, 1);
+    assert!(!w.exists(&key).await);
+    assert_eq!(rows().await, 0);
+    // It is rebuilt on demand.
+    assert!(w.svc.export_chapter(w.member, c).await.is_ok());
+    assert!(w.exists(&key).await);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn a_multipart_upload_is_remembered_resumed_and_completed() {
     use sr_library::{MemoryPartStore, MultipartWiring};
     let w = world().await;

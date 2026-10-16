@@ -277,7 +277,8 @@ pub async fn create_channel(
 struct RoomRequest {
     deps: Arc<WatchPartyDeps>,
     user: i64,
-    title_id: i64,
+    /// `None`: an empty room (D-227).
+    title_id: Option<i64>,
     episode_id: Option<i64>,
 }
 
@@ -300,21 +301,24 @@ fn room_request(
             .filter(|v| *v > 0)
             .ok_or_else(|| invalid(field, "NUMBER_TYPE_COERCE", "Not a valid snowflake."))
     };
-    let title_id = match body.sr_watch_party_title_id.as_deref() {
-        Some(raw) => snowflake("sr_watch_party_title_id", raw)?,
-        None => {
-            return Err(invalid(
-                "sr_watch_party_title_id",
-                "BASE_TYPE_REQUIRED",
-                "A watch party room starts with a title.",
-            ));
-        }
-    };
+    // D-227: the title is optional; without one the room starts empty and its first host picks the media.
+    let title_id = body
+        .sr_watch_party_title_id
+        .as_deref()
+        .map(|raw| snowflake("sr_watch_party_title_id", raw))
+        .transpose()?;
     let episode_id = body
         .sr_watch_party_episode_id
         .as_deref()
         .map(|raw| snowflake("sr_watch_party_episode_id", raw))
         .transpose()?;
+    if title_id.is_none() && episode_id.is_some() {
+        return Err(invalid(
+            "sr_watch_party_episode_id",
+            "BASE_TYPE_REQUIRED",
+            "An episode needs sr_watch_party_title_id.",
+        ));
+    }
     // People only: a bot has no account to host a party for.
     if matches!(p.kind, crate::AuthKind::Bot { .. }) {
         return Err(sr_core::ErrorCode::BotsCannotUseThisEndpoint.into());
@@ -359,7 +363,8 @@ async fn start_room(room: &RoomRequest, channel: ChannelId) -> Result<(), HttpEr
         .create(
             viewer,
             CreateInput {
-                title_id: room.title_id,
+                empty: room.title_id.is_none(),
+                title_id: room.title_id.unwrap_or(0),
                 tv_channel_id: None,
                 episode_id: room.episode_id,
                 variant_id: None,

@@ -2,8 +2,7 @@
 //! rendition, cached for 7 days and shared between members, or the original when staff allow it.
 //!
 //! * Entitlement: [`DownloadEntitlements`] says who may download and how many times a day. The
-//!   donations work (perks, doc 08) does not exist yet; the Postgres implementation reads the
-//!   `cinema_download_grants` table, which that work (or staff) fills.
+//!   server reads the Patron perk from the donations entitlements (doc 08).
 //! * A request creates a `cinema_downloads` row (that is what the daily limit counts) and, for a
 //!   rendition nobody prepared yet, a `remux` transcode job planned by [`crate::remux`]. The
 //!   workers run it; when it completes the cache entry turns `ready` (see the Postgres job

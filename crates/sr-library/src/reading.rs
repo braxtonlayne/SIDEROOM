@@ -10,7 +10,7 @@ use crate::error::{LibraryError, LibraryResult};
 use crate::model::{Chapter, ChapterRecord, Series, SeriesRecord, id};
 
 pub const MAX_NOTE: usize = 1000;
-pub const MAX_CFI: usize = 2000;
+pub const MAX_CFI: usize = 1024;
 /// Bookmarks one account may keep in one chapter.
 pub const MAX_BOOKMARKS_PER_CHAPTER: i64 = 200;
 /// Gateway event name for Library state changes.

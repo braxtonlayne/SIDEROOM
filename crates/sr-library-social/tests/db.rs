@@ -5,6 +5,7 @@
 
 use std::sync::atomic::{AtomicI64, Ordering};
 
+use serde_json::json;
 use sr_db::{
     PgPool,
     accounts::{self, NewAccount},
@@ -1118,6 +1119,137 @@ async fn reading_presence_goes_to_friends_and_honours_privacy() {
     svc.heartbeat_reading(me, c1).await.unwrap();
     assert!(svc.friends_reading(friend).await.unwrap().items.is_empty());
     assert_eq!(types().last().map(String::as_str), Some("stopped"));
+    e.teardown().await;
+}
+
+async fn set_blob(e: &Env, user: i64, blob: serde_json::Value) {
+    sqlx::query(
+        "INSERT INTO user_settings (user_id, settings) VALUES ($1, $2) \
+         ON CONFLICT (user_id) DO UPDATE SET settings = EXCLUDED.settings",
+    )
+    .bind(user)
+    .bind(blob)
+    .execute(e.pool())
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn reading_presence_follows_library_share_reading() {
+    let e = Env::new().await;
+    let rec = std::sync::Arc::new(Rec::default());
+    let svc = e.svc.clone().with_events(rec.clone());
+    let (me, friend, mate, blocker, stranger) = (
+        e.adult().await,
+        e.user().await,
+        e.user().await,
+        e.user().await,
+        e.user().await,
+    );
+    e.befriend(me.user_id, friend.user_id).await;
+    e.share_server(&[me.user_id, mate.user_id, blocker.user_id])
+        .await;
+    e.block(blocker.user_id, me.user_id).await;
+    let open = e.series("Open", false).await;
+    let spicy = e.series("Spicy", true).await;
+    let (c1, c2) = (e.chapter(open, 1.0).await, e.chapter(spicy, 1.0).await);
+    let audience = || -> Vec<Vec<i64>> {
+        rec.0
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(to, _)| {
+                let mut v = to.clone();
+                v.sort_unstable();
+                v
+            })
+            .collect()
+    };
+    let sorted = |mut v: Vec<i64>| {
+        v.sort_unstable();
+        v
+    };
+
+    // friends (the default): only the friend.
+    svc.heartbeat_reading(me, c1).await.unwrap();
+    assert_eq!(audience(), vec![vec![friend.user_id]]);
+    assert!(svc.friends_reading(mate).await.unwrap().items.is_empty());
+
+    // everyone: the friend and the server mate, never a stranger or someone who blocked the reader.
+    set_blob(
+        &e,
+        me.user_id,
+        json!({"library": {"share_reading": "everyone"}}),
+    )
+    .await;
+    svc.heartbeat_reading(me, c1).await.unwrap();
+    let last = audience().pop().unwrap();
+    assert_eq!(last, sorted(vec![friend.user_id, mate.user_id]));
+    assert_eq!(svc.friends_reading(mate).await.unwrap().items.len(), 1);
+    assert!(
+        svc.friends_reading(stranger)
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    assert!(svc.friends_reading(blocker).await.unwrap().items.is_empty());
+
+    // Age-restricted stays with friends, masked, even at everyone.
+    set_blob(
+        &e,
+        me.user_id,
+        json!({"library": {"share_reading": "everyone"}, "activity": {"hide_age_restricted": false}}),
+    )
+    .await;
+    let before = audience().len();
+    svc.heartbeat_reading(me, c2).await.unwrap();
+    let sent = audience();
+    assert_eq!(sent[before..].last().unwrap(), &vec![friend.user_id]);
+    assert!(svc.friends_reading(mate).await.unwrap().items.is_empty());
+
+    // off: nothing is shared and the presence ends, for the audience it had.
+    set_blob(&e, me.user_id, json!({"library": {"share_reading": "off"}})).await;
+    svc.heartbeat_reading(me, c1).await.unwrap();
+    assert!(svc.friends_reading(friend).await.unwrap().items.is_empty());
+    assert!(svc.friends_reading(mate).await.unwrap().items.is_empty());
+    let stopped = rec.0.lock().unwrap().last().cloned().unwrap();
+    assert_eq!(stopped.1["type"], "stopped");
+    e.teardown().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_presence_sweep_removes_only_lapsed_rows() {
+    let e = Env::new().await;
+    let (a, b) = (e.user().await, e.user().await);
+    let s = e.series("Sweep", false).await;
+    let c = e.chapter(s, 1.0).await;
+    for (u, secs) in [(a.user_id, -60), (b.user_id, 60)] {
+        sqlx::query(
+            "INSERT INTO reading_presence (user_id, series_id, chapter_id, expires_at) \
+             VALUES ($1, $2, $3, now() + make_interval(secs => $4))",
+        )
+        .bind(u)
+        .bind(s)
+        .bind(c)
+        .bind(f64::from(secs))
+        .execute(e.pool())
+        .await
+        .unwrap();
+    }
+    assert_eq!(
+        sr_library_social::presence::sweep_expired_presence(e.pool())
+            .await
+            .unwrap(),
+        1
+    );
+    let left: Vec<i64> = sqlx::query_scalar("SELECT user_id FROM reading_presence")
+        .fetch_all(e.pool())
+        .await
+        .unwrap();
+    assert_eq!(left, vec![b.user_id]);
     e.teardown().await;
 }
 

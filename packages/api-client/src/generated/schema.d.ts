@@ -1833,6 +1833,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/library/chapters/{chapter_id}/pages/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace one page of an image chapter with a new image (`PUBLISH_READING`). The image is converted like
+         *     an archive page (limits, dimensions, crop data, sized variants); the page keeps its position and
+         *     double-spread flag, and the page list changes key, so the offline cache and the CBZ export follow.
+         */
+        put: operations["admin_library_replace_page"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/library/chapters/{chapter_id}/publish": {
         parameters: {
             query?: never;
@@ -9766,6 +9787,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tv/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's pending reminders, soonest first. A reminder whose programme is gone from the guide is
+         *     listed with `title: null` until the next tick drops it.
+         */
+        get: operations["tv_reminders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tv/reminders/{block_id}": {
         parameters: {
             query?: never;
@@ -12779,8 +12820,9 @@ export interface components {
             sr_watch_party_episode_id?: string | null;
             /**
              * @description SIDE ROOM "Watch party room" preset (D-208): with a voice channel (`type` 2), also start a persistent
-             *     watch party bound to it. Needs `sr_watch_party_title_id`; the party survives being empty and the first
-             *     person to join becomes host.
+             *     watch party bound to it. `sr_watch_party_title_id` is optional (D-227): without it the room starts
+             *     empty (`media: null`); the party survives being empty and the first person to join becomes host and
+             *     picks the media.
              */
             sr_watch_party_room?: boolean | null;
             /** @description The title the room starts with (a Cinema title snowflake). */
@@ -16480,6 +16522,11 @@ export interface components {
             /** Format: int32 */
             position: number;
         };
+        /** @description Body of `PUT /admin/library/chapters/{id}/pages/{index}`. */
+        ReplacePageBody: {
+            /** @description `data:image/<type>;base64,...`: one PNG, JPEG, WebP, GIF or AVIF image of at most 16 MiB. */
+            image: string;
+        };
         ReportView: {
             by_day: Record<string, never>[];
             /** @description `[purpose, cents, count]`. */
@@ -17947,6 +17994,34 @@ export interface components {
             /** Format: int32 */
             written: number;
         };
+        /** @description One pending reminder of the caller, joined to the current guide (H-01). */
+        TvReminder: {
+            block_id: string;
+            channel_id: string;
+            /**
+             * Format: int64
+             * @description Minutes before the start the reminder fires.
+             */
+            lead_minutes: number;
+            /**
+             * Format: int64
+             * @description When the reminder fires, Unix milliseconds.
+             */
+            remind_at: number;
+            /**
+             * Format: int64
+             * @description Programme start, Unix milliseconds.
+             */
+            starts_at: number;
+            /**
+             * @description The programme title now in the guide; `null` when the block is gone (the next tick drops the
+             *     reminder with a notice).
+             */
+            title?: string | null;
+        };
+        TvReminderList: {
+            items: components["schemas"]["TvReminder"][];
+        };
         TvReport: {
             channels: components["schemas"]["TvReportChannel"][];
             /** Format: int64 */
@@ -18382,7 +18457,7 @@ export interface components {
             id: string;
             /** @description The secret of the share link. Only members see it (and only on private parties). */
             invite_code?: string | null;
-            media: components["schemas"]["WatchPartyMedia"];
+            media?: null | components["schemas"]["WatchPartyMedia"];
             participants: components["schemas"]["WatchPartyParticipant"][];
             playback: components["schemas"]["WatchPartyPlayback"];
             queue: components["schemas"]["WatchPartyQueueItem"][];
@@ -18451,6 +18526,11 @@ export interface components {
         WatchPartyCreate: {
             /** @description A guild channel (text or voice) or DM to bind to. Without it the party is private (link only). */
             channel_id?: string | null;
+            /**
+             * @description An empty watch party room (D-227): no media yet, the first member to join hosts and picks one. Only
+             *     a persistent party bound to a server channel can be empty; `title_id` and `tv_channel_id` stay unset.
+             */
+            empty?: boolean;
             episode_id?: string | null;
             settings?: null | components["schemas"]["WatchPartySettingsInput"];
             /**
@@ -25012,6 +25092,74 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PageInput"][];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_replace_page: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+                /** @description Page index from 0 */
+                index: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplacePageBody"];
             };
         };
         responses: {
@@ -50747,10 +50895,40 @@ export interface operations {
             };
         };
     };
+    tv_reminders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvReminderList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     tv_reminder_set: {
         parameters: {
             query?: {
-                /** @description Minutes before the start (0 to 120, default 5). */
+                /**
+                 * @description Minutes before the start (0 to 120). Absent: the caller's `tv.reminder_lead_minutes` setting,
+                 *     else 5.
+                 */
                 lead_minutes?: number;
             };
             header?: never;

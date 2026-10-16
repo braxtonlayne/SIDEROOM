@@ -171,6 +171,41 @@ describe('the theatre', () => {
     expect(await screen.findByRole('button', { name: 'Pause for everyone' })).toBeInTheDocument();
   });
 
+  it('an empty room asks its host to pick media and tells the others to wait (H-02)', async () => {
+    api();
+    fake.party = { ...fake.party, media: null };
+    let picked: unknown = null;
+    server.use(
+      http.get('*/api/v1/cinema/search', () =>
+        HttpResponse.json({ titles: [{ id: '10', kind: 'movie', title: 'Akira', year: 1988 }] }),
+      ),
+      http.put('*/api/v1/watch-parties/:id/media', async ({ request }) => {
+        picked = await request.json();
+        fake.party = { ...fake.party, media: MEDIA };
+        return HttpResponse.json({ ...fake.party, playback: fake.view() });
+      }),
+    );
+    const ctx = renderParty();
+    expect(await screen.findByRole('heading', { name: 'Watch party room' })).toBeInTheDocument();
+    const pick = await screen.findByRole('region', { name: 'Pick something to watch' });
+    const found = await axeViolations(ctx.container);
+    expect(found.map((v) => JSON.stringify(v).slice(0, 400))).toEqual([]);
+    expect(ctx.engine.load).not.toHaveBeenCalled();
+    await userEvent.type(within(pick).getByLabelText('Search the cinema'), 'aki');
+    await userEvent.click(await within(pick).findByRole('button', { name: 'Watch Akira' }));
+    await waitFor(() => expect(picked).toMatchObject({ title_id: '10' }));
+    expect(await screen.findByRole('heading', { name: 'Akira' })).toBeInTheDocument();
+    await waitFor(() => expect(ctx.engine.load).toHaveBeenCalled());
+  });
+
+  it('shows a viewer of an empty room that the host is choosing (H-02)', async () => {
+    api({ host: false, control: false });
+    fake.party = { ...fake.party, media: null };
+    renderParty();
+    expect(await screen.findByText('Waiting for the host to pick something.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Search the cinema')).not.toBeInTheDocument();
+  });
+
   it('shows the controls disabled to a viewer, who can raise a hand instead', async () => {
     api({ host: false, control: false });
     renderParty();

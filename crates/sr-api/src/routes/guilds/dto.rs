@@ -684,8 +684,9 @@ pub struct CreateChannelBody {
     #[serde(flatten)]
     pub forum: ForumSettingsBody,
     /// SIDE ROOM "Watch party room" preset (D-208): with a voice channel (`type` 2), also start a persistent
-    /// watch party bound to it. Needs `sr_watch_party_title_id`; the party survives being empty and the first
-    /// person to join becomes host.
+    /// watch party bound to it. `sr_watch_party_title_id` is optional (D-227): without it the room starts
+    /// empty (`media: null`); the party survives being empty and the first person to join becomes host and
+    /// picks the media.
     #[serde(default)]
     pub sr_watch_party_room: Option<bool>,
     /// The title the room starts with (a Cinema title snowflake).

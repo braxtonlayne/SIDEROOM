@@ -601,14 +601,16 @@ impl FakeVoice {
 
 #[async_trait::async_trait]
 impl crate::feature_actions::VoiceControl for FakeVoice {
-    fn occupants(&self, channel: ChannelId) -> Vec<UserId> {
-        self.0
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|(_, c)| **c == channel.get())
-            .map(|(u, _)| UserId::new(*u))
-            .collect()
+    fn occupants(&self, channel: ChannelId) -> sr_features::actions::Occupancy {
+        sr_features::actions::Occupancy::Known(
+            self.0
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(_, c)| **c == channel.get())
+                .map(|(u, _)| UserId::new(*u))
+                .collect(),
+        )
     }
 
     async fn move_member(

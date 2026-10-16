@@ -156,7 +156,12 @@ describe('applying server state', () => {
 
   it('reloads the media when the party switches title', async () => {
     d.load.mockClear();
-    const media = { ...server.party.media, asset_id: '777', title: 'Perfect Blue', title_id: '11' };
+    const media = {
+      ...server.party.media!,
+      asset_id: '777',
+      title: 'Perfect Blue',
+      title_id: '11',
+    };
     server.party = { ...server.party, media };
     server.change({ position_ms: 0, playing: true });
     server.emit('WATCH_PARTY_UPDATE', {

@@ -56,6 +56,9 @@ function Editor({
   useEffect(() => setPages(initial), [initial]);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [replacing, setReplacing] = useState<number | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const target = useRef(0);
   const dirty = pages.length !== initial.length || pages.some((p, i) => p !== initial[i]);
   const move = (i: number, d: -1 | 1) =>
     setPages((cur) => {
@@ -77,9 +80,43 @@ function Editor({
       setError(api.errorText(e));
     }
   };
+  // H-43: swap one page for a new image. The server keeps its position and spread flag.
+  const replaceWith = async (index: number, file: File) => {
+    setError(null);
+    setSaved(false);
+    setReplacing(index);
+    try {
+      const uri = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = () => reject(new Error('read failed'));
+        r.readAsDataURL(file);
+      });
+      await api.replacePage(chapter.id, index, uri);
+      setSaved(true);
+      onChanged();
+      await reload();
+    } catch (e) {
+      setError(api.errorText(e));
+    } finally {
+      setReplacing(null);
+    }
+  };
   return (
     <div className="adm-pages">
       <ApiProblem error={error} />
+      <input
+        ref={picker}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+        hidden
+        aria-label={t('admin.library.replaceFile')}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void replaceWith(target.current, f);
+          e.target.value = '';
+        }}
+      />
       {saved && <Notice variant="success">{t('admin.library.pagesSaved')}</Notice>}
       {pages.length === 0 ? (
         <p className="ss-na">{t('admin.library.noPages')}</p>
@@ -124,6 +161,19 @@ function Editor({
                 onClick={() => move(i, 1)}
               >
                 {'↓'}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-label={t('admin.library.replacePage', { n: i + 1 })}
+                title={dirty ? t('admin.library.replaceSaveFirst') : undefined}
+                disabled={dirty || replacing !== null}
+                onClick={() => {
+                  target.current = i;
+                  picker.current?.click();
+                }}
+              >
+                {replacing === i ? t('admin.library.replacing') : t('admin.library.replace')}
               </Button>
               <Button
                 size="sm"

@@ -144,6 +144,10 @@ impl LibraryService {
                         size
                     }
                 };
+                // Record the read so `library.gc` keeps exports people still download (H-18).
+                if let Err(e) = self.repo.export_touch(chapter, &export_key).await {
+                    tracing::warn!(error = %e, "could not record the export read");
+                }
                 Ok(ChapterExport {
                     format: "cbz".into(),
                     filename: format!("{stem}.cbz"),

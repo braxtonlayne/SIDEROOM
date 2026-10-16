@@ -479,8 +479,37 @@ pub async fn create_event(
         }
     };
     announce(&deps, ScheduledEventDispatch::Create, &ev).await;
+    // D-228: a person who creates an event is marked Interested (and can un-mark themselves);
+    // an event created by a bot marks nobody.
+    if !matches!(p.kind, crate::AuthKind::Bot { .. }) {
+        match deps.service.set_interested(gid, ev.id, user, true).await {
+            Ok((_, true)) => announce_interest(&deps, gid, ev.id, user, true).await,
+            Ok(_) => {}
+            Err(e) => {
+                tracing::warn!(error = ?e, event = ev.id, "could not mark the creator interested")
+            }
+        }
+    }
     let mut out = render(&deps, user, std::slice::from_ref(&ev), true).await?;
     Ok(Json(out.remove(0)))
+}
+
+/// Dispatch `GUILD_SCHEDULED_EVENT_USER_ADD` / `_REMOVE` for `user`.
+async fn announce_interest(deps: &SettingsDeps, gid: GuildId, eid: u64, user: UserId, added: bool) {
+    deps.publish(SettingsEvent::ScheduledEvent {
+        guild: gid,
+        kind: if added {
+            ScheduledEventDispatch::UserAdd
+        } else {
+            ScheduledEventDispatch::UserRemove
+        },
+        payload: json!({
+            "guild_scheduled_event_id": eid.to_string(),
+            "user_id": user.to_string(),
+            "guild_id": gid.to_string(),
+        }),
+    })
+    .await;
 }
 
 /// One event of the server in any state (any member).
@@ -738,20 +767,7 @@ async fn rsvp(
         .await
         .map_err(se)?;
     if changed {
-        deps.publish(SettingsEvent::ScheduledEvent {
-            guild: gid,
-            kind: if interested {
-                ScheduledEventDispatch::UserAdd
-            } else {
-                ScheduledEventDispatch::UserRemove
-            },
-            payload: json!({
-                "guild_scheduled_event_id": ev.id.to_string(),
-                "user_id": user.to_string(),
-                "guild_id": gid.to_string(),
-            }),
-        })
-        .await;
+        announce_interest(deps, gid, ev.id, user, interested).await;
     }
     Ok(StatusCode::NO_CONTENT)
 }

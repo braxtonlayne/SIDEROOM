@@ -212,7 +212,8 @@ impl JoinToCreate {
         if ctx.actions.get_channel(room).await?.is_none() {
             return self.forget_room(ctx, guild, room).await;
         }
-        if ctx.actions.voice_occupants(room).await?.is_empty() {
+        // An `Unknown` answer (another node may hold members) never deletes the room (H-15).
+        if ctx.actions.voice_occupants(room).await?.is_known_empty() {
             self.remove_room(ctx, guild, room).await?;
         }
         Ok(())
@@ -679,6 +680,36 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(created(&h).len(), 3, "a new room, not the dead one");
+    }
+
+    #[tokio::test]
+    async fn the_tick_never_deletes_a_room_whose_occupancy_is_unknown() {
+        let h = harness().await;
+        h.actions.set_occupants(10, &[100]);
+        JoinToCreate
+            .on_event(&joined(HUB, ALICE), &h.ctx)
+            .await
+            .unwrap();
+        let room = h
+            .actions
+            .calls()
+            .into_iter()
+            .find_map(|c| match c {
+                Call::Move(_, _, to) => Some(to),
+                _ => None,
+            })
+            .unwrap();
+        h.actions.set_occupants(room.get(), &[]);
+        h.actions.set_occupancy_unknown(true);
+        h.clock.advance_ms(GRACE_MS + 1);
+        JoinToCreate.on_tick(&h.ctx).await.unwrap();
+        assert!(h.actions.channel_exists(room.get()), "unknown is not empty");
+        h.actions.set_occupancy_unknown(false);
+        JoinToCreate.on_tick(&h.ctx).await.unwrap();
+        assert!(
+            !h.actions.channel_exists(room.get()),
+            "known and empty goes"
+        );
     }
 
     impl Harness {

@@ -35,6 +35,29 @@ export function readActivity(blob: unknown): ActivitySettings {
   return out;
 }
 
+/** `library.share_reading` (D-229): who sees what you read. Absent means friends. */
+export type ShareReading = 'off' | 'friends' | 'everyone';
+export const SHARE_READING_KEY = 'library';
+
+/** The stored level; anything unknown is the default, friends. */
+export function readShareReading(blob: unknown): ShareReading {
+  const v =
+    typeof blob === 'object' && blob !== null
+      ? (blob as Record<string, unknown>).share_reading
+      : undefined;
+  return v === 'off' || v === 'everyone' ? v : 'friends';
+}
+
+export function useShareReading(): ShareReading {
+  return readShareReading(useStore((s) => s.userSettings?.settings[SHARE_READING_KEY]));
+}
+
+/** Saves the reading audience and records the new blob version. Rejects when the save fails. */
+export async function saveShareReading(level: ShareReading): Promise<void> {
+  const saved = await rest.patchUserSettings({ [SHARE_READING_KEY]: { share_reading: level } });
+  useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', saved);
+}
+
 /** The current settings (defaults until the blob loads). */
 export function useActivitySettings(): ActivitySettings {
   const blob = useStore((s) => s.userSettings?.settings[ACTIVITY_KEY]);
