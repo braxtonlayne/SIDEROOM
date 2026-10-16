@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useT, type MessageKey } from '../i18n';
 import * as rv from '../review/api';
 import { NamingGuide } from '../review/NamingGuide';
+import { DuplicateWarning, SeriesMetaEditor } from '../review/SeriesMetaEditor';
 import { FolderImport, RESUMABLE_FROM, UploadDock, getUploadManager } from '../review/UploadDock';
 import { errorMessages } from '../review/api';
 import {
@@ -506,13 +507,23 @@ function DetailsForm({
 
 function SeriesPreviewPanel({ id }: { id: string }) {
   const t = useT();
+  const qc = useQueryClient();
   const p = useQuery({ queryKey: key.preview(id), queryFn: () => rv.getMinePreview(id) });
   if (!p.data) return null;
   return (
-    <section className="rv-panel" aria-labelledby="sub-meta-h">
-      <h2 id="sub-meta-h">{t('library.submissions.preview')}</h2>
-      <PreviewFacts preview={p.data.preview} />
-    </section>
+    <>
+      <DuplicateWarning submissionId={id} />
+      <SeriesMetaEditor
+        key={JSON.stringify(p.data.preview.series)}
+        submissionId={id}
+        preview={p.data.preview}
+        onSaved={() => void qc.invalidateQueries({ queryKey: key.preview(id) })}
+      />
+      <section className="rv-panel" aria-labelledby="sub-meta-h">
+        <h2 id="sub-meta-h">{t('library.submissions.preview')}</h2>
+        <PreviewFacts preview={p.data.preview} />
+      </section>
+    </>
   );
 }
 

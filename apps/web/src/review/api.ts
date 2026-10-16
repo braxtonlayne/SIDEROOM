@@ -181,3 +181,7 @@ export function errorMessages(e: unknown, fallback = 'Something went wrong. Try 
   if (err?.status === 404) return ['That no longer exists.'];
   return [err?.message || fallback];
 }
+
+/** Edit the draft series of a new-series submission. */
+export const updateSeries = (id: string, b: Record<string, unknown>) =>
+  put<unknown>(`/submissions/${enc(id)}/library/series`, b);

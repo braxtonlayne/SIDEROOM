@@ -86,6 +86,21 @@ export default {
   'review.folder.discard': 'Discard',
   'review.folder.readError': 'The names could not be read. Try again.',
   'review.folder.createError': 'Some chapters could not be created. Check the list and try again.',
+  // Series metadata editor (review/SeriesMetaEditor.tsx)
+  'review.meta.title': 'Series details',
+  'review.meta.seriesTitle': 'Title',
+  'review.meta.altTitles': 'Other titles',
+  'review.meta.authors': 'Authors',
+  'review.meta.year': 'Year',
+  'review.meta.genres': 'Genres',
+  'review.meta.synopsis': 'Synopsis',
+  'review.meta.commas': 'Separate with commas',
+  'review.meta.save': 'Save details',
+  'review.meta.saved': 'Saved.',
+  'review.meta.saveError': 'The details could not be saved. Check them and try again.',
+  'review.meta.dupTitle': 'This looks like a series we already have',
+  'review.meta.dupHint':
+    'If it is the same series, add your chapters to it instead of a new series.',
   // Ingest sources (admin/sections/IngestSources.tsx)
   'review.ingest.title': 'Ingest sources',
   'review.ingest.intro':
