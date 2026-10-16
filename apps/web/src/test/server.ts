@@ -6,6 +6,7 @@ export const server = setupServer(
   http.get('*/api/v1/users/@me', () =>
     HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
   ),
+  http.get('*/api/v1/sr/entrance/copy', () => HttpResponse.json({})),
   http.get('*/api/v1/sr/auth/discord/pending', () => HttpResponse.json(null)),
   http.get('*/api/v1/sr/auth/passkeys', () => HttpResponse.json([])),
   // Home screen loads: nobody to befriend, no templates, online with no custom status.

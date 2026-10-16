@@ -688,3 +688,18 @@ export const listPrivateDms = (accountId: string, reason: string) =>
   get<PrivateChannelRef[]>(`/admin/private/accounts/${accountId}/dms${qs({ reason })}`);
 export const listPrivateGuildChannels = (guildId: string, reason: string) =>
   get<PrivateChannelRef[]>(`/admin/private/guilds/${guildId}/channels${qs({ reason })}`);
+
+// ---- Entrance copy (ENT-UI-010/025, ADM-PLT-003) ----
+
+export type EntranceCopyKey = 'no-invitation' | 'house-notes' | 'landing-note';
+/** `GET /sr/entrance/copy` is public: the blocks staff overrode, `{}` when none. */
+export const getEntranceCopy = () =>
+  apiFetch<Partial<Record<EntranceCopyKey, string>>>('/sr/entrance/copy', { retries: 0 });
+/** Needs a fresh second factor (`MANAGE_FEATURES`); a blank text removes the override. */
+export const putEntranceCopy = (key: EntranceCopyKey, markdown: string, reason?: string) =>
+  send<void>(`/admin/entrance/copy/${key}`, 'PUT', {
+    markdown,
+    ...(reason ? { reason } : {}),
+  });
+export const deleteEntranceCopy = (key: EntranceCopyKey) =>
+  send<void>(`/admin/entrance/copy/${key}`, 'DELETE');
