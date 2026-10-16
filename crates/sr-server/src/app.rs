@@ -950,6 +950,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_dm_announcer(social_api.clone())
             .with_viewer_safety(social_api.clone()),
     );
+    // Server-level payments post their "supported this server" notice through the chat module.
+    let _ = payments.chat.set(messages.clone());
 
     // Web Push (LNG-NTF-003): the VAPID key lives in the database sealed with the server
     // secret; without a configured secret it is per-boot (nothing could open it later).

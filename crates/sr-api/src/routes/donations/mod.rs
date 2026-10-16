@@ -210,13 +210,27 @@ pub(crate) fn map_pay(e: PayError) -> HttpError {
 }
 
 /// Delivers `SR_PAYMENT_UPDATE` and `SR_ENTITLEMENT_UPDATE` over the event bus.
+/// Late-bound handle to the chat module (it is built after the payments runtime).
+pub type ChatSlot = Arc<std::sync::OnceLock<Arc<crate::routes::messages::MessagesDeps>>>;
+
 pub struct BusPaymentEvents {
     bus: Arc<dyn sr_events::EventBus>,
+    chat: ChatSlot,
 }
 
 impl BusPaymentEvents {
     pub fn new(bus: Arc<dyn sr_events::EventBus>) -> Self {
-        Self { bus }
+        Self {
+            bus,
+            chat: ChatSlot::default(),
+        }
+    }
+
+    /// Share the slot the composition root fills with the chat module once it exists.
+    #[must_use]
+    pub fn with_chat_slot(mut self, chat: ChatSlot) -> Self {
+        self.chat = chat;
+        self
     }
 
     async fn to_user(&self, user: i64, name: &str, payload: serde_json::Value) {
@@ -274,6 +288,23 @@ impl sr_payments::service::PaymentEvents for BusPaymentEvents {
         if let Err(e) = self.bus.publish(sr_events::Topic::Guild(guild), ev).await {
             tracing::warn!(error = %e, "publishing SR_ENTITLEMENT_UPDATE failed");
         }
+    }
+
+    async fn server_supported(&self, guild_id: i64, user_id: i64, level: Option<u8>) {
+        let (Some(chat), Ok(g), Ok(u)) = (
+            self.chat.get(),
+            u64::try_from(guild_id),
+            u64::try_from(user_id),
+        ) else {
+            return;
+        };
+        crate::routes::messages::system::post_server_support(
+            chat,
+            sr_core::GuildId::new(g),
+            sr_core::UserId::new(u),
+            level,
+        )
+        .await;
     }
 
     async fn staff_alert(&self, detail: String) {
