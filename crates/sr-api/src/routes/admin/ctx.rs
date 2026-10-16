@@ -48,6 +48,8 @@ pub struct AdminDeps {
     pub require_reauth: bool,
     /// Object storage for the Entrance hero image (H-41).
     pub storage: Option<Arc<dyn sr_storage::ObjectStorage>>,
+    /// Where a saved rate-limit setting goes so the limiter sees it on the next request (H-39).
+    pub rate_config: Option<tokio::sync::watch::Sender<crate::rate_limit::RateConfig>>,
 }
 
 impl AdminDeps {
@@ -60,7 +62,17 @@ impl AdminDeps {
             integrations: Vec::new(),
             require_reauth: false,
             storage: None,
+            rate_config: None,
         }
+    }
+
+    /// The sender behind `RateLimitConfig::live`: `PATCH /admin/settings` updates it.
+    pub fn with_rate_config(
+        mut self,
+        tx: tokio::sync::watch::Sender<crate::rate_limit::RateConfig>,
+    ) -> Self {
+        self.rate_config = Some(tx);
+        self
     }
 
     /// Object storage for the Entrance hero image routes.

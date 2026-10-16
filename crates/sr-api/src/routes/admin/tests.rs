@@ -127,6 +127,7 @@ struct Env {
     clock: Arc<ManualClock>,
     auth: Arc<MemoryAuthStore>,
     mailer: Arc<MemoryMailer>,
+    rate_rx: tokio::sync::watch::Receiver<crate::rate_limit::RateConfig>,
 }
 
 async fn env() -> Env {
@@ -213,6 +214,7 @@ async fn env_with(reauth: bool) -> Env {
         Arc::new(InMemorySettingsStore::new()),
         None,
     );
+    let (rate_tx, rate_rx) = tokio::sync::watch::channel(crate::rate_limit::RateConfig::default());
     let deps = AdminDeps::new(svc)
         .with_integrations(vec![IntegrationStatus {
             id: "smtp".into(),
@@ -222,6 +224,7 @@ async fn env_with(reauth: bool) -> Env {
         .with_features(features)
         .with_gateway_sessions(Arc::new(|| 7))
         .with_reauth(reauth)
+        .with_rate_config(rate_tx)
         .with_storage(Arc::new(sr_storage::ObjectStoreStorage::in_memory()));
     // The account service behind the second-factor window: every test user exists there, and
     // the moderator has a confirmed authenticator.
@@ -285,6 +288,7 @@ async fn env_with(reauth: bool) -> Env {
         clock,
         auth,
         mailer,
+        rate_rx,
     }
 }
 
@@ -2677,4 +2681,54 @@ async fn entrance_hero_image_is_sniffed_shrunk_served_with_an_etag_and_audited()
         )
         .await;
     assert_eq!(s, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn live_rate_limits_are_bounded_and_reach_the_limiter() {
+    let e = env().await;
+    let patch = |v: Value| {
+        e.call(
+            Some(OWNER),
+            Method::PATCH,
+            "/admin/settings",
+            Some(json!({ "values": v })),
+        )
+    };
+    assert_eq!(
+        *e.rate_rx.borrow(),
+        crate::rate_limit::RateConfig::default()
+    );
+
+    // Outside the declared floor or ceiling the whole patch is refused and nothing changes.
+    for bad in [
+        json!({ "limits.rate.messages": 11 }),
+        json!({ "limits.rate.messages": 601 }),
+        json!({ "limits.rate.ip": 59 }),
+        json!({ "limits.rate.uploads": 6_001 }),
+        json!({ "limits.rate.session": 120, "limits.rate.bot": 60_001 }),
+    ] {
+        let (s, b) = patch(bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    }
+    assert_eq!(
+        *e.rate_rx.borrow(),
+        crate::rate_limit::RateConfig::default()
+    );
+
+    // A valid change is visible to the limiter at once, and the other figures stay.
+    let (s, b) = patch(json!({ "limits.rate.messages": 120, "limits.rate.ip": 600 })).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let now = *e.rate_rx.borrow();
+    assert_eq!((now.messages, now.ip, now.session), (120, 600, 3_000));
+    // Staff without MANAGE_FEATURES change nothing.
+    let (s, _) = e
+        .call(
+            Some(BASIC),
+            Method::PATCH,
+            "/admin/settings",
+            Some(json!({ "values": { "limits.rate.messages": 12 } })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_eq!(e.rate_rx.borrow().messages, 120);
 }

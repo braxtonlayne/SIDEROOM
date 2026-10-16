@@ -94,6 +94,13 @@ pub const ACCOUNT_CAP: &str = "accounts.cap";
 pub const SUSPICION_FREEZE: &str = "invites.suspicion_freeze_threshold";
 pub const SUSPICION_ESCALATE: &str = "invites.suspicion_escalate_threshold";
 
+/// Live HTTP rate limits (H-39), per minute. The server applies a change on the next request.
+pub const RATE_IP: &str = "limits.rate.ip";
+pub const RATE_SESSION: &str = "limits.rate.session";
+pub const RATE_BOT: &str = "limits.rate.bot";
+pub const RATE_MESSAGES: &str = "limits.rate.messages";
+pub const RATE_UPLOADS: &str = "limits.rate.uploads";
+
 /// Staff alert settings (ADM-ALR-001, ADM-ALR-003).
 pub const ALERTS_EMAIL_OWNER: &str = "alerts.email_to_owner";
 pub const ALERTS_DISK_PERCENT: &str = "alerts.disk_percent";
@@ -109,6 +116,46 @@ pub const CATALOG: &[SettingDef] = &[
         1_000_000,
         20_000,
         "Maximum number of active accounts (D-013).",
+    ),
+    int(
+        RATE_IP,
+        "limits",
+        60,
+        60_000,
+        3_000,
+        "HTTP requests per minute from one address that is not signed in (applies on the next request).",
+    ),
+    int(
+        RATE_SESSION,
+        "limits",
+        60,
+        60_000,
+        3_000,
+        "HTTP requests per minute from one signed-in browser session (applies on the next request).",
+    ),
+    int(
+        RATE_BOT,
+        "limits",
+        60,
+        60_000,
+        3_000,
+        "HTTP requests per minute from one bot or API credential (applies on the next request).",
+    ),
+    int(
+        RATE_MESSAGES,
+        "limits",
+        12,
+        600,
+        60,
+        "Messages one member may send per minute in one channel (applies on the next request).",
+    ),
+    int(
+        RATE_UPLOADS,
+        "limits",
+        6,
+        6_000,
+        240,
+        "Upload slot requests one member may make per minute in one channel (applies on the next request).",
     ),
     int(
         "invites.initial_credits",
@@ -305,6 +352,25 @@ mod tests {
         let price = find("invites.credit_price_usd").unwrap();
         assert_eq!(price.validate(&json!(12.5)).unwrap(), json!(12.5));
         assert!(price.validate(&json!(-1)).is_err());
+    }
+
+    #[test]
+    fn rate_limits_have_a_floor_and_a_ceiling() {
+        for (key, floor, ceiling, default) in [
+            (RATE_IP, 60, 60_000, 3_000),
+            (RATE_SESSION, 60, 60_000, 3_000),
+            (RATE_BOT, 60, 60_000, 3_000),
+            (RATE_MESSAGES, 12, 600, 60),
+            (RATE_UPLOADS, 6, 6_000, 240),
+        ] {
+            let d = find(key).unwrap();
+            assert_eq!(d.default_value(), json!(default), "{key}");
+            assert!(d.validate(&json!(floor)).is_ok(), "{key}");
+            assert!(d.validate(&json!(ceiling)).is_ok(), "{key}");
+            assert!(d.validate(&json!(floor - 1)).is_err(), "{key}");
+            assert!(d.validate(&json!(ceiling + 1)).is_err(), "{key}");
+            assert!(d.validate(&json!(0)).is_err(), "{key}");
+        }
     }
 
     #[test]
