@@ -23,7 +23,7 @@ Branch `feat/p14-misc` off `integration/phase14` (with `feat/p14-fu-gw` merged).
 
 ## Tests run
 
-cargo fmt --check; clippy -D warnings (-j 2, --all-targets) on sr-api, sr-chat, sr-markdown, sr-payments, sr-review, sr-library, sr-cinema, sr-media, sr-server; `cargo test` for sr-api (all non-ignored incl. openapi_names, route_matrix), sr-chat, sr-markdown, sr-payments, sr-review, sr-library, sr-cinema, sr-media. Postgres suites not run (no PG code changed). Web: typecheck, eslint, prettier --check, vitest (see below), build and bundle budget.
+cargo fmt --check; clippy -D warnings (-j 2, --all-targets) on sr-api, sr-chat, sr-markdown, sr-payments, sr-review, sr-library, sr-cinema, sr-media, sr-server; `cargo test` for sr-api (all non-ignored incl. openapi_names, route_matrix), sr-chat, sr-markdown, sr-payments, sr-review, sr-library, sr-cinema, sr-media. Postgres suites not run (no PG code changed). Web: typecheck, eslint, prettier --check, full vitest at --maxWorkers=2 (2035 of 2038 pass; the misses were load timeouts that pass alone, the wasm-dependent channelPerms suite which passes after `pnpm --filter @sideroom/wasm build`, and `vitestVersion` which needs vitest 3 from the pnpm install), build and bundle budget (all within budget).
 
 ## Owner questions
 
