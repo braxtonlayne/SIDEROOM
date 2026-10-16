@@ -38,6 +38,7 @@ export function JoinGate() {
   const guild = useGuild(active);
   const [step, setStep] = useState<{ guildId: string; step: Step } | null>(null);
   const setGuide = useGuideFlags((s) => s.set);
+  const setBrowse = useGuideFlags((s) => s.setOnboarding);
   const owner = guild?.ownerId === me.id;
   const known = !!guild;
 
@@ -48,19 +49,21 @@ export function JoinGate() {
       try {
         const guide = await getGuide(active).catch(() => null);
         if (live && guide) setGuide(active, guide.enabled);
+        const form = await getOnboarding(active).catch(() => null);
+        if (live && form) setBrowse(active, form.enabled);
         if (owner) return;
         const member = await getOwnMember(active);
         if (!live) return;
         if (member.pending) {
-          const form = await getMemberVerification(active);
-          if (live && form.enabled) setStep({ guildId: active, step: { kind: 'screening', form } });
+          const rules = await getMemberVerification(active);
+          if (live && rules.enabled)
+            setStep({ guildId: active, step: { kind: 'screening', form: rules } });
           return;
         }
         if (onboardingDone(me.id, active)) return;
         const joined = member.joined_at ? Date.parse(member.joined_at) : 0;
         if (!joined || Date.now() - joined > ONBOARDING_WINDOW_MS) return;
-        const form = await getOnboarding(active);
-        if (live && form.enabled && form.prompts.some((p) => p.in_onboarding)) {
+        if (live && form?.enabled && form.prompts.some((p) => p.in_onboarding)) {
           setStep({ guildId: active, step: { kind: 'onboarding', form } });
         }
       } catch {
@@ -70,7 +73,7 @@ export function JoinGate() {
     return () => {
       live = false;
     };
-  }, [active, known, owner, me.id, setGuide]);
+  }, [active, known, owner, me.id, setGuide, setBrowse]);
 
   if (!active || !step || step.guildId !== active) return null;
   const close = () => setStep(null);

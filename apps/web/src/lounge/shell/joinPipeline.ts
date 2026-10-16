@@ -84,13 +84,17 @@ export const getSecurity = (guildId: string) =>
 export const patchSecurity = (guildId: string, body: Partial<SecuritySettings>) =>
   send<SecuritySettings>(`/guilds/${g(guildId)}/sr/community`, 'PATCH', body);
 
-/** Per-server guide flag, filled by the join gate so the server menu can show "Server Guide" only where it is on. */
+/** Per-server flags filled by the join gate so the server menu offers "Server Guide" and "Browse Channels" only where they apply. */
 export const useGuideFlags = create<{
   enabled: Record<string, boolean>;
+  onboarding: Record<string, boolean>;
   set: (id: string, on: boolean) => void;
+  setOnboarding: (id: string, on: boolean) => void;
 }>((set) => ({
   enabled: {},
+  onboarding: {},
   set: (id, on) => set((s) => ({ enabled: { ...s.enabled, [id]: on } })),
+  setOnboarding: (id, on) => set((s) => ({ onboarding: { ...s.onboarding, [id]: on } })),
 }));
 
 const doneKey = (userId: string, guildId: string) => `sr.onboarded.${userId}.${guildId}`;

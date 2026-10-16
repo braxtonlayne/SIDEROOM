@@ -22,7 +22,7 @@ function seed(perms: string = String((1 << 10) | (1 << 11))) {
   localStorage.clear();
   useLoungeUi.setState(useLoungeUi.getInitialState(), true);
   useNotifSettings.setState({ byGuild: {} });
-  useGuideFlags.setState({ enabled: {} });
+  useGuideFlags.setState({ enabled: {}, onboarding: {} });
   useStore.setState({
     currentUserId: '1',
     users: { '1': { id: '1', username: 'me' }, '9': { id: '9', username: 'owner' } },
@@ -262,5 +262,38 @@ describe('Create Server: icon step (LNG-GLD-017)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/channels/g5/k2'));
     expect((patch as { icon: string }).icon).toMatch(/^data:image\/gif;base64,/);
+  });
+});
+
+describe('Browse Channels and the help menu (LNG-GLD-032, LNG-CHN-018)', () => {
+  it('lists the channels a member can open on an onboarding server', async () => {
+    seed();
+    server.use(
+      guide(false),
+      onboarding,
+      http.get('*/api/v1/users/@me/guilds/g1/member', () =>
+        HttpResponse.json({ pending: false, joined_at: '2020-01-01T00:00:00Z', roles: [] }),
+      ),
+    );
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: /Alpha Guild/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Browse Channels' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Browse Channels' });
+    expect(within(dialog).getByRole('button', { name: '#general' })).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: '#manga' })).toBeVisible();
+  });
+
+  it('opens the shortcut sheet from the header help button', async () => {
+    seed();
+    server.use(
+      guide(false),
+      http.get('*/api/v1/users/@me/guilds/g1/member', () =>
+        HttpResponse.json({ pending: false, joined_at: '2020-01-01T00:00:00Z', roles: [] }),
+      ),
+    );
+    at('/channels/g1/c1');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Help' }))[0]!);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Keyboard shortcuts' }));
+    expect(await screen.findByRole('dialog', { name: /shortcut/i })).toBeVisible();
   });
 });

@@ -17,6 +17,18 @@ export default {
   'lounge.joinGate.browseIntro': 'These are the channels you will see in {name}.',
   'lounge.joinGate.done': 'Done',
 
+  // Browse Channels (LNG-GLD-032)
+  'lounge.channelSidebar.browseChannels': 'Browse Channels',
+  'lounge.browseChannels.title': 'Browse Channels',
+  'lounge.browseChannels.subtitle': 'Every channel you can open in {name}.',
+  'lounge.browseChannels.close': 'Close',
+  'lounge.browseChannels.empty': 'There are no channels you can open yet.',
+  'lounge.browseChannels.noCategory': 'Channels',
+
+  // Header help menu (LNG-CHN-018)
+  'lounge.helpMenu.shortcuts': 'Keyboard shortcuts',
+  'lounge.helpMenu.support': 'Support SIDE ROOM',
+
   // Create Server: icon step (LNG-GLD-017)
   'lounge.addServerDialog.iconPreview': 'Server icon preview',
   'lounge.addServerDialog.iconUpload': 'Upload an icon',

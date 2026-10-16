@@ -356,6 +356,7 @@ function GuildHeader({ guild }: { guild: Guild }) {
   const core = useGuildMenuCore(guild);
   const modules = useGuildModules(guild.id);
   const guideOn = useGuideFlags((s) => !!s.enabled[guild.id]);
+  const browseOn = useGuideFlags((s) => !!s.onboarding[guild.id]);
   const openDialog = useLoungeUi((s) => s.openDialog);
   const [coming, setComing] = useState<string | null>(null);
   const soon = (title: string) => () => setComing(title);
@@ -401,6 +402,14 @@ function GuildHeader({ guild }: { guild: Guild }) {
           {
             label: t('lounge.channelSidebar.serverGuide'),
             onSelect: () => openDialog({ kind: 'serverGuide', guildId: guild.id }),
+          } as MenuEntry,
+        ]
+      : []),
+    ...(browseOn
+      ? [
+          {
+            label: t('lounge.channelSidebar.browseChannels'),
+            onSelect: () => openDialog({ kind: 'browseChannels', guildId: guild.id }),
           } as MenuEntry,
         ]
       : []),
