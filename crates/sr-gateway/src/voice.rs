@@ -418,7 +418,9 @@ pub(crate) struct VoiceExtra {
     pub statuses: HashMap<ChannelId, crate::voice_status::ChannelStatus>,
     pub calls: HashMap<ChannelId, crate::voice_call::CallState>,
     /// E2EE commit ordering per voice channel or call (VOX-E2E-004); gone when it empties.
-    pub e2ee: HashMap<ChannelId, sr_e2ee::sequencer::CallSequencer>,
+    pub e2ee: HashMap<ChannelId, crate::voice_e2ee::E2eeCall>,
+    /// The delivery service's MLS external-sender key (VOX-E2E-004), made on first use.
+    pub e2ee_ds: Option<Arc<sr_e2ee::mls::ExternalSenderKey>>,
     /// One soundboard play per member per few seconds.
     pub cooldown: sr_chat::settings::soundboard::PlayCooldown,
 }

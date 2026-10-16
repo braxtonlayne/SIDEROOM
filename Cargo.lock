@@ -6145,9 +6145,11 @@ version = "0.0.0"
 dependencies = [
  "async-trait",
  "axum",
+ "base64 0.23.1",
  "futures",
  "getrandom 0.4.3",
  "metrics",
+ "p256 0.13.2",
  "ruzstd",
  "serde",
  "serde_json",

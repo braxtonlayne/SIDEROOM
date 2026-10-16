@@ -1,36 +1,46 @@
-//! Op 101 `E2EE_MLS`: the delivery service for voice and video E2EE (VOX-E2E-004, spec
-//! docs/specs/lounge-voice-video.md section 5.2).
+//! Op 101 `E2EE_MLS`: the MLS delivery service for voice and video E2EE (VOX-E2E-004, spec
+//! docs/specs/lounge-voice-video.md section 5.2, D-249).
 //!
-//! The gateway relays MLS messages between the members of one voice channel or call and
-//! orders commits per epoch ([`sr_e2ee::sequencer`]). It never decodes the MLS data: `data`
-//! and `welcome` are opaque base64 strings, only checked for size and alphabet, so the server
-//! never holds key material or media keys.
+//! The gateway relays MLS messages between the members of one voice channel or call, orders
+//! commits per epoch ([`sr_e2ee::sequencer`]) and, as the group's *external sender*, proposes
+//! the removal of members who left. It never decodes the members' MLS data: `data` and
+//! `welcome` are opaque base64, only checked for size and alphabet. It holds no group secret
+//! and no media key; its only key signs Remove proposals.
 //!
-//! Client to server, `{"op": 101, "d": {...}}`:
+//! Client to server, `{"op": 101, "d": {"type", "channel_id", ...}}`:
 //!
-//! - `{"type": "key_package", "channel_id", "data"}`: a joiner's key package, sent to every
-//!   other member of the channel.
-//! - `{"type": "proposal", "channel_id", "data"}`: sent to every other member.
-//! - `{"type": "commit", "channel_id", "epoch", "data", "welcome"?, "to"?}`: a commit based on
-//!   `epoch`. The first one per epoch wins: everyone in the channel (the committer too, as
-//!   the acknowledgement) gets it with the new epoch, the users in `to` get the welcome. A
-//!   commit on any other epoch is answered with `commit_rejected` and the current epoch.
-//! - `{"type": "ready", "channel_id", "epoch"}`: this member processed the commit for
-//!   `epoch` and holds the new keys.
+//! - `hello`: I joined the channel. Answered with `call` (below).
+//! - `key_package` `{data}`: sent to every other member.
+//! - `proposal` `{data}`: sent to every other member.
+//! - `commit` `{epoch, data, welcome?, to?}`: a commit based on `epoch`. The first one per epoch
+//!   wins: everyone (the committer too, as the acknowledgement) gets it with the new epoch, the
+//!   users in `to` get the welcome. A commit on any other epoch gets `commit_rejected`.
+//! - `ready` `{epoch, leaf}`: I hold the keys of `epoch`, my leaf index is `leaf`. The leaf is
+//!   what the server's Remove proposal names when this member leaves.
 //!
-//! Server to client, dispatch `E2EE_MLS` with `{"type", "channel_id", ...}`: `key_package`,
-//! `proposal`, `commit`, `welcome` (each with `from` and `data`, the last two with `epoch`),
-//! `commit_rejected` (`epoch`: the current one) and `execute` (`epoch`: switch your
-//! encryptor now; everyone is ready or the wait timed out).
+//! Server to client, dispatch `E2EE_MLS` `{"type", "channel_id", ...}`:
 //!
-//! Only members of the channel may send, and only members receive. The whole op is off
-//! unless `voice.e2ee` is set (default off): MLS itself is not built yet (VOX-E2E-001).
+//! - `call` `{group_id, epoch, create, external_sender: {key, identity}}` (base64): the call's
+//!   MLS group id and the server's external sender. `create: true` tells exactly one member to
+//!   start the group (the first, or the one left when the group lost all its members); the
+//!   others send a key package and wait for a welcome.
+//! - `key_package`, `proposal`, `commit`, `welcome` (with `from`; commits and welcomes with the
+//!   new `epoch`; a proposal from the server has `from: null`), `commit_rejected` (`epoch`: the
+//!   current one), `execute` (`epoch`: switch your encryptor now; everyone is ready or 5 s
+//!   passed).
+//!
+//! Only members of the channel, on the session that joined it, may send, and only members
+//! receive. Everything is off unless `voice.e2ee` is set.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as B64;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sr_core::{ChannelId, UserId};
+use sr_e2ee::mls::ExternalSenderKey;
 use sr_e2ee::sequencer::{CallSequencer, CommitDecision};
 
 use crate::hub::Gateway;
@@ -42,6 +52,33 @@ use crate::voice::VoiceState;
 pub const MAX_MLS_CHARS: usize = 96 * 1024;
 /// Most recipients a welcome may name.
 pub const MAX_WELCOME_TO: usize = 100;
+/// Largest leaf index accepted (a call has at most a few hundred members).
+const MAX_LEAF: u32 = 4096;
+
+/// One call's delivery-service state.
+#[derive(Debug)]
+pub(crate) struct E2eeCall {
+    seq: CallSequencer,
+    group_id: Vec<u8>,
+    /// Who was told to create the group.
+    creator: Option<UserId>,
+    /// Members' self-reported leaf indexes.
+    leaves: HashMap<UserId, u32>,
+}
+
+impl E2eeCall {
+    fn new() -> Self {
+        let mut gid = vec![0u8; 16];
+        // A fresh random group id per call; a failing RNG still yields a usable (zero) id.
+        let _ = getrandom::fill(&mut gid);
+        E2eeCall {
+            seq: CallSequencer::new(),
+            group_id: gid,
+            creator: None,
+            leaves: HashMap::new(),
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct MlsIn {
@@ -50,6 +87,8 @@ struct MlsIn {
     channel_id: ChannelId,
     #[serde(default)]
     epoch: Option<u64>,
+    #[serde(default)]
+    leaf: Option<u32>,
     #[serde(default)]
     data: Option<String>,
     #[serde(default)]
@@ -75,6 +114,15 @@ impl Gateway {
         self.voice_cfg().is_some_and(|v| v.e2ee)
     }
 
+    /// The delivery service's external-sender key, made on first use (per node, in memory).
+    fn e2ee_ds(&self) -> Option<Arc<ExternalSenderKey>> {
+        let mut st = self.st();
+        if st.vx.e2ee_ds.is_none() {
+            st.vx.e2ee_ds = ExternalSenderKey::generate().ok().map(Arc::new);
+        }
+        st.vx.e2ee_ds.clone()
+    }
+
     /// Deliver `E2EE_MLS` to the members of `channel` that `want` picks.
     fn e2ee_send(&self, members: &[VoiceState], want: impl Fn(UserId) -> bool, d: &Value) {
         let sessions: Vec<Arc<Session>> = {
@@ -93,6 +141,28 @@ impl Gateway {
     fn e2ee_execute(&self, channel: ChannelId, members: &[VoiceState], epoch: u64) {
         let d = json!({ "type": "execute", "channel_id": channel, "epoch": epoch });
         self.e2ee_send(members, |_| true, &d);
+    }
+
+    /// The `call` message for `user`, deciding whether they create the group.
+    fn e2ee_call_msg(&self, channel: ChannelId, user: UserId) -> Value {
+        let ds = self.e2ee_ds();
+        let mut st = self.st();
+        let call = st.vx.e2ee.entry(channel).or_insert_with(E2eeCall::new);
+        let create = call.creator.is_none();
+        if create {
+            call.creator = Some(user);
+        }
+        json!({
+            "type": "call",
+            "channel_id": channel,
+            "group_id": B64.encode(&call.group_id),
+            "epoch": call.seq.epoch(),
+            "create": create,
+            "external_sender": ds.map(|k| json!({
+                "key": B64.encode(k.public_key()),
+                "identity": B64.encode(k.identity()),
+            })),
+        })
     }
 
     /// Op 101 from `s`.
@@ -114,6 +184,10 @@ impl Gateway {
         let ch = m.channel_id;
         let members = self.voice_occupants(ch);
         match m.kind.as_str() {
+            "hello" => {
+                let out = self.e2ee_call_msg(ch, me);
+                self.e2ee_send(&members, |u| u == me, &out);
+            }
             "key_package" | "proposal" => {
                 let Some(data) = m.data.filter(|d| opaque_ok(d)) else {
                     return;
@@ -134,13 +208,11 @@ impl Gateway {
                     return;
                 }
                 let ids: Vec<u64> = members.iter().map(|v| v.user_id.get()).collect();
-                let decision =
-                    self.st()
-                        .vx
-                        .e2ee
-                        .entry(ch)
-                        .or_default()
-                        .commit(based_on, me.get(), ids, ms());
+                let decision = {
+                    let mut st = self.st();
+                    let call = st.vx.e2ee.entry(ch).or_insert_with(E2eeCall::new);
+                    call.seq.commit(based_on, me.get(), ids, ms())
+                };
                 match decision {
                     CommitDecision::Rejected { current } => {
                         let out = json!({ "type": "commit_rejected", "channel_id": ch, "epoch": current });
@@ -168,12 +240,16 @@ impl Gateway {
             }
             "ready" => {
                 let Some(epoch) = m.epoch else { return };
-                let done = self
-                    .st()
-                    .vx
-                    .e2ee
-                    .get_mut(&ch)
-                    .and_then(|q| q.ready(me.get(), epoch));
+                let done = {
+                    let mut st = self.st();
+                    let Some(call) = st.vx.e2ee.get_mut(&ch) else {
+                        return;
+                    };
+                    if let Some(leaf) = m.leaf.filter(|l| *l <= MAX_LEAF) {
+                        call.leaves.insert(me, leaf);
+                    }
+                    call.seq.ready(me.get(), epoch)
+                };
                 if let Some(epoch) = done {
                     self.e2ee_execute(ch, &members, epoch);
                 }
@@ -182,24 +258,62 @@ impl Gateway {
         }
     }
 
-    /// A member left `old.channel_id`: stop waiting for them; forget the call when empty.
+    /// A member left `old.channel_id`: propose their removal (as the external sender), stop
+    /// waiting for them, and forget the call when it empties. If nobody who reported a leaf is
+    /// left, the group is gone: the remaining members are told to start a new one.
     pub(crate) fn e2ee_member_left(&self, old: &VoiceState) {
         let ch = old.channel_id;
         let members = self.voice_occupants(ch);
-        let done = {
+        let ds = self.e2ee_ds_if_enabled();
+        let (done, proposal, restart) = {
             let mut st = self.st();
             if members.is_empty() {
                 st.vx.e2ee.remove(&ch);
-                None
-            } else {
-                st.vx
-                    .e2ee
-                    .get_mut(&ch)
-                    .and_then(|q| q.member_left(old.user_id.get()))
+                return;
             }
+            let Some(call) = st.vx.e2ee.get_mut(&ch) else {
+                return;
+            };
+            let leaf = call.leaves.remove(&old.user_id);
+            let proposal = leaf.zip(ds).and_then(|(leaf, ds)| {
+                ds.remove_proposal(&call.group_id, call.seq.epoch(), leaf)
+                    .ok()
+            });
+            let done = call.seq.member_left(old.user_id.get());
+            // Nobody known to hold the group is left: the last reported member, or the creator
+            // before it reported, just went.
+            let restart =
+                call.leaves.is_empty() && (leaf.is_some() || call.creator == Some(old.user_id));
+            if restart {
+                st.vx.e2ee.insert(ch, E2eeCall::new());
+            }
+            (done, proposal, restart)
         };
+        if restart {
+            // The group lost its last member: hand out a fresh group; the first gets `create`.
+            for m in &members {
+                let out = self.e2ee_call_msg(ch, m.user_id);
+                self.e2ee_send(&members, |u| u == m.user_id, &out);
+            }
+            return;
+        }
+        if let Some(p) = proposal {
+            let out = json!({
+                "type": "proposal", "channel_id": ch, "from": Value::Null,
+                "data": B64.encode(p),
+            });
+            self.e2ee_send(&members, |_| true, &out);
+        }
         if let Some(epoch) = done {
             self.e2ee_execute(ch, &members, epoch);
+        }
+    }
+
+    fn e2ee_ds_if_enabled(&self) -> Option<Arc<ExternalSenderKey>> {
+        if self.e2ee_enabled() {
+            self.e2ee_ds()
+        } else {
+            None
         }
     }
 
@@ -211,7 +325,7 @@ impl Gateway {
             .vx
             .e2ee
             .iter_mut()
-            .filter_map(|(ch, q)| q.tick(now).map(|e| (*ch, e)))
+            .filter_map(|(ch, c)| c.seq.tick(now).map(|e| (*ch, e)))
             .collect();
         for (ch, epoch) in due {
             let members = self.voice_occupants(ch);
@@ -221,11 +335,7 @@ impl Gateway {
 
     /// The epoch commits in `channel` must be based on (tests, diagnostics).
     pub fn e2ee_epoch(&self, channel: ChannelId) -> u64 {
-        self.st()
-            .vx
-            .e2ee
-            .get(&channel)
-            .map_or(0, CallSequencer::epoch)
+        self.st().vx.e2ee.get(&channel).map_or(0, |c| c.seq.epoch())
     }
 }
 

@@ -360,10 +360,20 @@ impl CallClient {
             welcomed.push(id.user_id);
             adds.push(kp);
         }
+        // Removals already proposed (by the delivery service) are committed from the store.
+        let proposed: HashSet<u32> = self
+            .group()?
+            .pending_proposals()
+            .filter_map(|p| match p.proposal() {
+                Proposal::Remove(r) => Some(r.removed().u32()),
+                _ => None,
+            })
+            .collect();
         let removes: Vec<LeafNodeIndex> = members
             .iter()
-            .filter(|(_, id)| {
+            .filter(|(leaf, id)| {
                 id.user_id != self.user_id
+                    && !proposed.contains(leaf)
                     && (!roster.contains(&id.user_id) || welcomed.contains(&id.user_id))
             })
             .map(|(leaf, _)| LeafNodeIndex::new(*leaf))

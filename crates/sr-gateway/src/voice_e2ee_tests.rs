@@ -159,3 +159,140 @@ async fn the_relay_is_off_unless_configured() {
     assert!(mls_events(&b.drain().await).is_empty());
     assert_eq!(e.gw.e2ee_epoch(LOBBY), 0);
 }
+
+mod with_mls {
+    //! The relay with real MLS clients on both ends (VOX-E2E-001 + 004): the server hands out
+    //! the group id and its external-sender key, relays the members' messages, and proposes
+    //! the removal of a member who leaves; the clients' MLS accepts all of it.
+    use super::*;
+    use base64::Engine as _;
+    use base64::engine::general_purpose::STANDARD as B64;
+    use p256::ecdsa::signature::Signer as _;
+    use p256::ecdsa::{Signature, SigningKey};
+    use sr_e2ee::mls::{CallClient, Handled, PendingSession};
+    use std::collections::HashSet;
+
+    fn mls_client(user: u64) -> CallClient {
+        let ik = SigningKey::from_slice(&[user as u8 + 7; 32]).unwrap();
+        let public = ik
+            .verifying_key()
+            .to_encoded_point(false)
+            .as_bytes()
+            .to_vec();
+        let p = PendingSession::generate(user, &public).unwrap();
+        let sig: Signature = ik.sign(&p.cert_message());
+        p.certify(&sig.to_bytes()).unwrap()
+    }
+
+    fn b64(v: &Value) -> Vec<u8> {
+        B64.decode(v.as_str().unwrap()).unwrap()
+    }
+
+    fn of_type(events: &[Value], t: &str) -> Vec<Value> {
+        mls_events(events)
+            .into_iter()
+            .filter(|d| d["type"] == t)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn a_call_from_creation_to_an_external_remove() {
+        let e = env();
+        let mut a = join(&e, MEMBER, LOBBY).await;
+        a.send(mls("hello", json!({}))).await;
+        let call = of_type(&a.drain().await, "call").remove(0);
+        assert_eq!(call["create"], true);
+        assert_eq!(call["epoch"], 0);
+        let ds = &call["external_sender"];
+        let mut ma = mls_client(MEMBER);
+        ma.create_group(
+            &b64(&call["group_id"]),
+            Some((&b64(&ds["key"]), &b64(&ds["identity"]))),
+        )
+        .unwrap();
+        a.send(mls(
+            "ready",
+            json!({ "epoch": 0, "leaf": ma.own_leaf().unwrap() }),
+        ))
+        .await;
+
+        // B joins: told not to create, same group id; sends its key package.
+        let mut b = join(&e, FRIEND, LOBBY).await;
+        a.drain().await;
+        b.send(mls("hello", json!({}))).await;
+        let call_b = of_type(&b.drain().await, "call").remove(0);
+        assert_eq!(call_b["create"], false);
+        assert_eq!(call_b["group_id"], call["group_id"]);
+        let mut mb = mls_client(FRIEND);
+        b.send(mls(
+            "key_package",
+            json!({ "data": B64.encode(mb.key_package().unwrap()) }),
+        ))
+        .await;
+        let kp = of_type(&a.drain().await, "key_package").remove(0);
+        let roster: HashSet<u64> = [MEMBER, FRIEND].into();
+        let c = ma.commit(&[b64(&kp["data"])], &roster).unwrap().unwrap();
+        a.send(mls(
+            "commit",
+            json!({
+                "epoch": c.based_on,
+                "data": B64.encode(&c.commit),
+                "welcome": B64.encode(c.welcome.as_ref().unwrap()),
+                "to": ["2"],
+            }),
+        ))
+        .await;
+        assert_eq!(of_type(&a.drain().await, "commit")[0]["epoch"], 1);
+        ma.commit_accepted().unwrap();
+        let w = of_type(&b.drain().await, "welcome").remove(0);
+        assert_eq!(mb.join(&b64(&w["data"]), &roster).unwrap(), 1);
+        b.send(mls(
+            "ready",
+            json!({ "epoch": 1, "leaf": mb.own_leaf().unwrap() }),
+        ))
+        .await;
+        assert_eq!(of_type(&a.drain().await, "execute")[0]["epoch"], 1);
+        b.drain().await;
+
+        // B leaves: the server proposes the removal, A's MLS accepts it and commits it.
+        b.voice(1, None, false, false).await;
+        let p = of_type(&a.drain().await, "proposal").remove(0);
+        assert!(p["from"].is_null());
+        let roster: HashSet<u64> = [MEMBER].into();
+        assert_eq!(
+            ma.handle(&b64(&p["data"]), &roster).unwrap(),
+            Handled::Proposal
+        );
+        let c = ma.commit(&[], &roster).unwrap().unwrap();
+        a.send(mls(
+            "commit",
+            json!({ "epoch": c.based_on, "data": B64.encode(&c.commit) }),
+        ))
+        .await;
+        let got = mls_events(&a.drain().await);
+        assert_eq!(got[0]["type"], "commit");
+        assert_eq!(got[1]["type"], "execute");
+        ma.commit_accepted().unwrap();
+        assert_eq!(ma.members().unwrap().len(), 1);
+        assert_eq!(e.gw.e2ee_epoch(LOBBY), 2);
+    }
+
+    #[tokio::test]
+    async fn the_group_restarts_when_its_last_member_leaves() {
+        let e = env();
+        let mut a = join(&e, MEMBER, LOBBY).await;
+        let mut b = join(&e, FRIEND, LOBBY).await;
+        a.drain().await;
+        a.send(mls("hello", json!({}))).await;
+        let first = of_type(&a.drain().await, "call").remove(0);
+        assert_eq!(first["create"], true);
+        a.send(mls("ready", json!({ "epoch": 0, "leaf": 0 }))).await;
+        b.send(mls("hello", json!({}))).await;
+        assert_eq!(of_type(&b.drain().await, "call")[0]["create"], false);
+        // A (the only one in the group) leaves before adding B: B starts a new group.
+        a.voice(1, None, false, false).await;
+        let again = of_type(&b.drain().await, "call").remove(0);
+        assert_eq!(again["create"], true);
+        assert_ne!(again["group_id"], first["group_id"]);
+    }
+}

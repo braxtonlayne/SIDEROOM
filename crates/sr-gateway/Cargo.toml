@@ -17,6 +17,7 @@ sr-voice-proto = { path = "../sr-voice-proto" }
 async-trait.workspace = true
 axum = { version = "0.8", default-features = false, features = ["ws", "query"] }
 futures.workspace = true
+base64 = "0.23.1"
 getrandom = "0.4"
 metrics = "0.24"
 ruzstd = "0.9.1"
@@ -27,6 +28,7 @@ tokio = { workspace = true, features = ["sync", "time", "rt"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "test-util"] }
+p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "std"] }
 
 [lints]
 workspace = true
