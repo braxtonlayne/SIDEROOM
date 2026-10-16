@@ -92,7 +92,10 @@ test('staff offer card: Decline reaches the server and the buttons stay gone aft
   scenario,
 }) => {
   const { a, b } = await scenario.ownerAndMember();
-  const roles = await apiGet<{ id: string; name: string }[]>(a.context.request, '/admin/staff/roles');
+  const roles = await apiGet<{ id: string; name: string }[]>(
+    a.context.request,
+    '/admin/staff/roles',
+  );
   const role = roles.find((r) => !/owner/i.test(r.name)) ?? roles[0];
   if (!role) throw new Error('no staff roles');
   await apiPost(a.context.request, '/admin/staff/offers', {

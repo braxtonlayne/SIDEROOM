@@ -68,12 +68,20 @@ async function observeFrames(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('sr.e2e.noVoiceE2ee', '1');
     const w = window as unknown as {
-      __frames: { audio: number; video: number; audioSr: number; videoSr: number; tracks: string[] };
+      __frames: {
+        audio: number;
+        video: number;
+        audioSr: number;
+        videoSr: number;
+        tracks: string[];
+      };
     };
     w.__frames = { audio: 0, video: 0, audioSr: 0, videoSr: 0, tracks: [] };
-    const Transform = (window as unknown as { RTCRtpScriptTransform?: new (w: Worker, o: unknown) => unknown })
-      .RTCRtpScriptTransform;
+    const Transform = (
+      window as unknown as { RTCRtpScriptTransform?: new (w: Worker, o: unknown) => unknown }
+    ).RTCRtpScriptTransform;
     if (!Transform) return;
+    const ScriptTransform = Transform;
     const source = `
       const counts = { audio: 0, video: 0, audioSr: 0, videoSr: 0 };
       onrtctransform = (ev) => {
@@ -102,9 +110,12 @@ async function observeFrames(page: Page) {
         super(config);
         this.addEventListener('track', (ev) => {
           w.__frames.tracks.push(ev.track.kind);
-          (ev.receiver as unknown as { transform: unknown }).transform = new Transform(worker, {
-            kind: ev.track.kind,
-          });
+          (ev.receiver as unknown as { transform: unknown }).transform = new ScriptTransform(
+            worker,
+            {
+              kind: ev.track.kind,
+            },
+          );
         });
       }
     } as typeof RTCPeerConnection;
@@ -123,9 +134,28 @@ test.describe('Voice E2EE (real browsers)', () => {
     owner,
     playwright,
   }) => {
-    const req = await playwright.request.newContext({ baseURL: process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173' });
+    // Playwright's Windows WebKit has no WebRTC at all; the client would (rightly) refuse the call.
+    const probe = await browser.newPage();
+    const caps = await probe.evaluate(() => ({
+      webrtc: typeof RTCPeerConnection === 'function',
+      script:
+        typeof (globalThis as { RTCRtpScriptTransform?: unknown }).RTCRtpScriptTransform ===
+        'function',
+      transform:
+        typeof (globalThis as { RTCRtpScriptTransform?: unknown }).RTCRtpScriptTransform ===
+          'function' ||
+        (typeof RTCRtpSender === 'function' && 'createEncodedStreams' in RTCRtpSender.prototype),
+    }));
+    await probe.close();
+    test.skip(!caps.webrtc, `${browserName} here has no WebRTC`);
+    test.skip(!caps.transform, `${browserName} here has no encoded-frame transform API`);
+
+    const req = await playwright.request.newContext({
+      baseURL: process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173',
+    });
     const bob = await registerUser(req, 'e2eeb');
-    const eve = browserName === 'chromium' ? await registerUser(req, 'e2eeobs') : null;
+    // The observer inspects frames in an RTCRtpScriptTransform worker.
+    const eve = caps.script ? await registerUser(req, 'e2eeobs') : null;
     await req.dispose();
 
     const a = await mediaContext(browser, browserName, owner);
@@ -157,10 +187,13 @@ test.describe('Voice E2EE (real browsers)', () => {
       // --- The MLS group forms: both secure, two members, the same call code.
       for (const p of [a.page, b.page]) {
         await expect
-          .poll(async () => {
-            const s = await e2ee(p);
-            return `${s.active}/${s.status}/${s.members}/${s.workerError ?? ''}`;
-          }, { timeout: 45_000 })
+          .poll(
+            async () => {
+              const s = await e2ee(p);
+              return `${s.active}/${s.status}/${s.members}/${s.workerError ?? ''}`;
+            },
+            { timeout: 45_000 },
+          )
           .toBe('true/secure/2/');
       }
       await expect
@@ -174,7 +207,10 @@ test.describe('Voice E2EE (real browsers)', () => {
       const codes: string[] = [];
       for (const p of [a.page, b.page]) {
         const call = p.getByRole('region', { name: 'Voice connection' });
-        await call.getByRole('button', { name: /End-to-end encrypt/ }).first().click();
+        await call
+          .getByRole('button', { name: /End-to-end encrypt/ })
+          .first()
+          .click();
         const code = p.getByLabel('Call code', { exact: true }).first();
         await expect(code).toBeVisible();
         codes.push((await code.textContent()) ?? '');
@@ -188,7 +224,9 @@ test.describe('Voice E2EE (real browsers)', () => {
         await expect
           .poll(async () => (await e2ee(p)).frames?.decrypted ?? 0, { timeout: 30_000 })
           .toBeGreaterThan(50);
-        await expect.poll(async () => (await inbound(p)).audioBytes, { timeout: 30_000 }).toBeGreaterThan(0);
+        await expect
+          .poll(async () => (await inbound(p)).audioBytes, { timeout: 30_000 })
+          .toBeGreaterThan(0);
         const f = (await e2ee(p)).frames!;
         expect(f.encrypted).toBeGreaterThan(50);
       }
@@ -229,7 +267,9 @@ test.describe('Voice E2EE (real browsers)', () => {
           await c.page.waitForTimeout(5000);
           console.log(
             'observer',
-            JSON.stringify(await c.page.evaluate(() => (window as unknown as { __frames: unknown }).__frames)),
+            JSON.stringify(
+              await c.page.evaluate(() => (window as unknown as { __frames: unknown }).__frames),
+            ),
             JSON.stringify(await inbound(c.page)),
           );
         }
@@ -244,15 +284,19 @@ test.describe('Voice E2EE (real browsers)', () => {
           .toBeGreaterThan(10);
         const seen = await c.page.evaluate(
           () =>
-            (window as unknown as {
-              __frames: { audio: number; video: number; audioSr: number; videoSr: number };
-            }).__frames,
+            (
+              window as unknown as {
+                __frames: { audio: number; video: number; audioSr: number; videoSr: number };
+              }
+            ).__frames,
         );
         expect(seen.audioSr, 'every audio frame carries the E2EE trailer').toBe(seen.audio);
         expect(seen.videoSr, 'every video frame carries the E2EE trailer').toBe(seen.video);
         // The encrypted pair keeps talking with the observer in the channel.
         const d = (await e2ee(a.page)).frames!.decrypted;
-        await expect.poll(async () => (await e2ee(a.page)).frames!.decrypted - d).toBeGreaterThan(20);
+        await expect
+          .poll(async () => (await e2ee(a.page)).frames!.decrypted - d)
+          .toBeGreaterThan(20);
       }
     } finally {
       for (const x of [a, b, c]) await x?.context.close();

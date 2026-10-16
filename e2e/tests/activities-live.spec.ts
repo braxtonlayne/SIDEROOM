@@ -33,7 +33,10 @@ test.describe('Activities (real browser)', () => {
     owner,
     playwright,
   }) => {
-    test.skip(browserName !== 'chromium', 'Chromium resolves *.localhost activity hosts by itself.');
+    test.skip(
+      browserName !== 'chromium',
+      'Chromium resolves *.localhost activity hosts by itself.',
+    );
     const base = process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173';
     const req = await playwright.request.newContext({ baseURL: base });
     const bob = await registerUser(req, 'actb');
@@ -102,7 +105,10 @@ test.describe('Activities (real browser)', () => {
       expect(csp).toContain('frame-ancestors http://localhost:5173');
       expect((await res.allHeaders())['x-content-type-options']).toBe('nosniff');
       const iframe = a.page.locator(`iframe[title="${name} (Activity)"]`);
-      await expect(iframe).toHaveAttribute('src', new RegExp(`^http://${activityHost.replace(/\./g, '\\.')}:5173/`));
+      await expect(iframe).toHaveAttribute(
+        'src',
+        new RegExp(`^http://${activityHost.replace(/\./g, '\\.')}:5173/`),
+      );
       await expect(iframe).toHaveAttribute('sandbox', /allow-scripts/);
       expect(await iframe.getAttribute('sandbox')).not.toContain('allow-top-navigation');
 
@@ -131,7 +137,10 @@ test.describe('Activities (real browser)', () => {
       await expect(b.page.getByRole('button', { name: `Join ${name}` }).first()).toBeVisible({
         timeout: 20_000,
       });
-      await b.page.getByRole('button', { name: `Join ${name}` }).first().click();
+      await b.page
+        .getByRole('button', { name: `Join ${name}` })
+        .first()
+        .click();
       const frameB = b.page.frameLocator(`iframe[title="${name} (Activity)"]`);
       await expect(frameB.locator('[data-step="ready"]')).toBeVisible({ timeout: 30_000 });
       await expect(frameB.locator('[data-step="participants"]')).toHaveText('participants: 2');
