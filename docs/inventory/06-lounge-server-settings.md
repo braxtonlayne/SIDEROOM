@@ -11,7 +11,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [x] **LNG-SSET-004** [FE] Name input
 - [x] **LNG-SSET-005** [FE] Icon: "We recommend an image of at least 512x512." + Change Server Icon (crop modal, GIF allowed free), Remove *(p5: upload, remove and live preview are built; the server crops to a square, so there is no crop modal)* *(p14: icon uploads go through a crop modal (square, 512 px; GIFs skip it), `ImageField.tsx` `crop` prop, overview test)*
 - [x] **LNG-SSET-006** [FE] Banner: 10 preset gradient swatches (dark, pink, red, orange, yellow, purple, blue, teal, green, black) + custom image upload (free) *(p10: ten preset gradients drawn on a canvas and uploaded as a PNG, `BannerPresets.tsx`, overview test)*
-- [ ] **LNG-SSET-007** [FE] Traits: 5 slots (emoji + short text) *(p14 open: the server stores no traits and the guild API has no field for them; needs a backend field and an owner decision on what traits are for)*
+- [x] **LNG-SSET-007** [FE] Traits: 5 slots (emoji + short text) *(p14 J-07: `guilds.traits` (migration 0962), `sr_profile.traits` on the guild object and the directory card, `PATCH /guilds/{id}/sr/profile`; editor `Traits.tsx` in the Overview, chips `TraitChips.tsx` on the directory card and the per-server profile dialog; tests `guild_traits.rs`, `guilds.rs`, `p14_profile.rs`, `p14profile.test.tsx`)*
 - [x] **LNG-SSET-008** [FE] Description textarea ("How did your server get started? Why should people join?")
 - [x] **LNG-SSET-009** [FE] Live preview card (banner, icon, name, "● N Online ● N Members", "Est. <Mon YYYY>") *(p5: preview card with banner, icon, name and Est. date)* *(p13/p14 verified: the card shows "N Online · N Members" from `with_counts`, `Overview.tsx` (test `overview.test.tsx`); p14 fixed the separator that rendered as "00b7")*
    - p13 backend half built: `GET /guilds/{id}?with_counts=true` adds `approximate_member_count` and `approximate_presence_count` (test `guild_counts_come_with_with_counts_only`); the preview card does not use them yet.
@@ -54,11 +54,11 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Roles
 - [x] **LNG-SSET-031** [FE] Roles list (drag reorder, member counts, search, Create Role, "Default permissions" @everyone row)
-- [ ] **LNG-SSET-032** [FE] Role editor tab Display: name, color (swatches + custom + gradient two-color free), role icon (image or unicode emoji, free), hoist toggle, mentionable toggle *(p5: name, colour, role icon (image or emoji), hoist, mentionable are built; the two-colour gradient is not backed)* *(p14 open: the two-colour gradient is not backed by the role API)*
+- [x] **LNG-SSET-032** [FE] Role editor tab Display: name, color (swatches + custom + gradient two-color free), role icon (image or unicode emoji, free), hoist toggle, mentionable toggle *(p5: name, colour, role icon (image or emoji), hoist, mentionable are built; the two-colour gradient is not backed)* *(p14 J-08: `roles.secondary_color` / `tertiary_color` (migration 0963), the `colors` object on create and edit with audit keys, the Solid / Gradient / Holographic picker in `Roles.tsx`, and gradient names in messages and the member list (`lib/roleGradient.ts`); tests `role_rules.rs`, `guilds.rs`, `p14profile.test.tsx`, `p14roleGradient.test.tsx`)*
 - [x] **LNG-SSET-033** [FE] Role editor tab Permissions: grouped permission list with descriptions (General, Membership, Text, Voice, Apps, Events, Stage, Advanced, **SIDE ROOM**), search, Clear permissions, Administrator warning
 - [x] **LNG-SSET-034** [FE] Role editor tab Links (linked roles: placeholder for app role connections, Phase 6) *(p5: placeholder tab)*
 - [x] **LNG-SSET-035** [FE] Role editor tab Manage Members (search, add members modal, remove)
-- [ ] **LNG-SSET-036** [FE] "View Server As Role" preview mode with exit banner *(p5: not built, it needs the channel visibility computation in the Lounge (View Server As Role))* *(p14 open: still needs the channel visibility computation for a chosen role in the Lounge)*
+- [x] **LNG-SSET-036** [FE] "View Server As Role" preview mode with exit banner *(p5: not built, it needs the channel visibility computation in the Lounge (View Server As Role))* *(p14 J-09: built as a dialog in the Roles section (`ViewAsRole.tsx`, `viewAs.ts`): pick roles, the shared `sr-permissions` WASM engine (`permEngine`) computes which channels they see over the loaded channels and overwrites; a dialog, not a Lounge-wide mode with an exit banner; tests `viewAs.test.ts`, `p14profile.test.tsx`)*
 - [x] **LNG-SSET-037** [FE] Delete role confirm; hierarchy lock icons
 
 ## Invites
@@ -80,8 +80,8 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## SIDE ROOM sections
 - [x] **LNG-SSET-049** [FE] Features (guild-scope feature modules via SchemaForm, search, categories, enable toggles) *(p11 `Features.tsx` (SchemaForm per module, sections, enable switch); p14 added the search box)*
-- [ ] **LNG-SSET-050** [FE] Extensions & Themes (approved packages browser, enable, configure, server accent color) *(p14 open: there is no approved extension / theme package system in the backend)*
-- [ ] **LNG-SSET-051** [FE] Watch Parties & Library (who can start parties, default party channel, library feed channel & filters) *(p14 open: watch parties and the library have no per-server settings in the backend (who can start, default channel, feed channel))*
+- [ ] **LNG-SSET-050** [FE] Extensions & Themes (approved packages browser, enable, configure, server accent color) *(p14 open: there is no approved extension / theme package system in the backend)* *(p14 J-21: EXT phase)*
+- [ ] **LNG-SSET-051** [FE] Watch Parties & Library (who can start parties, default party channel, library feed channel & filters) *(p14 open: watch parties and the library have no per-server settings in the backend (who can start, default channel, feed channel))* *(p14 J-21: EXT phase)*
 
 ## Safety Setup
 - [x] **LNG-SSET-052** [FE] DM & spam protection (filter DMs from members, hide suspicious links, warn on new accounts) *(p12 lounge-ch-be: Moderation → DM and spam protection stores the settings. p13 mfa-protect (G-95, D-224): `SocialService::open_dm` routes to Message Requests via `dm_access_protected` (`sr_request_reason`), `hide_suspicious_links` is on the guild object and rendered by `lounge/suspiciousLinks.ts`; tests `sr-chat` social, `suspiciousLinks` in `p13protect.test.tsx`)*

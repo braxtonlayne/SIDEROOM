@@ -86,6 +86,7 @@ pub async fn create_role(
             .map(|s| permissions("permissions", s))
             .transpose()?,
         color: body.color,
+        colors: body.colors.map(Into::into),
         hoist: body.hoist.unwrap_or(false),
         mentionable: body.mentionable.unwrap_or(false),
         unicode_emoji: body.unicode_emoji,
@@ -193,6 +194,7 @@ pub async fn modify_role(
             .map(|s| permissions("permissions", s))
             .transpose()?,
         color: body.color,
+        colors: body.colors.map(Into::into),
         hoist: body.hoist,
         mentionable: body.mentionable,
         unicode_emoji: body.unicode_emoji,

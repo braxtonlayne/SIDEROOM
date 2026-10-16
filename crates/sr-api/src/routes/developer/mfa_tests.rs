@@ -56,6 +56,8 @@ async fn world() -> (Env, String) {
             guild_id: e.guild,
             name: "Janitor".into(),
             color: 0,
+            secondary_color: None,
+            tertiary_color: None,
             hoist: false,
             position: 1,
             permissions: Permissions::MANAGE_MESSAGES

@@ -86,7 +86,7 @@ pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key
     owner_id, is_staff_guild, system_channel_id, verification_level, default_message_notifications, \
     explicit_content_filter, preferred_locale, afk_channel_id, afk_timeout, \
     vanity_code::text AS vanity_code, mfa_level, system_channel_flags, widget_enabled, \
-    widget_channel_id, rules_channel_id, public_updates_channel_id, \
+    widget_channel_id, rules_channel_id, public_updates_channel_id, traits, \
     (SELECT gc.safety_alerts_channel_id FROM guild_community gc WHERE gc.guild_id = guilds.id) \
     AS safety_alerts_channel_id, \n    COALESCE((SELECT gc.hide_suspicious_links FROM guild_community gc WHERE gc.guild_id = guilds.id), \n    FALSE) AS hide_suspicious_links";
 
@@ -133,10 +133,12 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
             .try_get::<Option<i64>, _>("safety_alerts_channel_id")?
             .map(|v| ChannelId::new(u(v))),
         hide_suspicious_links: r.try_get("hide_suspicious_links")?,
+        traits: serde_json::from_value(r.try_get::<serde_json::Value, _>("traits")?)
+            .unwrap_or_default(),
     })
 }
 
-const ROLE_COLS: &str = "id, guild_id, name, color, hoist, position, permissions, mentionable, \
+const ROLE_COLS: &str = "id, guild_id, name, color, secondary_color, tertiary_color, hoist, position, permissions, mentionable, \
     managed, unicode_emoji, icon_key";
 
 fn role_from(r: &PgRow) -> Result<Role, sqlx::Error> {
@@ -145,6 +147,12 @@ fn role_from(r: &PgRow) -> Result<Role, sqlx::Error> {
         guild_id: GuildId::new(u(r.try_get("guild_id")?)),
         name: r.try_get("name")?,
         color: u32::try_from(r.try_get::<i32, _>("color")?).unwrap_or(0),
+        secondary_color: r
+            .try_get::<Option<i32>, _>("secondary_color")?
+            .and_then(|c| u32::try_from(c).ok()),
+        tertiary_color: r
+            .try_get::<Option<i32>, _>("tertiary_color")?
+            .and_then(|c| u32::try_from(c).ok()),
         hoist: r.try_get("hoist")?,
         position: r.try_get("position")?,
         permissions: Permissions::from_bits_truncate(u(r.try_get("permissions")?)),
@@ -620,8 +628,8 @@ impl GuildRepository for PgChatRepo {
         .map_err(db)?;
         sqlx::query(
             "INSERT INTO roles (id, guild_id, name, color, hoist, position, permissions, \
-             mentionable, managed, unicode_emoji, icon_key) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+             mentionable, managed, unicode_emoji, icon_key, secondary_color, tertiary_color) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
         )
         .bind(i(role.id.get()))
         .bind(i(role.guild_id.get()))
@@ -634,6 +642,8 @@ impl GuildRepository for PgChatRepo {
         .bind(role.managed)
         .bind(role.unicode_emoji.as_deref())
         .bind(role.icon_key.as_deref())
+        .bind(role.secondary_color.and_then(|c| i32::try_from(c).ok()))
+        .bind(role.tertiary_color.and_then(|c| i32::try_from(c).ok()))
         .execute(&mut *tx)
         .await
         .map_err(db)?;
@@ -643,7 +653,8 @@ impl GuildRepository for PgChatRepo {
     async fn update_role(&self, role: &Role) -> RepoResult<()> {
         sqlx::query(
             "UPDATE roles SET name = $2, color = $3, hoist = $4, position = $5, permissions = $6, \
-             mentionable = $7, unicode_emoji = $8, icon_key = $9, updated_at = now() WHERE id = $1",
+             mentionable = $7, unicode_emoji = $8, icon_key = $9, secondary_color = $10, \
+             tertiary_color = $11, updated_at = now() WHERE id = $1",
         )
         .bind(i(role.id.get()))
         .bind(&role.name)
@@ -654,6 +665,8 @@ impl GuildRepository for PgChatRepo {
         .bind(role.mentionable)
         .bind(role.unicode_emoji.as_deref())
         .bind(role.icon_key.as_deref())
+        .bind(role.secondary_color.and_then(|c| i32::try_from(c).ok()))
+        .bind(role.tertiary_color.and_then(|c| i32::try_from(c).ok()))
         .execute(&self.pool)
         .await
         .map_err(db)?;

@@ -224,10 +224,11 @@ export interface CreateChannelBody {
 export type GuildWithChannels = Guild & { channels?: Channel[]; roles?: Role[] };
 
 /** `template` is a built-in template id or a template code; the server builds the whole layout in one go. */
-export const createGuild = (name: string, template?: string) =>
+export const createGuild = (name: string, template?: string, icon?: string | null) =>
   apiFetch<GuildWithChannels>('/guilds', {
     method: 'POST',
-    json: template ? { name, template } : { name },
+    // `icon` is an image data URI; the server stores it with the new server (J-06), so no second request.
+    json: { name, ...(template ? { template } : {}), ...(icon ? { icon } : {}) },
     retries: 0,
   });
 

@@ -4,6 +4,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use sr_chat::admin_repo::Ban;
 use sr_chat::domain::{Channel, ChannelType, ChannelWithOverwrites, Guild, Member, Role};
+use sr_chat::guild_traits::GuildTrait;
 use sr_chat::repo::UserSummary;
 use sr_chat::threads::model::{ThreadInfo, ThreadMember};
 use sr_core::UserId;
@@ -174,6 +175,37 @@ pub struct RoleObject {
     pub icon: Option<String>,
     pub unicode_emoji: Option<String>,
     pub flags: u32,
+    /// Gradient stops (J-08); `primary_color` mirrors `color`.
+    pub colors: RoleColorsObject,
+}
+
+/// The gradient stops of a role, Discord's `colors` object.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RoleColorsObject {
+    pub primary_color: u32,
+    pub secondary_color: Option<u32>,
+    pub tertiary_color: Option<u32>,
+}
+
+/// `colors` in a role create or edit; replaces all three stops. A tertiary stop needs a
+/// secondary one.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct RoleColorsBody {
+    pub primary_color: u32,
+    #[serde(default)]
+    pub secondary_color: Option<u32>,
+    #[serde(default)]
+    pub tertiary_color: Option<u32>,
+}
+
+impl From<RoleColorsBody> for sr_chat::role_rules::RoleColors {
+    fn from(b: RoleColorsBody) -> Self {
+        Self {
+            primary: b.primary_color,
+            secondary: b.secondary_color,
+            tertiary: b.tertiary_color,
+        }
+    }
 }
 
 impl From<&Role> for RoleObject {
@@ -190,6 +222,11 @@ impl From<&Role> for RoleObject {
             icon: r.icon_key.clone(),
             unicode_emoji: r.unicode_emoji.clone(),
             flags: 0,
+            colors: RoleColorsObject {
+                primary_color: r.color,
+                secondary_color: r.secondary_color,
+                tertiary_color: r.tertiary_color,
+            },
         }
     }
 }
@@ -377,6 +414,53 @@ impl From<&ChannelWithOverwrites> for ChannelObject {
     }
 }
 
+/// One server trait (J-07): a label with an optional emoji.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct GuildTraitObject {
+    /// Custom emoji of the server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub emoji_id: Option<String>,
+    /// Unicode emoji, or the custom emoji's name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub emoji_name: Option<String>,
+    /// 1 to 24 characters, no mentions or markdown.
+    pub label: String,
+}
+
+impl From<&GuildTrait> for GuildTraitObject {
+    fn from(t: &GuildTrait) -> Self {
+        Self {
+            emoji_id: t.emoji_id.clone(),
+            emoji_name: t.emoji_name.clone(),
+            label: t.label.clone(),
+        }
+    }
+}
+
+impl From<GuildTraitObject> for GuildTrait {
+    fn from(t: GuildTraitObject) -> Self {
+        Self {
+            emoji_id: t.emoji_id,
+            emoji_name: t.emoji_name,
+            label: t.label,
+        }
+    }
+}
+
+/// Side Room's server profile extras on the server object (`sr_profile`).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct GuildSrProfileObject {
+    /// At most five.
+    pub traits: Vec<GuildTraitObject>,
+}
+
+/// Body of `PATCH /guilds/{id}/sr/profile`.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct ModifySrProfileBody {
+    /// Replaces all traits; at most five.
+    pub traits: Option<Vec<GuildTraitObject>>,
+}
+
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct GuildObject {
     pub id: String,
@@ -434,6 +518,8 @@ pub struct GuildObject {
     pub roles: Option<Vec<RoleObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channels: Option<Vec<ChannelObject>>,
+    /// Side Room's profile extras (server traits).
+    pub sr_profile: GuildSrProfileObject,
 }
 
 impl GuildObject {
@@ -469,6 +555,9 @@ impl GuildObject {
             sr_max_upload_bytes: None,
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
+            sr_profile: GuildSrProfileObject {
+                traits: g.traits.iter().map(GuildTraitObject::from).collect(),
+            },
         }
     }
 }
@@ -627,7 +716,8 @@ impl BanObject {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateGuildBody {
     pub name: String,
-    /// Accepted for compatibility; icon upload arrives with the media pipeline.
+    /// Image data URI for the server icon (the `PATCH` rules: PNG, JPEG, GIF or WebP, cropped
+    /// to a square); a refused image fails the whole request and no server is left behind.
     #[serde(default)]
     pub icon: Option<String>,
     /// A built-in template id (see `GET /guilds/templates/builtin`) or a template code.
@@ -804,6 +894,8 @@ pub struct CreateRoleBody {
     /// Decimal permission bitfield.
     pub permissions: Option<String>,
     pub color: Option<u32>,
+    /// Gradient stops; wins over `color` when both are sent.
+    pub colors: Option<RoleColorsBody>,
     pub hoist: Option<bool>,
     pub mentionable: Option<bool>,
     pub unicode_emoji: Option<String>,
@@ -814,6 +906,8 @@ pub struct ModifyRoleBody {
     pub name: Option<String>,
     pub permissions: Option<String>,
     pub color: Option<u32>,
+    /// Gradient stops; replaces all three and wins over `color` when both are sent.
+    pub colors: Option<RoleColorsBody>,
     pub hoist: Option<bool>,
     pub mentionable: Option<bool>,
     /// A single emoji shown beside the role; `null` clears it. Replaces an image icon.

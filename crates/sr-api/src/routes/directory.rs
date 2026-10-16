@@ -118,6 +118,8 @@ pub struct DirectoryGuildObject {
     pub approximate_presence_count: Option<u64>,
     pub preferred_locale: String,
     pub vanity_url_code: Option<String>,
+    /// The server's traits (J-07), at most five.
+    pub traits: Vec<crate::routes::guilds::dto::GuildTraitObject>,
     /// The caller already is a member.
     pub joined: bool,
     /// Staff preview of a request that is still waiting (H-40); never set in the public list.
@@ -227,6 +229,7 @@ async fn build_card(
         approximate_presence_count: presence,
         preferred_locale: g.preferred_locale.clone(),
         vanity_url_code: g.vanity_code.clone(),
+        traits: g.traits.iter().map(Into::into).collect(),
         joined,
         pending: preview && entry.status == DirectoryStatus::Pending,
     }))

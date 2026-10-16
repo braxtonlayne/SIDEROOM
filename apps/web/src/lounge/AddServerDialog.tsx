@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Button, Icon, Modal, TextInput } from '@sideroom/ui';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ApiError, apiFetch } from '../api/client';
+import { ApiError } from '../api/client';
 import { ImageCropDialog } from '../settings/user/ImageCropDialog';
 import { readAsDataUri } from '../settings/user/imageCrop';
 import { useT } from '../i18n';
@@ -76,14 +76,8 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const guild = await useStore.getState().createGuild(trimmed, templateId ?? undefined);
-      // The create call takes no icon yet, so it is set right after; a failure leaves the server without one.
-      if (icon)
-        await apiFetch(`/guilds/${guild.id}`, {
-          method: 'PATCH',
-          json: { icon },
-          retries: 0,
-        }).catch(() => undefined);
+      // The icon travels with the create call (J-06); a refused image fails the request and no server is made.
+      const guild = await useStore.getState().createGuild(trimmed, templateId ?? undefined, icon);
       onClose();
       goto(guild.id, firstText(guild.channels));
     } catch (err) {

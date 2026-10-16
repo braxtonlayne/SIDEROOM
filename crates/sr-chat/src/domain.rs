@@ -153,6 +153,8 @@ pub struct Guild {
     pub widget_enabled: bool,
     /// The channel the widget invites to.
     pub widget_channel_id: Option<ChannelId>,
+    /// Server traits (J-07): at most five labels with an emoji.
+    pub traits: Vec<crate::guild_traits::GuildTrait>,
 }
 
 /// Bits of [`Guild::system_channel_flags`] (Discord values).
@@ -173,6 +175,10 @@ pub struct Role {
     pub guild_id: GuildId,
     pub name: String,
     pub color: u32,
+    /// Second gradient stop (J-08); `color` is the first.
+    pub secondary_color: Option<u32>,
+    /// Third gradient stop; only with a second one (the holographic preset).
+    pub tertiary_color: Option<u32>,
     pub hoist: bool,
     pub position: i32,
     pub permissions: Permissions,

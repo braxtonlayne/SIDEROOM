@@ -59,7 +59,17 @@ export interface GuildObject {
   approximate_member_count?: number;
   /** Members visibly online; present only for servers of up to 1000 members. */
   approximate_presence_count?: number;
+  /** Side Room's profile extras (J-07). */
+  sr_profile?: { traits: GuildTrait[] };
 }
+/** A server trait: a label with an optional emoji (at most five per server). */
+export interface GuildTrait {
+  emoji_id?: string | null;
+  emoji_name?: string | null;
+  label: string;
+}
+export const TRAITS_MAX = 5;
+export const TRAIT_LABEL_MAX = 24;
 export interface ModifyGuildBody {
   name?: string;
   description?: string | null;
@@ -104,6 +114,9 @@ export const getGuild = (id: string) =>
   apiFetch<GuildObject>(`/guilds/${id}?with_counts=true`, { retries: 0 });
 export const modifyGuild = (id: string, body: ModifyGuildBody) =>
   send<GuildObject>(`/guilds/${id}`, 'PATCH', body);
+/** `PATCH /guilds/{id}/sr/profile`: replaces the server's traits (`MANAGE_GUILD`). */
+export const modifySrProfile = (id: string, body: { traits: GuildTrait[] }) =>
+  send<GuildObject>(`/guilds/${id}/sr/profile`, 'PATCH', body);
 export const deleteGuild = (id: string) => send<void>(`/guilds/${id}`, 'DELETE');
 
 // ---- roles ----
@@ -119,8 +132,17 @@ export interface RoleObject {
   mentionable: boolean;
   icon?: string | null;
   unicode_emoji?: string | null;
+  /** Gradient stops (J-08); `primary_color` mirrors `color`. */
+  colors?: RoleColors;
+}
+export interface RoleColors {
+  primary_color: number;
+  secondary_color?: number | null;
+  tertiary_color?: number | null;
 }
 export interface RoleBody {
+  /** Replaces all three stops; a tertiary stop needs a secondary one. */
+  colors?: RoleColors;
   /** One emoji, or null to clear. Replaces an image icon. */
   unicode_emoji?: string | null;
   /** Image data URI, or null to remove. Replaces the emoji. */

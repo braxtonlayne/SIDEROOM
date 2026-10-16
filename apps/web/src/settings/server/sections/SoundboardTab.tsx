@@ -6,6 +6,8 @@ import { parseSound, soundAudio, type Sound } from '../../../voice/soundboard';
 import * as api from '../api';
 import { useGuildEvents, useResource } from '../hooks';
 import { ActionStatus, Async, useAction } from '../ui';
+import { decodeAudioFile, type PcmSource } from './soundTrim';
+import { SoundTrimmer } from './SoundTrimmer';
 
 /** Limits mirrored from crates/sr-chat/src/settings/soundboard.rs. */
 export const SOUND_LIMITS = { maxBytes: 512 * 1024, maxSeconds: 5, nameMin: 2, nameMax: 32 };
@@ -78,7 +80,8 @@ const readDataUri = (file: Blob) =>
 
 /**
  * Soundboard (LNG-SSET-025): the server's sounds with play, rename, volume and delete, and an upload dialog.
- * A file over five seconds is refused with its length instead of trimmed: the server keeps files as uploaded (D-201).
+ * The server keeps files as uploaded (D-201), so a file over five seconds is trimmed in the browser first
+ * (`SoundTrimmer`: a five second window re-encoded as WAV).
  */
 export function SoundboardTab({ guildId }: { guildId: string }) {
   const t = useT();
@@ -268,41 +271,57 @@ function UploadDialog({
   const [emoji, setEmoji] = useState('');
   const [volume, setVolume] = useState(100);
   const [fileError, setFileError] = useState<string | null>(null);
+  /** A decoded sound longer than the limit, waiting for the person to pick a window (J-06). */
+  const [trim, setTrim] = useState<{ audio: PcmSource; fileName: string } | null>(null);
+  /** The file made by the trimmer, while it is the chosen one. */
+  const [cut, setCut] = useState<File | null>(null);
   const action = useAction();
   const validName =
     name.trim().length >= SOUND_LIMITS.nameMin && name.trim().length <= SOUND_LIMITS.nameMax;
 
+  const nameFrom = (fileName: string) => {
+    if (!name)
+      setName(
+        fileName
+          .replace(/\.[^.]+$/, '')
+          .replace(/[^A-Za-z0-9_ -]+/g, '')
+          .slice(0, 32),
+      );
+  };
+
   const choose = async (f: File | undefined) => {
     setFile(null);
+    setTrim(null);
+    setCut(null);
     setFileError(null);
     if (!f) return;
-    if (f.size > SOUND_LIMITS.maxBytes) {
-      setFileError(t('settings.soundboard.tooLarge', { kb: String(SOUND_LIMITS.maxBytes / 1024) }));
+    let seconds: number;
+    try {
+      seconds = await audioSeconds(f);
+    } catch {
+      setFileError(t('settings.soundboard.unreadable'));
       return;
     }
-    try {
-      const seconds = await audioSeconds(f);
-      if (seconds > SOUND_LIMITS.maxSeconds) {
+    if (seconds > SOUND_LIMITS.maxSeconds) {
+      // Too long: decode it and let the person pick a five second window (the server never transcodes, D-201).
+      try {
+        setTrim({ audio: await decodeAudioFile(f), fileName: f.name });
+      } catch {
         setFileError(
           t('settings.soundboard.tooLong', {
             seconds: seconds.toFixed(1),
             max: String(SOUND_LIMITS.maxSeconds),
           }),
         );
-        return;
       }
-    } catch {
-      setFileError(t('settings.soundboard.unreadable'));
+      return;
+    }
+    if (f.size > SOUND_LIMITS.maxBytes) {
+      setFileError(t('settings.soundboard.tooLarge', { kb: String(SOUND_LIMITS.maxBytes / 1024) }));
       return;
     }
     setFile(f);
-    if (!name)
-      setName(
-        f.name
-          .replace(/\.[^.]+$/, '')
-          .replace(/[^A-Za-z0-9_ -]+/g, '')
-          .slice(0, 32),
-      );
+    nameFrom(f.name);
   };
 
   const submit = async () => {
@@ -347,6 +366,26 @@ function UploadDialog({
           onChange={(e) => void choose(e.target.files?.[0])}
         />
         {fileError && <ActionStatus error={fileError} />}
+        {trim && (
+          <SoundTrimmer
+            audio={trim.audio}
+            fileName={trim.fileName}
+            maxSeconds={SOUND_LIMITS.maxSeconds}
+            maxBytes={SOUND_LIMITS.maxBytes}
+            onCancel={() => setTrim(null)}
+            onUse={(made) => {
+              setTrim(null);
+              setCut(made);
+              setFile(made);
+              nameFrom(trim.fileName);
+            }}
+          />
+        )}
+        {file && cut === file && (
+          <p className="ss-sub" data-testid="sound-ready">
+            {t('settings.soundboard.ready', { name: file.name })}
+          </p>
+        )}
         <TextInput
           label={t('settings.soundboard.name')}
           value={name}

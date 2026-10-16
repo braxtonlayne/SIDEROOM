@@ -1,6 +1,8 @@
 //! Guild create/get/modify/delete and the caller's guild list.
 
-use super::dto::{CreateGuildBody, GuildObject, GuildPreviewObject, ModifyGuildBody};
+use super::dto::{
+    CreateGuildBody, GuildObject, GuildPreviewObject, ModifyGuildBody, ModifySrProfileBody,
+};
 use super::util::{Api, actor, ce, id};
 use crate::routes::settings::deps::{SettingsDeps, re, se};
 use crate::routes::{MaybeExt, media::MediaDeps};
@@ -13,6 +15,7 @@ use axum::{
 };
 use sr_chat::admin_rules::GuildPatch;
 use sr_chat::guild_rules::GuildBlueprint;
+use sr_chat::guild_traits::GuildTrait;
 use sr_chat::settings::error::SettingsError;
 use sr_chat::settings::templates::{self, TemplateSnapshot};
 use sr_core::{ChannelId, GuildId, UserId};
@@ -20,11 +23,18 @@ use sr_storage::media::MediaKind;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/guilds", axum::routing::post(create_guild))
+        .route(
+            "/guilds",
+            axum::routing::post(create_guild).layer(crate::routes::media::body_limit()),
+        )
         .route("/guilds/{guild_id}", get(get_guild).delete(delete_guild))
         .route(
             "/guilds/{guild_id}",
             axum::routing::patch(modify_guild).layer(crate::routes::media::body_limit()),
+        )
+        .route(
+            "/guilds/{guild_id}/sr/profile",
+            axum::routing::patch(modify_sr_profile),
         )
         .route("/users/@me/guilds", get(list_my_guilds))
         .route("/users/@me/guilds/{guild_id}", delete(leave_guild))
@@ -46,25 +56,117 @@ pub async fn create_guild(
     p: Principal,
     Api(api): Api,
     MaybeExt(settings): MaybeExt<SettingsDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Json(body): Json<CreateGuildBody>,
 ) -> ApiResult<(StatusCode, Json<GuildObject>)> {
     let owner = actor(&p)?;
+    let icon = body.icon.clone().filter(|i| !i.is_empty());
+    if icon.is_some() && media.is_none() {
+        tracing::error!("guild icon on create needs MediaDeps registered on AppState");
+        return Err(sr_core::ErrorCode::SrInternal.into());
+    }
     let key = body
         .template
         .as_deref()
         .map(str::trim)
         .filter(|t| !t.is_empty());
     let Some(key) = key else {
-        let bp = api.create_guild(owner, &body.name).await.map_err(ce)?;
+        let mut bp = api.create_guild(owner, &body.name).await.map_err(ce)?;
+        set_initial_icon(&api, media.as_deref(), owner, &mut bp, icon).await?;
         return Ok(created(&bp));
     };
     let (snapshot, used_code) = resolve_template(settings.as_deref(), key).await?;
-    let bp = api
+    let mut bp = api
         .create_guild_from_snapshot(owner, &body.name, &snapshot)
         .await
         .map_err(ce)?;
+    set_initial_icon(&api, media.as_deref(), owner, &mut bp, icon).await?;
     count_template_use(settings.as_deref(), used_code).await;
     Ok(created(&bp))
+}
+
+/// J-06: `POST /guilds` takes the icon as a data URI (the `PATCH` validation) so the client
+/// needs no second request. A bad image removes the server again and answers the error,
+/// so a retry does not leave a duplicate behind.
+async fn set_initial_icon(
+    api: &std::sync::Arc<dyn super::backend::GuildBackend>,
+    media: Option<&MediaDeps>,
+    owner: UserId,
+    bp: &mut GuildBlueprint,
+    icon: Option<String>,
+) -> ApiResult<()> {
+    let (Some(uri), Some(media)) = (icon, media) else {
+        return Ok(());
+    };
+    let gid = bp.guild.id;
+    let hash = match media
+        .store(MediaKind::GuildIcon, gid.get(), "icon", uri)
+        .await
+    {
+        Ok(h) => h,
+        Err(e) => {
+            if let Err(d) = api.delete_guild(owner, gid).await {
+                tracing::warn!(error = %d, "could not remove a server whose icon was refused");
+            }
+            return Err(e);
+        }
+    };
+    let patch = GuildPatch {
+        icon_key: Some(Some(hash.clone())),
+        ..GuildPatch::default()
+    };
+    match api.edit_guild(owner, gid, patch).await {
+        Ok(g) => {
+            bp.guild = g;
+            Ok(())
+        }
+        Err(e) => {
+            media.remove(MediaKind::GuildIcon, gid.get(), &hash).await;
+            Err(ce(e))
+        }
+    }
+}
+
+/// Edit the Side Room profile extras of a server: today its traits (J-07). `MANAGE_GUILD`;
+/// emits `GUILD_UPDATE`.
+#[utoipa::path(
+    patch,
+    path = "/guilds/{guild_id}/sr/profile",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    request_body = ModifySrProfileBody,
+    responses(
+        (status = 200, body = GuildObject),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+    ),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn modify_sr_profile(
+    p: Principal,
+    Api(api): Api,
+    gate: super::safety::MfaGate,
+    Path(guild_id): Path<String>,
+    Json(body): Json<ModifySrProfileBody>,
+) -> ApiResult<Json<GuildObject>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    gate.require_perm(
+        &*api,
+        user,
+        gid,
+        sr_core::permissions::Permissions::MANAGE_GUILD,
+    )
+    .await?;
+    let patch = GuildPatch {
+        traits: body
+            .traits
+            .map(|t| t.into_iter().map(GuildTrait::from).collect()),
+        ..GuildPatch::default()
+    };
+    let g = api.edit_guild(user, gid, patch).await.map_err(ce)?;
+    let (_, roles) = api.get_guild(user, gid).await.map_err(ce)?;
+    Ok(Json(GuildObject::new(&g, Some(&roles), None)))
 }
 
 /// The snapshot behind `key`: a built-in template id, else a template code. The second

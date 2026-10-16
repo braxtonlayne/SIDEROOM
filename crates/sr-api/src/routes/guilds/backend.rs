@@ -48,6 +48,7 @@ fn guild_changes(before: &Guild, after: &Guild) -> Vec<AuditChange> {
         json!(after.explicit_content_filter),
     );
     push("mfa_level", json!(before.mfa_level), json!(after.mfa_level));
+    push("traits", json!(before.traits), json!(after.traits));
     push(
         "system_channel_flags",
         json!(before.system_channel_flags),
@@ -773,6 +774,12 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         role: RoleId,
         patch: RolePatch,
     ) -> ChatResult<Role> {
+        let before = self
+            .svc
+            .list_roles(actor, guild)
+            .await
+            .ok()
+            .and_then(|v| v.into_iter().find(|x| x.id == role));
         let r = self.svc.edit_role(actor, guild, role, patch).await?;
         self.emit(DomainEvent::RoleUpdated {
             guild,
@@ -780,8 +787,29 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
             payload: role_payload(guild, &r),
         })
         .await;
-        self.audit(guild, actor, AuditAction::RoleUpdate, role.get(), None)
+        // J-08: the two gradient stops are audited under their own keys.
+        let mut changes = Vec::new();
+        if let Some(b) = &before {
+            for (key, old, new) in [
+                ("secondary_color", b.secondary_color, r.secondary_color),
+                ("tertiary_color", b.tertiary_color, r.tertiary_color),
+            ] {
+                if old != new {
+                    changes.push(AuditChange::new(key, Some(json!(old)), Some(json!(new))));
+                }
+            }
+        }
+        if let Some(a) = &self.audit {
+            a.record(
+                guild,
+                actor,
+                AuditAction::RoleUpdate,
+                Some(role.get()),
+                changes,
+                None,
+            )
             .await;
+        }
         Ok(r)
     }
 

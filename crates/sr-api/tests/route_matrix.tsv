@@ -486,6 +486,7 @@ PATCH	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	al
 PATCH	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/sr/features/{feature_id}	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/sr/profile	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/suggestions/{suggestion_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/support	authenticated	membership	allow	-

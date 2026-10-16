@@ -554,6 +554,128 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
     expect(sent.volume).toBe(1);
     expect(String(sent.sound)).toMatch(/^data:/);
   });
+
+  it('trims a sound over five seconds in the browser and uploads the part as a WAV (J-06, D-201)', async () => {
+    seed({ perms: [MANAGE.expressions] });
+    const post = capture();
+    await openWith('expressions', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/soundboard-sounds', () => HttpResponse.json({ items: [] })),
+        http.post('*/api/v1/guilds/g1/soundboard-sounds', async ({ request }) => {
+          await post.record(request);
+          return HttpResponse.json(sound('9', 'Clap'), { status: 201 });
+        }),
+      ),
+    );
+    await userEvent.click(await screen.findByRole('tab', { name: 'Soundboard' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Upload a sound' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Upload a sound' });
+
+    // A 12 s stereo sound at 8 kHz, decoded by a stand-in for WebAudio (jsdom has none).
+    fakeAudio(12);
+    const rate = 8000;
+    const length = 12 * rate;
+    const left = new Float32Array(length).fill(0.5);
+    const right = new Float32Array(length).fill(-0.5);
+    const played: { start: number; length: number }[] = [];
+    class FakeContext {
+      destination = {};
+      decodeAudioData = async () => ({
+        sampleRate: rate,
+        length,
+        numberOfChannels: 2,
+        getChannelData: (c: number) => (c === 0 ? left : right),
+      });
+      createBufferSource() {
+        const node = {
+          buffer: null as unknown,
+          onended: null as (() => void) | null,
+          connect: () => undefined,
+          start: (_when: number, start: number, len: number) => played.push({ start, length: len }),
+          stop: () => node.onended?.(),
+        };
+        return node;
+      }
+      close = async () => undefined;
+    }
+    vi.stubGlobal('AudioContext', FakeContext);
+
+    await userEvent.upload(
+      within(dialog).getByLabelText('Sound file'),
+      new File(['abc'], 'long clip.mp3', { type: 'audio/mpeg' }),
+    );
+    const trimmer = await within(dialog).findByRole('group', { name: 'Trim the sound' });
+    expect(within(trimmer).getByText(/12\.0 seconds long and the limit is 5/)).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: 'Upload' })).toBeDisabled();
+    expect(within(trimmer).getByTestId('trim-range')).toHaveTextContent('0.00 s to 5.00 s');
+
+    // Move the window to 4 s, preview it, then use it.
+    const slider = within(trimmer).getByLabelText('Start of the part to keep');
+    expect(slider).toHaveAttribute('max', '7');
+    fireEvent.change(slider, { target: { value: '4' } });
+    expect(within(trimmer).getByTestId('trim-range')).toHaveTextContent('4.00 s to 9.00 s');
+    await userEvent.click(within(trimmer).getByRole('button', { name: 'Play this part' }));
+    expect(played).toEqual([{ start: 4, length: 5 }]);
+    await userEvent.click(within(trimmer).getByRole('button', { name: 'Stop' }));
+    await userEvent.click(within(trimmer).getByRole('button', { name: 'Use this part' }));
+
+    expect(await within(dialog).findByText('Ready to upload: long clip.wav')).toBeVisible();
+    expect(within(dialog).queryByRole('group', { name: 'Trim the sound' })).toBeNull();
+    await waitFor(() => expect(within(dialog).getByLabelText('Name')).toHaveValue('long clip'));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Upload' }));
+    await waitFor(() => expect(post.calls).toHaveLength(1));
+    const sent = post.calls[0]!.body as Record<string, string>;
+    expect(sent.sound).toMatch(/^data:audio\/wav;base64,/);
+    const bytes = Uint8Array.from(atob(sent.sound!.split(',')[1]!), (c) => c.charCodeAt(0));
+    const view = new DataView(bytes.buffer);
+    // 5 s of 16-bit PCM at the source rate; 8 kHz stereo is 160 KB, so stereo is kept.
+    expect(String.fromCharCode(...bytes.slice(0, 4))).toBe('RIFF');
+    expect(view.getUint16(22, true)).toBe(2);
+    expect(view.getUint32(24, true)).toBe(rate);
+    expect(view.getUint32(40, true)).toBe(5 * rate * 2 * 2);
+    expect(bytes.byteLength).toBeLessThanOrEqual(512 * 1024);
+  });
+
+  it('refuses a trimmed part that is over the size limit and names its size (J-06)', async () => {
+    seed({ perms: [MANAGE.expressions] });
+    await openWith('expressions', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/soundboard-sounds', () => HttpResponse.json({ items: [] })),
+      ),
+    );
+    await userEvent.click(await screen.findByRole('tab', { name: 'Soundboard' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Upload a sound' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Upload a sound' });
+    fakeAudio(9);
+    // 96 kHz mono is 960 KB for five seconds: over 512 KiB even without a second channel.
+    const rate = 96000;
+    const length = 9 * rate;
+    const data = new Float32Array(length);
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        decodeAudioData = async () => ({
+          sampleRate: rate,
+          length,
+          numberOfChannels: 1,
+          getChannelData: () => data,
+        });
+        close = async () => undefined;
+      },
+    );
+    await userEvent.upload(
+      within(dialog).getByLabelText('Sound file'),
+      new File(['abc'], 'big.wav', { type: 'audio/wav' }),
+    );
+    const trimmer = await within(dialog).findByRole('group', { name: 'Trim the sound' });
+    await userEvent.click(within(trimmer).getByRole('button', { name: 'Use this part' }));
+    expect(
+      await within(trimmer).findByText(
+        'This part would be 938 KiB as a WAV file; the limit is 512 KiB. Pick another file.',
+      ),
+    ).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: 'Upload' })).toBeDisabled();
+  });
 });
 
 describe('Channel settings: announcement, voice limits, followers (LNG-CHN-017)', () => {

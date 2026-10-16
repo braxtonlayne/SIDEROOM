@@ -127,6 +127,8 @@ async fn env_with(opts: Opts) -> Env {
             guild_id: guild,
             name: "mods".into(),
             color: 0,
+            secondary_color: None,
+            tertiary_color: None,
             hoist: false,
             position: 1,
             permissions: Permissions::MANAGE_GUILD
