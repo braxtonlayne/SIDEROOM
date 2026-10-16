@@ -25,6 +25,8 @@ export interface VoiceSession {
   /** A moderator muted / deafened the viewer. */
   serverMute: boolean;
   serverDeaf: boolean;
+  /** Stage channels: the viewer is in the audience, so the microphone stays shut. */
+  suppressed: boolean;
   /** The channel denies USE_VAD: Push to Talk is forced. */
   pttForced: boolean;
   pttActive: boolean;
@@ -58,6 +60,7 @@ export const IDLE_SESSION: VoiceSession = {
   selfDeaf: false,
   serverMute: false,
   serverDeaf: false,
+  suppressed: false,
   pttForced: false,
   pttActive: false,
   transmitting: false,

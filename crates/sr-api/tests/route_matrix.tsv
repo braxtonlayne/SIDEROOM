@@ -740,6 +740,7 @@ PUT	/channels/{channel_id}/pins/{message_id}	authenticated	membership	allow	-
 PUT	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	authenticated	membership	allow	-
 PUT	/channels/{channel_id}/recipients/{user_id}	authenticated	membership	allow	-
 PUT	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-
+PUT	/channels/{channel_id}/voice-status	authenticated	membership	allow	-
 PUT	/cinema/comments/{comment_id}/like	authenticated	other	allow	-
 PUT	/cinema/lists/{list_id}/items/{title_id}	authenticated	other	allow	-
 PUT	/cinema/lists/{list_id}/order	authenticated	other	allow	-

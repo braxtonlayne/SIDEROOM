@@ -433,3 +433,52 @@ pub fn run(cfg: &LoadConfig) -> Report {
         keyframe_requests: snap.keyframe_requests,
     }
 }
+
+/// What [`run_sharded`] reports: the sum over `shards` actors that each host their own rooms.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShardedReport {
+    pub shards: Vec<Report>,
+    pub participants: usize,
+    pub egress_mbps: f64,
+    pub ingress_mbps: f64,
+    /// Core time of all shards per simulated second, i.e. how many cores' worth of work the
+    /// node needs for this load.
+    pub cores_busy: f64,
+    /// The busiest single shard's share of its own core. Above 1.0 that shard cannot keep up.
+    pub busiest_shard_fraction: f64,
+    /// The node's total work scaled to 300 Mbit/s of egress, as cores' worth.
+    pub cores_at_target: f64,
+}
+
+/// Run `shards` copies of the load at the same time, one thread each, the way the sharded
+/// SFU runs its actors: every shard owns its own core, rooms and sockets and shares nothing
+/// but memory bandwidth and caches with the others (VOX-SFU-011). `cfg` is the load of **one**
+/// shard; the node carries `shards` times that.
+pub fn run_sharded(cfg: &LoadConfig, shards: usize) -> ShardedReport {
+    let shards = shards.max(1);
+    let reports: Vec<Report> = std::thread::scope(|s| {
+        let handles: Vec<_> = (0..shards).map(|_| s.spawn(|| run(cfg))).collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("shard thread"))
+            .collect()
+    });
+    let egress_mbps: f64 = reports.iter().map(|r| r.egress_mbps).sum();
+    let cores_busy: f64 = reports.iter().map(|r| r.core_cpu_fraction).sum();
+    ShardedReport {
+        participants: reports.iter().map(|r| r.participants).sum(),
+        egress_mbps,
+        ingress_mbps: reports.iter().map(|r| r.ingress_mbps).sum(),
+        cores_busy,
+        busiest_shard_fraction: reports
+            .iter()
+            .map(|r| r.core_cpu_fraction)
+            .fold(0.0, f64::max),
+        cores_at_target: if egress_mbps > 0.0 {
+            cores_busy * 300.0 / egress_mbps
+        } else {
+            0.0
+        },
+        shards: reports,
+    }
+}

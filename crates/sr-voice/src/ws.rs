@@ -113,14 +113,13 @@ async fn serve(h: SfuHandle, socket: WebSocket) {
                     .await;
                 return;
             };
-            if h.tx
-                .send(Cmd::Join {
-                    claims,
-                    conn,
-                    reply: reply_tx,
-                })
-                .await
-                .is_err()
+            if h.send(Cmd::Join {
+                claims,
+                conn,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
             {
                 return;
             }
@@ -133,15 +132,14 @@ async fn serve(h: SfuHandle, socket: WebSocket) {
                     .await;
                 return;
             };
-            if h.tx
-                .send(Cmd::Resume {
-                    session_id: r.session_id,
-                    resume_token: r.resume_token,
-                    conn,
-                    reply: reply_tx,
-                })
-                .await
-                .is_err()
+            if h.send(Cmd::Resume {
+                session_id: r.session_id,
+                resume_token: r.resume_token,
+                conn,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
             {
                 return;
             }
@@ -168,7 +166,7 @@ async fn serve(h: SfuHandle, socket: WebSocket) {
         .await
         .is_err()
     {
-        let _ = h.tx.send(Cmd::WsLost { pid, conn_id }).await;
+        let _ = h.send(Cmd::WsLost { pid, conn_id }).await;
         return;
     }
 
@@ -234,7 +232,7 @@ async fn serve(h: SfuHandle, socket: WebSocket) {
     }
     if !actor_closed {
         // The socket went away on its own: keep the participant for the resume window.
-        let _ = h.tx.send(Cmd::WsLost { pid, conn_id }).await;
+        let _ = h.send(Cmd::WsLost { pid, conn_id }).await;
     }
 }
 
@@ -317,6 +315,6 @@ async fn handle_client(
 }
 
 async fn send(h: &SfuHandle, cmd: Cmd) -> Result<Option<Message>, u16> {
-    h.tx.send(cmd).await.map_err(|_| close::SERVER_RESTARTING)?;
+    h.send(cmd).await.map_err(|()| close::SERVER_RESTARTING)?;
     Ok(None)
 }

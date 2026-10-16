@@ -278,6 +278,8 @@ export interface VoiceState {
   self_stream?: boolean;
   /** Stage channels: suppressed = audience. */
   suppress?: boolean;
+  /** Stage channels: when the member raised their hand (ISO 8601), null when not asking to speak. */
+  request_to_speak_timestamp?: string | null;
 }
 
 /** An ICE server as delivered in `VOICE_SERVER_UPDATE` (RTCIceServer shape). */

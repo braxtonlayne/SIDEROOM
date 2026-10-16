@@ -387,6 +387,8 @@ Specified in `docs/specs/lounge-voice-video.md` (sections 4.9 to 4.12, 7, 8a, 8b
 **Soundboard.** `GET /soundboard-default-sounds`, `GET /soundboard-default-sounds/{id}/audio`; `GET|POST /guilds/{id}/soundboard-sounds`, `GET|PATCH|DELETE /guilds/{id}/soundboard-sounds/{sound_id}`, `GET .../{sound_id}/audio`; `POST /channels/{id}/send-soundboard-sound {sound_id, source_guild_id?}`. Dispatches `GUILD_SOUNDBOARD_SOUNDS_UPDATE {guild_id, soundboard_sounds}` (intent `GUILD_EXPRESSIONS`), `VOICE_CHANNEL_EFFECT_SEND {channel_id, guild_id, user_id, emoji, animation_type, animation_id, sound_id, sound_volume}` (intent `GUILD_VOICE_STATES`), and `SOUNDBOARD_SOUNDS {guild_id, soundboard_sounds}` in answer to op 31. Errors: 10097 unknown sound, 30045 sound slots full, 900012 cooldown (429).
 
 
+**Voice channel status.** `PUT /channels/{channel_id}/voice-status {status: string | null}` (empty or null clears, at most 500 characters; 204) sets the status line of a voice or stage channel. It needs `SET_VOICE_CHANNEL_STATUS` (bit 48) and a seat in the channel, or `MANAGE_CHANNELS`; a status can only be set while somebody is in the channel and ends when the last member leaves. Dispatch `VOICE_CHANNEL_STATUS_UPDATE {id, guild_id, status}` (intent `GUILD_VOICE_STATES`); `GUILD_CREATE` carries it as `status` on the channel objects.
+
 ## 7. Bot compatibility checklist (porting guide)
 
 Published at `docs/developers/porting-from-discord.md` (Phase 6):

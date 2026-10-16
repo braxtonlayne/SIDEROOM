@@ -164,6 +164,16 @@ impl GuildDirectory for Dir {
         .then_some(G)
     }
 
+    async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {
+        json!({
+            "id": guild,
+            "channels": [
+                {"id": LOBBY.to_string(), "name": "lobby"},
+                {"id": STAGE.to_string(), "name": "stage"},
+            ],
+        })
+    }
+
     async fn voice_guild(&self, guild: GuildId) -> VoiceGuildInfo {
         if guild == G {
             *self.afk.lock().unwrap()

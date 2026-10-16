@@ -2,6 +2,8 @@ import type { MenuEntry } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useDeveloperMode } from '../../settings/user/prefs';
 import { useViewer } from '../../settings/server/hooks';
+import { setVideoOff, useRemoteVideo } from '../../voice/video';
+import { startDmCall } from '../shell/dmCall';
 import { useGuild, useMembers, useRoles } from '../data';
 import { openProfilePopout } from '../profile/popoutStore';
 import { useOpenDm } from '../shell/dm';
@@ -15,8 +17,8 @@ import { useVoiceMenuEntries } from './useVoiceMenu';
  * Copy User ID. The server re-checks every permission and the role hierarchy; this only hides what would
  * certainly be refused. Returns nothing for the viewer themselves.
  *
- * Not offered yet: Call (DM and group call signalling, VOX-SIG-008) and Disable Video (remote video,
- * VOX-SFU-005).
+ * Call opens the DM with the person and joins its call (the server rings them, VOX-SIG-008); Disable Video
+ * stops receiving their camera for this call (VOX-SFU-005: the SFU stops forwarding it).
  */
 export function useVoiceUserMenu(
   guildId: string,
@@ -36,6 +38,8 @@ export function useVoiceUserMenu(
   const openDm = useOpenDm();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const userEntries = useUserMenuEntries(voice.length ? user : undefined);
+  const hasCamera = useRemoteVideo((s) => !!s.camera[user.id]);
+  const videoOff = useRemoteVideo((s) => !!s.videoOff[user.id]);
   if (!voice.length) return [];
 
   const member = members.find((m) => m.user.id === user.id);
@@ -87,9 +91,27 @@ export function useVoiceUserMenu(
       disabled: isBot,
       onSelect: () => void openDm([user.id]).catch(() => onError?.(t('lounge.voiceMenu.dmFailed'))),
     },
+    {
+      label: t('lounge.voiceMenu.call'),
+      disabled: isBot,
+      onSelect: () =>
+        void openDm([user.id])
+          .then((dm) => startDmCall(dm.id, user.name, false))
+          .catch(() => onError?.(t('lounge.voiceMenu.dmFailed'))),
+    },
     ...(userEntries.note ? [userEntries.note] : []),
     { type: 'separator' },
     ...voice,
+    ...(hasCamera || videoOff
+      ? [
+          {
+            label: videoOff
+              ? t('lounge.voiceChannel.enableVideo')
+              : t('lounge.voiceChannel.disableVideo'),
+            onSelect: () => setVideoOff(user.id, !videoOff),
+          } as MenuEntry,
+        ]
+      : []),
     ...(moderation.length ? [{ type: 'separator' } as MenuEntry, ...moderation] : []),
     ...(developerMode
       ? [

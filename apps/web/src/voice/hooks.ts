@@ -16,6 +16,10 @@ export interface VoiceParticipant {
   serverDeafened: boolean;
   video: boolean;
   streaming: boolean;
+  /** Stage channels: in the audience (cannot speak). */
+  suppressed: boolean;
+  /** Stage channels: when the hand went up (ms since the epoch), null when it is down. */
+  handRaisedAt: number | null;
 }
 
 const EMPTY: VoiceParticipant[] = [];
@@ -30,6 +34,10 @@ function toParticipant(v: VoiceState, speaking: boolean): VoiceParticipant {
     serverDeafened: !!v.deaf,
     video: !!v.self_video,
     streaming: !!v.self_stream,
+    suppressed: !!v.suppress,
+    handRaisedAt: v.request_to_speak_timestamp
+      ? Date.parse(v.request_to_speak_timestamp) || 0
+      : null,
   };
 }
 

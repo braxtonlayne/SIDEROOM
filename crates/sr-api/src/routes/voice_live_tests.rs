@@ -103,6 +103,15 @@ impl VoiceBackend for Fake {
         self.note(format!("end {channel}"))
     }
 
+    async fn voice_status_set(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+        status: Option<String>,
+    ) -> Result<(), VoiceError> {
+        self.note(format!("status {actor} {channel} {status:?}"))
+    }
+
     async fn stage_self(
         &self,
         actor: UserId,
@@ -509,5 +518,59 @@ fn the_routes_are_documented() {
         "/channels/{channel_id}/call/stop-ringing",
     ] {
         assert!(paths.contains_key(p), "{p}");
+    }
+}
+
+#[tokio::test]
+async fn the_voice_status_route_sets_and_clears_and_maps_refusals() {
+    let fake = Arc::new(Fake::default());
+    let app = app(fake.clone());
+    let path = "/channels/7/voice-status";
+    let (s, ..) = call(
+        &app,
+        Method::PUT,
+        path,
+        Some(json!({"status": "Mario Kart"})),
+        &[],
+    )
+    .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (s, ..) = call(&app, Method::PUT, path, Some(json!({"status": null})), &[]).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (s, ..) = call(&app, Method::PUT, path, Some(json!({})), &[]).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    {
+        let log = fake.log.lock().unwrap();
+        assert!(log[0].ends_with("7 Some(\"Mario Kart\")"), "{log:?}");
+        assert!(log[1].ends_with("7 None"), "{log:?}");
+        assert!(log[2].ends_with("7 None"), "{log:?}");
+    }
+    // A bad channel id never reaches the backend.
+    fake.log.lock().unwrap().clear();
+    let (s, ..) = call(
+        &app,
+        Method::PUT,
+        "/channels/not-a-snowflake/voice-status",
+        Some(json!({"status": "x"})),
+        &[],
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert!(fake.log.lock().unwrap().is_empty());
+
+    for (err, status, code) in [
+        (VoiceError::MissingPermissions, StatusCode::FORBIDDEN, 50013),
+        (VoiceError::InvalidStatus, StatusCode::BAD_REQUEST, 50035),
+        (VoiceError::NotVoiceChannel, StatusCode::BAD_REQUEST, 50035),
+        (VoiceError::UnknownChannel, StatusCode::NOT_FOUND, 10003),
+        (VoiceError::Unavailable, StatusCode::FORBIDDEN, 900_001),
+    ] {
+        *fake.fail.lock().unwrap() = Some(err);
+        let (s, _, b) = call(&app, Method::PUT, path, Some(json!({"status": "x"})), &[]).await;
+        assert_eq!(
+            (s, json_of(&b)["code"].as_u64()),
+            (status, Some(code)),
+            "{err:?}"
+        );
     }
 }

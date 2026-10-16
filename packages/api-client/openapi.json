@@ -21920,6 +21920,77 @@
         ]
       }
     },
+    "/channels/{channel_id}/voice-status": {
+      "put": {
+        "tags": [],
+        "summary": "Set or clear the status line of a voice or stage channel (Discord's voice channel status).\nNeeds `SET_VOICE_CHANNEL_STATUS` and a seat in the channel, or `MANAGE_CHANNELS`. It ends\nwhen the last member leaves. Announced as `VOICE_CHANNEL_STATUS_UPDATE`.",
+        "operationId": "set_voice_status",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice or stage channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceStatusBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Applied"
+          },
+          "400": {
+            "description": "Not a voice channel, or longer than 500 characters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/watch-party": {
       "get": {
         "tags": [
@@ -74820,6 +74891,18 @@
           },
           "playback": {
             "$ref": "#/components/schemas/WatchPartyPlayback"
+          }
+        }
+      },
+      "VoiceStatusBody": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The new status, at most 500 characters. `null` or an empty string clears it."
           }
         }
       },

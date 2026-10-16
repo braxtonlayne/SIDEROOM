@@ -20,7 +20,7 @@ export const VoiceOp = {
   RESUMED: 9,
   CLIENT_CONNECT: 10,
   CLIENT_DISCONNECT: 11,
-  /** Reserved: video, screen share. */
+  /** Camera and screen share: publish, subscribe, published, layer (see VideoIn / VideoOut below). */
   VIDEO: 12,
   /** Egress governor notices (client contract below; the SFU does not send them yet, VOX-SFU-008). */
   QUALITY: 13,
@@ -54,11 +54,11 @@ export const REJOIN_VOICE_CLOSES: ReadonlySet<number> = new Set([
 ]);
 
 /**
- * Whether the SFU forwards video yet (VOX-SFU-005/006). While false, camera and screen captures stay a local
+ * Whether captures are published to the SFU (it forwards video since VOX-SFU-005/006). While false, camera and screen captures stay a local
  * preview: the client does not add video m-lines (the spec says they would be ignored) and does not announce
  * `self_video` / `self_stream` in its voice state, so nobody is shown a "LIVE" tile with nothing in it.
  */
-export const VIDEO_PUBLISH = false;
+export const VIDEO_PUBLISH = true;
 
 /** SPEAKING bitmask. */
 export const SPEAKING_VOICE = 1;
@@ -164,4 +164,67 @@ export function tuneOpus(sdp: string, maxBitrate: number | undefined = 64_000): 
   const line = `a=fmtp:${pt} ${[...params].map(([k, v]) => (v === '' ? k : `${k}=${v}`)).join(';')}`;
   if (cur) return sdp.replace(re, line);
   return sdp.replace(m[0], `${m[0]}\r\n${line}`);
+}
+
+// ---- video (op 12), crates/sr-voice-proto/src/video.rs ----
+
+/** What a published or forwarded track carries. */
+export type VideoSource = 'camera' | 'screen' | 'screen_audio';
+export type VideoLayer = 'low' | 'mid' | 'high';
+
+/** C->S: the m-line `mid` carries `source` (or stops carrying it with `active: false`). */
+export interface VideoPublishOut {
+  t: 'publish';
+  mid: string;
+  source: VideoSource;
+  active: boolean;
+  width: number;
+  height: number;
+  fps: number;
+}
+
+/** What a subscriber wants from one source of one participant. */
+export interface VideoHint {
+  user_id: string;
+  source: 'camera' | 'screen';
+  enabled?: boolean;
+  layer?: VideoLayer;
+  viewport?: { width: number; height: number };
+}
+
+export interface VideoSubscribeOut {
+  t: 'subscribe';
+  subscriptions: VideoHint[];
+}
+
+/** S->C: someone started or stopped publishing a source. */
+export interface VideoPublishedIn {
+  t: 'published';
+  user_id: string;
+  source: VideoSource;
+  active: boolean;
+  width?: number;
+  height?: number;
+  fps?: number;
+}
+
+/** S->C: the layer now sent for a source changed. */
+export interface VideoLayerIn {
+  t: 'layer';
+  user_id: string;
+  source: VideoSource;
+  layer: VideoLayer;
+  reason: 'hint' | 'bandwidth' | 'governor';
+}
+
+export type VideoIn = VideoPublishedIn | VideoLayerIn;
+
+/**
+ * The SFU names each forwarded line's msid stream: `<user>` is the microphone, `<user>-camera` the camera,
+ * `<user>-screen` the screen and its audio (one stream group, so the browser plays them in sync).
+ */
+export function parseStreamId(id: string): { userId: string; kind: 'mic' | 'camera' | 'screen' } {
+  if (id.endsWith('-camera')) return { userId: id.slice(0, -'-camera'.length), kind: 'camera' };
+  if (id.endsWith('-screen')) return { userId: id.slice(0, -'-screen'.length), kind: 'screen' };
+  return { userId: id, kind: 'mic' };
 }

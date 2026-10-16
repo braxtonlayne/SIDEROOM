@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DropdownMenu, Icon, Tooltip, type MenuEntry } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useOpenUserSettings } from '../../settings/user/nav';
-import { voiceController } from '../../voice/controller';
+import { DM_GUILD_ID, voiceController } from '../../voice/controller';
 import { useAudioDevices, useCameras } from '../../voice/hooks';
 import { useVideoLimits } from '../../voice/limits';
 import { useVoiceSession } from '../../voice/session';
@@ -11,6 +11,7 @@ import { useLocalVideo } from '../../voice/video';
 import { StartPartyButton } from '../../watchparty/StartPartyButton';
 import { CameraPreviewDialog } from './CameraPreview';
 import { ScreenSharePicker } from './ScreenSharePicker';
+import { SoundboardButton } from './SoundboardPopover';
 import './voice-p10.css';
 
 export interface ViewLayout {
@@ -26,6 +27,8 @@ export interface CallControlsProps {
   onLayout(patch: Partial<ViewLayout>): void;
   onFullscreen(): void;
   onPopOut?: (() => void) | undefined;
+  /** The conversation itself is on screen (a DM call): no text chat button. */
+  hideChat?: boolean;
 }
 
 /** A round toggle with a drop-down arrow beside it. */
@@ -66,6 +69,7 @@ export function CallControls({
   onLayout,
   onFullscreen,
   onPopOut,
+  hideChat,
 }: CallControlsProps) {
   const t = useT();
   const session = useVoiceSession();
@@ -260,18 +264,21 @@ export function CallControls({
             </button>
           }
         />
-        <Tooltip content={t('lounge.callControls.textChat')}>
-          <button
-            type="button"
-            className="vc-ctl"
-            aria-label={t('lounge.callControls.textChat')}
-            aria-pressed={layout.chatOpen}
-            data-active={layout.chatOpen || undefined}
-            onClick={() => onLayout({ chatOpen: !layout.chatOpen })}
-          >
-            <Icon name="message" size={24} />
-          </button>
-        </Tooltip>
+        {!hideChat && (
+          <Tooltip content={t('lounge.callControls.textChat')}>
+            <button
+              type="button"
+              className="vc-ctl"
+              aria-label={t('lounge.callControls.textChat')}
+              aria-pressed={layout.chatOpen}
+              data-active={layout.chatOpen || undefined}
+              onClick={() => onLayout({ chatOpen: !layout.chatOpen })}
+            >
+              <Icon name="message" size={24} />
+            </button>
+          </Tooltip>
+        )}
+        {guildId !== DM_GUILD_ID && <SoundboardButton guildId={guildId} channelId={channelId} />}
         <StartPartyButton channelId={channelId} />
         <DropdownMenu
           label={t('lounge.callControls.more')}

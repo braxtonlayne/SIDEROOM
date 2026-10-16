@@ -412,6 +412,8 @@ pub(crate) struct VoiceExtra {
     pub active: HashMap<UserId, Instant>,
     pub streams: HashMap<String, crate::voice_stream::StreamState>,
     pub stages: HashMap<ChannelId, crate::voice_stage::StageInstance>,
+    /// Voice channel status lines by channel (VOX-UI-015); gone when the channel empties.
+    pub statuses: HashMap<ChannelId, crate::voice_status::ChannelStatus>,
     pub calls: HashMap<ChannelId, crate::voice_call::CallState>,
     /// One soundboard play per member per few seconds.
     pub cooldown: sr_chat::settings::soundboard::PlayCooldown,
@@ -953,6 +955,7 @@ impl Gateway {
     pub(crate) async fn voice_after_removal(&self, old: &VoiceState) {
         self.stream_member_left(old).await;
         self.stage_member_left(old).await;
+        self.voice_status_member_left(old).await;
         if old.guild_id.is_none() {
             self.call_member_left(old).await;
         }
@@ -1284,6 +1287,7 @@ impl Gateway {
             let mut st = self.st();
             st.vx.streams.retain(|_, s| s.guild_id != Some(guild));
             st.vx.stages.retain(|_, s| s.guild_id != guild);
+            st.vx.statuses.retain(|_, s| s.guild_id != guild);
         }
         for c in channels {
             self.relay(VoiceCommand::CloseRoom { channel: c }).await;
@@ -1337,6 +1341,7 @@ impl Gateway {
             && let DomainEvent::ChannelDeleted { channel, .. } = ev
         {
             self.stage_channel_deleted(*channel).await;
+            self.voice_status_channel_deleted(*channel);
         }
         if self.voice_cfg().is_none()
             || !self.st().voice.values().any(|v| v.guild_id == Some(guild))

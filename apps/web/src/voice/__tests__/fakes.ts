@@ -35,7 +35,20 @@ export class FakeStream {
     this.id = id ?? `stream-${streamSeq++}`;
   }
   getAudioTracks() {
-    return this.tracks as unknown as MediaStreamTrack[];
+    return this.tracks.filter((t) => t.kind === 'audio') as unknown as MediaStreamTrack[];
+  }
+  getVideoTracks() {
+    return this.tracks.filter((t) => t.kind === 'video') as unknown as MediaStreamTrack[];
+  }
+  private listeners = new Map<string, Set<() => void>>();
+  addEventListener(type: string, cb: () => void) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type)!.add(cb);
+  }
+  /** The SFU removed a line: drop the tracks and fire `removetrack`. */
+  removeAll() {
+    this.tracks = [];
+    for (const cb of [...(this.listeners.get('removetrack') ?? [])]) cb();
   }
   getTracks() {
     return this.tracks as unknown as MediaStreamTrack[];
@@ -79,6 +92,31 @@ export class FakeAudioContext {
   sources: FakeNode[] = [];
   dests: { stream: FakeStream }[] = [];
   oscillators = 0;
+  bufferSources: FakeBufferSource[] = [];
+  decodeAudioData = vi.fn(async (data: ArrayBuffer) => {
+    if (data.byteLength === 0) throw new Error('bad audio');
+    return { duration: 1 } as unknown as AudioBuffer;
+  });
+  createBufferSource() {
+    const src = Object.assign(new FakeNode(), {
+      buffer: null as unknown,
+      started: false,
+      stopped: false,
+      onended: null as (() => void) | null,
+      start() {
+        src.started = true;
+      },
+      stop() {
+        src.stopped = true;
+      },
+      /** The sound ran out. */
+      finish() {
+        src.onended?.();
+      },
+    });
+    this.bufferSources.push(src);
+    return src;
+  }
   createMediaStreamSource() {
     const n = new FakeNode();
     this.sources.push(n);
@@ -225,15 +263,25 @@ export class FakePeer implements PeerLike {
   onconnectionstatechange: (() => void) | null = null;
   onicegatheringstatechange: (() => void) | null = null;
   ontrack: PeerLike['ontrack'] = null;
-  transceivers: { track: unknown; init: unknown }[] = [];
+  transceivers: FakeTransceiver[] = [];
   offers: ({ iceRestart?: boolean } | undefined)[] = [];
   remote: { type: string; sdp?: string }[] = [];
   closed = false;
   rollbacks = 0;
   stats: Record<string, unknown>[] = [];
   constructor(public config: unknown) {}
-  addTransceiver(track: MediaStreamTrack, init: never) {
-    this.transceivers.push({ track, init });
+  addTransceiver(track: MediaStreamTrack, init: never): FakeTransceiver {
+    const tx: FakeTransceiver = {
+      track,
+      init,
+      mid: null,
+      stopped: false,
+      stop: () => {
+        tx.stopped = true;
+      },
+    };
+    this.transceivers.push(tx);
+    return tx;
   }
   async createOffer(o?: { iceRestart?: boolean }) {
     this.offers.push(o);
@@ -252,7 +300,12 @@ export class FakePeer implements PeerLike {
       return;
     }
     this.localDescription = d ?? null;
-    if (d?.type === 'offer') this.signalingState = 'have-local-offer';
+    if (d?.type === 'offer') {
+      this.signalingState = 'have-local-offer';
+      this.transceivers.forEach((tx, i) => {
+        tx.mid ??= String(i);
+      });
+    }
     if (d?.type === 'answer') this.signalingState = 'stable';
   }
   async setRemoteDescription(d: { type: string; sdp?: string }) {
@@ -269,6 +322,18 @@ export class FakePeer implements PeerLike {
   setState(s: string) {
     this.connectionState = s;
     this.onconnectionstatechange?.();
+  }
+  /** Simulate the SFU forwarding a stream with the given kinds of track (camera, screen + audio). */
+  receiveStream(streamId: string, kinds: ('audio' | 'video')[]) {
+    const tracks = kinds.map((k) => Object.assign(new FakeTrack(k), { kind: k }));
+    const stream = new FakeStream(tracks, streamId);
+    for (const t of tracks) {
+      this.ontrack?.({
+        track: t as unknown as MediaStreamTrack,
+        streams: [stream as unknown as MediaStream],
+      });
+    }
+    return stream;
   }
   /** Simulate the SFU forwarding someone's audio. */
   receive(userId: string) {
@@ -316,3 +381,21 @@ export function fakeEngineDeps(audio = fakeAudio()): FakeEngineWorld {
   };
   return world;
 }
+
+export interface FakeTransceiver {
+  track: unknown;
+  init: unknown;
+  mid: string | null;
+  stopped: boolean;
+  stop(): void;
+}
+
+export type FakeBufferSource = FakeNode & {
+  buffer: unknown;
+  started: boolean;
+  stopped: boolean;
+  onended: (() => void) | null;
+  start(): void;
+  stop(): void;
+  finish(): void;
+};
