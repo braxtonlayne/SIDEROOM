@@ -39,14 +39,18 @@ const OP = {
   DISPATCH: 0,
   HEARTBEAT: 1,
   IDENTIFY: 2,
+  PRESENCE_UPDATE: 3,
   RESUME: 6,
   RECONNECT: 7,
+  REQUEST_GUILD_MEMBERS: 8,
   INVALID_SESSION: 9,
   HELLO: 10,
   HEARTBEAT_ACK: 11,
 } as const;
 
 /** Close codes a reconnect cannot cure (bad token, bad shard, bad or disallowed intents). */
+export const GatewayOp = OP;
+
 export const FATAL_CLOSE: Readonly<Record<number, string>> = {
   4004: 'authentication failed',
   4010: 'invalid shard',
@@ -55,6 +59,15 @@ export const FATAL_CLOSE: Readonly<Record<number, string>> = {
   4013: 'invalid intents',
   4014: 'disallowed intents',
 };
+
+/** The lower-case host of a URL, or undefined when it does not parse. */
+export function urlHost(url: string): string | undefined {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
 
 export interface ShardOptions {
   token: string;
@@ -67,6 +80,8 @@ export interface ShardOptions {
   onFatal: (code: number, reason: string) => void;
   minBackoffMs?: number;
   maxBackoffMs?: number;
+  /** Hosts a resume URL may point at (D-234); the host of `url` is always allowed. */
+  allowedHosts?: string[];
 }
 
 export class Shard {
@@ -88,7 +103,10 @@ export class Shard {
 
   connect(): void {
     if (this.stopped) return;
-    const url = this.sessionId && this.resumeUrl ? this.resumeUrl : this.o.url;
+    const url =
+      this.sessionId && this.resumeUrl && this.hostAllowed(this.resumeUrl)
+        ? this.resumeUrl
+        : this.o.url;
     const socket = this.createSocket(url);
     this.socket = socket;
     socket.onMessage((raw) => {
@@ -97,6 +115,24 @@ export class Shard {
     socket.onClose((code) => {
       if (this.socket === socket) this.closed(code);
     });
+  }
+
+  private hostAllowed(url: string): boolean {
+    const h = urlHost(url);
+    if (h === undefined) return false;
+    const allowed = [urlHost(this.o.url), ...(this.o.allowedHosts ?? [])];
+    return allowed.some((a) => a !== undefined && a.toLowerCase() === h);
+  }
+
+  get id(): number {
+    return this.o.shard[0];
+  }
+
+  /** Send an op (for example REQUEST_GUILD_MEMBERS) on the open connection. False if not open. */
+  send(op: number, d: unknown): boolean {
+    if (!this.socket || !this.sessionId) return false;
+    this.socket.send(JSON.stringify({ op, d }));
+    return true;
   }
 
   destroy(): void {

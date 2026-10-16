@@ -116,3 +116,35 @@ export interface MessageOptions {
   /** Interaction responses only. */
   ephemeral?: boolean;
 }
+
+/** REQUEST_GUILD_MEMBERS (op 8). Needs the GuildMembers intent. */
+export interface RequestGuildMembers {
+  guildId: Snowflake;
+  /** Names starting with this; empty with `limit` 0 asks for everyone. */
+  query?: string;
+  limit?: number;
+  presences?: boolean;
+  /** Ask for exactly these users instead of a prefix query. */
+  userIds?: Snowflake[];
+  /** Echoed on every chunk; the client fills one in when absent. */
+  nonce?: string;
+}
+
+/** One GUILD_MEMBERS_CHUNK dispatch. */
+export interface MembersChunk {
+  guild_id: Snowflake;
+  members: Record<string, unknown>[];
+  chunk_index: number;
+  chunk_count: number;
+  not_found?: Snowflake[];
+  presences?: Record<string, unknown>[];
+  nonce?: string;
+}
+
+/** Presence update (op 3). */
+export interface PresenceUpdate {
+  status: 'online' | 'idle' | 'dnd' | 'invisible';
+  /** Activity objects, for example `{ name: 'chess', type: 0 }`. */
+  activities?: Record<string, unknown>[];
+  afk?: boolean;
+}
