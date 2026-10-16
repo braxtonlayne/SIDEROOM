@@ -187,6 +187,17 @@ impl AuthStore for MemoryAuthStore {
         Ok(self.lock().invites.get(code.canonical()).map(|i| i.state))
     }
 
+    async fn invite_credit_balance(&self, account: i64) -> StoreResult<Option<i64>> {
+        Ok(Some(
+            self.lock()
+                .ledger
+                .iter()
+                .filter(|(a, ..)| *a == account)
+                .map(|(_, d, _)| i64::from(*d))
+                .sum(),
+        ))
+    }
+
     async fn counted_accounts(&self) -> StoreResult<u64> {
         Ok(self
             .lock()

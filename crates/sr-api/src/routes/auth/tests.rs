@@ -508,6 +508,32 @@ async fn register_happy_path_consumes_invite_and_credits_ledger() {
     assert_eq!(v2.status, StatusCode::BAD_REQUEST);
 }
 
+/// ENT-INV-009: the issuer's own sessions hear `SR_INVITE_CREDITS_UPDATE` with the new balance.
+#[tokio::test]
+async fn redemption_dispatches_invite_credits_update_to_the_issuer() {
+    let h = harness();
+    let code = h.issuer_with_invite(1, 5);
+    let mut issuer =
+        sr_events::EventBus::subscribe(&*h.bus, sr_events::Topic::User(sr_core::UserId::new(1)));
+    let r = h
+        .post("/api/v1/sr/register", reg_body(&code, "sam", "sam@x.test"))
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::CREATED, "{:?}", r.body);
+    let ev = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        futures::StreamExt::next(&mut issuer),
+    )
+    .await
+    .expect("an event within 5 s")
+    .unwrap();
+    let sr_events::DomainEvent::UserScoped { name, payload, .. } = ev else {
+        panic!("expected a user-scoped event, got {ev:?}");
+    };
+    assert_eq!(name, "SR_INVITE_CREDITS_UPDATE");
+    assert_eq!(payload["credits"], 4);
+}
+
 #[tokio::test]
 async fn register_validation_errors_are_field_scoped() {
     let h = harness();

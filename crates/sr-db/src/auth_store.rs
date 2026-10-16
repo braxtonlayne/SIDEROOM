@@ -710,6 +710,17 @@ impl AuthStore for PgAuthStore {
         Ok(r.rows_affected() > 0)
     }
 
+    async fn invite_credit_balance(&self, account: i64) -> StoreResult<Option<i64>> {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COALESCE(SUM(delta), 0)::BIGINT FROM invite_credits_ledger WHERE account_id = $1",
+        )
+        .bind(account)
+        .fetch_one(&self.pool)
+        .await
+        .map(Some)
+        .map_err(store_err)
+    }
+
     async fn member_invites(
         &self,
         account: i64,

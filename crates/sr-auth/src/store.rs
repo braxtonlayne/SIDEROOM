@@ -422,6 +422,11 @@ pub trait AuthStore: Send + Sync {
     ) -> StoreResult<bool>;
 
     // ---- member platform invites (G-57) ---------------------------------------
+    /// The account's remaining invite credits (ledger balance), for the
+    /// `SR_INVITE_CREDITS_UPDATE` dispatch (ENT-INV-009). `None` when the store cannot say.
+    async fn invite_credit_balance(&self, _account: i64) -> StoreResult<Option<i64>> {
+        Ok(None)
+    }
     /// The account's credits, codes and whether it may create one now.
     async fn member_invites(&self, _account: i64, _now: i64) -> StoreResult<MemberInvites> {
         Err(StoreError(

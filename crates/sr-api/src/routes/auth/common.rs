@@ -239,6 +239,31 @@ impl AuthService {
         }
     }
 
+    /// `SR_INVITE_CREDITS_UPDATE` to the issuer's own sessions after one of their codes was
+    /// redeemed: the remaining credits (ENT-INV-009). Best effort.
+    pub(super) async fn notify_invite_credits(&self, issuer_id: i64) {
+        let (Some(bus), Ok(uid)) = (&self.bus, u64::try_from(issuer_id)) else {
+            return;
+        };
+        let Ok(Some(balance)) = self.store.invite_credit_balance(issuer_id).await else {
+            return;
+        };
+        let user = sr_core::UserId::new(uid);
+        if let Err(e) = bus
+            .publish(
+                sr_events::Topic::User(user),
+                sr_events::DomainEvent::UserScoped {
+                    users: vec![user],
+                    name: "SR_INVITE_CREDITS_UPDATE".to_owned(),
+                    payload: serde_json::json!({ "credits": balance, "reason": "redemption" }),
+                },
+            )
+            .await
+        {
+            tracing::warn!(error = %e, "failed to publish SR_INVITE_CREDITS_UPDATE");
+        }
+    }
+
     /// Post a card to a Staff Server feed (`#new-members`). Best effort, like alerts.
     pub(super) async fn staff_feed(
         &self,
