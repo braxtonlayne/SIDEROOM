@@ -13,6 +13,8 @@
  */
 import { create } from 'zustand';
 import { apiFetch } from '../api/client';
+import { rest, useStore } from '../store';
+import type { UserSettingsBlob } from '../store';
 
 export interface Sound {
   id: string;
@@ -50,6 +52,13 @@ const parseList = (raw: unknown): Sound[] =>
 
 const STORAGE_KEY = 'sr.soundboard';
 
+/** The synced settings key holding the favorites (H-45): sound keys, newest last, at most FAVORITES_MAX. */
+export const FAVORITES_KEY = 'soundboardFavorites';
+export const FAVORITES_MAX = 50;
+
+/** True once the settings blob has been read; until then the localStorage list is the first paint. */
+let favoritesAdopted = false;
+
 interface Saved {
   favorites: string[];
   volume: number;
@@ -69,9 +78,10 @@ function load(): Saved {
   }
 }
 
+/** Writes the per-device volume, plus the legacy favorites list only while the synced one is not known. */
 function save(s: Saved): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(favoritesAdopted ? { volume: s.volume } : s));
   } catch {
     /* private mode: the choice lasts until the page closes */
   }
@@ -91,9 +101,12 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   guilds: {},
   toggleFavorite: (key) => {
     const cur = get().favorites;
-    const favorites = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+    const favorites = (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]).slice(
+      -FAVORITES_MAX,
+    );
     set({ favorites });
     save({ favorites, volume: get().volume });
+    if (favoritesAdopted) writeFavorites(favorites);
   },
   setVolume: (percent) => {
     const volume = Math.min(100, Math.max(0, Math.round(percent)));
@@ -102,8 +115,62 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   },
 }));
 
-export const resetSoundboard = () =>
+export const resetSoundboard = () => {
+  favoritesAdopted = false;
   useSoundboard.setState({ defaults: null, guilds: {}, favorites: [], volume: 100 });
+};
+
+/** Saves the favorites into the settings blob and records the new version; a failure keeps the local state. */
+function writeFavorites(list: string[]): void {
+  void rest
+    .patchUserSettings({ [FAVORITES_KEY]: list })
+    .then((saved) => useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', saved))
+    .catch(() => undefined);
+}
+
+/**
+ * Takes the favorites from the settings blob. A blob without the key imports this device's old localStorage
+ * list once (written up, then the local copy is dropped); a blob with it wins and the local list is ignored.
+ */
+export function adoptFavorites(blob: UserSettingsBlob | null): void {
+  if (!blob) return;
+  const raw = blob.settings[FAVORITES_KEY];
+  if (Array.isArray(raw)) {
+    const favorites = raw.filter((f): f is string => typeof f === 'string').slice(-FAVORITES_MAX);
+    const cur = useSoundboard.getState().favorites;
+    favoritesAdopted = true;
+    if (favorites.length !== cur.length || favorites.some((f, i) => f !== cur[i])) {
+      useSoundboard.setState({ favorites });
+    }
+    save({ favorites, volume: useSoundboard.getState().volume });
+    return;
+  }
+  const legacy = load().favorites.slice(-FAVORITES_MAX);
+  favoritesAdopted = true;
+  if (legacy.length) {
+    useSoundboard.setState({ favorites: legacy });
+    writeFavorites(legacy);
+  }
+  const { favorites, volume } = useSoundboard.getState();
+  save({ favorites, volume });
+}
+
+/** Follows the settings blob (loading it when this session has not): call on mount, call the result on unmount. */
+export function startFavoritesSync(): () => void {
+  let last = useStore.getState().userSettings;
+  adoptFavorites(last);
+  if (!last) {
+    rest
+      .fetchUserSettings()
+      .then((blob) => useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', blob))
+      .catch(() => undefined);
+  }
+  return useStore.subscribe((st) => {
+    if (st.userSettings === last) return;
+    last = st.userSettings;
+    adoptFavorites(last);
+  });
+}
 
 /** Load the default sounds once and a server's own sounds (again each time, so a new upload shows). */
 export async function loadSounds(guildId: string | null): Promise<void> {

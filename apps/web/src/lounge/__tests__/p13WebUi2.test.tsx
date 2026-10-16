@@ -1,5 +1,6 @@
 // LNG-EXP-011 (emoji popout), D-233 (client-side upload block) and notification keyword highlights.
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { resetUploadLimits } from '../msg/uploadLimit';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
@@ -139,6 +140,25 @@ describe('client-side upload block (D-233)', () => {
     expect(await screen.findByText(/big\.bin is larger than the/)).toBeInTheDocument();
     expect(await screen.findByText('small.bin')).toBeInTheDocument();
     expect(screen.queryByText('big.bin')).toBeNull();
+  });
+
+  it('points a free member to Patron when it refuses a file, and never queues it (H-22)', async () => {
+    resetUploadLimits();
+    server.use(
+      http.get('*/api/v1/donations/me', () =>
+        HttpResponse.json({
+          patron: { active: false, in_grace: false, permanent: false },
+          limits: { upload_bytes: 1000, patron: false },
+          preferences: {},
+        }),
+      ),
+    );
+    at('/channels/g1/c1');
+    await screen.findByTestId('file-input');
+    pick([file('big.bin', 5000)]);
+    expect(await screen.findByText(/Patrons can upload larger files/)).toBeInTheDocument();
+    expect(screen.queryByText('big.bin')).toBeNull();
+    resetUploadLimits();
   });
 
   it('lets everything through when the limit is unknown', async () => {

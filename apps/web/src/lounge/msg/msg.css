@@ -891,6 +891,11 @@
   float: inline-start;
   margin-inline-end: 6px;
 }
+.lng-msg[data-compact] .lng-compact-avatar {
+  flex: none;
+  align-self: center;
+  margin-inline-end: 6px;
+}
 .lng-msg[data-compact] .lng-msg-head::after {
   content: ':';
   color: var(--text-muted);

@@ -587,6 +587,15 @@ function MessageItemImpl(props: MessageItemProps) {
           <div className="lng-msg-body">
             {!grouped && (
               <header className="lng-msg-head">
+                {compact && prefs.compactAvatars && (
+                  <Avatar
+                    name={m.author.displayName}
+                    src={m.author.avatarUrl ?? null}
+                    size={24}
+                    aria-hidden="true"
+                    className="lng-compact-avatar"
+                  />
+                )}
                 <span
                   className="lng-msg-author"
                   data-gradient={roleColorOn && nameDecor?.secondary ? '' : undefined}

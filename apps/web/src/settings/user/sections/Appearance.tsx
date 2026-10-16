@@ -135,6 +135,13 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
               { value: 'compact', label: t('settings.appearance.compact') },
             ]}
           />
+          <Switch
+            label={t('settings.appearance.compactAvatars')}
+            description={t('settings.appearance.compactAvatarsDesc')}
+            checked={prefs.compactAvatars}
+            disabled={prefs.messageDisplay !== 'compact'}
+            onChange={(e) => setPrefs({ compactAvatars: e.target.checked })}
+          />
           <Slider
             label={t('settings.appearance.gap')}
             min={MESSAGE_GAP_RANGE[0]}

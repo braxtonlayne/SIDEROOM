@@ -72,6 +72,7 @@ import { useReportOutcome } from './apps/useReportOutcome';
 import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
 import { UploadTray } from './msg/UploadTray';
+import { isPatron } from './msg/uploadLimit';
 import { queuedFiles } from './queuedFiles';
 import { formatBytes } from './msg/format';
 import { MAX_FILES, uploadFiles, type PendingFile } from './msg/upload';
@@ -318,15 +319,22 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       const list = maxUpload === undefined ? all : all.filter((f) => f.size <= maxUpload);
       const refused = all.filter((f) => !list.includes(f));
       if (refused.length > 0) {
-        toast.show({
-          title: t('lounge.composer.fileTooLarge', {
-            name: refused[0]!.name || 'file',
-            count: refused.length,
-            max: formatBytes(maxUpload ?? 0),
-          }),
-          variant: 'warning',
-          duration: 5000,
-        });
+        const values = {
+          name: refused[0]!.name || 'file',
+          count: refused.length,
+          max: formatBytes(maxUpload ?? 0),
+        };
+        const show = (patron: boolean) =>
+          toast.show({
+            title: t(
+              patron ? 'lounge.composer.fileTooLarge' : 'lounge.composer.fileTooLargePatron',
+              values,
+            ),
+            variant: 'warning',
+            duration: 5000,
+          });
+        // Free members get the Patron hint; the lookup is shared with the tray and shows the plain text offline.
+        void isPatron().then(show, () => show(true));
       }
       if (list.length === 0) return;
       setFiles((cur) => {

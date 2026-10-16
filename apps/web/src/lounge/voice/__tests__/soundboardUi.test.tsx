@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { http, HttpResponse, server } from '../../../test/server';
 import { VoiceController, setVoiceController } from '../../../voice/controller';
 import { patchSession, resetSession } from '../../../voice/session';
+import { useStore } from '../../../store';
 import { resetSoundboard, useSoundboard } from '../../../voice/soundboard';
 import { MockDataProvider } from '../../mockData';
 import { SoundboardButton } from '../SoundboardPopover';
@@ -110,6 +111,23 @@ describe('soundboard popover (VOX-SB-002)', () => {
     expect(useSoundboard.getState().favorites).toEqual(['default:2']);
     await user.click(stars[0]!);
     expect(within(body).queryByRole('heading', { name: 'Favorites' })).toBeNull();
+  });
+
+  it('shows favorites from the synced settings and follows a change from another session (H-45)', async () => {
+    useStore.setState({
+      userSettings: { version: 1, settings: { soundboardFavorites: ['default:2'] } },
+    });
+    const user = open();
+    const body = await popover(user);
+    expect(within(body).getByRole('heading', { name: 'Favorites' })).toBeInTheDocument();
+    act(() => {
+      useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', {
+        version: 2,
+        settings: { soundboardFavorites: [] },
+      });
+    });
+    expect(within(body).queryByRole('heading', { name: 'Favorites' })).toBeNull();
+    useStore.setState({ userSettings: null });
   });
 
   it('previews a sound for you alone and says when it cannot play', async () => {
