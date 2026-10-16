@@ -17,6 +17,9 @@ export default {
   'lounge.joinGate.browseIntro': 'These are the channels you will see in {name}.',
   'lounge.joinGate.done': 'Done',
 
+  // Forum post card reactions (LNG-FRM-003)
+  'lounge.forum.reactions': '{count, plural, one {# reaction} other {# reactions}}',
+
   // Browse Channels (LNG-GLD-032)
   'lounge.channelSidebar.browseChannels': 'Browse Channels',
   'lounge.browseChannels.title': 'Browse Channels',

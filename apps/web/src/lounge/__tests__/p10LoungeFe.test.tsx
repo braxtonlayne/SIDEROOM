@@ -296,7 +296,17 @@ describe('Lounge forum channel', () => {
       ),
       http.get('*/api/v1/channels/:tid/messages', ({ params }) =>
         HttpResponse.json([
-          { ...msg('m1', { content: `first message of ${String(params['tid'])}` }) },
+          {
+            ...msg('m1', { content: `first message of ${String(params['tid'])}` }),
+            ...(params['tid'] === 'p1'
+              ? {
+                  reactions: [
+                    { emoji: { name: 'a' }, count: 2, me: false },
+                    { emoji: { name: 'b' }, count: 1, me: false },
+                  ],
+                }
+              : {}),
+          },
         ]),
       ),
       http.post('*/api/v1/channels/f1/threads', async (ctx) => {
@@ -317,6 +327,7 @@ describe('Lounge forum channel', () => {
     expect(await within(list).findByText('How do I log in?')).toBeInTheDocument();
     expect(within(list).getByText('Crash on start')).toBeInTheDocument();
     expect(await within(list).findByText('first message of p1')).toBeInTheDocument();
+    expect(within(list).getByText(/3 reactions/)).toBeInTheDocument();
 
     const chips = await screen.findByRole('group', { name: 'Filter by tag' });
     await userEvent.click(within(chips).getByRole('button', { name: /Bug/ }));
