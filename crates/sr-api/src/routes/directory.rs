@@ -389,7 +389,7 @@ pub async fn get_emoji_info(
     params(
         ("emoji_id" = String, Path, description = "Emoji snowflake"),
         ("size" = Option<u32>, Query, description = "Power of two, 16 to 4096"),
-        ("format" = Option<String>, Query, description = "png, jpg, webp or gif"),
+        ("format" = Option<String>, Query, description = "png, jpg, webp, gif or avif (answers webp)"),
     ),
     responses((status = 200, body = crate::routes::settings::expressions::SignedUrlObject),
               (status = 400, body = ErrorBody), (status = 404, body = ErrorBody)),

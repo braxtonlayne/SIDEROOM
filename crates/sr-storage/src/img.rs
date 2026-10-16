@@ -1,6 +1,6 @@
 //! Image pipeline (FND-STOR-003): decode, crop/resize, re-encode.
 //!
-//! Pure Rust (`image` crate, no libwebp). Used by the `/cdn` resizer
+//! `image` decodes and writes stills; libwebp (`webp` crate, ADR-0005) writes animated WebP. Used
 //! (`?size=`/`format=`) and by the avatar/banner/icon upload paths.
 //!
 //! Guarantees:
@@ -14,18 +14,21 @@
 //!   are refused with [`ImgError::TooLarge`] *before* pixels are decoded (the
 //!   dimensions come from the header); animations are capped by frame count and
 //!   total pixels.
-//! * **Animation.** Animated GIF is resized frame by frame and stays an
-//!   animated GIF. Animated WebP is decoded as its first frame only, and any
-//!   animated source asked for as PNG/JPEG/WebP yields its first frame: the
-//!   `image` crate's WebP encoder is lossless and still-only.
-//! * **WebP is lossless.** `image`'s pure-Rust encoder has no lossy mode; WebP
-//!   output is therefore lossless (photographic sources are better served as
-//!   JPEG, which [`pick_format`] prefers for JPEG sources).
+//! * **Animation (H-46).** Animated GIF and animated WebP are decoded frame by
+//!   frame (same frame and pixel budget), resized, and re-encoded as an
+//!   animated WebP (libwebp, frame durations kept) for the WebP format, or as
+//!   an animated GIF. Asked for PNG/JPEG, an animation yields its first frame.
+//!   `format=avif` is accepted by the CDN and answers the WebP variant (AVIF
+//!   is closed, P13-FND-2).
+//! * **Still WebP is lossless.** `image`'s pure-Rust encoder has no lossy mode
+//!   (photographic sources are better served as JPEG, which [`pick_format`]
+//!   prefers for JPEG sources).
 
 use std::io::Cursor;
 
 use image::codecs::gif::{GifDecoder, GifEncoder, Repeat};
 use image::codecs::jpeg::JpegEncoder;
+use image::codecs::webp::WebPDecoder;
 use image::imageops::FilterType;
 use image::metadata::Orientation;
 use image::{
@@ -157,10 +160,20 @@ pub fn variant_key(key: &str, size: Option<u32>, format: ImgFormat) -> String {
     }
 }
 
+/// True when `head` (at least the first 21 bytes) is a WebP whose VP8X header
+/// has the animation flag set.
+pub fn webp_header_animated(head: &[u8]) -> bool {
+    head.len() >= 21
+        && &head[0..4] == b"RIFF"
+        && &head[8..12] == b"WEBP"
+        && &head[12..16] == b"VP8X"
+        && head[20] & 0x02 != 0
+}
+
 /// Choose the output format. Order: explicit `requested` (`format=` or URL
-/// extension), else keep the source's own format family:
-/// animated GIF stays GIF, JPEG stays JPEG, otherwise WebP when the client
-/// `accepts_webp`, else PNG.
+/// extension), else an animation becomes an animated WebP when the client
+/// `accepts_webp` (animated GIF otherwise), JPEG stays JPEG, anything else is
+/// WebP when the client `accepts_webp`, else PNG.
 pub fn pick_format(
     requested: Option<ImgFormat>,
     source: ImgFormat,
@@ -171,7 +184,8 @@ pub fn pick_format(
         return f;
     }
     match source {
-        ImgFormat::Gif if animated => ImgFormat::Gif,
+        _ if animated && accepts_webp => ImgFormat::Webp,
+        _ if animated => ImgFormat::Gif,
         ImgFormat::Jpeg => ImgFormat::Jpeg,
         _ if accepts_webp => ImgFormat::Webp,
         _ => ImgFormat::Png,
@@ -239,31 +253,47 @@ fn decode_limits(limits: &Limits) -> DecodeLimits {
     l
 }
 
-/// Decode `src` within the budget. Animated GIFs keep their frames (a
-/// single-frame GIF becomes a still); animated WebP gives its first frame.
+/// Collect an animation's frames within the frame and pixel budget; a single
+/// frame becomes a still.
+fn collect_frames(
+    p: Probe,
+    frames_iter: image::Frames<'_>,
+    limits: &Limits,
+) -> Result<Decoded, ImgError> {
+    let per_frame = u64::from(p.width) * u64::from(p.height);
+    let mut frames: Vec<Frame> = Vec::new();
+    for f in frames_iter {
+        let f = f.map_err(|_| ImgError::Malformed)?;
+        if frames.len() + 1 > limits.max_frames
+            || per_frame * (frames.len() as u64 + 1) > limits.max_animation_pixels
+        {
+            return Err(ImgError::TooLarge);
+        }
+        frames.push(f);
+    }
+    if frames.is_empty() {
+        return Err(ImgError::Malformed);
+    }
+    if frames.len() == 1 {
+        let f = frames.remove(0);
+        return Ok(Decoded::Still(DynamicImage::ImageRgba8(f.into_buffer())));
+    }
+    Ok(Decoded::Anim(frames))
+}
+
+/// Decode `src` within the budget. Animated GIF and animated WebP keep their
+/// frames (a single-frame animation becomes a still).
 pub fn decode(src: &[u8], limits: &Limits) -> Result<(Probe, Decoded), ImgError> {
     let p = probe(src, limits)?;
     if p.format == ImgFormat::Gif {
         let dec = GifDecoder::new(Cursor::new(src)).map_err(|_| ImgError::Malformed)?;
-        let per_frame = u64::from(p.width) * u64::from(p.height);
-        let mut frames: Vec<Frame> = Vec::new();
-        for f in dec.into_frames() {
-            let f = f.map_err(|_| ImgError::Malformed)?;
-            if frames.len() + 1 > limits.max_frames
-                || per_frame * (frames.len() as u64 + 1) > limits.max_animation_pixels
-            {
-                return Err(ImgError::TooLarge);
-            }
-            frames.push(f);
+        return Ok((p, collect_frames(p, dec.into_frames(), limits)?));
+    }
+    if p.format == ImgFormat::Webp && webp_header_animated(src) {
+        let dec = WebPDecoder::new(Cursor::new(src)).map_err(|_| ImgError::Malformed)?;
+        if dec.has_animation() {
+            return Ok((p, collect_frames(p, dec.into_frames(), limits)?));
         }
-        if frames.is_empty() {
-            return Err(ImgError::Malformed);
-        }
-        if frames.len() == 1 {
-            let f = frames.remove(0);
-            return Ok((p, Decoded::Still(DynamicImage::ImageRgba8(f.into_buffer()))));
-        }
-        return Ok((p, Decoded::Anim(frames)));
     }
     let mut dec = ImageReader::with_format(Cursor::new(src), p.format.codec())
         .into_decoder()
@@ -381,11 +411,41 @@ fn flatten_white(img: &RgbaImage) -> RgbImage {
     out
 }
 
-/// Encode as `format`. An animation is kept only for GIF; other formats get
+/// Quality of animated WebP output (lossy, libwebp). Stills stay lossless
+/// because `image` has no lossy encoder; animations would be huge lossless.
+const WEBP_ANIM_QUALITY: f32 = 80.0;
+
+/// Encode frames as an animated WebP with libwebp, keeping each frame's delay.
+fn encode_anim_webp(frames: &[Frame]) -> Result<Vec<u8>, ImgError> {
+    let first = frames.first().ok_or(ImgError::Malformed)?;
+    let (w, h) = first.buffer().dimensions();
+    let mut config = webp::WebPConfig::new().map_err(|()| ImgError::Malformed)?;
+    config.lossless = 0;
+    config.quality = WEBP_ANIM_QUALITY;
+    let mut enc = webp::AnimEncoder::new(w, h, &config);
+    // `set_loop_count(0)` is the default: loop forever.
+    let mut t: i64 = 0;
+    for f in frames {
+        let b = f.buffer();
+        if b.dimensions() != (w, h) {
+            return Err(ImgError::Malformed);
+        }
+        // The timestamp is the frame's start; the next start is this one plus its delay.
+        let ts = i32::try_from(t).map_err(|_| ImgError::TooLarge)?;
+        enc.add_frame(webp::AnimFrame::from_rgba(b.as_raw(), w, h, ts));
+        let (n, d) = f.delay().numer_denom_ms();
+        t += i64::from((n / d.max(1)).max(20));
+    }
+    let out = enc.try_encode().map_err(|_| ImgError::Malformed)?;
+    Ok(out.to_vec())
+}
+
+/// Encode as `format`. An animation is kept for GIF and WebP; other formats get
 /// the first frame.
 pub fn encode(d: &Decoded, format: ImgFormat) -> Result<Vec<u8>, ImgError> {
     let mut out = Vec::new();
     match (d, format) {
+        (Decoded::Anim(frames), ImgFormat::Webp) => return encode_anim_webp(frames),
         (Decoded::Anim(frames), ImgFormat::Gif) => {
             let mut enc = GifEncoder::new_with_speed(&mut out, 10);
             enc.set_repeat(Repeat::Infinite)
@@ -460,7 +520,7 @@ fn finish(d: &Decoded, format: ImgFormat) -> Result<Rendered, ImgError> {
         format,
         width,
         height,
-        animated: d.is_animated() && format == ImgFormat::Gif,
+        animated: d.is_animated() && matches!(format, ImgFormat::Gif | ImgFormat::Webp),
     })
 }
 
