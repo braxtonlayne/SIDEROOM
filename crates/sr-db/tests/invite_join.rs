@@ -370,3 +370,80 @@ async fn nobody_joins_the_staff_server_by_invite() {
     .unwrap();
     assert!(!member);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn every_join_path_records_its_source() {
+    let f = fx(21).await;
+    let source = |user: UserId| {
+        let pool = f.pool.clone();
+        let guild = f.guild;
+        async move {
+            sqlx::query_as::<_, (Option<String>, Option<String>, Option<i64>)>(
+                "SELECT join_source, join_invite_code, join_ref FROM guild_members \
+                 WHERE guild_id = $1 AND user_id = $2",
+            )
+            .bind(guild.get() as i64)
+            .bind(user.get() as i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    // Creating the server.
+    assert_eq!(source(f.owner).await.0.as_deref(), Some("creator"));
+
+    // An invite: its code and the inviter.
+    let (a, b) = (
+        account(&f.pool, &f.ids).await,
+        account(&f.pool, &f.ids).await,
+    );
+    let code = f.invite(0, 5).await;
+    f.join.join_via_invite(&code, a, NOW + 1).await.unwrap();
+    let (src, c, r) = source(a).await;
+    assert_eq!(
+        (src.as_deref(), c.as_deref(), r),
+        (
+            Some("invite"),
+            Some(code.as_str()),
+            Some(f.owner.get() as i64)
+        )
+    );
+
+    // A vanity code.
+    let vanity = format!("v{}", f.ids.generate().get());
+    assert!(f.chat.set_vanity(f.guild, Some(&vanity)).await.unwrap());
+    f.join.join_via_invite(&vanity, b, NOW + 2).await.unwrap();
+    let (src, c, _) = source(b).await;
+    assert_eq!(
+        (src.as_deref(), c.as_deref()),
+        (Some("vanity"), Some(vanity.as_str()))
+    );
+
+    // The Server Directory.
+    let d = account(&f.pool, &f.ids).await;
+    f.join.join_listed(f.guild, d, NOW + 3).await.unwrap();
+    assert_eq!(source(d).await.0.as_deref(), Some("directory"));
+
+    // The member lookup reads them back; a kick in the audit log reads as `rejoined`.
+    let joins = f.chat.member_joins(f.guild, &[a, b, d]).await.unwrap();
+    assert_eq!(joins.len(), 3);
+    assert!(joins.iter().all(|j| !j.rejoined));
+    let ja = joins.iter().find(|j| j.user_id == a).unwrap();
+    assert_eq!(ja.source.as_deref(), Some("invite"));
+    assert_eq!(ja.ref_id, Some(f.owner.get() as i64));
+    sqlx::query(
+        "INSERT INTO audit_log_entries (id, guild_id, actor_id, target_id, action) \
+         VALUES ($1, $2, $3, $4, 20)",
+    )
+    .bind(f.ids.generate().get() as i64)
+    .bind(f.guild.get() as i64)
+    .bind(f.owner.get() as i64)
+    .bind(b.get() as i64)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    let joins = f.chat.member_joins(f.guild, &[a, b]).await.unwrap();
+    assert!(joins.iter().find(|j| j.user_id == b).unwrap().rejoined);
+    assert!(!joins.iter().find(|j| j.user_id == a).unwrap().rejoined);
+}

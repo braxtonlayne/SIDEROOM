@@ -85,6 +85,36 @@ fn kind_str(k: OverwriteKind) -> &'static str {
 
 #[async_trait]
 impl GuildAdminRepository for PgChatRepo {
+    async fn member_joins(
+        &self,
+        guild: GuildId,
+        users: &[UserId],
+    ) -> RepoResult<Vec<sr_chat::admin_repo::MemberJoin>> {
+        let ids: Vec<i64> = users.iter().map(|u| i(u.get())).collect();
+        // Audit actions 20 (kick), 21 (prune) and 23 (unban) name the person they removed.
+        let rows = sqlx::query(
+            "SELECT gm.user_id, gm.join_source, gm.join_invite_code, gm.join_ref,                     EXISTS (SELECT 1 FROM audit_log_entries a WHERE a.guild_id = gm.guild_id                             AND a.target_id = gm.user_id AND a.action IN (20, 21, 23)) AS rejoined              FROM guild_members gm WHERE gm.guild_id = $1 AND gm.user_id = ANY($2)",
+        )
+        .bind(i(guild.get()))
+        .bind(&ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(sr_chat::admin_repo::MemberJoin {
+                    user_id: UserId::new(
+                        u64::try_from(r.try_get::<i64, _>("user_id").map_err(db)?).unwrap_or(0),
+                    ),
+                    source: r.try_get("join_source").map_err(db)?,
+                    invite_code: r.try_get("join_invite_code").map_err(db)?,
+                    ref_id: r.try_get("join_ref").map_err(db)?,
+                    rejoined: r.try_get("rejoined").map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
     async fn set_vanity(&self, guild: GuildId, code: Option<&str>) -> RepoResult<bool> {
         match sqlx::query("UPDATE guilds SET vanity_code = $2, updated_at = now() WHERE id = $1")
             .bind(i(guild.get()))

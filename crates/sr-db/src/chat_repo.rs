@@ -430,8 +430,8 @@ impl GuildRepository for PgChatRepo {
 
         let m = &bp.owner_member;
         sqlx::query(
-            "INSERT INTO guild_members (guild_id, user_id, joined_at) \
-             VALUES ($1, $2, to_timestamp($3::double precision / 1000.0))",
+            "INSERT INTO guild_members (guild_id, user_id, joined_at, join_source) \
+             VALUES ($1, $2, to_timestamp($3::double precision / 1000.0), 'creator')",
         )
         .bind(i(m.guild_id.get()))
         .bind(i(m.user_id.get()))

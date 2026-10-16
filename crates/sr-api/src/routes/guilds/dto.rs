@@ -521,6 +521,62 @@ pub struct MemberObject {
     /// Only present on gateway payloads.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guild_id: Option<String>,
+    /// How the member joined; only for callers with `MANAGE_GUILD` (D-240).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_join: Option<MemberJoinObject>,
+    /// Facts about the member: `new_account`, `rejoined`; only for callers with `MANAGE_GUILD`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_signals: Option<Vec<String>>,
+}
+
+/// `sr_join` of a member object (D-240).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct MemberJoinObject {
+    /// `invite`, `vanity`, `directory`, `application`, `creator`, `staff`, `bot` or `unknown`.
+    pub source: String,
+    /// The invite or vanity code used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invite_code: Option<String>,
+    /// Who made the invite (invite joins only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inviter_id: Option<String>,
+}
+
+impl MemberObject {
+    /// Add `sr_join` and `sr_signals` for a viewer who may see them. `warn_days` is the server's
+    /// `warn_new_account_days`; `now_ms` the clock.
+    pub fn with_join(
+        mut self,
+        user: UserId,
+        join: &sr_chat::admin_repo::MemberJoin,
+        warn_days: u32,
+        now_ms: i64,
+    ) -> Self {
+        let source = join.source.clone().unwrap_or_else(|| "unknown".to_owned());
+        self.sr_join = Some(MemberJoinObject {
+            inviter_id: (source == "invite")
+                .then(|| join.ref_id.map(|r| r.to_string()))
+                .flatten(),
+            source,
+            invite_code: join.invite_code.clone(),
+        });
+        self.sr_signals = Some(signals_of(user, join.rejoined, warn_days, now_ms));
+        self
+    }
+}
+
+/// The two member signals (D-240): the account is younger than the server's threshold, and an
+/// earlier removal of this person from this server is in the audit log.
+pub fn signals_of(user: UserId, rejoined: bool, warn_days: u32, now_ms: i64) -> Vec<String> {
+    let mut out = Vec::new();
+    let age_ms = now_ms - sr_core::Snowflake::new(user.get()).unix_ms();
+    if age_ms < i64::from(warn_days) * 86_400_000 {
+        out.push("new_account".to_owned());
+    }
+    if rejoined {
+        out.push("rejoined".to_owned());
+    }
+    out
 }
 
 impl MemberObject {
@@ -544,6 +600,8 @@ impl MemberObject {
             pending: m.pending,
             communication_disabled_until: m.communication_disabled_until_ms.map(iso8601),
             guild_id: with_guild_id.then(|| m.guild_id.to_string()),
+            sr_join: None,
+            sr_signals: None,
         }
     }
 }

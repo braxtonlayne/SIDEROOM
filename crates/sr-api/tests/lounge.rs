@@ -2819,3 +2819,98 @@ async fn staff_transfer_and_delete_send_system_dms_to_the_owners() {
         "Staff deleted `Book Club`. If this looks wrong, contact staff."
     );
 }
+
+// ------------------------------------------------------------------ H-37
+
+#[tokio::test]
+async fn member_objects_show_the_join_source_and_signals_to_managers_only() {
+    use sr_chat::admin_repo::MemberJoin;
+    let w = world().await;
+    let (gid, _) = w.guild("Join Club").await;
+    let gid_n = GuildId::new(gid.parse().unwrap());
+    // A member whose account is minutes old, and one who was removed before.
+    let fresh = SnowflakeGenerator::new(w.clock.clone() as Arc<dyn Clock>, 5, 5)
+        .unwrap()
+        .generate()
+        .get() as i64;
+    w.add_member(&gid, fresh);
+    w.add_member(&gid, CAROL);
+    {
+        let mut s = w.repo.store.lock().unwrap();
+        s.joins.insert(
+            (gid_n, UserId::new(BOB as u64)),
+            MemberJoin {
+                user_id: UserId::new(BOB as u64),
+                source: Some("invite".into()),
+                invite_code: Some("abc123".into()),
+                ref_id: Some(OWNER),
+                rejoined: false,
+            },
+        );
+        s.joins.insert(
+            (gid_n, UserId::new(CAROL as u64)),
+            MemberJoin {
+                user_id: UserId::new(CAROL as u64),
+                source: Some("directory".into()),
+                invite_code: None,
+                ref_id: None,
+                rejoined: true,
+            },
+        );
+    }
+    let members = format!("/guilds/{gid}/members?limit=50");
+
+    // The owner (MANAGE_GUILD) sees both objects on every row.
+    let (s, list) = w.get(OWNER, &members).await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    let row = |who: &str| {
+        list.as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["user"]["id"] == who)
+            .unwrap_or_else(|| panic!("{who} in {list}"))
+            .clone()
+    };
+    let bob = row(&BOB.to_string());
+    assert_eq!(bob["sr_join"]["source"], "invite");
+    assert_eq!(bob["sr_join"]["invite_code"], "abc123");
+    assert_eq!(bob["sr_join"]["inviter_id"], OWNER.to_string());
+    assert_eq!(bob["sr_signals"], json!([]));
+    let carol = row(&CAROL.to_string());
+    assert_eq!(carol["sr_join"]["source"], "directory");
+    assert!(carol["sr_join"].get("inviter_id").is_none());
+    assert_eq!(carol["sr_signals"], json!(["rejoined"]));
+    let newbie = row(&fresh.to_string());
+    assert_eq!(newbie["sr_join"]["source"], "unknown");
+    assert_eq!(newbie["sr_signals"], json!(["new_account"]));
+
+    // "Unusual activity": only members with a signal, on the list and the search.
+    let (_, flagged) = w.get(OWNER, &format!("{members}&signals=true")).await;
+    let ids: Vec<String> = flagged
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["user"]["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(ids.len(), 2, "{flagged}");
+    assert!(ids.contains(&CAROL.to_string()) && ids.contains(&fresh.to_string()));
+    // A single member read carries them too.
+    let (_, one) = w
+        .get(OWNER, &format!("/guilds/{gid}/members/{CAROL}"))
+        .await;
+    assert_eq!(one["sr_join"]["source"], "directory");
+
+    // Bob has no MANAGE_GUILD: no sr_join, no sr_signals, and the filter is refused.
+    let (s, list) = w.get(BOB, &members).await;
+    assert_eq!(s, StatusCode::OK);
+    for m in list.as_array().unwrap() {
+        assert!(
+            m.get("sr_join").is_none() && m.get("sr_signals").is_none(),
+            "{m}"
+        );
+    }
+    let (_, one) = w.get(BOB, &format!("/guilds/{gid}/members/{CAROL}")).await;
+    assert!(one.get("sr_join").is_none(), "{one}");
+    let (s, _) = w.get(BOB, &format!("{members}&signals=true")).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}
