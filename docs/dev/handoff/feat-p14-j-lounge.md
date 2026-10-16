@@ -18,6 +18,8 @@ Docs: doc 05 (one paragraph for all of the above), doc 09 section 3 (the DM bloc
 
 ## Found on the way
 
+- **Two of the three migrations were not needed as written.** `guild_members.flags` (0010) and `channels.video_quality_mode` (0011, nullable) already existed and nothing used them. `0961` is now `ADD COLUMN IF NOT EXISTS` plus a non-negative check, `0964` backfills, sets `NOT NULL DEFAULT 1` and adds the `IN (1, 2)` check. `channels.rtc_region` also exists and stays unused.
+
 - **The message object never carried `components`.** `MessageObject` had no such field, so no client saw buttons or selects on any message (staff cards, bot messages). It is now serialised (omitted when empty). `Component` also gained `placeholder` and string-select `options`, which were dropped on parse before.
 - `MemoryBackend` (the in-memory message store) now implements `GuildAdminRepository` so the settings endpoint tests can drive kick, ban and timeout; no production code.
 
@@ -35,7 +37,11 @@ Docs: doc 05 (one paragraph for all of the above), doc 09 section 3 (the DM bloc
 
 ## Tests run
 
-Filled in at the end of the work, see the final report of the agent.
+- `cargo fmt --check` and `cargo clippy --all-targets -D warnings` on sr-core, sr-chat, sr-db, sr-apps, sr-api, sr-voice-proto, sr-voice, sr-gateway, sr-server: clean.
+- `cargo test` (non-ignored): sr-core, sr-chat (318), sr-apps (42), sr-voice-proto, sr-voice, sr-gateway; sr-api lib (593) and every integration test including `lounge`, `route_matrix` (rows reviewed, `?` removed) and `openapi_names` (`KNOWN_CLASHES` stays empty).
+- Postgres, own scratch database, `-- --include-ignored --test-threads=1`: all of `sr-db` (including the new `tests/p14_j_lounge.rs`: incident columns and the raid cooldown, paused invites on both join paths and the one-minute join count, `dms_paused_all`, member flags, video quality, alert rows) and all of `sr-server` (97).
+- Web: `tsc`, `eslint`, `prettier --check`, the whole vitest suite (`--maxWorkers=2`, 219 files), `vite build` and `scripts/check-bundle-budget.mjs` (lounge 396.6 KB gzip of 600), api-client typecheck, tests and `mocks:check`.
+- New tests: `settings/tests.rs` (join burst and Resume card, AutoMod card and every button with and without the permission, blocked message and ban), `developer/flow_tests.rs` (command permissions for owner, manager and member, integrations list and remove), `tests/lounge.rs` (incident bounds, refusal, `GUILD_UPDATE`; onboarding flag and event; video quality and region), `sr-chat` (incident bounds, DM pause, video quality rules), `sr-apps` (integrations and uninstall), `p14AlertCards`, `p14JoinPipeline` and `p14communityMore` on the web.
 
 ## Not done / open
 
