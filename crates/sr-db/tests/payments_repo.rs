@@ -210,7 +210,7 @@ async fn lifecycle_credit_once_and_reorg_revert() {
     assert_eq!(credits, 1);
     assert!(r.svc.entitlements().user(user).await.unwrap().patron.active);
     // Patron gets the download perk through the new source.
-    let dl = EntitlementDownloads::new(r.svc.entitlements().clone(), None);
+    let dl = EntitlementDownloads::new(r.svc.entitlements().clone());
     assert_eq!(dl.allowance(user).await.unwrap().unwrap().per_day, 20);
 
     // Reorg: back to the mempool, then gone, then re-mined.
