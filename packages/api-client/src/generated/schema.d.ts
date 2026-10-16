@@ -4047,6 +4047,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/voice-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set or clear the status line of a voice or stage channel (Discord's voice channel status).
+         *     Needs `SET_VOICE_CHANNEL_STATUS` and a seat in the channel, or `MANAGE_CHANNELS`. It ends
+         *     when the last member leaves. Announced as `VOICE_CHANNEL_STATUS_UPDATE`.
+         */
+        put: operations["set_voice_status"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/watch-party": {
         parameters: {
             query?: never;
@@ -16479,6 +16500,10 @@ export interface components {
             code: number;
             message: string;
             playback: components["schemas"]["WatchPartyPlayback"];
+        };
+        VoiceStatusBody: {
+            /** @description The new status, at most 500 characters. `null` or an empty string clears it. */
+            status?: string | null;
         };
         Volume: {
             edition_id: string;
@@ -30553,6 +30578,56 @@ export interface operations {
                     "application/json": components["schemas"]["ThreadList"];
                 };
             };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_voice_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice or stage channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoiceStatusBody"];
+            };
+        };
+        responses: {
+            /** @description Applied */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a voice channel, or longer than 500 characters */
             400: {
                 headers: {
                     [name: string]: unknown;
