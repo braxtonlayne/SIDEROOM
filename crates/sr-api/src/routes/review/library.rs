@@ -159,11 +159,24 @@ pub async fn update_chapter(
     Json(b): Json<ChapterInput>,
 ) -> ApiResult<Json<Chapter>> {
     let s = editable(&ctx, &submission_id).await?;
-    ops(&ctx)?
+    let ch = ops(&ctx)?
         .update_chapter(&s, ctx.user(), id(&chapter_id, "chapter")?, b)
         .await
-        .map(Json)
-        .map_err(map_err)
+        .map_err(map_err)?;
+    // The review item carries the chapter's number and title: a rename (REV-ED-001) refreshes its label.
+    ctx.svc()
+        .register_item(
+            ctx.user(),
+            s.id,
+            NewItem {
+                ref_id: ch.id,
+                label: label(ch.number, ch.title.as_deref()),
+                position: (ch.number.clamp(0.0, 1.0e6) * 100.0).round() as i32,
+            },
+        )
+        .await
+        .map_err(map_err)?;
+    Ok(Json(ch))
 }
 
 /// Remove a draft chapter from the submission.

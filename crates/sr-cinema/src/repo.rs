@@ -103,6 +103,11 @@ pub trait CinemaRepository: Send + Sync {
     async fn asset_owner(&self, _asset_id: i64) -> CinemaResult<Option<AssetOwner>> {
         Ok(None)
     }
+    /// Members with a live (not revoked) contribution credit for the title or one of its episodes,
+    /// best first. Members who opted out of the boards are left out.
+    async fn title_contributors(&self, _title_id: i64) -> CinemaResult<Vec<Contributor>> {
+        Ok(Vec::new())
+    }
     // ---- title writes --------------------------------------------------
     async fn create_title(&self, t: &NewTitle) -> CinemaResult<TitleRecord>;
     async fn update_title(

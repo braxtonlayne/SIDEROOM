@@ -281,6 +281,25 @@ pub async fn title_markers(
         .map_err(map_err)
 }
 
+/// Members credited for a title and its episodes (CIN-SOC-003).
+#[utoipa::path(
+    get, path = "/cinema/titles/{title_id}/contributors", operation_id = "cinema_title_contributors",
+    params(("title_id" = String, Path, description = "Title snowflake")),
+    responses((status = 200, body = Contributors), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn title_contributors(
+    ctx: MemberCtx,
+    Path(title_id): Path<String>,
+) -> ApiResult<Json<Contributors>> {
+    ctx.deps
+        .service
+        .title_contributors(id(&title_id, "title")?)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
 /// Skip intro / credits / recap windows of an episode.
 #[utoipa::path(
     get, path = "/cinema/episodes/{episode_id}/markers", operation_id = "cinema_episode_markers",

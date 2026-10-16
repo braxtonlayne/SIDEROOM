@@ -354,6 +354,28 @@ describe('Movies / Series / Anime', () => {
 });
 
 describe('Title page', () => {
+  it('lists credited contributors with what they added (CIN-SOC-003)', async () => {
+    useCinemaApi({ detail: detail(DUNE) });
+    server.use(
+      http.get('*/api/v1/cinema/titles/1/contributors', () =>
+        HttpResponse.json({
+          contributors: [
+            { user_id: 42, name: 'Mina', titles: 1, episodes: 0 },
+            { user_id: 43, name: 'Ravi', titles: 0, episodes: 3 },
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderAt('/cinema/t/1');
+    const tab = await screen.findByRole('tab', { name: 'Contributors' });
+    await waitFor(() => expect(tab).toBeEnabled());
+    await user.click(tab);
+    expect(await screen.findByText('Mina')).toBeInTheDocument();
+    expect(screen.getByText(/Added the title/)).toBeInTheDocument();
+    expect(screen.getByText(/3 episodes/)).toBeInTheDocument();
+  });
+
   it('a film: header actions, details tab, social tabs, rating, variants and My list', async () => {
     const calls = useCinemaApi({
       detail: detail(

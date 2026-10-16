@@ -243,6 +243,10 @@ pub fn router() -> Router<AppState> {
             "/cinema/titles/{title_id}/markers",
             get(member::title_markers),
         )
+        .route(
+            "/cinema/titles/{title_id}/contributors",
+            get(member::title_contributors),
+        )
         .route("/cinema/titles/{title_id}/play", get(member::play_title))
         .route("/cinema/episodes/{episode_id}", get(member::episode))
         .route(
@@ -375,6 +379,7 @@ pub fn router() -> Router<AppState> {
         member::title,
         member::episodes,
         member::title_markers,
+        member::title_contributors,
         member::play_title,
         member::episode,
         member::episode_markers,
@@ -450,6 +455,8 @@ pub fn router() -> Router<AppState> {
         sr_cinema::model::MarkersBody,
         sr_cinema::model::Marker,
         sr_cinema::model::MarkerList,
+        sr_cinema::model::Contributors,
+        sr_cinema::model::Contributor,
         sr_cinema::model::TitleDetail,
         sr_cinema::model::AdminTitleDetail,
         sr_cinema::model::PlayTarget,

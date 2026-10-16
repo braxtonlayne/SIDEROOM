@@ -28226,6 +28226,63 @@
         ]
       }
     },
+    "/cinema/titles/{title_id}/contributors": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Members credited for a title and its episodes (CIN-SOC-003).",
+        "operationId": "cinema_title_contributors",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CinemaContributors"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/cinema/titles/{title_id}/downloads": {
       "get": {
         "tags": [
@@ -61130,6 +61187,49 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CinemaContinueItem"
+            }
+          }
+        }
+      },
+      "CinemaContributor": {
+        "type": "object",
+        "description": "A member credited for a film or for episodes of a title (CIN-SOC-003). Members who hide their\ncontributions, or were hidden by staff, are not listed.",
+        "required": [
+          "user_id",
+          "name",
+          "titles",
+          "episodes"
+        ],
+        "properties": {
+          "episodes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Credited episodes of this title."
+          },
+          "name": {
+            "type": "string"
+          },
+          "titles": {
+            "type": "integer",
+            "format": "int64",
+            "description": "1 when the member is credited for the title itself (a film or a whole series)."
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CinemaContributors": {
+        "type": "object",
+        "required": [
+          "contributors"
+        ],
+        "properties": {
+          "contributors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CinemaContributor"
             }
           }
         }

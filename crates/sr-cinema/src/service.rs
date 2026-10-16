@@ -477,6 +477,14 @@ impl CinemaService {
         })
     }
 
+    /// Who is credited for a published title (CIN-SOC-003).
+    pub async fn title_contributors(&self, title: i64) -> CinemaResult<Contributors> {
+        let rec = self.visible_title(title).await?;
+        Ok(Contributors {
+            contributors: self.repo.title_contributors(rec.id).await?,
+        })
+    }
+
     pub async fn episode_markers(&self, id: i64) -> CinemaResult<MarkerList> {
         let e = self.visible_episode(id).await?;
         let m = self.repo.list_markers(e.title_id, Some(e.id)).await?;

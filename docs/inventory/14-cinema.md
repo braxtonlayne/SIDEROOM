@@ -74,7 +74,7 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 ## CIN-SOC — Social
 - [x] **CIN-SOC-001** [BE] Ratings, reviews, episode comments (reuse LIB-SOC services generically) *(phase 6: ratings 1-10, reviews with spoiler flag and helpful votes, threaded comments with likes, reports and a moderation hook; phase 7: staff report queue, hide/restore and resolve under `/admin/cinema/*` with access-log entries, `RepoCatalog` wiring, merge and delete cascade)*
 - [x] **CIN-SOC-002** [BE] Trending (scoped) + recommendations *(phase 6: scoped trending and "because you watched" recommendations)*
-- [ ] **CIN-SOC-003** [BE] Contribution credits for movies/episodes *(not built in phase 6: needs the cinema submissions pipeline, see cinema-media section 8.8)*
+- [x] **CIN-SOC-003** [BE] Contribution credits for movies/episodes *(not built in phase 6: needs the cinema submissions pipeline, see cinema-media section 8.8)* _(p15 rest-a: credits were already granted by `cinema.title`/`cinema.episodes` (`credit_refs`); new `GET /cinema/titles/{id}/contributors` and the Contributors tab on the title page)_
 
 ## CIN-DL — Patron downloads
 - [x] **CIN-DL-001** [BE] On-demand MP4 remux job of chosen rendition (cached 7 days), original download when allowed, signed single-user link, daily limit · *remux job kind (worker side faked, not run with real ffmpeg), cache, owner-only link redirecting to a short signed URL, daily limit from `cinema_download_grants`; the perk source (donations) does not exist yet*
