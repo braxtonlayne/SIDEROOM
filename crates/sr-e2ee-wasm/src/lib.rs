@@ -1,6 +1,7 @@
-//! The browser side of sr-e2ee (VOX-E2E-002/006/007), loaded by the media worker through
-//! `@sideroom/wasm` (`loadE2ee`). Same code as the native crate, checked against the shared
-//! test vectors in packages/wasm/test/e2ee.test.ts (VOX-E2E-008).
+//! The browser side of sr-e2ee (VOX-E2E-001/002/006/007): the MLS call client (main thread),
+//! the frame transform and key ring (media worker) and the privacy codes, through `@sideroom/wasm`
+//! (`loadE2ee`). Same code as the native crate, checked against the shared test vectors in
+//! packages/wasm/test/e2ee.test.ts (VOX-E2E-008).
 //!
 //! Secrets cross the boundary as byte arrays and stay inside WASM memory afterwards; nothing
 //! here logs or returns key material. Randomness (the encryptor instance id) comes from the
@@ -128,16 +129,27 @@ impl JsKeyRing {
     }
 }
 
-/// A participant's privacy code: `"01234 56789 ..."` (six groups of five digits).
-#[wasm_bindgen(js_name = privacyCode)]
-pub fn privacy_code(
-    epoch_authenticator: &[u8],
-    user: &str,
-    identity_public_key: &[u8],
+/// The pairwise verification code between two users (D-250), the same on both sides.
+#[wasm_bindgen(js_name = pairwiseCode)]
+pub fn pairwise_code(
+    user_a: &str,
+    key_a: &[u8],
+    user_b: &str,
+    key_b: &[u8],
 ) -> Result<String, JsError> {
-    Ok(sr_e2ee::privacy::privacy_code(
-        epoch_authenticator,
-        user_id(user)?,
-        identity_public_key,
+    Ok(sr_e2ee::privacy::pairwise_code(
+        user_id(user_a)?,
+        key_a,
+        user_id(user_b)?,
+        key_b,
     ))
 }
+
+/// The call code of the current epoch (D-250), from the MLS epoch authenticator.
+#[wasm_bindgen(js_name = callCode)]
+pub fn call_code(epoch_authenticator: &[u8]) -> String {
+    sr_e2ee::privacy::call_code(epoch_authenticator)
+}
+
+mod mls;
+pub use mls::*;

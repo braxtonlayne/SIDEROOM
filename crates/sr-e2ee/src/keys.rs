@@ -45,6 +45,11 @@ impl SenderSecret {
         Some(SenderSecret(b.try_into().ok()?))
     }
 
+    /// The raw bytes (for handing a secret to the media worker).
+    pub fn as_bytes(&self) -> &[u8; SECRET_LEN] {
+        &self.0
+    }
+
     /// The AES-128 key for one encryptor instance.
     pub fn media_key(&self, iid: InstanceId) -> MediaKey {
         let hk = Hkdf::<Sha256>::new(Some(HKDF_SALT), &self.0);

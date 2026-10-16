@@ -16,6 +16,7 @@ openmls = "0.9.1"
 openmls_basic_credential = "0.6.0"
 openmls_rust_crypto = "0.6.0"
 openmls_traits = "0.6.0"
+p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "std"] }
 sha2 = "0.10.9"
 subtle = "2.6.1"
 thiserror.workspace = true

@@ -76,7 +76,8 @@ export const loadLibrary = once(async (wasmUrl) => {
   };
 });
 
-// VOX-E2E-002/006/007: the call media transform (sr-e2ee). Loaded inside the media worker.
+// VOX-E2E-001/002/006/007: call E2EE (sr-e2ee): the MLS client (main thread) and the media
+// transform (media worker).
 // Secrets go in as bytes and stay in WASM memory; errors mean "drop this frame".
 export const loadE2ee = once(async (wasmUrl) => {
   const m = await import('../dist/e2ee/e2ee.js');
@@ -85,8 +86,9 @@ export const loadE2ee = once(async (wasmUrl) => {
     isSupportedCodec: (mime) => m.isSupportedCodec(mime),
     createEncryptor: (secret, random) => new m.Encryptor(secret, random),
     createKeyRing: (graceMs = 10000) => new m.KeyRing(graceMs),
-    privacyCode: (epochAuthenticator, userId, identityKey) =>
-      m.privacyCode(epochAuthenticator, userId, identityKey),
+    createPendingSession: (userId, identityKey) => new m.PendingSession(userId, identityKey),
+    pairwiseCode: (userA, keyA, userB, keyB) => m.pairwiseCode(userA, keyA, userB, keyB),
+    callCode: (epochAuthenticator) => m.callCode(epochAuthenticator),
   };
 });
 

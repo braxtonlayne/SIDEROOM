@@ -7,7 +7,8 @@
 
 use serde_json::{Value, json};
 use sr_e2ee::frame::{FrameDecryptor, FrameEncryptor, InstanceId};
-use sr_e2ee::privacy::privacy_code;
+use sr_e2ee::mls::session_cert_message;
+use sr_e2ee::privacy::{call_code, pairwise_code};
 use sr_e2ee::{Codec, SenderSecret};
 
 fn hex(b: &[u8]) -> String {
@@ -72,11 +73,21 @@ fn build() -> Value {
         "secret": hex(&secret_bytes),
         "instance": hex(&iid.0),
         "frames": frames,
-        "privacy": [{
+        "pairwise": [{
+            "user_a": "175928847299117063",
+            "key_a": hex(b"identity key a"),
+            "user_b": "42",
+            "key_b": hex(b"identity key b"),
+            "code": pairwise_code(175_928_847_299_117_063, b"identity key a", 42, b"identity key b"),
+        }],
+        "call": [{
             "epoch_authenticator": hex(b"epoch authenticator"),
+            "code": call_code(b"epoch authenticator"),
+        }],
+        "session_cert": [{
             "user_id": "175928847299117063",
-            "identity_key": hex(b"identity public key"),
-            "code": privacy_code(b"epoch authenticator", 175_928_847_299_117_063, b"identity public key"),
+            "session_key": hex(b"session public key"),
+            "message": hex(&session_cert_message(175_928_847_299_117_063, b"session public key")),
         }],
     })
 }

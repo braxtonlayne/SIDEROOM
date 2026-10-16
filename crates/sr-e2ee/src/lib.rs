@@ -28,6 +28,7 @@
 pub mod codec;
 pub mod frame;
 pub mod keys;
+pub mod mls;
 pub mod privacy;
 pub mod sequencer;
 

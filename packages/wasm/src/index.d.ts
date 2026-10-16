@@ -222,13 +222,50 @@ export interface E2eeKeyRing {
   free(): void;
 }
 
+export interface E2eePendingSession {
+  /** What the identity key signs (ECDSA P-256, SHA-256). */
+  certMessage(): Uint8Array;
+  /** The signature as WebCrypto returns it (64 bytes r||s). */
+  certify(signature: Uint8Array): E2eeCallClient;
+  free(): void;
+}
+
+/** One member's MLS state for one call (VOX-E2E-001). MLS messages are base64 strings. */
+export interface E2eeCallClient {
+  keyPackage(): string;
+  createGroup(groupId: string, externalKey?: string | null, externalIdentity?: string | null): void;
+  readonly hasGroup: boolean;
+  /** -1 without a group. */
+  readonly epoch: number;
+  ownLeaf(): number;
+  epochAuthenticator(): Uint8Array;
+  /** JSON: `[{leaf, user_id, identity_key (hex)}]`. */
+  members(): string;
+  senderUserIds(): string[];
+  /** 16 bytes per user of `senderUserIds()`, concatenated. */
+  senderSecrets(): Uint8Array;
+  /** JSON `{based_on, commit, welcome, welcomed}` or `"null"`. */
+  commit(keyPackages: string[], roster: string[]): string;
+  commitAccepted(): number;
+  commitRejected(): void;
+  /** JSON `{type: "commit", epoch} | {type: "proposal"} | {type: "ignored"}`. */
+  handle(message: string, roster: string[]): string;
+  join(welcome: string, roster: string[]): number;
+  leave(): void;
+  free(): void;
+}
+
 export interface E2eeApi {
   isSupportedCodec(mime: string): boolean;
   /** `secret`: 16 bytes; `random`: 4 bytes from `crypto.getRandomValues`. */
   createEncryptor(secret: Uint8Array, random: Uint8Array): E2eeEncryptor;
   createKeyRing(graceMs?: number): E2eeKeyRing;
-  /** Six groups of five digits. */
-  privacyCode(epochAuthenticator: Uint8Array, userId: string, identityKey: Uint8Array): string;
+  /** Step 1 of an MLS session: `identityKey` is the 65-byte raw P-256 identity public key. */
+  createPendingSession(userId: string, identityKey: Uint8Array): E2eePendingSession;
+  /** D-250: the stable verification code between two users (six groups of five digits). */
+  pairwiseCode(userA: string, keyA: Uint8Array, userB: string, keyB: Uint8Array): string;
+  /** D-250: the code of the current call epoch. */
+  callCode(epochAuthenticator: Uint8Array): string;
 }
 
 export function loadE2ee(wasmUrl?: string | URL | BufferSource): Promise<E2eeApi>;

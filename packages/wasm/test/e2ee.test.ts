@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { webcrypto } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { loadE2ee } from '../src/index.js';
 
@@ -22,7 +23,8 @@ interface Vectors {
   secret: string;
   instance: string;
   frames: { codec: string; plaintext: string; ciphertext: string }[];
-  privacy: { epoch_authenticator: string; user_id: string; identity_key: string; code: string }[];
+  pairwise: { user_a: string; key_a: string; user_b: string; key_b: string; code: string }[];
+  call: { epoch_authenticator: string; code: string }[];
 }
 
 const vectors = JSON.parse(
@@ -80,17 +82,77 @@ describe.runIf(built)('sr-e2ee-wasm interop', () => {
     expect(() => ring.setEpoch(2, [], new Uint8Array(0), 2000)).toThrow();
   });
 
-  it('matches the native privacy code and refuses unknown codecs', async () => {
+  it('matches the native privacy codes (D-250) and refuses unknown codecs', async () => {
     const e2ee = await loadE2ee(readFileSync(wasmPath));
-    for (const p of vectors.privacy) {
-      expect(
-        e2ee.privacyCode(hex(p.epoch_authenticator), p.user_id, hex(p.identity_key)),
-      ).toBe(p.code);
+    for (const p of vectors.pairwise) {
+      expect(e2ee.pairwiseCode(p.user_a, hex(p.key_a), p.user_b, hex(p.key_b))).toBe(p.code);
+      expect(e2ee.pairwiseCode(p.user_b, hex(p.key_b), p.user_a, hex(p.key_a))).toBe(p.code);
+    }
+    for (const c of vectors.call) {
+      expect(e2ee.callCode(hex(c.epoch_authenticator))).toBe(c.code);
     }
     expect(e2ee.isSupportedCodec('video/H264')).toBe(true);
     expect(e2ee.isSupportedCodec('video/AV1')).toBe(false);
     const enc = e2ee.createEncryptor(new Uint8Array(16), Uint8Array.of(1, 2, 3, 4));
     expect(() => enc.encrypt('video/AV1', Uint8Array.of(1))).toThrow();
     expect(() => e2ee.createEncryptor(new Uint8Array(15), Uint8Array.of(1, 2, 3, 4))).toThrow();
+  });
+
+  it('runs MLS in WASM: certify, create, add, join, same sender secrets, remove', async () => {
+    const e2ee = await loadE2ee(readFileSync(wasmPath));
+    const subtle = webcrypto.subtle;
+    const user = async (id: string) => {
+      const ik = await subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, [
+        'sign',
+        'verify',
+      ]);
+      const pub = new Uint8Array(await subtle.exportKey('raw', ik.publicKey));
+      const pending = e2ee.createPendingSession(id, pub);
+      const sig = new Uint8Array(
+        await subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, ik.privateKey, pending.certMessage()),
+      );
+      return { id, pub, client: pending.certify(sig) };
+    };
+    const a = await user('1');
+    const b = await user('2');
+    const c = await user('3');
+    a.client.createGroup(btoa('call-1'));
+    expect(a.client.epoch).toBe(0);
+    let roster = ['1', '2', '3'];
+    const out = JSON.parse(
+      a.client.commit([b.client.keyPackage(), c.client.keyPackage()], roster),
+    ) as { based_on: number; commit: string; welcome: string; welcomed: string[] };
+    expect(out.based_on).toBe(0);
+    expect(out.welcomed).toEqual(['2', '3']);
+    expect(a.client.commitAccepted()).toBe(1);
+    expect(b.client.join(out.welcome, roster)).toBe(1);
+    expect(c.client.join(out.welcome, roster)).toBe(1);
+    const sec = (x: typeof a) => Array.from(x.client.senderSecrets()).join(',');
+    expect(sec(b)).toBe(sec(a));
+    expect(sec(c)).toBe(sec(a));
+    expect(a.client.senderUserIds()).toEqual(['1', '2', '3']);
+    expect(Array.from(b.client.epochAuthenticator())).toEqual(
+      Array.from(a.client.epochAuthenticator()),
+    );
+    const members = JSON.parse(b.client.members()) as { user_id: string; identity_key: string }[];
+    expect(members.find((m) => m.user_id === '1')!.identity_key).toBe(toHex(a.pub));
+
+    // C leaves; B commits the removal, A follows.
+    roster = ['1', '2'];
+    const rm = JSON.parse(b.client.commit([], roster)) as {
+      commit: string;
+      welcome: string | null;
+    };
+    expect(rm.welcome).toBeNull();
+    expect(b.client.commitAccepted()).toBe(2);
+    expect(JSON.parse(a.client.handle(rm.commit, roster))).toEqual({ type: 'commit', epoch: 2 });
+    expect(sec(a)).toBe(sec(b));
+    expect(a.client.senderUserIds()).toEqual(['1', '2']);
+    // A commit removing someone still in the call is refused.
+    const kick = JSON.parse(a.client.commit([], ['1'])) as { commit: string };
+    expect(() => b.client.handle(kick.commit, roster)).toThrow();
+    // A forged certificate is refused.
+    const p = e2ee.createPendingSession('4', a.pub);
+    expect(() => p.certify(new Uint8Array(64))).toThrow();
   });
 });
