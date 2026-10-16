@@ -1,5 +1,5 @@
 use super::*;
-use crate::perms::{default_everyone_permissions, fixtures};
+use crate::perms::{default_everyone_permissions, dm_permissions, fixtures};
 use sr_core::{AttachmentId, GuildId, Snowflake};
 
 const NOW: i64 = 1_800_000_000_000;
@@ -762,4 +762,41 @@ fn remove_reaction_rules() {
 fn snowflake_helper_matches_core() {
     // Guards the test helper itself: id_at must round-trip through Snowflake::unix_ms.
     assert_eq!(Snowflake::new(id_at(NOW)).unix_ms(), NOW);
+}
+
+#[test]
+fn library_cards_need_use_library_embeds_on_create_and_edit() {
+    let e = Env::new();
+    let card = text("look <library:42>\n<cinema:abc>");
+    let no_cards = member_perms() - Permissions::USE_LIBRARY_EMBEDS;
+    assert!(matches!(
+        e.create(&card, no_cards, None, None),
+        Err(ChatError::MissingPermissions)
+    ));
+    assert!(e.create(&card, member_perms(), None, None).is_ok());
+    // Code spans are not cards, and plain text never needs the bit.
+    assert!(
+        e.create(&text("`<library:42>` hi"), no_cards, None, None)
+            .is_ok()
+    );
+    // Direct messages carry the bit.
+    assert!(e.create(&card, dm_permissions(), None, None).is_ok());
+
+    let m = msg(1, AUTHOR, "plain");
+    let add_card = EditMessageInput {
+        content: Some("plain <library:7>".into()),
+        flags: None,
+    };
+    assert!(matches!(
+        e.edit(AUTHOR, &m, &add_card, no_cards),
+        Err(ChatError::MissingPermissions)
+    ));
+    assert!(e.edit(AUTHOR, &m, &add_card, member_perms()).is_ok());
+    // Fixing a typo next to an existing card does not re-require the bit.
+    let old = msg(2, AUTHOR, "plain <library:7>");
+    let typo = EditMessageInput {
+        content: Some("plain! <library:7>".into()),
+        flags: None,
+    };
+    assert!(e.edit(AUTHOR, &old, &typo, no_cards).is_ok());
 }

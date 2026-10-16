@@ -65,7 +65,7 @@ export function ShareToLoungeDialog({
       void loadGuild(place).catch(() => undefined);
   }, [open, place, channels.length, loadGuild]);
 
-  // A server channel is offered only where the person can send and embed (the card is an embed):
+  // A server channel is offered only where the person can send and use library embeds (D-241):
   // the same bits the server checks. Until the member is loaded the server decides, so nothing is hidden.
   const canPost = useMemo(() => {
     if (place === DM_GUILD || !me) return () => true;
@@ -74,7 +74,7 @@ export function ShareToLoungeDialog({
     );
     const owner = guild?.owner_id === me;
     if (!viewer && !owner) return () => true;
-    const need = PERM.SEND_MESSAGES | PERM.EMBED_LINKS;
+    const need = PERM.SEND_MESSAGES | PERM.USE_LIBRARY_EMBEDS;
     return (c: Channel) => {
       const bits =
         (engine

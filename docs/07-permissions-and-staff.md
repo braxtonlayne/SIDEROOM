@@ -19,7 +19,7 @@ Use Discord's bits 0–50 with identical semantics (CREATE_INSTANT_INVITE … SE
 |---|---|---|
 | 56 | `START_WATCH_PARTY` | Start a watch party in this channel |
 | 57 | `CONTROL_WATCH_PARTY` | Control playback in someone else's party (when the host allows shared control) |
-| 58 | `USE_LIBRARY_EMBEDS` | Post rich Cinema/Library cards |
+| 58 | `USE_LIBRARY_EMBEDS` | Post rich Cinema/Library cards (default-granted, enforced at send: a message with a `<library:id>` or `<cinema:id>` card needs it, D-241) |
 | 59 | `MANAGE_EXTENSIONS` | Enable or disable approved extensions/themes for the server |
 
 ### Server 2FA requirement (D-223)

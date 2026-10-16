@@ -14,6 +14,7 @@ pub fn default_everyone_permissions() -> Permissions {
         | P::SEND_MESSAGES
         | P::SEND_TTS_MESSAGES
         | P::EMBED_LINKS
+        | P::USE_LIBRARY_EMBEDS
         | P::ATTACH_FILES
         | P::READ_MESSAGE_HISTORY
         | P::USE_EXTERNAL_EMOJIS
@@ -43,6 +44,7 @@ pub fn dm_permissions() -> Permissions {
     P::VIEW_CHANNEL
         | P::SEND_MESSAGES
         | P::EMBED_LINKS
+        | P::USE_LIBRARY_EMBEDS
         | P::ATTACH_FILES
         | P::READ_MESSAGE_HISTORY
         | P::ADD_REACTIONS
