@@ -1,13 +1,15 @@
-import { Button, ConfirmDialog, Notice, useToast } from '@sideroom/ui';
+import { Button, ConfirmDialog, Notice, Switch, useToast } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
 import {
   errorText,
+  getLoginAlerts,
   listSessions,
   listTrustedDevices,
   logoutAll,
   revokeSession,
   revokeTrustedDevice,
+  setLoginAlerts,
   useResource,
 } from '../api';
 import { Card, fmtDate, Loaded, SectionTitle } from '../parts';
@@ -197,12 +199,56 @@ export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
   );
 }
 
+/** ENT-AUTH-015: the switch for the "new sign-in" mail. */
+export function SignInAlertsCard() {
+  const t = useT();
+  const res = useResource(getLoginAlerts);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const toggle = async (enabled: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await setLoginAlerts(enabled);
+      res.setData(() => ({ enabled }));
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card
+      id="us-alerts"
+      title={t('settings.devices.alertsTitle')}
+      description={t('settings.devices.alertsDesc')}
+    >
+      <Loaded res={res} what={t('settings.devices.alertsWhat')}>
+        {(a) => (
+          <Switch
+            label={t('settings.devices.alertsLabel')}
+            checked={a.enabled}
+            disabled={busy}
+            onChange={(e) => void toggle(e.target.checked)}
+          />
+        )}
+      </Loaded>
+      {error && (
+        <Notice variant="danger" title={t('settings.devices.alertsError')}>
+          {error}
+        </Notice>
+      )}
+    </Card>
+  );
+}
+
 export function DevicesSection({ onSignedOut }: { onSignedOut: () => void }) {
   const t = useT();
   return (
     <>
       <SectionTitle>{t('settings.devices.title')}</SectionTitle>
       <SessionsCard onSignedOut={onSignedOut} />
+      <SignInAlertsCard />
       <TrustedDevicesCard />
     </>
   );

@@ -219,6 +219,17 @@ pub enum InviteBlock {
     Frozen,
 }
 
+/// What `note_login_device` found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeviceSighting {
+    /// The account has no earlier device on record: this is its first sign-in.
+    First,
+    /// Seen before.
+    Known,
+    /// A device the account has not signed in from before.
+    New,
+}
+
 /// One platform invite as the issuer sees it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemberInviteRow {
@@ -420,6 +431,29 @@ pub trait AuthStore: Send + Sync {
         backup_state: bool,
         now: i64,
     ) -> StoreResult<bool>;
+
+    // ---- new-device sign-in alerts (ENT-AUTH-015) ------------------------------
+    /// Record a sign-in from the device labelled `name` (`key` is its normalised form) and say whether the
+    /// account has seen that device before. The first device of an account is [`DeviceSighting::First`].
+    async fn note_login_device(
+        &self,
+        _account: i64,
+        _key: &str,
+        _name: &str,
+        _now: i64,
+    ) -> StoreResult<DeviceSighting> {
+        Ok(DeviceSighting::Known)
+    }
+    /// Whether the account wants a mail when a new device signs in (default true).
+    async fn login_alerts_enabled(&self, _account: i64) -> StoreResult<bool> {
+        Ok(true)
+    }
+    /// Turn new-device mails on or off.
+    async fn set_login_alerts(&self, _account: i64, _enabled: bool) -> StoreResult<()> {
+        Err(StoreError(
+            "login alerts are not supported by this store".into(),
+        ))
+    }
 
     // ---- member platform invites (G-57) ---------------------------------------
     /// The account's remaining invite credits (ledger balance), for the

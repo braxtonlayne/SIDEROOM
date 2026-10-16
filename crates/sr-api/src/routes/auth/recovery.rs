@@ -49,5 +49,7 @@ pub async fn regenerate(
         .into());
     }
     let codes = issue_recovery_codes(&svc, account.id).await?;
+    svc.notify_security(account.id, "Your recovery codes were regenerated")
+        .await;
     Ok(Json(json!({ "recovery_codes": codes })))
 }

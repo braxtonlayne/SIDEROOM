@@ -710,6 +710,72 @@ impl AuthStore for PgAuthStore {
         Ok(r.rows_affected() > 0)
     }
 
+    async fn note_login_device(
+        &self,
+        account: i64,
+        key: &str,
+        name: &str,
+        now: i64,
+    ) -> StoreResult<sr_auth::store::DeviceSighting> {
+        use sr_auth::store::DeviceSighting;
+        let mut tx = self.pool.begin().await.map_err(store_err)?;
+        let had_any: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM account_known_devices WHERE account_id = $1)",
+        )
+        .bind(account)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(store_err)?;
+        let inserted = sqlx::query(
+            "INSERT INTO account_known_devices (account_id, device_key, device_name, first_seen_at, last_seen_at)              VALUES ($1, $2, $3, to_timestamp($4), to_timestamp($4))              ON CONFLICT (account_id, device_key) DO NOTHING",
+        )
+        .bind(account)
+        .bind(key)
+        .bind(name)
+        .bind(now as f64)
+        .execute(&mut *tx)
+        .await
+        .map_err(store_err)?
+        .rows_affected();
+        if inserted == 0 {
+            sqlx::query(
+                "UPDATE account_known_devices SET last_seen_at = to_timestamp($3)                  WHERE account_id = $1 AND device_key = $2",
+            )
+            .bind(account)
+            .bind(key)
+            .bind(now as f64)
+            .execute(&mut *tx)
+            .await
+            .map_err(store_err)?;
+        }
+        tx.commit().await.map_err(store_err)?;
+        Ok(match (inserted, had_any) {
+            (0, _) => DeviceSighting::Known,
+            (_, false) => DeviceSighting::First,
+            (_, true) => DeviceSighting::New,
+        })
+    }
+
+    async fn login_alerts_enabled(&self, account: i64) -> StoreResult<bool> {
+        let on: Option<bool> =
+            sqlx::query_scalar("SELECT login_alerts FROM accounts WHERE id = $1")
+                .bind(account)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(store_err)?;
+        Ok(on.unwrap_or(true))
+    }
+
+    async fn set_login_alerts(&self, account: i64, enabled: bool) -> StoreResult<()> {
+        sqlx::query("UPDATE accounts SET login_alerts = $2, updated_at = now() WHERE id = $1")
+            .bind(account)
+            .bind(enabled)
+            .execute(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(())
+    }
+
     async fn invite_credit_balance(&self, account: i64) -> StoreResult<Option<i64>> {
         sqlx::query_scalar::<_, i64>(
             "SELECT COALESCE(SUM(delta), 0)::BIGINT FROM invite_credits_ledger WHERE account_id = $1",

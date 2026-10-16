@@ -606,3 +606,38 @@ async fn reset_2fa_removes_passkeys() {
     accounts::reset_2fa(&pool, user).await.unwrap();
     assert!(store.passkey_list(user).await.unwrap().is_empty());
 }
+
+/// ENT-AUTH-015: the first device is `First`, a repeat is `Known`, another label is `New` once, and the
+/// per-account switch defaults to on.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn login_devices_are_remembered_per_account() {
+    use sr_auth::store::{AuthStore, DeviceSighting};
+    let pool = pool().await;
+    let store = sr_db::auth_store::PgAuthStore::new(pool.clone(), repo(&pool), Arc::new(uid));
+    let (a, b) = (account(&pool).await, account(&pool).await);
+
+    let seen = |acct, key: &'static str, now| {
+        let store = &store;
+        async move { store.note_login_device(acct, key, key, now).await.unwrap() }
+    };
+    assert_eq!(
+        seen(a, "firefox on windows", 100).await,
+        DeviceSighting::First
+    );
+    assert_eq!(
+        seen(a, "firefox on windows", 200).await,
+        DeviceSighting::Known
+    );
+    assert_eq!(seen(a, "chrome on macos", 300).await, DeviceSighting::New);
+    assert_eq!(seen(a, "chrome on macos", 400).await, DeviceSighting::Known);
+    // Another account has its own history.
+    assert_eq!(seen(b, "chrome on macos", 500).await, DeviceSighting::First);
+
+    assert!(store.login_alerts_enabled(a).await.unwrap());
+    store.set_login_alerts(a, false).await.unwrap();
+    assert!(!store.login_alerts_enabled(a).await.unwrap());
+    assert!(store.login_alerts_enabled(b).await.unwrap());
+    store.set_login_alerts(a, true).await.unwrap();
+    assert!(store.login_alerts_enabled(a).await.unwrap());
+}

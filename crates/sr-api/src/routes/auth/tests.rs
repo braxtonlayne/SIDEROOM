@@ -749,6 +749,120 @@ async fn login_success_and_generic_failures() {
     assert!(wrong.cookie("sr_session").is_none());
 }
 
+const UA_EDGE: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36 Edg/120.0";
+
+async fn login_from(h: &H, ua: &str) -> Resp {
+    let r = h
+        .post(
+            "/api/v1/sr/auth/login",
+            json!({"login": "alice", "password": PW}),
+        )
+        .ua(ua)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    r
+}
+
+/// Give the background mail task a moment, then list what was sent.
+async fn mails_after_a_moment(h: &H) -> Vec<OutgoingMail> {
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    h.mailer.sent()
+}
+
+/// ENT-AUTH-015: only the first sight of a device label sends the alert; the very first device does not.
+#[tokio::test]
+async fn a_sign_in_from_a_new_device_sends_one_alert() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+
+    login_from(&h, UA_FIREFOX).await;
+    assert!(
+        mails_after_a_moment(&h).await.is_empty(),
+        "the first device never alerts"
+    );
+
+    login_from(&h, UA_CHROME).await;
+    let mails = h.wait_mail(1).await;
+    assert_eq!(mails[0].to, "alice@x.test");
+    assert_eq!(mails[0].subject, "New sign-in to your SIDE ROOM account");
+    assert!(
+        mails[0].text.contains("Chrome on macOS"),
+        "{}",
+        mails[0].text
+    );
+    assert!(
+        mails[0].text.contains("2027-01-15 08:00 UTC"),
+        "{}",
+        mails[0].text
+    );
+
+    login_from(&h, UA_CHROME).await;
+    login_from(&h, UA_FIREFOX).await;
+    assert_eq!(
+        mails_after_a_moment(&h).await.len(),
+        1,
+        "known devices stay quiet"
+    );
+}
+
+#[tokio::test]
+async fn new_device_alerts_can_be_switched_off_and_need_a_verified_address() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+
+    let on = h
+        .get("/api/v1/sr/auth/login-alerts")
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(on.status, StatusCode::OK);
+    assert_eq!(on.body["enabled"], true);
+
+    let off = h
+        .call(Method::PUT, "/api/v1/sr/auth/login-alerts")
+        .json(json!({"enabled": false}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(off.status, StatusCode::NO_CONTENT);
+    let now = h
+        .get("/api/v1/sr/auth/login-alerts")
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(now.body["enabled"], false);
+
+    login_from(&h, UA_FIREFOX).await;
+    login_from(&h, UA_CHROME).await;
+    login_from(&h, UA_EDGE).await;
+    assert!(
+        mails_after_a_moment(&h).await.is_empty(),
+        "alerts are off, nothing is sent"
+    );
+
+    // Turned back on, an unverified address still gets nothing (it may not be theirs).
+    let back = h
+        .call(Method::PUT, "/api/v1/sr/auth/login-alerts")
+        .json(json!({"enabled": true}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(back.status, StatusCode::NO_CONTENT);
+    let mut unverified = h.account(1);
+    unverified.email_verified = false;
+    h.store.add_account(unverified);
+    let opera =
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 OPR/105.0";
+    login_from(&h, opera).await;
+    assert!(mails_after_a_moment(&h).await.is_empty());
+
+    // Signed out, the switch is not reachable.
+    let anon = h.get("/api/v1/sr/auth/login-alerts").send().await;
+    assert_eq!(anon.status, StatusCode::UNAUTHORIZED);
+}
+
 #[tokio::test]
 async fn login_lockout_and_recovery_over_time() {
     let h = harness();
@@ -912,6 +1026,15 @@ async fn enrol_totp(h: &H, session: &str) -> (TotpSecret, Vec<String>) {
         .map(|v| v.as_str().unwrap().to_owned())
         .collect();
     assert_eq!(codes.len(), 10);
+    // Turning two-factor on mails the account a security notice (ENT-AUTH-014); callers count other mails.
+    let notice = h.wait_mail(1).await;
+    assert_eq!(notice[0].subject, "Your SIDE ROOM sign-in security changed");
+    assert!(
+        notice[0]
+            .text
+            .contains("An authenticator app was added on your SIDE ROOM account")
+    );
+    h.mailer.take();
     (secret, codes)
 }
 

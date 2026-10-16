@@ -399,6 +399,7 @@ impl AuthService {
         };
         let session_id = rec.id;
         self.store.create_session(rec).await?;
+        self.note_login_device(user_id, user_agent, now).await;
         if mfa_verified {
             self.store
                 .session_mark_mfa_verified(session_id, now)
@@ -410,6 +411,71 @@ impl AuthService {
             policy.absolute_ttl_secs,
         );
         Ok((token, cookie))
+    }
+
+    /// New-device sign-in alert (ENT-AUTH-015). Every session start comes through here, so the device label
+    /// (`validate::device_name`, "Firefox on Windows") is recorded for each sign-in, including the one
+    /// that registers the account (which never alerts). A label the account has not used before, on an
+    /// account that wants alerts and has a verified address, sends one notice in the background. Best
+    /// effort: a failure here never blocks the sign-in.
+    async fn note_login_device(&self, user_id: i64, user_agent: Option<&str>, now: i64) {
+        let Some(name) = super::validate::device_name(user_agent) else {
+            return;
+        };
+        let key = name.to_lowercase();
+        let sighting = match self
+            .store
+            .note_login_device(user_id, &key, &name, now)
+            .await
+        {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, "could not record the sign-in device");
+                return;
+            }
+        };
+        if sighting != sr_auth::store::DeviceSighting::New {
+            return;
+        }
+        let account = match self.store.find_by_id(user_id).await {
+            Ok(Some(a)) if a.email_verified => a,
+            _ => return,
+        };
+        if !self
+            .store
+            .login_alerts_enabled(user_id)
+            .await
+            .unwrap_or(true)
+        {
+            return;
+        }
+        // "2026-10-15T09:30:00Z" -> "2026-10-15 09:30 UTC"
+        let iso = super::validate::iso8601(now);
+        let when = format!("{} {} UTC", &iso[..10], &iso[11..16]);
+        let mail = super::mail::new_login(&account.email, &name, &when, &account.locale);
+        let mailer = self.mailer.clone();
+        tokio::spawn(async move {
+            if let Err(e) = mailer.send(mail).await {
+                tracing::warn!(error = %e, "could not send the new-device alert");
+            }
+        });
+    }
+
+    /// Tell the account holder, by mail, that their own two-factor setup changed (ENT-AUTH-014). `change`
+    /// is a sentence start such as "A passkey was added". Sent in the background to a verified address;
+    /// a failure is only logged.
+    pub(super) async fn notify_security(&self, user_id: i64, change: &str) {
+        let account = match self.store.find_by_id(user_id).await {
+            Ok(Some(a)) if a.email_verified => a,
+            _ => return,
+        };
+        let mail = super::mail::two_factor_changed(&account.email, change, &account.locale);
+        let mailer = self.mailer.clone();
+        tokio::spawn(async move {
+            if let Err(e) = mailer.send(mail).await {
+                tracing::warn!(error = %e, "could not send the security notice");
+            }
+        });
     }
 
     /// Render the "This wasn't me" link of an email-change notice (the web page

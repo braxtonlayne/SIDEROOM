@@ -752,6 +752,7 @@ PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-
 #undocumented	/sr/auth/discord/start
 #undocumented	/sr/auth/forgot
 #undocumented	/sr/auth/login
+#undocumented	/sr/auth/login-alerts
 #undocumented	/sr/auth/login-link
 #undocumented	/sr/auth/logout
 #undocumented	/sr/auth/logout-all

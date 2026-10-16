@@ -29,6 +29,10 @@ pub enum MailKind {
     ResetPassword,
     /// An operator reset two-factor sign-in.
     TwoFactorReset,
+    /// The account holder changed their own two-factor setup; carries `{change}`.
+    TwoFactorChanged,
+    /// A sign-in from a device the account has not used before; carries `{device}` and `{when}`.
+    NewLogin,
 }
 
 /// The words of one message. `{name}` placeholders are filled by [`fill`].
@@ -128,6 +132,26 @@ const EN: Catalog = Catalog {
                 outro: "",
             },
         ),
+        (
+            MailKind::TwoFactorChanged,
+            Template {
+                subject: "Your SIDE ROOM sign-in security changed",
+                heading: "Your sign-in security changed",
+                body: "{change} on your SIDE ROOM account. If this was you, no action is needed. If it was not, sign in, remove what you do not recognise, change your password and sign out every device.",
+                button: "",
+                outro: "",
+            },
+        ),
+        (
+            MailKind::NewLogin,
+            Template {
+                subject: "New sign-in to your SIDE ROOM account",
+                heading: "New sign-in",
+                body: "Your SIDE ROOM account was just signed in to from a device we have not seen before: {device}, at {when}. If this was you, no action is needed. If it was not, change your password and sign out every device from Settings. You can turn these messages off under Settings, Devices.",
+                button: "",
+                outro: "",
+            },
+        ),
     ],
 };
 
@@ -169,7 +193,7 @@ pub fn fill(text: &str, vars: &[(&str, &str)]) -> String {
 mod tests {
     use super::*;
 
-    const ALL: [MailKind; 7] = [
+    const ALL: [MailKind; 9] = [
         MailKind::VerifyEmail,
         MailKind::ChangeEmail,
         MailKind::ChangeEmailNotice,
@@ -177,6 +201,8 @@ mod tests {
         MailKind::PasswordChanged,
         MailKind::ResetPassword,
         MailKind::TwoFactorReset,
+        MailKind::TwoFactorChanged,
+        MailKind::NewLogin,
     ];
 
     #[test]

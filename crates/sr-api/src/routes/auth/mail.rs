@@ -77,6 +77,11 @@ impl MemoryMailer {
     pub fn sent(&self) -> Vec<OutgoingMail> {
         self.lock().clone()
     }
+
+    /// Messages sent so far, emptying the outbox.
+    pub fn take(&self) -> Vec<OutgoingMail> {
+        std::mem::take(&mut *self.lock())
+    }
 }
 
 #[async_trait]
@@ -268,6 +273,29 @@ pub fn two_factor_reset(to: &str, locale: &str) -> OutgoingMail {
     render(to, locale, MailKind::TwoFactorReset, None, &[])
 }
 
+/// The account holder changed their own two-factor setup. `change` is a short sentence fragment such as
+/// "An authenticator app was turned on".
+pub fn two_factor_changed(to: &str, change: &str, locale: &str) -> OutgoingMail {
+    render(
+        to,
+        locale,
+        MailKind::TwoFactorChanged,
+        None,
+        &[("change", change)],
+    )
+}
+
+/// A sign-in from a device the account has not used before (ENT-AUTH-015). `when` is a UTC timestamp text.
+pub fn new_login(to: &str, device: &str, when: &str, locale: &str) -> OutgoingMail {
+    render(
+        to,
+        locale,
+        MailKind::NewLogin,
+        None,
+        &[("device", device), ("when", when)],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,6 +332,19 @@ mod tests {
             email_changed("a@b.c", "https://x.test/c", "en")
                 .text
                 .contains("https://x.test/c")
+        );
+    }
+
+    #[test]
+    fn security_notices_name_what_happened() {
+        let n = new_login("a@b.c", "Firefox on Windows", "2026-10-15 09:30 UTC", "en");
+        assert!(n.text.contains("Firefox on Windows"));
+        assert!(n.text.contains("2026-10-15 09:30 UTC"));
+        assert!(!n.text.contains("http"));
+        let c = two_factor_changed("a@b.c", "A passkey was added", "en");
+        assert!(
+            c.text
+                .contains("A passkey was added on your SIDE ROOM account")
         );
     }
 

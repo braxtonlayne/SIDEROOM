@@ -8,6 +8,8 @@ export const server = setupServer(
   ),
   http.get('*/api/v1/sr/auth/discord/pending', () => HttpResponse.json(null)),
   http.get('*/api/v1/sr/auth/passkeys', () => HttpResponse.json([])),
+  // Settings > Devices: new-device sign-in alerts start on.
+  http.get('*/api/v1/sr/auth/login-alerts', () => HttpResponse.json({ enabled: true })),
   // Home screen loads: nobody to befriend, no templates, online with no custom status.
   http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
   http.get('*/api/v1/guilds/templates/builtin', () => HttpResponse.json([])),
