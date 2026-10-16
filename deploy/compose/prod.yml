@@ -89,6 +89,11 @@ services:
       SR_SMTP__FROM: ${SMTP_FROM:?set SMTP_FROM}
       SR_SMTP__USERNAME: ${SMTP_USERNAME:-}
       SR_SMTP__PASSWORD: ${SMTP_PASSWORD:-}
+      # Local folders a staff member may point an ingest source at (REV-UP-005). Empty = local folders off.
+      SR_INGEST__ROOTS: ${SR_INGEST_ROOTS:-}
+    volumes:
+      # Optional, read-only: the folder named above. The ledger never moves or deletes files here.
+      - ${SR_INGEST_DIR:-/srv/sideroom/ingest}:/srv/sideroom/ingest:ro
     stop_grace_period: 60s # server drains for 2 x shutdown_grace_secs (docs/dev/server.md)
     healthcheck:
       # The distroless image has no shell or curl; the binary probes its own /readyz (database and storage).

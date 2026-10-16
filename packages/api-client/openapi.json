@@ -46774,7 +46774,7 @@
           {
             "name": "format",
             "in": "query",
-            "description": "png, jpg, webp or gif",
+            "description": "png, jpg, webp, gif or avif (answers webp)",
             "required": false,
             "schema": {
               "type": "string"

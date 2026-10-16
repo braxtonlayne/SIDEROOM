@@ -53,7 +53,6 @@ async fn account(pool: &PgPool, ids: &Ids, name: &str) -> i64 {
 struct Fx {
     db: TestDb,
     svc: AppsService,
-    repo: Arc<PgAppsRepo>,
     ids: Arc<Ids>,
     owner: i64,
     other: i64,
@@ -84,7 +83,6 @@ async fn fx() -> Fx {
         guild: bp.guild.id.get() as i64,
         db,
         svc,
-        repo,
         ids,
         owner,
         other,
@@ -1058,7 +1056,7 @@ async fn the_command_index_covers_installed_live_applications_only() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
-async fn the_signing_seed_is_sealed_at_rest_and_legacy_rows_are_converted_once() {
+async fn the_signing_seed_is_sealed_at_rest_and_rotates_with_the_key() {
     let f = fx().await;
     let c = f.app().await;
     let id = c.application.id;
@@ -1071,40 +1069,28 @@ async fn the_signing_seed_is_sealed_at_rest_and_legacy_rows_are_converted_once()
         .unwrap();
     let seed = f.svc.signing_seed(id).await.unwrap();
 
-    // the sealed column holds neither the seed nor anything shaped like it; the legacy
-    // plaintext column stays empty for new keys
-    let (sealed, legacy): (Option<Vec<u8>>, Option<Vec<u8>>) = sqlx::query_as(
-        "SELECT interactions_signing_seed_sealed, interactions_signing_seed \
-         FROM applications WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(f.db.pool())
-    .await
-    .unwrap();
+    // the sealed column holds neither the seed nor anything shaped like it (the plaintext
+    // column is gone, migration 0803)
+    let (sealed,): (Option<Vec<u8>>,) =
+        sqlx::query_as("SELECT interactions_signing_seed_sealed FROM applications WHERE id = $1")
+            .bind(id)
+            .fetch_one(f.db.pool())
+            .await
+            .unwrap();
     let sealed = sealed.expect("sealed");
-    assert!(legacy.is_none());
     assert!(sealed.len() > 32 + 12);
     assert!(!sealed.windows(32).any(|w| w == seed.as_bytes().as_slice()));
 
-    // a legacy plaintext row (written before 0771) is sealed by the backfill and cleared
+    // a second app with its own sealed seed
     let c2 = f
         .svc
-        .create_application(f.owner, "Legacy Bot", "")
+        .create_application(f.owner, "Second Bot", "")
         .await
         .unwrap();
-    let old = sr_apps::signing::SigningSeed::generate().unwrap();
-    sqlx::query("UPDATE applications SET interactions_signing_seed = $2 WHERE id = $1")
-        .bind(c2.application.id)
-        .bind(old.as_bytes().to_vec())
-        .execute(f.db.pool())
+    f.svc
+        .ensure_signing_key(f.owner, c2.application.id)
         .await
         .unwrap();
-    assert_eq!(f.repo.legacy_seed_count().await.unwrap(), 1);
-    assert_eq!(f.repo.seal_legacy_seeds().await.unwrap(), 1);
-    assert_eq!(f.repo.legacy_seed_count().await.unwrap(), 0);
-    assert_eq!(f.repo.seal_legacy_seeds().await.unwrap(), 0);
-    let again = f.svc.signing_seed(c2.application.id).await.unwrap();
-    assert_eq!(again.verify_key_hex(), old.verify_key_hex());
 
     // rotation: a repository with a new key and the old one as previous still opens the
     // seeds, and after re-encryption the old key is no longer needed

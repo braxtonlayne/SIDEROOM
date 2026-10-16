@@ -218,7 +218,7 @@ async fn rejects_bad_sizes_and_formats() {
         let r = f.get(&f.variant(P, Some(s), None)).await;
         assert_eq!(r.status(), StatusCode::BAD_REQUEST, "size {s}");
     }
-    let r = f.get(&f.variant(P, Some(32), Some("avif"))).await;
+    let r = f.get(&f.variant(P, Some(32), Some("bmp"))).await;
     assert_eq!(r.status(), StatusCode::BAD_REQUEST);
     // Non-numeric size fails the signature check and never reaches storage.
     let r = f.get(&format!("{P}?size=abc&ex=1&sig=x")).await;
@@ -276,6 +276,33 @@ async fn animated_gif_is_preserved() {
         .get(&f.variant("/cdn/emoji/9/3.gif", Some(32), Some("png")))
         .await;
     assert_eq!(h(&r, "content-type"), "image/png");
+}
+
+#[tokio::test]
+async fn animated_gif_negotiates_animated_webp_and_avif_answers_webp() {
+    let f = fx(&[("emoji/9/3.gif", gif(64, 64, 4))], Limits::default()).await;
+    let path = "/cdn/emoji/9/3.gif";
+    // Accept: webp turns the animation into an animated WebP.
+    let r = f
+        .send(
+            "GET",
+            &f.variant(path, Some(32), None),
+            &[("accept", "image/webp,*/*")],
+        )
+        .await;
+    assert_eq!(h(&r, "content-type"), "image/webp");
+    let b = body(r).await;
+    let (_, d) = sr_storage::img::decode(&b, &Limits::default()).unwrap();
+    assert!(d.is_animated());
+    // The animated WebP source stays animated (GIF without webp in Accept).
+    let r = f.get(&f.variant(path, Some(16), Some("webp"))).await;
+    assert_eq!(h(&r, "content-type"), "image/webp");
+    // `format=avif` is accepted and answers the WebP variant.
+    let r = f.get(&f.variant(path, Some(16), Some("avif"))).await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert_eq!(h(&r, "content-type"), "image/webp");
+    let (_, d) = sr_storage::img::decode(&body(r).await, &Limits::default()).unwrap();
+    assert!(d.is_animated());
 }
 
 #[tokio::test]

@@ -49,9 +49,13 @@ impl Params {
                     out.size = Some(s);
                 }
                 Some(("format", v)) => {
-                    out.format = Some(
-                        ImgFormat::from_name(v).ok_or("format must be png, jpg, webp or gif")?,
-                    );
+                    out.format = Some(if v.eq_ignore_ascii_case("avif") {
+                        // AVIF is closed (P13-FND-2): answer the WebP variant.
+                        ImgFormat::Webp
+                    } else {
+                        ImgFormat::from_name(v)
+                            .ok_or("format must be png, jpg, webp, gif or avif")?
+                    });
                 }
                 _ => {}
             }
@@ -165,7 +169,7 @@ pub(super) async fn serve(
     let fmt = img::pick_format(
         requested,
         source,
-        source == ImgFormat::Gif,
+        source == ImgFormat::Gif || img::webp_header_animated(&head),
         accepts_webp(req_headers),
     );
     let vkey = img::variant_key(&parsed.key, params.size, fmt);

@@ -74,7 +74,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 ## FND-STOR — Storage
 - [x] **FND-STOR-001** [BE] `sr-storage` over `object_store` S3: put/get/delete/list, presigned PUT/GET, multipart create/complete/abort
 - [x] **FND-STOR-002** [BE] Signed CDN URL scheme (`/cdn/...?ex=&sig=`) + verification middleware + Range support
-- [ ] **FND-STOR-003** [BE] Image proxy/resizer for avatars/icons/emoji (`?size=` 16–4096, WebP/AVIF/PNG/GIF, animated support) _(built: `size` 16 to 4096, PNG/JPEG/WebP (lossless)/GIF, animated GIF kept, signed variants cached; AVIF output and animated WebP are not offered (pure-Rust encoders only))_
+- [x] **FND-STOR-003** [BE] Image proxy/resizer for avatars/icons/emoji (`?size=` 16–4096, WebP/AVIF/PNG/GIF, animated support) _(built: `size` 16 to 4096, PNG/JPEG/WebP (lossless stills)/GIF, signed variants cached. AVIF closed (P13-FND-2), animated WebP via libwebp (`crates/sr-storage/src/img.rs`, P14 fu-ops))_
 - [x] **FND-STOR-004** [BE] Upload slot service (size limit from entitlements, content-type sniffing, EXIF strip on images)
 
 ## FND-OBS — Observability

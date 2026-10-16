@@ -257,24 +257,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         pool.clone(),
         sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys),
     ));
-    // Job apps.seal_seeds (D-185): encrypt interactions signing seeds still stored in the
-    // plaintext column of migration 0710. Refuses to run without a configured secret: an
-    // ephemeral key would make the sealed seeds unreadable after the next restart.
-    let legacy_seeds = apps_repo
-        .legacy_seed_count()
-        .await
-        .map_err(|e| anyhow::anyhow!("apps.seal_seeds: {e}"))?;
-    if legacy_seeds > 0 {
-        anyhow::ensure!(
-            !cfg.server.secret_key.expose().is_empty(),
-            "apps.seal_seeds: {legacy_seeds} interactions signing seeds need sealing; set server.secret_key first"
-        );
-        let sealed = apps_repo
-            .seal_legacy_seeds()
-            .await
-            .map_err(|e| anyhow::anyhow!("apps.seal_seeds: {e}"))?;
-        tracing::info!(sealed, "apps.seal_seeds: interactions signing seeds sealed");
-    }
+    // The plaintext signing-seed column is gone (migration 0803, G-85); seeds are sealed at rest.
+    // Upgrading from before 0771: run the previous release once so its apps.seal_seeds job runs.
     let apps_service = Arc::new(sr_apps::AppsService::new(
         apps_repo,
         clock.clone(),

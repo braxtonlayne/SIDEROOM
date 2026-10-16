@@ -15,7 +15,7 @@
 #
 # Answers can come from the environment (they win over prompts):
 #   SR_DOMAIN SR_IMAGE SR_WEB_DIR SMTP_HOST SMTP_PORT SMTP_TLS SMTP_FROM SMTP_USERNAME SMTP_PASSWORD
-#   SR_OWNER_USERNAME SR_OWNER_EMAIL SR_OWNER_PASSWORD SR_GARAGE_CAPACITY
+#   SR_OWNER_USERNAME SR_OWNER_EMAIL SR_OWNER_PASSWORD SR_GARAGE_CAPACITY SR_INGEST_DIR
 #
 # Needs Docker with the compose plugin and a source of randomness (openssl, or /dev/urandom with od).
 set -eu
@@ -95,6 +95,7 @@ ask SMTP_PASSWORD "SMTP password" "" secret
 ask SR_OWNER_USERNAME "Owner username" "owner"
 ask SR_OWNER_EMAIL "Owner email" ""
 ask SR_GARAGE_CAPACITY "Object storage capacity to reserve (for example 100G)" "100G"
+ask SR_INGEST_DIR "Folder for local imports, mounted read-only (type none to turn local folders off)" "/srv/sideroom/ingest"
 SMTP_USERNAME=${SMTP_USERNAME:-}
 SMTP_PASSWORD=${SMTP_PASSWORD:-}
 if [ -z "${SMTP_FROM:-}" ]; then SMTP_FROM="SIDE ROOM <no-reply@${SR_DOMAIN:-example.org}>"; fi
@@ -116,6 +117,18 @@ case ${SR_OWNER_EMAIL:-} in *?@?*.*) ;; *) die "SR_OWNER_EMAIL must be an email 
 case ${SR_OWNER_USERNAME:-} in ''|*[!a-z0-9_.]*) die "SR_OWNER_USERNAME may use a-z, 0-9, '_' and '.'" ;; esac
 case ${SR_IMAGE:-} in ''|*' '*) die "SR_IMAGE must be an image reference" ;; esac
 case $SR_GARAGE_CAPACITY in [0-9]*[KMGT]|[0-9]*[KMGT]B) ;; *) die "SR_GARAGE_CAPACITY must look like 100G" ;; esac
+# Local ingest folder: mounted read-only at /srv/sideroom/ingest; "none" turns local folders off.
+if [ "$SR_INGEST_DIR" = "none" ]; then
+  SR_INGEST_DIR=/srv/sideroom/ingest
+  ingest_roots=
+else
+  ingest_roots=/srv/sideroom/ingest
+fi
+case $SR_INGEST_DIR in
+  /*[!A-Za-z0-9._/-]*|*/../*|*/..) die "SR_INGEST_DIR must be an absolute path of letters, digits, '.', '_', '-' and '/' (got '$SR_INGEST_DIR')" ;;
+  /*) ;;
+  *) die "SR_INGEST_DIR must be an absolute path (got '$SR_INGEST_DIR')" ;;
+esac
 case "$SMTP_PASSWORD$SMTP_USERNAME$SMTP_FROM" in
   *'
 '*) die "SMTP values must be single-line" ;;
@@ -166,6 +179,8 @@ tmp=$env_file.new
     | fill SMTP_FROM "$SMTP_FROM" \
     | fill SMTP_USERNAME "$SMTP_USERNAME" \
     | fill SMTP_PASSWORD "$SMTP_PASSWORD" \
+    | fill SR_INGEST_DIR "$SR_INGEST_DIR" \
+    | fill SR_INGEST_ROOTS "$ingest_roots" \
     | fill GRAFANA_PASSWORD "$grafana_password"
 } >"$tmp" || { rm -f "$tmp"; die "could not fill the env template (is a key missing from .env.prod.example?)"; }
 if grep -Eq "^[A-Za-z_]+ *=.*CHANGE_ME" "$tmp"; then rm -f "$tmp"; die "a CHANGE_ME placeholder is left in the generated env file"; fi
@@ -184,6 +199,15 @@ awk -v rpc="$rpc" -v admin="$admin" -v metrics="$metrics" '
 if grep -Eq "^[A-Za-z_]+ *=.*CHANGE_ME" "$garage_file"; then die "a CHANGE_ME placeholder is left in garage.prod.toml"; fi
 chmod 600 "$garage_file"
 say "wrote $env_file and $garage_file (mode 0600)"
+
+# The ingest folder is only read; create it when missing so the bind mount has a source.
+if [ -n "$ingest_roots" ] && [ ! -d "$SR_INGEST_DIR" ]; then
+  if mkdir -p "$SR_INGEST_DIR" 2>/dev/null; then
+    say "created $SR_INGEST_DIR (read-only inside the container; put files under $SR_INGEST_DIR/library/)"
+  else
+    echo "warning: could not create $SR_INGEST_DIR; create it before starting the stack (mkdir -p), or compose creates it root-owned." >&2
+  fi
+fi
 
 # --- bring the stack up ---------------------------------------------------------------------------------
 dc() { docker compose -f "$compose_dir/prod.yml" --env-file "$env_file" "$@"; }
