@@ -58,6 +58,7 @@ pub fn router() -> Router<AppState> {
         guild::get_guild,
         guild::modify_guild,
         guild::delete_guild,
+        guild::modify_sr_profile,
         guild::list_my_guilds,
         guild::leave_guild,
         channels::list_channels,

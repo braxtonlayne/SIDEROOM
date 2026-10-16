@@ -1598,3 +1598,220 @@ async fn the_watch_party_room_preset_is_validated_before_anything_is_created() {
     .await;
     assert_eq!(s, StatusCode::CREATED, "{body}");
 }
+
+/// Keeps the audit `changes` keys of every entry (J-08).
+#[derive(Default)]
+struct KeyRecorder(std::sync::Mutex<Vec<(AuditAction, Vec<String>)>>);
+
+#[async_trait::async_trait]
+impl guilds::backend::AuditSink for KeyRecorder {
+    async fn record(
+        &self,
+        _guild: GuildId,
+        _actor: UserId,
+        action: AuditAction,
+        _target_id: Option<u64>,
+        changes: Vec<sr_chat::settings::audit::AuditChange>,
+        _reason: Option<&str>,
+    ) {
+        self.0
+            .lock()
+            .unwrap()
+            .push((action, changes.into_iter().map(|c| c.key).collect()));
+    }
+}
+
+#[tokio::test]
+async fn role_colour_gradients_use_discords_colors_object_and_are_audited() {
+    let rec = Arc::new(KeyRecorder::default());
+    let f = fixture_with(Some(rec.clone()));
+    let (gid, _) = guild(&f).await;
+    let roles_uri = format!("/guilds/{gid}/roles");
+
+    // A plain role mirrors `color` into `colors.primary_color`.
+    let (s, r) = post(
+        &f,
+        &roles_uri,
+        "owner",
+        json!({ "name": "plain", "color": 255 }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["colors"]["primary_color"], 255);
+    assert!(r["colors"]["secondary_color"].is_null());
+
+    // A gradient on create; `colors` wins over `color`.
+    let (s, r) = post(
+        &f,
+        &roles_uri,
+        "owner",
+        json!({ "name": "grad", "color": 1, "colors": { "primary_color": 16711680, "secondary_color": 255 } }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["color"], 16711680);
+    assert_eq!(r["colors"]["secondary_color"], 255);
+    let uri = format!("{roles_uri}/{}", r["id"].as_str().unwrap());
+
+    // The holographic triple is stored as sent and audited under the two new keys.
+    let (s, r) = patch(
+        &f,
+        &uri,
+        "owner",
+        json!({ "colors": { "primary_color": 11127295, "secondary_color": 16759788, "tertiary_color": 16761760 } }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["colors"]["tertiary_color"], 16761760);
+    let (_, one) = get(&f, &roles_uri, "owner").await;
+    let listed = one
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["name"] == "grad")
+        .unwrap();
+    assert_eq!(listed["colors"]["secondary_color"], 16759788);
+    let log = rec.0.lock().unwrap().clone();
+    let last = log.last().unwrap();
+    assert_eq!(last.0, AuditAction::RoleUpdate);
+    assert_eq!(
+        last.1,
+        vec!["secondary_color".to_owned(), "tertiary_color".to_owned()]
+    );
+
+    // A tertiary stop without a secondary one, and out-of-range stops, are refused.
+    for bad in [
+        json!({ "colors": { "primary_color": 1, "tertiary_color": 2 } }),
+        json!({ "colors": { "primary_color": 1, "secondary_color": 16777216 } }),
+    ] {
+        let (s, e) = patch(&f, &uri, "owner", bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    }
+
+    // Dropping the secondary stop clears the gradient; a legacy `color` edit leaves stops alone.
+    let (_, r) = patch(
+        &f,
+        &uri,
+        "owner",
+        json!({ "colors": { "primary_color": 9, "secondary_color": 8 } }),
+    )
+    .await;
+    assert!(r["colors"]["tertiary_color"].is_null());
+    let (_, r) = patch(&f, &uri, "owner", json!({ "color": 7 })).await;
+    assert_eq!(
+        (
+            &r["colors"]["primary_color"],
+            &r["colors"]["secondary_color"]
+        ),
+        (&json!(7), &json!(8))
+    );
+    // Without the permission nothing changes.
+    let (s, _) = patch(&f, &uri, "bob", json!({ "colors": { "primary_color": 1 } })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn server_traits_are_validated_returned_and_announced() {
+    let f = fixture();
+    let (gid, created) = guild(&f).await;
+    assert_eq!(created["sr_profile"]["traits"], json!([]));
+    let g = GuildId::new(gid.parse().unwrap());
+    let mut events = f.bus.subscribe(Topic::Guild(g));
+    let uri = format!("/guilds/{gid}/sr/profile");
+
+    let traits = json!([
+        { "emoji_name": "🎮", "label": "Gamers" },
+        { "emoji_id": "123456789", "emoji_name": "blob", "label": "Cozy" },
+    ]);
+    let (s, r) = patch(&f, &uri, "owner", json!({ "traits": traits })).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["sr_profile"]["traits"], traits);
+    // GET returns them, and GUILD_UPDATE carries them.
+    let (_, r) = get(&f, &format!("/guilds/{gid}"), "owner").await;
+    assert_eq!(r["sr_profile"]["traits"], traits);
+    let Some(DomainEvent::GuildUpdated { payload, .. }) = next_event(&mut events).await else {
+        panic!("expected GuildUpdated");
+    };
+    assert_eq!(payload["sr_profile"]["traits"], traits);
+
+    // An edit that leaves `traits` out keeps them; an empty list clears them.
+    let (_, r) = patch(&f, &uri, "owner", json!({})).await;
+    assert_eq!(r["sr_profile"]["traits"], traits);
+    let (_, r) = patch(
+        &f,
+        &format!("/guilds/{gid}"),
+        "owner",
+        json!({ "name": "Renamed" }),
+    )
+    .await;
+    assert_eq!(r["sr_profile"]["traits"], traits);
+
+    // Six traits, a long label, a mention and markdown are refused; so is a member without the permission.
+    let six: Vec<Value> = (0..6)
+        .map(|n| json!({ "label": format!("t{n}") }))
+        .collect();
+    for bad in [
+        json!(six),
+        json!([{ "label": "a".repeat(25) }]),
+        json!([{ "label": "@everyone" }]),
+        json!([{ "label": "**bold**" }]),
+        json!([{ "label": "" }]),
+    ] {
+        let (s, e) = patch(&f, &uri, "owner", json!({ "traits": bad })).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    }
+    let (s, _) = patch(&f, &uri, "bob", json!({ "traits": [] })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (_, r) = patch(&f, &uri, "owner", json!({ "traits": [] })).await;
+    assert_eq!(r["sr_profile"]["traits"], json!([]));
+}
+
+#[tokio::test]
+async fn creating_a_server_takes_its_icon_in_the_same_request() {
+    let f = fixture();
+    let (s, g) = post(
+        &f,
+        "/guilds",
+        "owner",
+        json!({ "name": "With Icon", "icon": png_uri(120, 80, 4) }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "{g}");
+    let gid = g["id"].as_str().unwrap();
+    let icon = g["icon"].as_str().expect("the icon hash is in the answer");
+    assert!(
+        sr_storage::ObjectStorage::head(&*f.storage, &format!("icons/{gid}/{icon}"))
+            .await
+            .is_ok()
+    );
+    // The icon is part of the stored server, not only of the answer.
+    let (_, again) = get(&f, &format!("/guilds/{gid}"), "owner").await;
+    assert_eq!(again["icon"], icon);
+
+    // A refused image fails the request and leaves no server behind.
+    let (_, before) = get(&f, "/users/@me/guilds", "owner").await;
+    let (s, _) = post(
+        &f,
+        "/guilds",
+        "owner",
+        json!({ "name": "Bad Icon", "icon": "data:text/html;base64,PGI+" }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (_, after) = get(&f, "/users/@me/guilds", "owner").await;
+    assert_eq!(
+        before.as_array().unwrap().len(),
+        after.as_array().unwrap().len()
+    );
+
+    // An icon works together with a template.
+    let (s, g) = post(
+        &f,
+        "/guilds",
+        "owner",
+        json!({ "name": "Templated", "template": "gaming", "icon": png_uri(40, 40, 6) }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "{g}");
+    assert!(g["icon"].is_string());
+}

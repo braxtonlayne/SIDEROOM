@@ -10,12 +10,54 @@ use sr_core::{GuildId, RoleId};
 pub const ROLE_NAME_MAX: usize = 100;
 pub const MAX_COLOR: u32 = 0x00FF_FFFF;
 
+/// The gradient stops of a role (`colors` in the API, J-08). `primary` mirrors `color`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RoleColors {
+    pub primary: u32,
+    pub secondary: Option<u32>,
+    pub tertiary: Option<u32>,
+}
+
+/// Discord's fixed holographic triple (primary, secondary, tertiary).
+pub const HOLOGRAPHIC: RoleColors = RoleColors {
+    primary: 11_127_295,
+    secondary: Some(16_759_788),
+    tertiary: Some(16_761_760),
+};
+
+/// Check the stops: each fits 24 bits and a tertiary stop needs a secondary one.
+pub fn validate_colors(c: RoleColors) -> ChatResult<RoleColors> {
+    validate_color(c.primary)?;
+    for (field, v) in [
+        ("colors.secondary_color", c.secondary),
+        ("colors.tertiary_color", c.tertiary),
+    ] {
+        if v.is_some_and(|v| v > MAX_COLOR) {
+            return Err(ChatError::invalid(
+                field,
+                "NUMBER_TYPE_MAX",
+                "Color must be at most 16777215.",
+            ));
+        }
+    }
+    if c.tertiary.is_some() && c.secondary.is_none() {
+        return Err(ChatError::invalid(
+            "colors.tertiary_color",
+            "TERTIARY_NEEDS_SECONDARY",
+            "A tertiary color needs a secondary color.",
+        ));
+    }
+    Ok(c)
+}
+
 /// Fields for a new role; unset fields use Discord's defaults.
 #[derive(Debug, Clone, Default)]
 pub struct NewRole {
     pub name: Option<String>,
     pub permissions: Option<Permissions>,
     pub color: Option<u32>,
+    /// Gradient stops; wins over `color` when both are given.
+    pub colors: Option<RoleColors>,
     pub hoist: bool,
     pub mentionable: bool,
     pub unicode_emoji: Option<String>,
@@ -27,6 +69,8 @@ pub struct RolePatch {
     pub name: Option<String>,
     pub permissions: Option<Permissions>,
     pub color: Option<u32>,
+    /// Gradient stops; replaces all three and wins over `color` when both are given.
+    pub colors: Option<RoleColors>,
     pub hoist: Option<bool>,
     pub mentionable: Option<bool>,
     /// `Some(None)` clears the emoji. Setting one clears the image icon.
@@ -102,6 +146,14 @@ pub fn plan_create_role(
     if !actor.can_grant(permissions) {
         return Err(ChatError::MissingPermissions);
     }
+    let colors = match input.colors {
+        Some(c) => validate_colors(c)?,
+        None => RoleColors {
+            primary: validate_color(input.color.unwrap_or(0))?,
+            secondary: None,
+            tertiary: None,
+        },
+    };
     Ok(Role {
         id,
         guild_id,
@@ -109,7 +161,9 @@ pub fn plan_create_role(
             Some(n) => validate_name(&n)?,
             None => "new role".to_owned(),
         },
-        color: validate_color(input.color.unwrap_or(0))?,
+        color: colors.primary,
+        secondary_color: colors.secondary,
+        tertiary_color: colors.tertiary,
         hoist: input.hoist,
         position: 1,
         permissions,
@@ -131,6 +185,7 @@ pub fn plan_edit_role(actor: &GuildActor, role: &Role, patch: RolePatch) -> Chat
     if role.is_everyone()
         && (patch.name.is_some()
             || patch.color.is_some()
+            || patch.colors.is_some()
             || patch.hoist.is_some()
             || patch.mentionable.is_some()
             || patch.unicode_emoji.is_some()
@@ -147,6 +202,12 @@ pub fn plan_edit_role(actor: &GuildActor, role: &Role, patch: RolePatch) -> Chat
     }
     if let Some(c) = patch.color {
         out.color = validate_color(c)?;
+    }
+    if let Some(c) = patch.colors {
+        let c = validate_colors(c)?;
+        out.color = c.primary;
+        out.secondary_color = c.secondary;
+        out.tertiary_color = c.tertiary;
     }
     if let Some(h) = patch.hoist {
         out.hoist = h;
@@ -460,5 +521,106 @@ mod tests {
         assert!(check_reposition(&a, &low, 4).is_err());
         assert!(check_reposition(&a, &low, 0).is_err());
         assert!(check_reposition(&actor(Permissions::empty(), 9), &low, 3).is_err());
+    }
+
+    #[test]
+    fn gradient_colors_follow_discords_rules() {
+        let a = actor(Permissions::MANAGE_ROLES, 4);
+        let low = role(300, 2, Permissions::empty());
+        let two = RoleColors {
+            primary: 0xff0000,
+            secondary: Some(0x0000ff),
+            tertiary: None,
+        };
+        let out = plan_edit_role(
+            &a,
+            &low,
+            RolePatch {
+                colors: Some(two),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            (out.color, out.secondary_color, out.tertiary_color),
+            (0xff0000, Some(0x0000ff), None)
+        );
+        // The holographic preset is the fixed triple.
+        let holo = plan_edit_role(
+            &a,
+            &low,
+            RolePatch {
+                colors: Some(HOLOGRAPHIC),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            (holo.color, holo.secondary_color, holo.tertiary_color),
+            (11_127_295, Some(16_759_788), Some(16_761_760))
+        );
+        // A tertiary stop needs a secondary one, and every stop fits 24 bits.
+        for bad in [
+            RoleColors {
+                primary: 1,
+                secondary: None,
+                tertiary: Some(2),
+            },
+            RoleColors {
+                primary: 1,
+                secondary: Some(0x0100_0000),
+                tertiary: None,
+            },
+            RoleColors {
+                primary: 1,
+                secondary: Some(2),
+                tertiary: Some(0x0100_0000),
+            },
+            RoleColors {
+                primary: 0x0100_0000,
+                secondary: None,
+                tertiary: None,
+            },
+        ] {
+            let p = RolePatch {
+                colors: Some(bad),
+                ..Default::default()
+            };
+            assert!(plan_edit_role(&a, &low, p).is_err(), "{bad:?}");
+        }
+        // Sending colors with no secondary stop clears the gradient.
+        let cleared = plan_edit_role(
+            &a,
+            &holo,
+            RolePatch {
+                colors: Some(RoleColors {
+                    primary: 5,
+                    secondary: None,
+                    tertiary: None,
+                }),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!((cleared.color, cleared.secondary_color), (5, None));
+        // A create takes the same object and it wins over `color`.
+        let l = ChatLimits::default();
+        let made = plan_create_role(
+            &a,
+            GuildId::new(GUILD),
+            RoleId::new(9),
+            1,
+            NewRole {
+                color: Some(1),
+                colors: Some(two),
+                ..Default::default()
+            },
+            &l,
+        )
+        .unwrap();
+        assert_eq!(
+            (made.color, made.secondary_color),
+            (0xff0000, Some(0x0000ff))
+        );
     }
 }

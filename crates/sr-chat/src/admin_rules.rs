@@ -50,6 +50,8 @@ pub struct GuildPatch {
     pub widget_enabled: Option<bool>,
     /// A channel of the guild; `Some(None)` clears it. The service checks membership.
     pub widget_channel_id: Option<Option<ChannelId>>,
+    /// The server's traits, replaced as a whole (J-07).
+    pub traits: Option<Vec<crate::guild_traits::GuildTrait>>,
 }
 
 impl GuildPatch {
@@ -70,6 +72,7 @@ impl GuildPatch {
             && self.system_channel_flags.is_none()
             && self.widget_enabled.is_none()
             && self.widget_channel_id.is_none()
+            && self.traits.is_none()
     }
 }
 
@@ -215,6 +218,9 @@ pub fn plan_edit_guild(
     }
     if let Some(c) = patch.widget_channel_id {
         out.widget_channel_id = c;
+    }
+    if let Some(t) = patch.traits {
+        out.traits = crate::guild_traits::validate_traits(t)?;
     }
     if let Some(k) = patch.icon_key {
         out.icon_key = k;
