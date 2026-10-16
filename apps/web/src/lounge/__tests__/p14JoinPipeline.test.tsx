@@ -452,16 +452,18 @@ describe('Per-server DM switch (J-01, LNG-GLD-025)', () => {
 });
 
 describe('Create Server: icon step (LNG-GLD-017)', () => {
-  it('keeps a GIF icon as it is and sets it right after the server is created', async () => {
+  it('keeps a GIF icon as it is and sends it with the create call (J-06)', async () => {
     seed();
-    let patch: unknown;
+    let created: unknown;
+    let patched = false;
     server.use(
       guide(false),
       http.get('*/api/v1/users/@me/guilds/g1/member', () =>
         HttpResponse.json({ pending: false, joined_at: '2020-01-01T00:00:00Z', roles: [] }),
       ),
-      http.post('*/api/v1/guilds', () =>
-        HttpResponse.json(
+      http.post('*/api/v1/guilds', async ({ request }) => {
+        created = await request.json();
+        return HttpResponse.json(
           {
             id: 'g5',
             name: 'Fresh',
@@ -470,10 +472,10 @@ describe('Create Server: icon step (LNG-GLD-017)', () => {
             roles: [],
           },
           { status: 201 },
-        ),
-      ),
-      http.patch('*/api/v1/guilds/g5', async ({ request }) => {
-        patch = await request.json();
+        );
+      }),
+      http.patch('*/api/v1/guilds/g5', () => {
+        patched = true;
         return HttpResponse.json({ id: 'g5', name: 'Fresh', owner_id: '1' });
       }),
     );
@@ -490,7 +492,9 @@ describe('Create Server: icon step (LNG-GLD-017)', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/channels/g5/k2'));
-    expect((patch as { icon: string }).icon).toMatch(/^data:image\/gif;base64,/);
+    expect((created as { icon: string }).icon).toMatch(/^data:image\/gif;base64,/);
+    // The icon no longer needs a second request.
+    expect(patched).toBe(false);
   });
 });
 
