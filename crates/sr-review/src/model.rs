@@ -183,7 +183,8 @@ pub struct SubmissionEvent {
     pub submission_id: i64,
     /// `created`, `submitted`, `resubmitted`, `claimed`, `released`, `comment`,
     /// `changes_requested`, `approved`, `rejected`, `published`, `publish_failed`,
-    /// `withdrawn`, `item_decision`, `edited`.
+    /// `withdrawn`, `item_decision`, `edited`, `metadata_edited` (a reviewer wrote draft metadata;
+    /// `data.fields` names what).
     pub kind: String,
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]

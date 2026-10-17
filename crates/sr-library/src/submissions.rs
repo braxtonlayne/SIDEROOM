@@ -205,8 +205,8 @@ impl LibraryDraftOps {
             .await?)
     }
 
-    /// Add a draft chapter. Volumes and source keys cannot be chosen by the member (the upload
-    /// fills the source key).
+    /// Add a draft chapter. A volume may be named (the store checks it belongs to the edition); the
+    /// source key is filled by the upload.
     pub async fn create_chapter(
         &self,
         s: &Submission,
@@ -228,7 +228,7 @@ impl LibraryDraftOps {
         if !editions.iter().any(|e| e.id == edition) {
             return Err(ReviewError::NotFound("edition"));
         }
-        input.volume_id = None;
+        // A volume is validated against the edition by the store; the source key is the upload's.
         input.source_key = None;
         let ch = self
             .svc
@@ -250,7 +250,11 @@ impl LibraryDraftOps {
                 "a published chapter cannot be edited here".into(),
             ));
         }
-        input.volume_id = None;
+        // A rename keeps what the chapter already has (K-07): its volume unless another one of the
+        // edition is named, its format (the upload decides it) and its file (the store keeps the old
+        // source key when none is given).
+        input.volume_id = input.volume_id.or(c.volume_id);
+        input.format = c.format;
         input.source_key = None;
         Ok(self
             .svc
@@ -437,6 +441,26 @@ impl SubmissionKind for LibraryKind {
 
     fn review_permission(&self) -> P {
         P::REVIEW_READING
+    }
+
+    fn artwork_slots(&self) -> &'static [&'static str] {
+        if self.new_series { &["cover"] } else { &[] }
+    }
+
+    async fn set_artwork(
+        &self,
+        s: &Submission,
+        user: i64,
+        slot: &str,
+        image: &[u8],
+    ) -> ReviewResult<Option<String>> {
+        if slot != "cover" || !self.new_series {
+            return Err(ReviewError::Invalid(format!("this kind has no {slot}")));
+        }
+        let series = LibraryDraftOps::new(self.svc.clone())
+            .set_cover(s, user, image)
+            .await?;
+        Ok(series.cover_url)
     }
 
     fn publish_permission(&self) -> P {

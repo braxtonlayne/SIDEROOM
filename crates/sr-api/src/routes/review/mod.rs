@@ -20,6 +20,7 @@
 //! ```
 //! Reviewers additionally need [`AdminDeps`](crate::routes::admin::AdminDeps).
 
+mod artwork;
 mod duplicates;
 mod library;
 mod lookup;
@@ -463,6 +464,12 @@ pub fn router() -> Router<AppState> {
                 library::COVER_BODY_LIMIT,
             )),
         )
+        .route(
+            "/submissions/{submission_id}/artwork/{kind}",
+            post(artwork::set_artwork).layer(axum::extract::DefaultBodyLimit::max(
+                artwork::ARTWORK_BODY_LIMIT,
+            )),
+        )
         // Requests.
         .route("/requests", get(requests::list).post(requests::create))
         .route(
@@ -575,6 +582,7 @@ pub fn router() -> Router<AppState> {
         lookup::search,
         library::update_series,
         library::set_cover,
+        artwork::set_artwork,
         library::chapters,
         library::create_chapter,
         library::update_chapter,
@@ -613,6 +621,8 @@ pub fn router() -> Router<AppState> {
     ),
     components(schemas(
         ErrorBody,
+        artwork::ArtworkBody,
+        artwork::ArtworkResult,
         member::PreviewBody,
         member::NamingParseBody,
         member::NamingParseItem,

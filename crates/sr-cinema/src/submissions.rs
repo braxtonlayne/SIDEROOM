@@ -286,6 +286,39 @@ impl SubmissionKind for CinemaKind {
         P::REVIEW_MEDIA
     }
 
+    fn artwork_slots(&self) -> &'static [&'static str] {
+        if self.new_title {
+            &["poster", "backdrop"]
+        } else {
+            &[]
+        }
+    }
+
+    async fn set_artwork(
+        &self,
+        s: &Submission,
+        user: i64,
+        slot: &str,
+        image: &[u8],
+    ) -> ReviewResult<Option<String>> {
+        let slot = match slot {
+            "poster" if self.new_title => ArtworkSlot::Poster,
+            "backdrop" if self.new_title => ArtworkSlot::Backdrop,
+            _ => return Err(ReviewError::Invalid(format!("this kind has no {slot}"))),
+        };
+        let id = s
+            .ref_id
+            .ok_or_else(|| ReviewError::Storage("the submission has no title".into()))?;
+        let t = self
+            .svc
+            .set_title_artwork(sponsor(user), id, slot, image)
+            .await?;
+        Ok(match slot {
+            ArtworkSlot::Poster => t.poster_url,
+            _ => t.backdrop_url,
+        })
+    }
+
     fn publish_permission(&self) -> P {
         P::PUBLISH_MEDIA
     }
