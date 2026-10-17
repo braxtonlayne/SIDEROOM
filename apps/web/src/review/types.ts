@@ -135,6 +135,8 @@ export interface DraftChapter {
   id: string;
   series_id: string;
   edition_id: string;
+  /** The volume the chapter belongs to; null when it has none. */
+  volume_id: string | null;
   number: number;
   title: string | null;
   page_count: number;
@@ -143,8 +145,17 @@ export interface DraftChapter {
   published: boolean;
 }
 
+export interface DraftVolume {
+  id: string;
+  edition_id: string;
+  number: number;
+  title: string | null;
+}
+
 export interface DraftChapterList {
   chapters: DraftChapter[];
+  /** The volumes of the series' editions (a new series has none). */
+  volumes?: DraftVolume[];
 }
 
 export type UploadStatus = 'awaiting_upload' | 'queued' | 'running' | 'done' | 'failed' | 'expired';

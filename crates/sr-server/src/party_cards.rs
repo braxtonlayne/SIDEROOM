@@ -187,6 +187,7 @@ impl PartyCards {
             deps,
             ChannelId::new(channel),
             MessageId::new(message),
+            "",
             &[card_embed(a)],
             &[],
         )

@@ -403,6 +403,7 @@ GET	/push/vapid-key	authenticated	self	deny	-
 GET	/requests	authenticated	user	allow	-
 GET	/soundboard-default-sounds	authenticated	user	allow	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	user	allow	-
+GET	/sr/appearance/defaults	public	none	deny	-
 GET	/sr/auth/discord	authenticated	self	deny	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
 GET	/sr/auth/reauth	authenticated	self	deny	-
@@ -748,6 +749,7 @@ POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
 POST	/submissions	authenticated	self	allow	-
 POST	/submissions/naming/parse	authenticated	user	allow	-
+POST	/submissions/{submission_id}/artwork/{kind}	authenticated	author	allow	-
 POST	/submissions/{submission_id}/comments	authenticated	author	allow	-
 POST	/submissions/{submission_id}/library/chapters	authenticated	author	allow	-
 POST	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	author	allow	-

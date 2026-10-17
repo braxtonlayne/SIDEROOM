@@ -11,6 +11,7 @@ use sr_core::{ApiError, ErrorCode};
 use sr_library::model::*;
 use sr_library::multipart::UploadParts;
 use sr_library::submissions::LibraryDraftOps;
+use sr_review::EditAs;
 use sr_review::model::Submission;
 use sr_review::repo::NewItem;
 
@@ -40,6 +41,40 @@ async fn editable(ctx: &MemberCtx, raw: &str) -> Result<Submission, HttpError> {
     let s = ctx
         .svc()
         .editable_mine(ctx.user(), id(raw, "submission")?)
+        .await
+        .map_err(map_err)?;
+    library_kind(s)
+}
+
+/// A Library submission whose draft metadata the caller may write: the submitter while it is a draft or
+/// has changes requested, or a reviewer of the kind who holds the live claim while it is in review (D-255).
+async fn editable_any(ctx: &MemberCtx, raw: &str) -> Result<(Submission, EditAs), HttpError> {
+    ops(ctx)?;
+    let (s, who) = ctx
+        .svc()
+        .editable_for(ctx.caller, id(raw, "submission")?)
+        .await
+        .map_err(map_err)?;
+    Ok((library_kind(s)?, who))
+}
+
+/// A reviewer's write shows on the submission's timeline for the submitter (`metadata_edited`).
+async fn note(ctx: &MemberCtx, s: &Submission, who: EditAs, field: &str) -> Result<(), HttpError> {
+    if who == EditAs::Reviewer {
+        ctx.svc()
+            .note_reviewer_edit(ctx.caller, s.id, &[field])
+            .await
+            .map_err(map_err)?;
+    }
+    Ok(())
+}
+
+/// Any state, for the submitter or a reviewer of the kind, to read the draft chapters.
+async fn readable(ctx: &MemberCtx, raw: &str) -> Result<Submission, HttpError> {
+    ops(ctx)?;
+    let s = ctx
+        .svc()
+        .readable_for(ctx.caller, id(raw, "submission")?)
         .await
         .map_err(map_err)?;
     library_kind(s)
@@ -82,11 +117,12 @@ pub async fn update_series(
     Path(submission_id): Path<String>,
     Json(b): Json<SeriesInput>,
 ) -> ApiResult<Json<Series>> {
-    let s = editable(&ctx, &submission_id).await?;
+    let (s, who) = editable_any(&ctx, &submission_id).await?;
     let series = ops(&ctx)?
         .update_series(&s, ctx.user(), b)
         .await
         .map_err(map_err)?;
+    note(&ctx, &s, who, "series").await?;
     Ok(Json(series))
 }
 
@@ -102,7 +138,7 @@ pub async fn chapters(
     ctx: MemberCtx,
     Path(submission_id): Path<String>,
 ) -> ApiResult<Json<ChapterList>> {
-    let s = own(&ctx, &submission_id).await?;
+    let s = readable(&ctx, &submission_id).await?;
     ops(&ctx)?
         .chapters(&s, ctx.user())
         .await
@@ -124,14 +160,14 @@ pub async fn create_chapter(
     Path(submission_id): Path<String>,
     Json(b): Json<ChapterInput>,
 ) -> ApiResult<(StatusCode, Json<Chapter>)> {
-    let s = editable(&ctx, &submission_id).await?;
+    let (s, who) = editable_any(&ctx, &submission_id).await?;
     let ch = ops(&ctx)?
         .create_chapter(&s, ctx.user(), None, b)
         .await
         .map_err(map_err)?;
     ctx.svc()
-        .register_item(
-            ctx.user(),
+        .register_item_for(
+            ctx.caller,
             s.id,
             NewItem {
                 ref_id: ch.id,
@@ -141,6 +177,7 @@ pub async fn create_chapter(
         )
         .await
         .map_err(map_err)?;
+    note(&ctx, &s, who, "chapters").await?;
     Ok((StatusCode::CREATED, Json(ch)))
 }
 
@@ -158,15 +195,15 @@ pub async fn update_chapter(
     Path((submission_id, chapter_id)): Path<(String, String)>,
     Json(b): Json<ChapterInput>,
 ) -> ApiResult<Json<Chapter>> {
-    let s = editable(&ctx, &submission_id).await?;
+    let (s, who) = editable_any(&ctx, &submission_id).await?;
     let ch = ops(&ctx)?
         .update_chapter(&s, ctx.user(), id(&chapter_id, "chapter")?, b)
         .await
         .map_err(map_err)?;
     // The review item carries the chapter's number and title: a rename (REV-ED-001) refreshes its label.
     ctx.svc()
-        .register_item(
-            ctx.user(),
+        .register_item_for(
+            ctx.caller,
             s.id,
             NewItem {
                 ref_id: ch.id,
@@ -176,6 +213,7 @@ pub async fn update_chapter(
         )
         .await
         .map_err(map_err)?;
+    note(&ctx, &s, who, "chapters").await?;
     Ok(Json(ch))
 }
 
@@ -191,16 +229,17 @@ pub async fn delete_chapter(
     ctx: MemberCtx,
     Path((submission_id, chapter_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
-    let s = editable(&ctx, &submission_id).await?;
+    let (s, who) = editable_any(&ctx, &submission_id).await?;
     let cid = id(&chapter_id, "chapter")?;
     ops(&ctx)?
         .delete_chapter(&s, ctx.user(), cid)
         .await
         .map_err(map_err)?;
     ctx.svc()
-        .unregister_item(ctx.user(), s.id, cid)
+        .unregister_item_for(ctx.caller, s.id, cid)
         .await
         .map_err(map_err)?;
+    note(&ctx, &s, who, "chapters").await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -412,13 +451,14 @@ pub async fn set_cover(
     Path(submission_id): Path<String>,
     Json(b): Json<CoverBody>,
 ) -> ApiResult<Json<Series>> {
-    let s = editable(&ctx, &submission_id).await?;
+    let (s, who) = editable_any(&ctx, &submission_id).await?;
     let bytes = crate::routes::settings::expressions::decode_data_uri("image", &b.image)?;
-    ops(&ctx)?
+    let series = ops(&ctx)?
         .set_cover(&s, ctx.user(), &bytes)
         .await
-        .map(Json)
-        .map_err(map_err)
+        .map_err(map_err)?;
+    note(&ctx, &s, who, "cover").await?;
+    Ok(Json(series))
 }
 
 /// List the contents of an uploaded archive of my submission without converting it: pages per

@@ -68,6 +68,22 @@ pub trait SubmissionKind: Send + Sync {
     async fn media(&self, _s: &Submission) -> ReviewResult<Vec<MediaRef>> {
         Ok(Vec::new())
     }
+    /// The artwork slots a member (or the reviewer holding the claim) can fill in the draft:
+    /// `cover`, `banner`, `poster`, `backdrop`. The default has none.
+    fn artwork_slots(&self) -> &'static [&'static str] {
+        &[]
+    }
+    /// Store an image in one of [`Self::artwork_slots`] of the draft and return its URL. The kind
+    /// sniffs, re-encodes and caps the image; `user` is the account making the edit.
+    async fn set_artwork(
+        &self,
+        _s: &Submission,
+        _user: i64,
+        slot: &str,
+        _image: &[u8],
+    ) -> ReviewResult<Option<String>> {
+        Err(ReviewError::Invalid(format!("this kind has no {slot}")))
+    }
     /// Delete the files and draft content of a rejected or abandoned submission (the 14 day
     /// purge, REV-CORE-009). Idempotent; the default keeps everything.
     async fn purge(&self, _s: &Submission, _items: &[SubmissionItem]) -> ReviewResult<()> {

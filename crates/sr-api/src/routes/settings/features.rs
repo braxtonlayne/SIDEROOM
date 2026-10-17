@@ -80,6 +80,7 @@ pub struct GuildFeatures {
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/sr/features/flags", get(client_flags))
+        .route("/sr/appearance/defaults", get(appearance_defaults))
         .route("/guilds/{guild_id}/sr/features", get(list_features))
         .route(
             "/guilds/{guild_id}/sr/features/{feature_id}",
@@ -124,6 +125,44 @@ pub async fn client_flags(
 ) -> ApiResult<Json<ClientFlagsObject>> {
     let flags = gf.ctx.settings.client_flags().await.map_err(feature_err)?;
     Ok(Json(ClientFlagsObject { flags }))
+}
+
+/// The platform's default themes (ADM-PLT-004).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AppearanceDefaultsObject {
+    /// Section (`lounge`, `entrance`, `cinema`, `library`, `support`, `tv`) to shipped theme id. A
+    /// section without an entry uses the shipped default. A member's own choice wins over these.
+    pub default_theme_by_section: std::collections::BTreeMap<String, String>,
+}
+
+/// The default theme per section the administrators chose (public: the entrance page is themed
+/// before sign-in). Theme ids are not secret.
+#[utoipa::path(
+    get,
+    path = "/sr/appearance/defaults",
+    responses((status = 200, body = AppearanceDefaultsObject))
+)]
+pub async fn appearance_defaults(
+    Ext(gf): Ext<GuildFeatures>,
+) -> ApiResult<Json<AppearanceDefaultsObject>> {
+    let on = gf
+        .ctx
+        .settings
+        .is_enabled(sr_features::APPEARANCE_ID, &ScopeRef::Platform)
+        .await
+        .unwrap_or(false);
+    let values = if on {
+        gf.ctx
+            .settings
+            .effective_settings(sr_features::APPEARANCE_ID, &ScopeRef::Platform)
+            .await
+            .unwrap_or_default()
+    } else {
+        Map::new()
+    };
+    Ok(Json(AppearanceDefaultsObject {
+        default_theme_by_section: sr_features::default_themes_from(&values),
+    }))
 }
 
 #[derive(Debug, Serialize, ToSchema)]

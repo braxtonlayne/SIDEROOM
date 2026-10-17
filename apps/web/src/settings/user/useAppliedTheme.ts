@@ -8,6 +8,7 @@ import {
   type ThemedSection,
   type UserPrefs,
 } from './prefs';
+import { usePlatformThemeDefaults } from './platformThemes';
 import { usePrefsSync } from './prefsSync';
 
 /**
@@ -25,11 +26,12 @@ export function useAppliedTheme(
     void loadThemes();
   }, [loadThemes]);
   const saved = useSavedPrefs();
+  const platform = usePlatformThemeDefaults();
   const dark = useMediaQuery('(prefers-color-scheme: dark)');
   const storeStyle = useStoreThemeStyle(section);
   const p = prefs ?? saved;
   return useMemo(() => {
-    const applied = applyPrefs(p, dark);
+    const applied = applyPrefs(p, dark, platform);
     return { ...applied, style: { ...applied.style, ...storeStyle } };
-  }, [p, dark, storeStyle]);
+  }, [p, dark, platform, storeStyle]);
 }

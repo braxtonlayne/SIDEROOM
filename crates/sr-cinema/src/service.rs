@@ -1250,6 +1250,105 @@ impl CinemaService {
         })
     }
 
+    /// Store a poster or backdrop image for a draft title (K-11): one JPEG, PNG or WebP, sniffed from its
+    /// content and re-encoded (metadata stripped, bounded to 600 x 900 for a poster and 1920 x 1080
+    /// for a backdrop), then saved as the title's artwork key. A member cannot name storage keys, so
+    /// this is the only way artwork gets into a member's draft.
+    pub async fn set_title_artwork(
+        &self,
+        a: Actor,
+        id: i64,
+        slot: ArtworkSlot,
+        image: &[u8],
+    ) -> CinemaResult<Title> {
+        use sr_storage::img::{self, Fit, ImgFormat, Limits};
+        a.publish()?;
+        let (max, w, h) = match slot {
+            ArtworkSlot::Poster => (2 * 1024 * 1024, 600, 900),
+            ArtworkSlot::Backdrop => (4 * 1024 * 1024, 1920, 1080),
+            _ => {
+                return Err(CinemaError::Invalid(
+                    "only a poster or a backdrop can be set here".into(),
+                ));
+            }
+        };
+        if image.is_empty() || image.len() > max {
+            return Err(CinemaError::Invalid(format!(
+                "the {} must be a JPEG, PNG or WebP of at most {} MiB",
+                slot.as_str(),
+                max / (1024 * 1024)
+            )));
+        }
+        if !matches!(
+            ImgFormat::sniff(image),
+            Some(ImgFormat::Jpeg | ImgFormat::Png | ImgFormat::Webp)
+        ) {
+            return Err(CinemaError::Invalid(format!(
+                "the {} must be a JPEG, PNG or WebP image",
+                slot.as_str()
+            )));
+        }
+        let limits = Limits {
+            max_bytes: max as u64,
+            ..Limits::default()
+        };
+        let out = img::normalize(image, Fit::Bound { w, h }, &limits)
+            .map_err(|e| CinemaError::Invalid(format!("the image could not be read: {e}")))?;
+        let storage = self
+            .storage
+            .as_ref()
+            .ok_or_else(|| CinemaError::Storage("artwork uploads are not configured".into()))?;
+        let rec = self.staff_get(id).await?;
+        let key = format!(
+            "{}{id}/{}-{}.{}",
+            rules::KEY_PREFIX,
+            slot.as_str(),
+            (self.ids)(),
+            out.format.ext()
+        );
+        storage
+            .put(&key, bytes::Bytes::from(out.bytes))
+            .await
+            .map_err(|e| CinemaError::Storage(e.to_string()))?;
+        let mut input = TitleInput {
+            kind: rec.kind,
+            title: rec.title,
+            original_title: rec.original_title,
+            alt_titles: rec.alt_titles,
+            year: rec.year,
+            runtime_min: rec.runtime_min,
+            content_rating: rec.content_rating,
+            synopsis: rec.synopsis,
+            tagline: rec.tagline,
+            genres: rec.genres,
+            tags: rec.tags,
+            languages: rec.languages,
+            subtitle_languages: rec.subtitle_languages,
+            cast: rec.cast,
+            directors: rec.directors,
+            writers: rec.writers,
+            studios: rec.studios,
+            crew: rec.crew,
+            age_restricted: rec.age_restricted,
+            poster_key: rec.poster_key,
+            backdrop_key: rec.backdrop_key,
+            logo_key: rec.logo_key,
+            external_ids: rec.external_ids,
+        };
+        match slot {
+            ArtworkSlot::Poster => input.poster_key = Some(key),
+            _ => input.backdrop_key = Some(key),
+        }
+        let input = rules::title_input(&input)?;
+        let rec = self
+            .repo
+            .update_title(id, &input, &rules::sort_title(&input.title))
+            .await?
+            .ok_or(CinemaError::NotFound("title"))?;
+        self.sync_index(&rec);
+        Ok(self.staff_title(&rec))
+    }
+
     // ---- publishers: seasons and episodes ---------------------------------
 
     pub async fn create_season(

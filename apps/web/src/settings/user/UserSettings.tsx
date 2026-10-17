@@ -17,6 +17,7 @@ import { useStoreThemes, useStoreThemeStyle } from '../../packages/themes';
 import { errorText, getMe, logout, useResource } from './api';
 import { USER_SETTINGS_SECTIONS, type UserSettingsSectionId } from './nav';
 import { applyPrefs, prefsEqual, usePrefsStore, useSavedPrefs, type UserPrefs } from './prefs';
+import { usePlatformThemeDefaults } from './platformThemes';
 import { usePrefsSync } from './prefsSync';
 import type { SettingsEntry } from './searchIndex';
 import { AccessibilitySection } from './sections/Accessibility';
@@ -229,7 +230,8 @@ export function UserSettings(props: UserSettingsProps) {
     if (!touched.current) setDraft(saved);
   }, [saved]);
   const dark = useMediaQuery('(prefers-color-scheme: dark)');
-  const applied = applyPrefs(draft, dark);
+  const platformThemes = usePlatformThemeDefaults();
+  const applied = applyPrefs(draft, dark, platformThemes);
   // A theme from the Theme Store (EXT-PKG-005) lies over the built-in one, and a preview shows at once.
   const loadThemes = useStoreThemes((s) => s.load);
   useEffect(() => {

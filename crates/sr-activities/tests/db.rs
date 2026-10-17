@@ -427,6 +427,39 @@ async fn an_unreleased_or_suspended_application_serves_no_bundle() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn in_review_with_a_prior_release_keeps_serving_and_never_released_does_not() {
+    let r = rig().await;
+    let app = approved_app(&r, "Chess").await;
+    let owner: i64 = sqlx::query_scalar("SELECT owner_id FROM applications WHERE id = $1")
+        .bind(app)
+        .fetch_one(r.db.pool())
+        .await
+        .unwrap();
+    // Never released (no approved version row): in review serves nothing and cannot start.
+    set_state(&r, app, "in_review").await;
+    assert_eq!(r.svc.lookup(app).await.unwrap(), Lookup::Paused);
+    assert!(r.svc.shelf(1).await.unwrap().is_empty());
+    // A prior approved version: the reviewed bundle keeps serving while a new version is in review.
+    sqlx::query(
+        "INSERT INTO application_versions (id, application_id, version, manifest, state, submitted_by) \
+         VALUES ($1, $2, 1, '{}'::jsonb, 'approved', $3)",
+    )
+    .bind(uid())
+    .bind(app)
+    .bind(owner)
+    .execute(r.db.pool())
+    .await
+    .unwrap();
+    assert!(matches!(r.svc.lookup(app).await.unwrap(), Lookup::Ready(_)));
+    assert_eq!(r.svc.shelf(1).await.unwrap().len(), 1);
+    // Suspension stops it at once.
+    set_state(&r, app, "suspended").await;
+    assert_eq!(r.svc.lookup(app).await.unwrap(), Lookup::Unknown);
+    assert!(r.svc.shelf(1).await.unwrap().is_empty());
+    r.db.cleanup().await.unwrap();
+}
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn the_entry_url_survives_only_as_a_development_url() {
     let r = rig().await;
     let owner = account(r.db.pool()).await;

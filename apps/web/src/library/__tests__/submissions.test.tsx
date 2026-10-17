@@ -12,6 +12,7 @@ const draftChapter = (n: number, o: Partial<DraftChapter> = {}): DraftChapter =>
   id: `c${n}`,
   series_id: '900',
   edition_id: 'e1',
+  volume_id: null,
   number: n,
   title: null,
   page_count: 0,
@@ -432,6 +433,7 @@ describe('Library submission page', () => {
         title: 'The door',
         format: 'images',
         release_group: null,
+        volume_id: null,
       }),
     );
 

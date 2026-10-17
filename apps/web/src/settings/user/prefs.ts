@@ -15,6 +15,7 @@ import { create } from 'zustand';
 import { getHour12, setFormatLocale, setHour12 } from '../../i18n';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import './prefs-effects.css';
+import { withPlatformDefaults, type PlatformThemes } from './platformThemes';
 
 export const THEME_CHOICES = [
   'lounge-dark',
@@ -361,7 +362,7 @@ export const useStreamer = () => streamerState(usePrefsStore((s) => s.prefs));
 
 export interface AppliedTheme {
   userGlobal: ThemeId;
-  perSection: SectionThemes;
+  perSection: PlatformThemes;
   allowServerTheming: boolean;
   appearance: Partial<AppearanceSettings>;
   style: CSSProperties;
@@ -371,7 +372,11 @@ export interface AppliedTheme {
 }
 
 /** What to hand a ThemeProvider for a given set of prefs. `systemDark` resolves "Sync with computer". */
-export function applyPrefs(p: UserPrefs, systemDark: boolean): AppliedTheme {
+export function applyPrefs(
+  p: UserPrefs,
+  systemDark: boolean,
+  platform: PlatformThemes = {},
+): AppliedTheme {
   const userGlobal: ThemeId =
     p.theme === 'system' ? (systemDark ? 'lounge-dark' : 'lounge-light') : p.theme;
   const style: Record<string, string | number> = {};
@@ -380,7 +385,8 @@ export function applyPrefs(p: UserPrefs, systemDark: boolean): AppliedTheme {
   style['--lng-message-gap'] = `${p.messageGap}px`;
   return {
     userGlobal,
-    perSection: p.sectionThemes,
+    // A theme chosen for everything is the viewer's own choice; the unchanged default is not.
+    perSection: withPlatformDefaults(p.sectionThemes, p.theme !== DEFAULT_PREFS.theme, platform),
     allowServerTheming: p.allowServerTheming,
     appearance: {
       fontSize: (16 * p.fontScale) / 100,

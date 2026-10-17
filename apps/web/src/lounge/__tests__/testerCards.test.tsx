@@ -34,7 +34,7 @@ describe('tester invitation buttons', () => {
     });
   });
 
-  it('answers through the developer tester route and then disables both buttons', async () => {
+  it('answers through the developer tester route and keeps no answered state (the server rewrites the card, D-253)', async () => {
     let body: unknown;
     server.use(
       http.post('*/api/v1/developers/tester-invites/31/respond', async ({ request }) => {
@@ -49,6 +49,7 @@ describe('tester invitation buttons', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
     await waitFor(() => expect(body).toEqual({ accept: true }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Decline' })).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Accept' })).toBeEnabled());
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeEnabled();
   });
 });

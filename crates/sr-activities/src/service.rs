@@ -633,11 +633,15 @@ impl ActivityService {
         self.config(app).await
     }
 
-    /// What the proxy serves for `app` right now. A released application serves its reviewed bundle; an
+    /// What the proxy serves for `app` right now (D-252). An application released at least once and not
+    /// suspended (`released`, or `in_review` with a prior release) serves its reviewed bundle; an
     /// application in development serves its live development URL; a suspended one nothing.
     pub async fn lookup(&self, app: i64) -> ActivityResult<Lookup> {
         let row = sqlx::query(
-            "SELECT c.url_mappings, c.dev_entry_url, b.sha256, a.release_state::text AS state \
+            "SELECT c.url_mappings, c.dev_entry_url, b.sha256, a.release_state::text AS state, \
+               (a.release_state::text = 'released' OR (a.release_state::text = 'in_review' AND EXISTS \
+                 (SELECT 1 FROM application_versions v WHERE v.application_id = a.id AND v.state = 'approved'))) \
+                 AS released \
              FROM application_activities c JOIN applications a ON a.id = c.application_id \
              LEFT JOIN application_activity_bundles b \
                ON b.id = c.reviewed_bundle_id AND b.state = 'approved' \
@@ -650,6 +654,7 @@ impl ActivityService {
             return Ok(Lookup::Unknown);
         };
         let state: String = r.try_get("state")?;
+        let released: bool = r.try_get("released")?;
         let sha: Option<String> = r.try_get("sha256")?;
         let dev: Option<String> = r.try_get("dev_entry_url")?;
         let mappings: Value = r.try_get("url_mappings")?;
@@ -661,7 +666,7 @@ impl ActivityService {
         };
         Ok(match (state.as_str(), sha, dev) {
             ("suspended", _, _) => Lookup::Unknown,
-            ("released", Some(sha256), _) => spec(Serving::Bundle { sha256 }),
+            (_, Some(sha256), _) if released => spec(Serving::Bundle { sha256 }),
             ("development", _, Some(url)) => spec(Serving::Dev { url }),
             _ => Lookup::Paused,
         })
@@ -673,7 +678,9 @@ impl ActivityService {
         let rows = sqlx::query(
             "SELECT a.id, a.name, a.description, (a.release_state::text = 'development') AS dev \
              FROM application_activities c JOIN applications a ON a.id = c.application_id \
-             WHERE (a.release_state::text = 'released' AND c.reviewed_bundle_id IS NOT NULL) \
+             WHERE ((a.release_state::text = 'released' OR (a.release_state::text = 'in_review' AND EXISTS \
+                  (SELECT 1 FROM application_versions v WHERE v.application_id = a.id AND v.state = 'approved'))) \
+                  AND c.reviewed_bundle_id IS NOT NULL) \
                 OR (a.release_state::text = 'development' AND c.dev_entry_url IS NOT NULL \
                     AND (a.owner_id = $1 OR EXISTS (SELECT 1 FROM app_testers t \
                          WHERE t.application_id = a.id AND t.account_id = $1 AND t.state = 'accepted'))) \
@@ -700,6 +707,8 @@ impl ActivityService {
     async fn may_start(&self, user: i64, app: i64, guild: i64) -> ActivityResult<bool> {
         let row = sqlx::query(
             "SELECT a.owner_id, a.release_state::text AS state, c.reviewed_bundle_id, c.dev_entry_url, \
+               EXISTS (SELECT 1 FROM application_versions v WHERE v.application_id = a.id \
+                       AND v.state = 'approved') AS has_release, \
                EXISTS (SELECT 1 FROM app_testers t WHERE t.application_id = a.id \
                        AND t.account_id = $2 AND t.state = 'accepted') AS tester \
              FROM application_activities c JOIN applications a ON a.id = c.application_id \
@@ -713,8 +722,10 @@ impl ActivityService {
         let state: String = r.try_get("state")?;
         let reviewed: Option<i64> = r.try_get("reviewed_bundle_id")?;
         let dev: Option<String> = r.try_get("dev_entry_url")?;
+        let has_release: bool = r.try_get("has_release")?;
         match state.as_str() {
             "released" => Ok(reviewed.is_some()),
+            "in_review" => Ok(has_release && reviewed.is_some()),
             "development" if dev.is_some() => {
                 let owner: i64 = r.try_get("owner_id")?;
                 let tester: bool = r.try_get("tester")?;
