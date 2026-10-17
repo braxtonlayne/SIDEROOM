@@ -118,7 +118,7 @@ Items without a runtime or an asset are never scheduled. Bumpers are published t
 | `PUT /tv/reminders/{block_id}?lead_minutes=` | 204. Remind the caller before an upcoming programme (default 5 minutes, 0 to 120); setting it again moves it; 400 for a programme that already started. Session only (bots 403). Fired by the `userfeat.tick` job (15 s) as a DM from the system user, which is a notification and a push like any DM. When the block was regenerated away by then, the DM says the reminder was dropped |
 | `DELETE /tv/reminders/{block_id}` | 204 (also when none was set) |
 | `GET /tv/favorites` | `{items: string[]}` the caller's starred channel ids |
-| `PUT|DELETE /tv/favorites/{channel_id}` | 204, idempotent; 404 for an unknown or disabled channel. Replaces the old `cinema.tv.favourites` settings key, which the guide moves over once |
+| `PUT` and `DELETE /tv/favorites/{channel_id}` | 204, idempotent; 404 for an unknown or disabled channel. Replaces the old `cinema.tv.favourites` settings key, which the guide moves over once |
 | `GET /tv/channels/{id}/tune` | `{channel_id, state: "live"\|"off_air", master_url?, current?: Block, offset_ms?, next?: Block, viewers}`; 403 `900011` when the airing programme is restricted and the age is unconfirmed. `master_url` is the API path to use as the HLS source (see 8.4) |
 
 ### 8.4 Live HLS (`TV-HLS`)
@@ -157,9 +157,9 @@ A channel of kind `imported_guide` airs a **weekly grid**: slots `{weekday (0 Mo
 
 | Route | Body -> result |
 |---|---|
-| `GET|PUT /admin/tv/channels/{id}/slots` | `{items: Slot[]}` the grid; PUT replaces it whole (at most 1000 slots, no overlaps also across midnight and the turn of the week, else 400) |
-| `GET /admin/tv/guide-template?format=csv|json` | the template file (`weekday,start_time,duration,show,season,episode,note`) |
-| `POST /admin/tv/channels/{id}/imports` | `{format: "csv"|"json", content}` -> 201 `{id, report: {rows, matched, ambiguous, missing, invalid}}`; each row is `matched`, `ambiguous` (candidates, best first), `missing` (will be skipped) or `invalid` (unreadable or overlapping an earlier row). Nothing changes yet |
+| `GET` and `PUT /admin/tv/channels/{id}/slots` | `{items: Slot[]}` the grid; PUT replaces it whole (at most 1000 slots, no overlaps also across midnight and the turn of the week, else 400) |
+| `GET /admin/tv/guide-template?format=csv` or `json` | the template file (`weekday,start_time,duration,show,season,episode,note`) |
+| `POST /admin/tv/channels/{id}/imports` | `{format: "csv" or "json", content}` -> 201 `{id, report: {rows, matched, ambiguous, missing, invalid}}`; each row is `matched`, `ambiguous` (candidates, best first), `missing` (will be skipped) or `invalid` (unreadable or overlapping an earlier row). Nothing changes yet |
 | `GET /admin/tv/channels/{id}/imports[/{import}]` | the recent imports (without rows) / one with its report |
 | `POST /admin/tv/channels/{id}/imports/{import}/confirm` | `{choices: [{line, title_id|null}]}` -> `{slots, skipped, warnings}`; the report becomes the grid (replacing it); 409 when already confirmed |
 
