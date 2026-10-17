@@ -197,9 +197,16 @@ describe.runIf(built)('frame transform over the WASM', () => {
       () => 0,
     );
     expect(Array.from(many).every((b) => b === 0)).toBe(true);
-    expect(post).toHaveBeenLastCalledWith({ type: 'stats', sendEpoch: 1, receiveEpoch: 1 });
+    expect(post).toHaveBeenLastCalledWith({
+      type: 'stats',
+      sendEpoch: 1,
+      receiveEpoch: 1,
+      frames: { encrypted: 0, decrypted: 0, sendDropped: 0, recvDropped: 0 },
+    });
     handleWorkerMessage(media, { type: 'close' }, post);
-    expect(post).toHaveBeenLastCalledWith({ type: 'stats', sendEpoch: -1, receiveEpoch: -1 });
+    expect(post).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'stats', sendEpoch: -1, receiveEpoch: -1 }),
+    );
 
     // A ScriptTransform without options passes nothing through.
     const cancel = vi.fn(() => Promise.resolve());

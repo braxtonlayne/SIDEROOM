@@ -208,7 +208,7 @@ fn require_review(staff: &StaffCtx) -> MsgResult<()> {
     if staff
         .caller
         .permissions
-        .contains(PlatformPermissions::REVIEW_APPS)
+        .has(PlatformPermissions::REVIEW_APPS)
     {
         Ok(())
     } else {

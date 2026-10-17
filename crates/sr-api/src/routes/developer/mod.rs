@@ -62,6 +62,12 @@ pub struct SystemCard {
 pub trait SystemDm: Send + Sync {
     /// `true` when the DM was delivered.
     async fn dm(&self, to: i64, card: SystemCard) -> bool;
+    /// Close the card in the system DM to `to` that carries the button `custom_id`: its buttons
+    /// go and `outcome` is added, so a reload does not offer an answered question again. `true`
+    /// when a card was rewritten. The default does nothing.
+    async fn close_card(&self, _to: i64, _custom_id: &str, _outcome: &str) -> bool {
+        false
+    }
 }
 pub(crate) use interactions::try_followup;
 
@@ -212,6 +218,13 @@ impl DevDeps {
         };
         if !dm.dm(to, card).await {
             tracing::warn!(to, "developer platform DM was not delivered");
+        }
+    }
+
+    /// See [`SystemDm::close_card`].
+    pub(crate) async fn close_dm_card(&self, to: i64, custom_id: &str, outcome: &str) {
+        if let Some(dm) = self.system_dm.get() {
+            dm.close_card(to, custom_id, outcome).await;
         }
     }
 
