@@ -8,6 +8,9 @@ import { toLoungeMessage } from '../liveMap';
 import { drafts } from '../drafts';
 import { useLoungeUi } from '../store';
 import type * as S from '../../store/types';
+import { warmLoungeRoute } from '../../test/warmRoutes';
+
+warmLoungeRoute();
 
 // The gateway is not under test here; the store is seeded directly.
 vi.mock('../../store/connect', () => ({

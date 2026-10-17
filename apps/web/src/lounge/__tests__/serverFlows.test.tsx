@@ -14,6 +14,9 @@ import {
 } from '../inviteFlow';
 import { ApiError } from '../../api/client';
 import { useLoungeUi } from '../store';
+import { warmLoungeRoute } from '../../test/warmRoutes';
+
+warmLoungeRoute();
 
 // The gateway is not under test; the store is seeded directly.
 vi.mock('../../store/connect', () => ({

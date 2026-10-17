@@ -4,6 +4,9 @@ import { axeViolations } from '../../../../packages/ui/src/test-axe';
 import { createAppRouter } from '../router';
 import { http, HttpResponse, server } from '../test/server';
 import { resetPrefs, signedIn } from '../settings/user/__tests__/helpers';
+import { warmLoungeRoute } from '../test/warmRoutes';
+
+warmLoungeRoute();
 
 /**
  * XC-A11Y-004: axe over the signed-in routes, one table row per route. The public routes run in a real

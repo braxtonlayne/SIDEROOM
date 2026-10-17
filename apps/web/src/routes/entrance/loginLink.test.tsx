@@ -2,6 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../router';
 import { http, HttpResponse, server } from '../../test/server';
+import { warmLoungeRoute } from '../../test/warmRoutes';
+
+warmLoungeRoute();
 
 function at(path: string) {
   const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));

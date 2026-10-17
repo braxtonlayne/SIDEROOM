@@ -9,6 +9,9 @@ import type * as S from '../../store/types';
 import { useLoungeUi } from '../store';
 import { useNotifSettings } from '../shell/notifSettings';
 import { useSocial } from '../shell/social';
+import { warmLoungeRoute } from '../../test/warmRoutes';
+
+warmLoungeRoute();
 
 vi.mock('../../store/connect', () => ({
   connectGateway: vi.fn(),

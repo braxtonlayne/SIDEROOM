@@ -28,6 +28,7 @@ import { setPreviewFetcher } from '../useStreamPreview';
 import { resetStreams, useStreams } from '../../../voice/streams';
 import { ScreenSharePicker } from '../ScreenSharePicker';
 import { FREE_PROFILES } from '../../../voice/video';
+import { warmLoungeRoute } from '../../../test/warmRoutes';
 
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
 afterAll(() => vi.unstubAllEnvs());
@@ -171,6 +172,9 @@ async function joined(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: 'Join Voice' }, { timeout: 8000 }));
   return screen.findByRole('toolbar', { name: 'Call controls' });
 }
+
+// After the env stubs above, so the warmed modules see the same env as the tests.
+warmLoungeRoute();
 
 describe('ping graph', () => {
   it('scales the readings into the box and summarises them', () => {
