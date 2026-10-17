@@ -3,6 +3,7 @@
 // the series metadata form, the artwork field and the chapter rename form. Every write shows on the timeline
 // for the submitter.
 import { Badge, Button, Notice } from '@sideroom/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { useT } from '../../i18n';
 import * as rv from '../../review/api';
@@ -18,17 +19,26 @@ import type {
   Submission,
 } from '../../review/types';
 
-export function ReviewerEdit({
-  submission,
-  preview,
-  onChanged,
-}: {
+// The series form ("Fetch details") uses react-query; the admin shell has no provider of its own.
+const editClient = new QueryClient();
+
+export function ReviewerEdit(props: ReviewerEditProps) {
+  return (
+    <QueryClientProvider client={editClient}>
+      <ReviewerEditBody {...props} />
+    </QueryClientProvider>
+  );
+}
+
+interface ReviewerEditProps {
   submission: Submission;
   /** The review preview; the series form shows for a new series only. */
   preview: LibraryPreview | undefined;
   /** Called after a write so the page reloads the preview and the timeline. */
   onChanged: () => void;
-}) {
+}
+
+function ReviewerEditBody({ submission, preview, onChanged }: ReviewerEditProps) {
   const t = useT();
   const id = submission.id;
   const [list, setList] = useState<DraftChapterList | null>(null);
