@@ -792,6 +792,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             crate::activities::SafeActivityFetcher::production(),
         )),
     ));
+    // Declarative packages and customised profiles (EXT-PKG, EXT-PRF).
+    let packages_deps = Arc::new(routes::packages::PackagesDeps {
+        service: sr_packages::service::PackageService::new(pool.clone(), id_src.clone())
+            .with_storage(storage.clone()),
+    });
+
     // J-16: participants follow the voice call (a leave from the channel removes them from the Activity).
     if cfg.activities.enabled {
         sr_activities::VoiceFollower::new(
@@ -1236,6 +1242,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(cinema_social_deps)
         .extension(watchparty_deps)
         .extension(activities_deps.clone())
+        .extension(packages_deps.clone())
         .extension(user_feature_deps)
         .extension(Arc::new(routes::donations::DonationsDeps::new(
             payments.service.clone(),

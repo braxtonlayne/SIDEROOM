@@ -32,7 +32,7 @@ export const SDK_PAGES: DocPage[] = [
           'A command handler that fails sends the person a short private error and reports the error to your handler.',
           'Sharding follows GET /gateway/bot by default; start one shard of many per process with an explicit shard id and count.',
           'File options (attachments) arrive in data.resolved.attachments with a signed download URL.',
-          'Bots cannot join voice yet: voice needs end-to-end encryption (MLS) support in the SDK, which is not built.',
+          'Bots in voice: calls are end-to-end encrypted with MLS. The Rust crate has that half behind the voice-e2ee feature (sr_sdk::voice: an identity key, the call state machine and the frame transform); joining the channel and the WebRTC audio transport are not built, so a bot brings its own and hands the frames to the SDK. The TypeScript package has no voice API.',
         ],
       },
     ],

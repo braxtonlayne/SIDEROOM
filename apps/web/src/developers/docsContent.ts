@@ -2,6 +2,7 @@
 // docs/11-extensibility-and-developer-platform.md; keep these short and link out to the generated OpenAPI
 // reference at /api/v1/openapi.json. `{origin}` is replaced with the site origin when rendered.
 
+import { PACKAGE_PAGES } from './docsContent.packages';
 import { SDK_PAGES } from './docsContent.sdks';
 
 export type Block =
@@ -9,7 +10,9 @@ export type Block =
   | { t: 'h'; text: string }
   | { t: 'ul'; items: string[] }
   | { t: 'code'; lang: string; title?: string; code: string }
-  | { t: 'note'; title: string; text: string };
+  | { t: 'note'; title: string; text: string }
+  /** A section generated at run time (the OpenAPI list) or build time (the gateway tables). */
+  | { t: 'ref'; what: 'openapi' | 'gateway' };
 
 export interface DocPage {
   id: string;
@@ -238,6 +241,6 @@ export const DOC_PAGES: DocPage[] = [
   },
 ];
 
-DOC_PAGES.push(...SDK_PAGES);
+DOC_PAGES.push(...SDK_PAGES, ...PACKAGE_PAGES);
 
 export const DOC_BY_ID = new Map(DOC_PAGES.map((p) => [p.id, p]));

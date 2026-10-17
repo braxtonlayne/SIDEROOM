@@ -64,6 +64,7 @@ DELETE	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/integrations/{integration_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-
 DELETE	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-
@@ -104,10 +105,12 @@ DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
 DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-
+DELETE	/users/@me/packages/{package_id}	authenticated	self	deny	-
 DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-
 DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
+DELETE	/users/{user_id}/guestbook/{entry_id}	authenticated	author	deny	-
 DELETE	/watch-parties/{party_id}	authenticated	party_manager	allow	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	party_manager	allow	-
 DELETE	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-
@@ -138,6 +141,8 @@ GET	/admin/cinema/titles	authenticated	staff	deny	-
 GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
 GET	/admin/developers/activities	authenticated	staff	deny	-
 GET	/admin/developers/activities/{application_id}/bundles/{bundle_id}/download	authenticated	staff	deny	-
+GET	/admin/developers/packages	authenticated	staff	deny	-
+GET	/admin/developers/packages/versions/{version_id}/download	authenticated	staff	deny	-
 GET	/admin/developers/requests	authenticated	staff	deny	-
 GET	/admin/developers/versions	authenticated	staff	deny	-
 GET	/admin/directory	authenticated	staff	deny	-
@@ -316,6 +321,7 @@ GET	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/messages/search	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/modules	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/packages	authenticated	membership	deny	-
 GET	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles	authenticated	membership	allow	-
@@ -383,6 +389,11 @@ GET	/library/users/{user_id}/lists	authenticated	visibility	allow	-
 GET	/oauth2/@me	authenticated	self	allow	any
 GET	/oauth2/authorize	authenticated	self	deny	-
 GET	/oauth2/tokens	authenticated	self	deny	-
+GET	/packages	authenticated	user	deny	-
+GET	/packages/mine	authenticated	self	deny	-
+GET	/packages/versions/{version_id}/files/{path}	authenticated	user	deny	-
+GET	/packages/{package_id}	authenticated	user	deny	-
+GET	/profile-pages/{username}	authenticated	visibility	deny	-
 GET	/push/vapid-key	authenticated	self	deny	-
 GET	/requests	authenticated	user	allow	-
 GET	/soundboard-default-sounds	authenticated	user	allow	-
@@ -443,17 +454,21 @@ GET	/users/@me/mentions	authenticated	self	deny	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
 GET	/users/@me/notification-defaults	authenticated	self	deny	-
 GET	/users/@me/notification-keywords	authenticated	self	deny	-
+GET	/users/@me/packages	authenticated	self	deny	-
 GET	/users/@me/presence	authenticated	self	allow	-
 GET	/users/@me/primary-guild	authenticated	self	deny	-
 GET	/users/@me/privacy	authenticated	self	deny	-
 GET	/users/@me/profile	authenticated	self	allow	-
+GET	/users/@me/profile-doc	authenticated	self	deny	-
 GET	/users/@me/read-states	authenticated	self	allow	-
 GET	/users/@me/relationships	authenticated	self	deny	-
 GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 GET	/users/@me/reminders	authenticated	self	deny	-
 GET	/users/@me/scheduled-messages	authenticated	self	deny	-
 GET	/users/@me/settings	authenticated	self	deny	-
+GET	/users/{user_id}/guestbook	authenticated	visibility	deny	-
 GET	/users/{user_id}/profile	authenticated	user	allow	-
+GET	/users/{user_id}/profile-page	authenticated	visibility	deny	-
 GET	/watch-parties/me	authenticated	self	allow	-
 GET	/watch-parties/time	authenticated	user	allow	-
 GET	/watch-parties/{party_id}	authenticated	party_access	allow	-
@@ -560,6 +575,7 @@ POST	/admin/cinema/titles/{title_id}/variants	authenticated	staff	deny	-
 POST	/admin/developers/activities/{application_id}/decision	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/suspend	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/unsuspend	authenticated	staff	deny	-
+POST	/admin/developers/packages/versions/{version_id}/decision	authenticated	staff	deny	-
 POST	/admin/developers/requests/{request_id}/decision	authenticated	staff	deny	-
 POST	/admin/developers/versions/{version_id}/decision	authenticated	staff	deny	-
 POST	/admin/donations/entitlements	authenticated	staff	deny	-
@@ -668,6 +684,7 @@ POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/mfa	authenticated	owner	allow	-
 POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/packages/{package_id}/apply	authenticated	membership	deny	-
 POST	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
@@ -698,6 +715,9 @@ POST	/oauth2/authorize	authenticated	self	deny	-
 POST	/oauth2/introspect	public	none	allow	-
 POST	/oauth2/token	public	none	allow	-
 POST	/oauth2/token/revoke	public	none	allow	-
+POST	/packages	authenticated	user	deny	-
+POST	/packages/versions/{version_id}/withdraw	authenticated	author	deny	-
+POST	/packages/{package_id}/create-guild	authenticated	user	deny	-
 POST	/read-states/ack-bulk	authenticated	membership	allow	-
 POST	/requests	authenticated	user	allow	-
 POST	/requests/{request_id}/fulfil	authenticated	author_or_staff	allow	-
@@ -727,9 +747,11 @@ POST	/users/@me/channels	authenticated	self	allow	-
 POST	/users/@me/connections/{provider}/authorize	authenticated	self	deny	-
 POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-
 POST	/users/@me/data-export	authenticated	self	deny	-
+POST	/users/@me/profile-doc/layout	authenticated	self	deny	-
 POST	/users/@me/push-subscriptions	authenticated	self	deny	-
 POST	/users/@me/relationships	authenticated	self	deny	-
 POST	/users/@me/reminders	authenticated	self	deny	-
+POST	/users/{user_id}/guestbook	authenticated	visibility	deny	-
 POST	/watch-parties	authenticated	party_access	allow	-
 POST	/watch-parties/{party_id}/heartbeat	authenticated	party_member	allow	-
 POST	/watch-parties/{party_id}/host	authenticated	party_manager	allow	-
@@ -801,6 +823,7 @@ PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/incident-actions	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-
 PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-
@@ -831,7 +854,9 @@ PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-
 PUT	/users/@me/ignores/{user_id}	authenticated	self	deny	-
 PUT	/users/@me/notes/{user_id}	authenticated	self	deny	-
 PUT	/users/@me/notification-keywords	authenticated	self	deny	-
+PUT	/users/@me/packages/{package_id}	authenticated	self	deny	-
 PUT	/users/@me/primary-guild	authenticated	self	deny	-
+PUT	/users/@me/profile-doc	authenticated	self	deny	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	party_manager	allow	-
 PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-
@@ -843,6 +868,7 @@ PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-
 #undocumented	/healthz
 #undocumented	/internal/metrics
 #undocumented	/openapi.json
+#undocumented	/packages/versions/{version_id}/files/{*path}
 #undocumented	/readyz
 #undocumented	/share
 #undocumented	/sr/age-gate

@@ -8,6 +8,11 @@ description = "Typed bot SDK for SIDE ROOM: REST client, gateway shard manager, 
 [lints]
 workspace = true
 
+[features]
+# DEV-BOT-007: the end-to-end encryption half of bots in voice (MLS key agreement and the frame transform),
+# on the same sr-e2ee crate as the browser client. Off by default: it pulls in openmls.
+voice-e2ee = ["dep:sr-e2ee", "dep:p256", "dep:base64"]
+
 [dependencies]
 async-trait.workspace = true
 futures.workspace = true
@@ -20,12 +25,19 @@ tokio = { workspace = true, features = ["rt", "rt-multi-thread", "time", "sync",
 # addresses, so it is on the `reqwest` wrapper list in deny.toml (D-234).
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
 tokio-tungstenite = { version = "0.29", features = ["connect", "rustls-tls-native-roots"] }
+base64 = { version = "0.23.1", optional = true }
+p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "std"], optional = true }
+sr-e2ee = { path = "../sr-e2ee", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "time", "sync", "macros", "net", "test-util", "rt-multi-thread"] }
 # The server side of op 8 is tested against the real gateway state machine (H-52).
 sr-gateway = { path = "../sr-gateway", features = ["test-support"] }
 sr-core = { path = "../sr-core", default-features = false }
+
+[[test]]
+name = "voice_e2ee"
+required-features = ["voice-e2ee"]
 
 [[example]]
 name = "echo_bot"

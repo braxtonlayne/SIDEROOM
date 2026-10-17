@@ -1297,6 +1297,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/developers/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: versions waiting for review, oldest first, with their payload. */
+        get: operations["admin_pending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/packages/versions/{version_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Staff: approve or reject a pending version, or revoke an approved one (it stops being served and every
+         *     enablement of it is removed).
+         */
+        post: operations["admin_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/packages/versions/{version_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: the zip of a version as the author uploaded it. */
+        get: operations["admin_download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/developers/requests": {
         parameters: {
             query?: never;
@@ -7001,6 +7055,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What is turned on in a server (`MANAGE_GUILD`). */
+        get: operations["guild_enabled"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/packages/{package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Turn an approved package on in a server (`MANAGE_GUILD`). Recipes are applied with `/apply` instead. */
+        put: operations["enable_for_guild"];
+        post?: never;
+        /** Turn a package off in a server (`MANAGE_GUILD`). */
+        delete: operations["disable_for_guild"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/packages/{package_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a recipe to a server (`MANAGE_GUILD`): each entry is validated again against the feature's
+         *     settings schema, then its module is switched on or off and its settings set. Settings the recipe leaves
+         *     out keep their current value. Nothing is applied if any entry is no longer valid.
+         */
+        post: operations["apply_recipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/poll-templates": {
         parameters: {
             query?: never;
@@ -8921,6 +9031,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Approved packages, newest first (30 per page; pass the last `id` as `before`). */
+        get: operations["directory"];
+        put?: never;
+        /**
+         * Submit a package: the request body is a zip (at most 8 MiB, 400 entries) holding one manifest file that
+         *     tells the kind (`theme.json`, `layout.json`, `pack.json`, `recipe.json` or `template.json`). The version
+         *     waits for staff review; every problem found is listed under `problems`. See the creator guide in the
+         *     developer portal.
+         */
+        post: operations["submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/packages/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My packages with every version and its review state. */
+        get: operations["mine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/packages/versions/{version_id}/files/{path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A file of an approved version (an emoji, sticker or sound of a pack). Images and sounds only, served
+         *     with `nosniff` and a locked-down content security policy.
+         */
+        get: operations["version_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/packages/versions/{version_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw one of my versions that is waiting for review. */
+        post: operations["withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/packages/{package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One approved package with its payload. */
+        get: operations["get_package"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/packages/{package_id}/create-guild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a server from an approved server-template package; the caller owns it. */
+        post: operations["create_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profile-pages/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A person's profile page by username. */
+        get: operations["page_by_name"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/push/vapid-key": {
         parameters: {
             query?: never;
@@ -10758,6 +10996,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What I have turned on (themes), with their payload so the app can apply them. */
+        get: operations["my_enabled"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/packages/{package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Turn an approved theme on for me, at its newest approved version, for one section or for all. */
+        put: operations["enable_for_me"];
+        post?: never;
+        /** Turn a theme off for me. */
+        delete: operations["disable_for_me"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/presence": {
         parameters: {
             query?: never;
@@ -10833,6 +11106,48 @@ export interface paths {
         get: operations["get_own_profile"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/profile-doc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My profile document. */
+        get: operations["own_doc"];
+        /**
+         * Save my profile document: blocks on a 12 column grid, a palette and choices from the approved lists.
+         *     The server checks every block's settings, that blocks do not overlap, that text is readable on the
+         *     palette (contrast 4.5:1) and that Top friends are friends. Every problem is listed under `problems`.
+         */
+        put: operations["set_doc"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/profile-doc/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start my profile page from an approved layout: its blocks and style replace mine; the text of a block
+         *     whose type I already had is kept.
+         */
+        post: operations["use_layout"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11013,6 +11328,41 @@ export interface paths {
         patch: operations["patch_settings"];
         trace?: never;
     };
+    "/users/{user_id}/guestbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The guestbook of a profile, newest first (30 per page). */
+        get: operations["guestbook"];
+        put?: never;
+        /** Sign a guestbook. Friends of the owner only, while the page has a Guestbook block. */
+        post: operations["sign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}/guestbook/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a guestbook entry: the owner can remove any, an author their own. */
+        delete: operations["remove_entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/{user_id}/profile": {
         parameters: {
             query?: never;
@@ -11025,6 +11375,23 @@ export interface paths {
          *     made visible.
          */
         get: operations["get_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}/profile-page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A person's profile page by id (the compact popout uses this); `@me` is the caller. */
+        get: operations["page_by_id"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11873,6 +12240,13 @@ export interface components {
             status: string;
             user: components["schemas"]["UserObject"];
         };
+        AppliedFeature: {
+            /** @description The module's new on/off state when the recipe set it. */
+            enabled?: boolean | null;
+            feature_id: string;
+            /** @description The setting keys the recipe set. */
+            settings: string[];
+        };
         AppliedSlowmodeObject: {
             /**
              * Format: int32
@@ -11895,6 +12269,10 @@ export interface components {
             accepted_terms: boolean;
             pitch: string;
             prior_work?: string | null;
+        };
+        ApplyResult: {
+            applied: components["schemas"]["AppliedFeature"][];
+            enablement: components["schemas"]["PackageEnablement"];
         };
         ApplySlowmodeBody: {
             /** @description Channels to set; the caller needs `MANAGE_CHANNELS` in every one. */
@@ -14205,6 +14583,10 @@ export interface components {
             roles: string[];
             user: components["schemas"]["GuildUserRef"];
         };
+        EnableBody: {
+            /** @description Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. */
+            section?: string | null;
+        };
         /** @description State of an application's HTTP interactions endpoint (D-186). */
         EndpointStatusObject: {
             /** @description `enabled`, or `disabled` after 25 consecutive failed deliveries within 10 minutes. */
@@ -14571,6 +14953,15 @@ export interface components {
             /** Format: int64 */
             usd_cents?: number | null;
             user_id?: string | null;
+        };
+        GuestbookEntry: {
+            author: components["schemas"]["ProfilePageUser"];
+            body: string;
+            /** @description The viewer may remove it: they own the page or wrote the entry. */
+            can_remove: boolean;
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
         };
         GuideObject: {
             /** @description Whether members see the guide (the community setting). */
@@ -15268,6 +15659,10 @@ export interface components {
         };
         LaunchBody: {
             application_id: string;
+        };
+        LayoutBody: {
+            /** @description An approved `profile_layout` package. */
+            package_id: string;
         };
         LeaderboardEntry: {
             avatar_key?: string | null;
@@ -16262,6 +16657,13 @@ export interface components {
             /** @description The profile owner's nickname in that guild. */
             nick?: string | null;
         };
+        MyPackage: {
+            id: string;
+            kind: components["schemas"]["PackageKind"];
+            name: string;
+            slug: string;
+            versions: components["schemas"]["VersionView"][];
+        };
         MyRank: {
             /** Format: int64 */
             cents: number;
@@ -16417,6 +16819,61 @@ export interface components {
              * @description 1 = standard sticker.
              */
             type: number;
+        };
+        PackageCreateGuildBody: {
+            /** @description 2 to 100 characters. */
+            name: string;
+        };
+        /** @enum {string} */
+        PackageDecision: "approve" | "reject" | "revoke";
+        PackageDecisionBody: {
+            decision: components["schemas"]["PackageDecision"];
+            /** @description Required when rejecting; shown to the author. */
+            note?: string | null;
+        };
+        PackageEnablement: {
+            config: Record<string, never>;
+            /** Format: int64 */
+            enabled_at_ms: number;
+            kind: components["schemas"]["PackageKind"];
+            name: string;
+            package_id: string;
+            payload?: Record<string, never> | null;
+            section: string;
+            slug: string;
+            /** @description A newer approved version exists. */
+            update_available: boolean;
+            version: string;
+            version_id: string;
+        };
+        /** @description One file of a package. */
+        PackageFileInfo: {
+            path: string;
+            /** Format: int64 */
+            size: number;
+        };
+        /** @enum {string} */
+        PackageKind: "theme" | "profile_layout" | "emoji_pack" | "sticker_pack" | "sound_pack" | "recipe" | "server_template";
+        PackageView: {
+            author_id: string;
+            author_name: string;
+            description: string;
+            id: string;
+            kind: components["schemas"]["PackageKind"];
+            name: string;
+            /**
+             * @description What the kind needs at runtime (theme tokens and CSS, layout document, pack items, recipe
+             *     entries). Left out of listings for server templates.
+             */
+            payload?: Record<string, never> | null;
+            /** Format: int64 */
+            size_bytes: number;
+            slug: string;
+            /** Format: int64 */
+            updated_at_ms: number;
+            version: string;
+            /** @description The newest approved version. */
+            version_id: string;
         };
         /** @description Pixels of the full-size page to cut off on each side. */
         PageCrop: {
@@ -16679,6 +17136,11 @@ export interface components {
             /** Format: int64 */
             until_ms?: number | null;
         };
+        PendingVersion: components["schemas"]["VersionView"] & {
+            author_id: string;
+            author_name: string;
+            payload: Record<string, never>;
+        };
         /** @description A submitted Activity in the staff queue. */
         PendingView: {
             application_name: string;
@@ -16937,12 +17399,52 @@ export interface components {
             name: string;
             ok: boolean;
         };
+        ProfileBlock: {
+            /** @description Type-specific settings (see the module documentation). */
+            config?: Record<string, never>;
+            /**
+             * Format: int32
+             * @description Height in rows.
+             */
+            h: number;
+            /** @description Unique within the document: 1 to 24 characters of `a-z`, `0-9` and `-`. */
+            id: string;
+            type: components["schemas"]["ProfileBlockKind"];
+            /**
+             * Format: int32
+             * @description Width in columns.
+             */
+            w: number;
+            /**
+             * Format: int32
+             * @description Column of the left edge, 0 to 11.
+             */
+            x: number;
+            /**
+             * Format: int32
+             * @description Row of the top edge.
+             */
+            y: number;
+        };
+        /** @enum {string} */
+        ProfileBlockKind: "header" | "about" | "top_friends" | "now_watching" | "favorites" | "gallery" | "guestbook" | "song" | "custom";
         /** @description What a profile may use (G-48). */
         ProfileCatalogObject: {
             /** @description Avatar decorations; empty until artwork is approved. */
             decorations: components["schemas"]["CatalogEntryObject"][];
             /** @description Animated profile effects (built-in CSS). */
             effects: components["schemas"]["CatalogEntryObject"][];
+        };
+        ProfileDoc: {
+            blocks?: components["schemas"]["ProfileBlock"][];
+            /** @description Slug of the approved layout package this document started from, if any. */
+            layout?: string | null;
+            style?: components["schemas"]["ProfileStyle"];
+            /**
+             * Format: int32
+             * @description Always 1.
+             */
+            version?: number;
         };
         ProfileObject: {
             /**
@@ -16970,6 +17472,53 @@ export interface components {
             mutual_guilds?: components["schemas"]["MutualGuildObject"][] | null;
             user: components["schemas"]["UserObject"];
             user_profile: components["schemas"]["UserProfileFields"];
+        };
+        ProfilePage: {
+            /** @description The viewer may sign the guestbook (a friend, or the owner). */
+            can_sign: boolean;
+            /** @description The document has any block (otherwise the page shows the standard profile). */
+            customised: boolean;
+            doc: components["schemas"]["ProfileDoc"];
+            /** @description The people named in the Top friends block who are still friends. */
+            friends: components["schemas"]["ProfilePageUser"][];
+            /** @description The viewer is the owner. */
+            is_owner: boolean;
+            user: components["schemas"]["ProfilePageUser"];
+        };
+        /** @description A person on a profile page. */
+        ProfilePageUser: {
+            /** Format: int32 */
+            accent_color?: number | null;
+            avatar?: string | null;
+            banner?: string | null;
+            display_name?: string | null;
+            id: string;
+            username: string;
+        };
+        ProfilePalette: {
+            /** @description Accent (links, borders, buttons). */
+            accent: string;
+            /** @description Page background, `#rrggbb`. */
+            background: string;
+            /** @description Block background. */
+            panel: string;
+            /** @description Text colour. */
+            text: string;
+        };
+        ProfileStyle: {
+            /** @description Use my profile banner as the page background. */
+            banner_background?: boolean;
+            /** @description One of [`BORDERS`]. */
+            border?: string;
+            /** @description One of [`CURSORS`]. */
+            cursor?: string;
+            /** @description One of [`FONTS`]. */
+            font?: string;
+            /** @description One of [`OVERLAYS`]. */
+            overlay?: string;
+            palette?: components["schemas"]["ProfilePalette"];
+            /** @description One of [`PATTERNS`]. */
+            pattern?: string;
         };
         /** @description A member's progress in one chapter. */
         Progress: {
@@ -18008,6 +18557,10 @@ export interface components {
             /** @description `[activities] enabled`. */
             enabled: boolean;
             items: components["schemas"]["ShelfItem"][];
+        };
+        SignBody: {
+            /** @description 1 to 500 characters. */
+            body: string;
         };
         /** @description A short-lived signed CDN URL. */
         SignedUrlObject: {
@@ -19367,6 +19920,23 @@ export interface components {
             code: number;
             message: string;
             playback: components["schemas"]["WatchPartyPlayback"];
+        };
+        VersionView: {
+            /** Format: int64 */
+            created_at_ms: number;
+            files: components["schemas"]["PackageFileInfo"][];
+            id: string;
+            kind: components["schemas"]["PackageKind"];
+            name: string;
+            package_id: string;
+            review_note?: string | null;
+            /** @description `pending`, `approved`, `rejected`, `withdrawn` or `revoked`. */
+            review_state: string;
+            /** Format: int64 */
+            size_bytes: number;
+            slug: string;
+            version: string;
+            warnings: string[];
         };
         VoiceStatusBody: {
             /** @description The new status, at most 500 characters. `null` or an empty string clears it. */
@@ -24257,6 +24827,121 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_pending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingVersion"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Version snowflake */
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageDecisionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Version snowflake */
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": number[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -42592,6 +43277,174 @@ export interface operations {
             };
         };
     };
+    guild_enabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageEnablement"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    enable_for_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnableBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageEnablement"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    disable_for_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    apply_recipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_poll_templates: {
         parameters: {
             query?: never;
@@ -49403,6 +50256,271 @@ export interface operations {
             };
         };
     };
+    directory: {
+        parameters: {
+            query?: {
+                /** @description theme, profile_layout, emoji_pack, sticker_pack, sound_pack, recipe or server_template */
+                kind?: string;
+                /** @description Matches the name or id */
+                q?: string;
+                /** @description Package snowflake to page from */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageView"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/zip": number[];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionView"];
+                };
+            };
+            /** @description The package was refused; the fields list every problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPackage"][];
+                };
+            };
+        };
+    };
+    version_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Version snowflake */
+                version_id: string;
+                /** @description Package-relative path, e.g. emoji/wave.png */
+                path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": number[];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Version snowflake */
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageCreateGuildBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    page_by_name: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Username */
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePage"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     vapid_key: {
         parameters: {
             query?: never;
@@ -54322,6 +55440,95 @@ export interface operations {
             };
         };
     };
+    my_enabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageEnablement"][];
+                };
+            };
+        };
+    };
+    enable_for_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnableBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageEnablement"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    disable_for_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_presence: {
         parameters: {
             query?: never;
@@ -54495,6 +55702,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileObject"];
+                };
+            };
+        };
+    };
+    own_doc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileDoc"];
+                };
+            };
+        };
+    };
+    set_doc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileDoc"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileDoc"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    use_layout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LayoutBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileDoc"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -55077,6 +56373,119 @@ export interface operations {
             };
         };
     };
+    guestbook: {
+        parameters: {
+            query?: {
+                /** @description Entry snowflake to page from */
+                before?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Profile owner */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestbookEntry"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile owner */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestbookEntry"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile owner */
+                user_id: string;
+                /** @description Entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_profile: {
         parameters: {
             query?: {
@@ -55100,6 +56509,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    page_by_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePage"];
                 };
             };
             404: {

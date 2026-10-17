@@ -2,6 +2,7 @@ import { SegmentedControl, Select, Slider, Switch, THEMES, THEME_IDS } from '@si
 import type { ThemeId } from '@sideroom/ui';
 import { useT, type MessageKey } from '../../../i18n';
 import { useLoungeUi } from '../../../lounge/store';
+import { ThemeStore } from '../../../packages/ThemeStore';
 import { Card, SectionTitle } from '../parts';
 import {
   FONT_SCALE_RANGE,
@@ -109,6 +110,13 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
             </div>
           ))}
         </div>
+      </Card>
+      <Card
+        id="us-theme-store"
+        title={t('settings.themeStore.title')}
+        description={t('settings.themeStore.description')}
+      >
+        <ThemeStore />
       </Card>
       <Card id="us-server-theming" title={t('settings.appearance.serverThemes')}>
         <Switch

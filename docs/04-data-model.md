@@ -156,7 +156,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 `developer_applications` (applicant account, status: pending / approved / rejected / suspended, reviewer, notes), `applications` (id, owner_id, team_id, name, icon, description, bot_user_id, `release_state enum{development, in_review, released, suspended}`, flags, interactions_endpoint_url, redirect_uris), `application_versions` (manifest jsonb, reviewed_by, review_state), `application_commands`, `application_installs` (guild or user scope), `bot_tokens` (hashed), `oauth2_grants`.
 
-`extensions` / `themes` / `profile_layouts` / `activities` share `packages` (id, kind, author_id, name, latest_version_id) + `package_versions` (manifest jsonb, artifact_key, checksum, review_state, reviewed_by, reviewed_at) + `package_enablements` (scope: guild/user, scope_id, version_id, config jsonb).
+(As built in p15, migration 0970: `packages` has a globally unique `slug`, versions carry a semver and the zip in object storage, and `package_enablements` has one row per package and scope plus a theme `section`; activities are not packages. Customised profiles: `accounts.profile_doc` and `profile_guestbook`, migration 0971.) `extensions` / `themes` / `profile_layouts` / `activities` share `packages` (id, kind, author_id, name, latest_version_id) + `package_versions` (manifest jsonb, artifact_key, checksum, review_state, reviewed_by, reviewed_at) + `package_enablements` (scope: guild/user, scope_id, version_id, config jsonb).
 
 ## 7. Staff
 

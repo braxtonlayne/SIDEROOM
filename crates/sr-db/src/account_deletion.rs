@@ -207,6 +207,24 @@ pub async fn delete_account(
         .execute(&mut *tx)
         .await?;
 
+    // Customised profile and packages (EXT-PRF, EXT-PKG): the guestbook entries this person wrote or
+    // received, the themes they turned on, and versions of theirs still waiting for review.
+    sqlx::query("DELETE FROM profile_guestbook WHERE profile_id = $1 OR author_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM package_enablements WHERE scope = 'user' AND scope_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(
+        "UPDATE package_versions v SET review_state = 'withdrawn' FROM packages p \
+         WHERE p.id = v.package_id AND p.author_id = $1 AND v.review_state = 'pending'",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
     // Relationships, memberships and personal state.
     sqlx::query("DELETE FROM relationships WHERE user_id = $1 OR target_id = $1")
         .bind(id)
