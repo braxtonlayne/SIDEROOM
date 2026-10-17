@@ -53,7 +53,7 @@ export const GATEWAY_OPCODES: GatewayOpcode[] = [
     op: '8',
     name: 'REQUEST_GUILD_MEMBERS',
     dir: '→',
-    note: 'served, section 6.6a',
+    note: "served, section 6.6a; a query is a substring match over nick, username and display name, a superset of Discord's prefix match",
   },
   {
     op: '9',
