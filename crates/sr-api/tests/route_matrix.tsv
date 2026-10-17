@@ -96,6 +96,7 @@ DELETE	/sr/invites/{code}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-
 DELETE	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	author	allow	-
+DELETE	/tv/favorites/{channel_id}	authenticated	self	allow	-
 DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-
 DELETE	/users/@me/age-confirmation	authenticated	self	deny	-
 DELETE	/users/@me/birthday	authenticated	self	deny	-
@@ -195,8 +196,12 @@ GET	/admin/transcode/tokens	authenticated	staff	deny	-
 GET	/admin/transcode/workers	authenticated	staff	deny	-
 GET	/admin/tv/channels	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
+GET	/admin/tv/channels/{channel_id}/imports	authenticated	staff	deny	-
+GET	/admin/tv/channels/{channel_id}/imports/{import_id}	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}/schedule	authenticated	staff	deny	-
+GET	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-
+GET	/admin/tv/guide-template	authenticated	staff	deny	-
 GET	/admin/tv/report	authenticated	staff	deny	-
 GET	/announcements/active	authenticated	user	deny	-
 GET	/app-directory	authenticated	user	allow	-
@@ -423,6 +428,7 @@ GET	/tv/channels/{channel_id}/live/master.m3u8	authenticated	membership	allow	-
 GET	/tv/channels/{channel_id}/live/v/{file}	authenticated	membership	allow	-
 GET	/tv/channels/{channel_id}/now	authenticated	membership	allow	-
 GET	/tv/channels/{channel_id}/tune	authenticated	membership	allow	-
+GET	/tv/favorites	authenticated	self	allow	-
 GET	/tv/guide	authenticated	user	allow	-
 GET	/tv/reminders	authenticated	self	deny	-
 GET	/tv/timezones	authenticated	user	allow	-
@@ -608,6 +614,8 @@ POST	/admin/transcode/sweep	authenticated	staff	deny	-
 POST	/admin/transcode/tokens	authenticated	staff	deny	-
 POST	/admin/tv/channels	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/blocks	authenticated	staff	deny	-
+POST	/admin/tv/channels/{channel_id}/imports	authenticated	staff	deny	-
+POST	/admin/tv/channels/{channel_id}/imports/{import_id}/confirm	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/preview	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-
 POST	/applications	authenticated	owner	deny	-
@@ -772,6 +780,7 @@ PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-
 PUT	/admin/transcode/workers/{worker_id}/drain	authenticated	staff	deny	-
 PUT	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
 PUT	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
+PUT	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-
 PUT	/applications/{application_id}/activity	authenticated	owner	deny	-
 PUT	/applications/{application_id}/commands	authenticated	owner	allow	-
 PUT	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
@@ -822,6 +831,7 @@ PUT	/requests/{request_id}/vote	authenticated	self	allow	-
 PUT	/sr/auth/username	authenticated	self	deny	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-
 PUT	/submissions/{submission_id}/library/series	authenticated	author	allow	-
+PUT	/tv/favorites/{channel_id}	authenticated	self	allow	-
 PUT	/tv/reminders/{block_id}	authenticated	self	deny	-
 PUT	/users/@me/birthday	authenticated	self	deny	-
 PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-

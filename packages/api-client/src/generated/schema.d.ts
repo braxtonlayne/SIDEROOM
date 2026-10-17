@@ -3500,6 +3500,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tv/channels/{channel_id}/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The channel's recent imports, newest first. */
+        get: operations["admin_tv_imports"];
+        put?: never;
+        /**
+         * Upload a guide (CSV or JSON text). The answer is the mapping report: each row matched, ambiguous (pick a
+         *     title), missing (will be skipped) or invalid. Nothing changes until it is confirmed.
+         */
+        post: operations["admin_tv_import_guide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/imports/{import_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One import with its report. */
+        get: operations["admin_tv_import"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/imports/{import_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an import: the report becomes the channel's weekly grid (replacing it). `choices` picks a title
+         *     for ambiguous rows; unmatched slots stay in the grid and are skipped on air.
+         */
+        post: operations["admin_tv_confirm_import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/tv/channels/{channel_id}/now": {
         parameters: {
             query?: never;
@@ -3561,6 +3619,44 @@ export interface paths {
         };
         /** Stored blocks of a channel overlapping a window (no lazy extension). */
         get: operations["admin_tv_schedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The weekly grid of an imported-guide channel. */
+        get: operations["admin_tv_slots"];
+        /**
+         * Replace the weekly grid (the editor saves it whole) and regenerate the schedule that has not aired.
+         *     Slots may not overlap; 400 names the clash.
+         */
+        put: operations["admin_tv_put_slots"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/guide-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The guide template to fill in: columns `weekday, start_time, duration, show, season, episode, note`. */
+        get: operations["admin_tv_guide_template"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10172,6 +10268,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tv/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's starred channels. */
+        get: operations["tv_favorites"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/favorites/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Star a channel (starring one that is starred is fine). */
+        put: operations["tv_favorite_set"];
+        post?: never;
+        /** Unstar a channel (unstarring one that is not starred is fine). */
+        delete: operations["tv_favorite_clear"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tv/guide": {
         parameters: {
             query?: never;
@@ -12149,6 +12280,15 @@ export interface components {
          * @enum {string}
          */
         Backend: "local" | "storage";
+        /** @description When the last backup, restore check and object snapshot happened (Unix ms; `None` when never), K-10. */
+        BackupsView: {
+            /** Format: int64 */
+            last_run_ms?: number | null;
+            /** Format: int64 */
+            last_verify_ms?: number | null;
+            /** Format: int64 */
+            snapshot_ms?: number | null;
+        };
         /**
          * @description A public profile badge: the catalogue id with English fallback text and an icon name
          *     (G-53). Clients translate the ids they know and fall back to `description`.
@@ -13919,6 +14059,14 @@ export interface components {
             hero: components["schemas"]["Row"];
             rows: components["schemas"]["Row"][];
         };
+        /** @description Space on one folder; the sizes are `None` when the path cannot be read (never an error). */
+        DiskView: {
+            /** Format: int64 */
+            free_bytes?: number | null;
+            path: string;
+            /** Format: int64 */
+            total_bytes?: number | null;
+        };
         DmChannelObject: {
             icon?: string | null;
             id: string;
@@ -14783,6 +14931,11 @@ export interface components {
             global_name?: string | null;
             id: string;
             primary_guild?: null | components["schemas"]["PrimaryGuildObject"];
+            /**
+             * @description Patron badge and ring show for this user (D-256): the Patron entitlement is active or in
+             *     grace and the badge is not hidden. Always present; never a third state.
+             */
+            sr_patron: boolean;
             username?: string | null;
         };
         HideBody: {
@@ -18414,7 +18567,11 @@ export interface components {
             storage_bytes?: number;
         };
         SystemView: {
+            /** @description When the last backup, restore check and object snapshot happened (null fields: never, or not reported). */
+            backups: components["schemas"]["BackupsView"];
             counts: components["schemas"]["SystemCounts"];
+            /** @description Space of the data folder and of every ingest root; unreadable paths have null sizes. */
+            disk: components["schemas"]["DiskView"][];
             /** @description Open gateway sessions, when the gateway is attached. */
             gateway_sessions?: number | null;
             /** @description Which optional integrations are configured (SMTP, Discord sign-in, voice, TURN, GIF search). */
@@ -18812,7 +18969,7 @@ export interface components {
             timezone?: string;
         };
         /** @enum {string} */
-        TvChannelKind: "rule_based" | "manual";
+        TvChannelKind: "rule_based" | "manual" | "imported_guide";
         TvChannelList: {
             items: components["schemas"]["TvChannel"][];
         };
@@ -18827,6 +18984,10 @@ export interface components {
             pool?: components["schemas"]["TvPool"];
             /** @description `HH:MM` channel time. */
             start: string;
+        };
+        TvFavoriteList: {
+            /** @description Starred channel ids. */
+            items: string[];
         };
         /**
          * @description What fills the time between programmes (spec section 4).
@@ -18844,9 +19005,83 @@ export interface components {
             /** Format: int64 */
             to_ms: number;
         };
+        TvGuideCandidate: {
+            /** Format: double */
+            score: number;
+            title: string;
+            title_id: string;
+            /** Format: int32 */
+            year?: number | null;
+        };
         TvGuideChannel: {
             blocks: components["schemas"]["TvBlock"][];
             channel: components["schemas"]["TvChannel"];
+        };
+        /** @description A title staff picked for an ambiguous row (`title_id` null keeps the slot skipped). */
+        TvGuideChoice: {
+            line: number;
+            title_id?: string | null;
+        };
+        TvGuideConfirm: {
+            choices?: components["schemas"]["TvGuideChoice"][];
+        };
+        /** @description What confirming an import did. */
+        TvGuideConfirmed: {
+            /** @description Of those, slots with no library title (skipped on air until the library has it). */
+            skipped: number;
+            /** @description Slots now in the weekly grid. */
+            slots: number;
+            warnings: string[];
+        };
+        /** @description An upload and its report, as the API shows it. */
+        TvGuideImport: {
+            channel_id: string;
+            confirmed: boolean;
+            /** Format: int64 */
+            created_at_ms: number;
+            format: string;
+            id: string;
+            report: components["schemas"]["TvGuideReport"];
+        };
+        TvGuideImportList: {
+            items: components["schemas"]["TvGuideImport"][];
+        };
+        TvGuideReport: {
+            ambiguous: number;
+            invalid: number;
+            matched: number;
+            missing: number;
+            rows: components["schemas"]["TvGuideReportRow"][];
+        };
+        /** @description One row of the mapping report. */
+        TvGuideReportRow: {
+            /** @description Near matches, best first (ambiguous and missing rows). */
+            candidates: components["schemas"]["TvGuideCandidate"][];
+            /** Format: int32 */
+            duration_min: number;
+            /** Format: int32 */
+            episode?: number | null;
+            line: number;
+            message?: string | null;
+            note?: string | null;
+            /** Format: int32 */
+            season?: number | null;
+            show: string;
+            /** @description `HH:MM`. */
+            start: string;
+            status: components["schemas"]["TvGuideStatus"];
+            /** @description The chosen title when matched. */
+            title_id?: string | null;
+            /** Format: int32 */
+            weekday: number;
+        };
+        /** @enum {string} */
+        TvGuideStatus: "matched" | "ambiguous" | "missing" | "invalid";
+        TvGuideUpload: {
+            /** @description The file's text. */
+            content: string;
+            /** @description `csv` or `json`. */
+            format: string;
         };
         /**
          * @description The catalog kind of a title as Live TV sees it.
@@ -19005,6 +19240,31 @@ export interface components {
             /** Format: int64 */
             offset_ms?: number | null;
             title_id: string;
+        };
+        /** @description A weekly slot as the API shows and accepts it. */
+        TvSlot: {
+            /** Format: int32 */
+            duration_min: number;
+            episode_id?: string | null;
+            /** Format: int32 */
+            episode_number?: number | null;
+            /** @description Ignored on input. */
+            id?: string | null;
+            note?: string | null;
+            /** Format: int32 */
+            season_number?: number | null;
+            show_name: string;
+            /** @description `HH:MM` in the channel time zone. */
+            start: string;
+            title_id?: string | null;
+            /**
+             * Format: int32
+             * @description 0 = Monday, in the channel time zone.
+             */
+            weekday: number;
+        };
+        TvSlotList: {
+            items: components["schemas"]["TvSlot"][];
         };
         TvTimezoneList: {
             items: string[];
@@ -19228,6 +19488,11 @@ export interface components {
             global_name?: string | null;
             id: string;
             primary_guild?: null | components["schemas"]["PrimaryGuildObject"];
+            /**
+             * @description Patron badge and ring show for this user (D-256): the Patron entitlement is active or in
+             *     grace and the badge is not hidden. Always present; never a third state.
+             */
+            sr_patron: boolean;
             username?: string | null;
         };
         UserProfileFields: {
@@ -19255,6 +19520,11 @@ export interface components {
             global_name?: string | null;
             id: string;
             primary_guild?: null | components["schemas"]["PrimaryGuildObject"];
+            /**
+             * @description Patron badge and ring show for this user (D-256): the Patron entitlement is active or in
+             *     grace and the badge is not hidden. Always present; never a third state.
+             */
+            sr_patron: boolean;
             username?: string | null;
         };
         /** @description The synced settings blob. */
@@ -31433,6 +31703,226 @@ export interface operations {
             };
         };
     };
+    admin_tv_imports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvGuideImportList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_import_guide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvGuideUpload"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvGuideImport"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Import snowflake */
+                import_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvGuideImport"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_confirm_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Import snowflake */
+                import_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvGuideConfirm"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvGuideConfirmed"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_tv_now: {
         parameters: {
             query?: {
@@ -31706,6 +32196,165 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_slots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvSlotList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_put_slots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvSlotList"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvSlotList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_guide_template: {
+        parameters: {
+            query?: {
+                /** @description `csv` (default) or `json`. */
+                format?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The template file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -52739,6 +53388,107 @@ export interface operations {
             };
             /** @description Age confirmation required (code 900011) */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_favorites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvFavoriteList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_favorite_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Starred */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_favorite_clear: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unstarred */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
