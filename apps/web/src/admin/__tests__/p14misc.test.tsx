@@ -61,6 +61,8 @@ describe('integrations', () => {
     const list = await screen.findByRole('list', { name: 'Integrations' });
     expect(within(list).getByText('mail.example.test')).toBeInTheDocument();
     expect(within(list).getAllByText('Not configured')).toHaveLength(2);
+    // D-254: the policy is edited under Features; secrets stay operator config.
+    expect(screen.getByText(/integrations policy are edited under Features/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Send a test email to me' }));
     expect(await screen.findByText('Test message sent to staff@example.test.')).toBeInTheDocument();
     expect(sent).toBe(1);

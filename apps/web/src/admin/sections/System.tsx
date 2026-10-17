@@ -76,6 +76,7 @@ export function SystemSection() {
             {s.integrations && s.integrations.length > 0 && (
               <section className="ss-card" aria-labelledby="sys-integrations">
                 <h2 id="sys-integrations">{t('admin.system.integrationsTitle')}</h2>
+                <p className="ss-sub">{t('admin.appearance.defaultsHint')}</p>
                 <ul className="ss-list" aria-label={t('admin.system.integrationsTitle')}>
                   {s.integrations.map((i) => (
                     <li key={i.id} className="ss-row">
