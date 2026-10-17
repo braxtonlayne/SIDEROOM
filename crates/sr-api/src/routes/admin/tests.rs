@@ -2814,6 +2814,10 @@ async fn moving_a_discord_identity_needs_the_second_factor_a_reason_and_tells_th
     assert_eq!(s, StatusCode::OK, "{p}");
     let identities = p["identities"].as_array().unwrap();
     assert_eq!(identities.len(), 2);
-    assert!(identities.iter().any(|i| i["unlinked_at_ms"].is_number()
-        && i["moved_to_account_id"] == BOB.to_string()));
+    let bob = BOB.to_string();
+    assert!(
+        identities
+            .iter()
+            .any(|i| i["unlinked_at_ms"].is_number() && i["moved_to_account_id"] == bob.as_str())
+    );
 }

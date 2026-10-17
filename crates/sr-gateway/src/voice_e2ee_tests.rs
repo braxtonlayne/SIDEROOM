@@ -380,7 +380,10 @@ async fn a_member_who_never_says_hello_is_removed_after_ten_seconds() {
     let seen = ok.drain().await;
     assert!(
         seen.iter().any(|v| v["t"] == "VOICE_STATE_UPDATE"
-            && v["d"]["user_id"] == MEMBER.to_string()
+            && v["d"]["user_id"]
+                .as_str()
+                .and_then(|s| s.parse::<u64>().ok())
+                == Some(MEMBER)
             && v["d"]["channel_id"].is_null()),
         "{seen:?}"
     );
