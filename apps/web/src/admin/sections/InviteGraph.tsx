@@ -1,10 +1,13 @@
-// Invite graph (ADM-GRAPH-004/005): a collapsible tree and a flat list of everyone a root account invited,
-// a path-to-root breadcrumb and a side panel for the selected node. The WebGL renderer (ADM-GRAPH-003) is
-// not built: this tree/list view is the accessible fallback it is specified to have.
+// Invite graph (ADM-GRAPH-003/004/005): a collapsible tree and a flat list of everyone a root account invited,
+// a path-to-root breadcrumb and a side panel for the selected node. Past about 500 accounts the canvas 2D renderer
+// (`graph/GraphCanvas.tsx`, layout from sr-graph-wasm) is the default picture; the tree and list views remain the
+// accessible way to read the same accounts.
 import { Badge, Button, Notice, Select, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import * as api from '../api';
 import { useT } from '../../i18n';
+import { CANVAS_THRESHOLD } from './graph/graphModel';
+import { GraphCanvas } from './graph/GraphCanvas';
 import {
   Async,
   ReasonDialog,
@@ -43,7 +46,7 @@ export function InviteGraphSection() {
   const [depth, setDepth] = useState('3');
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [mode, setMode] = useState<'tree' | 'list'>('tree');
+  const [picked, setPicked] = useState<'tree' | 'list' | 'graph' | null>(null);
 
   const graph = useResource(`graph:${rootId}:${depth}`, async () => {
     const [tree, desc] = await Promise.all([
@@ -52,6 +55,11 @@ export function InviteGraphSection() {
     ]);
     return { tree, desc };
   });
+
+  // The canvas is the default view of a big graph; a person's own pick wins.
+  const big = (graph.data?.desc.nodes.length ?? 0) > CANVAS_THRESHOLD;
+  const mode = picked ?? (big ? 'graph' : 'tree');
+  const setMode = setPicked;
 
   const reroot = (id: string) => {
     setRootId(id);
@@ -100,6 +108,15 @@ export function InviteGraphSection() {
         />
         <Button type="submit">{t('admin.graph.show')}</Button>
         <div className="adm-actions" role="group" aria-label={t('admin.graph.viewMode')}>
+          {big && (
+            <Button
+              variant={mode === 'graph' ? 'primary' : 'secondary'}
+              aria-pressed={mode === 'graph'}
+              onClick={() => setMode('graph')}
+            >
+              {t('admin.graph.modeGraph')}
+            </Button>
+          )}
           <Button
             variant={mode === 'tree' ? 'primary' : 'secondary'}
             aria-pressed={mode === 'tree'}
@@ -155,6 +172,13 @@ export function InviteGraphSection() {
               )}
               {desc.nodes.length === 0 ? (
                 <p className="ss-na">{t('admin.graph.leaf')}</p>
+              ) : mode === 'graph' && big ? (
+                <GraphCanvas
+                  root={tree.account}
+                  nodes={desc.nodes}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
               ) : mode === 'tree' ? (
                 <TreeView
                   root={buildTree(tree.account, desc.nodes)}

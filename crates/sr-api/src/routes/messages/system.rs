@@ -165,6 +165,26 @@ pub async fn post_system_card(
     embeds: Vec<sr_chat::message::Embed>,
     components: Vec<sr_chat::message::Component>,
 ) -> MsgResult<Message> {
+    post_system_card_of(
+        deps,
+        channel_id,
+        id,
+        MessageType::AutoModerationAction,
+        embeds,
+        components,
+    )
+    .await
+}
+
+/// [`post_system_card`] with another system message type (the watch party card is type 200).
+pub async fn post_system_card_of(
+    deps: &MessagesDeps,
+    channel_id: sr_core::ChannelId,
+    id: MessageId,
+    kind: MessageType,
+    embeds: Vec<sr_chat::message::Embed>,
+    components: Vec<sr_chat::message::Component>,
+) -> MsgResult<Message> {
     let ch = deps
         .repo
         .get_channel(channel_id)
@@ -176,7 +196,7 @@ pub async fn post_system_card(
         channel_id,
         guild_id: ch.guild_id,
         author_id: user,
-        kind: MessageType::AutoModerationAction,
+        kind,
         content: String::new(),
         flags: 0,
         edited_at_ms: None,

@@ -760,10 +760,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 payments.entitlements.clone(),
             )))
             .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())))
-            .with_chat(Arc::new(crate::userfeat::PartyAnnouncer {
-                uf: user_features.clone(),
-                poster: feature_poster.clone(),
-            }));
+            .with_chat(Arc::new(sr_watchparty::ChatHooks(vec![
+                Arc::new(crate::userfeat::PartyAnnouncer {
+                    uf: user_features.clone(),
+                    poster: feature_poster.clone(),
+                }),
+                // The live card in the bound channel (WP-BE-008).
+                Arc::new(crate::party_cards::PartyCards::new(
+                    pool.clone(),
+                    payments.chat.clone(),
+                )),
+            ])));
     watchparty_service.spawn_timers();
     let watchparty_deps = Arc::new(routes::watchparty::WatchPartyDeps::new(
         watchparty_service.clone(),
@@ -1161,6 +1168,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_rate_config(rate_tx)
         .with_features(features.clone())
         .with_integrations(integrations)
+        .with_system_probe(Arc::new(crate::admin_jobs::FsProbe::new(
+            cfg.ingest.roots.clone(),
+        )))
         .with_reauth(require_reauth)
         .with_storage(storage.clone())
         .with_gateway_sessions({

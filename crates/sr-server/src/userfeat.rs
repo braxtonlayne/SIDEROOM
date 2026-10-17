@@ -646,6 +646,10 @@ pub struct PartyAnnouncer {
 #[async_trait]
 impl sr_watchparty::ChatHook for PartyAnnouncer {
     async fn announce(&self, a: sr_watchparty::Announcement) {
+        // The opt-in announcer says when a party starts and ends; the live card follows the rest.
+        if a.kind == sr_watchparty::AnnouncementKind::Updated {
+            return;
+        }
         let Some(poster) = self.poster.get() else {
             return;
         };

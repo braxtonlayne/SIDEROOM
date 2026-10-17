@@ -159,6 +159,11 @@ pub fn backup_alert(dir: &str, newest_age: Option<Duration>, max_hours: i64) -> 
 
 /// Age of the newest backup file (`*.dump` or `*.json` manifest) in `dir` or `dir/db`.
 pub fn newest_backup_age(dir: &Path) -> Option<Duration> {
+    newest_backup_modified(dir).and_then(|m| m.elapsed().ok())
+}
+
+/// Modification time of the newest backup file in `dir` or `dir/db`.
+pub fn newest_backup_modified(dir: &Path) -> Option<std::time::SystemTime> {
     let mut newest: Option<std::time::SystemTime> = None;
     for d in [dir.to_path_buf(), dir.join("db")] {
         let Ok(entries) = std::fs::read_dir(d) else {
@@ -177,7 +182,70 @@ pub fn newest_backup_age(dir: &Path) -> Option<Duration> {
             }
         }
     }
-    newest.and_then(|m| m.elapsed().ok())
+    newest
+}
+
+fn unix_ms(t: std::time::SystemTime) -> Option<i64> {
+    t.duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|d| i64::try_from(d.as_millis()).ok())
+}
+
+/// When a marker file was last written (the restore drill and the object snapshot leave one in the backup
+/// folder: `restore-drill.ok`, `snapshot.ok`).
+fn marker_ms(path: &Path) -> Option<i64> {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(unix_ms)
+}
+
+/// Backup times and disk space for the System page (K-10, ADM-PLT-006). Reads the backup folder the health
+/// check watches and the disks of the data folder and the ingest roots; a path that cannot be read is reported
+/// with null sizes.
+pub struct FsProbe {
+    ingest_roots: Vec<String>,
+}
+
+impl FsProbe {
+    pub fn new(ingest_roots: Vec<String>) -> Self {
+        Self { ingest_roots }
+    }
+}
+
+impl sr_api::routes::admin::SystemProbe for FsProbe {
+    fn backups(&self, dir: &str) -> sr_api::routes::admin::BackupsView {
+        if dir.is_empty() {
+            return Default::default();
+        }
+        let dir = Path::new(dir);
+        sr_api::routes::admin::BackupsView {
+            last_run_ms: newest_backup_modified(dir).and_then(unix_ms),
+            last_verify_ms: marker_ms(&dir.join("restore-drill.ok")),
+            snapshot_ms: marker_ms(&dir.join("snapshot.ok")),
+        }
+    }
+
+    fn disks(&self, data_dir: &str) -> Vec<sr_api::routes::admin::DiskView> {
+        let mut paths: Vec<String> = vec![if data_dir.is_empty() {
+            ".".to_owned()
+        } else {
+            data_dir.to_owned()
+        }];
+        for r in &self.ingest_roots {
+            if !paths.contains(r) {
+                paths.push(r.clone());
+            }
+        }
+        paths
+            .into_iter()
+            .map(|path| sr_api::routes::admin::DiskView {
+                total_bytes: fs4::total_space(&path).ok(),
+                free_bytes: fs4::available_space(&path).ok(),
+                path,
+            })
+            .collect()
+    }
 }
 
 /// Disk check for the configured (or working) directory.
@@ -314,6 +382,35 @@ mod tests {
         let age = newest_backup_age(&dir).unwrap();
         assert!(age < Duration::from_secs(60));
         assert!(newest_backup_age(&dir.join("missing")).is_none());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_probe_reports_backup_times_and_disk_space_without_failing() {
+        use sr_api::routes::admin::SystemProbe;
+        let dir = std::env::temp_dir().join(format!("sr-probe-test-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("db")).unwrap();
+        let probe = FsProbe::new(vec![
+            dir.to_string_lossy().into_owned(),
+            "/definitely/not/here".to_owned(),
+        ]);
+        // Nothing configured, or nothing written yet: every time is null.
+        assert_eq!(probe.backups(""), Default::default());
+        assert_eq!(probe.backups(&dir.to_string_lossy()), Default::default());
+        std::fs::write(dir.join("db").join("sideroom-1.dump"), b"x").unwrap();
+        std::fs::write(dir.join("restore-drill.ok"), b"1").unwrap();
+        let b = probe.backups(&dir.to_string_lossy());
+        let now = unix_ms(std::time::SystemTime::now()).unwrap();
+        assert!(b.last_run_ms.is_some_and(|t| (now - t).abs() < 60_000));
+        assert!(b.last_verify_ms.is_some_and(|t| (now - t).abs() < 60_000));
+        assert_eq!(b.snapshot_ms, None);
+        // The data folder is listed first, then each ingest root once; an unreadable path has null sizes.
+        let d = probe.disks(&dir.to_string_lossy());
+        assert_eq!(d.len(), 2, "{d:?}");
+        assert!(d[0].total_bytes.is_some_and(|t| t > 0) && d[0].free_bytes.is_some());
+        assert_eq!(d[1].path, "/definitely/not/here");
+        assert_eq!((d[1].total_bytes, d[1].free_bytes), (None, None));
+        assert_eq!(probe.disks("")[0].path, ".");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

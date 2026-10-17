@@ -15,6 +15,7 @@ import { emitDispatch } from '../../store/events';
 import { http, HttpResponse, server } from '../../test/server';
 import { StartPartyDialog, type StartPartyDialogProps } from '../StartPartyDialog';
 import { WatchPartyStrip } from '../WatchPartyStrip';
+import { partyIdOf, PartyMessageCard } from '../PartyMessageCard';
 import { FakeServer, person } from './fakes';
 
 vi.mock('../../store/connect', async (orig) => ({
@@ -282,5 +283,81 @@ describe('WatchPartyStrip', () => {
     mount(<WatchPartyStrip channelId="51" />);
     await new Promise((r) => setTimeout(r, 50));
     expect(screen.queryByRole('complementary', { name: 'Watch party' })).not.toBeInTheDocument();
+  });
+});
+
+describe('PartyMessageCard (WP-FE-010)', () => {
+  const card = (channelId: string, id = '900') => ({
+    channelId,
+    embeds: [
+      {
+        type: 'rich',
+        title: 'Akira',
+        description: 'S1 E1 · 1 watching',
+        url: `/cinema/party/${id}`,
+      },
+    ],
+  });
+
+  it('reads the party id from the card link', () => {
+    expect(partyIdOf('/cinema/party/900')).toBe('900');
+    expect(partyIdOf('https://x.test/cinema/party/12?code=a')).toBe('12');
+    expect(partyIdOf('https://x.test/other')).toBeNull();
+    expect(partyIdOf(undefined)).toBeNull();
+  });
+
+  it('follows the live party while it runs, joins, and falls back to the snapshot when it ended', async () => {
+    const fake = new FakeServer(() => Date.now(), '1', { host: false });
+    fake.party = {
+      ...fake.party,
+      binding: 'channel',
+      channel_id: '50',
+      guild_id: '5',
+      participants: [person('1'), person('2', { is_host: true })],
+    };
+    server.use(
+      http.get('*/api/v1/channels/50/watch-party', () =>
+        HttpResponse.json({ ...fake.party, playback: fake.view() }),
+      ),
+    );
+    const { history } = mount(<PartyMessageCard message={card('50')} />);
+    const el = await screen.findByRole('complementary', { name: 'Watch party: Akira' });
+    await waitFor(() => expect(el).toHaveTextContent('2 watching'));
+    expect(el).toHaveAttribute('data-live', 'true');
+    // The headcount comes from the gateway, not from the message snapshot.
+    fake.party = { ...fake.party, participants: [...fake.party.participants, person('3')] };
+    emitDispatch('WATCH_PARTY_UPDATE', {
+      type: 'participant_joined',
+      party: { ...fake.party, playback: fake.view() },
+    });
+    await waitFor(() => expect(el).toHaveTextContent('3 watching'));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Join the watch party for Akira' }));
+    expect(history.location.pathname).toBe('/cinema/party/900');
+    // After the end the card shows the server's snapshot and no Join button.
+    emitDispatch('WATCH_PARTY_UPDATE', {
+      type: 'ended',
+      party: { ...fake.party, ended: true, playback: fake.view() },
+    });
+    await waitFor(() => expect(el).toHaveAttribute('data-live', 'false'));
+    expect(el).toHaveTextContent('Akira');
+    expect(el).toHaveTextContent('S1 E1 · 1 watching');
+    expect(el).toHaveTextContent('Ended');
+    expect(screen.queryByRole('button', { name: /Join the watch party/ })).not.toBeInTheDocument();
+  });
+
+  it('is a snapshot of an older party when the channel has another one now', async () => {
+    const fake = new FakeServer(() => Date.now(), '1', { host: false });
+    fake.party = { ...fake.party, binding: 'channel', channel_id: '50', guild_id: '5' };
+    server.use(
+      http.get('*/api/v1/channels/50/watch-party', () =>
+        HttpResponse.json({ ...fake.party, playback: fake.view() }),
+      ),
+    );
+    mount(<PartyMessageCard message={card('50', '123')} />);
+    const el = await screen.findByRole('complementary', { name: 'Watch party: Akira' });
+    expect(el).toHaveAttribute('data-live', 'false');
+    expect(screen.queryByRole('button', { name: /Join the watch party/ })).not.toBeInTheDocument();
   });
 });

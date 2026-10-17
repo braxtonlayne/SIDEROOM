@@ -130,6 +130,34 @@ struct Env {
     rate_rx: tokio::sync::watch::Receiver<crate::rate_limit::RateConfig>,
 }
 
+/// Fixed answers for the System page probes.
+struct FakeProbe;
+
+impl crate::routes::admin::SystemProbe for FakeProbe {
+    fn backups(&self, _dir: &str) -> crate::routes::admin::BackupsView {
+        crate::routes::admin::BackupsView {
+            last_run_ms: Some(1_700_000_000_000),
+            last_verify_ms: None,
+            snapshot_ms: Some(1_700_000_100_000),
+        }
+    }
+
+    fn disks(&self, _data_dir: &str) -> Vec<crate::routes::admin::DiskView> {
+        vec![
+            crate::routes::admin::DiskView {
+                path: "/data".into(),
+                total_bytes: Some(100),
+                free_bytes: Some(40),
+            },
+            crate::routes::admin::DiskView {
+                path: "/gone".into(),
+                total_bytes: None,
+                free_bytes: None,
+            },
+        ]
+    }
+}
+
 async fn env() -> Env {
     env_with(false).await
 }
@@ -223,6 +251,7 @@ async fn env_with(reauth: bool) -> Env {
         }])
         .with_features(features)
         .with_gateway_sessions(Arc::new(|| 7))
+        .with_system_probe(Arc::new(FakeProbe))
         .with_reauth(reauth)
         .with_rate_config(rate_tx)
         .with_storage(Arc::new(sr_storage::ObjectStoreStorage::in_memory()));
@@ -1259,6 +1288,12 @@ async fn settings_features_system_and_jobs() {
         .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(b["gateway_sessions"], 7);
+    // K-10: backup times and disk space come from the probe; unreadable paths have null sizes.
+    assert_eq!(b["backups"]["last_run_ms"], 1_700_000_000_000_i64);
+    assert!(b["backups"]["last_verify_ms"].is_null());
+    assert_eq!(b["disk"][0]["free_bytes"], 40);
+    assert_eq!(b["disk"][1]["path"], "/gone");
+    assert!(b["disk"][1]["total_bytes"].is_null());
     let (_, b) = e.call(Some(BASIC), Method::GET, "/admin/stats", None).await;
     assert!(b["accounts_active"].as_i64().unwrap() >= 5);
     // Jobs.

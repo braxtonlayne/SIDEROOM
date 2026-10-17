@@ -1,6 +1,8 @@
 //! Platform settings, feature toggles, system status, the job queue and the access log.
 
-use super::ctx::{IntegrationStatus, ReasonBody, StaffCtx, id, map_err, reason};
+use super::ctx::{
+    BackupsView, DiskView, IntegrationStatus, ReasonBody, StaffCtx, id, map_err, reason,
+};
 use crate::{error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json,
@@ -270,6 +272,10 @@ pub struct SystemView {
     pub gateway_sessions: Option<usize>,
     /// Which optional integrations are configured (SMTP, Discord sign-in, voice, TURN, GIF search).
     pub integrations: Vec<IntegrationStatus>,
+    /// When the last backup, restore check and object snapshot happened (null fields: never, or not reported).
+    pub backups: BackupsView,
+    /// Space of the data folder and of every ingest root; unreadable paths have null sizes.
+    pub disk: Vec<DiskView>,
 }
 
 /// System status: version, readiness probes, gateway sessions, queue depth (`OPERATOR`).
@@ -293,12 +299,30 @@ pub async fn system(State(state): State<AppState>, ctx: StaffCtx) -> ApiResult<J
             error: r.err(),
         });
     }
+    // Backup times and disk space (K-10): file system reads on a blocking thread, never an error.
+    let (backups, disk) = match &ctx.deps.system_probe {
+        Some(probe) => {
+            let settings = ctx.svc().alert_settings().await.ok();
+            let (backup_dir, data_dir) = settings
+                .map(|s| (s.backup_dir, s.disk_path))
+                .unwrap_or_default();
+            let probe = probe.clone();
+            tokio::task::spawn_blocking(move || {
+                (probe.backups(&backup_dir), probe.disks(&data_dir))
+            })
+            .await
+            .unwrap_or_default()
+        }
+        None => Default::default(),
+    };
     Ok(Json(SystemView {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         counts,
         probes,
         gateway_sessions: ctx.deps.gateway_sessions.as_ref().map(|f| f()),
         integrations: ctx.deps.integrations.clone(),
+        backups,
+        disk,
     }))
 }
 

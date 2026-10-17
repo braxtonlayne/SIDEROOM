@@ -2,7 +2,7 @@
 // channel mounts, then kept fresh by the gateway (`WATCH_PARTY_UPDATE`). The strip above the channel and every party
 // card in its history share one read and one subscription per channel (reference counted). Plain state, no query
 // cache (the Lounge has none).
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { onDispatch } from '../store/events';
 import { httpPartyApi } from './api';
 import type { Party, PartyUpdateEvent } from './types';
@@ -43,8 +43,9 @@ function open(channelId: string): Entry {
 const NONE: Party | null = null;
 
 export function useChannelParty(channelId: string | undefined): Party | null {
-  return useSyncExternalStore(
-    (notify) => {
+  // A stable subscribe: a new function every render would resubscribe (and re-read) on every render.
+  const subscribe = useCallback(
+    (notify: () => void) => {
       if (!channelId) return () => undefined;
       let entry = entries.get(channelId);
       if (!entry) {
@@ -64,6 +65,10 @@ export function useChannelParty(channelId: string | undefined): Party | null {
         }
       };
     },
+    [channelId],
+  );
+  return useSyncExternalStore(
+    subscribe,
     () => (channelId ? (entries.get(channelId)?.party ?? NONE) : NONE),
     () => NONE,
   );

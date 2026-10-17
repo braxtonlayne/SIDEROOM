@@ -23,6 +23,7 @@ pub mod lag_bus;
 pub mod library_jobs;
 pub mod lookup_wiring;
 pub mod media_jobs;
+pub mod party_cards;
 pub mod payments_jobs;
 pub mod push_notify;
 pub mod push_pg;

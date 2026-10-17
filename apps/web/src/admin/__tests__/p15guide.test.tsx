@@ -97,7 +97,9 @@ const report = (confirmed = false) => ({
   },
 });
 
-function useGuideApi(initial = [slot(), slot({ id: '2', start: '20:30', show_name: 'Unknown', title_id: null })]) {
+function useGuideApi(
+  initial = [slot(), slot({ id: '2', start: '20:30', show_name: 'Unknown', title_id: null })],
+) {
   const writes: { method: string; url: string; body: unknown }[] = [];
   let slots = initial;
   server.use(
@@ -181,7 +183,9 @@ describe('Live TV admin: imported guide', () => {
     asStaff({ perms: [...CURATOR] });
     useGuideApi([slot(), slot({ id: '2', weekday: 1, start: '20:15', show_name: 'Clash' })]);
     const user = await openGuide();
-    const tuesday = (await screen.findByRole('list', { name: /Tuesday/ })).closest('.adm-week-day')!;
+    const tuesday = (await screen.findByRole('list', { name: /Tuesday/ })).closest(
+      '.adm-week-day',
+    )!;
     const monday = screen.getByRole('list', { name: /Monday/ });
     // Dropping Tuesday's slot on Monday makes it overlap Monday 20:00: the save is blocked and says why.
     const clash = within(tuesday as HTMLElement).getByRole('button', { name: /Clash/ });
@@ -227,7 +231,9 @@ describe('Live TV admin: imported guide', () => {
     );
     await user.upload(screen.getByLabelText('Guide file'), file);
     expect(
-      await screen.findByText('1 matched, 1 to pick, 1 not in the library (skipped), 1 unreadable.'),
+      await screen.findByText(
+        '1 matched, 1 to pick, 1 not in the library (skipped), 1 unreadable.',
+      ),
     ).toBeInTheDocument();
     expect(writes[0]).toMatchObject({
       url: 'imports',
@@ -236,17 +242,17 @@ describe('Live TV admin: imported guide', () => {
     const table = screen.getByRole('table', { name: 'Mapping report' });
     expect(within(table).getAllByRole('row')).toHaveLength(5);
     expect(within(table).getByText('Unreadable start time "x"')).toBeInTheDocument();
-    await user.selectOptions(
-      within(table).getByRole('combobox', { name: 'Title for line 3' }),
-      '4',
-    );
+    await user.click(within(table).getByRole('combobox', { name: 'Title for line 3' }));
+    await user.click(await screen.findByRole('option', { name: 'The Big Movie (2015)' }));
     await user.click(screen.getByRole('button', { name: 'Confirm and replace the weekly grid' }));
     await waitFor(() => expect(writes.at(-1)).toMatchObject({ url: 'confirm' }));
     expect(writes.at(-1)!.body).toEqual({ choices: [{ line: 3, title_id: '4' }] });
     expect(await screen.findByText(/Guide imported/)).toBeInTheDocument();
     // The grid reloaded: the confirmed import left one slot.
     await waitFor(() =>
-      expect(within(screen.getByRole('list', { name: /Monday/ })).getAllByRole('button')).toHaveLength(1),
+      expect(
+        within(screen.getByRole('list', { name: /Monday/ })).getAllByRole('button'),
+      ).toHaveLength(1),
     );
   });
 });

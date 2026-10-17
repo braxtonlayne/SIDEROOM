@@ -56,6 +56,17 @@ export function findOverlap(slots: readonly tv.Slot[]): [tv.Slot, tv.Slot] | nul
   return null;
 }
 
+/** The file's text (`Blob.text` where the browser has it, else a FileReader). */
+const readText = (file: Blob): Promise<string> =>
+  typeof file.text === 'function'
+    ? file.text()
+    : new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ''));
+        reader.onerror = () => reject(new Error('read'));
+        reader.readAsText(file);
+      });
+
 const blank = (weekday: number): tv.Slot => ({
   weekday,
   start: '20:00',
@@ -376,7 +387,7 @@ function ImportPanel({
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     const format = file.name.toLowerCase().endsWith('.json') ? 'json' : 'csv';
-    const content = await file.text();
+    const content = await readText(file);
     const r = await upload.run(() => tv.importGuide(channel.id, format, content));
     if (r) {
       setReport(r);

@@ -31,7 +31,10 @@ mod system;
 #[cfg(test)]
 mod tests;
 
-pub use ctx::{AdminDeps, IntegrationStatus, ReasonBody, StaffCtx, map_err, reason as reason_from};
+pub use ctx::{
+    AdminDeps, BackupsView, DiskView, IntegrationStatus, ReasonBody, StaffCtx, SystemProbe, map_err,
+    reason as reason_from,
+};
 
 use crate::{openapi::ErrorBody, state::AppState};
 use axum::{
@@ -347,6 +350,8 @@ pub fn router() -> Router<AppState> {
         entrance::EntranceHeroBody,
         system::MailTestResult,
         ctx::IntegrationStatus,
+        ctx::BackupsView,
+        ctx::DiskView,
         people::PersonNotesBody,
         people::LinkAccountBody,
         people::UnlinkResult,
