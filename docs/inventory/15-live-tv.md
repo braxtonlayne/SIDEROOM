@@ -3,13 +3,13 @@
 Phase 5. Spec: [cinema-live-tv](../specs/cinema-live-tv.md). Mockup: `cinema-live-tv.jpg`.
 
 ## TV-ENG — Schedule engine (`sr-tv`)
-- [ ] **TV-ENG-001** [DB] tv_channels, tv_schedule_slots, tv_guide_imports, tv_favorites, tv_reminders _(p8: tv_channels and tv_blocks exist (0460, 0461); p12: tv_reminders (0780); slots, guide imports and favorites do not)_
+- [x] **TV-ENG-001** [DB] tv_channels, tv_schedule_slots, tv_guide_imports, tv_favorites, tv_reminders *(p15 rest-c: migration 1000 adds `tv_schedule_slots`, `tv_guide_imports`, `tv_favorites` and the `imported_guide` kind; repo `sr-tv/src/{repo,pg}.rs`, test `sr-tv/tests/pg.rs`; earlier: tv_channels and tv_blocks 0460/0461, tv_reminders 0780)*
 - [x] **TV-ENG-002** [BE] Channel model (number, call sign, name, era label, logo, kind, timezone, age-restricted, filler policy, rules) _(p8: sr-tv model; kinds rule_based and manual, no imported_guide yet)_
-- [ ] **TV-ENG-003** [BE] Resolver for `imported_guide` (weekly slots → concrete blocks, skip missing, overrun/cut policies) _(p8: not built)_ _(p14 misc: not built in p14 misc: needs tv_schedule_slots and a guide import first (TV-ENG-001, TV-ADM-004))_
+- [x] **TV-ENG-003** [BE] Resolver for `imported_guide` (weekly slots → concrete blocks, skip missing, overrun/cut policies) *(p15 rest-c: `engine::resolve_slots` (a slot with nothing in the library is skipped and the gap filled by the filler policy; an overrun shifts the next programme or swallows its slot; a series slot rotates its episodes; entering a slot on air starts it at its own start), service `service/guide_ops.rs`; tests `resolve_tests.rs`, `service_tests.rs`)*
 - [x] **TV-ENG-004** [BE] Resolver for `rule_based` (content pool filters, ordering sequential/shuffle/weighted, dayparts, rerun spacing, seeded RNG per channel-week) _(p8: sr-tv engine, seeded RNG kept in a cursor so the schedule rolls on)_
 - [x] **TV-ENG-005** [BE] Resolver for `manual` (calendar placements) _(p8: staff placement with trim and split, POST /admin/tv/channels/{id}/blocks)_
 - [x] **TV-ENG-006** [BE] Filler policies (bumpers, next_program_early, slate, off_air bars+tone) _(p8: bumpers, next_program_early, slate and off_air blocks; the bars and tone media themselves do not exist)_
-- [ ] **TV-ENG-007** [BE] Block cache per channel-day + invalidation on edits/library changes _(p8: blocks are stored and extended lazily 24 h ahead; no invalidation on library changes yet)_
+- [x] **TV-ENG-007** [BE] Block cache per channel-day + invalidation on edits/library changes *(p15 rest-c: stored blocks are the per-channel cache; a slot edit or confirmed import regenerates the unaired generated blocks, and `TvService::revalidate_guides` (run from `userfeat.tick` every five minutes) relinks unmatched slots to new library titles and regenerates a channel whose upcoming blocks no longer equal a fresh resolution; a generated slate on air is replaced at once; test `revalidation_relinks_slots_and_regenerates_a_stale_schedule`)*
 - [x] **TV-ENG-008** [BE] Deterministic tests with clock override ("simulate now") _(p8: ManualClock in the service tests, pure engine tests with DST)_
 
 ## TV-HLS — Virtual-linear streaming
@@ -41,6 +41,6 @@ Phase 5. Spec: [cinema-live-tv](../specs/cinema-live-tv.md). Mockup: `cinema-liv
 ## TV-ADM — Admin
 - [x] **TV-ADM-001** [FE] Channel list & editor (fields, logo upload, enable) (web: logo upload is not on the server yet)
 - [x] **TV-ADM-002** [FE] Rules editor (pool filters UI, ordering, dayparts)
-- [ ] **TV-ADM-003** [FE] Weekly grid editor (manual channels; drag programs)
-- [ ] **TV-ADM-004** [BE][FE] Guide import (CSV/JSON template download, upload, fuzzy show matching, mapping report matched/ambiguous/missing, confirm) _(p8: not built (backend half))_
+- [x] **TV-ADM-003** [FE] Weekly grid editor (manual channels; drag programs) *(p15 rest-c: Guide tab of an imported-guide channel, `admin/cinema/tv/GuidePanel.tsx`: a week of day columns, drag a slot onto another day or edit it in a form, library title search, overlap check, saved whole through `PUT /admin/tv/channels/{id}/slots`; a lineup that repeats weekly is built as an imported-guide channel, a manual channel keeps placing programmes from the Now control tab; test `p15guide.test.tsx`)*
+- [x] **TV-ADM-004** [BE][FE] Guide import (CSV/JSON template download, upload, fuzzy show matching, mapping report matched/ambiguous/missing, confirm) *(p15 rest-c: `sr-tv/src/guide.rs` parses CSV/JSON (weekday names or ISO numbers, 24 h or AM/PM times) and matches names with a normalised bigram score and a year hint; routes `GET /admin/tv/guide-template`, `POST|GET /admin/tv/channels/{id}/imports`, `.../imports/{import}/confirm`; the report UI is in `GuidePanel.tsx`)*
 - [x] **TV-ADM-005** [FE] Schedule preview (next 7 days) + simulate-now time travel

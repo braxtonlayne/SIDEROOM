@@ -60,7 +60,7 @@ Conventions (as Cinema): ids are Snowflakes and travel as decimal **strings**; t
 
 ### 8.1 Concepts and scope
 
-* A channel has a `kind`: `rule_based` (the schedule is generated from `rules`) or `manual` (staff place programmes). `imported_guide` (section 4), the guide import (TV-ADM-004), favorites and logo upload are **not built yet** (reminders are built: `tv_reminders`, migration 0780); `logo_key` is stored and shown as a signed `/cdn/<key>` URL when set.
+* A channel has a `kind`: `rule_based` (the schedule is generated from `rules`) or `manual` (staff place programmes). `manual` is the third kind besides `imported_guide` (8.6). Logo upload is **not built yet** (reminders are built: `tv_reminders`, migration 0780; favorites and the guide import, migration 1000); `logo_key` is stored and shown as a signed `/cdn/<key>` URL when set.
 * The schedule is a list of non-overlapping **blocks** per channel. Rule-based channels are extended lazily and deterministically (same rules, same catalog, same seed give the same blocks): a read that needs blocks the channel does not have yet generates and stores them, up to 24 h ahead. Staff can also preview and publish a schedule explicitly (8.5).
 * A block is `kind` `program` (a title or an episode from the Cinema catalog), `filler` (a short bumper), `slate` or `off_air` (no media; the client shows its own slate or colour bars). Gaps between programmes are filled by the channel's filler policy.
 * Times of day in rules are in the channel `timezone` (any IANA zone name, resolved with `jiff` and its bundled tz database; `GET /tv/timezones` lists every zone). The guide itself is in absolute milliseconds; clients render viewer-local or channel time.
@@ -117,6 +117,8 @@ Items without a runtime or an asset are never scheduled. Bumpers are published t
 | `GET /tv/timezones` | `{items: string[]}` every IANA zone (jiff's bundled database) |
 | `PUT /tv/reminders/{block_id}?lead_minutes=` | 204. Remind the caller before an upcoming programme (default 5 minutes, 0 to 120); setting it again moves it; 400 for a programme that already started. Session only (bots 403). Fired by the `userfeat.tick` job (15 s) as a DM from the system user, which is a notification and a push like any DM. When the block was regenerated away by then, the DM says the reminder was dropped |
 | `DELETE /tv/reminders/{block_id}` | 204 (also when none was set) |
+| `GET /tv/favorites` | `{items: string[]}` the caller's starred channel ids |
+| `PUT|DELETE /tv/favorites/{channel_id}` | 204, idempotent; 404 for an unknown or disabled channel. Replaces the old `cinema.tv.favourites` settings key, which the guide moves over once |
 | `GET /tv/channels/{id}/tune` | `{channel_id, state: "live"\|"off_air", master_url?, current?: Block, offset_ms?, next?: Block, viewers}`; 403 `900011` when the airing programme is restricted and the age is unconfirmed. `master_url` is the API path to use as the HLS source (see 8.4) |
 
 ### 8.4 Live HLS (`TV-HLS`)
@@ -148,5 +150,19 @@ Every successful change is written to the staff access log: `tv.channel.create|u
 | `PUT /admin/tv/channels/{id}/now` | `{title_id, episode_id?, offset_ms?}` -> `Block`: starts that programme now (`offset_ms` into it), cutting the block on air; the schedule continues after it |
 | `GET /admin/tv/channels/{id}/now?at_ms=` | as the member `now` but at any moment (time travel, "simulate now"), reads stored blocks only |
 | `GET /admin/tv/report?from=&to=&channel=` | `{from_ms, to_ms, channels: [{channel_id, number, name, aired_ms, programmes, overrides}], items: [{block: Block, aired_ms}]}` what aired: stored blocks that started before now, clipped to the window (default the last 24 h, at most 31 days). Viewer figures are not persisted (D-101) |
+
+### 8.6 Imported guides (`imported_guide`, migration 1000)
+
+A channel of kind `imported_guide` airs a **weekly grid**: slots `{weekday (0 Monday), start "HH:MM", duration_min, show_name, title_id?, episode_id?, season_number?, episode_number?, note?}` in the channel time zone. A slot whose `title_id` is empty (not in the library) or whose title has nothing playable is **skipped** (D-102) and the gap filled by the filler policy (`next_program_early` behaves as a slate here). Resolution is deterministic: a programme starts at its slot start; if the previous one overran it starts when that one ends, and a slot swallowed whole is skipped with a warning; a programme shorter than its slot leaves a gap; a series slot with no episode rotates through the episodes week by week (a `season`/`episode` narrows it); entering a slot already on air starts it at its own start so joining 17 minutes in lands 17 minutes in. The stored blocks are the cache: a grid edit or a confirmed import regenerates the generated blocks that have not aired, and a job (`userfeat.tick`, every five minutes) relinks unmatched slots to library titles of the same normalised name and regenerates a channel whose upcoming blocks no longer match.
+
+| Route | Body -> result |
+|---|---|
+| `GET|PUT /admin/tv/channels/{id}/slots` | `{items: Slot[]}` the grid; PUT replaces it whole (at most 1000 slots, no overlaps also across midnight and the turn of the week, else 400) |
+| `GET /admin/tv/guide-template?format=csv|json` | the template file (`weekday,start_time,duration,show,season,episode,note`) |
+| `POST /admin/tv/channels/{id}/imports` | `{format: "csv"|"json", content}` -> 201 `{id, report: {rows, matched, ambiguous, missing, invalid}}`; each row is `matched`, `ambiguous` (candidates, best first), `missing` (will be skipped) or `invalid` (unreadable or overlapping an earlier row). Nothing changes yet |
+| `GET /admin/tv/channels/{id}/imports[/{import}]` | the recent imports (without rows) / one with its report |
+| `POST /admin/tv/channels/{id}/imports/{import}/confirm` | `{choices: [{line, title_id|null}]}` -> `{slots, skipped, warnings}`; the report becomes the grid (replacing it); 409 when already confirmed |
+
+Access log: `tv.slots.replace`, `tv.guide.import`, `tv.guide.confirm`.
 
 Staff validation errors are 400 `{code: 50035}` with a message; a taken channel number is 409.
