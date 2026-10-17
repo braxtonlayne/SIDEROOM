@@ -34,7 +34,11 @@ Inventory
 - DON-UI-001 (waits on the owner's copy), CIN-PLY-004 (K-13), TV-HLS-003/005, DON-PAY-009 (won't build in CI, D-257).
 
 ## Tests run
-See the "Gates" section below.
+Gates (all green at the last commit):
+- cargo: `fmt --check`; `clippy --all-targets -D warnings` on sr-chat, sr-db, sr-payments, sr-tv, sr-watchparty, sr-api, sr-server; `test` for sr-chat (lib), sr-tv (lib 73, Postgres `pg` 4), sr-watchparty (all, Postgres), sr-api (all: lib 602, api, guilds, lounge, openapi_names with `KNOWN_CLASHES` empty, route_matrix 5), sr-server (lib with ignored: 103 incl. `party_cards_pg_tests` and the probe test), sr-db (media_columns incl. the patron SQL with `grace_days = 5`, settings_repo, chat_repo, payments_repo, profile_be), sr-payments (`esplora_live` against signet, 3 of 3).
+- web: `tsc --noEmit`, eslint on the touched trees, `prettier --check .`; vitest (maxWorkers 2) admin/cinema/watchparty/i18n/store/support/test (50 files, 571 tests) and lounge/settings/lib/voice/library/developers/api (152 files, 1440 tests); packages/ui (279), packages/wasm (14, with the graph wasm built), packages/api-client `mocks:check`; `vite build` and `scripts/check-bundle-budget.mjs` (admin 324 KB gz of 600, lounge 402 of 600, watch-party 250 of 600).
+- OpenAPI regenerated (`packages/api-client/openapi.json`, `schema.d.ts`, MSW handlers, 844 operations) and the route matrix rows added (staff routes `staff`, favorites `self`).
+- Not run: Playwright (shared ports), the full workspace `cargo test` (only the touched crates).
 
 ## Owner questions
 - None new beyond the notes above.
