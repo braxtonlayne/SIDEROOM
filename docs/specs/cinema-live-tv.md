@@ -161,7 +161,7 @@ A channel of kind `imported_guide` airs a **weekly grid**: slots `{weekday (0 Mo
 | `GET /admin/tv/guide-template?format=csv` or `json` | the template file (`weekday,start_time,duration,show,season,episode,note`) |
 | `POST /admin/tv/channels/{id}/imports` | `{format: "csv" or "json", content}` -> 201 `{id, report: {rows, matched, ambiguous, missing, invalid}}`; each row is `matched`, `ambiguous` (candidates, best first), `missing` (will be skipped) or `invalid` (unreadable or overlapping an earlier row). Nothing changes yet |
 | `GET /admin/tv/channels/{id}/imports[/{import}]` | the recent imports (without rows) / one with its report |
-| `POST /admin/tv/channels/{id}/imports/{import}/confirm` | `{choices: [{line, title_id|null}]}` -> `{slots, skipped, warnings}`; the report becomes the grid (replacing it); 409 when already confirmed |
+| `POST /admin/tv/channels/{id}/imports/{import}/confirm` | `{choices: [{line, title_id}]}` (a null `title_id` keeps the slot skipped) -> `{slots, skipped, warnings}`; the report becomes the grid (replacing it); 409 when already confirmed |
 
 Access log: `tv.slots.replace`, `tv.guide.import`, `tv.guide.confirm`.
 
