@@ -214,6 +214,9 @@ pub enum JoinDenied {
     NotInVoice,
     /// The caller already shares this screen.
     AlreadyStreaming,
+    /// `voice.e2ee` is on and the client did not declare `sr_e2ee` at join, or did not start the
+    /// MLS handshake (op 101 `hello`) within 10 seconds (D-263).
+    E2eeRequired,
 }
 
 impl JoinDenied {
@@ -229,6 +232,7 @@ impl JoinDenied {
             Self::UnknownStream => "unknown_stream",
             Self::NotInVoice => "not_in_voice",
             Self::AlreadyStreaming => "already_streaming",
+            Self::E2eeRequired => "e2ee_required",
             Self::MissingPermission => "missing_permission",
             Self::ChannelFull => "channel_full",
             Self::Unavailable => "voice_unavailable",
@@ -250,6 +254,9 @@ impl JoinDenied {
             Self::UnknownStream => "This stream does not exist.",
             Self::NotInVoice => "Join the voice channel first.",
             Self::AlreadyStreaming => "You are already sharing your screen.",
+            Self::E2eeRequired => {
+                "This server requires encrypted calls; your client cannot join."
+            }
             Self::MissingPermission => "You do not have permission to join this voice channel.",
             Self::ChannelFull => "This voice channel is full.",
             Self::Unavailable => "Voice is not available on this server right now.",
@@ -425,6 +432,8 @@ pub(crate) struct VoiceExtra {
     pub e2ee: HashMap<ChannelId, crate::voice_e2ee::E2eeCall>,
     /// The delivery service's MLS external-sender key (VOX-E2E-004), made on first use.
     pub e2ee_ds: Option<Arc<sr_e2ee::mls::ExternalSenderKey>>,
+    /// Members who joined with E2EE on and owe the op 101 `hello` (D-263).
+    pub e2ee_pending: HashMap<UserId, crate::voice_e2ee::PendingHello>,
     /// One soundboard play per member per few seconds.
     pub cooldown: sr_chat::settings::soundboard::PlayCooldown,
 }
@@ -454,6 +463,10 @@ pub(crate) struct VoiceStateIn {
     self_deaf: bool,
     #[serde(default)]
     self_video: bool,
+    /// SIDE ROOM field: this client does the voice E2EE handshake (D-263). Required to join while
+    /// `voice.e2ee` is on.
+    #[serde(default)]
+    sr_e2ee: bool,
     // `self_stream` is not read: only STREAM_CREATE / STREAM_DELETE set it, after the
     // allowance checks.
 }
@@ -762,6 +775,13 @@ impl Gateway {
         let inside = cur.as_ref().is_some_and(|c| c.channel_id == channel);
         let age_ok = !info.age_restricted || dir.age_confirmed(s.user).await;
         check_join(&info, perms, occupants, inside, age_ok)?;
+        // D-263: with E2EE on, a join must declare the capability; no token is issued without it.
+        if !(inside && cur.as_ref().is_some_and(|c| c.session_id == s.id))
+            && self.e2ee_enabled()
+            && !inp.sr_e2ee
+        {
+            return Err(JoinDenied::E2eeRequired);
+        }
 
         let limits = dir.voice_limits(s.user, guild).await;
         let afk = match guild {
@@ -879,6 +899,7 @@ impl Gateway {
         }
         if fresh_join {
             self.voice_server_update(&new, flags)?;
+            self.e2ee_expect_hello(&new);
         } else {
             self.relay_flags(&new, flags).await;
         }
@@ -1186,7 +1207,7 @@ impl Gateway {
         }
         self.voice_afk_sweep(now).await;
         self.call_sweep(now).await;
-        self.e2ee_sweep();
+        self.e2ee_sweep().await;
     }
 
     /// Move members who have been silent for the guild's AFK timeout to its AFK channel

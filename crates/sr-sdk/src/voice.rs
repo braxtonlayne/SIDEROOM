@@ -186,6 +186,20 @@ impl E2eeCall {
         Action::Send(d)
     }
 
+    /// The `d` of the gateway op 4 that joins this call's channel (D-263). It declares `sr_e2ee: true`: with
+    /// `voice.e2ee` on the server refuses a join without it (`SR_VOICE_ERROR` `e2ee_required`, no token), and
+    /// removes a member who does not send [`Self::hello`] within 10 seconds of `VOICE_SERVER_UPDATE`.
+    /// `guild_id` is `None` for a DM call.
+    pub fn join_state(&self, guild_id: Option<&str>, self_mute: bool, self_deaf: bool) -> Value {
+        json!({
+            "guild_id": guild_id,
+            "channel_id": self.channel_id,
+            "self_mute": self_mute,
+            "self_deaf": self_deaf,
+            "sr_e2ee": true,
+        })
+    }
+
     /// `{"type": "hello"}`: send on joining, and again on a new gateway session.
     pub fn hello(&self) -> Action {
         self.msg(json!({"type": "hello"}))

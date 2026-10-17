@@ -3,6 +3,7 @@
 //! once everyone is ready. The payloads are opaque to the server.
 
 use super::*;
+use std::time::Instant;
 
 async fn join(e: &Env, user: u64, channel: ChannelId) -> Client {
     let mut c = client(e, user).await;
@@ -295,4 +296,108 @@ mod with_mls {
         assert_eq!(again["create"], true);
         assert_ne!(again["group_id"], first["group_id"]);
     }
+}
+
+// ---- D-263: the capability is declared at join and the handshake starts in time ------------------
+
+fn join_frame(declare: Option<bool>) -> Value {
+    let mut d = json!({
+        "guild_id": "1", "channel_id": LOBBY.get().to_string(),
+        "self_mute": false, "self_deaf": false,
+    });
+    if let Some(v) = declare {
+        d["sr_e2ee"] = json!(v);
+    }
+    json!({ "op": 4, "d": d })
+}
+
+#[tokio::test]
+async fn a_join_without_the_e2ee_declaration_is_refused_and_gets_no_token() {
+    let e = env();
+    for declare in [None, Some(false)] {
+        let mut c = client(&e, MEMBER).await;
+        c.send_exact(join_frame(declare)).await;
+        let err = c.event("SR_VOICE_ERROR").await;
+        assert_eq!(err["code"], "e2ee_required", "{err}");
+        assert_eq!(err["channel_id"], LOBBY.get().to_string());
+        let rest = names(&c.drain().await);
+        assert!(!rest.contains(&"VOICE_SERVER_UPDATE".to_owned()), "{rest:?}");
+        assert!(e.gw.voice_state(UserId::new(MEMBER)).is_none());
+    }
+    assert!(e.relay.0.lock().unwrap().is_empty(), "the SFU was never told");
+
+    // With the declaration the same join is admitted and gets its token.
+    let mut c = client(&e, MEMBER).await;
+    c.send_exact(join_frame(Some(true))).await;
+    let update = c.event("VOICE_SERVER_UPDATE").await;
+    assert!(update["token"].is_string());
+    assert!(e.gw.voice_state(UserId::new(MEMBER)).is_some());
+}
+
+#[tokio::test]
+async fn without_e2ee_nothing_is_required_at_join() {
+    let e = env_full(true, false);
+    let mut c = client(&e, MEMBER).await;
+    c.send_exact(join_frame(None)).await;
+    c.event("VOICE_SERVER_UPDATE").await;
+    // And there is no hello to wait for.
+    e.gw.e2ee_hello_sweep(Instant::now() + Duration::from_secs(60))
+        .await;
+    assert!(e.gw.voice_state(UserId::new(MEMBER)).is_some());
+}
+
+#[tokio::test]
+async fn a_member_who_never_says_hello_is_removed_after_ten_seconds() {
+    let e = env();
+    let mut slow = client(&e, MEMBER).await;
+    slow.voice(1, Some(LOBBY.get()), false, false).await;
+    slow.event("VOICE_SERVER_UPDATE").await;
+    let mut ok = client(&e, FRIEND).await;
+    ok.voice(1, Some(LOBBY.get()), false, false).await;
+    ok.event("VOICE_SERVER_UPDATE").await;
+    ok.send(mls("hello", json!({}))).await;
+    ok.event("E2EE_MLS").await;
+    slow.drain().await;
+
+    // Not yet due.
+    e.gw.e2ee_hello_sweep(Instant::now() + Duration::from_secs(5))
+        .await;
+    assert!(e.gw.voice_state(UserId::new(MEMBER)).is_some());
+    // Overdue: the silent one is removed with the code; the one that said hello stays.
+    e.gw.e2ee_hello_sweep(Instant::now() + Duration::from_secs(11))
+        .await;
+    let err = slow.event("SR_VOICE_ERROR").await;
+    assert_eq!(err["code"], "e2ee_required");
+    assert!(e.gw.voice_state(UserId::new(MEMBER)).is_none());
+    assert!(e.gw.voice_state(UserId::new(FRIEND)).is_some());
+    // The other member sees them leave.
+    let seen = ok.drain().await;
+    assert!(
+        seen.iter().any(|v| v["t"] == "VOICE_STATE_UPDATE"
+            && v["d"]["user_id"] == MEMBER.to_string()
+            && v["d"]["channel_id"].is_null()),
+        "{seen:?}"
+    );
+}
+
+#[tokio::test]
+async fn leaving_before_the_deadline_clears_the_wait() {
+    let e = env();
+    let mut c = client(&e, MEMBER).await;
+    c.voice(1, Some(LOBBY.get()), false, false).await;
+    c.event("VOICE_SERVER_UPDATE").await;
+    c.voice(1, None, false, false).await;
+    c.drain().await;
+    // A later join in another channel is judged on its own clock.
+    c.voice(1, Some(ROOM_B.get()), false, false).await;
+    c.event("VOICE_SERVER_UPDATE").await;
+    e.gw.e2ee_hello_sweep(Instant::now() + Duration::from_secs(5))
+        .await;
+    assert!(e.gw.voice_state(UserId::new(MEMBER)).is_some());
+    c.send(json!({ "op": 101, "d": { "type": "hello", "channel_id": ROOM_B.get().to_string() } }))
+        .await;
+    c.drain().await;
+    e.gw.e2ee_hello_sweep(Instant::now() + Duration::from_secs(60))
+        .await;
+    assert!(e.gw.voice_state(UserId::new(MEMBER)).is_some());
 }

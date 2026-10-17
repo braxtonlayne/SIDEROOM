@@ -473,6 +473,18 @@ fn a_dispatch_for_another_channel_is_ignored_and_garbage_makes_the_member_ask_ag
 }
 
 #[test]
+fn the_join_declares_the_e2ee_capability() {
+    let identity = Identity::from_secret(&secret_for(7)).unwrap();
+    let call = E2eeCall::new(7, CHANNEL, &identity).unwrap();
+    let d = call.join_state(Some("1"), false, true);
+    assert_eq!(d["sr_e2ee"], true);
+    assert_eq!(d["channel_id"], CHANNEL);
+    assert_eq!(d["guild_id"], "1");
+    assert_eq!(d["self_deaf"], true);
+    assert!(call.join_state(None, false, false)["guild_id"].is_null());
+}
+
+#[test]
 fn identity_keys_round_trip_and_never_print() {
     let a = Identity::from_secret(&[5; 32]).unwrap();
     let b = Identity::from_secret(&a.secret()).unwrap();
