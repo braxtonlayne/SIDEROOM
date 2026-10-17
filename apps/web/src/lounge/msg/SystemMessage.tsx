@@ -18,9 +18,13 @@ export const SYSTEM_THREAD_STARTER = 21;
 /** AutoMod and incident alert cards (type 24) are the system user's messages with embeds and buttons; they render like one. */
 export const SYSTEM_AUTOMOD_ACTION = 24;
 
+/** The live watch party card (type 200) is the system user's message and draws as a card, not as a notice. */
+const WATCH_PARTY_CARD = 200;
+
 export const isSystemMessage = (m: Pick<Message, 'type'>) =>
   m.type !== undefined &&
   m.type !== 0 &&
+  m.type !== WATCH_PARTY_CARD &&
   m.type !== 19 &&
   m.type !== 20 &&
   m.type !== 23 &&
