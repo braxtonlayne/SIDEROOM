@@ -140,7 +140,13 @@ export function ParticipantTile({
               label={t('lounge.voiceChannel.cameraOf', { name })}
             />
           ) : (
-            <Avatar name={name} src={u?.avatarUrl ?? null} size={80} speaking={p.speaking} />
+            <Avatar
+              name={name}
+              src={u?.avatarUrl ?? null}
+              size={80}
+              speaking={p.speaking}
+              ring={u?.patron}
+            />
           )}
           <div className="vc-tile-name">
             <span>{name}</span>

@@ -2,6 +2,7 @@ import { Badge, Button, ConfirmDialog, EmptyState, Select } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
 import { formatNumber, type MessageKey, useT } from '../../i18n';
+import { formatBytes } from '../../lounge/msg/format';
 import {
   ActionStatus,
   Async,
@@ -73,6 +74,55 @@ export function SystemSection() {
                 ))}
               </ul>
             </section>
+            {s.backups && (
+              <section className="ss-card" aria-labelledby="sys-backups">
+                <h2 id="sys-backups">{t('admin.system.backupsTitle')}</h2>
+                <ul className="ss-list" aria-label={t('admin.system.backupsTitle')}>
+                  {(
+                    [
+                      ['admin.system.backupLastRun', s.backups.last_run_ms],
+                      ['admin.system.backupLastVerify', s.backups.last_verify_ms],
+                      ['admin.system.backupSnapshot', s.backups.snapshot_ms],
+                    ] as const
+                  ).map(([label, at]) => (
+                    <li key={label} className="ss-row">
+                      <div className="ss-grow">
+                        <div className="ss-name">{t(label)}</div>
+                      </div>
+                      <span className="ss-meta">
+                        {at ? fmtMs(at) : t('admin.system.backupsNone')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {s.disk && (
+              <section className="ss-card" aria-labelledby="sys-disk">
+                <h2 id="sys-disk">{t('admin.system.diskTitle')}</h2>
+                {s.disk.length === 0 ? (
+                  <p className="ss-meta">{t('admin.system.diskNone')}</p>
+                ) : (
+                  <ul className="ss-list" aria-label={t('admin.system.diskTitle')}>
+                    {s.disk.map((d) => (
+                      <li key={d.path} className="ss-row">
+                        <div className="ss-grow">
+                          <div className="ss-name">{d.path}</div>
+                        </div>
+                        <span className="ss-meta">
+                          {d.total_bytes == null || d.free_bytes == null
+                            ? t('admin.system.diskUnreadable')
+                            : t('admin.system.diskFree', {
+                                free: formatBytes(d.free_bytes),
+                                total: formatBytes(d.total_bytes),
+                              })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
             {s.integrations && s.integrations.length > 0 && (
               <section className="ss-card" aria-labelledby="sys-integrations">
                 <h2 id="sys-integrations">{t('admin.system.integrationsTitle')}</h2>

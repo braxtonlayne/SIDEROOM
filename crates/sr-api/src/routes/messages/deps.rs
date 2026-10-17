@@ -503,6 +503,44 @@ impl MessagesDeps {
         }
     }
 
+    /// Send `GUILD_MEMBER_UPDATE` with the fresh member object to every server `user` is in
+    /// (D-256: a change of the `sr_patron` flag reaches shared servers). Best effort.
+    pub async fn refresh_member_objects(&self, user: UserId) {
+        let guilds = match self.repo.user_guild_ids(user).await {
+            Ok(g) => g,
+            Err(e) => {
+                tracing::warn!(error = %e, "listing servers for a member refresh failed");
+                return;
+            }
+        };
+        if guilds.is_empty() {
+            return;
+        }
+        let users: std::collections::HashMap<UserId, sr_chat::repo::UserSummary> =
+            match self.repo.users(&[user]).await {
+                Ok(v) => v.into_iter().map(|u| (u.id, u)).collect(),
+                Err(e) => {
+                    tracing::warn!(error = %e, "user lookup for a member refresh failed");
+                    return;
+                }
+            };
+        for guild in guilds {
+            let Ok(Some(member)) = self.repo.get_member(guild, user).await else {
+                continue;
+            };
+            let payload = serde_json::to_value(crate::routes::guilds::dto::MemberObject::new(
+                &member, true, &users,
+            ))
+            .unwrap_or_default();
+            self.publish(DomainEvent::MemberUpdated {
+                guild,
+                user,
+                payload,
+            })
+            .await;
+        }
+    }
+
     /// Resolve `channel` and the user's effective permissions in it.
     pub async fn access(&self, user: UserId, channel_id: ChannelId) -> MsgResult<Access> {
         let channel = self

@@ -273,3 +273,80 @@ export async function getReport(fromMs: number, toMs: number, channelId?: string
 
 /** Staff title search for the pickers (the catalog's own admin route). */
 export { listTitles } from '../api';
+
+/* ------------------------------------------- weekly grid and guide import */
+
+/** One weekly slot of an imported_guide channel (channel time, 0 = Monday). */
+export interface Slot {
+  id?: string | null;
+  weekday: number;
+  /** "HH:MM" in the channel's time zone. */
+  start: string;
+  duration_min: number;
+  show_name: string;
+  /** The library title the slot airs; null while it matches nothing (skipped on air). */
+  title_id: string | null;
+  episode_id?: string | null;
+  season_number?: number | null;
+  episode_number?: number | null;
+  note?: string | null;
+}
+export const listSlots = async (id: string) =>
+  (await get<{ items: Slot[] }>(`/admin/tv/channels/${enc(id)}/slots`)).items;
+/** Replaces the whole grid; the server regenerates the schedule that has not aired. */
+export const saveSlots = async (id: string, items: Slot[]) =>
+  (await send<{ items: Slot[] }>(`/admin/tv/channels/${enc(id)}/slots`, 'PUT', { items })).items;
+
+export type RowStatus = 'matched' | 'ambiguous' | 'missing' | 'invalid';
+export interface Candidate {
+  title_id: string;
+  title: string;
+  year: number | null;
+  score: number;
+}
+export interface ReportRow {
+  line: number;
+  weekday: number;
+  start: string;
+  duration_min: number;
+  show: string;
+  season: number | null;
+  episode: number | null;
+  note: string | null;
+  status: RowStatus;
+  title_id: string | null;
+  candidates: Candidate[];
+  message: string | null;
+}
+export interface GuideReport {
+  rows: ReportRow[];
+  matched: number;
+  ambiguous: number;
+  missing: number;
+  invalid: number;
+}
+export interface GuideImport {
+  id: string;
+  channel_id: string;
+  format: 'csv' | 'json';
+  confirmed: boolean;
+  created_at_ms: number;
+  report: GuideReport;
+}
+/** Uploads the file's text; nothing changes until `confirmImport`. */
+export const importGuide = (id: string, format: 'csv' | 'json', content: string) =>
+  send<GuideImport>(`/admin/tv/channels/${enc(id)}/imports`, 'POST', { format, content });
+/** `choices` picks a title for ambiguous rows (null keeps the slot skipped). */
+export const confirmImport = (
+  id: string,
+  importId: string,
+  choices: { line: number; title_id: string | null }[],
+) =>
+  send<{ slots: number; skipped: number; warnings: string[] }>(
+    `/admin/tv/channels/${enc(id)}/imports/${enc(importId)}/confirm`,
+    'POST',
+    { choices },
+  );
+/** The template the import expects (a download link; the session cookie authorises it). */
+export const templateUrl = (format: 'csv' | 'json') =>
+  `/api/v1/admin/tv/guide-template?format=${format}`;

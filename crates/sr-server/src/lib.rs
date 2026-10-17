@@ -23,6 +23,7 @@ pub mod lag_bus;
 pub mod library_jobs;
 pub mod lookup_wiring;
 pub mod media_jobs;
+pub mod party_cards;
 pub mod payments_jobs;
 pub mod push_notify;
 pub mod push_pg;
@@ -65,6 +66,8 @@ mod cinema_wiring_pg_tests;
 
 #[cfg(test)]
 mod bot_pg_tests;
+#[cfg(test)]
+mod party_cards_pg_tests;
 #[cfg(test)]
 mod staff_feed_pg_tests;
 #[cfg(test)]

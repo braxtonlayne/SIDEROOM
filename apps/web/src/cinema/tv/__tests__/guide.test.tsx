@@ -110,17 +110,15 @@ describe('Live TV guide', () => {
     expect(within(screen.getByRole('grid')).queryByText('101')).not.toBeInTheDocument();
   });
 
-  it('stores favourites in the settings blob under cinema.tv.favourites', async () => {
+  it('stores favourites on the server', async () => {
     const calls = useTvApi({ favourites: ['c102'] });
     renderAt('/cinema/tv');
     const user = userEvent.setup();
     await screen.findByRole('grid');
     const star = await screen.findByRole('button', { name: 'Add Adult Swim to favorites' });
     await user.click(star);
-    await waitFor(() => expect(calls.settingsPatches).toHaveLength(1));
-    expect(calls.settingsPatches[0]).toEqual({
-      settings: { cinema: { tv: { favourites: ['c102', 'c101'] } } },
-    });
+    await waitFor(() => expect(calls.favoriteCalls).toEqual(['PUT c101']));
+    expect(calls.settingsPatches).toHaveLength(0);
     expect(
       await screen.findByRole('button', { name: 'Remove Adult Swim from favorites' }),
     ).toHaveAttribute('aria-pressed', 'true');

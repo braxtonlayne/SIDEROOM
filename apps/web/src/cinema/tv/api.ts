@@ -1,7 +1,6 @@
 // Typed fetchers for the Live TV viewer routes: docs/specs/cinema-live-tv.md section 8 ("HTTP API as built", crate
 // `sr-tv`). The only place that knows URLs and wire field names: each fetcher adapts the server's shape to the UI
-// types in types.ts. Not on the server (so the UI degrades honestly): favorites (they live in the settings
-// blob, see favourites.ts), block synopses and ratings (read from the Cinema catalog by title id, see useBlockInfo).
+// types in types.ts. Not on the server (so the UI degrades honestly): block synopses and ratings (read from the Cinema catalog by title id, see useBlockInfo).
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch } from '../../api/client';
 import { getTitle } from '../api';
@@ -14,6 +13,7 @@ export const tvKeys = {
   guide: (from: number, to: number) => ['cinema', 'tv', 'guide', from, to] as const,
   now: (id: string) => ['cinema', 'tv', 'now', id] as const,
   settings: () => ['cinema', 'tv', 'settings-blob'] as const,
+  favourites: () => ['cinema', 'tv', 'favorites'] as const,
   reminders: () => ['cinema', 'tv', 'reminders'] as const,
   info: (titleId: string) => ['cinema', 'tv', 'title-info', titleId] as const,
 };

@@ -149,6 +149,7 @@ pub(super) fn summary(id: i64, name: &str, bot: bool) -> UserSummary {
         banner_key: None,
         bot,
         primary_guild: None,
+        patron: false,
     }
 }
 

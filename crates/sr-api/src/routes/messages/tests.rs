@@ -216,6 +216,48 @@ async fn env() -> Env {
     env_with(Arc::new(FixedEntitlements(30 * MIB))).await
 }
 
+#[tokio::test]
+async fn user_objects_carry_sr_patron_and_a_flag_change_refreshes_members() {
+    use sr_chat::repo::UserSummary;
+    let e = env().await;
+    let bob = UserId::new(BOB);
+    let set = |patron: bool| {
+        e.backend.data().users.insert(
+            bob,
+            UserSummary {
+                id: bob,
+                username: "bob".into(),
+                display_name: None,
+                avatar_key: None,
+                banner_key: None,
+                bot: false,
+                primary_guild: None,
+                patron,
+            },
+        );
+    };
+    // The flag is always present on the author object, true or false (D-256).
+    set(false);
+    let users = std::collections::HashMap::from([(bob, e.backend.data().users[&bob].clone())]);
+    assert_eq!(
+        serde_json::to_value(super::model::UserRef::new(bob, &users)).unwrap()["sr_patron"],
+        json!(false)
+    );
+    let mut events = e.bus.subscribe(Topic::Guild(e.guild));
+    set(true);
+    e.deps.refresh_member_objects(bob).await;
+    let ev = tokio::time::timeout(Duration::from_secs(2), events.next())
+        .await
+        .unwrap()
+        .unwrap();
+    let DomainEvent::MemberUpdated { user, payload, .. } = ev else {
+        panic!("expected MemberUpdated, got {ev:?}");
+    };
+    assert_eq!(user, bob);
+    assert_eq!(payload["guild_id"], e.guild.to_string());
+    assert_eq!(payload["user"]["sr_patron"], json!(true));
+}
+
 impl Env {
     async fn call(
         &self,

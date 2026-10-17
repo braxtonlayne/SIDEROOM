@@ -1624,3 +1624,58 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
         .unwrap();
     assert!(back.media.as_ref().unwrap().live);
 }
+
+/// Collects what the chat card would be told (WP-BE-008).
+#[derive(Default)]
+struct ChatRecorder(Mutex<Vec<sr_watchparty::Announcement>>);
+
+#[async_trait]
+impl sr_watchparty::ChatHook for ChatRecorder {
+    async fn announce(&self, a: sr_watchparty::Announcement) {
+        self.0.lock().unwrap().push(a);
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_chat_card_hears_the_start_the_headcount_and_the_end() {
+    use sr_watchparty::AnnouncementKind::{Ended, Started, Updated};
+    let e = env().await;
+    let rec = Arc::new(ChatRecorder::default());
+    let svc = PartyService::new(e.pool().clone(), e.clock.clone(), Arc::new(uid))
+        .with_play_gate(Arc::new(FakeGate))
+        .with_channels(e.chan.clone())
+        .with_age(e.age.clone())
+        .with_events(e.events.clone())
+        .with_chat(rec.clone());
+    let (host, other) = (e.user().await, e.user().await);
+    let channel = e.channel(host, &[other], host, ChannelKind::Text).await;
+    let mut input = create(1);
+    input.channel_id = Some(channel);
+    let party = svc.create(e.v(host).await, input).await.unwrap();
+    svc.join(e.v(other).await, party.id, JoinInput::default())
+        .await
+        .unwrap();
+    svc.leave(e.v(other).await, party.id).await.unwrap();
+    svc.end(e.v(host).await, party.id).await.unwrap();
+
+    let heard = rec.0.lock().unwrap().clone();
+    let shape: Vec<_> = heard.iter().map(|a| (a.kind, a.viewers)).collect();
+    assert_eq!(
+        shape,
+        [(Started, 1), (Updated, 2), (Updated, 1), (Ended, 1)],
+        "{heard:?}"
+    );
+    assert!(
+        heard
+            .iter()
+            .all(|a| a.channel_id == channel && a.party_id == party.id)
+    );
+    assert!(heard.iter().all(|a| !a.age_restricted));
+    // A party that is not bound to a channel has no card.
+    rec.0.lock().unwrap().clear();
+    let loose = svc.create(e.v(host).await, create(2)).await.unwrap();
+    svc.end(e.v(host).await, loose.id).await.unwrap();
+    assert!(rec.0.lock().unwrap().is_empty());
+    e.db.cleanup().await.unwrap();
+}

@@ -133,3 +133,70 @@ async fn user_lookup_returns_avatar_and_banner() {
         Some("1".repeat(32).as_str())
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn user_lookup_marks_patrons_active_or_in_grace_unless_hidden() {
+    use sr_chat::repo::UserLookup;
+    const DAY: i64 = 86_400_000;
+    let pool = pool().await;
+    let (_, ids) = service(&pool);
+    let now: i64 = sqlx::query_scalar("SELECT (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // (starts_ms offset in days, days, hide_badge) -> expected sr_patron (D-256, K-08).
+    let cases: [(i64, i64, bool, bool); 5] = [
+        (0, 30, false, true),     // active
+        (-31, 30, false, true),   // ended a day ago: inside the 3 day grace
+        (-40, 30, false, false),  // expired
+        (0, 30, true, false),     // active but the badge is hidden
+        (-9999, 0, false, false), // no grant at all (days 0 is skipped below)
+    ];
+    let mut users = Vec::new();
+    for (n, (offset, days, hide, _)) in cases.iter().enumerate() {
+        let user = account(&pool, &ids).await;
+        if *days > 0 {
+            sqlx::query(
+                "INSERT INTO entitlement_grants (id, kind, user_id, source, days, starts_ms) \
+                 VALUES ($1, 'patron', $2, 'admin', $3, $4)",
+            )
+            .bind(9_000_000_000_i64 + user.get() as i64 % 1_000_000 * 10 + n as i64)
+            .bind(user.get() as i64)
+            .bind(days)
+            .bind(now + offset * DAY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        if *hide {
+            sqlx::query("INSERT INTO donor_preferences (user_id, hide_badge) VALUES ($1, TRUE)")
+                .bind(user.get() as i64)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        users.push(user);
+    }
+    // A permanent grant counts too.
+    let perm = account(&pool, &ids).await;
+    sqlx::query(
+        "INSERT INTO entitlement_grants (id, kind, user_id, source, permanent, starts_ms) \
+         VALUES ($1, 'patron', $2, 'admin', TRUE, 0)",
+    )
+    .bind(9_100_000_000_i64 + perm.get() as i64 % 1_000_000)
+    .bind(perm.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    users.push(perm);
+    let found = PgChatRepo::new(pool.clone())
+        .with_patron_grace_days(5)
+        .users(&users)
+        .await
+        .unwrap();
+    for (user, want) in users.iter().zip(cases.iter().map(|c| c.3).chain([true])) {
+        let got = found.iter().find(|u| u.id == *user).unwrap().patron;
+        assert_eq!(got, want, "user {user}");
+    }
+}

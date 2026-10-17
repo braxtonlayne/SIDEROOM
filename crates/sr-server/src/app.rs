@@ -182,6 +182,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .context("running migrations (database.auto_migrate)")?;
         tracing::info!("migrations applied");
     }
+    // The Patron grace period shown by `sr_patron` is bound once at start (D-073, D-256).
+    let patron_grace_days = sr_db::payments_repo::patron_grace_days(&pool).await;
 
     let ids = Arc::new(
         SnowflakeGenerator::new(SystemClock, cfg.server.worker_id, cfg.server.process_id)
@@ -268,7 +270,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let dev_deps = Arc::new(
         routes::developer::DevDeps::new(
             (*apps_service).clone(),
-            Arc::new(PgChatRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
             bus.clone(),
             Arc::new(routes::developer::AuthPasswordConfirm::new(
                 auth_service.clone(),
@@ -315,7 +317,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Guild endpoints: the chat service over Postgres, with its own snowflake
     // worker (process id + 1, as the message deps use) so ids never collide.
     let chat = ChatService::new(
-        PgChatRepo::new(pool.clone()),
+        PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
         clock.clone(),
         SnowflakeGenerator::new(
             clock.clone(),
@@ -375,7 +377,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let threads_deps = Arc::new(
         routes::threads::ThreadsDeps::new(
             sr_chat::threads::ThreadService::new(
-                PgChatRepo::new(pool.clone()),
+                PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
                 clock.clone(),
                 SnowflakeGenerator::new(
                     clock.clone(),
@@ -405,14 +407,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let cdn_signer =
         sr_storage::cdn::CdnSigner::new(secret_key(cfg.server.secret_key.expose())?.to_vec());
     let messages = routes::messages::MessagesDeps::new(
-        PgChatRepo::new(pool.clone()),
+        PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
         Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
         storage.clone(),
         bus.clone(),
         Arc::new(routes::messages::FixedEntitlements(
             sr_storage::upload::SizePolicy::default().standard_limit,
         )),
-        Arc::new(PgChatRepo::new(pool.clone())),
+        Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         Some(message_hooks),
         clock.clone(),
         cfg.server.worker_id,
@@ -472,7 +474,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // once their member has been offline for a minute (LNG-INV-005).
     let member_joiner = Arc::new(routes::settings::InviteMemberJoiner::new(
         Arc::new(sr_db::invite_join::PgInviteJoinRepo::new(pool.clone())),
-        Arc::new(PgChatRepo::new(pool.clone())),
+        Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         bus.clone(),
     ));
     let temporary_members = Arc::new(crate::gateway_pg::TemporaryMembers::new(
@@ -482,7 +484,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),
-            Arc::new(PgChatRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
             storage.clone(),
             clock.clone(),
             Arc::new(crate::settings_pg::secure_entropy),
@@ -494,7 +496,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_joiner(member_joiner.clone())
         .with_presence(gateway_presence.clone())
         .with_timeouter(Arc::new(routes::settings::AdminMemberTimeouter::new(
-            Arc::new(PgChatRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
             bus.clone(),
         )))
         .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone())),
@@ -760,17 +762,24 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 tv_deps.service.clone(),
             )))
             .with_channels(Arc::new(crate::watchparty::ChatChannelAccess::new(
-                PgChatRepo::new(pool.clone()),
+                PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
                 clock.clone(),
             )))
             .with_limits(Arc::new(crate::watchparty::EntitlementLimits::new(
                 payments.entitlements.clone(),
             )))
             .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())))
-            .with_chat(Arc::new(crate::userfeat::PartyAnnouncer {
-                uf: user_features.clone(),
-                poster: feature_poster.clone(),
-            }));
+            .with_chat(Arc::new(sr_watchparty::ChatHooks(vec![
+                Arc::new(crate::userfeat::PartyAnnouncer {
+                    uf: user_features.clone(),
+                    poster: feature_poster.clone(),
+                }),
+                // The live card in the bound channel (WP-BE-008).
+                Arc::new(crate::party_cards::PartyCards::new(
+                    pool.clone(),
+                    payments.chat.clone(),
+                )),
+            ])));
     watchparty_service.spawn_timers();
     let watchparty_deps = Arc::new(routes::watchparty::WatchPartyDeps::new(
         watchparty_service.clone(),
@@ -781,7 +790,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let activities_deps = Arc::new(routes::activities::ActivitiesDeps::new(
         sr_activities::ActivityService::new(pool.clone(), id_src.clone())
             .with_channels(Arc::new(crate::activities::ChatActivityChannels::new(
-                PgChatRepo::new(pool.clone()),
+                PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
                 clock.clone(),
             )))
             .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone())))
@@ -878,7 +887,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     };
     let indexer = Arc::new(crate::search_jobs::Indexer {
         index: message_index,
-        repo: Arc::new(PgChatRepo::new(pool.clone())),
+        repo: Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         store: Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
     });
 
@@ -926,7 +935,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // their own service on its own snowflake worker (process id + 3).
     let social_api = routes::social::SocialDeps::new(
         routes::social::DynRepo::new(sr_db::social_repo::PgSocialRepo::new(pool.clone())),
-        Arc::new(PgChatRepo::new(pool.clone())),
+        Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         bus.clone(),
         clock.clone(),
         sr_chat::social::SocialLimits::default(),
@@ -1041,7 +1050,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     settings_deps.set_event_notifier(Arc::new(crate::events_jobs::EventStartPush {
         bus: bus.clone(),
         social: social_api.clone(),
-        chat: Arc::new(PgChatRepo::new(pool.clone())),
+        chat: Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         store: push_store.clone(),
         sender: push_sender.clone(),
         activity: Some(Arc::new(gateway.clone())),
@@ -1174,6 +1183,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_rate_config(rate_tx)
         .with_features(features.clone())
         .with_integrations(integrations)
+        .with_system_probe(Arc::new(crate::admin_jobs::FsProbe::new(
+            cfg.ingest.roots.clone(),
+        )))
         .with_reauth(require_reauth)
         .with_storage(storage.clone())
         .with_gateway_sessions({
@@ -1244,9 +1256,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(activities_deps.clone())
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
-        .extension(Arc::new(routes::donations::DonationsDeps::new(
-            payments.service.clone(),
-        )))
+        .extension(Arc::new(
+            routes::donations::DonationsDeps::new(payments.service.clone())
+                .with_chat_slot(payments.chat.clone()),
+        ))
         .extension(review_deps.clone())
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(

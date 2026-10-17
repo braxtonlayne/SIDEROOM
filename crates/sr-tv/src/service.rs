@@ -19,6 +19,10 @@ use crate::presence::{MemoryPresence, Presence};
 use crate::repo::TvRepository;
 use crate::schedule::{Change, fit_around, place};
 
+mod guide_ops;
+
+pub use guide_ops::{ConfirmInput, ConfirmedGuide, GuideChoice, ImportView};
+
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
 
 const HOUR_MS: i64 = 3_600_000;
@@ -364,6 +368,9 @@ impl TvService {
         to_ms: i64,
         cursor: Cursor,
     ) -> TvResult<Generated> {
+        if ch.input.kind == ChannelKind::ImportedGuide {
+            return self.resolve_guide(ch, from_ms, to_ms, cursor).await;
+        }
         let pools = self.pools(ch).await?;
         let engine = EngineChannel {
             zone: ch.zone(),
@@ -394,15 +401,22 @@ impl TvService {
 
     /// Make sure a rule-based channel has blocks up to `until`, generating and storing what is missing.
     pub async fn ensure(&self, ch: &ChannelRecord, until_ms: i64) -> TvResult<()> {
-        if !ch.input.enabled
-            || ch.input.kind != ChannelKind::RuleBased
-            || ch.input.rules.dayparts.is_empty()
-        {
+        let generated = match ch.input.kind {
+            ChannelKind::RuleBased => !ch.input.rules.dayparts.is_empty(),
+            ChannelKind::ImportedGuide => true,
+            ChannelKind::Manual => false,
+        };
+        if !ch.input.enabled || !generated {
             return Ok(());
         }
         let now = self.clock_ms();
         let last = self.repo.last_block(ch.id).await?;
         if last.as_ref().is_some_and(|l| l.end_ms >= until_ms) {
+            return Ok(());
+        }
+        if ch.input.kind == ChannelKind::ImportedGuide
+            && self.repo.list_slots(ch.id).await?.is_empty()
+        {
             return Ok(());
         }
         let _guard = self.extend.lock().await;
@@ -829,9 +843,9 @@ impl TvService {
     ) -> TvResult<Preview> {
         a.need()?;
         let rec = self.channel_record(id).await?;
-        if rec.input.kind != ChannelKind::RuleBased {
+        if rec.input.kind == ChannelKind::Manual {
             return Err(TvError::Invalid(
-                "Only rule-based channels have a generated schedule".into(),
+                "Only rule-based and imported-guide channels have a generated schedule".into(),
             ));
         }
         let from = from_ms.unwrap_or_else(|| self.clock_ms());
@@ -870,24 +884,25 @@ impl TvService {
     ) -> TvResult<Published> {
         a.need()?;
         let rec = self.channel_record(id).await?;
-        if rec.input.kind != ChannelKind::RuleBased {
+        if rec.input.kind == ChannelKind::Manual {
             return Err(TvError::Invalid(
-                "Only rule-based channels have a generated schedule".into(),
+                "Only rule-based and imported-guide channels have a generated schedule".into(),
             ));
         }
         let hours = i64::from(horizon_hours.unwrap_or(168));
         if !(1..=336).contains(&hours) {
             return Err(TvError::Invalid("horizon_hours is 1 to 336".into()));
         }
+        self.republish(&rec, hours).await
+    }
+
+    /// Drop the generated blocks that have not started and generate them again (`publish` without the
+    /// permission check; also the invalidation after a slot or library change, TV-ENG-007).
+    async fn republish(&self, rec: &ChannelRecord, hours: i64) -> TvResult<Published> {
+        let id = rec.id;
         let _guard = self.extend.lock().await;
         let now = self.clock_ms();
-        let cut = self
-            .repo
-            .blocks_overlapping(&[id], now, now + 1)
-            .await?
-            .iter()
-            .find(|b| b.contains(now))
-            .map_or(now, |b| b.end_ms);
+        let cut = self.regeneration_cut(id, now).await?;
         let to = now + hours * HOUR_MS;
         let future = self.repo.blocks_overlapping(&[id], cut, i64::MAX).await?;
         let removed: Vec<i64> = future
@@ -906,7 +921,7 @@ impl TvService {
             .await?
             .and_then(|b| b.cursor_after)
             .unwrap_or_default();
-        let g = self.generate_for(&rec, cut, to, cursor).await?;
+        let g = self.generate_for(rec, cut, to, cursor).await?;
         let mut new_id = || self.id();
         let upsert: Vec<BlockRecord> = self
             .records(id, &g)
@@ -930,6 +945,18 @@ impl TvService {
             written: u32::try_from(written).unwrap_or(u32::MAX),
             removed: u32::try_from(removed.len()).unwrap_or(u32::MAX),
             warnings: g.warnings,
+        })
+    }
+
+    /// Where a regeneration starts: the end of the programme on air (viewers keep what they are
+    /// watching), or the start of a generated slate or colour-bar block on air (nothing to keep, and
+    /// a long one would otherwise hide a change for hours).
+    async fn regeneration_cut(&self, id: i64, now: i64) -> TvResult<i64> {
+        let on_air = self.repo.blocks_overlapping(&[id], now, now + 1).await?;
+        Ok(match on_air.iter().find(|b| b.contains(now)) {
+            Some(b) if !b.kind.has_media() && b.source == BlockSource::Generated => b.start_ms,
+            Some(b) => b.end_ms,
+            None => now,
         })
     }
 

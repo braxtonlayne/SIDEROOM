@@ -24,6 +24,18 @@ use std::{collections::HashMap, sync::Arc};
 
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
 
+/// The configured Patron grace period in days (`payment_config.grace_days`), the default when unset.
+pub async fn patron_grace_days(pool: &PgPool) -> u32 {
+    let v: Option<i64> =
+        sqlx::query_scalar("SELECT (data->>'grace_days')::BIGINT FROM payment_config WHERE id = 1")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .flatten();
+    v.and_then(|d| u32::try_from(d).ok()).unwrap_or(3)
+}
+
 pub struct PgPaymentRepo {
     pool: PgPool,
     ids: IdSource,

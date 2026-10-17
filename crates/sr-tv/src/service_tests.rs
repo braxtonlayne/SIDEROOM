@@ -858,3 +858,225 @@ async fn a_restricted_programme_needs_age_confirmation_for_a_live_party_too() {
     let r = e.svc.resolve_live(true, id).await.unwrap();
     assert!(r.age_restricted);
 }
+
+// ---- imported guides (TV-ENG-003, TV-ENG-007, TV-ADM-003, TV-ADM-004) ------------------------------
+
+async fn guide_channel(e: &Env) -> i64 {
+    let mut i = input(120, ChannelRules::default());
+    i.kind = ChannelKind::ImportedGuide;
+    e.svc.create_channel(e.staff, i).await.unwrap().id
+}
+
+const GUIDE_CSV: &str = "weekday,start_time,duration,show,season,episode,note\n\
+Mon,20:00,30,Cowboy Bebop,1,3,\n\
+Mon,20:30,30,Nonexistent Show,,,\n\
+Mon,21:00,30,The Big Movie,,,\n";
+
+#[tokio::test]
+async fn an_import_is_matched_confirmed_and_aired_with_the_missing_show_skipped() {
+    let e = env();
+    e.catalog.add(item(3, "The Big Movie", 25));
+    e.catalog.add(item(4, "The Big Movie", 25));
+    let id = guide_channel(&e).await;
+    // Staff only.
+    let nobody = Actor {
+        user_id: 2,
+        permissions: P::PUBLISH_MEDIA,
+    };
+    assert!(
+        e.svc
+            .import_guide(nobody, id, "csv", GUIDE_CSV)
+            .await
+            .is_err()
+    );
+    let imp = e
+        .svc
+        .import_guide(e.staff, id, "csv", GUIDE_CSV)
+        .await
+        .unwrap();
+    let r = &imp.report;
+    assert_eq!((r.matched, r.ambiguous, r.missing, r.invalid), (1, 1, 1, 0));
+    // The upload changed nothing yet.
+    assert!(e.svc.slots(e.staff, id).await.unwrap().is_empty());
+    let ambiguous = r.rows.iter().find(|x| x.show == "The Big Movie").unwrap();
+    assert_eq!(ambiguous.candidates.len(), 2);
+    let done = e
+        .svc
+        .confirm_guide(
+            e.staff,
+            id,
+            imp.id,
+            crate::service::ConfirmInput {
+                choices: vec![crate::service::GuideChoice {
+                    line: ambiguous.line,
+                    title_id: Some(4),
+                }],
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!((done.slots, done.skipped), (3, 1));
+    // Twice is refused.
+    assert!(matches!(
+        e.svc
+            .confirm_guide(e.staff, id, imp.id, Default::default())
+            .await,
+        Err(TvError::Conflict(_))
+    ));
+    // The clock is Monday 20:00: Cowboy Bebop S1E3 is on, the missing show leaves a gap, then the film.
+    let ch = e.svc.channel(id).await.unwrap();
+    let now = ch.now.unwrap();
+    assert_eq!(
+        (now.title.as_str(), now.episode_number),
+        ("Cowboy Bebop", Some(3))
+    );
+    let blocks = e
+        .svc
+        .admin_schedule(
+            e.staff,
+            id,
+            Some(utc(2025, 6, 2, 20, 0)),
+            Some(utc(2025, 6, 2, 22, 0)),
+        )
+        .await
+        .unwrap();
+    let shape: Vec<_> = blocks
+        .iter()
+        .map(|b| (b.start_ms, b.title.as_str()))
+        .collect();
+    assert_eq!(shape[0], (utc(2025, 6, 2, 20, 0), "Cowboy Bebop"));
+    assert_eq!(shape[1], (utc(2025, 6, 2, 20, 30), "We'll be right back"));
+    assert_eq!(shape[2], (utc(2025, 6, 2, 21, 0), "The Big Movie"));
+    assert_eq!(blocks[2].title_id, Some(4));
+    // The report is kept and listed.
+    assert!(
+        e.svc
+            .guide_import(e.staff, id, imp.id)
+            .await
+            .unwrap()
+            .confirmed
+    );
+    assert_eq!(e.svc.guide_imports(e.staff, id).await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn the_weekly_grid_is_saved_whole_and_overlaps_are_refused() {
+    let e = env();
+    let id = guide_channel(&e).await;
+    let slot = |wd: u8, start: &str, dur: u16, show: &str, title: Option<i64>| Slot {
+        id: None,
+        weekday: wd,
+        start: start.into(),
+        duration_min: dur,
+        show_name: show.into(),
+        title_id: title,
+        episode_id: None,
+        season_number: None,
+        episode_number: None,
+        note: None,
+    };
+    let grid = vec![
+        slot(0, "20:00", 30, "Cowboy Bebop", Some(7)),
+        slot(2, "23:30", 90, "Late", None),
+    ];
+    let saved = e.svc.put_slots(e.staff, id, grid.clone()).await.unwrap();
+    assert_eq!(saved.len(), 2);
+    assert!(saved.iter().all(|s| s.id.is_some()));
+    // A series slot without an episode rotates through the episodes: week one airs episode 1.
+    let now = e.svc.channel(id).await.unwrap().now.unwrap();
+    assert_eq!(
+        (now.title.as_str(), now.episode_number),
+        ("Cowboy Bebop", Some(1))
+    );
+    // Overlaps, also across midnight and the turn of the week, are refused.
+    let mut bad = grid.clone();
+    bad.push(slot(3, "00:30", 30, "Clash", None));
+    assert!(matches!(
+        e.svc.put_slots(e.staff, id, bad).await,
+        Err(TvError::Invalid(m)) if m.contains("overlap")
+    ));
+    let mut bad = grid.clone();
+    bad.push(slot(6, "23:00", 90, "Sunday night", None));
+    bad.push(slot(0, "00:15", 10, "Monday dawn", None));
+    assert!(e.svc.put_slots(e.staff, id, bad).await.is_err());
+    assert!(
+        e.svc
+            .put_slots(e.staff, id, vec![slot(9, "20:00", 30, "X", None)])
+            .await
+            .is_err()
+    );
+    assert!(
+        e.svc
+            .put_slots(e.staff, id, vec![slot(1, "25:00", 30, "X", None)])
+            .await
+            .is_err()
+    );
+    // Rule-based channels have no grid.
+    let rb = channel(&e, 130, marathon()).await;
+    assert!(e.svc.slots(e.staff, rb).await.is_err());
+    // The grid is unchanged by the refusals.
+    assert_eq!(e.svc.slots(e.staff, id).await.unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn revalidation_relinks_slots_and_regenerates_a_stale_schedule() {
+    let e = env();
+    let id = guide_channel(&e).await;
+    let imp = e
+        .svc
+        .import_guide(
+            e.staff,
+            id,
+            "json",
+            r#"[{"weekday":"Mon","start_time":"21:00","duration":30,"show":"Late Arrival"}]"#,
+        )
+        .await
+        .unwrap();
+    e.svc
+        .confirm_guide(e.staff, id, imp.id, Default::default())
+        .await
+        .unwrap();
+    // Nothing to air: a slate, and a pass that finds nothing new changes nothing.
+    e.svc.channel(id).await.unwrap();
+    assert!(e.svc.revalidate_guides().await.unwrap().is_empty());
+    // The library gains the show: the slot is linked and the stored schedule regenerated.
+    e.catalog.add(item(9, "Late Arrival", 30));
+    assert_eq!(e.svc.revalidate_guides().await.unwrap(), vec![id]);
+    let slots = e.svc.slots(e.staff, id).await.unwrap();
+    assert_eq!(slots[0].title_id, Some(9));
+    let blocks = e
+        .svc
+        .admin_schedule(
+            e.staff,
+            id,
+            Some(utc(2025, 6, 2, 21, 0)),
+            Some(utc(2025, 6, 2, 21, 30)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(blocks[0].title, "Late Arrival");
+    // A second pass is quiet; a title removed from the library regenerates again.
+    assert!(e.svc.revalidate_guides().await.unwrap().is_empty());
+    e.catalog.clear();
+    assert_eq!(e.svc.revalidate_guides().await.unwrap(), vec![id]);
+}
+
+#[tokio::test]
+async fn favorites_are_per_member_and_only_for_enabled_channels() {
+    let e = env();
+    let a = channel(&e, 140, marathon()).await;
+    let b = channel(&e, 141, marathon()).await;
+    e.svc.set_favorite(MEMBER, a, true).await.unwrap();
+    e.svc.set_favorite(MEMBER, b, true).await.unwrap();
+    e.svc.set_favorite(MEMBER, b, true).await.unwrap();
+    e.svc.set_favorite(ADULT, b, true).await.unwrap();
+    assert_eq!(e.svc.favorites(MEMBER).await.unwrap(), vec![a, b]);
+    e.svc.set_favorite(MEMBER, a, false).await.unwrap();
+    e.svc.set_favorite(MEMBER, a, false).await.unwrap();
+    assert_eq!(e.svc.favorites(MEMBER).await.unwrap(), vec![b]);
+    assert_eq!(e.svc.favorites(ADULT).await.unwrap(), vec![b]);
+    assert!(matches!(
+        e.svc.set_favorite(MEMBER, 999, true).await,
+        Err(TvError::NotFound(_))
+    ));
+}

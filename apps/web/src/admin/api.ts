@@ -66,8 +66,24 @@ export interface Integration {
   configured: boolean;
   detail?: string | null;
 }
+/** Backup times read from the backup folder (null when never run), K-10. */
+export interface BackupsView {
+  last_run_ms: number | null;
+  last_verify_ms: number | null;
+  snapshot_ms: number | null;
+}
+/** One folder's space; sizes are null when the path cannot be read. */
+export interface DiskView {
+  path: string;
+  total_bytes: number | null;
+  free_bytes: number | null;
+}
+
 export interface SystemView {
   counts: SystemCounts;
+  /** Added with K-10; older servers omit them. */
+  backups?: BackupsView;
+  disk?: DiskView[];
   integrations?: Integration[];
   gateway_sessions?: number | null;
   probes: Probe[];

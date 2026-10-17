@@ -515,15 +515,15 @@ export default {
   'admin.channelEditor.logoNotAvailableCallSign':
     'Logo upload is not available yet; the call sign is shown instead.',
   'admin.channelEditor.rules': 'Schedule rules',
-  'admin.channelEditor.manual.title': 'Weekly grid not available yet',
-  'admin.channelEditor.guide.title': 'Guide import not available yet',
+  'admin.channelEditor.manual.title': 'Manual channel',
+  'admin.channelEditor.guide.title': 'Imported guide',
   'admin.channelEditor.save': 'Save channel',
   'admin.channelEditor.created': 'Channel created.',
   'admin.channelEditor.create': 'Create channel',
   'admin.channelEditor.manual.body':
-    'A drag-and-drop weekly grid is not part of this build. Place programmes at a time from the Now control tab.',
+    'Place programmes at a time from the Now control tab. For a lineup that repeats every week, use an imported-guide channel and its weekly grid.',
   'admin.channelEditor.guide.body':
-    'Importing a CSV or JSON guide with the mapping report is not part of this build.',
+    'Build the weekly grid and import a CSV or JSON guide on the Guide tab (save the channel first).',
   'admin.liveTv.kind.ruleBased': 'rule based',
   'admin.liveTv.title': 'Live TV',
   'admin.liveTv.noAccess.title': 'You do not have access',

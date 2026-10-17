@@ -226,12 +226,16 @@ pub struct Announcement {
     pub title: String,
     pub episode_label: Option<String>,
     pub viewers: usize,
+    /// The media is age restricted: a card in the channel does not name it.
+    pub age_restricted: bool,
     pub kind: AnnouncementKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnnouncementKind {
     Started,
+    /// The media, the host or the headcount changed while the party runs.
+    Updated,
     Ended,
 }
 
@@ -239,6 +243,18 @@ pub enum AnnouncementKind {
 #[async_trait]
 pub trait ChatHook: Send + Sync {
     async fn announce(&self, a: Announcement);
+}
+
+/// Several hooks in a row (the opt-in announcer module and the live card).
+pub struct ChatHooks(pub Vec<std::sync::Arc<dyn ChatHook>>);
+
+#[async_trait]
+impl ChatHook for ChatHooks {
+    async fn announce(&self, a: Announcement) {
+        for h in &self.0 {
+            h.announce(a.clone()).await;
+        }
+    }
 }
 
 /// No announcements.

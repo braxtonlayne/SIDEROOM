@@ -7,7 +7,7 @@ use sqlx::{PgPool, Row, postgres::PgRow};
 use crate::error::{TvError, TvResult};
 use crate::model::{
     BlockKind, BlockRecord, BlockSource, ChannelInput, ChannelKind, ChannelRecord, ChannelRules,
-    Cursor, FillerPolicy, MediaKind, ReminderRecord,
+    Cursor, FillerPolicy, ImportRecord, MediaKind, ReminderRecord, SlotRecord,
 };
 use crate::repo::TvRepository;
 use crate::schedule::Change;
@@ -38,6 +38,50 @@ const CHANNEL_COLS: &str = "id, number, name, call_sign, era_label, theme, logo_
 const BLOCK_COLS: &str = "id, channel_id, start_ms, end_ms, kind, title_id, episode_id, asset_id, title, \
      episode_title, media_kind, season_number, episode_number, year, age_restricted, offset_ms, source, \
      cursor_after, seq_base, disc_base";
+
+const SLOT_SELECT: &str = "SELECT id, channel_id, weekday, start_minute, duration_min, show_name, title_id, \
+     episode_id, season_number, episode_number, note, import_id FROM tv_schedule_slots \
+     WHERE channel_id = $1 ORDER BY weekday, start_minute, id";
+
+const IMPORT_BY_ID: &str = "SELECT id, channel_id, created_by, format, state, rows, report, \
+     (extract(epoch FROM created_at) * 1000)::bigint AS created_ms FROM tv_guide_imports \
+     WHERE id = $1";
+
+/// The list form leaves the parsed rows out (they can be large).
+const IMPORT_LIST: &str = "SELECT id, channel_id, created_by, format, state, 'null'::jsonb AS rows, report, \
+     (extract(epoch FROM created_at) * 1000)::bigint AS created_ms FROM tv_guide_imports \
+     WHERE channel_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2";
+
+fn slot_of(r: &PgRow) -> TvResult<SlotRecord> {
+    Ok(SlotRecord {
+        id: r.try_get("id").map_err(db)?,
+        channel_id: r.try_get("channel_id").map_err(db)?,
+        weekday: u8::try_from(r.try_get::<i16, _>("weekday").map_err(db)?).unwrap_or(0),
+        start_minute: u16::try_from(r.try_get::<i16, _>("start_minute").map_err(db)?).unwrap_or(0),
+        duration_min: u16::try_from(r.try_get::<i16, _>("duration_min").map_err(db)?).unwrap_or(1),
+        show_name: r.try_get("show_name").map_err(db)?,
+        title_id: r.try_get("title_id").map_err(db)?,
+        episode_id: r.try_get("episode_id").map_err(db)?,
+        season_number: r.try_get("season_number").map_err(db)?,
+        episode_number: r.try_get("episode_number").map_err(db)?,
+        note: r.try_get("note").map_err(db)?,
+        import_id: r.try_get("import_id").map_err(db)?,
+    })
+}
+
+fn import_of(r: &PgRow) -> TvResult<ImportRecord> {
+    let state: String = r.try_get("state").map_err(db)?;
+    Ok(ImportRecord {
+        id: r.try_get("id").map_err(db)?,
+        channel_id: r.try_get("channel_id").map_err(db)?,
+        created_by: r.try_get("created_by").map_err(db)?,
+        format: r.try_get("format").map_err(db)?,
+        confirmed: state == "confirmed",
+        rows: r.try_get("rows").map_err(db)?,
+        report: r.try_get("report").map_err(db)?,
+        created_at_ms: r.try_get("created_ms").map_err(db)?,
+    })
+}
 
 fn channel_of(r: &PgRow) -> TvResult<ChannelRecord> {
     let kind: String = r.try_get("kind").map_err(db)?;
@@ -439,6 +483,140 @@ impl TvRepository for PgTvRepo {
         .map_err(db)?
         .flatten();
         Ok(v.map(|v| v as i64))
+    }
+
+    async fn list_slots(&self, channel: i64) -> TvResult<Vec<SlotRecord>> {
+        let rows = sqlx::query(SLOT_SELECT)
+            .bind(channel)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?;
+        rows.iter().map(slot_of).collect()
+    }
+
+    async fn replace_slots(&self, channel: i64, slots: &[SlotRecord]) -> TvResult<()> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        sqlx::query("DELETE FROM tv_schedule_slots WHERE channel_id = $1")
+            .bind(channel)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        for s in slots {
+            sqlx::query(
+                "INSERT INTO tv_schedule_slots (id, channel_id, weekday, start_minute, duration_min, \
+                 show_name, title_id, episode_id, season_number, episode_number, note, import_id) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+            )
+            .bind(s.id)
+            .bind(channel)
+            .bind(i16::from(s.weekday))
+            .bind(i16::try_from(s.start_minute).unwrap_or(0))
+            .bind(i16::try_from(s.duration_min).unwrap_or(1))
+            .bind(&s.show_name)
+            .bind(s.title_id)
+            .bind(s.episode_id)
+            .bind(s.season_number)
+            .bind(s.episode_number)
+            .bind(&s.note)
+            .bind(s.import_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        }
+        tx.commit().await.map_err(db)
+    }
+
+    async fn imported_channels(&self) -> TvResult<Vec<i64>> {
+        sqlx::query_scalar(
+            "SELECT id FROM tv_channels WHERE kind = 'imported_guide' ORDER BY number",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn put_import(&self, rec: &ImportRecord) -> TvResult<()> {
+        sqlx::query(
+            "INSERT INTO tv_guide_imports (id, channel_id, created_by, format, state, rows, report, created_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8 / 1000.0)) \
+             ON CONFLICT (id) DO UPDATE SET rows = EXCLUDED.rows, report = EXCLUDED.report",
+        )
+        .bind(rec.id)
+        .bind(rec.channel_id)
+        .bind(rec.created_by)
+        .bind(&rec.format)
+        .bind(if rec.confirmed { "confirmed" } else { "pending" })
+        .bind(&rec.rows)
+        .bind(&rec.report)
+        .bind(rec.created_at_ms as f64)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn get_import(&self, id: i64) -> TvResult<Option<ImportRecord>> {
+        let row = sqlx::query(IMPORT_BY_ID)
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?;
+        row.as_ref().map(import_of).transpose()
+    }
+
+    async fn list_imports(&self, channel: i64, limit: i64) -> TvResult<Vec<ImportRecord>> {
+        let rows = sqlx::query(IMPORT_LIST)
+            .bind(channel)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?;
+        rows.iter().map(import_of).collect()
+    }
+
+    async fn confirm_import(&self, id: i64, now_ms: i64) -> TvResult<bool> {
+        let done = sqlx::query(
+            "UPDATE tv_guide_imports SET state = 'confirmed', confirmed_at = to_timestamp($2 / 1000.0) \
+             WHERE id = $1 AND state = 'pending'",
+        )
+        .bind(id)
+        .bind(now_ms as f64)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(done.rows_affected() > 0)
+    }
+
+    async fn favorites(&self, account_id: i64) -> TvResult<Vec<i64>> {
+        sqlx::query_scalar(
+            "SELECT channel_id FROM tv_favorites WHERE account_id = $1 ORDER BY channel_id",
+        )
+        .bind(account_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn set_favorite(&self, account_id: i64, channel: i64, on: bool) -> TvResult<()> {
+        if on {
+            sqlx::query(
+                "INSERT INTO tv_favorites (account_id, channel_id) \
+                 SELECT $1, id FROM tv_channels WHERE id = $2 ON CONFLICT DO NOTHING",
+            )
+            .bind(account_id)
+            .bind(channel)
+            .execute(&self.pool)
+            .await
+            .map_err(db)?;
+        } else {
+            sqlx::query("DELETE FROM tv_favorites WHERE account_id = $1 AND channel_id = $2")
+                .bind(account_id)
+                .bind(channel)
+                .execute(&self.pool)
+                .await
+                .map_err(db)?;
+        }
+        Ok(())
     }
 
     async fn take_due_reminders(&self, now_ms: i64, limit: i64) -> TvResult<Vec<ReminderRecord>> {

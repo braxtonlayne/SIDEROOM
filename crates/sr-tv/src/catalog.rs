@@ -87,8 +87,42 @@ impl PoolFilter {
     }
 }
 
+/// A library title as the guide importer sees it (no episodes).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TitleRef {
+    pub title_id: i64,
+    pub title: String,
+    pub year: Option<i16>,
+    pub media_kind: MediaKind,
+}
+
 #[async_trait]
 pub trait TvCatalog: Send + Sync {
+    /// Titles that can be matched by name (TV-ADM-004), each once, at most `limit`. The default derives
+    /// them from [`TvCatalog::pool`]; stores may override it with a cheaper listing.
+    async fn title_refs(&self, limit: usize) -> TvResult<Vec<TitleRef>> {
+        let filter = PoolFilter {
+            restricted: Some(Restricted::Include),
+            ..PoolFilter::default()
+        };
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
+        for i in self.pool(&filter, true, usize::MAX).await? {
+            if seen.insert(i.title_id) {
+                out.push(TitleRef {
+                    title_id: i.title_id,
+                    title: i.title,
+                    year: i.year,
+                    media_kind: i.media_kind,
+                });
+                if out.len() >= limit {
+                    break;
+                }
+            }
+        }
+        Ok(out)
+    }
+
     /// Playable items (published, with an asset and a runtime) that pass `filter`, in a stable order:
     /// the order of `filter.title_ids` when given, else by title; episodes of a series by season and
     /// number. At most `limit` items.

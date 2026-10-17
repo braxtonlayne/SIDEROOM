@@ -61,6 +61,15 @@ pub(crate) enum Notice {
     ArmTimer { party: i64, delay_ms: i64 },
 }
 
+/// Party updates the chat card follows while the party runs (WP-BE-008).
+const CARD_KINDS: [&str; 5] = [
+    "media",
+    "host_changed",
+    "participant_joined",
+    "participant_left",
+    "participant_kicked",
+];
+
 pub(crate) struct Inner {
     pub pool: PgPool,
     pub play: Arc<dyn PlayGate>,
@@ -656,6 +665,7 @@ impl PartyService {
                 title: media.as_ref().map_or_else(String::new, |m| m.title.clone()),
                 episode_label: media.as_ref().and_then(|m| m.episode_label.clone()),
                 viewers: 1,
+                age_restricted: media.as_ref().is_some_and(|m| m.age_restricted),
                 kind: AnnouncementKind::Started,
             }));
         }
@@ -828,6 +838,7 @@ impl PartyService {
                 title: row.title_name.clone(),
                 episode_label: row.episode_label.clone(),
                 viewers: members.len(),
+                age_restricted: row.age_restricted,
                 kind: AnnouncementKind::Ended,
             }));
         }
@@ -1395,6 +1406,12 @@ impl PartyService {
                         users.push(u);
                     }
                 }
+                let (title, episode, viewers, restricted) = (
+                    view.media.as_ref().map(|m| m.title.clone()),
+                    view.media.as_ref().and_then(|m| m.episode_label.clone()),
+                    view.participants.len(),
+                    row.age_restricted,
+                );
                 self.inner
                     .events
                     .emit(
@@ -1403,6 +1420,25 @@ impl PartyService {
                         json!({"type": kind, "party": view}),
                     )
                     .await;
+                // The chat card follows what changed while the party runs (WP-BE-008).
+                if let Some(ch) = row.channel_id
+                    && row.ended_at_ms.is_none()
+                    && CARD_KINDS.contains(&kind)
+                {
+                    self.inner
+                        .chat
+                        .announce(Announcement {
+                            party_id: row.id,
+                            channel_id: ch,
+                            host_id: row.host_id,
+                            title: title.unwrap_or_default(),
+                            episode_label: episode,
+                            viewers,
+                            age_restricted: restricted,
+                            kind: AnnouncementKind::Updated,
+                        })
+                        .await;
+                }
                 if card && let Some(ch) = row.channel_id {
                     let viewers = self
                         .inner

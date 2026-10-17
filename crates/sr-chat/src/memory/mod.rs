@@ -66,6 +66,19 @@ impl GuildRepository for MemoryRepo {
         Ok(())
     }
 
+    async fn user_guild_ids(&self, user: UserId) -> RepoResult<Vec<GuildId>> {
+        let s = self.lock()?;
+        let mut ids: Vec<GuildId> = s
+            .members
+            .iter()
+            .filter(|m| m.user_id == user)
+            .map(|m| m.guild_id)
+            .collect();
+        ids.sort();
+        ids.dedup();
+        Ok(ids)
+    }
+
     async fn get_guild(&self, id: GuildId) -> RepoResult<Option<Guild>> {
         Ok(self.lock()?.guilds.get(&id).cloned())
     }

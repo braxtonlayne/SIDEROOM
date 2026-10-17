@@ -883,3 +883,196 @@ async fn reminders_are_set_and_cleared_by_a_session() {
         .await;
     assert!(list["items"].as_array().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn imported_guides_slots_imports_template_and_favorites() {
+    let e = env().await;
+    let id = create(
+        &e,
+        json!({"number": 120, "name": "Retro", "kind": "imported_guide", "timezone": "UTC",
+               "filler_policy": "slate"}),
+    )
+    .await;
+    let slots = format!("/admin/tv/channels/{id}/slots");
+
+    // Staff only: a member and a staff member without MANAGE_TV are refused, no session is 401.
+    let (s, _) = e.call(None, Method::GET, &slots, None).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    for who in [MEMBER, BASIC] {
+        let (s, _) = e.call(Some(who), Method::GET, &slots, None).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{who}");
+    }
+    let (s, b) = e.call(Some(CURATOR), Method::GET, &slots, None).await;
+    assert_eq!(
+        (s, b["items"].as_array().map(Vec::len)),
+        (StatusCode::OK, Some(0))
+    );
+
+    // The weekly grid is saved whole; overlaps are a 400.
+    let grid = json!({"items": [
+        {"weekday": 0, "start": "20:00", "duration_min": 30, "show_name": "Cowboy Bebop", "title_id": "7"},
+        {"weekday": 0, "start": "20:30", "duration_min": 30, "show_name": "Nobody Knows Me"}
+    ]});
+    let (s, b) = e.call(Some(CURATOR), Method::PUT, &slots, Some(grid)).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["items"].as_array().unwrap().len(), 2);
+    assert!(b["items"][0]["id"].is_string());
+    let clash = json!({"items": [
+        {"weekday": 0, "start": "20:00", "duration_min": 60, "show_name": "A"},
+        {"weekday": 0, "start": "20:30", "duration_min": 30, "show_name": "B"}
+    ]});
+    let (s, b) = e
+        .call(Some(CURATOR), Method::PUT, &slots, Some(clash))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    // The channel airs Monday 20:00 (the test clock): the matched slot is on now.
+    let (_, ch) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            &format!("/tv/channels/{id}"),
+            None,
+        )
+        .await;
+    assert_eq!(ch["kind"], "imported_guide");
+    assert_eq!(ch["now"]["title"], "Cowboy Bebop");
+
+    // The template downloads as a file; a bad format is a 400.
+    let (s, ct, body) = e
+        .raw(
+            Some(CURATOR),
+            Method::GET,
+            "/admin/tv/guide-template?format=csv",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(ct.starts_with("text/csv"), "{ct}");
+    assert!(
+        String::from_utf8(body)
+            .unwrap()
+            .starts_with("weekday,start_time,duration,show")
+    );
+    let (s, ct, _) = e
+        .raw(
+            Some(CURATOR),
+            Method::GET,
+            "/admin/tv/guide-template?format=json",
+            None,
+        )
+        .await;
+    assert_eq!((s, ct.as_str()), (StatusCode::OK, "application/json"));
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::GET,
+            "/admin/tv/guide-template?format=xml",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e
+        .call(Some(MEMBER), Method::GET, "/admin/tv/guide-template", None)
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+
+    // Import: the report, then confirm; the grid is replaced and confirming twice is a 409.
+    let upload = json!({"format": "csv", "content":
+        "weekday,start_time,duration,show\nTue,21:00,30,Cowboy Bebop\nTue,21:30,30,Never Heard Of It\nTue,x,30,Broken\n"});
+    let imports = format!("/admin/tv/channels/{id}/imports");
+    let (s, imp) = e
+        .call(Some(CURATOR), Method::POST, &imports, Some(upload))
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{imp}");
+    let r = &imp["report"];
+    assert_eq!(
+        (&r["matched"], &r["missing"], &r["invalid"]),
+        (&json!(1), &json!(1), &json!(1))
+    );
+    let iid = imp["id"].as_str().unwrap().to_owned();
+    let (s, list) = e.call(Some(CURATOR), Method::GET, &imports, None).await;
+    assert_eq!(
+        (s, list["items"].as_array().map(Vec::len)),
+        (StatusCode::OK, Some(1))
+    );
+    let (s, one) = e
+        .call(
+            Some(CURATOR),
+            Method::GET,
+            &format!("{imports}/{iid}"),
+            None,
+        )
+        .await;
+    assert_eq!(
+        (s, one["confirmed"].clone()),
+        (StatusCode::OK, json!(false))
+    );
+    let confirm = format!("{imports}/{iid}/confirm");
+    let (s, b) = e
+        .call(Some(MEMBER), Method::POST, &confirm, Some(json!({})))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{b}");
+    let (s, b) = e
+        .call(Some(CURATOR), Method::POST, &confirm, Some(json!({})))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!((&b["slots"], &b["skipped"]), (&json!(2), &json!(1)));
+    let (s, _) = e
+        .call(Some(CURATOR), Method::POST, &confirm, Some(json!({})))
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (_, b) = e.call(Some(CURATOR), Method::GET, &slots, None).await;
+    assert_eq!(
+        b["items"].as_array().unwrap().len(),
+        2,
+        "the import replaced the grid"
+    );
+    // Rule-based channels have no grid.
+    let rb = create(&e, channel_body(121)).await;
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::GET,
+            &format!("/admin/tv/channels/{rb}/slots"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    // Favorites: per member, idempotent, unknown channels are 404.
+    let (s, _) = e.call(None, Method::GET, "/tv/favorites", None).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let fav = format!("/tv/favorites/{id}");
+    for _ in 0..2 {
+        let (s, _) = e.call(Some(MEMBER), Method::PUT, &fav, None).await;
+        assert_eq!(s, StatusCode::NO_CONTENT);
+    }
+    let (_, f) = e
+        .call(Some(MEMBER), Method::GET, "/tv/favorites", None)
+        .await;
+    assert_eq!(f["items"], json!([id]));
+    let (_, f) = e
+        .call(Some(ADULT), Method::GET, "/tv/favorites", None)
+        .await;
+    assert_eq!(f["items"], json!([]));
+    let (s, _) = e
+        .call(Some(MEMBER), Method::PUT, "/tv/favorites/424242", None)
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e.call(Some(MEMBER), Method::DELETE, &fav, None).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (_, f) = e
+        .call(Some(MEMBER), Method::GET, "/tv/favorites", None)
+        .await;
+    assert_eq!(f["items"], json!([]));
+
+    let actions: Vec<String> = e
+        .admin
+        .log_rows()
+        .iter()
+        .map(|r| r.action.clone())
+        .collect();
+    for a in ["tv.slots.replace", "tv.guide.import", "tv.guide.confirm"] {
+        assert!(actions.iter().any(|x| x == a), "missing {a} in {actions:?}");
+    }
+}

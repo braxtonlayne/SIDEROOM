@@ -46,7 +46,7 @@ export default {
   'support.panel.viewLeaderboards': 'View leaderboards',
   'support.panel.hideName': 'Hide my name (shown as Anonymous patron)',
   'support.panel.hideAmount': 'Hide my amount (rank only)',
-  'support.panel.hideBadge': 'Hide my Patron badge',
+  'support.panel.hideBadge': 'Hide my Patron badge and ring',
   'support.panel.historyTitle': 'History',
   'support.panel.historyDesc': 'Your invoices and receipts.',
   'support.panel.invoicesWhat': 'invoices',

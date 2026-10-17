@@ -134,15 +134,27 @@ const readBytes = (file: Blob): Promise<ArrayBuffer> =>
         reader.readAsArrayBuffer(file);
       });
 
-/** Decodes an audio file with WebAudio. Rejects when the browser cannot decode it. */
+/** The rate every trimmed sound is decoded and exported at (K-03). */
+export const TRIM_SAMPLE_RATE = 48000;
+
+type DecodeCtx = Pick<BaseAudioContext, 'decodeAudioData'> & { close?: () => Promise<void> };
+
+/**
+ * Decodes an audio file with WebAudio at `TRIM_SAMPLE_RATE`. An OfflineAudioContext fixes its rate, so the exported
+ * WAV is 48 kHz on every machine (a live context would use the sound card's rate). Falls back to the live context
+ * where OfflineAudioContext is missing. Rejects when the browser cannot decode the file.
+ */
 export async function decodeAudioFile(file: Blob): Promise<PcmSource> {
   const w = globalThis as unknown as {
-    AudioContext?: new () => AudioContext;
-    webkitAudioContext?: new () => AudioContext;
+    OfflineAudioContext?: new (channels: number, length: number, rate: number) => DecodeCtx;
+    webkitOfflineAudioContext?: new (channels: number, length: number, rate: number) => DecodeCtx;
+    AudioContext?: new () => DecodeCtx;
+    webkitAudioContext?: new () => DecodeCtx;
   };
-  const Ctx = w.AudioContext ?? w.webkitAudioContext;
-  if (!Ctx) throw new Error('no WebAudio');
-  const ctx = new Ctx();
+  const Offline = w.OfflineAudioContext ?? w.webkitOfflineAudioContext;
+  const Live = w.AudioContext ?? w.webkitAudioContext;
+  if (!Offline && !Live) throw new Error('no WebAudio');
+  const ctx = Offline ? new Offline(2, 1, TRIM_SAMPLE_RATE) : new Live!();
   try {
     return await ctx.decodeAudioData(await readBytes(file));
   } finally {

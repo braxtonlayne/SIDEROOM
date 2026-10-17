@@ -336,6 +336,9 @@ pub enum MessageType {
     /// An AutoMod alert or an incident alert the system user posted, with moderation buttons
     /// (type 24, D-243/D-244).
     AutoModerationAction,
+    /// The live card of a watch party in its bound channel (SIDE ROOM type 200, WP-BE-008): the system
+    /// user posts it when the party starts and rewrites it while the party changes and when it ends.
+    WatchParty,
 }
 
 impl MessageType {
@@ -360,6 +363,7 @@ impl MessageType {
             Self::ThreadStarterMessage => 21,
             Self::ContextMenuCommand => 23,
             Self::AutoModerationAction => 24,
+            Self::WatchParty => 200,
         }
     }
 
@@ -384,6 +388,7 @@ impl MessageType {
             21 => Self::ThreadStarterMessage,
             23 => Self::ContextMenuCommand,
             24 => Self::AutoModerationAction,
+            200 => Self::WatchParty,
             _ => return None,
         })
     }

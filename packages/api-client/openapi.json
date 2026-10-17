@@ -17639,6 +17639,340 @@
         ]
       }
     },
+    "/admin/tv/channels/{channel_id}/imports": {
+      "get": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "The channel's recent imports, newest first.",
+        "operationId": "admin_tv_imports",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvGuideImportList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "Upload a guide (CSV or JSON text). The answer is the mapping report: each row matched, ambiguous (pick a\ntitle), missing (will be skipped) or invalid. Nothing changes until it is confirmed.",
+        "operationId": "admin_tv_import_guide",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TvGuideUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvGuideImport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}/imports/{import_id}": {
+      "get": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "One import with its report.",
+        "operationId": "admin_tv_import",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "import_id",
+            "in": "path",
+            "description": "Import snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvGuideImport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}/imports/{import_id}/confirm": {
+      "post": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "Confirm an import: the report becomes the channel's weekly grid (replacing it). `choices` picks a title\nfor ambiguous rows; unmatched slots stay in the grid and are skipped on air.",
+        "operationId": "admin_tv_confirm_import",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "import_id",
+            "in": "path",
+            "description": "Import snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TvGuideConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvGuideConfirmed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/tv/channels/{channel_id}/now": {
       "get": {
         "tags": [
@@ -18055,6 +18389,231 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}/slots": {
+      "get": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "The weekly grid of an imported-guide channel.",
+        "operationId": "admin_tv_slots",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvSlotList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "Replace the weekly grid (the editor saves it whole) and regenerate the schedule that has not aired.\nSlots may not overlap; 400 names the clash.",
+        "operationId": "admin_tv_put_slots",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TvSlotList"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvSlotList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/guide-template": {
+      "get": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "The guide template to fill in: columns `weekday, start_time, duration, show, season, episode, note`.",
+        "operationId": "admin_tv_guide_template",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`csv` (default) or `json`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The template file",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "",
             "content": {
               "application/json": {
@@ -52542,6 +53101,140 @@
         ]
       }
     },
+    "/tv/favorites": {
+      "get": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "The caller's starred channels.",
+        "operationId": "tv_favorites",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvFavoriteList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/tv/favorites/{channel_id}": {
+      "put": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "Star a channel (starring one that is starred is fine).",
+        "operationId": "tv_favorite_set",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Starred"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "Unstar a channel (unstarring one that is not starred is fine).",
+        "operationId": "tv_favorite_clear",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Unstarred"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/tv/guide": {
       "get": {
         "tags": [
@@ -60975,6 +61668,33 @@
           "storage"
         ]
       },
+      "BackupsView": {
+        "type": "object",
+        "description": "When the last backup, restore check and object snapshot happened (Unix ms; `None` when never), K-10.",
+        "properties": {
+          "last_run_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "last_verify_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "snapshot_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "BadgeObject": {
         "type": "object",
         "description": "A public profile badge: the catalogue id with English fallback text and an icon name\n(G-53). Clients translate the ids they know and fall back to `description`.",
@@ -66707,6 +67427,34 @@
           }
         }
       },
+      "DiskView": {
+        "type": "object",
+        "description": "Space on one folder; the sizes are `None` when the path cannot be read (never an error).",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "free_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string"
+          },
+          "total_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "DmChannelObject": {
         "type": "object",
         "required": [
@@ -69480,7 +70228,8 @@
         "type": "object",
         "description": "User object embedded in members, bans and messages. Name fields come from the\nuser lookup (open question 157); without one only the id is known.",
         "required": [
-          "id"
+          "id",
+          "sr_patron"
         ],
         "properties": {
           "bot": {
@@ -69506,6 +70255,10 @@
                 "description": "The server tag the user shows next to their name (LNG-SSET-012, read from\n`guild_tags` + `user_primary_guilds`; set with `PUT /users/@me/primary-guild`)."
               }
             ]
+          },
+          "sr_patron": {
+            "type": "boolean",
+            "description": "Patron badge and ring show for this user (D-256): the Patron entitlement is active or in\ngrace and the badge is not hidden. Always present; never a third state."
           },
           "username": {
             "type": [
@@ -81715,11 +82468,24 @@
           "version",
           "counts",
           "probes",
-          "integrations"
+          "integrations",
+          "backups",
+          "disk"
         ],
         "properties": {
+          "backups": {
+            "$ref": "#/components/schemas/BackupsView",
+            "description": "When the last backup, restore check and object snapshot happened (null fields: never, or not reported)."
+          },
           "counts": {
             "$ref": "#/components/schemas/SystemCounts"
+          },
+          "disk": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiskView"
+            },
+            "description": "Space of the data folder and of every ingest root; unreadable paths have null sizes."
           },
           "gateway_sessions": {
             "type": [
@@ -83182,7 +83948,8 @@
         "type": "string",
         "enum": [
           "rule_based",
-          "manual"
+          "manual",
+          "imported_guide"
         ]
       },
       "TvChannelList": {
@@ -83238,6 +84005,21 @@
           }
         }
       },
+      "TvFavoriteList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Starred channel ids."
+          }
+        }
+      },
       "TvFillerPolicy": {
         "type": "string",
         "description": "What fills the time between programmes (spec section 4).",
@@ -83284,6 +84066,33 @@
           }
         }
       },
+      "TvGuideCandidate": {
+        "type": "object",
+        "required": [
+          "title_id",
+          "title",
+          "score"
+        ],
+        "properties": {
+          "score": {
+            "type": "number",
+            "format": "double"
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_id": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "TvGuideChannel": {
         "type": "object",
         "required": [
@@ -83299,6 +84108,249 @@
           },
           "channel": {
             "$ref": "#/components/schemas/TvChannel"
+          }
+        }
+      },
+      "TvGuideChoice": {
+        "type": "object",
+        "description": "A title staff picked for an ambiguous row (`title_id` null keeps the slot skipped).",
+        "required": [
+          "line"
+        ],
+        "properties": {
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TvGuideConfirm": {
+        "type": "object",
+        "properties": {
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvGuideChoice"
+            }
+          }
+        }
+      },
+      "TvGuideConfirmed": {
+        "type": "object",
+        "description": "What confirming an import did.",
+        "required": [
+          "slots",
+          "skipped",
+          "warnings"
+        ],
+        "properties": {
+          "skipped": {
+            "type": "integer",
+            "description": "Of those, slots with no library title (skipped on air until the library has it).",
+            "minimum": 0
+          },
+          "slots": {
+            "type": "integer",
+            "description": "Slots now in the weekly grid.",
+            "minimum": 0
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TvGuideImport": {
+        "type": "object",
+        "description": "An upload and its report, as the API shows it.",
+        "required": [
+          "id",
+          "channel_id",
+          "format",
+          "confirmed",
+          "created_at_ms",
+          "report"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "confirmed": {
+            "type": "boolean"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "report": {
+            "$ref": "#/components/schemas/TvGuideReport"
+          }
+        }
+      },
+      "TvGuideImportList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvGuideImport"
+            }
+          }
+        }
+      },
+      "TvGuideReport": {
+        "type": "object",
+        "required": [
+          "rows",
+          "matched",
+          "ambiguous",
+          "missing",
+          "invalid"
+        ],
+        "properties": {
+          "ambiguous": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "invalid": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "matched": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "missing": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvGuideReportRow"
+            }
+          }
+        }
+      },
+      "TvGuideReportRow": {
+        "type": "object",
+        "description": "One row of the mapping report.",
+        "required": [
+          "line",
+          "weekday",
+          "start",
+          "duration_min",
+          "show",
+          "status",
+          "candidates"
+        ],
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvGuideCandidate"
+            },
+            "description": "Near matches, best first (ambiguous and missing rows)."
+          },
+          "duration_min": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "episode": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "season": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "show": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string",
+            "description": "`HH:MM`."
+          },
+          "status": {
+            "$ref": "#/components/schemas/TvGuideStatus"
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The chosen title when matched."
+          },
+          "weekday": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "TvGuideStatus": {
+        "type": "string",
+        "enum": [
+          "matched",
+          "ambiguous",
+          "missing",
+          "invalid"
+        ]
+      },
+      "TvGuideUpload": {
+        "type": "object",
+        "required": [
+          "format",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The file's text."
+          },
+          "format": {
+            "type": "string",
+            "description": "`csv` or `json`."
           }
         }
       },
@@ -83759,6 +84811,89 @@
           },
           "title_id": {
             "type": "string"
+          }
+        }
+      },
+      "TvSlot": {
+        "type": "object",
+        "description": "A weekly slot as the API shows and accepts it.",
+        "required": [
+          "weekday",
+          "start",
+          "duration_min",
+          "show_name"
+        ],
+        "properties": {
+          "duration_min": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "episode_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Ignored on input."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "season_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "show_name": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string",
+            "description": "`HH:MM` in the channel time zone."
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "weekday": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 = Monday, in the channel time zone.",
+            "minimum": 0
+          }
+        }
+      },
+      "TvSlotList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvSlot"
+            }
           }
         }
       },
@@ -84460,7 +85595,8 @@
       "UserObject": {
         "type": "object",
         "required": [
-          "id"
+          "id",
+          "sr_patron"
         ],
         "properties": {
           "avatar": {
@@ -84500,6 +85636,10 @@
                 "description": "The server tag this user displays (LNG-SSET-012); Discord's `primary_guild`."
               }
             ]
+          },
+          "sr_patron": {
+            "type": "boolean",
+            "description": "Patron badge and ring show for this user (D-256): the Patron entitlement is active or in\ngrace and the badge is not hidden. Always present; never a third state."
           },
           "username": {
             "type": [
@@ -84570,7 +85710,8 @@
         "type": "object",
         "description": "User object embedded in messages (author, mentions). Fields come from the user\nlookup (open question 157); without a row only the id is known.",
         "required": [
-          "id"
+          "id",
+          "sr_patron"
         ],
         "properties": {
           "avatar_url": {
@@ -84603,6 +85744,10 @@
                 "description": "The server tag the author displays (LNG-SSET-012)."
               }
             ]
+          },
+          "sr_patron": {
+            "type": "boolean",
+            "description": "Patron badge and ring show for this user (D-256): the Patron entitlement is active or in\ngrace and the badge is not hidden. Always present; never a third state."
           },
           "username": {
             "type": [

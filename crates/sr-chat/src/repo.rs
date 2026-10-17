@@ -29,6 +29,11 @@ pub trait GuildRepository: Send + Sync {
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<Member>>;
+    /// Ids of the guilds `user` belongs to (used to fan out member-object refreshes, K-08).
+    /// Stores that cannot list them answer none.
+    async fn user_guild_ids(&self, _user: UserId) -> RepoResult<Vec<GuildId>> {
+        Ok(Vec::new())
+    }
     /// Number of members of the guild (invite previews). The default pages through
     /// the members; stores should override it with a cheap count.
     async fn count_members(&self, guild: GuildId) -> RepoResult<u64> {
@@ -184,6 +189,9 @@ pub struct UserSummary {
     pub bot: bool,
     /// The server tag the user displays (LNG-SSET-012); only set where it is visible.
     pub primary_guild: Option<crate::settings::tags::PrimaryGuild>,
+    /// Patron status for display (D-256, K-08): the Patron entitlement is active or in grace and
+    /// the member has not hidden the badge.
+    pub patron: bool,
 }
 
 /// Looks up the user fields that Discord embeds in member, ban and message
