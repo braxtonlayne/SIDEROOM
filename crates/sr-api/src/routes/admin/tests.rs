@@ -2804,7 +2804,12 @@ async fn moving_a_discord_identity_needs_the_second_factor_a_reason_and_tells_th
             .any(|r| r.action == "person.identity_move" && r.reason == "lost the old login")
     );
     let (s, p) = e
-        .call(Some(MODER), Method::GET, &format!("/admin/persons/{person}"), None)
+        .call(
+            Some(MODER),
+            Method::GET,
+            &format!("/admin/persons/{person}"),
+            None,
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{p}");
     let identities = p["identities"].as_array().unwrap();

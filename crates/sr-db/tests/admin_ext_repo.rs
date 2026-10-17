@@ -855,7 +855,9 @@ async fn a_discord_identity_moves_between_accounts_of_one_person_and_keeps_its_h
         .unwrap();
     let e = entry(staff, "person.identity_move", Some(person_a));
     assert_eq!(
-        r.move_identity(person_b, identity, b, &e).await.unwrap_err(),
+        r.move_identity(person_b, identity, b, &e)
+            .await
+            .unwrap_err(),
         AdminError::NotFound("identity")
     );
     assert!(matches!(
@@ -888,7 +890,10 @@ async fn a_discord_identity_moves_between_accounts_of_one_person_and_keeps_its_h
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].get::<i64, _>("id"), identity);
     assert!(rows[0].get::<bool, _>("gone"));
-    assert_eq!(rows[0].get::<Option<i64>, _>("moved_to_account_id"), Some(b));
+    assert_eq!(
+        rows[0].get::<Option<i64>, _>("moved_to_account_id"),
+        Some(b)
+    );
     assert_eq!(rows[1].get::<i64, _>("account_id"), b);
     assert!(!rows[1].get::<bool, _>("gone"));
     let detail = r.person_detail(person_a).await.unwrap().unwrap();

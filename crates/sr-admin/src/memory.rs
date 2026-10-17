@@ -1679,9 +1679,7 @@ impl StaffExtrasRepository for MemoryAdminRepo {
                 s.persons.remove(&old);
             }
         }
-        if !was_unlinked
-            && let Some(i) = s.identities.iter_mut().find(|i| i.id == identity_id)
-        {
+        if !was_unlinked && let Some(i) = s.identities.iter_mut().find(|i| i.id == identity_id) {
             i.unlinked_at_ms = Some(now);
             i.moved_to_account_id = Some(to_account_id);
         }

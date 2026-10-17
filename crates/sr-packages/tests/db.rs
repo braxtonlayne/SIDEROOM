@@ -562,7 +562,11 @@ async fn nobody_reviews_their_own_package_and_each_version_posts_one_card() {
     let staff = account(&r.pool).await;
     let v = r
         .svc
-        .submit(author, theme_zip("ocean-night", "1.0.0"), &Checks::lenient())
+        .submit(
+            author,
+            theme_zip("ocean-night", "1.0.0"),
+            &Checks::lenient(),
+        )
         .await
         .unwrap();
     let vid: i64 = v.id.parse().unwrap();
@@ -597,7 +601,11 @@ async fn nobody_reviews_their_own_package_and_each_version_posts_one_card() {
     // A rejection and a withdrawal close their cards too.
     let v2 = r
         .svc
-        .submit(author, theme_zip("ocean-night", "1.0.1"), &Checks::lenient())
+        .submit(
+            author,
+            theme_zip("ocean-night", "1.0.1"),
+            &Checks::lenient(),
+        )
         .await
         .unwrap();
     let v2id: i64 = v2.id.parse().unwrap();
@@ -607,7 +615,11 @@ async fn nobody_reviews_their_own_package_and_each_version_posts_one_card() {
         .unwrap();
     let v3 = r
         .svc
-        .submit(author, theme_zip("ocean-night", "1.0.2"), &Checks::lenient())
+        .submit(
+            author,
+            theme_zip("ocean-night", "1.0.2"),
+            &Checks::lenient(),
+        )
         .await
         .unwrap();
     let v3id: i64 = v3.id.parse().unwrap();
@@ -626,7 +638,11 @@ async fn an_author_deletes_a_never_approved_package_and_frees_the_slug() {
     let staff = account(&r.pool).await;
     let v = r
         .svc
-        .submit(author, theme_zip("ocean-night", "1.0.0"), &Checks::lenient())
+        .submit(
+            author,
+            theme_zip("ocean-night", "1.0.0"),
+            &Checks::lenient(),
+        )
         .await
         .unwrap();
     let pid: i64 = v.package_id.parse().unwrap();
@@ -743,14 +759,20 @@ async fn profile_pictures_are_capped_owned_and_dropped_when_a_saved_document_sto
     assert!(svc.media_check(me, "gallery").await.is_err());
     assert!(svc.media_check(me, "background").await.is_ok());
     assert!(svc.media_check(me, "video").await.is_err());
-    assert!(gallery[0].0.url.starts_with(&format!("/cdn/avatars/{me}/")) && gallery[0].0.url.ends_with(".png"));
+    assert!(
+        gallery[0].0.url.starts_with(&format!("/cdn/avatars/{me}/"))
+            && gallery[0].0.url.ends_with(".png")
+    );
 
     // A new background replaces the old one and its file goes.
     let (first_bg, first_key) = add(me, "background").await;
     let first_bg = first_bg.unwrap();
     let (second_bg, _) = add(me, "background").await;
     let second_bg = second_bg.unwrap();
-    assert!(storage.head(&first_key).await.is_err(), "replaced background file removed");
+    assert!(
+        storage.head(&first_key).await.is_err(),
+        "replaced background file removed"
+    );
     let all = svc.media_list(me).await.unwrap();
     assert_eq!(all.iter().filter(|m| m.kind == "background").count(), 1);
     assert_eq!(all.len(), 13);
@@ -768,34 +790,56 @@ async fn profile_pictures_are_capped_owned_and_dropped_when_a_saved_document_sto
         .set_doc(me, &doc(&second_bg.id, &[&theirs.id]))
         .await
         .unwrap_err();
-    assert!(matches!(&err, PackageError::Refused(p) if p.iter().any(|m| m.contains("not one of your pictures"))), "{err:?}");
+    assert!(
+        matches!(&err, PackageError::Refused(p) if p.iter().any(|m| m.contains("not one of your pictures"))),
+        "{err:?}"
+    );
     let stale = svc
         .set_doc(me, &doc(&first_bg.id, &[&gallery[0].0.id]))
         .await
         .unwrap_err();
-    assert!(matches!(stale, PackageError::Refused(_)), "the replaced background is gone");
+    assert!(
+        matches!(stale, PackageError::Refused(_)),
+        "the replaced background is gone"
+    );
 
     // Saving keeps what the document names and drops (rows and files) every other picture.
-    svc.set_doc(me, &doc(&second_bg.id, &[&gallery[0].0.id, &gallery[1].0.id]))
+    svc.set_doc(
+        me,
+        &doc(&second_bg.id, &[&gallery[0].0.id, &gallery[1].0.id]),
+    )
+    .await
+    .unwrap();
+    let kept: Vec<String> = svc
+        .media_list(me)
         .await
-        .unwrap();
-    let kept: Vec<String> = svc.media_list(me).await.unwrap().into_iter().map(|m| m.id).collect();
+        .unwrap()
+        .into_iter()
+        .map(|m| m.id)
+        .collect();
     assert_eq!(kept.len(), 3);
     assert!(storage.head(&gallery[0].1).await.is_ok());
-    assert!(storage.head(&gallery[5].1).await.is_err(), "orphan file deleted on save");
+    assert!(
+        storage.head(&gallery[5].1).await.is_err(),
+        "orphan file deleted on save"
+    );
     // The page lists exactly the pictures the document names, for anyone who may see it.
     let page = svc.page(other, None, Some(me)).await.unwrap();
     assert_eq!(page.media.len(), 3);
     assert!(page.guestbook_count.is_none());
 
     // Deleting a picture takes it out of the saved document too.
-    svc.media_delete(me, gallery[1].0.id.parse().unwrap()).await.unwrap();
+    svc.media_delete(me, gallery[1].0.id.parse().unwrap())
+        .await
+        .unwrap();
     assert!(storage.head(&gallery[1].1).await.is_err());
     let after = svc.own_doc(me).await.unwrap();
     assert_eq!(after.blocks[0].config["items"].as_array().unwrap().len(), 1);
     // Not somebody else's.
     assert_eq!(
-        svc.media_delete(me, theirs.id.parse().unwrap()).await.unwrap_err(),
+        svc.media_delete(me, theirs.id.parse().unwrap())
+            .await
+            .unwrap_err(),
         PackageError::NotFound("picture")
     );
     assert_eq!(svc.media_keys(other).await.unwrap().len(), 1);

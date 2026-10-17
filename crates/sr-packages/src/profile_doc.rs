@@ -405,7 +405,10 @@ fn parse<T: for<'de> Deserialize<'de>>(
 }
 
 fn media_id_ok(id: &str) -> bool {
-    !id.is_empty() && id.len() <= 20 && id.bytes().all(|b| b.is_ascii_digit()) && !id.starts_with('0')
+    !id.is_empty()
+        && id.len() <= 20
+        && id.bytes().all(|b| b.is_ascii_digit())
+        && !id.starts_with('0')
 }
 
 fn block_config(out: &mut Vec<DocProblem>, i: usize, b: &Block, media: Option<&MediaIds>) {
@@ -625,7 +628,11 @@ pub fn problems_with(
                         "a layout carries no pictures",
                     );
                 } else if !media_id_ok(id) {
-                    problem(&mut out, "style.background.image_id", "must be a picture id");
+                    problem(
+                        &mut out,
+                        "style.background.image_id",
+                        "must be a picture id",
+                    );
                 } else if media.is_some_and(|m| !m.background.contains(id)) {
                     problem(
                         &mut out,
@@ -893,9 +900,17 @@ mod tests {
         );
         // Somebody else's id, or one of mine used in the wrong place, is refused.
         let foreign = parse_doc_with(&doc("11", "99"), false, Some(&mine)).unwrap_err();
-        assert!(foreign.iter().any(|p| p.message.contains("not one of your pictures")));
+        assert!(
+            foreign
+                .iter()
+                .any(|p| p.message.contains("not one of your pictures"))
+        );
         let swapped = parse_doc_with(&doc("21", "21"), false, Some(&mine)).unwrap_err();
-        assert!(swapped.iter().any(|p| p.path == "style.background.image_id"));
+        assert!(
+            swapped
+                .iter()
+                .any(|p| p.path == "style.background.image_id")
+        );
         // Without a set only the shape is checked; a layout template carries no pictures.
         assert!(parse_doc(&doc("11", "99"), false).is_ok());
         assert!(parse_doc(&doc("11", "21"), true).is_err());
@@ -908,14 +923,42 @@ mod tests {
         assert!(parse_doc(&item(json!({"url": "https://a.example/x.png"})), false).is_ok());
         assert!(parse_doc(&item(json!({"image_id": "5"})), false).is_ok());
         assert!(parse_doc(&item(json!({})), false).is_err());
-        assert!(parse_doc(&item(json!({"url": "https://a.example/x.png", "image_id": "5"})), false).is_err());
-        assert!(parse_doc(&item(json!({"url": "https://a.example/x.png", "proxy_url": "/cdn/external/x/y"})), false).is_err());
+        assert!(
+            parse_doc(
+                &item(json!({"url": "https://a.example/x.png", "image_id": "5"})),
+                false
+            )
+            .is_err()
+        );
+        assert!(
+            parse_doc(
+                &item(json!({"url": "https://a.example/x.png", "proxy_url": "/cdn/external/x/y"})),
+                false
+            )
+            .is_err()
+        );
         // The old pattern plus banner_background pair parses unchanged and has no new background.
-        let old = parse_doc(&json!({"style": {"pattern": "dots", "banner_background": true}}), false).unwrap();
+        let old = parse_doc(
+            &json!({"style": {"pattern": "dots", "banner_background": true}}),
+            false,
+        )
+        .unwrap();
         assert!(old.style.background.is_none() && old.style.banner_background);
         // The new shape: kinds, pattern over a banner, and no image id on a pattern.
-        assert!(parse_doc(&json!({"style": {"background": {"kind": "banner", "pattern": "grid"}}}), false).is_ok());
-        assert!(parse_doc(&json!({"style": {"background": {"kind": "pattern", "image_id": "5"}}}), false).is_err());
+        assert!(
+            parse_doc(
+                &json!({"style": {"background": {"kind": "banner", "pattern": "grid"}}}),
+                false
+            )
+            .is_ok()
+        );
+        assert!(
+            parse_doc(
+                &json!({"style": {"background": {"kind": "pattern", "image_id": "5"}}}),
+                false
+            )
+            .is_err()
+        );
         assert!(parse_doc(&json!({"style": {"background": {"kind": "video"}}}), false).is_err());
         assert!(parse_doc(&json!({"style": {"background": {"kind": "image"}}}), false).is_err());
     }

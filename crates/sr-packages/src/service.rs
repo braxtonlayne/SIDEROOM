@@ -1161,9 +1161,7 @@ impl PackageService {
                 .fetch_one(self.pool())
                 .await?;
         if total >= MAX_GUESTBOOK_ENTRIES {
-            return Err(PackageError::Conflict(
-                "This guestbook is full".to_owned(),
-            ));
+            return Err(PackageError::Conflict("This guestbook is full".to_owned()));
         }
         let id = (self.inner.ids)();
         sqlx::query("INSERT INTO profile_guestbook (id, profile_id, author_id, body) VALUES ($1, $2, $3, $4)")

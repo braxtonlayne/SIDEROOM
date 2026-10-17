@@ -970,11 +970,13 @@ async fn a_package_version_gets_a_review_queue_card_that_closes_once() {
     );
 
     // The decision closes the card with the decider's name; a repeat does not close it twice.
-    sqlx::query("UPDATE package_versions SET review_state = 'approved', reviewed_by = $1 WHERE id = 9002")
-        .bind(reviewer)
-        .execute(&f.pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE package_versions SET review_state = 'approved', reviewed_by = $1 WHERE id = 9002",
+    )
+    .bind(reviewer)
+    .execute(&f.pool)
+    .await
+    .unwrap();
     publish(Some("approved")).await;
     assert!(
         wait_for(|| async {

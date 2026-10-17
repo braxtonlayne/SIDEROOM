@@ -225,7 +225,11 @@ pub async fn move_identity(
 ) -> ApiResult<Json<MoveIdentityResult>> {
     let r = reason(&headers, b.reason.as_deref());
     ctx.svc()
-        .authorize(&ctx.caller, sr_core::PlatformPermissions::MANAGE_ACCOUNTS, "person.identity_move")
+        .authorize(
+            &ctx.caller,
+            sr_core::PlatformPermissions::MANAGE_ACCOUNTS,
+            "person.identity_move",
+        )
         .await
         .map_err(map_err)?;
     ctx.require_reauth().await?;

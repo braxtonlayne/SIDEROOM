@@ -1132,12 +1132,7 @@ impl AdminService {
         );
         let moved = self
             .extras()?
-            .move_identity(
-                person_id,
-                identity_id,
-                to_account_id,
-                &audit,
-            )
+            .move_identity(person_id, identity_id, to_account_id, &audit)
             .await?;
         let text = format!(
             "A staff member moved your linked Discord account to the SIDE ROOM account @{}. \

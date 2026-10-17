@@ -321,10 +321,16 @@ async fn a_join_without_the_e2ee_declaration_is_refused_and_gets_no_token() {
         assert_eq!(err["code"], "e2ee_required", "{err}");
         assert_eq!(err["channel_id"], LOBBY.get().to_string());
         let rest = names(&c.drain().await);
-        assert!(!rest.contains(&"VOICE_SERVER_UPDATE".to_owned()), "{rest:?}");
+        assert!(
+            !rest.contains(&"VOICE_SERVER_UPDATE".to_owned()),
+            "{rest:?}"
+        );
         assert!(e.gw.voice_state(UserId::new(MEMBER)).is_none());
     }
-    assert!(e.relay.0.lock().unwrap().is_empty(), "the SFU was never told");
+    assert!(
+        e.relay.0.lock().unwrap().is_empty(),
+        "the SFU was never told"
+    );
 
     // With the declaration the same join is admitted and gets its token.
     let mut c = client(&e, MEMBER).await;

@@ -254,9 +254,7 @@ impl JoinDenied {
             Self::UnknownStream => "This stream does not exist.",
             Self::NotInVoice => "Join the voice channel first.",
             Self::AlreadyStreaming => "You are already sharing your screen.",
-            Self::E2eeRequired => {
-                "This server requires encrypted calls; your client cannot join."
-            }
+            Self::E2eeRequired => "This server requires encrypted calls; your client cannot join.",
             Self::MissingPermission => "You do not have permission to join this voice channel.",
             Self::ChannelFull => "This voice channel is full.",
             Self::Unavailable => "Voice is not available on this server right now.",

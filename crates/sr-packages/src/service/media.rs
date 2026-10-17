@@ -275,13 +275,17 @@ impl PackageService {
 
     /// Remove references to deleted pictures from my saved document: gallery entries with those ids go,
     /// and a picture background falls back to a pattern.
-    async fn strip_media_refs(&self, user: i64, gallery: &BTreeSet<String>, background: &BTreeSet<String>) {
-        let Ok(Some(raw)) = sqlx::query_scalar::<_, Value>(
-            "SELECT profile_doc FROM accounts WHERE id = $1",
-        )
-        .bind(user)
-        .fetch_optional(self.pool())
-        .await
+    async fn strip_media_refs(
+        &self,
+        user: i64,
+        gallery: &BTreeSet<String>,
+        background: &BTreeSet<String>,
+    ) {
+        let Ok(Some(raw)) =
+            sqlx::query_scalar::<_, Value>("SELECT profile_doc FROM accounts WHERE id = $1")
+                .bind(user)
+                .fetch_optional(self.pool())
+                .await
         else {
             return;
         };
@@ -315,11 +319,13 @@ impl PackageService {
             }
         }
         if changed {
-            let _ = sqlx::query("UPDATE accounts SET profile_doc = $2, updated_at = now() WHERE id = $1")
-                .bind(user)
-                .bind(serde_json::to_value(&doc).unwrap_or(Value::Null))
-                .execute(self.pool())
-                .await;
+            let _ = sqlx::query(
+                "UPDATE accounts SET profile_doc = $2, updated_at = now() WHERE id = $1",
+            )
+            .bind(user)
+            .bind(serde_json::to_value(&doc).unwrap_or(Value::Null))
+            .execute(self.pool())
+            .await;
         }
     }
 
@@ -354,4 +360,3 @@ impl PackageService {
         )
     }
 }
-

@@ -645,7 +645,12 @@ impl StaffVoice {
 
     /// Close the newest card of the system user in the Staff Server channel `channel_name` whose
     /// buttons mention `marker` (see [`Self::close_card_at`]); a card already closed is left alone.
-    pub async fn close_channel_card(&self, channel_name: &str, marker: &str, outcome: &str) -> bool {
+    pub async fn close_channel_card(
+        &self,
+        channel_name: &str,
+        marker: &str,
+        outcome: &str,
+    ) -> bool {
         let Some(channel) = self.channel(channel_name).await else {
             return false;
         };

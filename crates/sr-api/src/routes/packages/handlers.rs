@@ -1087,14 +1087,24 @@ mod tests {
         let items = page.doc.blocks[0].config["items"].as_array().unwrap();
         let signed = signer.external_path("https://img.example/a.png").unwrap();
         assert_eq!(items[0]["proxy_url"], signed);
-        assert!(items[0]["proxy_url"].as_str().unwrap().starts_with("/cdn/external/"));
+        assert!(
+            items[0]["proxy_url"]
+                .as_str()
+                .unwrap()
+                .starts_with("/cdn/external/")
+        );
         assert_eq!(items[0]["url"], "https://img.example/a.png");
         assert!(items[1].get("proxy_url").is_none(), "denied host");
         assert!(items[2].get("proxy_url").is_none(), "private address");
 
         // No proxy configured: nothing is proxied and a supplied path never survives.
-        let mut page = page_with_gallery(json!([{"url": "https://img.example/a.png", "proxy_url": "x"}]));
+        let mut page =
+            page_with_gallery(json!([{"url": "https://img.example/a.png", "proxy_url": "x"}]));
         proxy_gallery(&mut page, None);
-        assert!(page.doc.blocks[0].config["items"][0].get("proxy_url").is_none());
+        assert!(
+            page.doc.blocks[0].config["items"][0]
+                .get("proxy_url")
+                .is_none()
+        );
     }
 }

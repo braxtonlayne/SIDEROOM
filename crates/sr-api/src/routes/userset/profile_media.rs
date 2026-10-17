@@ -75,7 +75,13 @@ pub async fn upload(
     let media_id = deps.service.media_id();
     let scope = u64::try_from(media_id).map_err(|_| MsgError::from(ErrorCode::SrInternal))?;
     let stored = media
-        .store_raw(MediaKind::ProfileMedia, owner, scope, "image", body.to_vec())
+        .store_raw(
+            MediaKind::ProfileMedia,
+            owner,
+            scope,
+            "image",
+            body.to_vec(),
+        )
         .await?;
     let added = deps
         .service
@@ -150,8 +156,5 @@ pub fn router() -> Router<AppState> {
 
 /// OpenAPI fragment.
 #[derive(OpenApi)]
-#[openapi(
-    paths(upload, list, remove),
-    components(schemas(MediaView))
-)]
+#[openapi(paths(upload, list, remove), components(schemas(MediaView)))]
 pub struct ProfileMediaApiDoc;
