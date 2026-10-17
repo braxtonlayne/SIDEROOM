@@ -26,11 +26,6 @@ export interface ComponentContext {
 }
 
 const isStaff = (customId: string | undefined) => parseStaffButton(customId) !== null;
-/** Staff card buttons are answered once; the buttons of an alert card (D-244) stay, the server rewrites the card. */
-const isOnce = (customId: string | undefined) => {
-  const b = parseStaffButton(customId);
-  return b !== null && b.kind !== 'alert';
-};
 
 /**
  * Buttons and select menus on app messages (LNG-MSGUI-022). Link buttons open their URL. Everything else
@@ -58,8 +53,8 @@ export function ComponentRows({
   const [busy, setBusy] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
-  // Staff card buttons (`sr:` custom ids) are answered once; afterwards they stay disabled.
-  const [staffDone, setStaffDone] = useState<string | null>(null);
+  // System cards (`sr:` custom ids) keep no answered state here: the server rewrites a card once it is
+  // answered (D-253) and the ordinary MESSAGE_UPDATE removes the buttons.
 
   const staffPress = async (key: string, customId: string | undefined, values?: string[]) => {
     const button = parseStaffButton(customId);
@@ -67,7 +62,10 @@ export function ComponentRows({
     setBusy(key);
     try {
       const out = await runStaffButton(button, { ...context, guildId }, values);
-      setStaffDone(out.message ?? t('lounge.components.staffDone'));
+      toast.show({
+        title: out.message ?? t('lounge.components.staffDone'),
+        variant: out.ok === false ? 'warning' : 'success',
+      });
       // A rejection needs a reason, so the card sends the reviewer to the review page's reject dialog.
       if (out.link?.startsWith('/')) window.location.assign(out.link);
     } catch (e) {
@@ -154,11 +152,6 @@ export function ComponentRows({
 
   return (
     <div className="lng-components">
-      {staffDone !== null && (
-        <p className="lng-muted" role="status">
-          {staffDone}
-        </p>
-      )}
       {rows
         .filter((r) => r.type === 1)
         .slice(0, 5)
@@ -194,9 +187,7 @@ export function ComponentRows({
                     type="button"
                     className="lng-cbtn"
                     data-style={style}
-                    disabled={
-                      c.disabled || busy === key || (staffDone !== null && isOnce(c.custom_id))
-                    }
+                    disabled={c.disabled || busy === key}
                     aria-busy={busy === key || undefined}
                     onClick={() =>
                       isStaff(c.custom_id) && context
@@ -217,9 +208,7 @@ export function ComponentRows({
                       className="lng-cselect"
                       aria-label={label}
                       data-select-type={c.type}
-                      disabled={
-                        c.disabled || busy === key || (staffDone !== null && isOnce(c.custom_id))
-                      }
+                      disabled={c.disabled || busy === key}
                       aria-busy={busy === key || undefined}
                       value=""
                       onChange={(e) =>

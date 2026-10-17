@@ -576,7 +576,7 @@ pub async fn alert_action(
                 .map_err(se)?;
             let (embeds, components) =
                 apply_resume(msg.embeds.clone(), msg.components.clone(), gid, user);
-            rewrite_system_card(&messages, channel, mid, &embeds, &components)
+            rewrite_system_card(&messages, channel, mid, "", &embeds, &components)
                 .await
                 .map_err(msg_err)?;
             if let Some(g) = deps.chat.get_guild(gid).await.map_err(re)? {
@@ -680,7 +680,7 @@ pub async fn alert_action(
                 user,
                 timeout_secs,
             );
-            rewrite_system_card(&messages, channel, mid, &embeds, &components)
+            rewrite_system_card(&messages, channel, mid, "", &embeds, &components)
                 .await
                 .map_err(msg_err)?;
             Ok(if note_gone {

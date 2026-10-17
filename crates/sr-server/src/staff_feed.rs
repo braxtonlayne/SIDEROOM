@@ -83,7 +83,7 @@ impl Card {
     }
 }
 
-fn button(style: u8, label: &str, custom_id: String) -> Component {
+pub(crate) fn button(style: u8, label: &str, custom_id: String) -> Component {
     Component {
         kind: 2,
         style: Some(style),
@@ -510,35 +510,24 @@ impl StaffVoice {
             return false;
         };
         let (channel_id, message_id) = (ChannelId::new(c), sr_core::MessageId::new(m));
+        // Only the system user's own cards are rewritten.
+        match self.messages.repo.get_message(channel_id, message_id).await {
+            Ok(Some(m)) if m.author_id == Self::system() => {}
+            _ => return false,
+        }
         let send = card.into_send();
-        let embeds = serde_json::to_value(&send.embeds).unwrap_or(serde_json::Value::Null);
-        let components = serde_json::to_value(&send.components).unwrap_or(serde_json::Value::Null);
-        let updated = sqlx::query(
-            "UPDATE messages SET content = $2, embeds = $3, components = $4, edited_at = now()              WHERE id = $1 AND author_id = $5",
+        matches!(
+            sr_api::routes::messages::system::rewrite_system_card(
+                &self.messages,
+                channel_id,
+                message_id,
+                &send.content,
+                &send.embeds,
+                &send.components,
+            )
+            .await,
+            Ok(true)
         )
-        .bind(message)
-        .bind(&send.content)
-        .bind(embeds)
-        .bind(components)
-        .bind(SYSTEM_USER_ID)
-        .execute(&self.pool)
-        .await;
-        if !matches!(updated, Ok(ref r) if r.rows_affected() == 1) {
-            return false;
-        }
-        if let Ok(Some(msg)) = self.messages.repo.get_message(channel_id, message_id).await
-            && let Ok(data) = event_payload(&self.messages, &msg).await
-        {
-            self.messages
-                .publish(DomainEvent::MessageEdited {
-                    guild: msg.guild_id,
-                    channel: channel_id,
-                    message_id: msg.id.get(),
-                    data,
-                })
-                .await;
-        }
-        true
     }
 
     /// Close an answered card (an offer or a tester invitation): rewrite it without its buttons and
@@ -619,6 +608,40 @@ impl StaffVoice {
             Some(message) => self.close_card_at(channel, message, outcome).await,
             None => false,
         }
+    }
+
+    /// Close the incident "Resume invites" cards whose pause is over (D-253): the 24-hour pause lapsed
+    /// ("Expired") or somebody reopened invites from the settings page ("Invites were resumed."). A card
+    /// the presser already closed has no button left and is skipped. Returns how many were closed.
+    pub async fn close_stale_resume_cards(&self) -> usize {
+        let rows: Vec<(i64, i64, bool)> = sqlx::query_as(
+            "SELECT m.channel_id, m.id, \
+                    (gc.invites_disabled_until IS NOT NULL AND gc.invites_disabled_until <= now()) \
+             FROM messages m \
+             JOIN channels c ON c.id = m.channel_id \
+             JOIN guild_community gc ON gc.guild_id = c.guild_id \
+             WHERE m.author_id = $1 AND m.id >= sr_snowflake_floor(now() - interval '3 days') \
+               AND m.components::text LIKE '%sr:incident:resume-invites:%' \
+               AND m.components::text LIKE '%' || 'sr:incident:resume-invites:' || c.guild_id::text || '%' \
+               AND NOT (gc.invites_paused OR COALESCE(gc.invites_disabled_until > now(), FALSE)) \
+             LIMIT 100",
+        )
+        .bind(SYSTEM_USER_ID)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap_or_default();
+        let mut closed = 0;
+        for (channel, message, expired) in rows {
+            let outcome = if expired {
+                "Expired: invites are open again."
+            } else {
+                "Invites were resumed."
+            };
+            if self.close_card_at(channel, message, outcome).await {
+                closed += 1;
+            }
+        }
+        closed
     }
 
     /// DM `to` from the system user. Returns the DM channel and message ids.

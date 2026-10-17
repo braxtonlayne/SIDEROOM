@@ -905,3 +905,48 @@ async fn a_submission_gets_a_review_queue_card_that_approves_once() {
     );
     f.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_resume_invites_card_closes_once_when_the_pause_is_over() {
+    use crate::staff_feed::{Card, button};
+    let f = fx().await;
+    let guild = f.guild.get() as i64;
+    let custom = format!("sr:incident:resume-invites:{guild}");
+    let card = Card {
+        content: "Join rate alert".into(),
+        embed: None,
+        buttons: vec![button(1, "Resume invites", custom)],
+    };
+    let (channel, message) = f.voice.post_ids("alerts", card).await.unwrap();
+    sqlx::query(
+        "INSERT INTO guild_community (guild_id, invites_disabled_until) \
+         VALUES ($1, now() + interval '1 hour') \
+         ON CONFLICT (guild_id) DO UPDATE SET invites_disabled_until = EXCLUDED.invites_disabled_until",
+    )
+    .bind(guild)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    // The pause is still running: the card keeps its button.
+    assert_eq!(f.voice.close_stale_resume_cards().await, 0);
+    // The pause lapsed: the server closes the card, exactly once.
+    sqlx::query("UPDATE guild_community SET invites_disabled_until = now() - interval '1 minute' WHERE guild_id = $1")
+        .bind(guild)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(f.voice.close_stale_resume_cards().await, 1);
+    assert_eq!(f.voice.close_stale_resume_cards().await, 0);
+    let row =
+        sqlx::query("SELECT content, components FROM messages WHERE id = $1 AND channel_id = $2")
+            .bind(message)
+            .bind(channel)
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
+    let comps: Value = row.get("components");
+    assert!(comps.as_array().is_none_or(Vec::is_empty), "{comps}");
+    assert!(row.get::<String, _>("content").contains("Expired"));
+    f.db.cleanup().await.unwrap();
+}
