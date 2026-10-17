@@ -56,13 +56,11 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
             ? validateRules(rules)
             : null;
 
-  // Kinds the server can run today; an existing imported_guide channel keeps its kind.
+  // Every kind the server runs: rule-based, manual and imported guides (weekly grid + guide import).
   const kinds = [
     { value: 'rule_based', label: t('admin.channelEditor.kind.ruleBased') },
     { value: 'manual', label: t('admin.channelEditor.kind.manual') },
-    ...(channel?.kind === 'imported_guide'
-      ? [{ value: 'imported_guide', label: t('admin.channelEditor.kind.importedGuide') }]
-      : []),
+    { value: 'imported_guide', label: t('admin.channelEditor.kind.importedGuide') },
   ];
 
   const input = (): tv.ChannelInput => ({

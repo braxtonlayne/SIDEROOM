@@ -118,16 +118,18 @@ pub async fn template(
         .await
         .map_err(map_err)?;
     let (body, ctype, name) = match p.format.as_deref().unwrap_or("csv") {
-        "csv" => (CSV_TEMPLATE, "text/csv; charset=utf-8", "tv-guide-template.csv"),
-        "json" => (
-            JSON_TEMPLATE,
-            "application/json",
-            "tv-guide-template.json",
+        "csv" => (
+            CSV_TEMPLATE,
+            "text/csv; charset=utf-8",
+            "tv-guide-template.csv",
         ),
+        "json" => (JSON_TEMPLATE, "application/json", "tv-guide-template.json"),
         _ => {
-            return Err(
-                ApiError::with_message(ErrorCode::InvalidFormBody, "format is csv or json").into(),
-            );
+            return Err(ApiError::with_message(
+                ErrorCode::InvalidFormBody,
+                "format is csv or json",
+            )
+            .into());
         }
     };
     let mut r = body.into_response();

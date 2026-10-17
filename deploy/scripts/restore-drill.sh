@@ -41,3 +41,5 @@ tables=$(q "select count(*) from information_schema.tables where table_schema='p
 failed=$(q "select count(*) from _sqlx_migrations where success = false")
 [ "$failed" = "0" ] || die "$failed failed migrations in the restored database"
 log "drill ok: $migrations migrations, $tables tables"
+# Marker the System page reads (K-10): its modification time is the last successful restore check.
+date -u +%s >"$(dirname "$dump")/../restore-drill.ok"

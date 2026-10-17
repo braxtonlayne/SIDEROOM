@@ -198,6 +198,8 @@ export const grant = (o: Partial<TuneGrant> = {}): TuneGrant => ({
 export interface TvCalls {
   guide: string[];
   settingsPatches: unknown[];
+  /** `PUT`/`DELETE /tv/favorites/{id}` as `PUT c101`. */
+  favoriteCalls: string[];
   tunes: string[];
   reminders: string[];
 }
@@ -215,7 +217,13 @@ export function useTvApi(
     tune?: (id: string) => Response | undefined;
   } = {},
 ) {
-  const calls: TvCalls = { guide: [], settingsPatches: [], tunes: [], reminders: [] };
+  const calls: TvCalls = {
+    guide: [],
+    settingsPatches: [],
+    favoriteCalls: [],
+    tunes: [],
+    reminders: [],
+  };
   let favourites = o.favourites ?? [];
   let pendingReminders: string[] = o.reminders ?? [];
   const g = () => o.guide ?? guide();
@@ -234,15 +242,21 @@ export function useTvApi(
   };
   server.use(
     http.get('*/api/v1/users/@me', () => HttpResponse.json({ id: '1', username: 'me' })),
-    http.get('*/api/v1/users/@me/settings', () =>
-      HttpResponse.json({ version: 1, settings: { cinema: { tv: { favourites } } } }),
-    ),
+    http.get('*/api/v1/tv/favorites', () => HttpResponse.json({ items: favourites })),
+    http.put('*/api/v1/tv/favorites/:id', ({ params }) => {
+      calls.favoriteCalls.push(`PUT ${String(params.id)}`);
+      if (!favourites.includes(String(params.id))) favourites = [...favourites, String(params.id)];
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.delete('*/api/v1/tv/favorites/:id', ({ params }) => {
+      calls.favoriteCalls.push(`DELETE ${String(params.id)}`);
+      favourites = favourites.filter((f) => f !== String(params.id));
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.get('*/api/v1/users/@me/settings', () => HttpResponse.json({ version: 1, settings: {} })),
     http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
-      const body = (await request.json()) as {
-        settings: { cinema: { tv: { favourites: string[] } } };
-      };
+      const body = (await request.json()) as { settings: unknown };
       calls.settingsPatches.push(body);
-      favourites = body.settings.cinema.tv.favourites;
       return HttpResponse.json({ version: 2, settings: body.settings });
     }),
     http.get('*/api/v1/admin/me', () =>

@@ -8,6 +8,7 @@ import { SectionHeader, useAdminViewer } from '../../ui';
 import { Banner, LoadProblem, useLoad, useRun } from '../hooks';
 import { ChannelEditor } from './ChannelEditor';
 import { AiredReport, NowControl, SchedulePanel } from './ChannelPanels';
+import { GuidePanel } from './GuidePanel';
 import * as tv from './tvApi';
 
 const KIND_LABEL: Record<tv.AdminKind, string> = {
@@ -183,6 +184,15 @@ function ChannelDetail({ id, onClose }: { id: string | null; onClose: () => void
               label: t('admin.liveTv.detail.tab.details'),
               content: <ChannelEditor key={id ?? 'new'} channel={channel} onSaved={saved} />,
             },
+            ...(channel?.kind === 'imported_guide'
+              ? [
+                  {
+                    id: 'guide',
+                    label: t('admin.liveTv.detail.tab.guide'),
+                    content: <GuidePanel channel={channel} />,
+                  },
+                ]
+              : []),
             ...(channel
               ? [
                   {
