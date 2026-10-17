@@ -90,6 +90,7 @@ DELETE	/library/series/{series_id}/follow	authenticated	self	allow	-
 DELETE	/library/series/{series_id}/rating	authenticated	self	allow	-
 DELETE	/library/series/{series_id}/review	authenticated	self	allow	-
 DELETE	/oauth2/tokens/{grant_id}	authenticated	self	deny	-
+DELETE	/packages/{package_id}	authenticated	author	deny	-
 DELETE	/requests/{request_id}/claim	authenticated	author_or_staff	allow	-
 DELETE	/requests/{request_id}/vote	authenticated	self	allow	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
@@ -106,6 +107,7 @@ DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
 DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-
 DELETE	/users/@me/packages/{package_id}	authenticated	self	deny	-
+DELETE	/users/@me/profile-media/{media_id}	authenticated	self	deny	-
 DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-
@@ -459,6 +461,7 @@ GET	/users/@me/primary-guild	authenticated	self	deny	-
 GET	/users/@me/privacy	authenticated	self	deny	-
 GET	/users/@me/profile	authenticated	self	allow	-
 GET	/users/@me/profile-doc	authenticated	self	deny	-
+GET	/users/@me/profile-media	authenticated	self	deny	-
 GET	/users/@me/read-states	authenticated	self	allow	-
 GET	/users/@me/relationships	authenticated	self	deny	-
 GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-
@@ -601,6 +604,7 @@ POST	/admin/library/series/{series_id}/unpublish	authenticated	staff	deny	-
 POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/ban	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/clear-suspicion	authenticated	staff	deny	-
+POST	/admin/persons/{person_id}/identities/{identity_id}/move	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/link	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/unban	authenticated	staff	deny	-
 POST	/admin/reauth	authenticated	staff	deny	-
@@ -747,6 +751,7 @@ POST	/users/@me/connections/{provider}/authorize	authenticated	self	deny	-
 POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-
 POST	/users/@me/data-export	authenticated	self	deny	-
 POST	/users/@me/profile-doc/layout	authenticated	self	deny	-
+POST	/users/@me/profile-media	authenticated	self	deny	-
 POST	/users/@me/push-subscriptions	authenticated	self	deny	-
 POST	/users/@me/relationships	authenticated	self	deny	-
 POST	/users/@me/reminders	authenticated	self	deny	-
