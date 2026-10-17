@@ -13,6 +13,7 @@ pub mod catalog;
 pub mod engine;
 pub mod error;
 pub mod gate;
+pub mod guide;
 pub mod live;
 pub mod model;
 pub mod pg;
@@ -22,11 +23,13 @@ pub mod schedule;
 pub mod service;
 pub mod tz;
 
-pub use catalog::{CatalogItem, MemoryCatalog, TvCatalog};
+pub use catalog::{CatalogItem, MemoryCatalog, TitleRef, TvCatalog};
 pub use error::{TvError, TvResult};
 pub use presence::{MemoryPresence, Presence};
 pub use repo::{MemoryTvRepo, TvRepository};
 pub use service::{Actor, LiveDeps, ReminderNotice, ReminderSink, ReminderView, TvService, Viewer};
 
+#[cfg(test)]
+mod resolve_tests;
 #[cfg(test)]
 mod service_tests;

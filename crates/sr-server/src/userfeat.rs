@@ -483,6 +483,17 @@ pub fn register(
     })
 }
 
+/// Revalidating imported guides at most every five minutes (the tick itself runs every few seconds).
+fn due_for_guide_check() -> bool {
+    use std::sync::atomic::{AtomicI64, Ordering};
+    static LAST: AtomicI64 = AtomicI64::new(0);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(0));
+    let last = LAST.load(Ordering::Relaxed);
+    now - last >= 300_000 && LAST.compare_exchange(last, now, Ordering::Relaxed, Ordering::Relaxed).is_ok()
+}
+
 async fn tick(
     pool: PgPool,
     ticker: Arc<Ticker>,
@@ -494,6 +505,16 @@ async fn tick(
             Ok(n) if n > 0 => tracing::info!(sent = n, "tv reminders sent"),
             Ok(_) => {}
             Err(e) => tracing::warn!(error = %e, "tv reminders failed"),
+        }
+        // Imported guides follow the library (TV-ENG-007): relink slots and regenerate a stale schedule.
+        if due_for_guide_check() {
+            match tv.tv.service.revalidate_guides().await {
+                Ok(ids) if !ids.is_empty() => {
+                    tracing::info!(channels = ids.len(), "tv guides regenerated after a library change");
+                }
+                Ok(_) => {}
+                Err(e) => tracing::warn!(error = %e, "tv guide revalidation failed"),
+            }
         }
     }
     let report = ticker.run_once(false).await;

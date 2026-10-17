@@ -21,7 +21,7 @@ use sr_cinema::model::{
 };
 use sr_cinema::repo::{CinemaRepository, EpisodeQuery};
 use sr_tv::model::{MediaKind, PoolFilter, Restricted};
-use sr_tv::{CatalogItem, TvCatalog, TvError, TvResult};
+use sr_tv::{CatalogItem, TitleRef, TvCatalog, TvError, TvResult};
 
 /// Probed lengths of video assets, in milliseconds.
 #[async_trait]
@@ -292,6 +292,28 @@ impl TvCatalog for RepoTvCatalog {
         self.apply_durations(&mut items).await?;
         let [item] = items;
         Ok(Some(item))
+    }
+
+    async fn title_refs(&self, limit: usize) -> TvResult<Vec<TitleRef>> {
+        // Titles only (no episodes): enough to match a show name. Whether one can air is decided when a
+        // slot is resolved.
+        let all = PoolFilter {
+            restricted: Some(Restricted::Include),
+            ..PoolFilter::default()
+        };
+        let mut out: Vec<TitleRef> = self
+            .titles(&all, true)
+            .await?
+            .iter()
+            .map(|t| TitleRef {
+                title_id: t.id,
+                title: t.title.clone(),
+                year: t.year,
+                media_kind: kind_of(t),
+            })
+            .collect();
+        out.truncate(limit);
+        Ok(out)
     }
 
     async fn bumpers(&self, limit: usize) -> TvResult<Vec<CatalogItem>> {

@@ -17,6 +17,7 @@
 //! ```
 
 mod admin;
+mod guide;
 mod member;
 
 #[cfg(test)]
@@ -183,6 +184,11 @@ pub fn router() -> Router<AppState> {
             "/tv/reminders/{block_id}",
             axum::routing::put(member::set_reminder).delete(member::clear_reminder),
         )
+        .route("/tv/favorites", get(guide::favorites))
+        .route(
+            "/tv/favorites/{channel_id}",
+            axum::routing::put(guide::set_favorite).delete(guide::clear_favorite),
+        )
         .route("/tv/channels/{channel_id}", get(member::channel))
         .route("/tv/channels/{channel_id}/now", get(member::now))
         .route("/tv/channels/{channel_id}/tune", get(member::tune))
@@ -230,6 +236,23 @@ pub fn router() -> Router<AppState> {
             get(admin::now).put(admin::set_now),
         )
         .route("/admin/tv/blocks/{block_id}", delete(admin::remove_block))
+        .route(
+            "/admin/tv/channels/{channel_id}/slots",
+            get(guide::slots).put(guide::put_slots),
+        )
+        .route("/admin/tv/guide-template", get(guide::template))
+        .route(
+            "/admin/tv/channels/{channel_id}/imports",
+            get(guide::imports).post(guide::import),
+        )
+        .route(
+            "/admin/tv/channels/{channel_id}/imports/{import_id}",
+            get(guide::get_import),
+        )
+        .route(
+            "/admin/tv/channels/{channel_id}/imports/{import_id}/confirm",
+            post(guide::confirm_import),
+        )
         .route("/admin/tv/report", get(admin::report))
 }
 
@@ -262,6 +285,16 @@ pub fn router() -> Router<AppState> {
         admin::set_now,
         admin::remove_block,
         admin::report,
+        guide::slots,
+        guide::put_slots,
+        guide::template,
+        guide::import,
+        guide::imports,
+        guide::get_import,
+        guide::confirm_import,
+        guide::favorites,
+        guide::set_favorite,
+        guide::clear_favorite,
     ),
     components(schemas(
         ErrorBody,
@@ -299,6 +332,19 @@ pub fn router() -> Router<AppState> {
         sr_tv::service::Report,
         sr_tv::service::ReportChannel,
         sr_tv::service::ReportItem,
+        guide::SlotList,
+        guide::ImportList,
+        guide::UploadBody,
+        guide::FavoriteList,
+        sr_tv::model::Slot,
+        sr_tv::service::ImportView,
+        sr_tv::service::ConfirmInput,
+        sr_tv::service::GuideChoice,
+        sr_tv::service::ConfirmedGuide,
+        sr_tv::guide::Report,
+        sr_tv::guide::ReportRow,
+        sr_tv::guide::Candidate,
+        sr_tv::guide::Status,
     ))
 )]
 pub struct TvApiDoc;
