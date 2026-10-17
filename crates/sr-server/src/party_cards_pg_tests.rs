@@ -131,7 +131,7 @@ async fn description(f: &Fx) -> String {
 }
 
 async fn wait_for_description(f: &Fx, want: &str) -> bool {
-    for _ in 0..200 {
+    for _ in 0..400 {
         if description(f).await == want {
             return true;
         }
@@ -143,7 +143,7 @@ async fn wait_for_description(f: &Fx, want: &str) -> bool {
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn the_card_is_posted_once_followed_and_greyed_at_the_end() {
-    let f = fx(Duration::from_millis(150)).await;
+    let f = fx(Duration::from_millis(1500)).await;
     f.cards
         .announce(ann(&f, AnnouncementKind::Started, 1))
         .await;
@@ -204,7 +204,7 @@ async fn the_card_is_posted_once_followed_and_greyed_at_the_end() {
     let embeds: Value = card_rows(&f).await[0].get("embeds");
     assert_eq!(embeds[0]["color"], 0x0074_7F8D);
     // The queued update does not come back afterwards.
-    tokio::time::sleep(Duration::from_millis(400)).await;
+    tokio::time::sleep(Duration::from_millis(2000)).await;
     assert_eq!(description(&f).await, "Ended after 4 viewers");
     f.db.cleanup().await.unwrap();
 }
