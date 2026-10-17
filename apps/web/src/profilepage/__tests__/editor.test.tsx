@@ -63,7 +63,11 @@ function open(initial: ProfileDoc = emptyDoc(), extra: Parameters<typeof server.
     http.post('*/api/v1/users/@me/profile-media', async ({ request }) => {
       const kind = new URL(request.url).searchParams.get('kind') ?? '';
       const body = await request.arrayBuffer();
-      rig.uploads.push({ kind, bytes: body.byteLength, type: request.headers.get('content-type') ?? '' });
+      rig.uploads.push({
+        kind,
+        bytes: body.byteLength,
+        type: request.headers.get('content-type') ?? '',
+      });
       const id = String(100 + rig.uploads.length);
       const m = {
         id,
@@ -164,14 +168,18 @@ describe('profile editor (EXT-PRF-005)', () => {
     };
     const rig = open(start);
     const user = userEvent.setup();
-    const png = new File([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], 'bg.png', { type: 'image/png' });
+    const png = new File([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], 'bg.png', {
+      type: 'image/png',
+    });
 
     // The background picture is the request body, kind=background, and becomes the page background.
     await screen.findByRole('group', { name: 'Profile page grid' });
     await user.upload(screen.getByLabelText('Background picture file'), png);
     await waitFor(() => expect(rig.uploads).toHaveLength(1));
     expect(rig.uploads[0]).toMatchObject({ kind: 'background', bytes: 7, type: 'image/png' });
-    expect(await screen.findByRole('button', { name: 'Remove the background picture' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Remove the background picture' }),
+    ).toBeInTheDocument();
 
     // A gallery picture is added to the selected gallery block.
     await user.click(screen.getByRole('button', { name: /Gallery block/ }));
@@ -190,7 +198,10 @@ describe('profile editor (EXT-PRF-005)', () => {
   it('removing an uploaded picture deletes it on the server and leaves the document without it', async () => {
     const start: ProfileDoc = {
       ...emptyDoc(),
-      style: { ...emptyDoc().style, background: { kind: 'image', pattern: 'none', image_id: '11' } },
+      style: {
+        ...emptyDoc().style,
+        background: { kind: 'image', pattern: 'none', image_id: '11' },
+      },
       blocks: [
         {
           id: 'g',
@@ -206,8 +217,26 @@ describe('profile editor (EXT-PRF-005)', () => {
     const rig = open(start, [
       http.get('*/api/v1/users/@me/profile-media', () =>
         HttpResponse.json([
-          { id: '11', kind: 'background', url: '/cdn/avatars/1/11.png', content_type: 'image/png', width: 1, height: 1, bytes: 1, created_at_ms: 1 },
-          { id: '21', kind: 'gallery', url: '/cdn/avatars/1/21.png', content_type: 'image/png', width: 1, height: 1, bytes: 1, created_at_ms: 1 },
+          {
+            id: '11',
+            kind: 'background',
+            url: '/cdn/avatars/1/11.png',
+            content_type: 'image/png',
+            width: 1,
+            height: 1,
+            bytes: 1,
+            created_at_ms: 1,
+          },
+          {
+            id: '21',
+            kind: 'gallery',
+            url: '/cdn/avatars/1/21.png',
+            content_type: 'image/png',
+            width: 1,
+            height: 1,
+            bytes: 1,
+            created_at_ms: 1,
+          },
         ]),
       ),
     ]);
@@ -232,7 +261,9 @@ describe('profile editor (EXT-PRF-005)', () => {
       ],
     });
     const canvas = await screen.findByRole('group', { name: 'Profile page grid' });
-    await userEvent.setup().click(within(canvas).getByRole('button', { name: /About me block/ }));
+    await userEvent
+      .setup()
+      .click(await within(canvas).findByRole('button', { name: /About me block/ }));
     expect(await axeViolations(document.body)).toEqual([]);
   });
 

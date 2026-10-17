@@ -16,7 +16,8 @@ export default {
   'lounge.profileEditor.galleryUploadFile': 'Gallery picture file',
   'lounge.profileEditor.galleryCaption': 'Caption of picture {name}',
   'lounge.profileEditor.galleryRemove': 'Remove picture',
-  'lounge.profileEditor.uploadFailed': 'The picture could not be uploaded. Try a PNG, JPEG, GIF or WebP file under 8 MiB.',
+  'lounge.profileEditor.uploadFailed':
+    'The picture could not be uploaded. Try a PNG, JPEG, GIF or WebP file under 8 MiB.',
   'admin.person.identitiesTitle': 'Discord identities',
   'admin.person.identitiesIntro':
     'The Discord accounts linked to the accounts of this person. A moved identity stays here as history.',

@@ -115,9 +115,10 @@ export function useMessages(channelId: string | undefined): MessagesApi {
   const discardMessage = useStore((s) => s.discardMessage);
 
   const hasWindow = window !== undefined;
+  const stale = window?.stale === true;
   useEffect(() => {
-    if (channelId && !hasWindow) void loadInitialMessages(channelId);
-  }, [channelId, hasWindow, loadInitialMessages]);
+    if (channelId && (!hasWindow || stale)) void loadInitialMessages(channelId);
+  }, [channelId, hasWindow, stale, loadInitialMessages]);
 
   const messages = useMemo(() => {
     if (!window) return [];

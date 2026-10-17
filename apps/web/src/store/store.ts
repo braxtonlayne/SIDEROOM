@@ -10,10 +10,47 @@ import {
   pendingId,
   putServerMessage,
   reduceDispatch,
+  reduceGuildCreate,
+  reduceGuildPeople,
 } from './reducer';
 import * as rest from './rest';
 import { emitDispatch } from './events';
 import type { Channel, ConnectionStatus, Message, MessageReaction, MessageWindow } from './types';
+
+type Obj = Record<string, unknown>;
+
+/** Servers whose members and presences are indexed per timer tick after a big READY (K-22). */
+export const PEOPLE_CHUNK = 6;
+
+/**
+ * Index the members and presences of servers one chunk at a time, yielding to the browser in between, so a
+ * session in many servers paints its first channel before the member lists are filled in.
+ */
+function indexPeople(
+  people: { guild: string; members?: Obj[]; presences?: Obj[] }[],
+  set: (f: (s: StoreData) => Partial<StoreData>) => void,
+): void {
+  if (!people.length) return;
+  let at = 0;
+  const step = () => {
+    const chunk = people.slice(at, at + PEOPLE_CHUNK);
+    at += PEOPLE_CHUNK;
+    set((s) => {
+      let cur: StoreData = s;
+      let out: Partial<StoreData> = {};
+      for (const p of chunk) {
+        // The server may have been left while its people waited.
+        if (!cur.guilds[p.guild]) continue;
+        const part = reduceGuildPeople(cur, p.guild, p.members, p.presences);
+        out = { ...out, ...part };
+        cur = { ...cur, ...part };
+      }
+      return out;
+    });
+    if (at < people.length) setTimeout(step, 0);
+  };
+  setTimeout(step, 0);
+}
 
 /** Minimum gap between two read-state acks for one channel (Q128). */
 export const ACK_THROTTLE_MS = 1000;
@@ -72,6 +109,16 @@ export interface StoreActions {
   setConnection: (s: ConnectionStatus) => void;
   /** Feed one gateway dispatch (called by the gateway client). */
   applyDispatch: (event: string, data: unknown) => void;
+  /**
+   * Feed a burst of dispatches (READY, then one GUILD_CREATE per server) as ONE store update (K-22): the
+   * screens render once for the whole burst instead of once per server. With `deferPeople` the members and
+   * presences that came with a GUILD_CREATE are indexed a moment later, a few servers at a time, so the first
+   * paint (servers, channels, roles) does not wait for them.
+   */
+  applyDispatches: (
+    batch: { event: string; data: unknown }[],
+    opts?: { deferPeople?: boolean },
+  ) => void;
   /** Drop expired typing entries. */
   pruneTyping: (now?: number) => void;
   loadGuilds: () => Promise<void>;
@@ -250,6 +297,33 @@ export const useStore = create<StoreState>()((set, get) => {
       // D-238: the upload limit is REST-only, so a changed entitlement is fetched again.
       if (event === 'SR_ENTITLEMENT_UPDATE') void refreshUploadLimits(data);
     },
+    applyDispatches: (batch, opts) => {
+      const people: { guild: string; members?: Obj[]; presences?: Obj[] }[] = [];
+      set((s) => {
+        let cur: StoreData = s;
+        let out: Partial<StoreData> = {};
+        for (const { event, data } of batch) {
+          let part: Partial<StoreData>;
+          if (opts?.deferPeople && event === 'GUILD_CREATE') {
+            const d = (data ?? {}) as Obj;
+            part = reduceGuildCreate(cur, d);
+            if (d.members || d.presences)
+              people.push({
+                guild: String(d.id),
+                members: d.members as Obj[] | undefined,
+                presences: d.presences as Obj[] | undefined,
+              });
+          } else {
+            part = reduceDispatch(cur, event, data);
+          }
+          out = { ...out, ...part };
+          cur = { ...cur, ...part };
+        }
+        return out;
+      });
+      for (const { event, data } of batch) emitDispatch(event, data);
+      indexPeople(people, set);
+    },
     pruneTyping: (now = Date.now()) =>
       set((s) => {
         let changed = false;
@@ -290,26 +364,30 @@ export const useStore = create<StoreState>()((set, get) => {
 
     loadInitialMessages: async (channelId) => {
       const w = get().windows[channelId];
-      if (w?.loading || (w && w.ids.length > 0)) return;
+      // A window kept from an earlier session (stale) is shown as it is and fetched again.
+      if (w?.loading || (w && w.ids.length > 0 && !w.stale)) return;
       patchWindow(channelId, { loading: true, error: null });
       try {
         const list = await rest.fetchMessages(channelId);
         set((s) => {
           const cur = s.windows[channelId] ?? emptyWindow();
+          const fresh = list.map((m) => m.id);
+          // A stale window (kept across a new session) may hold messages that were deleted meanwhile:
+          // the fetched page replaces it. Otherwise this is the first load and there is nothing to lose.
+          const messages = { ...s.messages };
+          if (cur.stale) for (const id of cur.ids) if (!fresh.includes(id)) delete messages[id];
           return {
-            ...ingest(s, list),
+            ...ingest({ ...s, messages }, list),
             windows: {
               ...s.windows,
               [channelId]: {
                 ...cur,
-                ids: mergeIds(
-                  cur.ids,
-                  list.map((m) => m.id),
-                ),
+                ids: cur.stale ? fresh.sort(cmpId) : mergeIds(cur.ids, fresh),
                 hasMoreBefore: list.length >= rest.PAGE_SIZE,
                 atLatest: true,
                 loading: false,
                 error: null,
+                stale: false,
               },
             },
           };

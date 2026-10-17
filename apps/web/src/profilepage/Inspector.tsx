@@ -218,7 +218,8 @@ export function Inspector({
                   e.target.value = '';
                   if (!f) return;
                   void onUploadGallery(f).then((m) => {
-                    if (m) set({ items: [...urls, ...mine, { image_id: m.id }].slice(0, MAX_GALLERY) });
+                    if (m)
+                      set({ items: [...urls, ...mine, { image_id: m.id }].slice(0, MAX_GALLERY) });
                   });
                 }}
               />

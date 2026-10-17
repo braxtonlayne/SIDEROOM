@@ -115,10 +115,16 @@ function addUser(users: Record<string, User>, u: unknown): Record<string, User> 
   return { ...users, [user.id]: { ...users[user.id], ...user } };
 }
 
+/** Merge many users with one copy of the map (a copy per user made a big READY quadratic, K-22). */
 function addUsers(users: Record<string, User>, list: unknown[]): Record<string, User> {
-  let out = users;
-  for (const u of list) out = addUser(out, u);
-  return out;
+  let out: Record<string, User> | null = null;
+  for (const u of list) {
+    if (!u || typeof (u as User).id !== 'string') continue;
+    const user = u as User;
+    out ??= { ...users };
+    out[user.id] = { ...out[user.id], ...user };
+  }
+  return out ?? users;
 }
 
 function toMember(guildId: string, m: Obj): Member | null {
@@ -149,17 +155,40 @@ function putChannel(s: StoreData, c: Channel): Partial<StoreData> {
 }
 
 function putMembers(s: StoreData, guildId: string, list: Obj[]): Partial<StoreData> {
-  let users = s.users;
+  const users = addUsers(
+    s.users,
+    list.map((raw) => raw.user),
+  );
   const members = { ...s.members };
   const ids = new Set(s.memberIdsByGuild[guildId] ?? []);
   for (const raw of list) {
     const m = toMember(guildId, raw);
     if (!m) continue;
-    users = addUser(users, raw.user);
     members[memberKey(guildId, m.user_id)] = { ...members[memberKey(guildId, m.user_id)], ...m };
     ids.add(m.user_id);
   }
   return { users, members, memberIdsByGuild: { ...s.memberIdsByGuild, [guildId]: [...ids] } };
+}
+
+/** Add many channels of one bucket with one copy of the maps. */
+function putChannels(s: StoreData, bucket: string, list: Channel[]): Partial<StoreData> {
+  const channels = { ...s.channels };
+  const ids = [...(s.channelIdsByGuild[bucket] ?? [])];
+  const have = new Set(ids);
+  const recipients: unknown[] = [];
+  for (const c of list) {
+    channels[c.id] = { ...channels[c.id], ...c };
+    if (!have.has(c.id)) {
+      have.add(c.id);
+      ids.push(c.id);
+    }
+    if (c.recipients) recipients.push(...c.recipients);
+  }
+  return {
+    channels,
+    channelIdsByGuild: { ...s.channelIdsByGuild, [bucket]: ids },
+    users: recipients.length ? addUsers(s.users, recipients) : s.users,
+  };
 }
 
 function putPresences(s: StoreData, list: Obj[]): Record<string, Presence> {
@@ -239,6 +268,84 @@ export function putServerMessage(s: StoreData, msg: Message): Partial<StoreData>
   };
 }
 
+/**
+ * The part of a GUILD_CREATE the first paint needs: the server, its channels, roles and voice states. The
+ * members and presences are indexed by [`reduceGuildPeople`], which a big READY can run a moment later
+ * (K-22).
+ */
+export function reduceGuildCreate(s: StoreData, d: Obj): StoreData {
+  const id = str(d.id);
+  const {
+    channels,
+    threads: _t,
+    roles,
+    members: _m,
+    presences: _p,
+    ...rest
+  } = d as Obj & {
+    channels?: Channel[];
+    roles?: Role[];
+    members?: Obj[];
+    presences?: Obj[];
+    threads?: unknown;
+  };
+  void _t;
+  void _m;
+  void _p;
+  let next: StoreData = {
+    ...s,
+    guilds: {
+      ...s.guilds,
+      [id]: { ...s.guilds[id], ...(rest as object), id, unavailable: false } as Guild,
+    },
+    guildOrder: s.guildOrder.includes(id) ? s.guildOrder : [...s.guildOrder, id],
+  };
+  // Replace this guild's channel index with the authoritative list.
+  const chMap = { ...next.channels };
+  for (const oldId of next.channelIdsByGuild[id] ?? []) delete chMap[oldId];
+  next = {
+    ...next,
+    channels: chMap,
+    channelIdsByGuild: { ...next.channelIdsByGuild, [id]: [] },
+  };
+  next = {
+    ...next,
+    ...putChannels(
+      next,
+      id,
+      (channels ?? []).map((c) => ({ ...c, guild_id: id })),
+    ),
+  };
+  const roleMap = { ...next.roles };
+  for (const oldId of next.roleIdsByGuild[id] ?? []) delete roleMap[oldId];
+  for (const r of roles ?? []) roleMap[r.id] = { ...r, guild_id: id };
+  next = {
+    ...next,
+    roles: roleMap,
+    roleIdsByGuild: { ...next.roleIdsByGuild, [id]: (roles ?? []).map((r) => r.id) },
+  };
+  const voice = d.voice_states as VoiceState[] | undefined;
+  if (voice) {
+    const map: Record<string, VoiceState> = {};
+    for (const v of voice) if (v.channel_id) map[v.user_id] = { ...v, guild_id: id };
+    next = { ...next, voiceStates: { ...next.voiceStates, [id]: map } };
+  }
+  return next;
+}
+
+/** Index the members and presences that came with a GUILD_CREATE. */
+export function reduceGuildPeople(
+  s: StoreData,
+  guildId: string,
+  members?: Obj[],
+  presences?: Obj[],
+): Partial<StoreData> {
+  let out: Partial<StoreData> = {};
+  if (members) out = putMembers(s, guildId, members);
+  if (presences) out = { ...out, presences: putPresences({ ...s, ...out }, presences) };
+  return out;
+}
+
 /** Apply one gateway dispatch; returns the changed slices (empty object = ignored). */
 export function reduceDispatch(
   s: StoreData,
@@ -285,15 +392,19 @@ export function reduceDispatch(
           mention_count: Number(e.mention_count ?? 0),
         };
       }
-      // A fresh session may have missed events: drop cached history, keep optimistic sends.
+      // A fresh session may have missed events. The cached history stays on screen (an empty channel until
+      // the next fetch is worse) but is marked stale, so the newest page is fetched again and replaces it
+      // (K-22). Optimistic sends are kept as they are.
       const windows: Record<string, MessageWindow> = {};
       const messages: Record<string, Message> = {};
       for (const [cid, w] of Object.entries(s.windows)) {
-        if (!w.pending.length) continue;
-        windows[cid] = { ...emptyWindow(), pending: w.pending };
-        for (const p of w.pending) {
-          const m = s.messages[p];
-          if (m) messages[p] = m;
+        if (!w.ids.length && !w.pending.length) continue;
+        windows[cid] = w.ids.length
+          ? { ...w, loading: false, error: null, stale: true }
+          : { ...emptyWindow(), pending: w.pending };
+        for (const id of [...w.ids, ...w.pending]) {
+          const m = s.messages[id];
+          if (m) messages[id] = m;
         }
       }
       return {
@@ -313,57 +424,10 @@ export function reduceDispatch(
       };
     }
     case 'GUILD_CREATE': {
-      const id = str(d.id);
-      const {
-        channels,
-        threads: _t,
-        roles,
-        members,
-        presences,
-        ...rest
-      } = d as Obj & {
-        channels?: Channel[];
-        roles?: Role[];
-        members?: Obj[];
-        presences?: Obj[];
-        threads?: unknown;
-      };
-      void _t;
-      let next: StoreData = {
-        ...s,
-        guilds: {
-          ...s.guilds,
-          [id]: { ...s.guilds[id], ...(rest as object), id, unavailable: false } as Guild,
-        },
-        guildOrder: s.guildOrder.includes(id) ? s.guildOrder : [...s.guildOrder, id],
-      };
-      const chList = channels ?? [];
-      // Replace this guild's channel index with the authoritative list.
-      const chMap = { ...next.channels };
-      for (const oldId of next.channelIdsByGuild[id] ?? []) delete chMap[oldId];
-      next = {
-        ...next,
-        channels: chMap,
-        channelIdsByGuild: { ...next.channelIdsByGuild, [id]: [] },
-      };
-      for (const c of chList) next = { ...next, ...putChannel(next, { ...c, guild_id: id }) };
-      const roleMap = { ...next.roles };
-      for (const oldId of next.roleIdsByGuild[id] ?? []) delete roleMap[oldId];
-      for (const r of roles ?? []) roleMap[r.id] = { ...r, guild_id: id };
-      next = {
-        ...next,
-        roles: roleMap,
-        roleIdsByGuild: { ...next.roleIdsByGuild, [id]: (roles ?? []).map((r) => r.id) },
-      };
-      if (members) next = { ...next, ...putMembers(next, id, members) };
-      if (presences) next = { ...next, presences: putPresences(next, presences) };
-      const voice = d.voice_states as VoiceState[] | undefined;
-      if (voice) {
-        const map: Record<string, VoiceState> = {};
-        for (const v of voice) if (v.channel_id) map[v.user_id] = { ...v, guild_id: id };
-        next = { ...next, voiceStates: { ...next.voiceStates, [id]: map } };
-      }
-      return next;
+      const core = reduceGuildCreate(s, d);
+      const { members, presences } = d as { members?: Obj[]; presences?: Obj[] };
+      if (!members && !presences) return core;
+      return { ...core, ...reduceGuildPeople({ ...s, ...core }, str(d.id), members, presences) };
     }
     case 'GUILD_UPDATE': {
       const id = str(d.id);

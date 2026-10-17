@@ -118,7 +118,11 @@ describe('profile page renderer (EXT-PRF-002, EXT-PRF-003)', () => {
           // The proxy refused this host (deny list, size or time): no path, so a placeholder tile.
           { url: 'https://denied.example/b.png', caption: 'Dog' },
           // A client cannot make the page load an arbitrary address through a made-up proxy_url.
-          { url: 'https://evil.example/c.png', caption: 'Bad', proxy_url: 'https://evil.example/c.png' },
+          {
+            url: 'https://evil.example/c.png',
+            caption: 'Bad',
+            proxy_url: 'https://evil.example/c.png',
+          },
         ],
       }),
     ]);
@@ -141,7 +145,9 @@ describe('profile page renderer (EXT-PRF-002, EXT-PRF-003)', () => {
   it('falls back to the placeholder tile when the proxy cannot deliver the picture', () => {
     const d = doc([
       blk('g', 'gallery', 0, 0, 12, 5, {
-        items: [{ url: 'https://img.example/a.png', caption: 'Cat', proxy_url: '/cdn/external/x/y' }],
+        items: [
+          { url: 'https://img.example/a.png', caption: 'Cat', proxy_url: '/cdn/external/x/y' },
+        ],
       }),
     ]);
     const { container } = render(<ProfileRenderer page={page(d)} />);
@@ -172,7 +178,9 @@ describe('profile page renderer (EXT-PRF-002, EXT-PRF-003)', () => {
       { background: { kind: 'image', image_id: '11', pattern: 'dots' } },
     );
     const { container } = render(
-      <ProfileRenderer page={page(d, { media: [mine('11', 'background'), mine('21', 'gallery')] })} />,
+      <ProfileRenderer
+        page={page(d, { media: [mine('11', 'background'), mine('21', 'gallery')] })}
+      />,
     );
     const root = container.querySelector('.pp-root') as HTMLElement;
     expect(root).toHaveAttribute('data-bg-image', 'true');

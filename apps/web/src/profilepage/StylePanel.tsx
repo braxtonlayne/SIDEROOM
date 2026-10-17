@@ -163,7 +163,8 @@ export function StylePanel({
         value={bg.kind === 'image' && !picture ? 'pattern' : bg.kind}
         onValueChange={(v) => {
           const pattern = bg.pattern ?? 'none';
-          if (v === 'image' && uploaded) setBackground({ kind: 'image', pattern, image_id: uploaded.id });
+          if (v === 'image' && uploaded)
+            setBackground({ kind: 'image', pattern, image_id: uploaded.id });
           else if (v === 'banner') setBackground({ kind: 'banner', pattern });
           else setBackground({ kind: 'pattern', pattern });
         }}
@@ -192,7 +193,11 @@ export function StylePanel({
               });
             }}
           />
-          <Button variant="secondary" loading={uploading} onClick={() => fileInput.current?.click()}>
+          <Button
+            variant="secondary"
+            loading={uploading}
+            onClick={() => fileInput.current?.click()}
+          >
             {t('lounge.profileEditor.backgroundUpload')}
           </Button>
         </>
