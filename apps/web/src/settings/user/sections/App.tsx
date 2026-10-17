@@ -14,6 +14,7 @@ import pkg from '../../../../package.json';
 import { useLoungeUi } from '../../../lounge/store';
 import { rest, useStore } from '../../../store';
 import { errorText } from '../api';
+import { AdvancedVoiceCards } from './AdvancedVoice';
 import { Card, Field, SectionTitle } from '../parts';
 import type { TimeFormat } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
@@ -245,6 +246,7 @@ export function AdvancedSection({ prefs, setPrefs }: PrefsFormProps) {
         />
         {prefs.appTestMode && <Diagnostics />}
       </Card>
+      <AdvancedVoiceCards />
       <ResetCard />
     </>
   );

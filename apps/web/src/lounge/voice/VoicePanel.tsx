@@ -13,6 +13,7 @@ import { PingGraph } from './PingGraph';
 import { QualityBars } from './QualityBars';
 import { ScreenSharePicker } from './ScreenSharePicker';
 import { E2eeShield } from './PrivacyCodes';
+import { ActivityButton } from '../../activities/ActivityButton';
 import { SoundboardButton } from './SoundboardPopover';
 import './voice-p10.css';
 
@@ -165,6 +166,9 @@ export function VoicePanel() {
           </button>
         </Tooltip>
         <E2eeShield />
+        {s.guildId && s.channelId && s.guildId !== DM_GUILD_ID && (
+          <ActivityButton channelId={s.channelId} compact />
+        )}
         {s.guildId && s.channelId && s.guildId !== DM_GUILD_ID && (
           <SoundboardButton guildId={s.guildId} channelId={s.channelId} compact />
         )}

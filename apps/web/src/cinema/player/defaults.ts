@@ -8,7 +8,15 @@ export interface PlayerDefaults {
   dataSaver: boolean;
   /** Language code, or null to follow the file's default track. */
   subtitleLang: string | null;
+  /** Language code of the audio track to start with, or null for the file's default. */
+  audioLang: string | null;
+  /** Highest picture height to start with (480, 720 or 1080), or null for no cap. */
+  qualityCap: number | null;
 }
+
+export const QUALITY_CAPS = [480, 720, 1080] as const;
+export const capOf = (v: unknown): number | null =>
+  typeof v === 'number' && (QUALITY_CAPS as readonly number[]).includes(v) ? v : null;
 
 export function readPlayerDefaults(): PlayerDefaults {
   let p: Partial<PlayerDefaults> = {};
@@ -22,6 +30,8 @@ export function readPlayerDefaults(): PlayerDefaults {
     autoplayNext: p.autoplayNext !== false,
     dataSaver: p.dataSaver === true,
     subtitleLang: typeof p.subtitleLang === 'string' && p.subtitleLang ? p.subtitleLang : null,
+    audioLang: typeof p.audioLang === 'string' && p.audioLang ? p.audioLang : null,
+    qualityCap: capOf(p.qualityCap),
   };
 }
 

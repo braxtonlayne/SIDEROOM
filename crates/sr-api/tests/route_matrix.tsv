@@ -398,6 +398,7 @@ GET	/push/vapid-key	authenticated	self	deny	-
 GET	/requests	authenticated	user	allow	-
 GET	/soundboard-default-sounds	authenticated	user	allow	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	user	allow	-
+GET	/sr/auth/discord	authenticated	self	deny	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
 GET	/sr/auth/reauth	authenticated	self	deny	-
 GET	/sr/csrf	authenticated	self	allow	-
@@ -722,6 +723,8 @@ POST	/read-states/ack-bulk	authenticated	membership	allow	-
 POST	/requests	authenticated	user	allow	-
 POST	/requests/{request_id}/fulfil	authenticated	author_or_staff	allow	-
 POST	/sr/auth/account/delete	authenticated	self	deny	-
+POST	/sr/auth/discord/link	authenticated	self	deny	-
+POST	/sr/auth/discord/unlink	authenticated	self	deny	-
 POST	/sr/auth/email/cancel	public	none	deny	-
 POST	/sr/auth/email/change	authenticated	self	deny	-
 POST	/sr/auth/passkeys/login/begin	public	none	deny	-

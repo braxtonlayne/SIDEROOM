@@ -10,7 +10,14 @@ const Launcher = lazy(() =>
   import('./ActivityLauncher').then((m) => ({ default: m.ActivityLauncher })),
 );
 
-export function ActivityButton({ channelId }: { channelId: string }) {
+/** `compact` is the small icon button of the voice panel above the user panel (VOX-UI-001). */
+export function ActivityButton({
+  channelId,
+  compact = false,
+}: {
+  channelId: string;
+  compact?: boolean;
+}) {
   const t = useT();
   const { enabled, instance } = useChannelActivity(channelId);
   const [open, setOpen] = useState(false);
@@ -22,7 +29,7 @@ export function ActivityButton({ channelId }: { channelId: string }) {
     <>
       <button
         type="button"
-        className="vc-ctl"
+        className={compact ? 'lng-icon-btn' : 'vc-ctl'}
         aria-label={label}
         title={label}
         data-active={instance || undefined}
@@ -31,7 +38,7 @@ export function ActivityButton({ channelId }: { channelId: string }) {
           else setOpen(true);
         }}
       >
-        <Icon name="sparkle" size={24} />
+        <Icon name="sparkle" size={compact ? 20 : 24} />
       </button>
       {open && (
         <Suspense fallback={null}>

@@ -31,7 +31,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [x] **LNG-GLD-026** [FE] Edit Per-server Profile modal *(`GuildProfileDialog.tsx` (nickname, bio, pronouns, effect, theme colours, avatar, banner), test `p11ShellProfile.test.tsx`)*
 - [x] **LNG-GLD-027** [FE] Leave Server confirm (owner must transfer first)
 - [x] **LNG-GLD-028** [FE] Server Directory page (search, categories, server cards with banner, icon, description, members/online, Join) *(`DirectoryDialog.tsx` (search, categories, cards with banner/icon/description/online/members, Join), test `p11ShellDirectory.test.tsx`)*
-- [ ] **LNG-GLD-029** [FE] Server preview / lurk mode for Directory community servers (read-only before joining) *(p14 open: a non-member cannot read channels, so lurk mode needs a read-only preview API and an owner decision)*
+- [x] **LNG-GLD-029** [FE] Server preview / lurk mode for Directory community servers (read-only before joining) *(won't build, D-251: a non-member never reads a server's channels; the Server Directory listing is the preview)*
 - [x] **LNG-GLD-030** [FE] Membership screening / rules acceptance modal *(p14: `JoinGate.tsx` `ScreeningDialog` for a pending member (rules, agree, `PUT /requests/@me`))*
 - [x] **LNG-GLD-031** [FE] Onboarding flow (questions, options with channels/roles, default channels) for new members *(p14: `JoinGate.tsx` `OnboardingDialog` after the rules or for a member who joined in the last 3 days; skipping is remembered per browser (the API keeps no "answered" flag))*
 - [x] **LNG-GLD-032** [FE] Channels & Roles / Browse Channels page (onboarding-enabled servers) *(p14: "Browse Channels" in the server menu on onboarding servers (`BrowseChannelsDialog.tsx`), and the onboarding result lists the chosen channels)*
