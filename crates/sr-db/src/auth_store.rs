@@ -279,23 +279,28 @@ impl AuthStore for PgAuthStore {
             .fetch_optional(&mut *tx)
             .await
             .map_err(store_err)?;
-        let owner: Option<i64> = sqlx::query_scalar(
-            "SELECT account_id FROM external_identities \
-             WHERE provider = 'discord' AND provider_user_id = $1",
+        // The identity's holder: its live row, or else the newest row its person unlinked (a soft
+        // unlink never frees the identity, D-030). Rows a staff move left behind (K-20,
+        // `moved_to_account_id`) are history and never the holder.
+        let owner: Option<(i64, i64)> = sqlx::query_as(
+            "SELECT id, account_id FROM external_identities \
+             WHERE provider = 'discord' AND provider_user_id = $1 \
+             AND moved_to_account_id IS NULL \
+             ORDER BY (unlinked_at IS NULL) DESC, id DESC LIMIT 1",
         )
         .bind(provider_user_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(store_err)?;
-        if let Some(owner) = owner {
+        if let Some((row_id, owner)) = owner {
             if owner != account_id {
                 return Ok(DiscordLink::TakenByOther);
             }
             sqlx::query(
                 "UPDATE external_identities SET unlinked_at = NULL, updated_at = now() \
-                 WHERE provider = 'discord' AND provider_user_id = $1",
+                 WHERE id = $1",
             )
-            .bind(provider_user_id)
+            .bind(row_id)
             .execute(&mut *tx)
             .await
             .map_err(store_err)?;

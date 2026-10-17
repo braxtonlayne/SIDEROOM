@@ -2,8 +2,8 @@
 -- history (soft-unlinked: `unlinked_at`, and where it went: `moved_to_account_id`) and a new live row is
 -- written for the target account. Only live rows are unique per Discord user; the pair stays unique across
 -- accounts, deleted ones included (D-030), among the live rows.
+-- `unlinked_at` itself came with 0990 (ENT-AUTH-011, a person's own unlink from User Settings).
 ALTER TABLE external_identities
-    ADD COLUMN unlinked_at         TIMESTAMPTZ,
     ADD COLUMN moved_to_account_id BIGINT REFERENCES accounts (id);
 ALTER TABLE external_identities DROP CONSTRAINT external_identities_provider_provider_user_id_key;
 CREATE UNIQUE INDEX external_identities_live_uidx

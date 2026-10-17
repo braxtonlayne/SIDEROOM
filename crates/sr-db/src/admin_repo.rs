@@ -774,7 +774,7 @@ impl AdminRepository for PgAdminRepo {
                     OR a.display_name ILIKE $4 OR a.id::text = $5) \
                AND ($7::text IS NULL OR EXISTS (SELECT 1 FROM external_identities x \
                     WHERE x.account_id = a.id AND x.provider_user_id = $7 \
-                    AND x.unlinked_at IS NULL)) \
+                    AND x.moved_to_account_id IS NULL)) \
                AND ($8::inet IS NULL OR EXISTS (SELECT 1 FROM login_events e \
                     WHERE e.account_id = a.id AND e.ip = $8::inet)) \
              ORDER BY a.id LIMIT $6",

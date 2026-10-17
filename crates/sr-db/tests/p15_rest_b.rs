@@ -92,3 +92,65 @@ async fn discord_identity_links_unlinks_and_is_never_freed() {
     assert_eq!(store.find_by_discord("d-1").await.unwrap().unwrap().id, a);
     db.cleanup().await.unwrap();
 }
+
+/// A soft unlink (0990, ENT-AUTH-011) and a staff move (1021, K-20) on the same identity: the
+/// row a move left behind is history, the moved-to account holds the identity, also after it
+/// unlinks it, and relinking touches that row only.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_moved_identity_belongs_to_the_account_it_moved_to() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let next = Arc::new(AtomicI64::new(60_000));
+    let ids: IdSource = Arc::new(move || next.fetch_add(1, Ordering::SeqCst));
+    let store = PgAuthStore::new(
+        pool.clone(),
+        PgAuthRepo::new(pool.clone(), ids.clone(), [0u8; 32]),
+        ids,
+    );
+    let a = account(&pool, 11).await;
+    let c = account(&pool, 12).await;
+    assert_eq!(
+        store.link_discord(a, 200, "d-9").await.unwrap(),
+        DiscordLink::Linked
+    );
+    // What `move_identity` writes: the old row becomes history, a new live row on `c`.
+    sqlx::query(
+        "UPDATE external_identities SET unlinked_at = now(), moved_to_account_id = $1 WHERE id = 200",
+    )
+    .bind(c)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO external_identities (id, account_id, provider, provider_user_id) \
+         VALUES (201, $1, 'discord', 'd-9')",
+    )
+    .bind(c)
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert_eq!(store.find_by_discord("d-9").await.unwrap().unwrap().id, c);
+    assert_eq!(
+        store.link_discord(a, 202, "d-9").await.unwrap(),
+        DiscordLink::TakenByOther
+    );
+    assert!(store.unlink_discord(c).await.unwrap());
+    // Still held by `c` after its own unlink; the old account cannot take it back.
+    assert_eq!(
+        store.link_discord(a, 203, "d-9").await.unwrap(),
+        DiscordLink::TakenByOther
+    );
+    assert_eq!(
+        store.link_discord(c, 204, "d-9").await.unwrap(),
+        DiscordLink::Linked
+    );
+    let live: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM external_identities WHERE provider_user_id = 'd-9' AND unlinked_at IS NULL",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(live, vec![201]);
+    db.cleanup().await.unwrap();
+}
