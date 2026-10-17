@@ -81,7 +81,8 @@ async fn world() -> World {
         Arc::new(SystemClock),
         Arc::new(uid),
     )
-    .with_index(Arc::new(TitleIndex::in_ram().unwrap()));
+    .with_index(Arc::new(TitleIndex::in_ram().unwrap()))
+    .with_storage(Arc::new(sr_storage::ObjectStoreStorage::in_memory()));
     let media = Arc::new(PgMediaRepo::new(pool.clone(), Arc::new(uid)));
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
     let review = ReviewService::new(
@@ -528,4 +529,69 @@ async fn housekeeping_purges_a_rejected_cinema_submission() {
     assert_eq!(queued, 1);
     // Idempotent.
     assert_eq!(w.review.housekeeping().await.unwrap().purged, 0);
+}
+
+fn png(w: u32, h: u32) -> Vec<u8> {
+    use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
+    let img = RgbImage::from_fn(w, h, |x, y| Rgb([(x % 256) as u8, (y % 256) as u8, 7]));
+    let mut out = Vec::new();
+    DynamicImage::ImageRgb8(img)
+        .write_to(&mut std::io::Cursor::new(&mut out), ImageFormat::Png)
+        .unwrap();
+    out
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_member_sets_the_poster_and_backdrop_of_a_draft_title() {
+    let w = world().await;
+    let a = w.asset(w.member, true).await;
+    let s = w
+        .create(
+            w.member,
+            KIND_TITLE,
+            json!({ "kind": "movie", "title": format!("Film {}", uid()), "asset_id": a.to_string() }),
+        )
+        .await
+        .unwrap();
+    let member = Caller::member(w.member);
+    let poster = w
+        .review
+        .set_artwork(member, s.id, "poster", &png(900, 1350))
+        .await
+        .unwrap();
+    assert!(poster.is_some_and(|u| u.contains("/poster-")));
+    let backdrop = w
+        .review
+        .set_artwork(member, s.id, "backdrop", &png(2400, 1350))
+        .await
+        .unwrap();
+    assert!(backdrop.is_some_and(|u| u.contains("/backdrop-")));
+    // The keys are stored with the draft title, under its own folder.
+    let (p, b): (Option<String>, Option<String>) =
+        sqlx::query_as("SELECT poster_key, backdrop_key FROM video_titles WHERE id = $1")
+            .bind(s.ref_id.unwrap())
+            .fetch_one(&w.pool)
+            .await
+            .unwrap();
+    let prefix = format!("cinema/{}/", s.ref_id.unwrap());
+    assert!(p.is_some_and(|k| k.starts_with(&prefix)));
+    assert!(b.is_some_and(|k| k.starts_with(&prefix)));
+    // Other slots, bad images and strangers are refused.
+    for slot in ["cover", "banner", "logo"] {
+        assert!(matches!(
+            w.review.set_artwork(member, s.id, slot, &png(10, 10)).await,
+            Err(ReviewError::Invalid(_))
+        ));
+    }
+    assert!(matches!(
+        w.review.set_artwork(member, s.id, "poster", b"nope").await,
+        Err(ReviewError::Invalid(_))
+    ));
+    assert!(matches!(
+        w.review
+            .set_artwork(Caller::member(w.other), s.id, "poster", &png(10, 10))
+            .await,
+        Err(ReviewError::NotFound(_))
+    ));
 }

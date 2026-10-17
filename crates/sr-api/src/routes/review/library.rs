@@ -69,6 +69,17 @@ async fn note(ctx: &MemberCtx, s: &Submission, who: EditAs, field: &str) -> Resu
     Ok(())
 }
 
+/// Any state, for the submitter or a reviewer of the kind, to read the draft chapters.
+async fn readable(ctx: &MemberCtx, raw: &str) -> Result<Submission, HttpError> {
+    ops(ctx)?;
+    let s = ctx
+        .svc()
+        .readable_for(ctx.caller, id(raw, "submission")?)
+        .await
+        .map_err(map_err)?;
+    library_kind(s)
+}
+
 /// Any state, for reads and polling.
 async fn own(ctx: &MemberCtx, raw: &str) -> Result<Submission, HttpError> {
     ops(ctx)?;
@@ -127,7 +138,7 @@ pub async fn chapters(
     ctx: MemberCtx,
     Path(submission_id): Path<String>,
 ) -> ApiResult<Json<ChapterList>> {
-    let s = own(&ctx, &submission_id).await?;
+    let s = readable(&ctx, &submission_id).await?;
     ops(&ctx)?
         .chapters(&s, ctx.user())
         .await

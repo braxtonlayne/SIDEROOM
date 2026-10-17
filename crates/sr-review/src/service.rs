@@ -656,6 +656,21 @@ impl ReviewService {
         self.load_own(user, id).await
     }
 
+    /// The submission for a kind specific read by its submitter, or by a reviewer of the kind (no claim
+    /// needed to look); anyone else learns nothing.
+    pub async fn readable_for(&self, c: Caller, id: i64) -> ReviewResult<Submission> {
+        let s = self.load(id).await?;
+        if s.submitter_id == Some(c.user_id) {
+            return Ok(s);
+        }
+        let kind = self.kinds.get(&s.kind)?;
+        if c.permissions.has(kind.review_permission()) {
+            Ok(s)
+        } else {
+            Err(ReviewError::NotFound("submission"))
+        }
+    }
+
     /// The submission when the caller may review its kind (for kind specific reads).
     pub async fn reviewable(&self, c: Caller, id: i64) -> ReviewResult<Submission> {
         Ok(self.load_for_review(c, id).await?.0)
