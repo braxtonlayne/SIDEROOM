@@ -847,6 +847,7 @@ impl AuthStore for PgAuthStore {
                 invites_revoked: r.invites_revoked,
                 avatar_key: r.avatar_key,
                 banner_key: r.banner_key,
+                profile_media_keys: r.profile_media_keys,
             }),
             Err(crate::account_deletion::Blocked::NotActive) => Err(DeleteRefusal::NotActive),
             Err(crate::account_deletion::Blocked::OwnsGuilds(g)) => {

@@ -1062,6 +1062,7 @@ mod tests {
             customised: true,
             guestbook_count: None,
             guestbook_limit: 500,
+            media: Vec::new(),
         }
     }
 

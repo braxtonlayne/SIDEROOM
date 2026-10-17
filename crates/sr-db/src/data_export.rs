@@ -341,6 +341,7 @@ pub async fn build_package<W: Write + Seek>(
         // EXT-PRF / EXT-PKG: the profile page document, guestbook entries written and received, packages
         // authored and themes turned on.
         "profile_page": rows(pool, "SELECT profile_doc FROM accounts WHERE id = $1", user).await?,
+        "profile_media": rows(pool, "SELECT id::text AS id, kind, object_key, content_type, width, height, bytes, created_at FROM profile_media WHERE account_id = $1 ORDER BY id", user).await?,
         "guestbook_written": rows(pool, "SELECT id::text AS id, profile_id::text AS profile_id, body, created_at FROM profile_guestbook WHERE author_id = $1 ORDER BY id", user).await?,
         "guestbook_received": rows(pool, "SELECT id::text AS id, author_id::text AS author_id, body, created_at FROM profile_guestbook WHERE profile_id = $1 ORDER BY id", user).await?,
         "packages": rows(pool, "SELECT p.id::text AS id, p.kind, p.slug, p.name, v.version, v.review_state, v.created_at FROM packages p JOIN package_versions v ON v.package_id = p.id WHERE p.author_id = $1 ORDER BY p.id, v.id", user).await?,

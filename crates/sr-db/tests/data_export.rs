@@ -170,6 +170,13 @@ async fn the_package_has_the_users_data_and_no_secrets() {
     .await
     .unwrap();
 
+    sqlx::query(
+        "INSERT INTO profile_media (id, account_id, kind, object_key, content_type, width, height, bytes)          VALUES (6001, 1, 'background', 'avatars/1/abc', 'image/png', 640, 480, 1234)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
     let mut buf = Cursor::new(Vec::new());
     let n = data_export::build_package(pool, 1, &mut buf, 1_700_000_000_000)
         .await
@@ -203,6 +210,10 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         zip.by_name(name).unwrap().read_to_string(&mut s).unwrap();
         s
     };
+    let activity: serde_json::Value = serde_json::from_str(&read("activity.json")).unwrap();
+    assert_eq!(activity["profile_media"][0]["id"], "6001");
+    assert_eq!(activity["profile_media"][0]["kind"], "background");
+    assert_eq!(activity["profile_media"][0]["width"], 640);
     let account: serde_json::Value = serde_json::from_str(&read("account.json")).unwrap();
     assert_eq!(account["username"], "writer");
     assert_eq!(account["id"], "1", "ids are strings");

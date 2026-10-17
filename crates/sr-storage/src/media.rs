@@ -44,6 +44,9 @@ pub enum MediaKind {
     ChannelIcon,
     /// Cover image of a scheduled event (G-93); the owner is the event (`guild-events/<event_id>/<hash>`).
     EventCover,
+    /// A picture on the person's customised profile page (a background image or a gallery picture,
+    /// K-17); the owner is the user (`avatars/<user_id>/<hash>`), bounded like a banner.
+    ProfileMedia,
 }
 
 impl MediaKind {
@@ -71,6 +74,7 @@ impl MediaKind {
             | Self::GuildBanner
             | Self::GuildSplash
             | Self::MemberBanner
+            | Self::ProfileMedia
             | Self::EventCover => Fit::Bound { w: 1920, h: 1080 },
         }
     }
@@ -88,6 +92,7 @@ impl MediaKind {
             Self::MemberBanner => "member-banner",
             Self::ChannelIcon => "channel-icon",
             Self::EventCover => "event-cover",
+            Self::ProfileMedia => "profile-media",
         }
     }
 
@@ -98,7 +103,8 @@ impl MediaKind {
             | Self::UserBanner
             | Self::WebhookAvatar
             | Self::MemberAvatar
-            | Self::MemberBanner => "avatars",
+            | Self::MemberBanner
+            | Self::ProfileMedia => "avatars",
             Self::GuildIcon | Self::GuildBanner | Self::GuildSplash | Self::RoleIcon => "icons",
             Self::ChannelIcon => "channel-icons",
             Self::EventCover => "guild-events",
@@ -114,7 +120,7 @@ impl MediaKind {
             | Self::RoleIcon
             | Self::MemberAvatar => "icon_or_avatar",
             Self::ChannelIcon => "icon",
-            Self::EventCover => "image",
+            Self::EventCover | Self::ProfileMedia => "image",
             Self::UserBanner | Self::GuildBanner | Self::MemberBanner => "banner",
             Self::GuildSplash => "splash",
         }
@@ -207,6 +213,9 @@ pub struct PreparedMedia {
     /// Stored format.
     pub format: ImgFormat,
     pub animated: bool,
+    /// Stored size in pixels.
+    pub width: u32,
+    pub height: u32,
 }
 
 /// Normalise decoded upload bytes and name them.
@@ -252,6 +261,8 @@ pub fn prepare_bytes_scoped(
         bytes: n.bytes,
         format: n.format,
         animated: n.animated,
+        width: n.width,
+        height: n.height,
     })
 }
 

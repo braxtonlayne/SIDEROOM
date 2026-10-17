@@ -40,6 +40,9 @@ pub struct DeletionReport {
     pub avatar_key: Option<String>,
     /// Banner key before the scrub.
     pub banner_key: Option<String>,
+    /// Object keys (`avatars/<user>/<hash>`) of the profile page pictures the account had (K-17), for
+    /// the media pipeline to delete.
+    pub profile_media_keys: Vec<String>,
 }
 
 /// Why a deletion did not happen.
@@ -213,6 +216,11 @@ pub async fn delete_account(
         .bind(id)
         .execute(&mut *tx)
         .await?;
+    report.profile_media_keys =
+        sqlx::query_scalar("DELETE FROM profile_media WHERE account_id = $1 RETURNING object_key")
+            .bind(id)
+            .fetch_all(&mut *tx)
+            .await?;
     sqlx::query("DELETE FROM package_enablements WHERE scope = 'user' AND scope_id = $1")
         .bind(id)
         .execute(&mut *tx)

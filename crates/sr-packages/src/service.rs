@@ -10,6 +10,8 @@ use sqlx::{PgPool, Row, postgres::PgRow};
 use sr_storage::{ObjectStorage, StorageError};
 use utoipa::ToSchema;
 
+pub mod media;
+
 use crate::error::{PackageError, PackageResult};
 use crate::profile_doc::{self, ProfileDoc};
 use crate::validate::{self, Checks, FileInfo, PackageKind};
@@ -149,6 +151,8 @@ pub struct ProfilePage {
     pub guestbook_count: Option<i64>,
     /// The most entries one guestbook holds.
     pub guestbook_limit: i64,
+    /// The pictures the document names (a background image, gallery pictures), with their addresses.
+    pub media: Vec<media::MediaView>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -936,7 +940,8 @@ impl PackageService {
 
     /// Save my document after validating it. Top friends must be friends.
     pub async fn set_doc(&self, user: i64, value: &Value) -> PackageResult<ProfileDoc> {
-        let doc = profile_doc::parse_doc(value, false).map_err(|ps| {
+        let mine = self.media_ids(user).await?;
+        let doc = profile_doc::parse_doc_with(value, false, Some(&mine)).map_err(|ps| {
             PackageError::Refused(
                 ps.into_iter()
                     .map(|p| format!("{}: {}", p.path, p.message))
@@ -956,6 +961,7 @@ impl PackageService {
             .bind(serde_json::to_value(&doc).unwrap_or(Value::Null))
             .execute(self.pool())
             .await?;
+        self.drop_unreferenced_media(user, &doc).await?;
         Ok(doc)
     }
 
@@ -1058,7 +1064,9 @@ impl PackageService {
         } else {
             None
         };
+        let media = self.media_named_by(owner, &doc).await?;
         Ok(ProfilePage {
+            media,
             guestbook_count,
             guestbook_limit: MAX_GUESTBOOK_ENTRIES,
             customised: !doc.blocks.is_empty(),

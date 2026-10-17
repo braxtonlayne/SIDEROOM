@@ -692,3 +692,112 @@ async fn reserved_ids_are_refused_at_submission() {
         );
     }
 }
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn profile_pictures_are_capped_owned_and_dropped_when_a_saved_document_stops_using_them() {
+    use sr_packages::service::media::NewMedia;
+    let db = TestDb::new().await.unwrap();
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    let pool = db.pool().clone();
+    let svc = PackageService::new(pool.clone(), Arc::new(uid)).with_storage(storage.clone());
+    let me = account(&pool).await;
+    let other = account(&pool).await;
+
+    let add = |user: i64, kind: &'static str| {
+        let svc = svc.clone();
+        let storage = storage.clone();
+        async move {
+            let id = svc.media_id();
+            let key = format!("avatars/{user}/{id:032x}");
+            storage
+                .put(&key, bytes::Bytes::from_static(b"png"))
+                .await
+                .unwrap();
+            let v = svc
+                .media_add(
+                    user,
+                    NewMedia {
+                        id,
+                        kind: kind.to_owned(),
+                        object_key: key.clone(),
+                        content_type: "image/png".into(),
+                        width: 640,
+                        height: 480,
+                        bytes: 3,
+                    },
+                )
+                .await;
+            (v, key)
+        }
+    };
+
+    // Twelve gallery pictures fit, the thirteenth does not; the check can say so before processing.
+    let mut gallery = Vec::new();
+    for _ in 0..12 {
+        let (v, key) = add(me, "gallery").await;
+        gallery.push((v.unwrap(), key));
+    }
+    let (thirteenth, _) = add(me, "gallery").await;
+    assert!(matches!(thirteenth, Err(PackageError::Conflict(m)) if m.contains("at most 12")));
+    assert!(svc.media_check(me, "gallery").await.is_err());
+    assert!(svc.media_check(me, "background").await.is_ok());
+    assert!(svc.media_check(me, "video").await.is_err());
+    assert!(gallery[0].0.url.starts_with(&format!("/cdn/avatars/{me}/")) && gallery[0].0.url.ends_with(".png"));
+
+    // A new background replaces the old one and its file goes.
+    let (first_bg, first_key) = add(me, "background").await;
+    let first_bg = first_bg.unwrap();
+    let (second_bg, _) = add(me, "background").await;
+    let second_bg = second_bg.unwrap();
+    assert!(storage.head(&first_key).await.is_err(), "replaced background file removed");
+    let all = svc.media_list(me).await.unwrap();
+    assert_eq!(all.iter().filter(|m| m.kind == "background").count(), 1);
+    assert_eq!(all.len(), 13);
+
+    // A document may name only my own pictures.
+    let (theirs, _) = add(other, "gallery").await;
+    let theirs = theirs.unwrap();
+    let doc = |bg: &str, imgs: &[&str]| -> Value {
+        let items: Vec<Value> = imgs.iter().map(|i| json!({"image_id": i})).collect();
+        json!({"version": 1,
+               "style": {"background": {"kind": "image", "image_id": bg}},
+               "blocks": [{"id": "g", "type": "gallery", "x": 0, "y": 0, "w": 6, "h": 3, "config": {"items": items}}]})
+    };
+    let err = svc
+        .set_doc(me, &doc(&second_bg.id, &[&theirs.id]))
+        .await
+        .unwrap_err();
+    assert!(matches!(&err, PackageError::Refused(p) if p.iter().any(|m| m.contains("not one of your pictures"))), "{err:?}");
+    let stale = svc
+        .set_doc(me, &doc(&first_bg.id, &[&gallery[0].0.id]))
+        .await
+        .unwrap_err();
+    assert!(matches!(stale, PackageError::Refused(_)), "the replaced background is gone");
+
+    // Saving keeps what the document names and drops (rows and files) every other picture.
+    svc.set_doc(me, &doc(&second_bg.id, &[&gallery[0].0.id, &gallery[1].0.id]))
+        .await
+        .unwrap();
+    let kept: Vec<String> = svc.media_list(me).await.unwrap().into_iter().map(|m| m.id).collect();
+    assert_eq!(kept.len(), 3);
+    assert!(storage.head(&gallery[0].1).await.is_ok());
+    assert!(storage.head(&gallery[5].1).await.is_err(), "orphan file deleted on save");
+    // The page lists exactly the pictures the document names, for anyone who may see it.
+    let page = svc.page(other, None, Some(me)).await.unwrap();
+    assert_eq!(page.media.len(), 3);
+    assert!(page.guestbook_count.is_none());
+
+    // Deleting a picture takes it out of the saved document too.
+    svc.media_delete(me, gallery[1].0.id.parse().unwrap()).await.unwrap();
+    assert!(storage.head(&gallery[1].1).await.is_err());
+    let after = svc.own_doc(me).await.unwrap();
+    assert_eq!(after.blocks[0].config["items"].as_array().unwrap().len(), 1);
+    // Not somebody else's.
+    assert_eq!(
+        svc.media_delete(me, theirs.id.parse().unwrap()).await.unwrap_err(),
+        PackageError::NotFound("picture")
+    );
+    assert_eq!(svc.media_keys(other).await.unwrap().len(), 1);
+    db.cleanup().await.unwrap();
+}
