@@ -5582,6 +5582,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cinema/titles/{title_id}/contributors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Members credited for a title and its episodes (CIN-SOC-003). */
+        get: operations["cinema_title_contributors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cinema/titles/{title_id}/downloads": {
         parameters: {
             query?: never;
@@ -12696,6 +12713,28 @@ export interface components {
         CinemaContinueReason: "resume" | "up_next";
         CinemaContinueWatching: {
             items: components["schemas"]["CinemaContinueItem"][];
+        };
+        /**
+         * @description A member credited for a film or for episodes of a title (CIN-SOC-003). Members who hide their
+         *     contributions, or were hidden by staff, are not listed.
+         */
+        CinemaContributor: {
+            /**
+             * Format: int64
+             * @description Credited episodes of this title.
+             */
+            episodes: number;
+            name: string;
+            /**
+             * Format: int64
+             * @description 1 when the member is credited for the title itself (a film or a whole series).
+             */
+            titles: number;
+            /** Format: int64 */
+            user_id: number;
+        };
+        CinemaContributors: {
+            contributors: components["schemas"]["CinemaContributor"][];
         };
         /** @description An episode for display. */
         CinemaEpisodeRef: {
@@ -38040,6 +38079,44 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_title_contributors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaContributors"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

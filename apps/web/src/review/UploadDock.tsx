@@ -1,7 +1,7 @@
 // The upload manager's face (REV-UP-002, REV-UP-003): a dock with the progress of every resumable upload
 // (pause, resume, cancel, one overall bar) and the folder import: drop or pick a folder, see how the
 // names were read, accept, and the chapters are created and uploaded.
-import { Button } from '@sideroom/ui';
+import { Button, Checkbox, TextInput } from '@sideroom/ui';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useT } from '../i18n';
 import * as p13 from './apiP13';
@@ -142,6 +142,8 @@ interface Proposal {
   chapter: number | null;
   title: string | null;
   format: 'images' | 'epub' | 'pdf';
+  /** Left out by the person (REV-ED-002): not created, not uploaded. */
+  excluded?: boolean;
 }
 
 const formatOf = (path: string): Proposal['format'] =>
@@ -196,7 +198,7 @@ export function FolderImport({
     setError(null);
     try {
       for (const r of rows) {
-        if (r.chapter === null) continue;
+        if (r.chapter === null || r.excluded) continue;
         const ch = await rv.createDraftChapter(submissionId, {
           number: r.chapter,
           title: r.title,
@@ -212,7 +214,12 @@ export function FolderImport({
       setBusy(false);
     }
   };
-  const ready = rows?.filter((r) => r.chapter !== null) ?? [];
+  const ready = rows?.filter((r) => r.chapter !== null && !r.excluded) ?? [];
+  const patch = (path: string, p: Partial<Proposal>) =>
+    setRows((cur) => cur && cur.map((r) => (r.pick.path === path ? { ...r, ...p } : r)));
+  const numbers = new Map<number, number>();
+  for (const r of ready) numbers.set(r.chapter!, (numbers.get(r.chapter!) ?? 0) + 1);
+  const clashes = [...numbers].filter(([, n]) => n > 1).map(([c]) => c);
   return (
     <div
       className="rv-stack"
@@ -246,18 +253,47 @@ export function FolderImport({
             <ul className="rv-changes" aria-label={t('review.folder.proposal')}>
               {rows.map((r) => (
                 <li key={r.pick.path}>
-                  <strong>{r.pick.path}</strong>
-                  <span>
-                    {r.chapter === null
-                      ? t('review.folder.unplaced')
-                      : t('review.folder.chapter', { n: r.chapter })}
-                  </span>
+                  <Checkbox
+                    label={t('review.folder.include', { path: r.pick.path })}
+                    checked={!r.excluded}
+                    onChange={(e) => patch(r.pick.path, { excluded: !e.target.checked })}
+                  />
+                  <TextInput
+                    label={t('review.folder.numberLabel', { path: r.pick.path })}
+                    inputMode="decimal"
+                    value={r.chapter === null ? '' : String(r.chapter)}
+                    disabled={r.excluded === true}
+                    onChange={(e) => {
+                      const v = e.target.value.trim();
+                      const n = Number(v);
+                      patch(r.pick.path, {
+                        chapter: v === '' || !Number.isFinite(n) || n < 0 ? null : n,
+                      });
+                    }}
+                  />
+                  <TextInput
+                    label={t('review.folder.titleLabel', { path: r.pick.path })}
+                    value={r.title ?? ''}
+                    maxLength={200}
+                    disabled={r.excluded === true}
+                    onChange={(e) => patch(r.pick.path, { title: e.target.value || null })}
+                  />
+                  {!r.excluded && r.chapter === null && <span>{t('review.folder.unplaced')}</span>}
                 </li>
               ))}
             </ul>
           )}
+          {clashes.map((n) => (
+            <p key={n} role="alert">
+              {t('review.folder.duplicate', { n })}
+            </p>
+          ))}
           <div className="rv-row">
-            <Button onClick={() => void create()} loading={busy} disabled={ready.length === 0}>
+            <Button
+              onClick={() => void create()}
+              loading={busy}
+              disabled={ready.length === 0 || clashes.length > 0}
+            >
               {t('review.folder.create', { count: ready.length })}
             </Button>
             <Button variant="secondary" onClick={() => setRows(null)}>

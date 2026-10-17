@@ -261,6 +261,7 @@ GET	/cinema/search	authenticated	user	allow	-
 GET	/cinema/titles	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}/comments	authenticated	user	allow	-
+GET	/cinema/titles/{title_id}/contributors	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}/downloads	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}/episodes	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}/episodes/{episode_id}/comments	authenticated	user	allow	-

@@ -583,6 +583,25 @@ pub struct Marker {
     pub source: Option<String>,
 }
 
+/// A member credited for a film or for episodes of a title (CIN-SOC-003). Members who hide their
+/// contributions, or were hidden by staff, are not listed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = CinemaContributor)]
+pub struct Contributor {
+    pub user_id: i64,
+    pub name: String,
+    /// 1 when the member is credited for the title itself (a film or a whole series).
+    pub titles: i64,
+    /// Credited episodes of this title.
+    pub episodes: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = CinemaContributors)]
+pub struct Contributors {
+    pub contributors: Vec<Contributor>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct MarkerList {
     pub markers: Vec<Marker>,

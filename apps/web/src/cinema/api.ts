@@ -5,6 +5,7 @@ import type {
   BrowseParams,
   Collection,
   Comment,
+  Contributor,
   Discover,
   Episode,
   Facets,
@@ -164,6 +165,12 @@ export const getTitle = async (id: string): Promise<TitleDetail> => {
     variants?: { id: string; label: string; notes?: string | null }[];
   }>(`/cinema/titles/${enc(id)}`);
   const t = d.title;
+  // Credits are an extra: a failed lookup leaves the tab empty rather than failing the page (CIN-SOC-003).
+  const contributors: Contributor[] = await apiFetch<{
+    contributors: { user_id: number | string; name: string; titles: number; episodes: number }[];
+  }>(`/cinema/titles/${enc(id)}/contributors`)
+    .then((c) => c.contributors.map((x) => ({ ...x, user_id: String(x.user_id) })))
+    .catch(() => []);
   const seasons: Season[] = (d.seasons ?? []).map((s) => ({
     id: String(s.id),
     number: s.number,
@@ -191,7 +198,7 @@ export const getTitle = async (id: string): Promise<TitleDetail> => {
     subtitle_languages: t.subtitle_languages ?? [],
     variants,
     seasons,
-    contributors: [],
+    contributors,
     patron_download: false,
   };
 };

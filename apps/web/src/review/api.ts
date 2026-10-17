@@ -59,6 +59,16 @@ export const createDraftChapter = (
   id: string,
   b: { number: number; title?: string | null; format: string },
 ) => post<DraftChapter>(`/submissions/${enc(id)}/library/chapters`, b);
+export const updateDraftChapter = (
+  id: string,
+  chapter: string,
+  b: { number: number; title: string | null; format: string; release_group?: string | null },
+) =>
+  apiFetch<DraftChapter>(`/submissions/${enc(id)}/library/chapters/${enc(chapter)}`, {
+    method: 'PUT',
+    json: b,
+    retries: 0,
+  });
 export const deleteDraftChapter = (id: string, chapter: string) =>
   apiFetch<void>(`/submissions/${enc(id)}/library/chapters/${enc(chapter)}`, {
     method: 'DELETE',
