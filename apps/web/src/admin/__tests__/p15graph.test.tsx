@@ -193,7 +193,8 @@ describe('invite graph: canvas view', () => {
     const canvas = await screen.findByRole('img', { name: /Invite graph of 521 accounts/ });
     expect(canvas.tagName).toBe('CANVAS');
     expect(screen.queryByRole('tree', { name: 'Invite tree' })).not.toBeInTheDocument();
-    expect(layoutGraph).toHaveBeenCalledTimes(1);
+    // The layout runs in an effect, which may land after the canvas is in the DOM.
+    await waitFor(() => expect(layoutGraph).toHaveBeenCalledTimes(1));
     expect(layoutGraph.mock.calls[0]![0]).toBe(521);
     expect(layoutGraph.mock.calls[0]![1]).toHaveLength(2 * 520);
     await waitFor(() => expect(calls.some((c) => c.startsWith('arc'))).toBe(true));
