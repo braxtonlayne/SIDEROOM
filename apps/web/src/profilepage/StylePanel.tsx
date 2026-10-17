@@ -1,9 +1,21 @@
 // The style panel of the profile editor (EXT-PRF-005): palette, background pattern or banner, a font from the
 // approved list, cursor set, sparkle overlay and block borders. Every choice is from a closed list or a
 // `#rrggbb` colour, and text must stay readable on the palette (the server enforces 4.5:1 as well).
-import { Select, Switch } from '@sideroom/ui';
+import { Button, Select } from '@sideroom/ui';
+import { useRef } from 'react';
 import { useT, type MessageKey } from '../i18n';
-import { BORDERS, CURSORS, FONTS, OVERLAYS, PATTERNS, type Palette, type Style } from './types';
+import {
+  BORDERS,
+  CURSORS,
+  FONTS,
+  OVERLAYS,
+  PATTERNS,
+  effectiveBackground,
+  type Background,
+  type Palette,
+  type ProfileMedia,
+  type Style,
+} from './types';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -75,9 +87,33 @@ const COLOR_KEYS: { key: keyof Palette; label: MessageKey }[] = [
   { key: 'accent', label: 'lounge.profileEditor.colorAccent' },
 ];
 
-export function StylePanel({ style, onChange }: { style: Style; onChange: (s: Style) => void }) {
+export function StylePanel({
+  style,
+  onChange,
+  media = [],
+  onUploadBackground,
+  onRemoveMedia,
+  uploading = false,
+}: {
+  style: Style;
+  onChange: (s: Style) => void;
+  /** The person's uploaded pictures (K-17). */
+  media?: ProfileMedia[];
+  /** Upload a background picture; resolves to the stored picture, or null when it failed. */
+  onUploadBackground?: (file: File) => Promise<ProfileMedia | null>;
+  /** Delete an uploaded picture (and take it out of the saved document on the server). */
+  onRemoveMedia?: (id: string) => void;
+  uploading?: boolean;
+}) {
   const t = useT();
+  const fileInput = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<Style>) => onChange({ ...style, ...patch });
+  const bg = effectiveBackground(style);
+  const picture = media.find((m) => m.kind === 'background' && m.id === bg.image_id);
+  const uploaded = media.find((m) => m.kind === 'background');
+  /** Set the background and keep the older `pattern` / `banner_background` pair in step for older readers. */
+  const setBackground = (b: Background) =>
+    set({ background: b, pattern: b.pattern ?? 'none', banner_background: b.kind === 'banner' });
   const setColor = (key: keyof Palette, value: string) =>
     set({ palette: { ...style.palette, [key]: value } });
   const low = lowContrast(style.palette);
@@ -116,16 +152,63 @@ export function StylePanel({ style, onChange }: { style: Style; onChange: (s: St
         </p>
       )}
       <Select
+        aria-label={t('lounge.profileEditor.backgroundKind')}
+        options={[
+          { value: 'pattern', label: t('lounge.profileEditor.backgroundPattern') },
+          { value: 'banner', label: t('lounge.profileEditor.backgroundBanner') },
+          ...(uploaded
+            ? [{ value: 'image', label: t('lounge.profileEditor.backgroundImage') }]
+            : []),
+        ]}
+        value={bg.kind === 'image' && !picture ? 'pattern' : bg.kind}
+        onValueChange={(v) => {
+          const pattern = bg.pattern ?? 'none';
+          if (v === 'image' && uploaded) setBackground({ kind: 'image', pattern, image_id: uploaded.id });
+          else if (v === 'banner') setBackground({ kind: 'banner', pattern });
+          else setBackground({ kind: 'pattern', pattern });
+        }}
+      />
+      <Select
         aria-label={t('lounge.profileEditor.pattern')}
         options={choices(PATTERNS, PATTERN_LABEL)}
-        value={style.pattern}
-        onValueChange={(v) => set({ pattern: v })}
+        value={bg.pattern ?? 'none'}
+        onValueChange={(v) => setBackground({ ...bg, pattern: v })}
       />
-      <Switch
-        label={t('lounge.profileEditor.bannerBackground')}
-        checked={style.banner_background}
-        onChange={(e) => set({ banner_background: e.target.checked })}
-      />
+      {onUploadBackground && (
+        <>
+          <input
+            ref={fileInput}
+            type="file"
+            hidden
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            aria-label={t('lounge.profileEditor.backgroundUploadFile')}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              void onUploadBackground(f).then((m) => {
+                if (m)
+                  setBackground({ kind: 'image', pattern: bg.pattern ?? 'none', image_id: m.id });
+              });
+            }}
+          />
+          <Button variant="secondary" loading={uploading} onClick={() => fileInput.current?.click()}>
+            {t('lounge.profileEditor.backgroundUpload')}
+          </Button>
+        </>
+      )}
+      {picture && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            onRemoveMedia?.(picture.id);
+            setBackground({ kind: 'pattern', pattern: bg.pattern ?? 'none' });
+          }}
+        >
+          {t('lounge.profileEditor.backgroundRemove')}
+        </Button>
+      )}
       <Select
         aria-label={t('lounge.profileEditor.font')}
         options={choices(FONTS, FONT_LABEL)}

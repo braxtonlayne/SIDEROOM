@@ -15,32 +15,46 @@
   font-family: var(--pp-font);
   overflow: hidden;
 }
-.pp-root[data-banner-bg='true'] {
-  background-image: var(--pp-banner);
+/* The banner or an uploaded picture sits behind the pattern layer (K-17). */
+.pp-bgimg,
+.pp-patlayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pp-bgimg {
+  z-index: -2;
   background-size: cover;
   background-position: center;
 }
-.pp-root[data-pattern='dots'] {
+.pp-patlayer {
+  z-index: -1;
+}
+.pp-root[data-pattern='dots'],
+.pp-patlayer[data-pattern='dots'] {
   background-image: radial-gradient(
     color-mix(in srgb, var(--pp-text) 18%, transparent) 1.5px,
     transparent 1.5px
   );
   background-size: 18px 18px;
 }
-.pp-root[data-pattern='grid'] {
+.pp-root[data-pattern='grid'],
+.pp-patlayer[data-pattern='grid'] {
   background-image:
     linear-gradient(color-mix(in srgb, var(--pp-text) 12%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--pp-text) 12%, transparent) 1px, transparent 1px);
   background-size: 24px 24px;
 }
-.pp-root[data-pattern='stripes'] {
+.pp-root[data-pattern='stripes'],
+.pp-patlayer[data-pattern='stripes'] {
   background-image: repeating-linear-gradient(
     45deg,
     color-mix(in srgb, var(--pp-text) 10%, transparent) 0 8px,
     transparent 8px 16px
   );
 }
-.pp-root[data-pattern='checks'] {
+.pp-root[data-pattern='checks'],
+.pp-patlayer[data-pattern='checks'] {
   background-image: conic-gradient(
     color-mix(in srgb, var(--pp-text) 12%, transparent) 25%,
     transparent 0 50%,
@@ -49,7 +63,8 @@
   );
   background-size: 28px 28px;
 }
-.pp-root[data-pattern='waves'] {
+.pp-root[data-pattern='waves'],
+.pp-patlayer[data-pattern='waves'] {
   background-image: repeating-radial-gradient(
     circle at 0 100%,
     transparent 0 12px,
@@ -379,4 +394,41 @@
   padding: 0;
   border: 1px solid var(--ui-border);
   background: none;
+}
+
+/* Gallery pictures (K-16, K-17): a tile per entry, the picture first, then its caption and address. */
+.pp-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.pp-gallery figure {
+  margin: 0;
+}
+.pp-pic {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--pp-text) 10%, transparent);
+}
+.pp-pic-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: color-mix(in srgb, var(--pp-text) 70%, transparent);
+}
+.pp-gallery figcaption {
+  margin-block-start: 2px;
+  font-size: 0.85rem;
+}
+.pp-media-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
 }

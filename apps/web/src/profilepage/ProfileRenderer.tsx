@@ -4,7 +4,14 @@
 // anything the document supplies as HTML.
 import type { CSSProperties } from 'react';
 import { BlockView } from './blocks';
-import { GRID_COLUMNS, type Block, type ProfileDoc, type ProfilePage } from './types';
+import {
+  GRID_COLUMNS,
+  effectiveBackground,
+  type Block,
+  type ProfileDoc,
+  type ProfileMedia,
+  type ProfilePage,
+} from './types';
 import './profilepage.css';
 
 const FONT_STACK: Record<string, string> = {
@@ -38,6 +45,7 @@ export function ProfileRenderer({
   doc = page.doc,
   compact = false,
   bannerUrl = null,
+  media = page.media ?? [],
 }: {
   page: ProfilePage;
   /** The document to draw; the editor passes its draft. */
@@ -46,7 +54,18 @@ export function ProfileRenderer({
   compact?: boolean;
   /** The owner's banner image, used when the style asks for it as the background. */
   bannerUrl?: string | null;
+  /** The owner's uploaded pictures, for a picture background (the editor passes its own list). */
+  media?: ProfileMedia[];
 }) {
+  const bg = effectiveBackground(doc.style);
+  const pattern = bg.pattern ?? 'none';
+  // The picture behind the pattern: the banner, or one of the owner's uploads (K-17).
+  const image =
+    bg.kind === 'banner'
+      ? bannerUrl
+      : bg.kind === 'image'
+        ? (media.find((m) => m.id === bg.image_id)?.url ?? null)
+        : null;
   const blocks = reading(doc.blocks).filter((b) => !compact || b.type !== 'guestbook');
   const shown = compact ? blocks.slice(0, 5) : blocks;
   return (
@@ -57,15 +76,20 @@ export function ProfileRenderer({
       data-cursor={doc.style.cursor}
       data-overlay={doc.style.overlay}
       data-border={doc.style.border}
-      data-pattern={doc.style.pattern}
-      data-banner-bg={doc.style.banner_background && bannerUrl ? 'true' : undefined}
-      style={{
-        ...pageVars(doc),
-        ...(doc.style.banner_background && bannerUrl
-          ? ({ '--pp-banner': `url("${bannerUrl}")` } as CSSProperties)
-          : {}),
-      }}
+      data-pattern={image ? 'none' : pattern}
+      data-bg-image={image ? 'true' : undefined}
+      style={pageVars(doc)}
     >
+      {image && (
+        <>
+          <span
+            className="pp-bgimg"
+            aria-hidden="true"
+            style={{ backgroundImage: `url("${image}")` }}
+          />
+          <span className="pp-patlayer" aria-hidden="true" data-pattern={pattern} />
+        </>
+      )}
       {doc.style.overlay !== 'none' && <span className="pp-overlay" aria-hidden="true" />}
       <div
         className="pp-grid"

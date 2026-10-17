@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../router';
@@ -105,8 +105,92 @@ describe('profile page renderer (EXT-PRF-002, EXT-PRF-003)', () => {
       'href',
       'https://example.org/a.png',
     );
-    // A gallery picture is a link, not an image that would tell its host who looks.
+    // A gallery picture is never loaded from its own host (it would tell that host who looks).
     expect(document.querySelectorAll('img[src^="https://example.org"]')).toHaveLength(0);
+  });
+
+  it('loads a gallery picture only through the signed proxy path, with the link under it (D-259)', () => {
+    const proxied = '/cdn/external/abc123/aHR0cHM6Ly9pbWcuZXhhbXBsZS9hLnBuZw';
+    const d = doc([
+      blk('g', 'gallery', 0, 0, 12, 5, {
+        items: [
+          { url: 'https://img.example/a.png', caption: 'Cat', proxy_url: proxied },
+          // The proxy refused this host (deny list, size or time): no path, so a placeholder tile.
+          { url: 'https://denied.example/b.png', caption: 'Dog' },
+          // A client cannot make the page load an arbitrary address through a made-up proxy_url.
+          { url: 'https://evil.example/c.png', caption: 'Bad', proxy_url: 'https://evil.example/c.png' },
+        ],
+      }),
+    ]);
+    const { container } = render(<ProfileRenderer page={page(d)} />);
+    const imgs = [...container.querySelectorAll('img')];
+    expect(imgs.map((i) => i.getAttribute('src'))).toEqual([proxied]);
+    expect(imgs[0]).toHaveAttribute('alt', 'Cat');
+    // The original address stays as the link under each tile.
+    expect(screen.getByRole('link', { name: 'Cat' })).toHaveAttribute(
+      'href',
+      'https://img.example/a.png',
+    );
+    expect(screen.getByRole('link', { name: 'Dog' })).toHaveAttribute(
+      'href',
+      'https://denied.example/b.png',
+    );
+    expect(container.querySelectorAll('.pp-pic-missing')).toHaveLength(2);
+  });
+
+  it('falls back to the placeholder tile when the proxy cannot deliver the picture', () => {
+    const d = doc([
+      blk('g', 'gallery', 0, 0, 12, 5, {
+        items: [{ url: 'https://img.example/a.png', caption: 'Cat', proxy_url: '/cdn/external/x/y' }],
+      }),
+    ]);
+    const { container } = render(<ProfileRenderer page={page(d)} />);
+    const img = container.querySelector('img')!;
+    fireEvent.error(img);
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('.pp-pic-missing')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Cat' })).toBeInTheDocument();
+  });
+
+  it('draws uploaded pictures from our own CDN and the background picture behind the pattern (K-17)', () => {
+    const mine = (id: string, kind: 'background' | 'gallery') => ({
+      id,
+      kind,
+      url: `/cdn/avatars/2/${id}.png`,
+      content_type: 'image/png',
+      width: 640,
+      height: 480,
+      bytes: 100,
+      created_at_ms: 1,
+    });
+    const d = doc(
+      [
+        blk('g', 'gallery', 0, 0, 12, 5, {
+          items: [{ image_id: '21', caption: 'Mine' }, { image_id: '99' }],
+        }),
+      ],
+      { background: { kind: 'image', image_id: '11', pattern: 'dots' } },
+    );
+    const { container } = render(
+      <ProfileRenderer page={page(d, { media: [mine('11', 'background'), mine('21', 'gallery')] })} />,
+    );
+    const root = container.querySelector('.pp-root') as HTMLElement;
+    expect(root).toHaveAttribute('data-bg-image', 'true');
+    expect((container.querySelector('.pp-bgimg') as HTMLElement).style.backgroundImage).toContain(
+      '/cdn/avatars/2/11.png',
+    );
+    expect(container.querySelector('.pp-patlayer')).toHaveAttribute('data-pattern', 'dots');
+    const imgs = [...container.querySelectorAll('img.pp-pic')];
+    expect(imgs.map((i) => i.getAttribute('src'))).toEqual(['/cdn/avatars/2/21.png']);
+    // The older pattern plus banner pair still draws the banner behind the pattern.
+    const old = render(
+      <ProfileRenderer
+        page={page(doc([], { banner_background: true, pattern: 'grid' }))}
+        bannerUrl="/cdn/avatars/2/b.png"
+      />,
+    );
+    expect(old.container.querySelector('.pp-bgimg')).not.toBeNull();
+    expect(old.container.querySelector('.pp-patlayer')).toHaveAttribute('data-pattern', 'grid');
   });
 
   it('asks before opening a song and never embeds it', async () => {

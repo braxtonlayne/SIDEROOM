@@ -9,7 +9,7 @@ import { usePresence } from '../lounge/data';
 import { ActivityList } from '../lounge/profile/parts';
 import { cdnUrl } from '../store/cdn';
 import { listGuestbook, removeGuestbookEntry, signGuestbook } from './api';
-import type { Block, GuestbookEntry, PageUser, ProfilePage } from './types';
+import type { Block, GalleryItem, GuestbookEntry, PageUser, ProfilePage } from './types';
 
 const text = (c: Record<string, unknown>, k: string): string => {
   const v = c[k];
@@ -156,24 +156,78 @@ function Favorites({ block }: { block: Block }) {
   );
 }
 
-function Gallery({ block }: { block: Block }) {
+/**
+ * One gallery picture. A web address is loaded only through the signed image-proxy path the server filled
+ * in (`proxy_url`, D-259, D-176), never from its own host; when the proxy has none or refuses the host the
+ * tile shows the caption instead. The address stays as a link under it. An uploaded picture comes from our
+ * own CDN (K-17).
+ */
+function GalleryTile({
+  src,
+  href,
+  caption,
+  n,
+}: {
+  src: string | null;
+  href: string | null;
+  caption: string;
+  n: number;
+}) {
   const t = useT();
-  const items = list<{ url: string; caption?: string }>(block.config, 'items')
-    .map((it) => ({ href: httpsUrl(it?.url), caption: it?.caption ?? '' }))
-    .filter((it): it is { href: string; caption: string } => it.href !== null);
+  const [failed, setFailed] = useState(false);
+  const label = caption || t('lounge.profilePage.galleryPicture', { n });
+  return (
+    <figure>
+      {src && !failed ? (
+        <img
+          className="pp-pic"
+          src={src}
+          alt={caption}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <div className="pp-pic pp-pic-missing" role="img" aria-label={label}>
+          <span>{label}</span>
+        </div>
+      )}
+      <figcaption>{href ? <Out href={href}>{label}</Out> : label}</figcaption>
+    </figure>
+  );
+}
+
+interface Tile {
+  src: string | null;
+  href: string | null;
+  caption: string;
+}
+
+function Gallery({ block, page }: { block: Block; page: ProfilePage }) {
+  const t = useT();
+  const media = new Map((page.media ?? []).map((m) => [m.id, m]));
+  const items = list<GalleryItem>(block.config, 'items').flatMap((it): Tile[] => {
+    const caption = it?.caption ?? '';
+    if (it?.image_id) {
+      const m = media.get(it.image_id);
+      return m ? [{ src: m.url, href: null, caption }] : [];
+    }
+    const href = httpsUrl(it?.url);
+    if (!href) return [];
+    // Only the proxy path is ever loaded, and only from our own origin.
+    const proxy = typeof it.proxy_url === 'string' && it.proxy_url.startsWith('/cdn/external/');
+    return [{ src: proxy ? (it.proxy_url ?? null) : null, href, caption }];
+  });
   return (
     <>
       <h3 className="pp-title">{t('lounge.profilePage.galleryTitle')}</h3>
       {items.length === 0 ? (
         <p className="pp-muted">{t('lounge.profilePage.galleryEmpty')}</p>
       ) : (
-        // Pictures are links, not embeds: loading them would tell their host who looks at this page.
         <ul className="pp-gallery">
           {items.map((it, i) => (
             <li key={i}>
-              <Out href={it.href}>
-                {it.caption || t('lounge.profilePage.galleryPicture', { n: i + 1 })}
-              </Out>
+              <GalleryTile src={it.src} href={it.href} caption={it.caption} n={i + 1} />
             </li>
           ))}
         </ul>
@@ -287,6 +341,14 @@ export function Guestbook({ page, block }: { page: ProfilePage; block: Block }) 
       <h3 className="pp-title">
         {text(block.config, 'title') || t('lounge.profilePage.guestbookTitle')}
       </h3>
+      {page.is_owner && typeof page.guestbook_count === 'number' && (
+        <p className="pp-muted">
+          {t('lounge.profilePage.guestbookCount', {
+            count: page.guestbook_count,
+            limit: page.guestbook_limit ?? 500,
+          })}
+        </p>
+      )}
       {page.can_sign && (
         <form
           className="pp-sign"
@@ -366,7 +428,7 @@ export function BlockView({
     case 'favorites':
       return <Favorites block={block} />;
     case 'gallery':
-      return <Gallery block={block} />;
+      return <Gallery block={block} page={page} />;
     case 'guestbook':
       return compact ? null : <Guestbook page={page} block={block} />;
     case 'song':

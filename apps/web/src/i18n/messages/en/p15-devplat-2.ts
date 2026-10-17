@@ -91,7 +91,7 @@ export default {
   'lounge.profileEditor.favoritesHint': 'One per line, up to 10.',
   'lounge.profileEditor.galleryItems': 'Pictures',
   'lounge.profileEditor.galleryHint':
-    'One https address per line, optionally followed by a caption. They open as links; nothing is loaded from other sites.',
+    'One https address per line, optionally followed by a caption. Pictures are shown through the SIDE ROOM image proxy; the address stays as a link under each one.',
   'lounge.profileEditor.guestbookTitle': 'Heading',
   'lounge.profileEditor.songTitle': 'Song title',
   'lounge.profileEditor.songArtist': 'Artist',

@@ -40,10 +40,19 @@ export interface Palette {
   accent: string;
 }
 
+/** The page background (K-17): a pattern, my profile banner, or a picture I uploaded. */
+export interface Background {
+  kind: 'pattern' | 'banner' | 'image';
+  pattern?: string;
+  image_id?: string;
+}
+
 export interface Style {
   palette: Palette;
+  /** The older form of the background; `background` wins when present. */
   pattern: string;
   banner_background: boolean;
+  background?: Background;
   font: string;
   cursor: string;
   overlay: string;
@@ -76,6 +85,19 @@ export interface PageUser {
   accent_color: number | null;
 }
 
+/** A picture the person uploaded for their page (K-17). */
+export interface ProfileMedia {
+  id: string;
+  kind: 'background' | 'gallery';
+  /** Where it is served from (`/cdn/avatars/<user>/<hash>.<ext>`). */
+  url: string;
+  content_type: string;
+  width: number;
+  height: number;
+  bytes: number;
+  created_at_ms: number;
+}
+
 export interface ProfilePage {
   user: PageUser;
   doc: ProfileDoc;
@@ -83,6 +105,28 @@ export interface ProfilePage {
   is_owner: boolean;
   can_sign: boolean;
   customised: boolean;
+  /** The pictures the document names. */
+  media?: ProfileMedia[];
+  /** Entries on the guestbook; only the owner is told (K-18). */
+  guestbook_count?: number | null;
+  guestbook_limit?: number;
+}
+
+/** A gallery entry: an address on the web or one of my uploaded pictures (K-16, K-17). */
+export interface GalleryItem {
+  url?: string;
+  image_id?: string;
+  caption?: string;
+  /** Signed image-proxy path the server fills for a `url` picture (D-259); the only form the client loads. */
+  proxy_url?: string;
+}
+
+/** The background a style asks for, reading the older `pattern` plus `banner_background` pair when needed. */
+export function effectiveBackground(style: Style): Background {
+  if (style.background) return style.background;
+  return style.banner_background
+    ? { kind: 'banner', pattern: style.pattern }
+    : { kind: 'pattern', pattern: style.pattern };
 }
 
 export interface GuestbookEntry {

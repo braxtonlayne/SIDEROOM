@@ -34,11 +34,15 @@ const ME_PAGE = (doc: ProfileDoc) => ({
 
 interface Rig {
   saved: ProfileDoc[];
+  /** The uploads the server was sent: the kind and the size of the body. */
+  uploads: { kind: string; bytes: number; type: string }[];
+  deleted: string[];
+  media: Record<string, unknown>[];
 }
 
 function open(initial: ProfileDoc = emptyDoc(), extra: Parameters<typeof server.use> = []): Rig {
   signedIn();
-  const rig: Rig = { saved: [] };
+  const rig: Rig = { saved: [], uploads: [], deleted: [], media: [] };
   server.use(
     ...extra,
     http.get('*/api/v1/users/@me/profile-doc', () => HttpResponse.json(initial)),
@@ -55,6 +59,30 @@ function open(initial: ProfileDoc = emptyDoc(), extra: Parameters<typeof server.
       ]),
     ),
     http.get('*/api/v1/packages', () => HttpResponse.json([])),
+    http.get('*/api/v1/users/@me/profile-media', () => HttpResponse.json(rig.media)),
+    http.post('*/api/v1/users/@me/profile-media', async ({ request }) => {
+      const kind = new URL(request.url).searchParams.get('kind') ?? '';
+      const body = await request.arrayBuffer();
+      rig.uploads.push({ kind, bytes: body.byteLength, type: request.headers.get('content-type') ?? '' });
+      const id = String(100 + rig.uploads.length);
+      const m = {
+        id,
+        kind,
+        url: `/cdn/avatars/1/${id}.png`,
+        content_type: 'image/png',
+        width: 64,
+        height: 48,
+        bytes: body.byteLength,
+        created_at_ms: 1,
+      };
+      rig.media.push(m);
+      return HttpResponse.json(m, { status: 201 });
+    }),
+    http.delete('*/api/v1/users/@me/profile-media/:id', ({ params }) => {
+      rig.deleted.push(String(params.id));
+      rig.media = rig.media.filter((m) => m.id !== params.id);
+      return new HttpResponse(null, { status: 204 });
+    }),
     http.put('*/api/v1/users/@me/profile-doc', async ({ request }) => {
       const body = (await request.json()) as ProfileDoc;
       rig.saved.push(body);
@@ -127,6 +155,72 @@ describe('profile editor (EXT-PRF-005)', () => {
     await waitFor(() => expect(rig.saved).toHaveLength(1));
     expect(rig.saved[0]!.blocks[0]).toMatchObject({ x: 0, y: 1, w: 5, h: 4 });
     expect(rig.saved[0]!.blocks[1]).toMatchObject({ x: 6, y: 0, w: 6, h: 3 });
+  });
+
+  it('uploads a background picture and a gallery picture and saves the document that names them', async () => {
+    const start: ProfileDoc = {
+      ...emptyDoc(),
+      blocks: [{ id: 'g', type: 'gallery', x: 0, y: 0, w: 6, h: 3, config: {} }],
+    };
+    const rig = open(start);
+    const user = userEvent.setup();
+    const png = new File([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], 'bg.png', { type: 'image/png' });
+
+    // The background picture is the request body, kind=background, and becomes the page background.
+    await screen.findByRole('group', { name: 'Profile page grid' });
+    await user.upload(screen.getByLabelText('Background picture file'), png);
+    await waitFor(() => expect(rig.uploads).toHaveLength(1));
+    expect(rig.uploads[0]).toMatchObject({ kind: 'background', bytes: 7, type: 'image/png' });
+    expect(await screen.findByRole('button', { name: 'Remove the background picture' })).toBeInTheDocument();
+
+    // A gallery picture is added to the selected gallery block.
+    await user.click(screen.getByRole('button', { name: /Gallery block/ }));
+    await user.upload(screen.getByLabelText('Gallery picture file'), png);
+    await waitFor(() => expect(rig.uploads).toHaveLength(2));
+    expect(rig.uploads[1]).toMatchObject({ kind: 'gallery' });
+
+    await user.click(screen.getByRole('button', { name: 'Save page' }));
+    await waitFor(() => expect(rig.saved).toHaveLength(1));
+    const saved = rig.saved[0]!;
+    expect(saved.style.background).toEqual({ kind: 'image', pattern: 'none', image_id: '101' });
+    expect(saved.style.banner_background).toBe(false);
+    expect(saved.blocks[0]!.config).toEqual({ items: [{ image_id: '102' }] });
+  });
+
+  it('removing an uploaded picture deletes it on the server and leaves the document without it', async () => {
+    const start: ProfileDoc = {
+      ...emptyDoc(),
+      style: { ...emptyDoc().style, background: { kind: 'image', pattern: 'none', image_id: '11' } },
+      blocks: [
+        {
+          id: 'g',
+          type: 'gallery',
+          x: 0,
+          y: 0,
+          w: 6,
+          h: 3,
+          config: { items: [{ image_id: '21', caption: 'Mine' }] },
+        },
+      ],
+    };
+    const rig = open(start, [
+      http.get('*/api/v1/users/@me/profile-media', () =>
+        HttpResponse.json([
+          { id: '11', kind: 'background', url: '/cdn/avatars/1/11.png', content_type: 'image/png', width: 1, height: 1, bytes: 1, created_at_ms: 1 },
+          { id: '21', kind: 'gallery', url: '/cdn/avatars/1/21.png', content_type: 'image/png', width: 1, height: 1, bytes: 1, created_at_ms: 1 },
+        ]),
+      ),
+    ]);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Gallery block/ }));
+    await user.click(screen.getByRole('button', { name: 'Remove picture' }));
+    expect(rig.deleted).toEqual(['21']);
+    await user.click(await screen.findByRole('button', { name: 'Remove the background picture' }));
+    expect(rig.deleted).toEqual(['21', '11']);
+    await user.click(screen.getByRole('button', { name: 'Save page' }));
+    await waitFor(() => expect(rig.saved).toHaveLength(1));
+    expect(rig.saved[0]!.style.background).toEqual({ kind: 'pattern', pattern: 'none' });
+    expect(rig.saved[0]!.blocks[0]!.config).toEqual({ items: [] });
   });
 
   it('has no accessibility violations', async () => {
