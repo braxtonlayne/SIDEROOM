@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { useT } from '../i18n';
 import { DOC_BY_ID, DOC_PAGES, type Block } from './docsContent';
 import { CodeBlock } from './ui';
+import { GatewayReference, OpenApiReference } from './Reference';
 
 const fill = (s: string) => s.replaceAll('{origin}', window.location.origin);
 
@@ -29,6 +30,12 @@ function Blocks({ blocks }: { blocks: Block[] }) {
             );
           case 'code':
             return <CodeBlock key={i} lang={b.lang} title={b.title} code={fill(b.code)} />;
+          case 'ref':
+            return b.what === 'openapi' ? (
+              <OpenApiReference key={i} />
+            ) : (
+              <GatewayReference key={i} />
+            );
           case 'note':
             return (
               <Notice key={i} variant="info" title={b.title}>

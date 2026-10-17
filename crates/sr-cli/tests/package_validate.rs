@@ -110,3 +110,55 @@ fn an_unreadable_folder_is_reported() {
         .unwrap();
     assert_eq!(missing.status.code(), Some(1));
 }
+
+#[test]
+fn other_kinds_go_through_the_shared_validator() {
+    let d = Dir::new();
+    d.write(
+        "recipe.json",
+        br#"{"id":"club-starter","name":"Club starter","version":"1.0.0","author":"Ada",
+            "features":[{"id":"lounge.starboard","enabled":true}]}"#,
+    );
+    let o = run(&d, &[]);
+    assert!(o.status.success(), "{}", stdout(&o));
+    let out = stdout(&o);
+    assert!(out.contains("club-starter (recipe): 0 error(s)"), "{out}");
+    assert!(out.contains("checked against the server"), "{out}");
+
+    let o = run(&d, &["--json"]);
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["valid"], true);
+    assert_eq!(v["kind"], "recipe");
+}
+
+#[test]
+fn a_bad_layout_lists_every_problem() {
+    let d = Dir::new();
+    d.write(
+        "layout.json",
+        br#"{"id":"retro","name":"Retro","version":"1.0","author":"Ada",
+            "doc":{"style":{"font":"comic-sans"},"blocks":[
+              {"id":"a","type":"about","x":8,"y":0,"w":6,"h":2,"config":{"text":"hi"}}]}}"#,
+    )
+    .write("extra.png", b"x");
+    let o = run(&d, &[]);
+    assert_eq!(o.status.code(), Some(1));
+    let out = stdout(&o);
+    assert!(out.contains("version must look like"), "{out}");
+    assert!(out.contains("style.font"), "{out}");
+    assert!(out.contains("does not fit the 12 column grid"), "{out}");
+    assert!(out.contains("a layout carries no content"), "{out}");
+    assert!(
+        out.contains("extra.png: is not used by the package"),
+        "{out}"
+    );
+}
+
+#[test]
+fn a_folder_with_no_manifest_says_what_is_expected() {
+    let d = Dir::new();
+    d.write("readme.txt", b"hello");
+    let o = run(&d, &[]);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(stdout(&o).contains("no manifest"), "{}", stdout(&o));
+}

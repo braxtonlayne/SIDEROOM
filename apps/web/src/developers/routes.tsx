@@ -10,6 +10,7 @@ const AppDetailPage = lazyNamed(() => import('./AppDetail'), 'AppDetailPage');
 const DocsIndexPage = lazyNamed(() => import('./Docs'), 'DocsIndexPage');
 const DocPageView = lazyNamed(() => import('./Docs'), 'DocPageView');
 const AuthorizePage = lazyNamed(() => import('./Authorize'), 'AuthorizePage');
+const PackagesPage = lazyNamed(() => import('./Packages'), 'PackagesPage');
 const AuthorizedPage = lazyNamed(() => import('./Authorize'), 'AuthorizedPage');
 
 /**
@@ -68,6 +69,7 @@ export function createDeveloperRoutes(root: AnyRoute) {
       child('/', OverviewPage),
       child('applications', ApplicationsPage),
       detail,
+      child('packages', PackagesPage),
       child('docs', DocsIndexPage),
       doc,
     ]),

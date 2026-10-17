@@ -246,7 +246,7 @@ This archive holds the data tied to your account, as JSON files.\n\
   connections.json    linked accounts\n\
   invites.json        invites you issued, and your invite credits ledger\n\
   invoices.json       your donations and purchases\n\
-  activity.json       ratings, reviews, lists, watch and read history\n\
+  activity.json       ratings, reviews, lists, watch and read history, your profile page and packages\n\
   security.json       signed-in sessions and recent sign-in attempts\n\
   attachments.json    an index of files you uploaded (the files themselves are not included)\n\
   messages/           the messages you wrote that you have not deleted, one file per channel\n\
@@ -338,6 +338,13 @@ pub async fn build_package<W: Write + Seek>(
         "cinema_lists": rows(pool, "SELECT id::text AS id, kind, name, description, visibility, created_at FROM cinema_lists WHERE owner_id = $1", user).await?,
         "reading_progress": rows(pool, "SELECT series_id::text AS series_id, chapter_id::text AS chapter_id, page_index, percent, completed, updated_at FROM reading_progress WHERE user_id = $1", user).await?,
         "reading_bookmarks": rows(pool, "SELECT chapter_id::text AS chapter_id, page_index, note, created_at FROM reading_bookmarks WHERE user_id = $1", user).await?,
+        // EXT-PRF / EXT-PKG: the profile page document, guestbook entries written and received, packages
+        // authored and themes turned on.
+        "profile_page": rows(pool, "SELECT profile_doc FROM accounts WHERE id = $1", user).await?,
+        "guestbook_written": rows(pool, "SELECT id::text AS id, profile_id::text AS profile_id, body, created_at FROM profile_guestbook WHERE author_id = $1 ORDER BY id", user).await?,
+        "guestbook_received": rows(pool, "SELECT id::text AS id, author_id::text AS author_id, body, created_at FROM profile_guestbook WHERE profile_id = $1 ORDER BY id", user).await?,
+        "packages": rows(pool, "SELECT p.id::text AS id, p.kind, p.slug, p.name, v.version, v.review_state, v.created_at FROM packages p JOIN package_versions v ON v.package_id = p.id WHERE p.author_id = $1 ORDER BY p.id, v.id", user).await?,
+        "enabled_packages": rows(pool, "SELECT package_id::text AS package_id, version_id::text AS version_id, section, enabled_at FROM package_enablements WHERE scope = 'user' AND scope_id = $1", user).await?,
     });
     put(&mut zip, "activity.json", &activity)?;
 

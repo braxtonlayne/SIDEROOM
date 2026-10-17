@@ -57,6 +57,12 @@ export const server = setupServer(
   http.get('*/api/v1/users/@me/bookmarks', () => HttpResponse.json([])),
   http.get('*/api/v1/users/@me/reminders', () => HttpResponse.json([])),
   http.get('*/api/v1/users/@me/scheduled-messages', () => HttpResponse.json([])),
+  // Packages (EXT-PKG): no theme turned on, and no customised profile page for anybody.
+  http.get('*/api/v1/users/@me/packages', () => HttpResponse.json([])),
+  http.get('*/api/v1/packages', () => HttpResponse.json([])),
+  http.get('*/api/v1/users/:id/profile-page', () =>
+    HttpResponse.json({ message: 'Unknown profile' }, { status: 404 }),
+  ),
   http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 'test' })),
   // The Lounge loads notification settings for every server; default to "nothing muted".
   http.get('*/api/v1/users/@me/guilds/:id/settings', () =>

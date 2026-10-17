@@ -5923,6 +5923,7 @@ dependencies = [
  "sr-markdown",
  "sr-media",
  "sr-net",
+ "sr-packages",
  "sr-payments",
  "sr-push",
  "sr-reader",
@@ -6052,6 +6053,7 @@ dependencies = [
  "sr-chat",
  "sr-core",
  "sr-db",
+ "sr-packages",
  "sr-storage",
  "sr-theme",
  "tokio",
@@ -6334,6 +6336,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-packages"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "data-encoding",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
+ "sr-db",
+ "sr-storage",
+ "sr-theme",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "url",
+ "utoipa",
+ "zip",
+]
+
+[[package]]
 name = "sr-payments"
 version = "0.0.0"
 dependencies = [
@@ -6412,11 +6436,14 @@ name = "sr-sdk"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "base64 0.23.1",
  "futures",
+ "p256 0.13.2",
  "reqwest 0.13.5",
  "serde",
  "serde_json",
  "sr-core",
+ "sr-e2ee",
  "sr-gateway",
  "thiserror 2.0.21",
  "tokio",
@@ -6468,6 +6495,7 @@ dependencies = [
  "sr-library-social",
  "sr-media",
  "sr-net",
+ "sr-packages",
  "sr-payments",
  "sr-push",
  "sr-review",

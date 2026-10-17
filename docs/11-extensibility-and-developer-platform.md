@@ -79,6 +79,8 @@ Discord parity: General Information, Installation (install link generator, defau
 
 Server owners browse approved packages in **Server Settings → Extensions & Themes**. Users browse them in **User Settings → Appearance → Theme Store** and **Profile → Layouts**. Approved packages enable with one click (D-064).
 
+**Built (p15).** Crate `sr-packages`, migration 0970, `docs/specs/developer-platform.md` sections 3.11 and 3.12. A package is one zip with one manifest file (`theme.json`, `layout.json`, `pack.json`, `recipe.json`, `template.json`); every kind goes through one validator, themes through `sr-theme`. Review is a state on `package_versions` handled in Review Queues > Packages (`REVIEW_PACKAGES`), not a `sr-review` submission kind. A recipe may not name channels or roles, and the applier re-validates it against the live feature registry. Profile layouts hold only placed blocks; a person's own page is `accounts.profile_doc`, validated by the same code. Adding the files of a pack to a server and a server-wide theme are not built yet.
+
 ## 5. Review pipeline
 
 All layer 2–4 submissions use `sr-review` (same as library submissions): a queue in the Staff Server's `#review-queue` channel with bot-posted cards (Approve / Request changes / Reject buttons, plus a link to the full review page with diff viewer for manifests and asset previews). See [specs/submissions-and-review.md](specs/submissions-and-review.md).

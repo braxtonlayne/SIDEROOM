@@ -13,6 +13,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import pkg from '../../../package.json';
 import { useT } from '../../i18n';
 import { ApiError } from '../../api/client';
+import { useStoreThemes, useStoreThemeStyle } from '../../packages/themes';
 import { errorText, getMe, logout, useResource } from './api';
 import { USER_SETTINGS_SECTIONS, type UserSettingsSectionId } from './nav';
 import { applyPrefs, prefsEqual, usePrefsStore, useSavedPrefs, type UserPrefs } from './prefs';
@@ -229,6 +230,12 @@ export function UserSettings(props: UserSettingsProps) {
   }, [saved]);
   const dark = useMediaQuery('(prefers-color-scheme: dark)');
   const applied = applyPrefs(draft, dark);
+  // A theme from the Theme Store (EXT-PKG-005) lies over the built-in one, and a preview shows at once.
+  const loadThemes = useStoreThemes((s) => s.load);
+  useEffect(() => {
+    void loadThemes();
+  }, [loadThemes]);
+  const storeStyle = useStoreThemeStyle('lounge');
   return (
     <ThemeProvider
       section="lounge"
@@ -236,7 +243,7 @@ export function UserSettings(props: UserSettingsProps) {
       perSection={applied.perSection}
       allowServerTheming={applied.allowServerTheming}
       appearance={applied.appearance}
-      style={applied.style}
+      style={{ ...applied.style, ...storeStyle }}
       {...applied.data}
     >
       <ToastProvider>
