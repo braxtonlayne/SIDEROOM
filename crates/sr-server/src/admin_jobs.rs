@@ -239,10 +239,15 @@ impl sr_api::routes::admin::SystemProbe for FsProbe {
         }
         paths
             .into_iter()
-            .map(|path| sr_api::routes::admin::DiskView {
-                total_bytes: fs4::total_space(&path).ok(),
-                free_bytes: fs4::available_space(&path).ok(),
-                path,
+            .map(|path| {
+                // A path that is not a folder here reports no sizes (some systems answer for the
+                // volume of a missing path).
+                let folder = Path::new(&path).is_dir();
+                sr_api::routes::admin::DiskView {
+                    total_bytes: folder.then(|| fs4::total_space(&path).ok()).flatten(),
+                    free_bytes: folder.then(|| fs4::available_space(&path).ok()).flatten(),
+                    path,
+                }
             })
             .collect()
     }

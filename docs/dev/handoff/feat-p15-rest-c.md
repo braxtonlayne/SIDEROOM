@@ -1,36 +1,40 @@
-# Handoff: feat/p15-rest-c (wound down early at the owner's request)
+# Handoff: feat/p15-rest-c
 
-Base: integration/phase15 + feat/p15-answers. No migrations used (1000-1009 untouched). No scratch Postgres DB was created; no server or background process was started.
+Scope: the large slices rest-a left (Live TV imported guides, the in-chat watch party card, the canvas invite graph) and the independent K items of `docs/dev/answers-followups-p15.md` (K-01, K-02, K-03, K-08, K-09, K-10, K-14, plus K-19 folded into K-08).
 
-## Resume here
+Migrations used: **1000** (`tv_schedule_slots`, `tv_guide_imports`, `tv_favorites`, the `imported_guide` channel kind) and **1001** (`watch_party_cards`). 1002 to 1009 are free.
 
-### Done and ticked in docs/dev/answers-followups-p15.md
-- K-01 voice waveform: `sr_chat::voice_meta::declared_waveform_is_consistent` + `apply_voice_meta` in `crates/sr-api/src/routes/messages/rich_create.rs`; doc 05 line 81. sr-chat unit tests pass (324). The sr-api test `measured_voice_keeps_a_consistent_declared_waveform` is written but NOT run yet.
-- K-02 holographic rule: `validate_colors` in `crates/sr-chat/src/role_rules.rs` (sr-chat tests pass); route cases added to `crates/sr-api/tests/guilds.rs` (not run, needs Postgres or the memory fixture); doc 05 updated; web constant test added in `apps/web/src/lib/roleGradient.test.ts` (passes).
-- K-03 trimmer 48 kHz: `soundTrim.ts` `decodeAudioFile` via OfflineAudioContext; test in `settings/server/__tests__/soundTrim.test.ts` (passes, with vitestVersion test).
-- K-09: `crates/sr-payments/tests/esplora_live.rs` and `docs/dev/payments-live-test.md`. Ran live against mempool.space signet: 3 pass (funded address is the signet block 1 coinbase address; first tx id is in the test).
-- K-14: doc and inventory lines done, EXCEPT the ADM-GRAPH-003 note, deliberately skipped because the canvas renderer is still to be built.
+## Done (ticked)
 
-### Half-done: K-08 (commit "wip: K-08 backend")
-Done (compiles, `cargo check -p sr-server` clean, fmt clean, NO tests run):
-- `UserSummary.patron` (sr-chat repo.rs); Pg query in `crates/sr-db/src/chat_repo.rs` `UserLookup::users` (active or 3-day grace, not hide_badge); `GuildRepository::user_guild_ids` (default empty, Pg and MemoryRepo impls).
-- `sr_patron: bool` (always present) on `social::model::UserObject`, `messages::model::UserRef`, `guilds::dto::UserRef`.
-- `MessagesDeps::refresh_member_objects` (messages/deps.rs) sends GUILD_MEMBER_UPDATE; called from `BusPaymentEvents::entitlement_user` and `patch_preferences` when `hide_badge` changes (`donations/mod.rs`, `member.rs`); `DonationsDeps::with_chat_slot` wired in `crates/sr-server/src/app.rs`.
-Next steps:
-1. Tests: sr-api user-object test (active, grace, hidden, expired), refresh dispatch test (MemoryRepo user_guild_ids + recording bus), a sr-db Postgres test for the patron SQL (scratch DB).
-2. Move the remaining `Entitlements::limits` call sites onto the same seam (DON-ENT-006): `crates/sr-db/src/media_repo/downloads.rs:328`, `crates/sr-server/src/gateway_pg.rs:655`, `upload_limits.rs`, `watchparty.rs:156`, `sr-payments/service.rs:555`.
-3. Web: `ring` prop on the packages/ui avatar (design token), use in member list, message author, profile popout, voice tile; preferences copy "Show my Patron badge and ring" (new i18n fragment `p15-rest-c-1.ts`); docs 05 user object row and doc 08 section 2.1 row; tick DON-UI-005, DON-ENT-006, K-08.
-4. Regenerate OpenAPI (`cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json`, then the api-client generate and mocks scripts); `KNOWN_CLASHES` must stay empty.
+K items
+- **K-01** voice waveform: a consistent client waveform replaces the packet-size envelope (`sr_chat::voice_meta::declared_waveform_is_consistent`, `apply_voice_meta` in `sr-api/src/routes/messages/rich_create.rs`); doc 05.
+- **K-02** holographic: a tertiary role colour is accepted only as the exact triple (`sr-chat/src/role_rules.rs`, route cases in `sr-api/tests/guilds.rs`, web constant test).
+- **K-03** soundboard trimmer decodes at 48 kHz through an `OfflineAudioContext` (`soundTrim.ts`).
+- **K-08 and K-19** `sr_patron` on every user object (`social::UserObject`, `messages::UserRef`, `guilds::UserRef`), computed in `PgChatRepo::users` (active or in grace, not `hide_badge`; the grace is `payment_config.grace_days`, read once at start by `sr_db::payments_repo::patron_grace_days` and bound with `PgChatRepo::with_patron_grace_days`); `GUILD_MEMBER_UPDATE` to shared servers when the flag can change (`MessagesDeps::refresh_member_objects`, called from `BusPaymentEvents::entitlement_user` and `PATCH /donations/me/preferences`); `Avatar ring` prop (`packages/ui`), used in the member list, message author, profile popout and voice tile; the preference reads "Hide my Patron badge and ring". DON-UI-005 and DON-ENT-006 ticked (every limit call site already reads `Entitlements::limits`; the audio bitrate cap is advisory in v1 by the voice spec).
+- **K-09** `sr-payments/tests/esplora_live.rs` + `docs/dev/payments-live-test.md` (ran live against mempool.space signet, 3 of 3).
+- **K-10** `GET /admin/system` carries `backups` and `disk` (`admin_jobs::FsProbe`, `AdminDeps::with_system_probe`); `backup.sh` touches `snapshot.ok`, `restore-drill.sh` touches `restore-drill.ok`; two cards on the System page. ADM-PLT-006 ticked.
+- **K-14** doc and inventory lines (the ADM-GRAPH-003 "deferred" note was deliberately not written: the renderer was built).
 
-### Not started
-- K-10 system probes (`GET /admin/system` backups + disk; two web cards; ADM-PLT-006).
-- TV-ENG-001/003/007, TV-ADM-003/004 (schedule slots, guide imports and favorites, imported_guide resolver, fuzzy import, weekly grid editor): needs migrations in 1000-1009, sr-tv, API, FE; read rest-a's handoff and docs/specs/cinema-live-tv.md.
-- WP-BE-008, WP-FE-008, WP-FE-010 (in-chat live watch-party card: new message type plus edit path).
-- ADM-GRAPH-003 canvas 2D renderer over sr-graph-wasm above ~500 nodes (G-24); then add no K-14 deferral note.
+Inventory
+- **TV-ENG-001, TV-ENG-003, TV-ENG-007, TV-ADM-003, TV-ADM-004**: `imported_guide` channels. Migration 1000; `sr-tv`: `guide.rs` (CSV/JSON parse, fuzzy matching, report, confirm), `engine::resolve_slots` (resolver), `service/guide_ops.rs` (slots, imports, favorites, `revalidate_guides`), repo + Postgres impl; routes in `sr-api/src/routes/tv/guide.rs`; `userfeat.tick` revalidates every five minutes; `RepoTvCatalog::title_refs`. Web: `admin/cinema/tv/GuidePanel.tsx` (Guide tab: weekly grid with drag between days, form, title search, overlap check, import report with picks and confirm); channel favorites moved from the settings blob to `GET|PUT|DELETE /tv/favorites` (`cinema/tv/favourites.ts`, one-time move of the old list). Spec section 8.6.
+- **WP-BE-008, WP-FE-008, WP-FE-010**: message type **200** `WatchParty`; `sr-watchparty` announces `Updated` kinds; `sr-server/src/party_cards.rs` (`PartyCards`) posts and rewrites the card (throttled to one edit per 15 s per party, ended card greyed, age-restricted title not named), table `watch_party_cards`; web `watchparty/PartyMessageCard.tsx` in `MessageItem`, one shared party state per channel (`useChannelParty.ts`). Spec watch-parties.md 7.4a, doc 05.
+- **ADM-GRAPH-003**: `admin/sections/graph/` (`graphModel.ts`, `layout.ts` over `loadGraph()` from `@sideroom/wasm`, `GraphCanvas.tsx`), default view past 500 accounts.
 
-## Gates
-Passed: cargo test -p sr-chat --lib; esplora_live (live); vitest for soundTrim, roleGradient, vitestVersion; cargo fmt --check; cargo check -p sr-api --tests and -p sr-server.
-Not run: sr-api tests, sr-db tests, clippy -D warnings, web typecheck/lint/build/bundle budget, OpenAPI regeneration, route matrix. The worktree install was done (`pnpm install --offline --frozen-lockfile`); the wasm build was not.
+## Decisions and notes
+- TV-ADM-003 "weekly grid editor (manual channels)": the grid lives on `imported_guide` channels (staff can build one by hand); a `manual` channel still places programmes from the Now control tab. Say so if the owner wants a weekly template on manual channels as well.
+- `next_program_early` behaves as a slate on imported-guide channels (a wall-clock grid has fixed starts).
+- A generated slate or colour-bar block that is on air is replaced at once by a regeneration (so a first import takes effect without waiting for a long slate to end); a programme on air is always left to finish.
+- The patron grace is read once at start (restart after changing `grace_days`).
+- The watch-party card is always on for bound channels (the opt-in announcer module still posts its own text when enabled). Per-server opt-out is not built.
+- Two strings in `admin-a-1.ts` (`admin.channelEditor.manual/guide.*`) were reworded in place because the "not available yet" copy was stale.
+- `sr-db` embeds its migrations at compile time: after adding a migration `touch crates/sr-db/src/lib.rs` before running DB tests.
+
+## Still open
+- K-04, K-05, K-06, K-07, K-11, K-12, K-13 (left to others by the brief).
+- DON-UI-001 (waits on the owner's copy), CIN-PLY-004 (K-13), TV-HLS-003/005, DON-PAY-009 (won't build in CI, D-257).
+
+## Tests run
+See the "Gates" section below.
 
 ## Owner questions
-None new. Grace days for the patron flag are hardcoded to the default 3 in SQL (`PATRON_GRACE_MS`); a non-default `grace_days` config would not be reflected.
+- None new beyond the notes above.
