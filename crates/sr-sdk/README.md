@@ -3,6 +3,8 @@
 Typed bot SDK for SIDE ROOM: REST client, gateway shards, cache and command framework
 (see `src/lib.rs` and `examples/echo_bot.rs`).
 
+Voice: the `voice-e2ee` feature (off by default) has the MLS half of bots in voice, and it stays off until `sr_sdk::voice` has a transport (`str0m` session, op 4, Opus), then it is on by default; the TypeScript SDK gets voice with its own transport, mirroring the Rust names, not `sr-e2ee-wasm` first.
+
 Address rule (D-234). The SDK runs in an operator's bot, not in the server, so it uses plain
 `reqwest` instead of `sr_net::SafeClient` (an exception recorded in `deny.toml`). It contacts only:
 

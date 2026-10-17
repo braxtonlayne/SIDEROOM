@@ -37,10 +37,15 @@ The staff-side record of a real human. It may span several accounts (D-030).
 | avatar_key, banner_key, accent_color, bio, pronouns | | profile basics |
 | profile_doc | jsonb | customization document (doc 10) |
 
+### `profile_media` (migration 1020, K-17, D-260)
+| id | account_id fk | kind (`background`, `gallery`) | object_key (`avatars/<user>/<hash>`) | content_type | width, height | bytes | created_at |
+
+At most one `background` and 12 `gallery` rows per account (checked in `sr-packages`). A profile document names a row by id; saving a document drops the rows it no longer names, and account deletion removes them with their files.
+
 ### `external_identities`
 | account_id | provider (`discord`) | provider_user_id (unique per provider) | linked_at | raw_profile jsonb |
 
-Unique (provider, provider_user_id) applies **across all accounts, including deleted ones**. That is how a returning user is matched to their Person (D-030).
+Unique (provider, provider_user_id) applies **across all accounts, including deleted ones**, among the live rows. That is how a returning user is matched to their Person (D-030). Migration 1021 (K-20, D-262) adds `unlinked_at` and `moved_to_account_id`: when a staff member moves an identity to another account of the Person, the old row stays as history (unlinked, naming the account it moved to) and a new live row is written, so the uniqueness is a partial index over rows with `unlinked_at IS NULL`.
 
 ### `sessions`, `mfa_totp`, `webauthn_credentials`, `recovery_codes`, `email_tokens`
 Standard. Tokens are stored as SHA-256 hashes. Migration 0180 renames `webauthn_credentials` to `passkey_credentials` (`credential_id` unique, `cose_key`, `alg`, `sign_count`, `backup_eligible`, `backup_state`, `aaguid`, `name` 1 to 64 characters, `last_used_at`) and adds `accounts.user_handle` (32 random bytes, the WebAuthn `user.id`, never the account id).
