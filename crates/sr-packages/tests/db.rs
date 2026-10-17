@@ -528,3 +528,167 @@ async fn a_layout_package_starts_a_profile_and_keeps_text() {
     assert_eq!(d.blocks[0].config["text"], "mine");
     assert!(d.blocks[1].config.is_empty());
 }
+
+/// Records the review-queue card calls (D-258).
+#[derive(Default)]
+struct Cards(std::sync::Mutex<Vec<(i64, Option<String>)>>);
+
+#[async_trait::async_trait]
+impl sr_packages::service::PackageEvents for Cards {
+    async fn card(&self, version_id: i64, outcome: Option<&str>) {
+        self.0
+            .lock()
+            .unwrap()
+            .push((version_id, outcome.map(str::to_owned)));
+    }
+}
+
+async fn rig_with_cards() -> (Rig, Arc<Cards>) {
+    let db = TestDb::new().await.unwrap();
+    let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    let pool = db.pool().clone();
+    let cards = Arc::new(Cards::default());
+    let svc = PackageService::new(pool.clone(), Arc::new(uid))
+        .with_storage(storage)
+        .with_events(cards.clone());
+    (Rig { _db: db, pool, svc }, cards)
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn nobody_reviews_their_own_package_and_each_version_posts_one_card() {
+    let (r, cards) = rig_with_cards().await;
+    let author = account(&r.pool).await;
+    let staff = account(&r.pool).await;
+    let v = r
+        .svc
+        .submit(author, theme_zip("ocean-night", "1.0.0"), &Checks::lenient())
+        .await
+        .unwrap();
+    let vid: i64 = v.id.parse().unwrap();
+    assert_eq!(*cards.0.lock().unwrap(), vec![(vid, None)]);
+    // The author is refused, whatever the decision, and nothing changes.
+    for d in [Decision::Approve, Decision::Reject, Decision::Revoke] {
+        assert_eq!(
+            r.svc
+                .decide(vid, author, d, Some("x".into()))
+                .await
+                .unwrap_err(),
+            PackageError::SelfReview
+        );
+    }
+    assert_eq!(cards.0.lock().unwrap().len(), 1);
+    r.svc
+        .decide(vid, staff, Decision::Approve, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        cards.0.lock().unwrap().last().unwrap(),
+        &(vid, Some("approved".to_owned()))
+    );
+    // A second decision on the same version is a conflict and posts no second outcome.
+    assert!(
+        r.svc
+            .decide(vid, staff, Decision::Approve, None)
+            .await
+            .is_err()
+    );
+    assert_eq!(cards.0.lock().unwrap().len(), 2);
+    // A rejection and a withdrawal close their cards too.
+    let v2 = r
+        .svc
+        .submit(author, theme_zip("ocean-night", "1.0.1"), &Checks::lenient())
+        .await
+        .unwrap();
+    let v2id: i64 = v2.id.parse().unwrap();
+    r.svc
+        .decide(v2id, staff, Decision::Reject, Some("no".into()))
+        .await
+        .unwrap();
+    let v3 = r
+        .svc
+        .submit(author, theme_zip("ocean-night", "1.0.2"), &Checks::lenient())
+        .await
+        .unwrap();
+    let v3id: i64 = v3.id.parse().unwrap();
+    r.svc.withdraw(author, v3id).await.unwrap();
+    let log = cards.0.lock().unwrap().clone();
+    assert!(log.contains(&(v2id, Some("rejected".to_owned()))));
+    assert_eq!(log.last().unwrap(), &(v3id, Some("withdrawn".to_owned())));
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn an_author_deletes_a_never_approved_package_and_frees_the_slug() {
+    let (r, cards) = rig_with_cards().await;
+    let author = account(&r.pool).await;
+    let other = account(&r.pool).await;
+    let staff = account(&r.pool).await;
+    let v = r
+        .svc
+        .submit(author, theme_zip("ocean-night", "1.0.0"), &Checks::lenient())
+        .await
+        .unwrap();
+    let pid: i64 = v.package_id.parse().unwrap();
+    let vid: i64 = v.id.parse().unwrap();
+    // Not somebody else's.
+    assert_eq!(
+        r.svc.delete_package(other, pid).await.unwrap_err(),
+        PackageError::NotFound("package")
+    );
+    // The pending version is withdrawn by the same call; the slug is free for another author.
+    r.svc.delete_package(author, pid).await.unwrap();
+    assert!(
+        cards
+            .0
+            .lock()
+            .unwrap()
+            .contains(&(vid, Some("withdrawn".to_owned())))
+    );
+    assert!(r.svc.mine(author).await.unwrap().is_empty());
+    r.svc
+        .submit(other, theme_zip("ocean-night", "1.0.0"), &Checks::lenient())
+        .await
+        .unwrap();
+
+    // Rejected-only packages can go too; a package with an approved version cannot.
+    let v = r
+        .svc
+        .submit(author, theme_zip("night-owl", "1.0.0"), &Checks::lenient())
+        .await
+        .unwrap();
+    let (pid, vid): (i64, i64) = (v.package_id.parse().unwrap(), v.id.parse().unwrap());
+    r.svc
+        .decide(vid, staff, Decision::Approve, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        r.svc.delete_package(author, pid).await.unwrap_err(),
+        PackageError::Conflict("Approved packages can only be revoked by staff".to_owned())
+    );
+    assert_eq!(r.svc.mine(author).await.unwrap().len(), 1);
+    // Once staff revoke it, nothing approved is left and the author may delete it.
+    r.svc
+        .decide(vid, staff, Decision::Revoke, Some("broke the rules".into()))
+        .await
+        .unwrap();
+    r.svc.delete_package(author, pid).await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn reserved_ids_are_refused_at_submission() {
+    let r = rig().await;
+    let author = account(&r.pool).await;
+    for slug in ["sideroom", "lounge-dark", "default"] {
+        let err = r
+            .svc
+            .submit(author, recipe_zip(slug, "1.0.0"), &Checks::lenient())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&err, PackageError::Refused(p) if p.iter().any(|m| m.contains("reserved"))),
+            "{slug}: {err:?}"
+        );
+    }
+}

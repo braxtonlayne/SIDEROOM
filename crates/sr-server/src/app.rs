@@ -795,7 +795,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Declarative packages and customised profiles (EXT-PKG, EXT-PRF).
     let packages_deps = Arc::new(routes::packages::PackagesDeps {
         service: sr_packages::service::PackageService::new(pool.clone(), id_src.clone())
-            .with_storage(storage.clone()),
+            .with_storage(storage.clone())
+            .with_events(Arc::new(routes::packages::BusPackageEvents::new(
+                bus.clone(),
+            ))),
     });
 
     // J-16: participants follow the voice call (a leave from the channel removes them from the Activity).

@@ -331,6 +331,12 @@ pub enum DomainEvent {
         submission_id: i64,
         outcome: Option<String>,
     },
+    /// A package version entered review (`outcome: None`) or was decided (`approved`, `rejected`,
+    /// `revoked`, `withdrawn`): its `#review-queue` card is posted or closed (D-258, D-253).
+    PackageCard {
+        version_id: i64,
+        outcome: Option<String>,
+    },
     /// A dispatch for every connected session (`SR_FEATURE_UPDATE`, `SR_ANNOUNCEMENT_UPDATE`):
     /// the gateway sends `name` and `payload` as-is to all sessions that signed in. Published on
     /// `Topic::Platform`.
@@ -615,6 +621,7 @@ impl DomainEvent {
             Self::FeatureSettingsChanged { .. }
             | Self::PlatformBroadcast { .. }
             | Self::ReviewCard { .. }
+            | Self::PackageCard { .. }
             | Self::StaffAlert { .. }
             | Self::StaffFeed { .. } => vec![Topic::Platform],
         }

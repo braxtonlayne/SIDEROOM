@@ -905,3 +905,96 @@ async fn a_submission_gets_a_review_queue_card_that_approves_once() {
     );
     f.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_package_version_gets_a_review_queue_card_that_closes_once() {
+    let f = fx().await;
+    let (author, reviewer) = (f.owner + 21, f.owner + 22);
+    account(&f.pool, author, "creator").await;
+    account(&f.pool, reviewer, "checker").await;
+    sqlx::query("INSERT INTO packages (id, kind, author_id, slug, name) VALUES (9001, 'theme', $1, 'ocean-night', 'Ocean night')")
+        .bind(author)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO package_versions (id, package_id, version, manifest, artifact_key, checksum, size_bytes) \
+         VALUES (9002, 9001, '1.0.0', '{}', 'k', $1, 1)",
+    )
+    .bind("0".repeat(64))
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    let feed = Arc::new(StaffFeed {
+        voice: f.voice.clone(),
+        admin: f.admin.clone(),
+        mailer: Arc::new(MemoryMailer::new()) as Arc<dyn Mailer>,
+        bus: f.bus.clone(),
+        throttle: MailThrottle::default(),
+    });
+    let _task = spawn(feed);
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let publish = |outcome: Option<&str>| {
+        let bus = f.bus.clone();
+        let outcome = outcome.map(str::to_owned);
+        async move {
+            bus.publish(
+                Topic::Platform,
+                DomainEvent::PackageCard {
+                    version_id: 9002,
+                    outcome,
+                },
+            )
+            .await
+            .unwrap();
+        }
+    };
+
+    publish(None).await;
+    let queue = f.channels["review-queue"];
+    assert!(wait_for(|| async { messages_in(&f.pool, queue).await.len() == 1 }).await);
+    let card = &messages_in(&f.pool, queue).await[0];
+    let embeds: Value = card.get("embeds");
+    assert_eq!(embeds[0]["title"], "Review: Ocean night 1.0.0");
+    assert!(
+        embeds[0]["description"]
+            .as_str()
+            .unwrap()
+            .contains("@creator")
+    );
+    let comps: Value = card.get("components");
+    assert_eq!(
+        comps[0]["components"][0]["url"],
+        "https://sr.test/admin/review?package=9002"
+    );
+
+    // The decision closes the card with the decider's name; a repeat does not close it twice.
+    sqlx::query("UPDATE package_versions SET review_state = 'approved', reviewed_by = $1 WHERE id = 9002")
+        .bind(reviewer)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    publish(Some("approved")).await;
+    assert!(
+        wait_for(|| async {
+            let rows = messages_in(&f.pool, queue).await;
+            let comps: Value = rows[0].get("components");
+            comps.as_array().is_some_and(Vec::is_empty)
+        })
+        .await,
+        "the card lost its buttons"
+    );
+    let rows = messages_in(&f.pool, queue).await;
+    assert_eq!(rows.len(), 1, "edited, not repeated");
+    let embeds: Value = rows[0].get("embeds");
+    let fields = embeds[0]["fields"].as_array().unwrap();
+    assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0]["name"], "Answer");
+    assert_eq!(fields[0]["value"], "Approved by @checker");
+    publish(Some("withdrawn")).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let embeds: Value = messages_in(&f.pool, queue).await[0].get("embeds");
+    assert_eq!(embeds[0]["fields"].as_array().unwrap().len(), 1);
+    f.db.cleanup().await.unwrap();
+}

@@ -121,6 +121,27 @@ pub async fn withdraw(
     ))
 }
 
+/// Delete one of my packages that has no approved version: every version is rejected or withdrawn (a
+/// pending one is withdrawn by this call). The id is free again and the stored files are removed. A package
+/// with an approved version answers 409 "Approved packages can only be revoked by staff".
+#[utoipa::path(
+    delete, path = "/packages/{package_id}", tag = "packages",
+    params(("package_id" = String, Path, description = "Package snowflake")),
+    responses((status = 204), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn delete_package(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<PackagesDeps>,
+    Path(package): Path<String>,
+) -> MsgResult<StatusCode> {
+    deps.service
+        .delete_package(p.user_id, id(&package)?)
+        .await
+        .map_err(pkg)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ---------------------------------------------------------------- browse
 
 #[derive(Debug, Deserialize)]

@@ -145,6 +145,10 @@ pub struct ProfilePage {
     pub can_sign: bool,
     /// The document has any block (otherwise the page shows the standard profile).
     pub customised: bool,
+    /// Entries on the guestbook; only the owner is told (K-18), next to [`MAX_GUESTBOOK_ENTRIES`].
+    pub guestbook_count: Option<i64>,
+    /// The most entries one guestbook holds.
+    pub guestbook_limit: i64,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -157,10 +161,27 @@ pub struct GuestbookEntry {
     pub can_remove: bool,
 }
 
+/// What the review conduct of D-258 needs from the platform: the `#review-queue` card of a version.
+/// `outcome` is `None` when the version entered review, else `approved`, `rejected`, `revoked` or
+/// `withdrawn`. Failures are the implementation's to log; they never fail a package call.
+#[async_trait::async_trait]
+pub trait PackageEvents: Send + Sync {
+    async fn card(&self, version_id: i64, outcome: Option<&str>);
+}
+
+/// Posts nothing (tests and tools without a Staff Server).
+pub struct NoPackageEvents;
+
+#[async_trait::async_trait]
+impl PackageEvents for NoPackageEvents {
+    async fn card(&self, _version_id: i64, _outcome: Option<&str>) {}
+}
+
 struct Inner {
     pool: PgPool,
     ids: IdSource,
     storage: Option<Arc<dyn ObjectStorage>>,
+    events: Arc<dyn PackageEvents>,
 }
 
 #[derive(Clone)]
@@ -220,8 +241,18 @@ impl PackageService {
                 pool,
                 ids,
                 storage: None,
+                events: Arc::new(NoPackageEvents),
             }),
         }
+    }
+
+    /// Where review cards go. Call before the service is shared.
+    #[must_use]
+    pub fn with_events(mut self, e: Arc<dyn PackageEvents>) -> Self {
+        if let Some(i) = Arc::get_mut(&mut self.inner) {
+            i.events = e;
+        }
+        self
     }
 
     /// Where package zips are stored. Without it uploads are refused. Call before the service is shared.
@@ -368,6 +399,7 @@ impl PackageService {
             return Err(PackageError::Storage(e.to_string()));
         }
         tx.commit().await?;
+        self.inner.events.card(version_id, None).await;
         self.version(version_id).await
     }
 
@@ -422,7 +454,50 @@ impl PackageService {
         if n == 0 {
             return Err(PackageError::NotFound("pending version"));
         }
+        self.inner.events.card(version_id, Some("withdrawn")).await;
         self.version(version_id).await
+    }
+
+    /// The author deletes a package that has no approved version (K-18): every version is rejected or
+    /// withdrawn, and a pending one is withdrawn by this call. That frees the id and removes the stored
+    /// artifacts. A package with an approved version can only be revoked by staff.
+    pub async fn delete_package(&self, author: i64, package_id: i64) -> PackageResult<()> {
+        let mut tx = self.pool().begin().await?;
+        let owner: Option<i64> =
+            sqlx::query_scalar("SELECT author_id FROM packages WHERE id = $1 FOR UPDATE")
+                .bind(package_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if owner != Some(author) {
+            return Err(PackageError::NotFound("package"));
+        }
+        let versions: Vec<(i64, String, String)> = sqlx::query_as(
+            "SELECT id, review_state, artifact_key FROM package_versions WHERE package_id = $1 FOR UPDATE",
+        )
+        .bind(package_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        if versions.iter().any(|(_, s, _)| s == "approved") {
+            return Err(PackageError::Conflict(
+                "Approved packages can only be revoked by staff".to_owned(),
+            ));
+        }
+        sqlx::query("DELETE FROM packages WHERE id = $1")
+            .bind(package_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        for (id, state, key) in &versions {
+            if state == "pending" {
+                self.inner.events.card(*id, Some("withdrawn")).await;
+            }
+            if let Some(s) = &self.inner.storage
+                && let Err(e) = s.delete(key).await
+            {
+                tracing::warn!(error = %e, key, "could not remove a deleted package's artifact");
+            }
+        }
+        Ok(())
     }
 
     // ------------------------------------------------------------ review
@@ -492,13 +567,17 @@ impl PackageService {
             ));
         }
         let mut tx = self.pool().begin().await?;
-        let row: Option<(i64, String)> = sqlx::query_as(
-            "SELECT package_id, review_state FROM package_versions WHERE id = $1 FOR UPDATE",
+        let row: Option<(i64, String, i64)> = sqlx::query_as(
+            "SELECT v.package_id, v.review_state, p.author_id FROM package_versions v              JOIN packages p ON p.id = v.package_id WHERE v.id = $1 FOR UPDATE OF v",
         )
         .bind(version_id)
         .fetch_optional(&mut *tx)
         .await?;
-        let (package_id, state) = row.ok_or(PackageError::NotFound("version"))?;
+        let (package_id, state, author) = row.ok_or(PackageError::NotFound("version"))?;
+        // Two people per release (D-258): nobody decides on their own package, the Owner included.
+        if author == reviewer {
+            return Err(PackageError::SelfReview);
+        }
         let (from, to) = match decision {
             Decision::Approve => ("pending", "approved"),
             Decision::Reject => ("pending", "rejected"),
@@ -535,6 +614,7 @@ impl PackageService {
                 .await?;
         }
         tx.commit().await?;
+        self.inner.events.card(version_id, Some(to)).await;
         self.version(version_id).await
     }
 
@@ -968,7 +1048,19 @@ impl PackageService {
             .bind(owner)
             .fetch_one(self.pool())
             .await?;
+        let guestbook_count = if is_owner {
+            Some(
+                sqlx::query_scalar("SELECT count(*) FROM profile_guestbook WHERE profile_id = $1")
+                    .bind(owner)
+                    .fetch_one(self.pool())
+                    .await?,
+            )
+        } else {
+            None
+        };
         Ok(ProfilePage {
+            guestbook_count,
+            guestbook_limit: MAX_GUESTBOOK_ENTRIES,
             customised: !doc.blocks.is_empty(),
             user,
             doc,
@@ -1062,7 +1154,7 @@ impl PackageService {
                 .await?;
         if total >= MAX_GUESTBOOK_ENTRIES {
             return Err(PackageError::Conflict(
-                "This guestbook is full; the owner has to remove entries.".to_owned(),
+                "This guestbook is full".to_owned(),
             ));
         }
         let id = (self.inner.ids)();
