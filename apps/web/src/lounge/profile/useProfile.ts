@@ -38,6 +38,7 @@ export interface Profile {
     avatar?: string | null;
     banner?: string | null;
     bot?: boolean;
+    sr_patron?: boolean;
     /** Discord's decoration shape; the server sends `user_profile.avatar_decoration` (a slug) instead. */
     avatar_decoration_data?: { asset: string; sku_id?: string | null } | null;
     /** Contract: short server-tag text. */

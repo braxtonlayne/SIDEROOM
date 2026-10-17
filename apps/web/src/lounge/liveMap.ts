@@ -192,6 +192,7 @@ export function toLoungeUser(u: S.User): LoungeUser {
     // Avatar hashes need a CDN URL scheme that the API does not publish yet; initials are shown instead.
     avatarUrl: null,
     ...(u.bot ? { bot: true } : {}),
+    ...(u.sr_patron ? { patron: true } : {}),
     ...serverTagOf(u),
   };
 }

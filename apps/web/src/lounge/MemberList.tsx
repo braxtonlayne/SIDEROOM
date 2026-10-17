@@ -164,7 +164,13 @@ function MemberRowView({
             : t('lounge.memberList.rowLabel', { name, status: presence.status })
         }
       >
-        <Avatar name={name} src={u.avatarUrl ?? null} size={32} status={presence.status} />
+        <Avatar
+          name={name}
+          src={u.avatarUrl ?? null}
+          size={32}
+          status={presence.status}
+          ring={u.patron}
+        />
         <span className="lng-member-text">
           <span className="lng-member-name" style={stops[0] ? { color: stops[0] } : undefined}>
             {stops.length > 1 ? (

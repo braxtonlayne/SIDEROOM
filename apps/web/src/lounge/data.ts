@@ -32,6 +32,8 @@ export interface LoungeUser {
   displayName: string;
   avatarUrl?: string | null;
   bot?: boolean;
+  /** Draw the Patron ring on the avatar (D-256, `sr_patron` on the user object). */
+  patron?: boolean;
   /** Server-tag chip (short text), shown next to the name. */
   tag?: string;
   /** Badge id (0 to 15) and 24-bit colour of the server tag; the chip draws them when present. */

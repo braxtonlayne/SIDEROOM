@@ -19,7 +19,7 @@ Phase 3. Spec: doc 08, ADR-0006.
 - [x] **DON-ENT-003** [BE] Invite credit purchase → ledger +1
 - [x] **DON-ENT-004** [BE] `effective_limits(user, context)` single source of truth + moka cache + invalidation
 - [x] **DON-ENT-005** [GW] `SR_ENTITLEMENT_UPDATE`
-- [ ] **DON-ENT-006** [BE] Wire limits into: upload slots, voice sender/viewer caps, stream quality caps, audio bitrate, watch party counts, download endpoints *(phase 8: download endpoints are wired through `EntitlementDownloads`; watch party counts follow the server level since p12; the other call sites read `Entitlements::limits` and are owned by their crates)*
+- [x] **DON-ENT-006** [BE] Wire limits into: upload slots, voice sender/viewer caps, stream quality caps, audio bitrate, watch party counts, download endpoints *(p15 K-08: audited, every call site reads `Entitlements::limits` (upload slots `sr-server/upload_limits.rs`, voice senders/viewers/profiles `gateway_pg.rs`, watch parties `watchparty.rs`, downloads `EntitlementDownloads`); the audio bitrate cap is advisory in v1 by the voice spec (TODO(bitrate-cap)); phase 8: download endpoints are wired through `EntitlementDownloads`; watch party counts follow the server level since p12; the other call sites read `Entitlements::limits` and are owned by their crates)*
 - [x] **DON-ENT-007** [JOB] Expiry/grace job + reminder notifications ("Your Patron perks end in 3 days") *(reminders are `SR_ENTITLEMENT_UPDATE` reason `expiring`; no notification-centre item yet)*
 
 ## DON-UI — Interfaces
@@ -27,7 +27,7 @@ Phase 3. Spec: doc 08, ADR-0006.
 - [x] **DON-UI-002** [FE] Invoice modal (amount USD + sats/BTC, address with copy, QR, countdown, live status steps, explorer link, "I've paid" polling)
 - [x] **DON-UI-003** [FE] Patron purchase flow (1/3/6/12 months)
 - [x] **DON-UI-004** [FE] Server contribution flow (amount presets + custom, attribution: show name / anonymous)
-- [ ] **DON-UI-005** [FE] Patron badge + donor ring on avatar (toggle) _(p14 misc: needs the backend to expose patron status on member objects and a privacy toggle; not built)_
+- [x] **DON-UI-005** [FE] Patron badge + donor ring on avatar (toggle) *(p15 K-08: `sr_patron` on every user object, `Avatar ring` prop in the member list, message author, profile popout and voice tile, one toggle "Show my Patron badge and ring"; tests `media_columns.rs`, messages `tests.rs`, `p15PatronRing.test.ts`, `display.test.tsx`)*
 - [x] **DON-UI-006** [FE] Upgrade hints in limit-hit toasts (upload, camera, stream quality, downloads) _(p14 misc audit: upload tray (overLimit with a Patron hint), the call panel (support and Patron links on a video limit refusal) and the download modal (Patron pitch on 403) all carry upgrade hints)_
 
 ## DON-LB — Leaderboards

@@ -7,6 +7,8 @@
   transition: box-shadow var(--ui-motion-duration, 160ms);
 }
 .speaking { box-shadow: 0 0 0 2px var(--ui-status-online); }
+.ring { box-shadow: 0 0 0 2px var(--ui-bg), 0 0 0 4px var(--ui-accent); }
+.ring.speaking { box-shadow: 0 0 0 2px var(--ui-bg), 0 0 0 4px var(--ui-status-online); }
 .image,
 .fallback {
   width: 100%;

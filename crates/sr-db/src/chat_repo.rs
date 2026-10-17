@@ -29,11 +29,27 @@ use std::collections::HashMap;
 #[derive(Clone)]
 pub struct PgChatRepo {
     pub(crate) pool: PgPool,
+    /// Grace after the paid Patron time during which `sr_patron` stays on, in milliseconds
+    /// (D-073, D-256). Bound at construction from `DonationConfig::grace_days` (default 3 days).
+    patron_grace_ms: i64,
 }
+
+/// `DonationConfig::grace_days` default, in days.
+const DEFAULT_PATRON_GRACE_DAYS: u32 = 3;
 
 impl PgChatRepo {
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            patron_grace_ms: i64::from(DEFAULT_PATRON_GRACE_DAYS) * 86_400_000,
+        }
+    }
+
+    /// Use the configured Patron grace period (D-073, D-256, K-19).
+    #[must_use]
+    pub fn with_patron_grace_days(mut self, days: u32) -> Self {
+        self.patron_grace_ms = i64::from(days) * 86_400_000;
+        self
     }
 }
 
@@ -1654,10 +1670,6 @@ impl MessageStore for PgMessageStore {
     }
 }
 
-/// Grace after the paid time during which the Patron mark still shows: the default
-/// `DonationConfig::grace_days` (3 days) in milliseconds (D-256).
-const PATRON_GRACE_MS: i64 = 3 * 86_400_000;
-
 #[async_trait]
 impl UserLookup for PgChatRepo {
     async fn users(&self, ids: &[UserId]) -> RepoResult<Vec<UserSummary>> {
@@ -1683,7 +1695,7 @@ impl UserLookup for PgChatRepo {
              WHERE a.id = ANY($1)",
         )
         .bind(ids)
-        .bind(PATRON_GRACE_MS)
+        .bind(self.patron_grace_ms)
         .fetch_all(&self.pool)
         .await
         .map_err(db)?;

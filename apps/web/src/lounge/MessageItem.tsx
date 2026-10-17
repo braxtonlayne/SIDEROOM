@@ -581,6 +581,7 @@ function MessageItemImpl(props: MessageItemProps) {
                   name={m.author.displayName}
                   src={m.author.avatarUrl ?? null}
                   size={40}
+                  ring={m.author.patron}
                   aria-hidden="true"
                 />
               </button>

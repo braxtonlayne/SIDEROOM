@@ -70,6 +70,13 @@ describe("Avatar", () => {
     });
     expect(screen.getByRole("img", { name: "Ada Lovelace" })).toHaveTextContent("AL");
   });
+  it("draws the Patron ring only when asked (D-256)", () => {
+    render(<Avatar name="Bo" ring data-testid="r" />);
+    expect(screen.getByTestId("r")).toHaveAttribute("data-ring", "true");
+    render(<Avatar name="Al" data-testid="n" />);
+    expect(screen.getByTestId("n")).not.toHaveAttribute("data-ring");
+  });
+
   it("shows an accessible status and speaking ring", () => {
     render(<Avatar name="Bo" status="dnd" speaking data-testid="a" />);
     expect(screen.getByRole("img", { name: "Do not disturb" })).toBeInTheDocument();
