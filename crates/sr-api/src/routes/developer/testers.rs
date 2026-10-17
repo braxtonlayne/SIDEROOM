@@ -182,11 +182,32 @@ pub async fn respond(
     ApiJson(body): ApiJson<TesterRespondBody>,
 ) -> MsgResult<Json<TesterRespondResult>> {
     let invite = parse_id(&invite, ErrorCode::SrNotFound)?;
-    let ans = deps
+    let custom_id = format!("sr:tester-accept:{invite}");
+    let ans = match deps
         .apps
         .respond_tester(p.user_id, invite, body.accept)
         .await
-        .map_err(app_err)?;
+    {
+        Ok(ans) => ans,
+        Err(e) => {
+            // An invitation that was answered, withdrawn or removed before: the card the person
+            // pressed is stale, so it loses its buttons too.
+            if matches!(
+                e,
+                sr_apps::AppsError::Conflict(_) | sr_apps::AppsError::NotFound(_)
+            ) {
+                deps.close_dm_card(p.user_id, &custom_id, "This invitation is no longer open.")
+                    .await;
+            }
+            return Err(app_err(e));
+        }
+    };
+    let outcome = if ans.accepted {
+        "You accepted this invitation."
+    } else {
+        "You declined this invitation."
+    };
+    deps.close_dm_card(p.user_id, &custom_id, outcome).await;
     Ok(Json(TesterRespondResult {
         application_id: ans.application.id.to_string(),
         name: ans.application.name,

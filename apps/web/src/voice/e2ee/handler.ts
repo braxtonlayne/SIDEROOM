@@ -32,7 +32,17 @@ export function handleWorkerMessage(
       media.close();
       break;
   }
-  post({ type: 'stats', sendEpoch: media.sendEpoch, receiveEpoch: media.receiveEpoch });
+  post(statsOf(media));
+}
+
+/** The worker's report: epochs and frame counters (no key material). */
+export function statsOf(media: E2eeMedia): WorkerOut {
+  return {
+    type: 'stats',
+    sendEpoch: media.sendEpoch,
+    receiveEpoch: media.receiveEpoch,
+    frames: { ...media.stats },
+  };
 }
 
 /** `rtctransform` event: `RTCRtpScriptTransform` hands the worker one track's streams. */

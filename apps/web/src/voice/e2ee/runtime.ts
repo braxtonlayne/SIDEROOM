@@ -13,7 +13,8 @@ import {
   memoryKeyStore,
   signWithIdentity,
 } from './identity';
-import { resetE2ee, setE2ee } from './store';
+import type { WorkerOut } from './protocol';
+import { resetE2ee, setE2ee, useE2ee } from './store';
 import { detectTransformMode, type TransformMode } from './support';
 
 export interface E2eeRuntime {
@@ -82,6 +83,10 @@ export function bindToStore(
   });
 }
 
+/** e2e builds only: let the browser tests read the call's E2EE state (codes, frame counters). */
+if (import.meta.env.VITE_SR_E2E === '1')
+  (globalThis as unknown as { __srE2ee?: () => unknown }).__srE2ee = () => useE2ee.getState();
+
 export const startBrowserE2ee: E2eeStarter = async (ctx) => {
   const mode = detectTransformMode();
   if (mode === 'none') return 'unsupported';
@@ -94,6 +99,10 @@ export const startBrowserE2ee: E2eeStarter = async (ctx) => {
   }
   const identity = await loadOrCreateIdentity(ctx.me, store);
   const worker = startE2eeWorker();
+  worker.addEventListener('message', (ev: MessageEvent<WorkerOut>) => {
+    if (ev.data.type === 'stats' && ev.data.frames) setE2ee({ frames: ev.data.frames });
+    else if (ev.data.type === 'error') setE2ee({ workerError: ev.data.message });
+  });
   const call = new E2eeCall({
     api,
     me: ctx.me,

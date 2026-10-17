@@ -305,6 +305,11 @@ async fn a_bundle_goes_draft_pending_approved_and_only_the_approved_one_is_serve
     assert_eq!(sha, up.bundle.sha256);
     assert_eq!(zip.as_ref(), site("one").as_slice());
 
+    // Nobody reviews their own Activity.
+    assert!(matches!(
+        r.svc.decide(app, owner, b1, true, None).await.unwrap_err(),
+        ActivityError::Forbidden
+    ));
     // Deciding names the bundle: a stale id is a conflict.
     assert!(matches!(
         r.svc.decide(app, 1, b1 + 1, true, None).await.unwrap_err(),

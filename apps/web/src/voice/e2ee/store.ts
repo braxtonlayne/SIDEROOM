@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand';
 import type { E2eeCallState } from './call';
+import type { MediaStats } from './media';
 
 export interface E2eeView {
   /** This call is end-to-end encrypted (the feature is on and the session started). */
@@ -13,9 +14,20 @@ export interface E2eeView {
   selfKey: string | null;
   /** D-250 pairwise code per participant, by user id (computed by the controller from WASM). */
   pairwise: Record<string, string>;
+  /** The media worker's frame counters (reported every second while in the call). */
+  frames?: MediaStats | null;
+  /** The media worker failed to start (WASM did not load): no frame can be sent or played. */
+  workerError?: string | null;
 }
 
-const EMPTY: E2eeView = { active: false, call: null, selfKey: null, pairwise: {} };
+const EMPTY: E2eeView = {
+  active: false,
+  call: null,
+  selfKey: null,
+  pairwise: {},
+  frames: null,
+  workerError: null,
+};
 
 export const useE2ee = create<E2eeView>(() => EMPTY);
 

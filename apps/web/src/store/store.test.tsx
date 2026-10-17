@@ -120,6 +120,18 @@ describe('message windows', () => {
 
     dispatch('MESSAGE_UPDATE', { id: '160', channel_id: 'c1', content: 'edited' });
     expect(result.current.messages.at(-1)?.content).toBe('edited');
+    // A card rewritten without its buttons: the update leaves `components` out, and they go.
+    dispatch('MESSAGE_UPDATE', {
+      id: '160',
+      channel_id: 'c1',
+      content: 'card',
+      components: [
+        { type: 1, components: [{ type: 2, style: 3, label: 'Accept', custom_id: 'sr:x:1' }] },
+      ],
+    });
+    expect(result.current.messages.at(-1)?.components).toHaveLength(1);
+    dispatch('MESSAGE_UPDATE', { id: '160', channel_id: 'c1', content: 'card' });
+    expect(result.current.messages.at(-1)?.components).toBeUndefined();
     dispatch('MESSAGE_DELETE', { id: '160', channel_id: 'c1' });
     expect(result.current.messages.at(-1)?.id).toBe('155');
     expect(useStore.getState().channels.c1?.last_message_id).toBe('160');

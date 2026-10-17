@@ -452,6 +452,9 @@ pub trait StaffNotifier: Send + Sync {
     async fn system_dm(&self, _to: i64, _text: &str) -> bool {
         false
     }
+    /// The offer was accepted, declined, withdrawn or expired: rewrite its DM (`dm_channel_id`,
+    /// `dm_message_id`) without the buttons and with the outcome. The default does nothing.
+    async fn offer_closed(&self, _offer: &StaffOffer) {}
 }
 
 /// The Entrance copy blocks an operator may override (ENT-UI-025). The client serves its own

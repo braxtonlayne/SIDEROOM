@@ -81,12 +81,23 @@ async fn followup_route(
 
 /// Records the system DMs the developer platform sends.
 #[derive(Default)]
-pub(super) struct DmLog(pub(super) std::sync::Mutex<Vec<(i64, super::SystemCard)>>);
+pub(super) struct DmLog(
+    pub(super) std::sync::Mutex<Vec<(i64, super::SystemCard)>>,
+    /// Cards closed after an answer: (recipient, custom id, outcome).
+    pub(super) std::sync::Mutex<Vec<(i64, String, String)>>,
+);
 
 #[async_trait]
 impl super::SystemDm for DmLog {
     async fn dm(&self, to: i64, card: super::SystemCard) -> bool {
         self.0.lock().unwrap().push((to, card));
+        true
+    }
+    async fn close_card(&self, to: i64, custom_id: &str, outcome: &str) -> bool {
+        self.1
+            .lock()
+            .unwrap()
+            .push((to, custom_id.to_owned(), outcome.to_owned()));
         true
     }
 }
