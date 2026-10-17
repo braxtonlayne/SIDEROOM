@@ -2530,6 +2530,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/persons/{person_id}/identities/{identity_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a Discord identity to another account of the Person (`MANAGE_ACCOUNTS`, fresh second factor,
+         *     reason required, D-262). The target joins the Person in the same step when it is elsewhere. 409 when
+         *     the Person or either account is banned or suspended. The old row is kept as history; the old account
+         *     gets a system DM, and an email when its address is verified.
+         */
+        post: operations["move_identity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/persons/{person_id}/link": {
         parameters: {
             query?: never;
@@ -9215,7 +9237,12 @@ export interface paths {
         get: operations["get_package"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete one of my packages that has no approved version: every version is rejected or withdrawn (a
+         *     pending one is withdrawn by this call). The id is free again and the stored files are removed. A package
+         *     with an approved version answers 409 "Approved packages can only be revoked by staff".
+         */
+        delete: operations["delete_package"];
         options?: never;
         head?: never;
         patch?: never;
@@ -11375,6 +11402,48 @@ export interface paths {
          */
         post: operations["use_layout"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/profile-media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My profile page pictures, oldest first. */
+        get: operations["list"];
+        put?: never;
+        /**
+         * Upload a profile page picture: the body is the image (PNG, JPEG, GIF or WebP, at most 8 MiB, the same
+         *     checks as a banner). `kind=background` replaces the current background; `kind=gallery` adds one of at
+         *     most 12 (409 when full).
+         */
+        post: operations["upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/profile-media/{media_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove one of my pictures. Gallery entries and the background that named it are taken out of my saved
+         *     profile document.
+         */
+        delete: operations["remove"];
         options?: never;
         head?: never;
         patch?: never;
@@ -15524,6 +15593,21 @@ export interface components {
             month_start_ms: number;
         };
         /**
+         * @description A Discord identity row of one of a Person's accounts. A moved one is history: `unlinked_at_ms` and
+         *     `moved_to_account_id` are set and a newer live row holds the identity.
+         */
+        IdentitySummary: {
+            account_id: string;
+            id: string;
+            /** Format: int64 */
+            linked_at_ms: number;
+            moved_to_account_id?: string | null;
+            provider: string;
+            provider_user_id: string;
+            /** Format: int64 */
+            unlinked_at_ms?: number | null;
+        };
+        /**
          * @description Body of `PUT /guilds/{id}/incident-actions`. Both fields are replaced: omitted or `null`
          *     clears the pause.
          */
@@ -16905,6 +16989,21 @@ export interface components {
                 [key: string]: boolean;
             };
         };
+        /** @description Body of `POST /admin/persons/{person_id}/identities/{identity_id}/move`. */
+        MoveIdentityBody: {
+            /** @description Why; required, kept in the access log and told to the old account. */
+            reason?: string | null;
+            /** @description The account that should hold the identity. It joins this Person when it is elsewhere. */
+            to_account_id: string;
+        };
+        /** @description What a move did. */
+        MoveIdentityResult: {
+            /** @description The old account's verified address was emailed (it always gets a system DM). */
+            emailed: boolean;
+            /** @description The target account was in another Person and was linked into this one. */
+            linked_target: boolean;
+            to_account_id: string;
+        };
         /** @description The multipart part of a new upload slot. */
         MultipartSlot: {
             /** Format: int32 */
@@ -17444,6 +17543,8 @@ export interface components {
             accounts: components["schemas"]["AccountSummary"][];
             ban?: null | components["schemas"]["BanRecord"];
             id: string;
+            /** @description Discord identities of the accounts of this Person, live and moved (D-262). */
+            identities?: components["schemas"]["IdentitySummary"][];
             notes: string;
             /** Format: int32 */
             suspicion_level: number;
@@ -17682,6 +17783,18 @@ export interface components {
             name: string;
             ok: boolean;
         };
+        /**
+         * @description The page background (K-17, D-260): a pattern, my profile banner, or a picture I uploaded. It replaces the
+         *     older `pattern` plus `banner_background` pair, which is still read when this is absent.
+         */
+        ProfileBackground: {
+            /** @description The id of one of my uploaded background pictures (`kind` = `image`). */
+            image_id?: string | null;
+            /** @description `pattern`, `banner` or `image`. */
+            kind: string;
+            /** @description One of [`PATTERNS`]; drawn over the banner or the picture too. */
+            pattern?: string | null;
+        };
         ProfileBlock: {
             /** @description Type-specific settings (see the module documentation). */
             config?: Record<string, never>;
@@ -17729,6 +17842,23 @@ export interface components {
              */
             version?: number;
         };
+        /** @description One uploaded picture. */
+        ProfileMedia: {
+            /** Format: int64 */
+            bytes: number;
+            content_type: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int32 */
+            height: number;
+            id: string;
+            /** @description `background` or `gallery`. */
+            kind: string;
+            /** @description Where the picture is served from (`/cdn/avatars/<user>/<hash>.<ext>`). */
+            url: string;
+            /** Format: int32 */
+            width: number;
+        };
         ProfileObject: {
             /**
              * @description Public badges: `owner`, `staff`, `patron`, `contributor`, `early_member`,
@@ -17764,8 +17894,20 @@ export interface components {
             doc: components["schemas"]["ProfileDoc"];
             /** @description The people named in the Top friends block who are still friends. */
             friends: components["schemas"]["ProfilePageUser"][];
+            /**
+             * Format: int64
+             * @description Entries on the guestbook; only the owner is told (K-18), next to [`MAX_GUESTBOOK_ENTRIES`].
+             */
+            guestbook_count?: number | null;
+            /**
+             * Format: int64
+             * @description The most entries one guestbook holds.
+             */
+            guestbook_limit: number;
             /** @description The viewer is the owner. */
             is_owner: boolean;
+            /** @description The pictures the document names (a background image, gallery pictures), with their addresses. */
+            media: components["schemas"]["ProfileMedia"][];
             user: components["schemas"]["ProfilePageUser"];
         };
         /** @description A person on a profile page. */
@@ -17789,7 +17931,8 @@ export interface components {
             text: string;
         };
         ProfileStyle: {
-            /** @description Use my profile banner as the page background. */
+            background?: null | components["schemas"]["ProfileBackground"];
+            /** @description Use my profile banner as the page background (the older form). */
             banner_background?: boolean;
             /** @description One of [`BORDERS`]. */
             border?: string;
@@ -17800,7 +17943,7 @@ export interface components {
             /** @description One of [`OVERLAYS`]. */
             overlay?: string;
             palette?: components["schemas"]["ProfilePalette"];
-            /** @description One of [`PATTERNS`]. */
+            /** @description One of [`PATTERNS`] (the older form; see [`Style::background`]). */
             pattern?: string;
         };
         /** @description A member's progress in one chapter. */
@@ -29326,6 +29469,74 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    move_identity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person snowflake */
+                person_id: string;
+                /** @description Identity row snowflake */
+                identity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveIdentityBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoveIdentityResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -51234,6 +51445,42 @@ export interface operations {
             };
         };
     };
+    delete_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     create_guild: {
         parameters: {
             query?: never;
@@ -56866,6 +57113,103 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileMedia"][];
+                };
+            };
+        };
+    };
+    upload: {
+        parameters: {
+            query: {
+                /** @description background or gallery */
+                kind: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileMedia"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Picture snowflake */
+                media_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

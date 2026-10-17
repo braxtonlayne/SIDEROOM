@@ -5,8 +5,9 @@ use crate::{
     auth::{SessionOnly, UserOnly},
     openapi::ErrorBody,
     routes::{
-        Ext,
+        Ext, MaybeExt,
         admin::StaffCtx,
+        cdn::external::ExternalImageDeps,
         guilds::{safety::MfaGate, util::Api},
         messages::error::{ApiJson, MsgError, MsgResult},
         settings::{SettingsDeps, features::GuildFeatures},
@@ -119,6 +120,27 @@ pub async fn withdraw(
             .await
             .map_err(pkg)?,
     ))
+}
+
+/// Delete one of my packages that has no approved version: every version is rejected or withdrawn (a
+/// pending one is withdrawn by this call). The id is free again and the stored files are removed. A package
+/// with an approved version answers 409 "Approved packages can only be revoked by staff".
+#[utoipa::path(
+    delete, path = "/packages/{package_id}", tag = "packages",
+    params(("package_id" = String, Path, description = "Package snowflake")),
+    responses((status = 204), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn delete_package(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<PackagesDeps>,
+    Path(package): Path<String>,
+) -> MsgResult<StatusCode> {
+    deps.service
+        .delete_package(p.user_id, id(&package)?)
+        .await
+        .map_err(pkg)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------- browse
@@ -668,14 +690,16 @@ pub async fn use_layout(
 pub async fn page_by_name(
     UserOnly(p): UserOnly,
     Ext(deps): Ext<PackagesDeps>,
+    MaybeExt(proxy): MaybeExt<ExternalImageDeps>,
     Path(name): Path<String>,
 ) -> MsgResult<Json<ProfilePage>> {
-    Ok(Json(
-        deps.service
-            .page(p.user_id, Some(&name), None)
-            .await
-            .map_err(pkg)?,
-    ))
+    let mut page = deps
+        .service
+        .page(p.user_id, Some(&name), None)
+        .await
+        .map_err(pkg)?;
+    proxy_gallery(&mut page, proxy.as_deref());
+    Ok(Json(page))
 }
 
 /// A person's profile page by id (the compact popout uses this); `@me` is the caller.
@@ -688,15 +712,53 @@ pub async fn page_by_name(
 pub async fn page_by_id(
     UserOnly(p): UserOnly,
     Ext(deps): Ext<PackagesDeps>,
+    MaybeExt(proxy): MaybeExt<ExternalImageDeps>,
     Path(user): Path<String>,
 ) -> MsgResult<Json<ProfilePage>> {
     let target = if user == "@me" { p.user_id } else { id(&user)? };
-    Ok(Json(
-        deps.service
-            .page(p.user_id, None, Some(target))
-            .await
-            .map_err(pkg)?,
-    ))
+    let mut page = deps
+        .service
+        .page(p.user_id, None, Some(target))
+        .await
+        .map_err(pkg)?;
+    proxy_gallery(&mut page, proxy.as_deref());
+    Ok(Json(page))
+}
+
+/// Give every `url` picture of the page's gallery blocks a signed `proxy_url` (D-259, D-176): the client
+/// loads only that path, never the person's address. A host the proxy would refuse (deny list, literal
+/// addresses, over-long or non-http URLs) gets none, and the client shows a placeholder tile with the
+/// caption. Without an image proxy no picture gets one. A `proxy_url` a document carried is dropped first.
+pub(crate) fn proxy_gallery(page: &mut ProfilePage, proxy: Option<&ExternalImageDeps>) {
+    use sr_packages::profile_doc::BlockKind;
+    for block in page
+        .doc
+        .blocks
+        .iter_mut()
+        .filter(|b| b.kind == BlockKind::Gallery)
+    {
+        let Some(items) = block.config.get_mut("items").and_then(Value::as_array_mut) else {
+            continue;
+        };
+        for item in items.iter_mut().filter_map(Value::as_object_mut) {
+            item.remove("proxy_url");
+            let Some(proxy) = proxy else {
+                continue;
+            };
+            let Some(url) = item.get("url").and_then(Value::as_str) else {
+                continue;
+            };
+            let allowed = url::Url::parse(url)
+                .ok()
+                .is_some_and(|u| proxy.fetcher.policy().check_url(&u).is_ok());
+            if !allowed {
+                continue;
+            }
+            if let Some(path) = proxy.signer.external_path(url) {
+                item.insert("proxy_url".to_owned(), Value::String(path));
+            }
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -974,6 +1036,75 @@ mod tests {
                 &obj(json!({"ignored_channels": ["1", "2"]}))
             )
             .is_err()
+        );
+    }
+
+    fn page_with_gallery(items: Value) -> ProfilePage {
+        let doc: sr_packages::profile_doc::ProfileDoc = serde_json::from_value(json!({
+            "version": 1,
+            "blocks": [{"id": "pics", "type": "gallery", "x": 0, "y": 0, "w": 6, "h": 3,
+                        "config": {"items": items}}]
+        }))
+        .unwrap();
+        ProfilePage {
+            user: sr_packages::service::PageUser {
+                id: "1".into(),
+                username: "me".into(),
+                display_name: None,
+                avatar: None,
+                banner: None,
+                accent_color: None,
+            },
+            doc,
+            friends: Vec::new(),
+            is_owner: false,
+            can_sign: false,
+            customised: true,
+            guestbook_count: None,
+            guestbook_limit: 500,
+            media: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn gallery_pictures_get_a_signed_proxy_path_unless_the_proxy_would_refuse_them() {
+        let signer = sr_storage::cdn::CdnSigner::new(b"gallery-test-secret-0123456789ab".to_vec());
+        let policy = sr_net::Policy {
+            deny_hosts: vec!["evil.example".to_owned()],
+            ..Default::default()
+        };
+        let deps = ExternalImageDeps::new(
+            sr_unfurl::production_fetcher(policy),
+            std::sync::Arc::new(sr_storage::ObjectStoreStorage::in_memory()),
+            signer.clone(),
+        );
+        let mut page = page_with_gallery(json!([
+            {"url": "https://img.example/a.png", "caption": "ok", "proxy_url": "https://attacker.example/x"},
+            {"url": "https://cdn.evil.example/b.png"},
+            {"url": "https://127.0.0.1/c.png"},
+        ]));
+        proxy_gallery(&mut page, Some(&deps));
+        let items = page.doc.blocks[0].config["items"].as_array().unwrap();
+        let signed = signer.external_path("https://img.example/a.png").unwrap();
+        assert_eq!(items[0]["proxy_url"], signed);
+        assert!(
+            items[0]["proxy_url"]
+                .as_str()
+                .unwrap()
+                .starts_with("/cdn/external/")
+        );
+        assert_eq!(items[0]["url"], "https://img.example/a.png");
+        assert!(items[1].get("proxy_url").is_none(), "denied host");
+        assert!(items[2].get("proxy_url").is_none(), "private address");
+
+        // No proxy configured: nothing is proxied and a supplied path never survives.
+        let mut page =
+            page_with_gallery(json!([{"url": "https://img.example/a.png", "proxy_url": "x"}]));
+        proxy_gallery(&mut page, None);
+        assert!(
+            page.doc.blocks[0].config["items"][0]
+                .get("proxy_url")
+                .is_none()
         );
     }
 }

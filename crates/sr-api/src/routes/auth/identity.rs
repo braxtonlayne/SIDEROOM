@@ -631,6 +631,16 @@ pub async fn delete_account(
                 media.remove(kind, uid, key).await;
             }
         }
+        // Profile page pictures (K-17): `avatars/<user>/<hash>`.
+        if let Ok(uid) = u64::try_from(account.id) {
+            for key in &done.profile_media_keys {
+                if let Some(hash) = key.rsplit('/').next() {
+                    media
+                        .remove(sr_storage::media::MediaKind::ProfileMedia, uid, hash)
+                        .await;
+                }
+            }
+        }
     }
     if let Some(social) = social {
         crate::routes::social::announce_account_deleted(&social, account.id, &done).await;

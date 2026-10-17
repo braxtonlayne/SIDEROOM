@@ -36,7 +36,7 @@ import {
 import { streamerState } from '../settings/user/prefs';
 import { CuePlayer, cueEnabled, type Cue } from './sounds';
 import { VadGate } from './vad';
-import { e2eeFlagEnabled } from './e2ee/flag';
+import { e2eeDeclared, e2eeFlagEnabled } from './e2ee/flag';
 import type { E2eeRuntime, E2eeStartContext, E2eeStarter } from './e2ee/runtime';
 import { VIDEO_PUBLISH } from './protocol';
 import { PreviewUploader, type PreviewDeps, browserPreviewDeps } from './preview';
@@ -103,6 +103,12 @@ export interface ControllerDeps {
    * DTLS-SRTP only. `unsupported`: the browser has no encoded-frame API, so the join fails.
    */
   e2ee?: E2eeStarter;
+  /**
+   * Does this client declare `sr_e2ee: true` in its join (D-263)? The server refuses a join without it
+   * while `voice.e2ee` is on. When it declares but runs no E2EE itself (the e2e observer), it still
+   * sends op 101 `hello` so the server does not drop it after 10 seconds. Default: off.
+   */
+  e2eeDeclared?: () => boolean;
 }
 
 export type SoundResult = { ok: true } | { ok: false; message: string };
@@ -127,6 +133,7 @@ const defaultDeps = (): ControllerDeps => ({
   voiceStatesOf: (g) => useStore.getState().voiceStates[g] ?? {},
   audio: browserAudioDeps,
   now: () => Date.now(),
+  e2eeDeclared,
   ...(e2eeFlagEnabled()
     ? {
         e2ee: (ctx: E2eeStartContext) =>
@@ -658,6 +665,7 @@ export class VoiceController {
       channel_id: t.channelId,
       self_mute: s.selfMute,
       self_deaf: s.selfDeaf,
+      ...(this.deps.e2eeDeclared?.() ? { sr_e2ee: true } : {}),
       ...((this.deps.publishVideo ?? VIDEO_PUBLISH)
         ? { self_video: s.camera, self_stream: s.screen }
         : {}),
@@ -836,6 +844,9 @@ export class VoiceController {
     patchSession({ status: 'connecting', error: null });
     const starter = this.deps.e2ee;
     if (!starter) {
+      // Declared but not running E2EE (the e2e observer): say hello so the server keeps us in the call.
+      if (this.deps.e2eeDeclared?.())
+        this.deps.sendGateway(Op.E2EE_MLS, { type: 'hello', channel_id: t.channelId });
       this.startEngine(t, me);
       return;
     }
@@ -1257,6 +1268,8 @@ function refusalText(code: string, message: string): string {
       return 'This voice channel is full.';
     case 'voice_unavailable':
       return 'Voice is not available on this server.';
+    case 'e2ee_required':
+      return t('voice.e2ee.required');
     case 'not_voice_channel':
     case 'unknown_channel':
       return 'That voice channel is no longer available.';

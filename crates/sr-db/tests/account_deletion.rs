@@ -99,7 +99,25 @@ async fn deletion_scrubs_the_account_and_removes_ties() {
     .await
     .unwrap();
 
+    sqlx::query(
+        "INSERT INTO profile_media (id, account_id, kind, object_key, content_type, width, height, bytes)          VALUES (6001, $1, 'gallery', 'avatars/9/abc', 'image/png', 10, 10, 100)",
+    )
+    .bind(me)
+    .execute(pool)
+    .await
+    .unwrap();
+
     let report = delete_account(pool, me, 5002).await.unwrap().unwrap();
+    assert_eq!(report.profile_media_keys, vec!["avatars/9/abc".to_owned()]);
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM profile_media WHERE account_id = $1",
+            me
+        )
+        .await,
+        0
+    );
     assert_eq!(report.guilds_left, vec![2001]);
     assert_eq!(report.friends, vec![friend]);
     assert_eq!(report.credits_forfeited, 5);

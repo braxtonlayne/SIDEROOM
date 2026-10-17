@@ -10,7 +10,15 @@ import { listPackages, problemLines, type PackageView } from '../packages/api';
 import { useLoad } from '../packages/useLoad';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { cdnUrl } from '../store/cdn';
-import { getOwnDoc, getPageById, saveDoc, adoptLayout } from './api';
+import {
+  adoptLayout,
+  deleteMedia,
+  getOwnDoc,
+  getPageById,
+  listMedia,
+  saveDoc,
+  uploadMedia,
+} from './api';
 import { Canvas, KIND_LABEL } from './Canvas';
 import { addBlock } from './grid';
 import { Inspector, type FriendChoice } from './Inspector';
@@ -22,6 +30,7 @@ import {
   emptyDoc,
   type BlockKind,
   type ProfileDoc,
+  type ProfileMedia,
   type ProfilePage,
 } from './types';
 import './profilepage.css';
@@ -65,6 +74,8 @@ export function ProfileEditor() {
   const [done, setDone] = useState(false);
   const [adding, setAdding] = useState<BlockKind>('header');
   const [layoutId, setLayoutId] = useState('');
+  const [media, setMedia] = useState<ProfileMedia[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (loaded.data) {
@@ -72,6 +83,40 @@ export function ProfileEditor() {
       setSaved(loaded.data);
     }
   }, [loaded.data]);
+
+  useEffect(() => {
+    let live = true;
+    listMedia().then(
+      (m) => live && setMedia(m),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  /** Upload a picture; the new one replaces the old background. A failure is shown among the problems. */
+  const upload = async (kind: 'background' | 'gallery', file: File) => {
+    setUploading(true);
+    setProblems([]);
+    try {
+      const m = await uploadMedia(kind, file);
+      setMedia((cur) => [...cur.filter((x) => kind === 'gallery' || x.kind !== 'background'), m]);
+      return m;
+    } catch (e) {
+      setProblems(
+        problemLines(e).length ? problemLines(e) : [t('lounge.profileEditor.uploadFailed')],
+      );
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+  /** Delete a picture on the server (it also leaves the saved document there). */
+  const dropMedia = (id: string) => {
+    setMedia((cur) => cur.filter((x) => x.id !== id));
+    deleteMedia(id).catch(() => setProblems([t('lounge.profileEditor.uploadFailed')]));
+  };
 
   const dirty = !same(doc, saved);
   const block = doc.blocks.find((b) => b.id === selected) ?? null;
@@ -135,7 +180,7 @@ export function ProfileEditor() {
     }
   };
 
-  const previewPage: ProfilePage | null = page.data ? { ...page.data, doc } : null;
+  const previewPage: ProfilePage | null = page.data ? { ...page.data, doc, media } : null;
 
   return (
     <ThemeProvider
@@ -223,7 +268,7 @@ export function ProfileEditor() {
                 onRemove={remove}
               />
             ) : previewPage ? (
-              <ProfileRenderer page={previewPage} doc={doc} bannerUrl={bannerUrl} />
+              <ProfileRenderer page={previewPage} doc={doc} bannerUrl={bannerUrl} media={media} />
             ) : (
               <p className="us-muted" role="status">
                 {t('lounge.profileEditor.loading')}
@@ -259,6 +304,10 @@ export function ProfileEditor() {
                 <Inspector
                   block={block}
                   friends={friendsRes.data ?? []}
+                  media={media}
+                  uploading={uploading}
+                  onUploadGallery={(f) => upload('gallery', f)}
+                  onRemoveMedia={dropMedia}
                   onConfig={(config) =>
                     setDoc({
                       ...doc,
@@ -274,7 +323,14 @@ export function ProfileEditor() {
 
             <section className="us-card">
               <h2 className="us-card-title">{t('lounge.profileEditor.styleTitle')}</h2>
-              <StylePanel style={doc.style} onChange={(style) => setDoc({ ...doc, style })} />
+              <StylePanel
+                style={doc.style}
+                onChange={(style) => setDoc({ ...doc, style })}
+                media={media}
+                uploading={uploading}
+                onUploadBackground={(f) => upload('background', f)}
+                onRemoveMedia={dropMedia}
+              />
             </section>
 
             <section className="us-card">

@@ -270,6 +270,11 @@ export interface MessageWindow {
   atLatest: boolean;
   loading: boolean;
   error: string | null;
+  /**
+   * Kept from an earlier session by READY (K-22): shown at once, but events may have been missed, so the
+   * newest page is fetched again and replaces it.
+   */
+  stale?: boolean;
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed';

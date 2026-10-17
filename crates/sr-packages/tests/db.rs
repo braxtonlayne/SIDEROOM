@@ -528,3 +528,320 @@ async fn a_layout_package_starts_a_profile_and_keeps_text() {
     assert_eq!(d.blocks[0].config["text"], "mine");
     assert!(d.blocks[1].config.is_empty());
 }
+
+/// Records the review-queue card calls (D-258).
+#[derive(Default)]
+struct Cards(std::sync::Mutex<Vec<(i64, Option<String>)>>);
+
+#[async_trait::async_trait]
+impl sr_packages::service::PackageEvents for Cards {
+    async fn card(&self, version_id: i64, outcome: Option<&str>) {
+        self.0
+            .lock()
+            .unwrap()
+            .push((version_id, outcome.map(str::to_owned)));
+    }
+}
+
+async fn rig_with_cards() -> (Rig, Arc<Cards>) {
+    let db = TestDb::new().await.unwrap();
+    let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    let pool = db.pool().clone();
+    let cards = Arc::new(Cards::default());
+    let svc = PackageService::new(pool.clone(), Arc::new(uid))
+        .with_storage(storage)
+        .with_events(cards.clone());
+    (Rig { _db: db, pool, svc }, cards)
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn nobody_reviews_their_own_package_and_each_version_posts_one_card() {
+    let (r, cards) = rig_with_cards().await;
+    let author = account(&r.pool).await;
+    let staff = account(&r.pool).await;
+    let v = r
+        .svc
+        .submit(
+            author,
+            theme_zip("ocean-night", "1.0.0"),
+            &Checks::lenient(),
+        )
+        .await
+        .unwrap();
+    let vid: i64 = v.id.parse().unwrap();
+    assert_eq!(*cards.0.lock().unwrap(), vec![(vid, None)]);
+    // The author is refused, whatever the decision, and nothing changes.
+    for d in [Decision::Approve, Decision::Reject, Decision::Revoke] {
+        assert_eq!(
+            r.svc
+                .decide(vid, author, d, Some("x".into()))
+                .await
+                .unwrap_err(),
+            PackageError::SelfReview
+        );
+    }
+    assert_eq!(cards.0.lock().unwrap().len(), 1);
+    r.svc
+        .decide(vid, staff, Decision::Approve, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        cards.0.lock().unwrap().last().unwrap(),
+        &(vid, Some("approved".to_owned()))
+    );
+    // A second decision on the same version is a conflict and posts no second outcome.
+    assert!(
+        r.svc
+            .decide(vid, staff, Decision::Approve, None)
+            .await
+            .is_err()
+    );
+    assert_eq!(cards.0.lock().unwrap().len(), 2);
+    // A rejection and a withdrawal close their cards too.
+    let v2 = r
+        .svc
+        .submit(
+            author,
+            theme_zip("ocean-night", "1.0.1"),
+            &Checks::lenient(),
+        )
+        .await
+        .unwrap();
+    let v2id: i64 = v2.id.parse().unwrap();
+    r.svc
+        .decide(v2id, staff, Decision::Reject, Some("no".into()))
+        .await
+        .unwrap();
+    let v3 = r
+        .svc
+        .submit(
+            author,
+            theme_zip("ocean-night", "1.0.2"),
+            &Checks::lenient(),
+        )
+        .await
+        .unwrap();
+    let v3id: i64 = v3.id.parse().unwrap();
+    r.svc.withdraw(author, v3id).await.unwrap();
+    let log = cards.0.lock().unwrap().clone();
+    assert!(log.contains(&(v2id, Some("rejected".to_owned()))));
+    assert_eq!(log.last().unwrap(), &(v3id, Some("withdrawn".to_owned())));
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn an_author_deletes_a_never_approved_package_and_frees_the_slug() {
+    let (r, cards) = rig_with_cards().await;
+    let author = account(&r.pool).await;
+    let other = account(&r.pool).await;
+    let staff = account(&r.pool).await;
+    let v = r
+        .svc
+        .submit(
+            author,
+            theme_zip("ocean-night", "1.0.0"),
+            &Checks::lenient(),
+        )
+        .await
+        .unwrap();
+    let pid: i64 = v.package_id.parse().unwrap();
+    let vid: i64 = v.id.parse().unwrap();
+    // Not somebody else's.
+    assert_eq!(
+        r.svc.delete_package(other, pid).await.unwrap_err(),
+        PackageError::NotFound("package")
+    );
+    // The pending version is withdrawn by the same call; the slug is free for another author.
+    r.svc.delete_package(author, pid).await.unwrap();
+    assert!(
+        cards
+            .0
+            .lock()
+            .unwrap()
+            .contains(&(vid, Some("withdrawn".to_owned())))
+    );
+    assert!(r.svc.mine(author).await.unwrap().is_empty());
+    r.svc
+        .submit(other, theme_zip("ocean-night", "1.0.0"), &Checks::lenient())
+        .await
+        .unwrap();
+
+    // Rejected-only packages can go too; a package with an approved version cannot.
+    let v = r
+        .svc
+        .submit(author, theme_zip("night-owl", "1.0.0"), &Checks::lenient())
+        .await
+        .unwrap();
+    let (pid, vid): (i64, i64) = (v.package_id.parse().unwrap(), v.id.parse().unwrap());
+    r.svc
+        .decide(vid, staff, Decision::Approve, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        r.svc.delete_package(author, pid).await.unwrap_err(),
+        PackageError::Conflict("Approved packages can only be revoked by staff".to_owned())
+    );
+    assert_eq!(r.svc.mine(author).await.unwrap().len(), 1);
+    // Once staff revoke it, nothing approved is left and the author may delete it.
+    r.svc
+        .decide(vid, staff, Decision::Revoke, Some("broke the rules".into()))
+        .await
+        .unwrap();
+    r.svc.delete_package(author, pid).await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn reserved_ids_are_refused_at_submission() {
+    let r = rig().await;
+    let author = account(&r.pool).await;
+    for slug in ["sideroom", "lounge-dark", "default"] {
+        let err = r
+            .svc
+            .submit(author, recipe_zip(slug, "1.0.0"), &Checks::lenient())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&err, PackageError::Refused(p) if p.iter().any(|m| m.contains("reserved"))),
+            "{slug}: {err:?}"
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn profile_pictures_are_capped_owned_and_dropped_when_a_saved_document_stops_using_them() {
+    use sr_packages::service::media::NewMedia;
+    let db = TestDb::new().await.unwrap();
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    let pool = db.pool().clone();
+    let svc = PackageService::new(pool.clone(), Arc::new(uid)).with_storage(storage.clone());
+    let me = account(&pool).await;
+    let other = account(&pool).await;
+
+    let add = |user: i64, kind: &'static str| {
+        let svc = svc.clone();
+        let storage = storage.clone();
+        async move {
+            let id = svc.media_id();
+            let key = format!("avatars/{user}/{id:032x}");
+            storage
+                .put(&key, bytes::Bytes::from_static(b"png"))
+                .await
+                .unwrap();
+            let v = svc
+                .media_add(
+                    user,
+                    NewMedia {
+                        id,
+                        kind: kind.to_owned(),
+                        object_key: key.clone(),
+                        content_type: "image/png".into(),
+                        width: 640,
+                        height: 480,
+                        bytes: 3,
+                    },
+                )
+                .await;
+            (v, key)
+        }
+    };
+
+    // Twelve gallery pictures fit, the thirteenth does not; the check can say so before processing.
+    let mut gallery = Vec::new();
+    for _ in 0..12 {
+        let (v, key) = add(me, "gallery").await;
+        gallery.push((v.unwrap(), key));
+    }
+    let (thirteenth, _) = add(me, "gallery").await;
+    assert!(matches!(thirteenth, Err(PackageError::Conflict(m)) if m.contains("at most 12")));
+    assert!(svc.media_check(me, "gallery").await.is_err());
+    assert!(svc.media_check(me, "background").await.is_ok());
+    assert!(svc.media_check(me, "video").await.is_err());
+    assert!(
+        gallery[0].0.url.starts_with(&format!("/cdn/avatars/{me}/"))
+            && gallery[0].0.url.ends_with(".png")
+    );
+
+    // A new background replaces the old one and its file goes.
+    let (first_bg, first_key) = add(me, "background").await;
+    let first_bg = first_bg.unwrap();
+    let (second_bg, _) = add(me, "background").await;
+    let second_bg = second_bg.unwrap();
+    assert!(
+        storage.head(&first_key).await.is_err(),
+        "replaced background file removed"
+    );
+    let all = svc.media_list(me).await.unwrap();
+    assert_eq!(all.iter().filter(|m| m.kind == "background").count(), 1);
+    assert_eq!(all.len(), 13);
+
+    // A document may name only my own pictures.
+    let (theirs, _) = add(other, "gallery").await;
+    let theirs = theirs.unwrap();
+    let doc = |bg: &str, imgs: &[&str]| -> Value {
+        let items: Vec<Value> = imgs.iter().map(|i| json!({"image_id": i})).collect();
+        json!({"version": 1,
+               "style": {"background": {"kind": "image", "image_id": bg}},
+               "blocks": [{"id": "g", "type": "gallery", "x": 0, "y": 0, "w": 6, "h": 3, "config": {"items": items}}]})
+    };
+    let err = svc
+        .set_doc(me, &doc(&second_bg.id, &[&theirs.id]))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&err, PackageError::Refused(p) if p.iter().any(|m| m.contains("not one of your pictures"))),
+        "{err:?}"
+    );
+    let stale = svc
+        .set_doc(me, &doc(&first_bg.id, &[&gallery[0].0.id]))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(stale, PackageError::Refused(_)),
+        "the replaced background is gone"
+    );
+
+    // Saving keeps what the document names and drops (rows and files) every other picture.
+    svc.set_doc(
+        me,
+        &doc(&second_bg.id, &[&gallery[0].0.id, &gallery[1].0.id]),
+    )
+    .await
+    .unwrap();
+    let kept: Vec<String> = svc
+        .media_list(me)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|m| m.id)
+        .collect();
+    assert_eq!(kept.len(), 3);
+    assert!(storage.head(&gallery[0].1).await.is_ok());
+    assert!(
+        storage.head(&gallery[5].1).await.is_err(),
+        "orphan file deleted on save"
+    );
+    // The page lists exactly the pictures the document names, for anyone who may see it.
+    let page = svc.page(other, None, Some(me)).await.unwrap();
+    assert_eq!(page.media.len(), 3);
+    assert!(page.guestbook_count.is_none());
+
+    // Deleting a picture takes it out of the saved document too.
+    svc.media_delete(me, gallery[1].0.id.parse().unwrap())
+        .await
+        .unwrap();
+    assert!(storage.head(&gallery[1].1).await.is_err());
+    let after = svc.own_doc(me).await.unwrap();
+    assert_eq!(after.blocks[0].config["items"].as_array().unwrap().len(), 1);
+    // Not somebody else's.
+    assert_eq!(
+        svc.media_delete(me, theirs.id.parse().unwrap())
+            .await
+            .unwrap_err(),
+        PackageError::NotFound("picture")
+    );
+    assert_eq!(svc.media_keys(other).await.unwrap().len(), 1);
+    db.cleanup().await.unwrap();
+}

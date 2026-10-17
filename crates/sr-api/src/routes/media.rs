@@ -31,6 +31,18 @@ pub fn body_limit() -> DefaultBodyLimit {
     DefaultBodyLimit::max(BODY_LIMIT)
 }
 
+/// A picture stored by [`MediaDeps::store_raw`].
+#[derive(Debug, Clone)]
+pub struct StoredImage {
+    pub hash: String,
+    /// Object key (`avatars/<user>/<hash>`).
+    pub key: String,
+    pub content_type: &'static str,
+    pub width: u32,
+    pub height: u32,
+    pub bytes: i64,
+}
+
 /// Storage and processing budget for image uploads.
 #[derive(Clone)]
 pub struct MediaDeps {
@@ -112,6 +124,53 @@ impl MediaDeps {
                 HttpError::from(sr_core::ErrorCode::SrInternal)
             })?;
         Ok(prepared.hash)
+    }
+
+    /// Validate, normalise and store raw image bytes (a request body, not a data URI) for `owner`,
+    /// with the hash scoped to `scope` so two rows with the same picture never share a file. The same
+    /// pipeline as [`Self::store_scoped`]: the real type is sniffed, metadata is stripped by re-encoding,
+    /// SVG and other active content are refused, and the size and animation caps of the kind apply.
+    pub async fn store_raw(
+        &self,
+        kind: MediaKind,
+        owner: u64,
+        scope: u64,
+        field: &str,
+        raw: Vec<u8>,
+    ) -> Result<StoredImage, HttpError> {
+        let permit = self
+            .permits
+            .acquire()
+            .await
+            .map_err(|_| sr_core::ErrorCode::SrInternal)?;
+        let limits = self.limits;
+        let prepared = tokio::task::spawn_blocking(move || {
+            if raw.len() > kind.max_upload() {
+                return Err(MediaError::TooLarge);
+            }
+            media::prepare_bytes_scoped(kind, &raw, &limits, Some(scope))
+        })
+        .await
+        .map_err(|_| sr_core::ErrorCode::SrInternal)?
+        .map_err(|e| media_error(field, e, kind))?;
+        drop(permit);
+        let key = media::object_key(kind, owner, &prepared.hash);
+        let bytes = i64::try_from(prepared.bytes.len()).unwrap_or(i64::MAX);
+        self.storage
+            .put(&key, prepared.bytes.into())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "storing an image failed");
+                HttpError::from(sr_core::ErrorCode::SrInternal)
+            })?;
+        Ok(StoredImage {
+            hash: prepared.hash,
+            key,
+            content_type: prepared.format.mime(),
+            width: prepared.width,
+            height: prepared.height,
+            bytes,
+        })
     }
 
     /// Delete the stored object and its cached variants. Best effort: a
@@ -224,6 +283,46 @@ mod tests {
         ] {
             let e = m
                 .store(MediaKind::UserAvatar, 1, "avatar", bad)
+                .await
+                .unwrap_err();
+            assert_eq!(e.0.status(), 400);
+        }
+    }
+
+    fn png_bytes() -> Vec<u8> {
+        let img = image::RgbaImage::from_pixel(64, 48, image::Rgba([1, 2, 3, 255]));
+        let mut out = Vec::new();
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .unwrap();
+        out
+    }
+
+    #[tokio::test]
+    async fn raw_profile_pictures_go_through_the_banner_pipeline() {
+        let storage = Arc::new(ObjectStoreStorage::in_memory());
+        let m = MediaDeps::new(storage.clone());
+        let a = m
+            .store_raw(MediaKind::ProfileMedia, 7, 1, "image", png_bytes())
+            .await
+            .unwrap();
+        assert_eq!((a.width, a.height, a.content_type), (64, 48, "image/png"));
+        assert_eq!(a.key, format!("avatars/7/{}", a.hash));
+        assert!(storage.head(&a.key).await.is_ok());
+        // The same picture under another row id is another object, so deleting one keeps the other.
+        let b = m
+            .store_raw(MediaKind::ProfileMedia, 7, 2, "image", png_bytes())
+            .await
+            .unwrap();
+        assert_ne!(a.hash, b.hash);
+        // Not an image, an SVG, and an over-large body are refused with a form error.
+        for bad in [
+            b"just some text".to_vec(),
+            b"<svg xmlns='http://www.w3.org/2000/svg'><script>1</script></svg>".to_vec(),
+            vec![0u8; MediaKind::ProfileMedia.max_upload() + 1],
+        ] {
+            let e = m
+                .store_raw(MediaKind::ProfileMedia, 7, 3, "image", bad)
                 .await
                 .unwrap_err();
             assert_eq!(e.0.status(), 400);

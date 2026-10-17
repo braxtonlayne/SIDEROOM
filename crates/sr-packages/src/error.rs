@@ -9,6 +9,9 @@ pub enum PackageError {
     NotFound(&'static str),
     #[error("missing permissions")]
     Forbidden,
+    /// A reviewer tried to decide on their own package (D-258).
+    #[error("You cannot review your own package.")]
+    SelfReview,
     /// Bad input: `(field, message)`.
     #[error("{1}")]
     Invalid(&'static str, String),

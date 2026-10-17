@@ -191,6 +191,8 @@ pub struct DeletedAccount {
     pub avatar_key: Option<String>,
     /// Banner content hash before the scrub.
     pub banner_key: Option<String>,
+    /// Object keys of the profile page pictures the account had (K-17; media to delete).
+    pub profile_media_keys: Vec<String>,
 }
 
 /// What linking a Discord identity to an account did.

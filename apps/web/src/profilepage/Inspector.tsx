@@ -1,8 +1,12 @@
 // Settings of the selected block (EXT-PRF-005). Each block type has a small typed config; the server checks the
 // same limits again when the page is saved, the forms below only keep people inside them.
-import { Checkbox, Select, Switch, TextArea, TextInput } from '@sideroom/ui';
+import { Button, Checkbox, Select, Switch, TextArea, TextInput } from '@sideroom/ui';
+import { useRef } from 'react';
 import { useT } from '../i18n';
-import type { Block } from './types';
+import type { Block, GalleryItem, ProfileMedia } from './types';
+
+/** Most pictures one gallery holds. */
+export const MAX_GALLERY = 12;
 
 export interface FriendChoice {
   id: string;
@@ -53,12 +57,24 @@ export function Inspector({
   block,
   friends,
   onConfig,
+  media = [],
+  onUploadGallery,
+  onRemoveMedia,
+  uploading = false,
 }: {
   block: Block;
   friends: FriendChoice[];
   onConfig: (config: Cfg) => void;
+  /** The person's uploaded pictures (K-17). */
+  media?: ProfileMedia[];
+  /** Upload a gallery picture; resolves to the stored picture, or null when it failed. */
+  onUploadGallery?: (file: File) => Promise<ProfileMedia | null>;
+  /** Delete an uploaded picture (and take it out of the saved document on the server). */
+  onRemoveMedia?: (id: string) => void;
+  uploading?: boolean;
 }) {
   const t = useT();
+  const fileInput = useRef<HTMLInputElement>(null);
   const c = block.config;
   const set = (patch: Cfg) => onConfig({ ...c, ...patch });
   const textOrDrop = (k: string, v: string) => {
@@ -173,16 +189,85 @@ export function Inspector({
           />
         </div>
       );
-    case 'gallery':
+    case 'gallery': {
+      const all = arr<GalleryItem>(c, 'items');
+      const urls = all.filter((i) => i.url);
+      const mine = all.filter((i) => i.image_id);
+      const known = new Map(media.map((m) => [m.id, m]));
       return (
-        <TextArea
-          label={t('lounge.profileEditor.galleryItems')}
-          hint={t('lounge.profileEditor.galleryHint')}
-          value={galleryText(arr<{ url: string; caption?: string }>(c, 'items'))}
-          rows={6}
-          onChange={(e) => set({ items: parseGallery(e.target.value) })}
-        />
+        <div className="pp-fields">
+          <TextArea
+            label={t('lounge.profileEditor.galleryItems')}
+            hint={t('lounge.profileEditor.galleryHint')}
+            value={galleryText(urls as { url: string; caption?: string }[])}
+            rows={6}
+            onChange={(e) =>
+              set({ items: [...parseGallery(e.target.value), ...mine].slice(0, MAX_GALLERY) })
+            }
+          />
+          {onUploadGallery && (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                hidden
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                aria-label={t('lounge.profileEditor.galleryUploadFile')}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!f) return;
+                  void onUploadGallery(f).then((m) => {
+                    if (m)
+                      set({ items: [...urls, ...mine, { image_id: m.id }].slice(0, MAX_GALLERY) });
+                  });
+                }}
+              />
+              <Button
+                variant="secondary"
+                loading={uploading}
+                disabled={all.length >= MAX_GALLERY}
+                onClick={() => fileInput.current?.click()}
+              >
+                {t('lounge.profileEditor.galleryUpload')}
+              </Button>
+            </>
+          )}
+          {mine.map((it) => (
+            <div key={it.image_id} className="pp-media-row">
+              <TextInput
+                label={t('lounge.profileEditor.galleryCaption', {
+                  name: known.get(it.image_id ?? '') ? it.image_id : (it.image_id ?? ''),
+                })}
+                value={it.caption ?? ''}
+                maxLength={80}
+                onChange={(e) =>
+                  set({
+                    items: all.map((x) =>
+                      x.image_id === it.image_id
+                        ? e.target.value
+                          ? { ...x, caption: e.target.value }
+                          : { image_id: x.image_id }
+                        : x,
+                    ),
+                  })
+                }
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onRemoveMedia?.(it.image_id ?? '');
+                  set({ items: all.filter((x) => x.image_id !== it.image_id) });
+                }}
+              >
+                {t('lounge.profileEditor.galleryRemove')}
+              </Button>
+            </div>
+          ))}
+        </div>
       );
+    }
     case 'guestbook':
       return (
         <TextInput

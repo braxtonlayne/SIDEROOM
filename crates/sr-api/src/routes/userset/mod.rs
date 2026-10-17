@@ -3,6 +3,7 @@
 
 pub mod connections;
 pub mod data_export;
+pub mod profile_media;
 pub mod providers;
 
 use crate::state::AppState;
@@ -14,12 +15,14 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .merge(data_export::router())
         .merge(connections::router())
+        .merge(profile_media::router())
 }
 
 /// OpenAPI fragment.
 pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = data_export::DataExportApiDoc::openapi();
     doc.merge(connections::ConnectionsApiDoc::openapi());
+    doc.merge(profile_media::ProfileMediaApiDoc::openapi());
     doc
 }
 

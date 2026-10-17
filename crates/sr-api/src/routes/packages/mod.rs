@@ -27,6 +27,30 @@ pub struct PackagesDeps {
     pub service: PackageService,
 }
 
+/// Publishes a package version's review-queue card event (D-258); the Staff Server card poster reads it.
+pub struct BusPackageEvents {
+    bus: std::sync::Arc<dyn sr_events::EventBus>,
+}
+
+impl BusPackageEvents {
+    pub fn new(bus: std::sync::Arc<dyn sr_events::EventBus>) -> Self {
+        Self { bus }
+    }
+}
+
+#[async_trait::async_trait]
+impl sr_packages::service::PackageEvents for BusPackageEvents {
+    async fn card(&self, version_id: i64, outcome: Option<&str>) {
+        let ev = sr_events::DomainEvent::PackageCard {
+            version_id,
+            outcome: outcome.map(str::to_owned),
+        };
+        if let Err(e) = self.bus.publish(sr_events::Topic::Platform, ev).await {
+            tracing::warn!(error = %e, "publishing a package card event failed");
+        }
+    }
+}
+
 /// A [`PackageError`] as an API error.
 pub(crate) fn pkg(e: PackageError) -> MsgError {
     let api = match e {
@@ -34,6 +58,9 @@ pub(crate) fn pkg(e: PackageError) -> MsgError {
             ApiError::with_message(ErrorCode::SrNotFound, format!("Unknown {w}"))
         }
         PackageError::Forbidden => ApiError::new(ErrorCode::MissingPermissions),
+        PackageError::SelfReview => {
+            ApiError::with_message(ErrorCode::MissingPermissions, e.to_string())
+        }
         PackageError::Invalid(field, m) => {
             ApiError::invalid_form().field(field, "INVALID_VALUE", m)
         }
@@ -67,7 +94,10 @@ pub fn router() -> Router<AppState> {
                 .layer(axum::extract::DefaultBodyLimit::max(MAX_UPLOAD)),
         )
         .route("/packages/mine", get(h::mine))
-        .route("/packages/{package_id}", get(h::get_package))
+        .route(
+            "/packages/{package_id}",
+            get(h::get_package).delete(h::delete_package),
+        )
         .route("/packages/{package_id}/create-guild", post(h::create_guild))
         .route(
             "/packages/versions/{version_id}/withdraw",
@@ -124,6 +154,7 @@ pub fn router() -> Router<AppState> {
         handlers::get_package,
         handlers::create_guild,
         handlers::withdraw,
+        handlers::delete_package,
         handlers::version_file,
         handlers::my_enabled,
         handlers::enable_for_me,

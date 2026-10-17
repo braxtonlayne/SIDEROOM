@@ -12901,6 +12901,112 @@
         ]
       }
     },
+    "/admin/persons/{person_id}/identities/{identity_id}/move": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Move a Discord identity to another account of the Person (`MANAGE_ACCOUNTS`, fresh second factor,\nreason required, D-262). The target joins the Person in the same step when it is elsewhere. 409 when\nthe Person or either account is banned or suspended. The old row is kept as history; the old account\ngets a system DM, and an email when its address is verified.",
+        "operationId": "move_identity",
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "description": "Person snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "identity_id",
+            "in": "path",
+            "description": "Identity row snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveIdentityBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveIdentityResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/persons/{person_id}/link": {
       "post": {
         "tags": [
@@ -47796,6 +47902,54 @@
             "session": []
           }
         ]
+      },
+      "delete": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "Delete one of my packages that has no approved version: every version is rejected or withdrawn (a\npending one is withdrawn by this call). The id is free again and the stored files are removed. A package\nwith an approved version answers 409 \"Approved packages can only be revoked by staff\".",
+        "operationId": "delete_package",
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "description": "Package snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
       }
     },
     "/packages/{package_id}/create-guild": {
@@ -56142,6 +56296,155 @@
             }
           },
           "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/profile-media": {
+      "get": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "My profile page pictures, oldest first.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileMedia"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "Upload a profile page picture: the body is the image (PNG, JPEG, GIF or WebP, at most 8 MiB, the same\nchecks as a banner). `kind=background` replaces the current background; `kind=gallery` adds one of at\nmost 12 (409 when full).",
+        "operationId": "upload",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "background or gallery",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileMedia"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/profile-media/{media_id}": {
+      "delete": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "Remove one of my pictures. Gallery entries and the background that named it are taken out of my saved\nprofile document.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "media_id",
+            "in": "path",
+            "description": "Picture snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -70525,6 +70828,48 @@
           }
         }
       },
+      "IdentitySummary": {
+        "type": "object",
+        "description": "A Discord identity row of one of a Person's accounts. A moved one is history: `unlinked_at_ms` and\n`moved_to_account_id` are set and a newer live row holds the identity.",
+        "required": [
+          "id",
+          "account_id",
+          "provider",
+          "provider_user_id",
+          "linked_at_ms"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "linked_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "moved_to_account_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_user_id": {
+            "type": "string"
+          },
+          "unlinked_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "IncidentActionsBody": {
         "type": "object",
         "description": "Body of `PUT /guilds/{id}/incident-actions`. Both fields are replaced: omitted or `null`\nclears the pause.",
@@ -75028,6 +75373,48 @@
           }
         }
       },
+      "MoveIdentityBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/persons/{person_id}/identities/{identity_id}/move`.",
+        "required": [
+          "to_account_id"
+        ],
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why; required, kept in the access log and told to the old account."
+          },
+          "to_account_id": {
+            "type": "string",
+            "description": "The account that should hold the identity. It joins this Person when it is elsewhere."
+          }
+        }
+      },
+      "MoveIdentityResult": {
+        "type": "object",
+        "description": "What a move did.",
+        "required": [
+          "to_account_id",
+          "linked_target",
+          "emailed"
+        ],
+        "properties": {
+          "emailed": {
+            "type": "boolean",
+            "description": "The old account's verified address was emailed (it always gets a system DM)."
+          },
+          "linked_target": {
+            "type": "boolean",
+            "description": "The target account was in another Person and was linked into this one."
+          },
+          "to_account_id": {
+            "type": "string"
+          }
+        }
+      },
       "MultipartSlot": {
         "type": "object",
         "description": "The multipart part of a new upload slot.",
@@ -76878,6 +77265,13 @@
           "id": {
             "type": "string"
           },
+          "identities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentitySummary"
+            },
+            "description": "Discord identities of the accounts of this Person, live and moved (D-262)."
+          },
           "notes": {
             "type": "string"
           },
@@ -77679,6 +78073,34 @@
           }
         }
       },
+      "ProfileBackground": {
+        "type": "object",
+        "description": "The page background (K-17, D-260): a pattern, my profile banner, or a picture I uploaded. It replaces the\nolder `pattern` plus `banner_background` pair, which is still read when this is absent.",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "image_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The id of one of my uploaded background pictures (`kind` = `image`)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`pattern`, `banner` or `image`."
+          },
+          "pattern": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One of [`PATTERNS`]; drawn over the banner or the picture too."
+          }
+        },
+        "additionalProperties": false
+      },
       "ProfileBlock": {
         "type": "object",
         "required": [
@@ -77794,6 +78216,52 @@
         },
         "additionalProperties": false
       },
+      "ProfileMedia": {
+        "type": "object",
+        "description": "One uploaded picture.",
+        "required": [
+          "id",
+          "kind",
+          "url",
+          "content_type",
+          "width",
+          "height",
+          "bytes",
+          "created_at_ms"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`background` or `gallery`."
+          },
+          "url": {
+            "type": "string",
+            "description": "Where the picture is served from (`/cdn/avatars/<user>/<hash>.<ext>`)."
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "ProfileObject": {
         "type": "object",
         "required": [
@@ -77882,7 +78350,9 @@
           "friends",
           "is_owner",
           "can_sign",
-          "customised"
+          "customised",
+          "guestbook_limit",
+          "media"
         ],
         "properties": {
           "can_sign": {
@@ -77903,9 +78373,29 @@
             },
             "description": "The people named in the Top friends block who are still friends."
           },
+          "guestbook_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Entries on the guestbook; only the owner is told (K-18), next to [`MAX_GUESTBOOK_ENTRIES`]."
+          },
+          "guestbook_limit": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The most entries one guestbook holds."
+          },
           "is_owner": {
             "type": "boolean",
             "description": "The viewer is the owner."
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileMedia"
+            },
+            "description": "The pictures the document names (a background image, gallery pictures), with their addresses."
           },
           "user": {
             "$ref": "#/components/schemas/ProfilePageUser"
@@ -77984,9 +78474,20 @@
       "ProfileStyle": {
         "type": "object",
         "properties": {
+          "background": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileBackground",
+                "description": "The page background; wins over `pattern` and `banner_background` when present."
+              }
+            ]
+          },
           "banner_background": {
             "type": "boolean",
-            "description": "Use my profile banner as the page background."
+            "description": "Use my profile banner as the page background (the older form)."
           },
           "border": {
             "type": "string",
@@ -78009,7 +78510,7 @@
           },
           "pattern": {
             "type": "string",
-            "description": "One of [`PATTERNS`]."
+            "description": "One of [`PATTERNS`] (the older form; see [`Style::background`])."
           }
         },
         "additionalProperties": false

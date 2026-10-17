@@ -2,7 +2,7 @@
 
 Phases 4–6 · Crate `sr-review` · Decisions: D-081–D-083, D-062–D-064, D-074.
 
-One pipeline handles **Cinema** content, **Library** content, **apps**, and **declarative packages**. This spec defines the shared mechanics. Section specs define the per-kind metadata.
+`sr-review` carries Cinema and Library content; application versions, Activity bundles and package versions keep their review state on the versioned object (D-258) and share the Review Queues page, the staff access log and the review conduct (no self-review, a note on rejection, a logged decider, a `#review-queue` card). This spec defines the shared mechanics. Section specs define the per-kind metadata.
 
 ## 1. Roles
 | Actor | Can |

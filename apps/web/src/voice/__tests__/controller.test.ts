@@ -874,3 +874,51 @@ describe('end-to-end encryption (VOX-E2E-003)', () => {
     expect(sess().status).toBe('error');
   });
 });
+
+describe('the E2EE declaration at join (D-263)', () => {
+  it('declares sr_e2ee in the join when the client can do E2EE, and not otherwise', () => {
+    const plain = harness();
+    plain.c.join(target);
+    expect(plain.sent[0]!.d).not.toHaveProperty('sr_e2ee');
+
+    const h = harness();
+    h.c.configure({ e2eeDeclared: () => true });
+    h.c.join(target);
+    expect(h.sent[0]).toMatchObject({
+      op: Op.VOICE_STATE_UPDATE,
+      d: { channel_id: 'c1', sr_e2ee: true },
+    });
+  });
+
+  it('shows why the join was refused when the server requires encrypted calls', () => {
+    const h = harness();
+    h.c.join(target);
+    h.emit('SR_VOICE_ERROR', { guild_id: 'g1', channel_id: 'c1', code: 'e2ee_required' });
+    expect(sess().status).toBe('error');
+    expect(sess().error?.message).toBe(
+      'This server requires encrypted calls; your browser cannot join.',
+    );
+    expect(h.engines).toHaveLength(0);
+  });
+
+  it('a client that declares but runs no E2EE itself (the e2e observer) still says hello', () => {
+    const h = harness();
+    h.c.configure({ e2eeDeclared: () => true });
+    joinAndServe(h);
+    expect(h.sent.filter((s) => s.op === Op.E2EE_MLS)).toEqual([
+      { op: Op.E2EE_MLS, d: { type: 'hello', channel_id: 'c1' } },
+    ]);
+    expect(h.engines).toHaveLength(1);
+    // Without the declaration nothing is sent on op 101.
+    const quiet = harness();
+    joinAndServe(quiet);
+    expect(quiet.sent.filter((s) => s.op === Op.E2EE_MLS)).toEqual([]);
+  });
+
+  it('is removed from the call with the same message when the server drops a silent member', async () => {
+    const h = harness();
+    await connected(h);
+    h.emit('SR_VOICE_ERROR', { guild_id: 'g1', channel_id: 'c1', code: 'e2ee_required' });
+    expect(sess().status).toBe('error');
+  });
+});

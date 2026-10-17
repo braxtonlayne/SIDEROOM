@@ -130,6 +130,14 @@ fn slug_ok(s: &str) -> bool {
         && !s.ends_with('-')
 }
 
+/// Ids no package may use (K-18): the shipped theme ids of doc 10 and the names of the platform itself.
+const RESERVED_SLUGS: &[&str] = &["default", "sideroom", "system", "admin", "staff"];
+
+/// Is `s` an id that belongs to the platform (a shipped theme or a platform name)?
+pub fn slug_reserved(s: &str) -> bool {
+    RESERVED_SLUGS.contains(&s) || sr_theme::BUILTIN_THEME_IDS.contains(&s)
+}
+
 fn version_ok(s: &str) -> bool {
     let parts: Vec<&str> = s.split('.').collect();
     parts.len() == 3
@@ -148,6 +156,8 @@ fn common(
 ) {
     if !slug_ok(id) {
         errs.push("id must be a 3 to 48 character slug (a-z, 0-9, -)".to_owned());
+    } else if slug_reserved(id) {
+        errs.push(format!("id \"{id}\" is reserved"));
     }
     if name.trim().is_empty() || name.chars().count() > 64 {
         errs.push("name must be 1 to 64 characters".to_owned());
@@ -576,6 +586,28 @@ mod tests {
     }
 
     const HEAD: &str = r#""id": "my-pack", "name": "My pack", "version": "1.0.0", "author": "me""#;
+
+    #[test]
+    fn shipped_theme_ids_and_platform_names_are_reserved() {
+        for id in [
+            "default",
+            "sideroom",
+            "system",
+            "admin",
+            "staff",
+            "lounge-dark",
+            "sideroom-broadcast",
+        ] {
+            assert!(slug_reserved(id), "{id}");
+            let mut errs = Vec::new();
+            common(&mut errs, id, "N", "1.0.0", "me", "");
+            assert!(errs.iter().any(|e| e.contains("reserved")), "{id}");
+        }
+        assert!(!slug_reserved("ocean-night"));
+        let mut errs = Vec::new();
+        common(&mut errs, "ocean-night", "N", "1.0.0", "me", "");
+        assert!(errs.is_empty());
+    }
 
     #[test]
     fn kinds_are_told_by_the_manifest() {

@@ -436,7 +436,41 @@ pub struct PersonDetail {
     pub notes: String,
     pub suspicion_level: i32,
     pub accounts: Vec<AccountSummary>,
+    /// Discord identities of the accounts of this Person, live and moved (D-262).
+    #[serde(default)]
+    pub identities: Vec<IdentitySummary>,
     pub ban: Option<BanRecord>,
+}
+
+/// A Discord identity row of one of a Person's accounts. A moved one is history: `unlinked_at_ms` and
+/// `moved_to_account_id` are set and a newer live row holds the identity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct IdentitySummary {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub account_id: i64,
+    pub provider: String,
+    pub provider_user_id: String,
+    pub linked_at_ms: i64,
+    pub unlinked_at_ms: Option<i64>,
+    #[serde(with = "opt_id", default)]
+    #[schema(value_type = Option<String>)]
+    pub moved_to_account_id: Option<i64>,
+}
+
+/// What a completed identity move changed, for the notification to the old account.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdentityMoved {
+    pub provider: String,
+    pub provider_user_id: String,
+    pub from_account_id: i64,
+    pub to_account_id: i64,
+    pub to_username: String,
+    /// The target account was in another Person and was linked into this one by the move.
+    pub linked_target: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

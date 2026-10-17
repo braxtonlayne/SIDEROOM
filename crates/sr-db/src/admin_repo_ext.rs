@@ -453,91 +453,118 @@ impl StaffExtrasRepository for PgAdminRepo {
         audit: &AuditEntry,
     ) -> AdminResult<i64> {
         let mut tx = self.pool().begin().await.map_err(db)?;
-        let old: i64 =
-            sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1 FOR UPDATE")
-                .bind(account_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(db)?
-                .ok_or(AdminError::NotFound("account"))?;
-        if old == person_id {
-            return Err(AdminError::Conflict(
-                "the account already belongs to this Person".into(),
-            ));
-        }
-        // Lock both Persons in id order so two concurrent links cannot deadlock.
-        let locked: Vec<(i64, String, i32)> = sqlx::query_as(
-            "SELECT id, notes, suspicion_level::int FROM persons WHERE id = ANY($1) \
-             ORDER BY id FOR UPDATE",
+        let old = self.link_in(&mut tx, person_id, account_id).await?;
+        self.audit_in(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(old)
+    }
+
+    async fn move_identity(
+        &self,
+        person_id: i64,
+        identity_id: i64,
+        to_account_id: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<sr_admin::IdentityMoved> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        let row: Option<(i64, String, String, bool, serde_json::Value)> = sqlx::query_as(
+            "SELECT account_id, provider::text, provider_user_id, unlinked_at IS NOT NULL, raw_profile \
+             FROM external_identities WHERE id = $1 FOR UPDATE",
         )
-        .bind(vec![old, person_id])
-        .fetch_all(&mut *tx)
+        .bind(identity_id)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(db)?;
-        let find = |id: i64| locked.iter().find(|p| p.0 == id);
-        let Some(target) = find(person_id) else {
-            return Err(AdminError::NotFound("person"));
-        };
-        let Some(source) = find(old) else {
-            return Err(AdminError::NotFound("person"));
-        };
+        let (from_account, provider, provider_user_id, was_unlinked, raw) =
+            row.ok_or(AdminError::NotFound("identity"))?;
+        let from: Option<(i64, String)> =
+            sqlx::query_as("SELECT person_id, state::text FROM accounts WHERE id = $1 FOR UPDATE")
+                .bind(from_account)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(db)?;
+        // The identity must belong to an account of this Person's chain.
+        let (from_person, from_state) = from
+            .filter(|(p, _)| *p == person_id)
+            .ok_or(AdminError::NotFound("identity"))?;
+        let to: Option<(i64, String, String)> = sqlx::query_as(
+            "SELECT person_id, state::text, username::text FROM accounts WHERE id = $1 FOR UPDATE",
+        )
+        .bind(to_account_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?;
+        let (to_person, to_state, to_username) = to.ok_or(AdminError::NotFound("account"))?;
+        if from_account == to_account_id && !was_unlinked {
+            return Err(AdminError::Conflict(
+                "the identity is already on that account".into(),
+            ));
+        }
+        if matches!(from_state.as_str(), "deactivated" | "platform_banned") {
+            return Err(AdminError::Conflict(
+                "the account the identity is on is suspended or banned".into(),
+            ));
+        }
+        if to_state != "active" {
+            return Err(AdminError::Conflict(
+                "the target account is not active (suspended, banned or deleted)".into(),
+            ));
+        }
         let banned: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM person_bans WHERE person_id = ANY($1) AND lifted_at IS NULL)",
         )
-        .bind(vec![old, person_id])
+        .bind(vec![from_person, to_person])
         .fetch_one(&mut *tx)
         .await
         .map_err(db)?;
         if banned {
-            return Err(AdminError::Conflict("lift the ban first".into()));
+            return Err(AdminError::Conflict(
+                "the Person is banned; lift the ban first".into(),
+            ));
         }
-        sqlx::query("UPDATE accounts SET person_id = $2, updated_at = now() WHERE id = $1")
-            .bind(account_id)
-            .bind(person_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(db)?;
-        let left: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE person_id = $1")
-            .bind(old)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(db)?;
-        if left == 0 {
-            // The old Person is empty: fold its history into the target and drop it.
-            let notes = match (target.1.is_empty(), source.1.is_empty()) {
-                (_, true) => target.1.clone(),
-                (true, false) => source.1.clone(),
-                (false, false) => format!("{}\n\n{}", target.1, source.1),
-            };
+        let linked_target = to_person != person_id;
+        if linked_target {
+            self.link_in(&mut tx, person_id, to_account_id).await?;
+        }
+        if !was_unlinked {
             sqlx::query(
-                "UPDATE persons SET notes = $2, suspicion_level = $3, updated_at = now() WHERE id = $1",
+                "UPDATE external_identities SET unlinked_at = now(), moved_to_account_id = $2, \
+                 updated_at = now() WHERE id = $1",
             )
-            .bind(person_id)
-            .bind(notes)
-            .bind(i16::try_from(target.2.max(source.2)).unwrap_or(i16::MAX))
+            .bind(identity_id)
+            .bind(to_account_id)
             .execute(&mut *tx)
             .await
             .map_err(db)?;
-            sqlx::query("UPDATE suspicion_events SET person_id = $2 WHERE person_id = $1")
-                .bind(old)
-                .bind(person_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(db)?;
-            sqlx::query("DELETE FROM person_bans WHERE person_id = $1")
-                .bind(old)
-                .execute(&mut *tx)
-                .await
-                .map_err(db)?;
-            sqlx::query("DELETE FROM persons WHERE id = $1")
-                .bind(old)
-                .execute(&mut *tx)
-                .await
-                .map_err(db)?;
         }
+        sqlx::query(
+            "INSERT INTO external_identities (id, account_id, provider, provider_user_id, raw_profile) \
+             VALUES ($1, $2, $3::external_provider, $4, $5)",
+        )
+        .bind(self.next_id())
+        .bind(to_account_id)
+        .bind(&provider)
+        .bind(&provider_user_id)
+        .bind(&raw)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            if is_unique(&e) {
+                AdminError::Conflict("that Discord identity is already linked to an account".into())
+            } else {
+                db(e)
+            }
+        })?;
         self.audit_in(&mut tx, audit).await?;
         tx.commit().await.map_err(db)?;
-        Ok(old)
+        Ok(sr_admin::IdentityMoved {
+            provider,
+            provider_user_id,
+            from_account_id: from_account,
+            to_account_id,
+            to_username,
+            linked_target,
+        })
     }
 
     async fn unlink_account(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<i64> {
@@ -1005,4 +1032,99 @@ fn guild_from(r: &PgRow) -> Result<AdminGuild, sqlx::Error> {
         deleted: r.try_get("deleted")?,
         community_enabled: r.try_get("community")?,
     })
+}
+
+impl PgAdminRepo {
+    /// Move `account_id` into `person_id` inside `tx` (see `StaffExtrasRepository::link_account`). Returns the
+    /// old Person id.
+    async fn link_in(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        person_id: i64,
+        account_id: i64,
+    ) -> AdminResult<i64> {
+        let old: i64 =
+            sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1 FOR UPDATE")
+                .bind(account_id)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(db)?
+                .ok_or(AdminError::NotFound("account"))?;
+        if old == person_id {
+            return Err(AdminError::Conflict(
+                "the account already belongs to this Person".into(),
+            ));
+        }
+        // Lock both Persons in id order so two concurrent links cannot deadlock.
+        let locked: Vec<(i64, String, i32)> = sqlx::query_as(
+            "SELECT id, notes, suspicion_level::int FROM persons WHERE id = ANY($1) \
+             ORDER BY id FOR UPDATE",
+        )
+        .bind(vec![old, person_id])
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(db)?;
+        let find = |id: i64| locked.iter().find(|p| p.0 == id);
+        let Some(target) = find(person_id) else {
+            return Err(AdminError::NotFound("person"));
+        };
+        let Some(source) = find(old) else {
+            return Err(AdminError::NotFound("person"));
+        };
+        let banned: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM person_bans WHERE person_id = ANY($1) AND lifted_at IS NULL)",
+        )
+        .bind(vec![old, person_id])
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(db)?;
+        if banned {
+            return Err(AdminError::Conflict("lift the ban first".into()));
+        }
+        sqlx::query("UPDATE accounts SET person_id = $2, updated_at = now() WHERE id = $1")
+            .bind(account_id)
+            .bind(person_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(db)?;
+        let left: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE person_id = $1")
+            .bind(old)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(db)?;
+        if left == 0 {
+            // The old Person is empty: fold its history into the target and drop it.
+            let notes = match (target.1.is_empty(), source.1.is_empty()) {
+                (_, true) => target.1.clone(),
+                (true, false) => source.1.clone(),
+                (false, false) => format!("{}\n\n{}", target.1, source.1),
+            };
+            sqlx::query(
+                "UPDATE persons SET notes = $2, suspicion_level = $3, updated_at = now() WHERE id = $1",
+            )
+            .bind(person_id)
+            .bind(notes)
+            .bind(i16::try_from(target.2.max(source.2)).unwrap_or(i16::MAX))
+            .execute(&mut **tx)
+            .await
+            .map_err(db)?;
+            sqlx::query("UPDATE suspicion_events SET person_id = $2 WHERE person_id = $1")
+                .bind(old)
+                .bind(person_id)
+                .execute(&mut **tx)
+                .await
+                .map_err(db)?;
+            sqlx::query("DELETE FROM person_bans WHERE person_id = $1")
+                .bind(old)
+                .execute(&mut **tx)
+                .await
+                .map_err(db)?;
+            sqlx::query("DELETE FROM persons WHERE id = $1")
+                .bind(old)
+                .execute(&mut **tx)
+                .await
+                .map_err(db)?;
+        }
+        Ok(old)
+    }
 }

@@ -814,3 +814,118 @@ async fn private_reads_include_deleted_messages_inside_the_window_and_edit_histo
     assert!(listed.iter().all(|c| c.private));
     assert!(r.private_channel(-1).await.unwrap().is_none());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_discord_identity_moves_between_accounts_of_one_person_and_keeps_its_history() {
+    use sqlx::Row;
+    let pool = pool().await;
+    let r = repo(&pool);
+    let (staff, a, b, frozen) = (
+        account(&pool).await,
+        account(&pool).await,
+        account(&pool).await,
+        account(&pool).await,
+    );
+    let person_a: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
+        .bind(a)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let identity = uid();
+    let discord = format!("d{identity}");
+    sqlx::query("INSERT INTO external_identities (id, account_id, provider, provider_user_id) VALUES ($1, $2, 'discord', $3)")
+        .bind(identity)
+        .bind(a)
+        .bind(&discord)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE accounts SET state = 'deactivated' WHERE id = $1")
+        .bind(frozen)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Not in this chain, a suspended target, an unknown identity.
+    let person_b: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
+        .bind(b)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let e = entry(staff, "person.identity_move", Some(person_a));
+    assert_eq!(
+        r.move_identity(person_b, identity, b, &e)
+            .await
+            .unwrap_err(),
+        AdminError::NotFound("identity")
+    );
+    assert!(matches!(
+        r.move_identity(person_a, identity, frozen, &e).await.unwrap_err(),
+        AdminError::Conflict(m) if m.contains("target account")
+    ));
+    assert_eq!(
+        r.move_identity(person_a, uid(), b, &e).await.unwrap_err(),
+        AdminError::NotFound("identity")
+    );
+
+    // The move links the target into the Person and writes history plus one live row.
+    let moved = r.move_identity(person_a, identity, b, &e).await.unwrap();
+    assert!(moved.linked_target);
+    assert_eq!((moved.from_account_id, moved.to_account_id), (a, b));
+    let accounts_of: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE person_id = $1")
+        .bind(person_a)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(accounts_of, 2);
+    let rows = sqlx::query(
+        "SELECT id, account_id, unlinked_at IS NOT NULL AS gone, moved_to_account_id \
+         FROM external_identities WHERE provider_user_id = $1 ORDER BY id",
+    )
+    .bind(&discord)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].get::<i64, _>("id"), identity);
+    assert!(rows[0].get::<bool, _>("gone"));
+    assert_eq!(
+        rows[0].get::<Option<i64>, _>("moved_to_account_id"),
+        Some(b)
+    );
+    assert_eq!(rows[1].get::<i64, _>("account_id"), b);
+    assert!(!rows[1].get::<bool, _>("gone"));
+    let detail = r.person_detail(person_a).await.unwrap().unwrap();
+    assert_eq!(detail.identities.len(), 2);
+
+    // The audit row is in the chained log, and the live pair stays unique.
+    let logged: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM platform_audit_log WHERE actor_id = $1 AND action = 'person.identity_move'",
+    )
+    .bind(staff)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(logged, 1);
+    let dup = sqlx::query("INSERT INTO external_identities (id, account_id, provider, provider_user_id) VALUES ($1, $2, 'discord', $3)")
+        .bind(uid())
+        .bind(a)
+        .bind(&discord)
+        .execute(&pool)
+        .await;
+    assert!(dup.is_err(), "one live row per Discord user");
+
+    // Moving back: the live row goes to the other account, a second history row appears.
+    let live: i64 = rows[1].get("id");
+    let back = r.move_identity(person_a, live, a, &e).await.unwrap();
+    assert!(!back.linked_target);
+    let live_now: i64 = sqlx::query_scalar(
+        "SELECT account_id FROM external_identities WHERE provider_user_id = $1 AND unlinked_at IS NULL",
+    )
+    .bind(&discord)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(live_now, a);
+}

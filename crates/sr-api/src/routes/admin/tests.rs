@@ -2768,3 +2768,91 @@ async fn live_rate_limits_are_bounded_and_reach_the_limiter() {
     assert_eq!(s, StatusCode::FORBIDDEN);
     assert_eq!(e.rate_rx.borrow().messages, 120);
 }
+
+#[tokio::test]
+async fn moving_a_discord_identity_needs_the_second_factor_a_reason_and_tells_the_old_account() {
+    let e = env_with(true).await;
+    let identity = e.repo.add_identity(ALICE, "31337");
+    let person = ALICE + 500_000;
+    let path = format!("/admin/persons/{person}/identities/{identity}/move");
+    let body = |reason: Option<&str>| json!({"to_account_id": BOB.to_string(), "reason": reason});
+
+    // Permission first, then the fresh second factor.
+    let (s, _) = e
+        .call(Some(BASIC), Method::POST, &path, Some(body(Some("r"))))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, b) = e
+        .call(Some(MODER), Method::POST, &path, Some(body(Some("r"))))
+        .await;
+    assert_eq!(
+        (s, b["code"].as_u64()),
+        (StatusCode::FORBIDDEN, Some(900_004)),
+        "{b}"
+    );
+    let (s, st) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            "/admin/reauth",
+            Some(json!({ "method": "totp", "code": totp_now(&e) })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{st}");
+
+    // A reason is required.
+    let (s, _) = e
+        .call(Some(MODER), Method::POST, &path, Some(body(None)))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert!(e.mailer.sent().is_empty());
+
+    let (s, v) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &path,
+            Some(body(Some("lost the old login"))),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["to_account_id"], BOB.to_string());
+    assert_eq!(v["linked_target"], true);
+    assert_eq!(v["emailed"], true);
+
+    // The old account got the system DM and an email at its verified address.
+    let dms = e.notes.dms.lock().unwrap().clone();
+    assert!(
+        dms.iter()
+            .any(|(to, text)| *to == ALICE && text.contains("lost the old login"))
+    );
+    let sent = e.mailer.sent();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, format!("u{ALICE}@x.test"));
+    assert!(sent[0].text.contains("@bob") && sent[0].text.contains("lost the old login"));
+
+    // The move is in the access log with its reason, and the Person shows the history.
+    assert!(
+        e.repo
+            .log_rows()
+            .iter()
+            .any(|r| r.action == "person.identity_move" && r.reason == "lost the old login")
+    );
+    let (s, p) = e
+        .call(
+            Some(MODER),
+            Method::GET,
+            &format!("/admin/persons/{person}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{p}");
+    let identities = p["identities"].as_array().unwrap();
+    assert_eq!(identities.len(), 2);
+    let bob = BOB.to_string();
+    assert!(
+        identities
+            .iter()
+            .any(|i| i["unlinked_at_ms"].is_number() && i["moved_to_account_id"] == bob.as_str())
+    );
+}

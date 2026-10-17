@@ -93,18 +93,44 @@ impl Default for Palette {
     }
 }
 
+/// The page background (K-17, D-260): a pattern, my profile banner, or a picture I uploaded. It replaces the
+/// older `pattern` plus `banner_background` pair, which is still read when this is absent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+#[schema(as = ProfileBackground)]
+pub struct Background {
+    /// `pattern`, `banner` or `image`.
+    pub kind: String,
+    /// One of [`PATTERNS`]; drawn over the banner or the picture too.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    /// The id of one of my uploaded background pictures (`kind` = `image`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_id: Option<String>,
+}
+
+/// Which of my uploaded pictures a document may name (K-17): the ids of my `background` and `gallery` rows.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MediaIds {
+    pub background: BTreeSet<String>,
+    pub gallery: BTreeSet<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 #[schema(as = ProfileStyle)]
 pub struct Style {
     #[serde(default)]
     pub palette: Palette,
-    /// One of [`PATTERNS`].
+    /// One of [`PATTERNS`] (the older form; see [`Style::background`]).
     #[serde(default = "none")]
     pub pattern: String,
-    /// Use my profile banner as the page background.
+    /// Use my profile banner as the page background (the older form).
     #[serde(default)]
     pub banner_background: bool,
+    /// The page background; wins over `pattern` and `banner_background` when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background: Option<Background>,
     /// One of [`FONTS`].
     #[serde(default = "inter")]
     pub font: String,
@@ -135,6 +161,7 @@ impl Default for Style {
             palette: Palette::default(),
             pattern: none(),
             banner_background: false,
+            background: None,
             font: inter(),
             cursor: default_cursor(),
             overlay: none(),
@@ -312,9 +339,17 @@ struct FavoritesCfg {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GalleryItem {
-    url: String,
+    /// An address on the web (loaded through the image proxy, D-259) ...
+    #[serde(default)]
+    url: Option<String>,
+    /// ... or the id of one of my uploaded gallery pictures (K-17).
+    #[serde(default)]
+    image_id: Option<String>,
     #[serde(default)]
     caption: Option<String>,
+    /// Filled in by the server on a served page; never accepted.
+    #[serde(default)]
+    proxy_url: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -369,7 +404,14 @@ fn parse<T: for<'de> Deserialize<'de>>(
     }
 }
 
-fn block_config(out: &mut Vec<DocProblem>, i: usize, b: &Block) {
+fn media_id_ok(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 20
+        && id.bytes().all(|b| b.is_ascii_digit())
+        && !id.starts_with('0')
+}
+
+fn block_config(out: &mut Vec<DocProblem>, i: usize, b: &Block, media: Option<&MediaIds>) {
     let path = format!("blocks[{i}].config");
     let p = |f: &str| format!("{path}.{f}");
     match b.kind {
@@ -436,8 +478,27 @@ fn block_config(out: &mut Vec<DocProblem>, i: usize, b: &Block) {
                     problem(out, p("items"), "at most 12 pictures");
                 }
                 for it in &c.items {
-                    if https_url(&it.url).is_none() {
-                        problem(out, p("items"), "each picture needs an https address");
+                    if it.proxy_url.is_some() {
+                        problem(out, p("items"), "proxy_url is set by the server");
+                    }
+                    match (&it.url, &it.image_id) {
+                        (Some(u), None) => {
+                            if https_url(u).is_none() {
+                                problem(out, p("items"), "each picture needs an https address");
+                            }
+                        }
+                        (None, Some(id)) => {
+                            if !media_id_ok(id) {
+                                problem(out, p("items"), "image_id must be a picture id");
+                            } else if media.is_some_and(|m| !m.gallery.contains(id)) {
+                                problem(out, p("items"), "image_id is not one of your pictures");
+                            }
+                        }
+                        _ => problem(
+                            out,
+                            p("items"),
+                            "each picture has an https address or an image_id, not both",
+                        ),
                     }
                     if let Some(cap) = &it.caption {
                         check_text(out, &p("items"), cap, 80);
@@ -508,6 +569,16 @@ fn slug_ok(s: &str, max: usize) -> bool {
 
 /// Everything wrong with `doc`, empty when it is acceptable. `template` is the mode for a layout package.
 pub fn problems(doc: &ProfileDoc, template: bool) -> Vec<DocProblem> {
+    problems_with(doc, template, None)
+}
+
+/// [`problems`] that also checks the pictures a document names against `media`, the person's own uploads
+/// (K-17): any other id is refused. `None` checks only that the ids look like ids.
+pub fn problems_with(
+    doc: &ProfileDoc,
+    template: bool,
+    media: Option<&MediaIds>,
+) -> Vec<DocProblem> {
     let mut out = Vec::new();
     if doc.version != DOC_VERSION {
         problem(&mut out, "version", "must be 1");
@@ -543,6 +614,50 @@ pub fn problems(doc: &ProfileDoc, template: bool) -> Vec<DocProblem> {
         }
     }
     one_of(&mut out, "style.pattern", &s.pattern, PATTERNS);
+    if let Some(bg) = &s.background {
+        if let Some(p) = &bg.pattern {
+            one_of(&mut out, "style.background.pattern", p, PATTERNS);
+        }
+        match (bg.kind.as_str(), &bg.image_id) {
+            ("pattern" | "banner", None) => {}
+            ("image", Some(id)) => {
+                if template {
+                    problem(
+                        &mut out,
+                        "style.background.image_id",
+                        "a layout carries no pictures",
+                    );
+                } else if !media_id_ok(id) {
+                    problem(
+                        &mut out,
+                        "style.background.image_id",
+                        "must be a picture id",
+                    );
+                } else if media.is_some_and(|m| !m.background.contains(id)) {
+                    problem(
+                        &mut out,
+                        "style.background.image_id",
+                        "is not one of your pictures",
+                    );
+                }
+            }
+            ("image", None) => problem(
+                &mut out,
+                "style.background.image_id",
+                "a picture background needs an image_id",
+            ),
+            ("pattern" | "banner", Some(_)) => problem(
+                &mut out,
+                "style.background.image_id",
+                "only a picture background has an image_id",
+            ),
+            _ => problem(
+                &mut out,
+                "style.background.kind",
+                "must be pattern, banner or image",
+            ),
+        }
+    }
     one_of(&mut out, "style.font", &s.font, FONTS);
     one_of(&mut out, "style.cursor", &s.cursor, CURSORS);
     one_of(&mut out, "style.overlay", &s.overlay, OVERLAYS);
@@ -579,7 +694,7 @@ pub fn problems(doc: &ProfileDoc, template: bool) -> Vec<DocProblem> {
                 problem(&mut out, at("config"), "a layout carries no content");
             }
         } else {
-            block_config(&mut out, i, b);
+            block_config(&mut out, i, b, media);
         }
     }
     for (kind, n) in &counts {
@@ -615,14 +730,42 @@ pub fn problems(doc: &ProfileDoc, template: bool) -> Vec<DocProblem> {
 
 /// Parse and check a JSON value. `Err` carries every problem, or the single parse problem.
 pub fn parse_doc(value: &Value, template: bool) -> Result<ProfileDoc, Vec<DocProblem>> {
+    parse_doc_with(value, template, None)
+}
+
+/// [`parse_doc`] that checks the pictures against the person's own uploads (see [`problems_with`]).
+pub fn parse_doc_with(
+    value: &Value,
+    template: bool,
+    media: Option<&MediaIds>,
+) -> Result<ProfileDoc, Vec<DocProblem>> {
     let doc: ProfileDoc = serde_json::from_value(value.clone()).map_err(|e| {
         vec![DocProblem {
             path: String::new(),
             message: e.to_string(),
         }]
     })?;
-    let p = problems(&doc, template);
+    let p = problems_with(&doc, template, media);
     if p.is_empty() { Ok(doc) } else { Err(p) }
+}
+
+/// The picture ids a document refers to, as `(background, gallery)`.
+pub fn media_refs(doc: &ProfileDoc) -> (BTreeSet<String>, BTreeSet<String>) {
+    let background = doc
+        .style
+        .background
+        .iter()
+        .filter_map(|b| b.image_id.clone())
+        .collect();
+    let gallery = doc
+        .blocks
+        .iter()
+        .filter(|b| b.kind == BlockKind::Gallery)
+        .filter_map(|b| b.config.get("items").and_then(Value::as_array))
+        .flatten()
+        .filter_map(|i| i.get("image_id").and_then(Value::as_str).map(str::to_owned))
+        .collect();
+    (background, gallery)
 }
 
 /// The user ids a document names in its Top friends block (to check they are friends).
@@ -732,5 +875,91 @@ mod tests {
         );
         let friends: Vec<String> = (1..10).map(|i| i.to_string()).collect();
         assert!(parse_doc(&json!({"blocks": [block("f", "top_friends", 0, 0, 6, 4, json!({"user_ids": friends}))]}), false).is_err());
+    }
+
+    #[test]
+    fn pictures_must_be_the_persons_own() {
+        let mine = MediaIds {
+            background: BTreeSet::from(["11".to_owned()]),
+            gallery: BTreeSet::from(["21".to_owned(), "22".to_owned()]),
+        };
+        let doc = |bg: &str, img: &str| {
+            json!({
+                "style": {"background": {"kind": "image", "image_id": bg, "pattern": "dots"}},
+                "blocks": [block("g", "gallery", 0, 0, 6, 3, json!({"items": [
+                    {"image_id": img, "caption": "mine"}, {"url": "https://img.example/a.png"}]}))]
+            })
+        };
+        let d = parse_doc_with(&doc("11", "21"), false, Some(&mine)).unwrap();
+        assert_eq!(
+            media_refs(&d),
+            (
+                BTreeSet::from(["11".to_owned()]),
+                BTreeSet::from(["21".to_owned()])
+            )
+        );
+        // Somebody else's id, or one of mine used in the wrong place, is refused.
+        let foreign = parse_doc_with(&doc("11", "99"), false, Some(&mine)).unwrap_err();
+        assert!(
+            foreign
+                .iter()
+                .any(|p| p.message.contains("not one of your pictures"))
+        );
+        let swapped = parse_doc_with(&doc("21", "21"), false, Some(&mine)).unwrap_err();
+        assert!(
+            swapped
+                .iter()
+                .any(|p| p.path == "style.background.image_id")
+        );
+        // Without a set only the shape is checked; a layout template carries no pictures.
+        assert!(parse_doc(&doc("11", "99"), false).is_ok());
+        assert!(parse_doc(&doc("11", "21"), true).is_err());
+        assert!(parse_doc(&doc("abc", "21"), false).is_err());
+    }
+
+    #[test]
+    fn gallery_items_name_one_source_and_the_old_background_shape_is_still_read() {
+        let item = |v: Value| json!({"blocks": [block("g", "gallery", 0, 0, 6, 3, json!({"items": [v]}))]});
+        assert!(parse_doc(&item(json!({"url": "https://a.example/x.png"})), false).is_ok());
+        assert!(parse_doc(&item(json!({"image_id": "5"})), false).is_ok());
+        assert!(parse_doc(&item(json!({})), false).is_err());
+        assert!(
+            parse_doc(
+                &item(json!({"url": "https://a.example/x.png", "image_id": "5"})),
+                false
+            )
+            .is_err()
+        );
+        assert!(
+            parse_doc(
+                &item(json!({"url": "https://a.example/x.png", "proxy_url": "/cdn/external/x/y"})),
+                false
+            )
+            .is_err()
+        );
+        // The old pattern plus banner_background pair parses unchanged and has no new background.
+        let old = parse_doc(
+            &json!({"style": {"pattern": "dots", "banner_background": true}}),
+            false,
+        )
+        .unwrap();
+        assert!(old.style.background.is_none() && old.style.banner_background);
+        // The new shape: kinds, pattern over a banner, and no image id on a pattern.
+        assert!(
+            parse_doc(
+                &json!({"style": {"background": {"kind": "banner", "pattern": "grid"}}}),
+                false
+            )
+            .is_ok()
+        );
+        assert!(
+            parse_doc(
+                &json!({"style": {"background": {"kind": "pattern", "image_id": "5"}}}),
+                false
+            )
+            .is_err()
+        );
+        assert!(parse_doc(&json!({"style": {"background": {"kind": "video"}}}), false).is_err());
+        assert!(parse_doc(&json!({"style": {"background": {"kind": "image"}}}), false).is_err());
     }
 }
