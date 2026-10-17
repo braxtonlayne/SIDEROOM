@@ -145,7 +145,8 @@ pub async fn register_with_invite(
             sqlx::query_scalar::<_, i64>(
                 "SELECT a.person_id FROM external_identities e \
                  JOIN accounts a ON a.id = e.account_id \
-                 WHERE e.provider = 'discord' AND e.provider_user_id = $1 LIMIT 1",
+                 WHERE e.provider = 'discord' AND e.provider_user_id = $1 \
+                   AND e.unlinked_at IS NULL LIMIT 1",
             )
             .bind(did)
             .fetch_optional(&mut *tx)

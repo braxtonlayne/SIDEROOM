@@ -244,7 +244,8 @@ impl AuthStore for PgAuthStore {
     async fn find_by_discord(&self, provider_user_id: &str) -> StoreResult<Option<AccountRecord>> {
         let sql = format!(
             "SELECT {ACCOUNT_COLS} FROM accounts WHERE id = (SELECT account_id FROM \
-             external_identities WHERE provider = 'discord' AND provider_user_id = $1)"
+             external_identities WHERE provider = 'discord' AND provider_user_id = $1 \
+             AND unlinked_at IS NULL)"
         );
         let row = sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(provider_user_id)

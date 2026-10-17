@@ -186,6 +186,79 @@ pub async fn link_account(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Body of `POST /admin/persons/{person_id}/identities/{identity_id}/move`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct MoveIdentityBody {
+    /// The account that should hold the identity. It joins this Person when it is elsewhere.
+    pub to_account_id: String,
+    /// Why; required, kept in the access log and told to the old account.
+    pub reason: Option<String>,
+}
+
+/// What a move did.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct MoveIdentityResult {
+    pub to_account_id: String,
+    /// The target account was in another Person and was linked into this one.
+    pub linked_target: bool,
+    /// The old account's verified address was emailed (it always gets a system DM).
+    pub emailed: bool,
+}
+
+/// Move a Discord identity to another account of the Person (`MANAGE_ACCOUNTS`, fresh second factor,
+/// reason required, D-262). The target joins the Person in the same step when it is elsewhere. 409 when
+/// the Person or either account is banned or suspended. The old row is kept as history; the old account
+/// gets a system DM, and an email when its address is verified.
+#[utoipa::path(
+    post, path = "/admin/persons/{person_id}/identities/{identity_id}/move", request_body = MoveIdentityBody,
+    params(("person_id" = String, Path, description = "Person snowflake"),
+           ("identity_id" = String, Path, description = "Identity row snowflake")),
+    responses((status = 200, body = MoveIdentityResult), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn move_identity(
+    ctx: StaffCtx,
+    Path((person_id, identity_id)): Path<(String, String)>,
+    headers: HeaderMap,
+    Json(b): Json<MoveIdentityBody>,
+) -> ApiResult<Json<MoveIdentityResult>> {
+    let r = reason(&headers, b.reason.as_deref());
+    ctx.svc()
+        .authorize(&ctx.caller, sr_core::PlatformPermissions::MANAGE_ACCOUNTS, "person.identity_move")
+        .await
+        .map_err(map_err)?;
+    ctx.require_reauth().await?;
+    let to = id(&b.to_account_id)?;
+    let moved = ctx
+        .svc()
+        .move_identity(
+            &ctx.caller,
+            id(&person_id)?,
+            id(&identity_id)?,
+            to,
+            r.as_deref(),
+        )
+        .await
+        .map_err(map_err)?;
+    let why = r.as_deref().unwrap_or("").trim().to_owned();
+    let emailed = ctx
+        .notify_by_mail(
+            moved.from_account_id,
+            "Your linked Discord account was moved",
+            &format!(
+                "A staff member moved the Discord account linked to your SIDE ROOM account to the account @{}. Reason: {why}. If you did not expect this, contact support.",
+                moved.to_username
+            ),
+        )
+        .await;
+    Ok(Json(MoveIdentityResult {
+        to_account_id: to.to_string(),
+        linked_target: moved.linked_target,
+        emailed,
+    }))
+}
+
 /// The Person created by an unlink.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UnlinkResult {

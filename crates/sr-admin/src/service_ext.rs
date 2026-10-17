@@ -1104,6 +1104,50 @@ impl AdminService {
             .map(|_| ())
     }
 
+    /// Move a Discord identity to another account of the Person, linking that account into the Person
+    /// first when it is elsewhere (`MANAGE_ACCOUNTS`, reason required, D-262). Refused while the Person or
+    /// either account is banned or deactivated. The old account is told by a system DM; the caller sends
+    /// the email.
+    pub async fn move_identity(
+        &self,
+        c: &Caller,
+        person_id: i64,
+        identity_id: i64,
+        to_account_id: i64,
+        reason: Option<&str>,
+    ) -> AdminResult<crate::model::IdentityMoved> {
+        self.require(c, P::MANAGE_ACCOUNTS, "person.identity_move")
+            .await?;
+        let reason = Self::reason(reason)?;
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "person.identity_move",
+            Some(("person", person_id)),
+            &reason,
+            json!({
+                "identity_id": identity_id.to_string(),
+                "to_account_id": to_account_id.to_string(),
+            }),
+        );
+        let moved = self
+            .extras()?
+            .move_identity(
+                person_id,
+                identity_id,
+                to_account_id,
+                &audit,
+            )
+            .await?;
+        let text = format!(
+            "A staff member moved your linked Discord account to the SIDE ROOM account @{}. \
+             Reason: {reason}. If you did not expect this, contact support.",
+            moved.to_username
+        );
+        self.system_dm_any(moved.from_account_id, &text).await;
+        Ok(moved)
+    }
+
     /// Split an account off into a Person of its own (`MANAGE_ACCOUNTS`, reason required).
     /// Returns the new Person id.
     pub async fn unlink_account(
@@ -1212,6 +1256,15 @@ impl AdminService {
             _ => return false,
         }
         n.system_dm(to, text).await
+    }
+
+    /// [`Self::system_dm`] for an account in any state: the notice about an identity move reaches the
+    /// old account even when it is deactivated.
+    async fn system_dm_any(&self, to: i64, text: &str) -> bool {
+        match &self.notifier {
+            Some(n) => n.system_dm(to, text).await,
+            None => false,
+        }
     }
 
     /// The username of an account, for the text of a system DM.

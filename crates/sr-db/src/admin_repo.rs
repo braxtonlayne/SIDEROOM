@@ -773,7 +773,8 @@ impl AdminRepository for PgAdminRepo {
                AND ($4::text IS NULL OR a.username::text ILIKE $4 OR a.email::text ILIKE $4 \
                     OR a.display_name ILIKE $4 OR a.id::text = $5) \
                AND ($7::text IS NULL OR EXISTS (SELECT 1 FROM external_identities x \
-                    WHERE x.account_id = a.id AND x.provider_user_id = $7)) \
+                    WHERE x.account_id = a.id AND x.provider_user_id = $7 \
+                    AND x.unlinked_at IS NULL)) \
                AND ($8::inet IS NULL OR EXISTS (SELECT 1 FROM login_events e \
                     WHERE e.account_id = a.id AND e.ip = $8::inet)) \
              ORDER BY a.id LIMIT $6",
@@ -1026,10 +1027,37 @@ impl AdminRepository for PgAdminRepo {
         .fetch_optional(&self.pool)
         .await
         .map_err(db)?;
+        let identities = sqlx::query(
+            "SELECT e.id, e.account_id, e.provider::text AS provider, e.provider_user_id, \
+                    (EXTRACT(EPOCH FROM e.linked_at) * 1000)::bigint AS linked_ms, \
+                    (EXTRACT(EPOCH FROM e.unlinked_at) * 1000)::bigint AS unlinked_ms, \
+                    e.moved_to_account_id \
+             FROM external_identities e JOIN accounts a ON a.id = e.account_id \
+             WHERE a.person_id = $1 ORDER BY e.id",
+        )
+        .bind(person_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?
+        .iter()
+        .map(|r| {
+            Ok(sr_admin::IdentitySummary {
+                id: r.try_get("id")?,
+                account_id: r.try_get("account_id")?,
+                provider: r.try_get("provider")?,
+                provider_user_id: r.try_get("provider_user_id")?,
+                linked_at_ms: r.try_get("linked_ms")?,
+                unlinked_at_ms: r.try_get("unlinked_ms")?,
+                moved_to_account_id: r.try_get("moved_to_account_id")?,
+            })
+        })
+        .collect::<Result<Vec<_>, sqlx::Error>>()
+        .map_err(db)?;
         Ok(Some(PersonDetail {
             id: person_id,
             notes,
             suspicion_level: level,
+            identities,
             accounts: accts
                 .iter()
                 .map(acct_from)

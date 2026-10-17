@@ -156,6 +156,10 @@ pub fn router() -> Router<AppState> {
             post(people::link_account),
         )
         .route(
+            "/admin/persons/{person_id}/identities/{identity_id}/move",
+            post(people::move_identity),
+        )
+        .route(
             "/admin/persons/{person_id}/suspicion-log",
             get(people::suspicion_log),
         )
@@ -281,6 +285,7 @@ pub fn router() -> Router<AppState> {
         people::unfreeze_invites,
         people::put_notes,
         people::link_account,
+        people::move_identity,
         people::unlink_account,
         people::suspicion_log,
         people::search_guilds,
@@ -394,6 +399,9 @@ pub fn router() -> Router<AppState> {
         sr_admin::Reset2faReport,
         sr_admin::DeleteRequest,
         sr_admin::PersonDetail,
+        sr_admin::IdentitySummary,
+        people::MoveIdentityBody,
+        people::MoveIdentityResult,
         sr_admin::BanRecord,
         sr_admin::BanPage,
         sr_admin::BanOutcome,

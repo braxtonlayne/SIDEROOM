@@ -140,6 +140,15 @@ impl StaffCtx {
             .map_err(auth_err)
     }
 
+    /// Email `text` to an account's verified address (a staff action that concerned it). `false` when the
+    /// address is not verified, there is no account service or the mailer refused.
+    pub async fn notify_by_mail(&self, account_id: i64, subject: &str, text: &str) -> bool {
+        match &self.auth {
+            Some(auth) => auth.send_notice_mail(account_id, subject, text).await,
+            None => false,
+        }
+    }
+
     pub fn now_secs(&self) -> i64 {
         self.now_secs
     }
