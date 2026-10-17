@@ -311,6 +311,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         Some(bus.clone()),
     );
     let features_listener = features.spawn_invalidation_listener();
+    // The non-secret integration policy an administrator saved wins over the config file (D-254); the
+    // config value is the bootstrap. Read once here, so a change applies from the next start.
+    let (unfurl_cfg, gif_cfg, lookup_cfg) = {
+        let mut c = cfg.clone();
+        crate::integration_policy::overlay(&mut c, &features).await;
+        (c.unfurl, c.gif, c.lookup)
+    };
 
     // Guild endpoints: the chat service over Postgres, with its own snowflake
     // worker (process id + 1, as the message deps use) so ids never collide.
@@ -424,21 +431,21 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Age-restricted channels need the 18+ answer (D-032, LNG-CHN-006).
     .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())));
     // Rich messages: polls, stickers and link previews (LNG-MSG-010, LNG-MSG-014).
-    if cfg.unfurl.allow_private_for_tests {
+    if unfurl_cfg.allow_private_for_tests {
         tracing::warn!(
             "unfurl.allow_private_for_tests is ON: link previews may fetch loopback and private \n             addresses. This is for tests only and lets any user probe the internal network."
         );
     }
     let unfurl_policy = sr_unfurl::Policy {
-        deny_hosts: cfg.unfurl.deny_hosts.clone(),
-        allow_hosts: cfg.unfurl.allow_hosts.clone(),
-        allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
+        deny_hosts: unfurl_cfg.deny_hosts.clone(),
+        allow_hosts: unfurl_cfg.allow_hosts.clone(),
+        allow_private_for_tests: unfurl_cfg.allow_private_for_tests,
         ..sr_unfurl::Policy::default()
     };
     let unfurl_policy_for_feeds = unfurl_policy.clone();
     let unfurler = Arc::new(sr_unfurl::production(
         unfurl_policy.clone(),
-        cfg.unfurl.per_host_per_minute.max(1),
+        unfurl_cfg.per_host_per_minute.max(1),
     ));
     // The image proxy (D-176) fetches under the same SSRF policy and deny list.
     let external_images = Arc::new(routes::cdn::external::ExternalImageDeps::new(
@@ -995,15 +1002,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     ));
 
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
-    let gif_source: Option<Arc<dyn routes::gifs::GifSource>> = if cfg.gif.enabled() {
+    let gif_source: Option<Arc<dyn routes::gifs::GifSource>> = if gif_cfg.enabled() {
         Some(Arc::new(routes::gifs::TenorSource::new(
-            cfg.gif.api_key.expose(),
-            &cfg.gif.client_key,
-            &cfg.gif.country,
-            &cfg.gif.locale,
+            gif_cfg.api_key.expose(),
+            &gif_cfg.client_key,
+            &gif_cfg.country,
+            &gif_cfg.locale,
         )))
     } else {
-        if !cfg.gif.provider.is_empty() {
+        if !gif_cfg.provider.is_empty() {
             tracing::warn!(
                 "gif.provider is set but unsupported or missing gif.api_key; the GIF picker stays off"
             );
@@ -1017,7 +1024,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Metadata lookup for the submission editor (REV-ED-005): off unless `[lookup]` enables a
     // provider and the platform setting `review.lookup.enabled` is on.
     let lookup_deps = Arc::new(routes::review::LookupDeps::new(
-        crate::lookup_wiring::providers_from(&cfg.lookup),
+        crate::lookup_wiring::providers_from(&lookup_cfg),
         Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
         Some(cdn_signer.clone()),
     ));
@@ -1102,6 +1109,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_extras(admin_repo)
         .with_notifier(staff_voice.clone())
         .with_bus(bus.clone());
+    // Incident "Resume invites" cards close once the pause is over, whoever ended it (D-253).
+    let resume_voice = staff_voice.clone();
+    let resume_cards_task = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            tick.tick().await;
+            resume_voice.close_stale_resume_cards().await;
+        }
+    });
     crate::staff_feed::spawn(Arc::new(crate::staff_feed::StaffFeed {
         voice: staff_voice,
         admin: admin_service.clone(),
@@ -1470,6 +1486,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     gauge_task.abort();
     seen_task.abort();
     apps_gc_task.abort();
+    resume_cards_task.abort();
     events_voice_listener.abort();
     metrics_task.abort();
     search_consumer.abort();
@@ -1502,6 +1519,12 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     registry
         .register(sr_features::DirectoryHiddenCategoriesFeature)
         .context("registering the directory.hidden_categories feature")?;
+    registry
+        .register(sr_features::AppearanceDefaultsFeature)
+        .context("registering the platform.appearance feature")?;
+    registry
+        .register(sr_features::IntegrationsPolicyFeature)
+        .context("registering the platform.integrations feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
     // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,
