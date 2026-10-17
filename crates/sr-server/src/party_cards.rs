@@ -165,16 +165,13 @@ impl PartyCards {
                 .execute(&self.pool)
                 .await;
         }
-        self.slots
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .insert(
-                a.party_id,
-                Slot {
-                    last_edit: Some(Instant::now()),
-                    ..Slot::default()
-                },
-            );
+        self.slots.lock().unwrap_or_else(|p| p.into_inner()).insert(
+            a.party_id,
+            Slot {
+                last_edit: Some(Instant::now()),
+                ..Slot::default()
+            },
+        );
     }
 
     /// Rewrite the card now.
@@ -203,7 +200,9 @@ impl PartyCards {
                     .execute(&self.pool)
                     .await;
             }
-            Err(e) => tracing::warn!(error = ?e, party = a.party_id, "rewriting a watch party card failed"),
+            Err(e) => {
+                tracing::warn!(error = ?e, party = a.party_id, "rewriting a watch party card failed")
+            }
         }
     }
 
@@ -305,7 +304,10 @@ mod tests {
         assert_eq!(e.description.as_deref(), Some("S1 E4 · 3 watching"));
         assert_eq!(e.url.as_deref(), Some("/cinema/party/77"));
         assert_eq!(e.color, LIVE_COLOR);
-        assert_eq!(e.author.as_ref().map(|a| a.name.as_str()), Some("Watch party"));
+        assert_eq!(
+            e.author.as_ref().map(|a| a.name.as_str()),
+            Some("Watch party")
+        );
         let one = card_embed(&ann(AnnouncementKind::Updated, 1));
         assert_eq!(one.description.as_deref(), Some("S1 E4 · 1 watching"));
     }
@@ -314,9 +316,14 @@ mod tests {
     fn an_ended_card_greys_out_and_says_how_many_watched() {
         let e = card_embed(&ann(AnnouncementKind::Ended, 4));
         assert_eq!(e.color, ENDED_COLOR);
-        assert_eq!(e.description.as_deref(), Some("S1 E4 · Ended after 4 viewers"));
         assert_eq!(
-            card_embed(&ann(AnnouncementKind::Ended, 1)).description.as_deref(),
+            e.description.as_deref(),
+            Some("S1 E4 · Ended after 4 viewers")
+        );
+        assert_eq!(
+            card_embed(&ann(AnnouncementKind::Ended, 1))
+                .description
+                .as_deref(),
             Some("S1 E4 · Ended after 1 viewer")
         );
     }

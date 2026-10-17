@@ -94,7 +94,7 @@ Object storage: `rustic -r <repo> restore latest --target /var/lib/garage/data` 
 
 ## The restore drill
 
-A backup nobody has restored is a hope. `deploy/scripts/restore-drill.sh` restores the newest dump into a throwaway database, checks that migrations and tables are present and that none failed, and drops the database. It fails when the newest backup is more than 36 hours old (`SR_DRILL_MAX_AGE_HOURS`). The systemd timer runs it every Sunday; `.github/workflows/backup-drill.yml` runs the same scripts weekly against a migrated, seeded CI database so the scripts themselves cannot rot. Wire the service's failure to your alerting (for example `OnFailure=` with an email unit).
+A backup nobody has restored is a hope. `deploy/scripts/restore-drill.sh` restores the newest dump into a throwaway database, checks that migrations and tables are present and that none failed, and drops the database. It fails when the newest backup is more than 36 hours old (`SR_DRILL_MAX_AGE_HOURS`). The systemd timer runs it every Sunday; `.github/workflows/backup-drill.yml` runs the same scripts weekly against a migrated, seeded CI database so the scripts themselves cannot rot. Wire the service's failure to your alerting (for example `OnFailure=` with an email unit). A successful drill touches `restore-drill.ok` in the backup folder, and a backup that snapshotted the objects touches `snapshot.ok`; Admin > System shows their times next to the newest dump (`GET /admin/system`, `backups`).
 
 ## Secrets rotation
 

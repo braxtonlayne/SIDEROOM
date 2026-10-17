@@ -94,7 +94,7 @@ function GridEditor({ channel }: { channel: tv.AdminChannel }) {
   const [edited, setEdited] = useState<tv.Slot[] | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const { busy, error, notice, run } = useRun();
-  const slots = edited ?? res.data ?? [];
+  const slots = useMemo(() => edited ?? res.data ?? [], [edited, res.data]);
   const dirty = edited !== null;
   const overlap = useMemo(() => findOverlap(slots), [slots]);
 

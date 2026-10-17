@@ -491,7 +491,10 @@ fn due_for_guide_check() -> bool {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(0));
     let last = LAST.load(Ordering::Relaxed);
-    now - last >= 300_000 && LAST.compare_exchange(last, now, Ordering::Relaxed, Ordering::Relaxed).is_ok()
+    now - last >= 300_000
+        && LAST
+            .compare_exchange(last, now, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
 }
 
 async fn tick(
@@ -510,7 +513,10 @@ async fn tick(
         if due_for_guide_check() {
             match tv.tv.service.revalidate_guides().await {
                 Ok(ids) if !ids.is_empty() => {
-                    tracing::info!(channels = ids.len(), "tv guides regenerated after a library change");
+                    tracing::info!(
+                        channels = ids.len(),
+                        "tv guides regenerated after a library change"
+                    );
                 }
                 Ok(_) => {}
                 Err(e) => tracing::warn!(error = %e, "tv guide revalidation failed"),
