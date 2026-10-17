@@ -2,6 +2,33 @@
 // checks shown in the validation summary. No React, no network.
 import type { DraftChapter } from './types';
 
+/** The body of `PUT .../library/chapters/{id}`: what a rename or renumber sends. */
+export interface ChapterUpdateBody {
+  number: number;
+  title: string | null;
+  format: string;
+  release_group: string | null;
+  volume_id: string | null;
+}
+
+/**
+ * A chapter update that keeps everything the person did not change (K-07): the chapter's current volume,
+ * format and release group go back with the new number and title instead of a bare `{number, title}`. The
+ * source file is the upload's and the server keeps it.
+ */
+export function chapterUpdateBody(
+  c: DraftChapter,
+  patch: { number?: number; title?: string | null; volume_id?: string | null } = {},
+): ChapterUpdateBody {
+  return {
+    number: patch.number ?? c.number,
+    title: patch.title === undefined ? c.title : patch.title,
+    format: c.format,
+    release_group: c.release_group,
+    volume_id: patch.volume_id === undefined ? (c.volume_id ?? null) : patch.volume_id,
+  };
+}
+
 export interface Renumber {
   id: string;
   number: number;

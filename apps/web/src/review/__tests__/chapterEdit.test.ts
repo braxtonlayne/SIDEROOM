@@ -1,10 +1,11 @@
-import { checkSubmission, reorderNumbers, spareNumber } from '../chapterEdit';
+import { chapterUpdateBody, checkSubmission, reorderNumbers, spareNumber } from '../chapterEdit';
 import type { DraftChapter } from '../types';
 
 const ch = (id: string, number: number, extra: Partial<DraftChapter> = {}): DraftChapter => ({
   id,
   series_id: 's',
   edition_id: 'e',
+  volume_id: null,
   number,
   title: null,
   page_count: 10,
@@ -80,5 +81,28 @@ describe('checkSubmission', () => {
     expect(
       checkSubmission({ ...base, describesSeries: false, synopsis: null, chapters: [ch('a', 1)] }),
     ).toEqual([]);
+  });
+});
+
+describe('chapterUpdateBody', () => {
+  const c = ch('a', 3, { title: 'Old', volume_id: 'v1', format: 'epub', release_group: 'grp' });
+  it('keeps the volume, format and release group when only the title changes', () => {
+    expect(chapterUpdateBody(c, { title: 'New' })).toEqual({
+      number: 3,
+      title: 'New',
+      format: 'epub',
+      release_group: 'grp',
+      volume_id: 'v1',
+    });
+  });
+  it('keeps the title when only the number changes, and can move or clear the volume', () => {
+    expect(chapterUpdateBody(c, { number: 4 })).toMatchObject({
+      number: 4,
+      title: 'Old',
+      volume_id: 'v1',
+    });
+    expect(chapterUpdateBody(c, { volume_id: 'v2' }).volume_id).toBe('v2');
+    expect(chapterUpdateBody(c, { volume_id: null }).volume_id).toBeNull();
+    expect(chapterUpdateBody(ch('b', 1)).volume_id).toBeNull();
   });
 });

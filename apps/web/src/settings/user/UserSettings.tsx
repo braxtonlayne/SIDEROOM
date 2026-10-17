@@ -16,6 +16,7 @@ import { ApiError } from '../../api/client';
 import { errorText, getMe, logout, useResource } from './api';
 import { USER_SETTINGS_SECTIONS, type UserSettingsSectionId } from './nav';
 import { applyPrefs, prefsEqual, usePrefsStore, useSavedPrefs, type UserPrefs } from './prefs';
+import { usePlatformThemeDefaults } from './platformThemes';
 import { usePrefsSync } from './prefsSync';
 import type { SettingsEntry } from './searchIndex';
 import { AccessibilitySection } from './sections/Accessibility';
@@ -228,7 +229,8 @@ export function UserSettings(props: UserSettingsProps) {
     if (!touched.current) setDraft(saved);
   }, [saved]);
   const dark = useMediaQuery('(prefers-color-scheme: dark)');
-  const applied = applyPrefs(draft, dark);
+  const platformThemes = usePlatformThemeDefaults();
+  const applied = applyPrefs(draft, dark, platformThemes);
   return (
     <ThemeProvider
       section="lounge"

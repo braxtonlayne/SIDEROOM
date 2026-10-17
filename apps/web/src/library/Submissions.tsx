@@ -38,7 +38,14 @@ import type {
   Upload,
 } from '../review/types';
 import { ValidationSummary } from '../review/ValidationSummary';
-import { checkSubmission, reorderNumbers, spareNumber } from '../review/chapterEdit';
+import { ArtworkField } from '../review/ArtworkField';
+import { ChapterRename } from '../review/ChapterRename';
+import {
+  chapterUpdateBody,
+  checkSubmission,
+  reorderNumbers,
+  spareNumber,
+} from '../review/chapterEdit';
 import { renderPdfCover } from './pdf/pdfjs';
 import { isZipName, precheckArchive } from './precheck';
 import { KIND_LABEL } from './ui';
@@ -522,6 +529,14 @@ function SeriesPreviewPanel({ id }: { id: string }) {
         preview={p.data.preview}
         onSaved={() => void qc.invalidateQueries({ queryKey: key.preview(id) })}
       />
+      <section className="rv-panel" aria-labelledby="sub-art-h">
+        <h2 id="sub-art-h">{t('review.reviewerEdit.cover')}</h2>
+        <ArtworkField
+          submissionId={id}
+          slot="cover"
+          onSaved={() => void qc.invalidateQueries({ queryKey: key.preview(id) })}
+        />
+      </section>
       <section className="rv-panel" aria-labelledby="sub-meta-h">
         <h2 id="sub-meta-h">{t('library.submissions.preview')}</h2>
         <PreviewFacts preview={p.data.preview} />
@@ -592,16 +607,20 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
   const [editing, setEditing] = useState<string | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const byId = new Map(rows.map((c) => [c.id, c]));
-  const put = (c: DraftChapter, number: number, title: string | null) =>
-    rv.updateDraftChapter(s.id, c.id, {
-      number,
-      title,
-      format: c.format,
-      release_group: c.release_group,
-    });
+  // A rename sends the chapter's own volume, format and release group back (K-07).
+  const put = (
+    c: DraftChapter,
+    patch: { number?: number; title?: string | null; volume_id?: string | null },
+  ) => rv.updateDraftChapter(s.id, c.id, chapterUpdateBody(c, patch));
+  // The volume select is for a series that already exists; a new series has no volumes yet.
+  const volumes = s.kind === 'library.items' ? (chapters.data?.volumes ?? []) : [];
   const rename = useMutation({
-    mutationFn: (v: { c: DraftChapter; number: number; title: string | null }) =>
-      put(v.c, v.number, v.title),
+    mutationFn: (v: {
+      c: DraftChapter;
+      number: number;
+      title: string | null;
+      volume_id: string | null;
+    }) => put(v.c, { number: v.number, title: v.title, volume_id: v.volume_id }),
     onSuccess: () => {
       setEditing(null);
       refresh();
@@ -615,11 +634,11 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
       const spare = spareNumber(rows);
       for (const [i, ch] of changes.entries()) {
         const c = byId.get(ch.id)!;
-        await put(c, spare + i, c.title);
+        await put(c, { number: spare + i });
       }
       for (const ch of changes) {
         const c = byId.get(ch.id)!;
-        await put(c, ch.number, c.title);
+        await put(c, { number: ch.number });
       }
     },
     onSettled: refresh,
@@ -679,9 +698,10 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
                       {editing === c.id ? (
                         <ChapterRename
                           chapter={c}
+                          volumes={volumes}
                           busy={rename.isPending}
                           onCancel={() => setEditing(null)}
-                          onSave={(number, title) => rename.mutate({ c, number, title })}
+                          onSave={(patch) => rename.mutate({ c, ...patch })}
                         />
                       ) : (
                         <strong>{name}</strong>
@@ -761,55 +781,6 @@ function ChaptersPanel({ detail, editable }: { detail: SubmissionDetail; editabl
       {editable && <FolderImport submissionId={s.id} onAdded={refresh} />}
       <UploadDock />
     </section>
-  );
-}
-
-/** Inline edit of one chapter's number and title (REV-ED-001). */
-function ChapterRename({
-  chapter,
-  busy,
-  onSave,
-  onCancel,
-}: {
-  chapter: DraftChapter;
-  busy: boolean;
-  onSave: (number: number, title: string | null) => void;
-  onCancel: () => void;
-}) {
-  const t = useT();
-  const [number, setNumber] = useState(String(chapter.number));
-  const [title, setTitle] = useState(chapter.title ?? '');
-  const ok = number.trim() !== '' && Number.isFinite(Number(number)) && Number(number) >= 0;
-  return (
-    <form
-      className="rv-form"
-      aria-label={t('library.submissions.chapters.renameForm')}
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (ok) onSave(Number(number), title.trim() || null);
-      }}
-    >
-      <TextInput
-        label={t('library.submissions.add.number')}
-        inputMode="decimal"
-        value={number}
-        onChange={(e) => setNumber(e.target.value)}
-      />
-      <TextInput
-        label={t('library.submissions.add.title')}
-        value={title}
-        maxLength={200}
-        onChange={(e) => setTitle(e.target.value)}
-      />
-      <div className="rv-row">
-        <Button type="submit" size="sm" disabled={!ok} loading={busy}>
-          {t('library.submissions.chapters.saveRename')}
-        </Button>
-        <Button type="button" size="sm" variant="secondary" onClick={onCancel}>
-          {t('library.submissions.chapters.cancelRename')}
-        </Button>
-      </div>
-    </form>
   );
 }
 

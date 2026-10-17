@@ -1,6 +1,7 @@
 import { useMediaQuery } from '@sideroom/ui';
 import { useMemo } from 'react';
 import { applyPrefs, useSavedPrefs, type AppliedTheme, type UserPrefs } from './prefs';
+import { usePlatformThemeDefaults } from './platformThemes';
 import { usePrefsSync } from './prefsSync';
 
 /**
@@ -10,7 +11,8 @@ import { usePrefsSync } from './prefsSync';
 export function useAppliedTheme(prefs?: UserPrefs): AppliedTheme {
   usePrefsSync();
   const saved = useSavedPrefs();
+  const platform = usePlatformThemeDefaults();
   const dark = useMediaQuery('(prefers-color-scheme: dark)');
   const p = prefs ?? saved;
-  return useMemo(() => applyPrefs(p, dark), [p, dark]);
+  return useMemo(() => applyPrefs(p, dark, platform), [p, dark, platform]);
 }

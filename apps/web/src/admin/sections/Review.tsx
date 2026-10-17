@@ -44,6 +44,7 @@ import type {
   SubmissionDetail,
   SubmissionItem,
 } from '../../review/types';
+import { ReviewerEdit } from './ReviewerEdit';
 import {
   ActionStatus,
   Async,
@@ -572,6 +573,9 @@ function ReviewDetail({
               </Async>
             </section>
 
+            {canDecide && s.kind.startsWith('library.') && (
+              <ReviewerEdit submission={s} preview={preview.data} onChanged={reload} />
+            )}
             <DuplicatePanel id={id} canResolve={canDecide} />
             <VideoProxyPlayer id={id} />
             {manifestOf(last) !== undefined && (
