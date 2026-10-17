@@ -1,6 +1,6 @@
 // Person record (ADM-PPL-004): the chain of accounts one human holds, ban state, notes (editable), linking an
 // account, suspicion with its log, and the access-log history for the person.
-import { Badge, Button, Drawer, Notice, TextArea, TextInput } from '@sideroom/ui';
+import { Badge, Button, Drawer, Notice, Select, TextArea, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
 import { useT } from '../../i18n';
@@ -19,7 +19,12 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
     `person-susp:${personId}:${viewer.can('MANAGE_INVITES')}`,
     async () => (viewer.can('MANAGE_INVITES') ? api.listSuspicionLog(personId) : null),
   );
-  const [pending, setPending] = useState<'clear' | 'unban' | 'notes' | 'link' | null>(null);
+  const [pending, setPending] = useState<'clear' | 'unban' | 'notes' | 'link' | 'move' | null>(
+    null,
+  );
+  const [moving, setMoving] = useState<string | null>(null);
+  const [moveTo, setMoveTo] = useState('');
+  const [moveOther, setMoveOther] = useState('');
   const [notes, setNotes] = useState('');
   const [linkId, setLinkId] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
@@ -111,6 +116,57 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
                   ))}
                 </ol>
               </section>
+              {(p.identities?.length ?? 0) > 0 && (
+                <section className="ss-card" aria-labelledby="adm-ident-h">
+                  <h2 id="adm-ident-h">{t('admin.person.identitiesTitle')}</h2>
+                  <p className="ss-sub">{t('admin.person.identitiesIntro')}</p>
+                  <ul className="ss-list" aria-label={t('admin.person.identitiesTitle')}>
+                    {p.identities!.map((i) => {
+                      const holder = chain.find((a) => a.id === i.account_id);
+                      const moved = i.unlinked_at_ms
+                        ? chain.find((a) => a.id === i.moved_to_account_id)
+                        : undefined;
+                      return (
+                        <li key={i.id} className="ss-row">
+                          <div className="ss-grow">
+                            <div className="ss-name">
+                              {t('admin.person.identityLine', {
+                                id: i.provider_user_id,
+                                holder: holder?.username ?? i.account_id,
+                              })}
+                            </div>
+                            <div className="ss-meta">
+                              {i.unlinked_at_ms
+                                ? t('admin.person.identityMoved', {
+                                    to: moved?.username ?? i.moved_to_account_id ?? '?',
+                                    when: fmtMs(i.unlinked_at_ms),
+                                  })
+                                : t('admin.person.identityLive', { when: fmtMs(i.linked_at_ms) })}
+                            </div>
+                          </div>
+                          {!i.unlinked_at_ms && viewer.can('MANAGE_ACCOUNTS') && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              aria-label={t('admin.person.moveIdentityOf', {
+                                id: i.provider_user_id,
+                              })}
+                              onClick={() => {
+                                setMoving(i.id);
+                                setMoveTo(chain.find((a) => a.id !== i.account_id)?.id ?? 'other');
+                                setMoveOther('');
+                                setPending('move');
+                              }}
+                            >
+                              {t('admin.person.moveIdentity')}
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
               {suspicion.data && (
                 <section className="ss-card" aria-labelledby="adm-susp-h">
                   <h2 id="adm-susp-h">{t('admin.person.suspicionLogTitle')}</h2>
@@ -202,6 +258,48 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
                   inputMode="numeric"
                   onChange={(e) => setLinkId(e.target.value)}
                 />
+              </ReasonDialog>
+              <ReasonDialog
+                open={pending === 'move'}
+                title={t('admin.person.moveIdentity')}
+                description={t('admin.person.moveDescription')}
+                confirmLabel={t('admin.person.moveConfirm')}
+                valid={moveTo === 'other' ? /^\d+$/.test(moveOther.trim()) : moveTo !== ''}
+                onCancel={() => setPending(null)}
+                onConfirm={async (reason) => {
+                  const to = moveTo === 'other' ? moveOther.trim() : moveTo;
+                  const r = await api.moveIdentity(personId, moving ?? '', to, reason);
+                  setPending(null);
+                  setNotice(
+                    r.emailed
+                      ? t('admin.person.identityMovedMailed')
+                      : t('admin.person.identityMovedDone'),
+                  );
+                  await res.reload();
+                }}
+              >
+                <Select
+                  aria-label={t('admin.person.moveTo')}
+                  options={[
+                    ...chain
+                      .filter(
+                        (a) => a.id !== p.identities?.find((i) => i.id === moving)?.account_id,
+                      )
+                      .map((a) => ({ value: a.id, label: `@${a.username}` })),
+                    { value: 'other', label: t('admin.person.moveOther') },
+                  ]}
+                  value={moveTo}
+                  onValueChange={setMoveTo}
+                />
+                {moveTo === 'other' && (
+                  <TextInput
+                    label={t('admin.person.linkAccountId')}
+                    hint={t('admin.person.moveOtherHint')}
+                    value={moveOther}
+                    inputMode="numeric"
+                    onChange={(e) => setMoveOther(e.target.value)}
+                  />
+                )}
               </ReasonDialog>
               <ReasonDialog
                 open={pending === 'clear'}

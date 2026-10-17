@@ -241,9 +241,20 @@ export interface UnbanOutcome {
   accounts_left_deactivated: number;
   accounts_reactivated: number;
 }
+/** A Discord identity of one of a Person's accounts; a moved one is history (D-262). */
+export interface PersonIdentity {
+  id: string;
+  account_id: string;
+  provider: string;
+  provider_user_id: string;
+  linked_at_ms: number;
+  unlinked_at_ms?: number | null;
+  moved_to_account_id?: string | null;
+}
 export interface PersonDetail {
   id: string;
   accounts: AccountSummary[];
+  identities?: PersonIdentity[];
   ban?: BanRecord | null;
   notes: string;
   suspicion_level: number;
@@ -753,6 +764,21 @@ export const setPersonNotes = (personId: string, notes: string, reason: string) 
 /** 409 while the Person is banned. */
 export const linkAccount = (personId: string, account_id: string, reason: string) =>
   send<void>(`/admin/persons/${personId}/link`, 'POST', { account_id, reason });
+/**
+ * Move a Discord identity to another account (D-262). The target joins the Person when it is elsewhere.
+ * 409 while the Person or either account is banned or suspended; needs a fresh second factor.
+ */
+export const moveIdentity = (
+  personId: string,
+  identityId: string,
+  to_account_id: string,
+  reason: string,
+) =>
+  send<{ to_account_id: string; linked_target: boolean; emailed: boolean }>(
+    `/admin/persons/${personId}/identities/${identityId}/move`,
+    'POST',
+    { to_account_id, reason },
+  );
 /** 409 while banned or when it is the Person's only account; moves the account to a new Person. */
 export const unlinkAccount = (id: string, reason: string) =>
   send<{ person_id: string }>(`/admin/accounts/${id}/unlink`, 'POST', reasonBody(reason));
