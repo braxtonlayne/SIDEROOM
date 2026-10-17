@@ -9067,6 +9067,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/appearance/defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The default theme per section the administrators chose (public: the entrance page is themed
+         *     before sign-in). Theme ids are not secret.
+         */
+        get: operations["appearance_defaults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/auth/account/delete": {
         parameters: {
             query?: never;
@@ -9781,6 +9801,26 @@ export interface paths {
         head?: never;
         /** Change the title or summary while the submission is a draft or has changes requested. */
         patch: operations["submissions_update"];
+        trace?: never;
+    };
+    "/submissions/{submission_id}/artwork/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload artwork into a slot of the draft. `kind` is `cover` (new Library series), `poster` or `backdrop`
+         *     (new Cinema title); a Library series has no banner in this release, so `banner` is refused.
+         */
+        post: operations["submissions_set_artwork"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/submissions/{submission_id}/comments": {
@@ -11861,6 +11901,16 @@ export interface components {
             /** Format: int32 */
             version: number;
         };
+        /** @description The platform's default themes (ADM-PLT-004). */
+        AppearanceDefaultsObject: {
+            /**
+             * @description Section (`lounge`, `entrance`, `cinema`, `library`, `support`, `tv`) to shipped theme id. A
+             *     section without an entry uses the shipped default. A member's own choice wins over these.
+             */
+            default_theme_by_section: {
+                [key: string]: string;
+            };
+        };
         ApplicationObject: {
             answers: components["schemas"]["AnswerDto"][];
             created_at: string;
@@ -11935,6 +11985,13 @@ export interface components {
             /** @description Files the importer ignores (junk, symlinks, unsupported files, nested archives). */
             skipped: string[];
         };
+        ArtworkBody: {
+            /**
+             * @description `data:image/jpeg;base64,...`, `data:image/png;base64,...` or `data:image/webp;base64,...`. A cover
+             *     or poster is at most 2 MiB, a backdrop at most 4 MiB.
+             */
+            image: string;
+        };
         /**
          * @description Which artwork file.
          * @enum {string}
@@ -11944,6 +12001,12 @@ export interface components {
             /** @description `image/webp`, `image/jpeg` or `image/png`. */
             content_type: string;
             slot: components["schemas"]["ArtworkSlot"];
+        };
+        ArtworkResult: {
+            /** @description The slot that was filled (`cover`, `poster`, `backdrop`). */
+            kind: string;
+            /** @description Where the stored image is served from, when the store gave a URL. */
+            url?: string | null;
         };
         /**
          * @description What an artwork upload is for; only names the object.
@@ -18287,7 +18350,8 @@ export interface components {
             /**
              * @description `created`, `submitted`, `resubmitted`, `claimed`, `released`, `comment`,
              *     `changes_requested`, `approved`, `rejected`, `published`, `publish_failed`,
-             *     `withdrawn`, `item_decision`, `edited`.
+             *     `withdrawn`, `item_decision`, `edited`, `metadata_edited` (a reviewer wrote draft metadata;
+             *     `data.fields` names what).
              */
             kind: string;
             submission_id: string;
@@ -49872,6 +49936,25 @@ export interface operations {
             };
         };
     };
+    appearance_defaults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppearanceDefaultsObject"];
+                };
+            };
+        };
+    };
     delete_account: {
         parameters: {
             query?: never;
@@ -51572,6 +51655,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubmissionDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_set_artwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description cover, poster or backdrop */
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtworkBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtworkResult"];
                 };
             };
             400: {

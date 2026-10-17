@@ -47186,6 +47186,27 @@
         ]
       }
     },
+    "/sr/appearance/defaults": {
+      "get": {
+        "tags": [
+          "features"
+        ],
+        "summary": "The default theme per section the administrators chose (public: the entrance page is themed\nbefore sign-in). Theme ids are not secret.",
+        "operationId": "appearance_defaults",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceDefaultsObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sr/auth/account/delete": {
       "post": {
         "tags": [],
@@ -49622,6 +49643,102 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SubmissionDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/artwork/{kind}": {
+      "post": {
+        "tags": [
+          "artwork"
+        ],
+        "summary": "Upload artwork into a slot of the draft. `kind` is `cover` (new Library series), `poster` or `backdrop`\n(new Cinema title); a Library series has no banner in this release, so `banner` is refused.",
+        "operationId": "submissions_set_artwork",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "cover, poster or backdrop",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtworkBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkResult"
                 }
               }
             }
@@ -58407,6 +58524,25 @@
           }
         }
       },
+      "AppearanceDefaultsObject": {
+        "type": "object",
+        "description": "The platform's default themes (ADM-PLT-004).",
+        "required": [
+          "default_theme_by_section"
+        ],
+        "properties": {
+          "default_theme_by_section": {
+            "type": "object",
+            "description": "Section (`lounge`, `entrance`, `cinema`, `library`, `support`, `tv`) to shipped theme id. A\nsection without an entry uses the shipped default. A member's own choice wins over these.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ApplicationObject": {
         "type": "object",
         "required": [
@@ -58653,6 +58789,18 @@
           }
         }
       },
+      "ArtworkBody": {
+        "type": "object",
+        "required": [
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "`data:image/jpeg;base64,...`, `data:image/png;base64,...` or `data:image/webp;base64,...`. A cover\nor poster is at most 2 MiB, a backdrop at most 4 MiB."
+          }
+        }
+      },
       "ArtworkKind": {
         "type": "string",
         "description": "Which artwork file.",
@@ -58677,6 +58825,25 @@
           },
           "slot": {
             "$ref": "#/components/schemas/ArtworkSlot"
+          }
+        }
+      },
+      "ArtworkResult": {
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "The slot that was filled (`cover`, `poster`, `backdrop`)."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where the stored image is served from, when the store gave a URL."
           }
         }
       },
@@ -79129,7 +79296,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`created`, `submitted`, `resubmitted`, `claimed`, `released`, `comment`,\n`changes_requested`, `approved`, `rejected`, `published`, `publish_failed`,\n`withdrawn`, `item_decision`, `edited`."
+            "description": "`created`, `submitted`, `resubmitted`, `claimed`, `released`, `comment`,\n`changes_requested`, `approved`, `rejected`, `published`, `publish_failed`,\n`withdrawn`, `item_decision`, `edited`, `metadata_edited` (a reviewer wrote draft metadata;\n`data.fields` names what)."
           },
           "submission_id": {
             "type": "string"
