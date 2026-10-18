@@ -184,3 +184,20 @@ describe.runIf(built)('channel permissions with the real Rust engine', () => {
     expect(snap.channelsByGuild['10']![2]!.permissions!.send).toBe(true);
   });
 });
+
+describe('the snapshot reuses unchanged servers (K-22)', () => {
+  it('keeps a server’s channels when only presences change', () => {
+    const first = input();
+    const a = buildLiveSnapshot(first);
+    const b = buildLiveSnapshot({
+      ...first,
+      presences: { '1': { user_id: '1', status: 'dnd', activities: [] } },
+    });
+    expect(b.channelsByGuild['10']).toBe(a.channelsByGuild['10']);
+    expect(b.presence['1']).toEqual({ status: 'dnd' });
+    // A change the channels depend on rebuilds them.
+    const c = buildLiveSnapshot({ ...first, roles: { ...first.roles } });
+    expect(c.channelsByGuild['10']).not.toBe(a.channelsByGuild['10']);
+    expect(c.channelsByGuild['10']).toEqual(a.channelsByGuild['10']);
+  });
+});

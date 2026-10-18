@@ -29,8 +29,14 @@ export const PEOPLE_CHUNK = 6;
 function indexPeople(
   people: { guild: string; members?: Obj[]; presences?: Obj[] }[],
   set: (f: (s: StoreData) => Partial<StoreData>) => void,
+  /** Presences right after the burst: a person whose entry changed since got a newer PRESENCE_UPDATE. */
+  baseline: StoreData['presences'],
+  /** People whose PRESENCE_UPDATE came in the same burst, after the server's lists were sent. */
+  live: ReadonlySet<string>,
 ): void {
   if (!people.length) return;
+  const presenceUser = (p: Obj) =>
+    (p.user as { id?: string } | undefined)?.id ?? (p.user_id as string | undefined);
   let at = 0;
   const step = () => {
     const chunk = people.slice(at, at + PEOPLE_CHUNK);
@@ -41,7 +47,12 @@ function indexPeople(
       for (const p of chunk) {
         // The server may have been left while its people waited.
         if (!cur.guilds[p.guild]) continue;
-        const part = reduceGuildPeople(cur, p.guild, p.members, p.presences);
+        // The server's presence list is from connect time; never let it undo a live update.
+        const presences = p.presences?.filter((x) => {
+          const id = presenceUser(x);
+          return !id || (!live.has(id) && cur.presences[id] === baseline[id]);
+        });
+        const part = reduceGuildPeople(cur, p.guild, p.members, presences);
         out = { ...out, ...part };
         cur = { ...cur, ...part };
       }
@@ -322,7 +333,14 @@ export const useStore = create<StoreState>()((set, get) => {
         return out;
       });
       for (const { event, data } of batch) emitDispatch(event, data);
-      indexPeople(people, set);
+      const live = new Set<string>();
+      for (const { event, data } of batch) {
+        if (event !== 'PRESENCE_UPDATE') continue;
+        const d = (data ?? {}) as Obj;
+        const id = (d.user as { id?: string } | undefined)?.id ?? (d.user_id as string | undefined);
+        if (id) live.add(id);
+      }
+      indexPeople(people, set, get().presences, live);
     },
     pruneTyping: (now = Date.now()) =>
       set((s) => {

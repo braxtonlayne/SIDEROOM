@@ -93,6 +93,19 @@ export interface SnapshotInput {
 
 const byPosition = (a: S.Channel, b: S.Channel) => (a.position ?? 0) - (b.position ?? 0);
 
+const sameDeps = (a: readonly unknown[], b: readonly unknown[]) =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
+/**
+ * One server's channels with their computed permissions, reused while none of its inputs changed (K-22).
+ * The permission engine runs per channel, so rebuilding every server's channels for an unrelated update (a
+ * PRESENCE_UPDATE, of which a session in 60 servers gets one per server at connect) cost seconds.
+ */
+const guildChannelCache = new Map<
+  string,
+  { deps: unknown[]; out: { mapped: Channel[]; base: bigint } }
+>();
+
 /** Pure: builds the snapshot from raw store slices. */
 export function buildLiveSnapshot(s: SnapshotInput): LiveSnapshot {
   const users: Record<Snowflake, LoungeUser> = {};
@@ -117,11 +130,60 @@ export function buildLiveSnapshot(s: SnapshotInput): LiveSnapshot {
     rolesByGuild[gid] = roleObjs.map(toLoungeRole).sort((a, b) => b.position - a.position);
 
     const viewer = s.currentUserId ? s.members[memberKey(gid, s.currentUserId)] : undefined;
-    const base = basePermissions(gid, g.owner_id, s.currentUserId ?? '', roleById, viewer?.roles);
-    // Until the viewer's member object is loaded, the server decides; the composer stays enabled.
-    const loaded = !!viewer || (!!g.owner_id && g.owner_id === s.currentUserId);
-    const canSend = loaded ? (base & PERM.SEND_MESSAGES) === PERM.SEND_MESSAGES : true;
+    const deps = [
+      g,
+      viewer,
+      s.roleIdsByGuild[gid],
+      s.roles,
+      s.channelIdsByGuild[gid],
+      s.channels,
+      s.readStates,
+      s.currentUserId,
+      s.engine,
+    ];
+    const hit = guildChannelCache.get(gid);
+    const { mapped, base } =
+      hit && sameDeps(hit.deps, deps) ? hit.out : guildChannels(s, gid, g, viewer, roleById);
+    if (!hit || hit.out.mapped !== mapped)
+      guildChannelCache.set(gid, { deps, out: { mapped, base } });
+    channelsByGuild[gid] = mapped;
 
+    const unread = mapped.some((c) => c.unread && !c.muted);
+    const mentionCount = mapped.reduce((n, c) => n + c.mentionCount, 0);
+    guilds.push(toLoungeGuild(g, toGuildPermissions(base), unread, mentionCount));
+
+    const memberList: Member[] = [];
+    for (const uid of s.memberIdsByGuild[gid] ?? []) {
+      const m = s.members[memberKey(gid, uid)];
+      const u = users[uid];
+      if (m && u) memberList.push(toLoungeMember(m, u));
+    }
+    membersByGuild[gid] = memberList;
+  }
+  return finishSnapshot(
+    s,
+    me,
+    users,
+    presence,
+    guilds,
+    channelsByGuild,
+    rolesByGuild,
+    membersByGuild,
+  );
+}
+
+function guildChannels(
+  s: SnapshotInput,
+  gid: string,
+  g: S.Guild,
+  viewer: S.Member | undefined,
+  roleById: Map<string, S.Role>,
+): { mapped: Channel[]; base: bigint } {
+  const base = basePermissions(gid, g.owner_id, s.currentUserId ?? '', roleById, viewer?.roles);
+  // Until the viewer's member object is loaded, the server decides; the composer stays enabled.
+  const loaded = !!viewer || (!!g.owner_id && g.owner_id === s.currentUserId);
+  const canSend = loaded ? (base & PERM.SEND_MESSAGES) === PERM.SEND_MESSAGES : true;
+  {
     const mapped = (s.channelIdsByGuild[gid] ?? [])
       .map((id) => s.channels[id])
       .filter((c): c is S.Channel => !!c)
@@ -144,21 +206,20 @@ export function buildLiveSnapshot(s: SnapshotInput): LiveSnapshot {
             : undefined,
         ),
       );
-    channelsByGuild[gid] = mapped;
-
-    const unread = mapped.some((c) => c.unread && !c.muted);
-    const mentionCount = mapped.reduce((n, c) => n + c.mentionCount, 0);
-    guilds.push(toLoungeGuild(g, toGuildPermissions(base), unread, mentionCount));
-
-    const memberList: Member[] = [];
-    for (const uid of s.memberIdsByGuild[gid] ?? []) {
-      const m = s.members[memberKey(gid, uid)];
-      const u = users[uid];
-      if (m && u) memberList.push(toLoungeMember(m, u));
-    }
-    membersByGuild[gid] = memberList;
+    return { mapped, base };
   }
+}
 
+function finishSnapshot(
+  s: SnapshotInput,
+  me: LoungeUser,
+  users: Record<Snowflake, LoungeUser>,
+  presence: Record<Snowflake, Presence>,
+  guilds: Guild[],
+  channelsByGuild: Record<Snowflake, Channel[]>,
+  rolesByGuild: Record<Snowflake, Role[]>,
+  membersByGuild: Record<Snowflake, Member[]>,
+): LiveSnapshot {
   // Direct messages live under the '@me' pseudo guild, newest activity first.
   const dms: DmChannel[] = [];
   for (const id of s.channelIdsByGuild[DM_GUILD] ?? []) {
@@ -184,6 +245,12 @@ export function buildLiveSnapshot(s: SnapshotInput): LiveSnapshot {
   };
 }
 
+/**
+ * The last snapshot, shared by every hook instance (K-22): `useMemo` is per component, and about a hundred
+ * components read the Lounge data hooks, so each store update rebuilt the snapshot once per component.
+ */
+let shared: { deps: unknown[]; snap: LiveSnapshot } | null = null;
+
 /** Subscribes to the slices the snapshot reads and rebuilds it only when one of them changes. */
 export function useLiveSnapshot(): LiveSnapshot {
   const currentUserId = useStore((s) => s.currentUserId);
@@ -200,27 +267,8 @@ export function useLiveSnapshot(): LiveSnapshot {
   const readStates = useStore((s) => s.readStates);
   const mutes = useNotifSettings((s) => s.byGuild);
   const engine = usePermEngine();
-  return useMemo(
-    () =>
-      applyMutes(
-        buildLiveSnapshot({
-          currentUserId,
-          users,
-          guilds,
-          guildOrder,
-          channels,
-          channelIdsByGuild,
-          roles,
-          roleIdsByGuild,
-          members,
-          memberIdsByGuild,
-          presences,
-          readStates,
-          engine,
-        }),
-        mutes,
-      ),
-    [
+  return useMemo(() => {
+    const deps = [
       currentUserId,
       users,
       guilds,
@@ -235,8 +283,44 @@ export function useLiveSnapshot(): LiveSnapshot {
       readStates,
       mutes,
       engine,
-    ],
-  );
+    ];
+    if (shared && sameDeps(shared.deps, deps)) return shared.snap;
+    const snap = applyMutes(
+      buildLiveSnapshot({
+        currentUserId,
+        users,
+        guilds,
+        guildOrder,
+        channels,
+        channelIdsByGuild,
+        roles,
+        roleIdsByGuild,
+        members,
+        memberIdsByGuild,
+        presences,
+        readStates,
+        engine,
+      }),
+      mutes,
+    );
+    shared = { deps, snap };
+    return snap;
+  }, [
+    currentUserId,
+    users,
+    guilds,
+    guildOrder,
+    channels,
+    channelIdsByGuild,
+    roles,
+    roleIdsByGuild,
+    members,
+    memberIdsByGuild,
+    presences,
+    readStates,
+    mutes,
+    engine,
+  ]);
 }
 
 /** Loads a guild's channels and roles over REST when only the READY stub is known. */

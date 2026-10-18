@@ -30,11 +30,18 @@ export function flushBurst(): void {
 }
 
 /**
- * One gateway dispatch on its way into the store. READY and GUILD_CREATE are collected for a few
- * milliseconds; any other event first flushes them so the order the server sent is the order applied.
+ * Events collected into one store update. PRESENCE_UPDATE is among them because a session in many servers
+ * gets one per server right after READY (the person's own presence in each), and every one of them was a
+ * store update that re-rendered the Lounge: about 4 s of the K-22 measurement with 60 servers.
+ */
+const BURST_EVENTS = new Set(['READY', 'GUILD_CREATE', 'PRESENCE_UPDATE']);
+
+/**
+ * One gateway dispatch on its way into the store. READY, GUILD_CREATE and PRESENCE_UPDATE are collected for
+ * a few milliseconds; any other event first flushes them so the order the server sent is the order applied.
  */
 export function receiveDispatch(event: string, data: unknown): void {
-  if (event === 'READY' || event === 'GUILD_CREATE') {
+  if (BURST_EVENTS.has(event)) {
     burst.push({ event, data });
     burstTimer ??= setTimeout(flushBurst, BURST_MS);
     return;

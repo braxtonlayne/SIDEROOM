@@ -262,4 +262,42 @@ describe('the gateway burst (K-22)', () => {
       vi.useRealTimers();
     }
   });
+
+  it('takes the PRESENCE_UPDATEs after READY in the same update, and the server lists never undo them', async () => {
+    resetStore();
+    vi.useFakeTimers();
+    try {
+      const firsts: { servers: number; me?: string; five?: string }[] = [];
+      const off = useStore.subscribe((st) =>
+        firsts.push({
+          servers: Object.values(st.guilds).filter((g) => !g.unavailable).length,
+          me: st.presences['1']?.status,
+          five: st.presences[user(5).id]?.status,
+        }),
+      );
+      receiveDispatch('READY', ready());
+      for (let g = 0; g < 3; g++) receiveDispatch('GUILD_CREATE', guildCreate(g));
+      // The person's own presence, once per server, as the gateway sends it after READY; and a live
+      // change for someone whose connect-time presence (online) is still in a deferred list.
+      for (let g = 0; g < 3; g++)
+        receiveDispatch('PRESENCE_UPDATE', {
+          user: { id: '1' },
+          guild_id: String(5_000 + g),
+          status: 'online',
+        });
+      receiveDispatch('PRESENCE_UPDATE', { user: user(5), guild_id: '5000', status: 'dnd' });
+      await vi.advanceTimersByTimeAsync(BURST_MS + 1);
+      // One update carries READY, the servers and every PRESENCE_UPDATE; the later ones index people.
+      expect(firsts[0]).toEqual({ servers: 3, me: 'online', five: 'dnd' });
+      await vi.runAllTimersAsync();
+      const p = useStore.getState().presences;
+      expect(p['1']?.status).toBe('online');
+      expect(p[user(5).id]?.status).toBe('dnd');
+      // People of the deferred lists without a live update are still indexed.
+      expect(p[user(6).id]?.status).toBe('online');
+      off();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
