@@ -71,7 +71,8 @@ jobs:
     timeout-minutes: 45
     env:
       SR_VOICE__ENABLED: "true"
-      SR_VOICE__E2EE: "true"
+      # SR_VOICE__E2EE is set on the E2EE steps only: with it on, the server refuses a voice join that does not
+      # declare E2EE (K-21, D-263), and the first step's web build has no E2EE flag.
       SR_ACTIVITIES__ENABLED: "true"
       # The staff offer card spec appoints staff; the e2e Owner has no second factor.
       SR_ADMIN_REQUIRE_REAUTH: "0"
@@ -118,6 +119,7 @@ jobs:
           cp server.log server-e2ee-chromium.log || true
         env:
           CI: "true"
+          SR_VOICE__E2EE: "true"
       # Not proven yet (Firefox does not start on the Windows dev host, Windows WebKit has no WebRTC): informational
       # until it has passed here; the E2EE defaults stay off until it does (D-249, feat-p15-browser handoff).
       - name: Voice E2EE (Firefox, WebKit)
@@ -126,6 +128,7 @@ jobs:
         run: ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=firefox --project=webkit
         env:
           CI: "true"
+          SR_VOICE__E2EE: "true"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
