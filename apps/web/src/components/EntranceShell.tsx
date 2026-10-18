@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { ThemeProvider } from '@sideroom/ui';
-import { useSavedPrefs } from '../settings/user/prefs';
+import { usePlatformThemeDefaults, withPlatformDefaults } from '../settings/user/platformThemes';
+import { DEFAULT_PREFS, useSavedPrefs } from '../settings/user/prefs';
 import type { ReactNode } from 'react';
 import { useT } from '../i18n/react';
 import { DoorIcon } from './icons';
@@ -32,12 +33,13 @@ export function EntranceShell({ nav, footerRight, children }: EntranceShellProps
   const t = useT();
   const houseNotes = footerRight === 'House notes';
   // Signed-out pages only know this browser's saved choice of Entrance theme.
-  const { sectionThemes } = useSavedPrefs();
+  const { sectionThemes, theme } = useSavedPrefs();
+  const platform = usePlatformThemeDefaults();
   return (
     <ThemeProvider
       section="entrance"
       platformDefault="sideroom"
-      perSection={sectionThemes}
+      perSection={withPlatformDefaults(sectionThemes, theme !== DEFAULT_PREFS.theme, platform)}
       className="ent-root"
     >
       <SkipLink />

@@ -74,6 +74,7 @@ struct State {
     alerts: Vec<StaffAlertRow>,
     private_channels: Vec<PrivateChannel>,
     private_messages: Vec<(i64, PrivateMessage)>,
+    identities: Vec<crate::model::IdentitySummary>,
 }
 
 impl State {
@@ -269,6 +270,23 @@ impl MemoryAdminRepo {
     }
 
     /// Add a Staff Server role.
+    /// Give `account` a live Discord identity (`provider_user_id` is the Discord user id); returns the row id.
+    pub fn add_identity(&self, account: i64, provider_user_id: &str) -> i64 {
+        let now = self.now();
+        let mut s = self.s();
+        let id = s.id();
+        s.identities.push(crate::model::IdentitySummary {
+            id,
+            account_id: account,
+            provider: "discord".to_owned(),
+            provider_user_id: provider_user_id.to_owned(),
+            linked_at_ms: now,
+            unlinked_at_ms: None,
+            moved_to_account_id: None,
+        });
+        id
+    }
+
     pub fn add_role(&self, id: i64, name: &str, position: i32, perms: P) -> StaffRole {
         let r = StaffRole {
             id,
@@ -711,6 +729,16 @@ impl AdminRepository for MemoryAdminRepo {
             id: person_id,
             notes: notes.clone(),
             suspicion_level: *level,
+            identities: s
+                .identities
+                .iter()
+                .filter(|i| {
+                    s.accounts
+                        .iter()
+                        .any(|a| a.s.id == i.account_id && a.s.person_id == person_id)
+                })
+                .cloned()
+                .collect(),
             accounts: s
                 .accounts
                 .iter()
@@ -1576,6 +1604,104 @@ impl StaffExtrasRepository for MemoryAdminRepo {
         }
         audit_in(&mut s, now, audit);
         Ok(old)
+    }
+
+    async fn move_identity(
+        &self,
+        person_id: i64,
+        identity_id: i64,
+        to_account_id: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<crate::model::IdentityMoved> {
+        let now = self.now();
+        let mut s = self.s();
+        let row = s
+            .identities
+            .iter()
+            .find(|i| i.id == identity_id)
+            .cloned()
+            .ok_or(AdminError::NotFound("identity"))?;
+        let was_unlinked = row.unlinked_at_ms.is_some();
+        let from = s
+            .acct(row.account_id)
+            .filter(|a| a.s.person_id == person_id)
+            .map(|a| (a.s.person_id, a.s.state))
+            .ok_or(AdminError::NotFound("identity"))?;
+        let to = s
+            .acct(to_account_id)
+            .map(|a| (a.s.person_id, a.s.state, a.s.username.clone()))
+            .ok_or(AdminError::NotFound("account"))?;
+        if row.account_id == to_account_id && !was_unlinked {
+            return Err(AdminError::Conflict(
+                "the identity is already on that account".into(),
+            ));
+        }
+        if matches!(
+            from.1,
+            AccountState::Deactivated | AccountState::PlatformBanned
+        ) {
+            return Err(AdminError::Conflict(
+                "the account the identity is on is suspended or banned".into(),
+            ));
+        }
+        if to.1 != AccountState::Active {
+            return Err(AdminError::Conflict(
+                "the target account is not active (suspended, banned or deleted)".into(),
+            ));
+        }
+        let banned = |s: &State, p: i64| {
+            s.bans
+                .iter()
+                .any(|b| b.person_id == p && b.lifted_at_ms.is_none())
+        };
+        if banned(&s, from.0) || banned(&s, to.0) {
+            return Err(AdminError::Conflict(
+                "the Person is banned; lift the ban first".into(),
+            ));
+        }
+        if s.identities.iter().any(|i| {
+            i.provider_user_id == row.provider_user_id
+                && i.provider == row.provider
+                && i.unlinked_at_ms.is_none()
+                && was_unlinked
+        }) {
+            return Err(AdminError::Conflict(
+                "that Discord identity is already linked to an account".into(),
+            ));
+        }
+        let linked_target = to.0 != person_id;
+        if linked_target {
+            let old = to.0;
+            if let Some(a) = s.accounts.iter_mut().find(|a| a.s.id == to_account_id) {
+                a.s.person_id = person_id;
+            }
+            if !s.accounts.iter().any(|a| a.s.person_id == old) {
+                s.persons.remove(&old);
+            }
+        }
+        if !was_unlinked && let Some(i) = s.identities.iter_mut().find(|i| i.id == identity_id) {
+            i.unlinked_at_ms = Some(now);
+            i.moved_to_account_id = Some(to_account_id);
+        }
+        let id = s.id();
+        s.identities.push(crate::model::IdentitySummary {
+            id,
+            account_id: to_account_id,
+            provider: row.provider.clone(),
+            provider_user_id: row.provider_user_id.clone(),
+            linked_at_ms: now,
+            unlinked_at_ms: None,
+            moved_to_account_id: None,
+        });
+        audit_in(&mut s, now, audit);
+        Ok(crate::model::IdentityMoved {
+            provider: row.provider,
+            provider_user_id: row.provider_user_id,
+            from_account_id: row.account_id,
+            to_account_id,
+            to_username: to.2,
+            linked_target,
+        })
     }
 
     async fn unlink_account(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<i64> {

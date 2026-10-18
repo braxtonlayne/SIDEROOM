@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { loadE2ee, type E2eeApi } from '@sideroom/wasm';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { attachTransform, peerConfigFor } from '../e2ee/attach';
-import { e2eeFlagEnabled } from '../e2ee/flag';
+import { e2eeDeclared, e2eeFlagEnabled } from '../e2ee/flag';
 import { handleRtcTransform, handleWorkerMessage } from '../e2ee/handler';
 import {
   loadOrCreateIdentity,
@@ -37,6 +37,13 @@ describe('feature flag and browser support', () => {
     expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: '0' })).toBe(false);
     expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: '1' })).toBe(true);
     expect(e2eeFlagEnabled()).toBe(false);
+  });
+
+  it('declares sr_e2ee only when the build has the feature and the browser can transform frames', () => {
+    expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '1' }, 'script-transform')).toBe(true);
+    expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '1' }, 'encoded-streams')).toBe(true);
+    expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '1' }, 'none')).toBe(false);
+    expect(e2eeDeclared({}, 'script-transform')).toBe(false);
   });
 
   it('prefers RTCRtpScriptTransform, falls back to createEncodedStreams, else none', () => {
@@ -197,9 +204,16 @@ describe.runIf(built)('frame transform over the WASM', () => {
       () => 0,
     );
     expect(Array.from(many).every((b) => b === 0)).toBe(true);
-    expect(post).toHaveBeenLastCalledWith({ type: 'stats', sendEpoch: 1, receiveEpoch: 1 });
+    expect(post).toHaveBeenLastCalledWith({
+      type: 'stats',
+      sendEpoch: 1,
+      receiveEpoch: 1,
+      frames: { encrypted: 0, decrypted: 0, sendDropped: 0, recvDropped: 0 },
+    });
     handleWorkerMessage(media, { type: 'close' }, post);
-    expect(post).toHaveBeenLastCalledWith({ type: 'stats', sendEpoch: -1, receiveEpoch: -1 });
+    expect(post).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'stats', sendEpoch: -1, receiveEpoch: -1 }),
+    );
 
     // A ScriptTransform without options passes nothing through.
     const cancel = vi.fn(() => Promise.resolve());

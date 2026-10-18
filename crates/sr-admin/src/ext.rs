@@ -398,6 +398,18 @@ pub trait StaffExtrasRepository: Send + Sync {
         account_id: i64,
         audit: &AuditEntry,
     ) -> AdminResult<i64>;
+    /// Move the Discord identity `identity_id` (a row of an account of `person_id`) to `to_account_id`
+    /// (D-262). The target is linked into the Person in the same transaction when it is not yet in it.
+    /// `Conflict` when the Person (or the Person of the target) has an open ban, or the source or the
+    /// target account is deactivated or banned (the target must be active). The old row is kept as history
+    /// (unlinked, with the account it moved to) and a new live row is written.
+    async fn move_identity(
+        &self,
+        person_id: i64,
+        identity_id: i64,
+        to_account_id: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<crate::model::IdentityMoved>;
     /// Give the account a Person of its own and return its id. `Conflict` when it is the only account
     /// of its Person or the Person has an open ban.
     async fn unlink_account(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<i64>;
@@ -452,6 +464,9 @@ pub trait StaffNotifier: Send + Sync {
     async fn system_dm(&self, _to: i64, _text: &str) -> bool {
         false
     }
+    /// The offer was accepted, declined, withdrawn or expired: rewrite its DM (`dm_channel_id`,
+    /// `dm_message_id`) without the buttons and with the outcome. The default does nothing.
+    async fn offer_closed(&self, _offer: &StaffOffer) {}
 }
 
 /// The Entrance copy blocks an operator may override (ENT-UI-025). The client serves its own

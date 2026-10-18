@@ -10,6 +10,9 @@ import { resetComposerDrafts } from '../Composer';
 import { useLoungeUi } from '../store';
 import { resetStickerCache } from '../msg/Sticker';
 import { interactionConfig } from '../msg/Components';
+import { warmLoungeRoute } from '../../test/warmRoutes';
+
+warmLoungeRoute();
 
 // The gateway is not under test; the store is seeded directly.
 vi.mock('../../store/connect', () => ({

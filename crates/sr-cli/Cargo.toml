@@ -23,6 +23,7 @@ sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-db = { path = "../sr-db" }
 sr-storage = { path = "../sr-storage" }
+sr-packages = { path = "../sr-packages" }
 sr-theme = { path = "../sr-theme" }
 serde_json.workspace = true
 sha2 = "0.11"

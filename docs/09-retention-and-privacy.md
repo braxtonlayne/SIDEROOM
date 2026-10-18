@@ -12,7 +12,7 @@ Decisions: D-029, D-043, D-053, D-120–D-126.
 | Message edit history | Kept while the message exists. Purged with the message | High-level staff only |
 | Attachments ≤ 30 MB (images, files, voice messages) | Same as the parent message: "part of the message" | Same as the message |
 | Attachments > 30 MB ("large", donor/level perk) | **Expire 7 days after upload**. The message shows an "This file has expired" chip. The object is purged | Nobody after expiry, unless held |
-| Account (deleted/deactivated/banned) | Forever (D-124). Profile scrubbed to "Deleted User" for deleted accounts | Staff see the full record and the Person link |
+| Account (deleted/deactivated/banned) | Forever (D-124). Profile scrubbed to "Deleted User" for deleted accounts; the avatar, the banner and the profile page pictures (`profile_media`, D-260) are deleted with it and the data export lists the pictures | Staff see the full record and the Person link |
 | Sessions, login IPs | Sessions until expiry. Login IP history 180 days (security) | Staff with `MANAGE_ACCOUNTS` |
 | Voice/video media | Never recorded or stored. E2EE | Nobody |
 | Watch/read history | Until the user clears it | Per privacy settings |

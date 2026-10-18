@@ -7,6 +7,8 @@ export interface User {
   global_name?: string | null;
   avatar?: string | null;
   bot?: boolean;
+  /** Patron badge and ring show for this person (D-256); false when hidden or not a Patron. */
+  sr_patron?: boolean;
   /** Webhook authors only: the avatar of this message, an image-proxy path (DEV-BOT-006). */
   avatar_url?: string | null;
   /** The server tag this person displays (LNG-SSET-012); the API sends it only while the server allows it. */
@@ -268,6 +270,11 @@ export interface MessageWindow {
   atLatest: boolean;
   loading: boolean;
   error: string | null;
+  /**
+   * Kept from an earlier session by READY (K-22): shown at once, but events may have been missed, so the
+   * newest page is fetched again and replaces it.
+   */
+  stale?: boolean;
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed';

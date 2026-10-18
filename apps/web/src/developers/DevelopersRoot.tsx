@@ -27,6 +27,9 @@ function Shell() {
           <Link to="/developers/applications" className="dev-nav-link">
             {t('developers.shell.navApplications')}
           </Link>
+          <Link to="/developers/packages" className="dev-nav-link">
+            {t('developers.shell.navPackages')}
+          </Link>
           <Link to="/developers/docs" className="dev-nav-link">
             {t('developers.shell.navDocumentation')}
           </Link>

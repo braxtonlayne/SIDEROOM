@@ -13,8 +13,16 @@
 //! Registration: the pending link is attached to the new account when the
 //! registration succeeds (see `register`). An unlinked Discord user is never
 //! given an account here.
+//! Link and unlink (User Settings > Account): `POST /sr/auth/discord/link` (a session) starts a flow
+//! bound to the signed-in account and answers the authorize URL; the callback attaches the Discord
+//! identity to that account. `POST /sr/auth/discord/unlink` (the password) detaches it; the record
+//! stays, so the identity is not freed for another account (D-030).
+//! Every flow uses PKCE (S256) on top of the state cookie.
 
 use super::common::{AuthRouteError, R, Svc, mfa_cookie, user_agent};
+use super::mfa::{current_account, reauthenticate};
+use super::sessions::session_id;
+use crate::{auth::UserOnly, openapi::ErrorBody};
 use crate::{auth::parse_cookie, state::AppState};
 use axum::{
     Json,
@@ -24,12 +32,18 @@ use axum::{
 };
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointNotSet, EndpointSet,
-    RedirectUrl, Scope, TokenResponse, TokenUrl, basic::BasicClient,
+    PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse, TokenUrl,
+    basic::BasicClient,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sr_auth::{session::SessionToken, store::AccountState};
+use sr_auth::{
+    session::SessionToken,
+    store::{AccountState, DiscordLink},
+};
+use sr_core::{ApiError, ErrorCode};
 use std::{collections::HashMap, sync::Mutex};
+use utoipa::{OpenApi, ToSchema};
 
 /// Cookie holding the OAuth `state` (open question 79).
 pub const STATE_COOKIE: &str = "sr_oauth_state";
@@ -37,6 +51,8 @@ pub const STATE_COOKIE: &str = "sr_oauth_state";
 pub const LINK_COOKIE: &str = "sr_oauth";
 /// Lifetime of both cookies and of the server-side entries.
 const OAUTH_TTL_SECS: i64 = 600;
+/// Where the browser lands after a link attempt (User Settings > Account).
+const SETTINGS_PAGE: &str = "/settings/user/account";
 
 const AUTH_URL: &str = "https://discord.com/oauth2/authorize";
 const TOKEN_URL: &str = "https://discord.com/api/oauth2/token";
@@ -85,6 +101,8 @@ pub enum Intent {
     Login,
     /// Create an account and link this Discord identity.
     Register,
+    /// Attach this Discord identity to the signed-in account (its id).
+    Link(i64),
 }
 
 /// A started flow, keyed by its OAuth `state`.
@@ -92,6 +110,8 @@ pub enum Intent {
 pub struct OAuthFlow {
     intent: Intent,
     next: Option<String>,
+    /// The PKCE code verifier (kept here, never sent to the browser).
+    verifier: String,
 }
 
 /// A verified Discord identity waiting for registration.
@@ -213,10 +233,32 @@ pub async fn start(
             }],
         )
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+    let (url, cookie) = begin(
+        &state,
+        &svc,
+        oauth,
+        intent,
+        q.next.as_deref().and_then(safe_next),
+        now,
+    )?;
+    Ok(redirect_with(&url, vec![cookie]))
+}
+
+/// Records a flow and builds Discord's authorize URL (with a PKCE challenge) and the state cookie.
+fn begin(
+    state: &AppState,
+    svc: &super::common::AuthService,
+    oauth: &DiscordOAuth,
+    intent: Intent,
+    next: Option<String>,
+    now: i64,
+) -> Result<(String, String), AuthRouteError> {
     let token = SessionToken::generate()?.expose().to_owned();
+    let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
     let flow = OAuthFlow {
         intent,
-        next: q.next.as_deref().and_then(safe_next),
+        next,
+        verifier: verifier.secret().clone(),
     };
     svc.discord_flows
         .insert(token.clone(), flow, now + OAUTH_TTL_SECS, now);
@@ -224,10 +266,11 @@ pub async fn start(
     let (url, _) = oauth
         .client
         .authorize_url(move || CsrfToken::new(state_value))
+        .set_pkce_challenge(challenge)
         .add_scope(Scope::new("identify".to_owned()))
         .url();
     let cookie = oauth_cookie(STATE_COOKIE, &token, state.settings().secure_cookies);
-    Ok(redirect_with(url.as_str(), vec![cookie]))
+    Ok((url.to_string(), cookie))
 }
 
 /// `GET /sr/auth/discord/callback?code&state`: finish the flow.
@@ -268,13 +311,11 @@ pub async fn callback(
     let now = state.now_secs();
     let secure = state.settings().secure_cookies;
     let clear_state = clear_oauth_cookie(STATE_COOKIE, secure);
-    let failed = |why: &str| {
+    let failed_at = |why: &str, to: &str| {
         tracing::info!(target: "auth", reason = why, "discord sign-in failed");
-        redirect_with(
-            "/login?error=discord_failed",
-            vec![clear_oauth_cookie(STATE_COOKIE, secure)],
-        )
+        redirect_with(to, vec![clear_oauth_cookie(STATE_COOKIE, secure)])
     };
+    let failed = |why: &str| failed_at(why, "/login?error=discord_failed");
 
     let Some(oauth) = svc.discord.as_ref() else {
         return Ok(failed("disabled"));
@@ -287,27 +328,52 @@ pub async fn callback(
     let (Some(flow), Some(code)) = (flow, q.code.as_deref()) else {
         return Ok(failed("state"));
     };
+    // A link attempt returns to Settings, a sign-in to the login page.
+    let fail_to = match flow.intent {
+        Intent::Link(_) => format!("{SETTINGS_PAGE}?error=discord_failed"),
+        _ => "/login?error=discord_failed".to_owned(),
+    };
     let token = match oauth
         .client
         .exchange_code(AuthorizationCode::new(code.to_owned()))
+        .set_pkce_verifier(PkceCodeVerifier::new(flow.verifier.clone()))
         .request_async(&oauth.http)
         .await
     {
         Ok(t) => t,
         Err(e) => {
             tracing::warn!(error = %e, "discord token exchange failed");
-            return Ok(failed("exchange"));
+            return Ok(failed_at("exchange", &fail_to));
         }
     };
     let user = match fetch_user(&oauth.http, token.access_token().secret()).await {
         Ok(u) => u,
         Err(e) => {
             tracing::warn!(error = %e, "discord profile fetch failed");
-            return Ok(failed("profile"));
+            return Ok(failed_at("profile", &fail_to));
         }
     };
 
     match flow.intent {
+        Intent::Link(account_id) => {
+            let identity_id = svc.next_id();
+            let back = match svc
+                .store
+                .link_discord(account_id, identity_id, &user.id)
+                .await?
+            {
+                DiscordLink::Linked => {
+                    let _ = svc
+                        .store
+                        .audit(account_id, "auth.discord_link", Some(account_id), "", now)
+                        .await;
+                    SETTINGS_PAGE.to_owned()
+                }
+                DiscordLink::TakenByOther => format!("{SETTINGS_PAGE}?error=discord_taken"),
+                DiscordLink::AlreadyLinked => format!("{SETTINGS_PAGE}?error=discord_already"),
+            };
+            Ok(redirect_with(&back, vec![clear_state]))
+        }
         Intent::Login => {
             let account = svc
                 .store
@@ -390,6 +456,142 @@ pub async fn forget(
     )
         .into_response())
 }
+
+/// Whether Discord sign-in is configured and whether this account has an identity linked.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct DiscordStatus {
+    /// `[discord]` is configured on this server.
+    pub enabled: bool,
+    /// The signed-in account has a Discord identity linked.
+    pub linked: bool,
+}
+
+/// `GET /sr/auth/discord`: link status for User Settings.
+#[utoipa::path(
+    get,
+    path = "/sr/auth/discord",
+    responses((status = 200, body = DiscordStatus), (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn status(UserOnly(p): UserOnly, Svc { svc, .. }: Svc) -> R<Json<DiscordStatus>> {
+    session_id(&p)?;
+    Ok(Json(DiscordStatus {
+        enabled: svc.discord.is_some(),
+        linked: svc.store.discord_linked(p.user_id).await?,
+    }))
+}
+
+/// The authorize URL to send the browser to.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct DiscordLinkStart {
+    /// Discord's authorize page, with the state and PKCE challenge of this attempt.
+    pub url: String,
+}
+
+/// `POST /sr/auth/discord/link`: start linking a Discord identity to the signed-in account. The
+/// answer sets the state cookie; the browser then goes to `url` and Discord returns to the
+/// callback, which sends it back to Settings.
+#[utoipa::path(
+    post,
+    path = "/sr/auth/discord/link",
+    responses(
+        (status = 200, body = DiscordLinkStart),
+        (status = 403, body = ErrorBody),
+        (status = 404, description = "Discord sign-in is not configured"),
+        (status = 429, body = ErrorBody),
+    ),
+    security(("session" = []))
+)]
+pub async fn link_start(
+    State(state): State<AppState>,
+    UserOnly(p): UserOnly,
+    Svc { svc, ip }: Svc,
+) -> R<Response> {
+    session_id(&p)?;
+    let Some(oauth) = svc.discord.as_ref() else {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    };
+    let now = state.now_secs();
+    svc.ip_limits
+        .hit(
+            "discord-start",
+            &ip,
+            now,
+            &[super::throttle::Rule {
+                limit: 20,
+                secs: 600,
+            }],
+        )
+        .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+    if svc.store.discord_linked(p.user_id).await? {
+        return Err(ApiError::with_message(
+            ErrorCode::General,
+            "A Discord account is already linked. Unlink it first.",
+        )
+        .into());
+    }
+    let (url, cookie) = begin(&state, &svc, oauth, Intent::Link(p.user_id), None, now)?;
+    Ok((
+        AppendHeaders([(header::SET_COOKIE, cookie)]),
+        Json(DiscordLinkStart { url }),
+    )
+        .into_response())
+}
+
+/// Body of the unlink call.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UnlinkBody {
+    /// The account password (re-authentication).
+    password: String,
+}
+
+/// `POST /sr/auth/discord/unlink {password}`: detach the Discord identity from the account.
+#[utoipa::path(
+    post,
+    path = "/sr/auth/discord/unlink",
+    request_body = UnlinkBody,
+    responses(
+        (status = 204, description = "Unlinked"),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+    ),
+    security(("session" = []))
+)]
+pub async fn unlink(
+    State(state): State<AppState>,
+    UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
+    Json(body): Json<UnlinkBody>,
+) -> R<StatusCode> {
+    session_id(&p)?;
+    let account = current_account(&svc, p.user_id).await?;
+    reauthenticate(&svc, state.now_secs(), &account, &body.password).await?;
+    if !svc.store.unlink_discord(account.id).await? {
+        return Err(
+            ApiError::with_message(ErrorCode::General, "No Discord account is linked.").into(),
+        );
+    }
+    let _ = svc
+        .store
+        .audit(
+            account.id,
+            "auth.discord_unlink",
+            Some(account.id),
+            "",
+            state.now_secs(),
+        )
+        .await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// OpenAPI fragment for linking Discord from Settings.
+#[derive(OpenApi)]
+#[openapi(
+    paths(status, link_start, unlink),
+    components(schemas(DiscordStatus, DiscordLinkStart, UnlinkBody))
+)]
+pub struct DiscordApiDoc;
 
 #[cfg(test)]
 mod tests {

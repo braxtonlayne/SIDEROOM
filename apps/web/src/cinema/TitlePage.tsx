@@ -522,8 +522,19 @@ export function TitlePage({ id }: { id: string }) {
               content: (
                 <ul className="cin-contrib">
                   {d.contributors.map((c) => (
-                    <li key={`${c.user_id}-${c.role}`}>
-                      {c.name} <span className="cin-muted">· {c.role}</span>
+                    <li key={c.user_id}>
+                      {c.name}{' '}
+                      <span className="cin-muted">
+                        ·{' '}
+                        {[
+                          c.titles > 0 ? tr('cinema.title.contribTitle') : null,
+                          c.episodes > 0
+                            ? tr('cinema.title.contribEpisodes', { n: c.episodes })
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
                     </li>
                   ))}
                 </ul>

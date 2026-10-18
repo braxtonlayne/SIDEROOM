@@ -37,10 +37,15 @@ The staff-side record of a real human. It may span several accounts (D-030).
 | avatar_key, banner_key, accent_color, bio, pronouns | | profile basics |
 | profile_doc | jsonb | customization document (doc 10) |
 
+### `profile_media` (migration 1020, K-17, D-260)
+| id | account_id fk | kind (`background`, `gallery`) | object_key (`avatars/<user>/<hash>`) | content_type | width, height | bytes | created_at |
+
+At most one `background` and 12 `gallery` rows per account (checked in `sr-packages`). A profile document names a row by id; saving a document drops the rows it no longer names, and account deletion removes them with their files.
+
 ### `external_identities`
 | account_id | provider (`discord`) | provider_user_id (unique per provider) | linked_at | raw_profile jsonb |
 
-Unique (provider, provider_user_id) applies **across all accounts, including deleted ones**. That is how a returning user is matched to their Person (D-030).
+Unique (provider, provider_user_id) applies **across all accounts, including deleted ones**, among the live rows. That is how a returning user is matched to their Person (D-030). Migration 1021 (K-20, D-262) adds `unlinked_at` and `moved_to_account_id`: when a staff member moves an identity to another account of the Person, the old row stays as history (unlinked, naming the account it moved to) and a new live row is written, so the uniqueness is a partial index over rows with `unlinked_at IS NULL`.
 
 ### `sessions`, `mfa_totp`, `webauthn_credentials`, `recovery_codes`, `email_tokens`
 Standard. Tokens are stored as SHA-256 hashes. Migration 0180 renames `webauthn_credentials` to `passkey_credentials` (`credential_id` unique, `cose_key`, `alg`, `sign_count`, `backup_eligible`, `backup_state`, `aaguid`, `name` 1 to 64 characters, `last_used_at`) and adds `accounts.user_handle` (32 random bytes, the WebAuthn `user.id`, never the account id).
@@ -156,7 +161,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 `developer_applications` (applicant account, status: pending / approved / rejected / suspended, reviewer, notes), `applications` (id, owner_id, team_id, name, icon, description, bot_user_id, `release_state enum{development, in_review, released, suspended}`, flags, interactions_endpoint_url, redirect_uris), `application_versions` (manifest jsonb, reviewed_by, review_state), `application_commands`, `application_installs` (guild or user scope), `bot_tokens` (hashed), `oauth2_grants`.
 
-`extensions` / `themes` / `profile_layouts` / `activities` share `packages` (id, kind, author_id, name, latest_version_id) + `package_versions` (manifest jsonb, artifact_key, checksum, review_state, reviewed_by, reviewed_at) + `package_enablements` (scope: guild/user, scope_id, version_id, config jsonb).
+(As built in p15, migration 0970: `packages` has a globally unique `slug`, versions carry a semver and the zip in object storage, and `package_enablements` has one row per package and scope plus a theme `section`; activities are not packages. Customised profiles: `accounts.profile_doc` and `profile_guestbook`, migration 0971.) `extensions` / `themes` / `profile_layouts` / `activities` share `packages` (id, kind, author_id, name, latest_version_id) + `package_versions` (manifest jsonb, artifact_key, checksum, review_state, reviewed_by, reviewed_at) + `package_enablements` (scope: guild/user, scope_id, version_id, config jsonb).
 
 ## 7. Staff
 

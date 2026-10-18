@@ -12,6 +12,9 @@ import { useNotifSettings } from '../shell/notifSettings';
 import { useSelfPresence } from '../shell/selfPresence';
 import { usePlatformStaff } from '../shell/platformStaff';
 import { useSocial } from '../shell/social';
+import { warmLoungeRoute } from '../../test/warmRoutes';
+
+warmLoungeRoute();
 
 vi.mock('../../store/connect', () => ({
   connectGateway: vi.fn(),

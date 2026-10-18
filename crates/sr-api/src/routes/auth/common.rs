@@ -168,6 +168,32 @@ impl AuthService {
         Ok(mask_email(&to))
     }
 
+    /// Email a plain notice to the account's own address when that address is verified (a staff action
+    /// that touched the account, K-20). Returns whether a message went out; a mailer failure is logged and
+    /// reported as `false`, never as an error, because the action it reports already happened.
+    pub async fn send_notice_mail(&self, id: i64, subject: &str, text: &str) -> bool {
+        let Ok(Some(account)) = self.store.find_by_id(id).await else {
+            return false;
+        };
+        if !account.email_verified {
+            return false;
+        }
+        let html = format!("<p>{}</p>", super::mail::html_escape(text));
+        let mail = super::mail::OutgoingMail {
+            to: account.email,
+            subject: subject.to_owned(),
+            text: text.to_owned(),
+            html,
+        };
+        match self.mailer.send(mail).await {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::warn!("account notice mail failed: {e}");
+                false
+            }
+        }
+    }
+
     /// Set the account's locale (`PATCH /users/@me {locale}`).
     pub async fn set_locale(
         &self,

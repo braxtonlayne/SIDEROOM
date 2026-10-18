@@ -59,6 +59,22 @@ export const createDraftChapter = (
   id: string,
   b: { number: number; title?: string | null; format: string },
 ) => post<DraftChapter>(`/submissions/${enc(id)}/library/chapters`, b);
+export const updateDraftChapter = (
+  id: string,
+  chapter: string,
+  b: {
+    number: number;
+    title: string | null;
+    format: string;
+    release_group?: string | null;
+    volume_id?: string | null;
+  },
+) =>
+  apiFetch<DraftChapter>(`/submissions/${enc(id)}/library/chapters/${enc(chapter)}`, {
+    method: 'PUT',
+    json: b,
+    retries: 0,
+  });
 export const deleteDraftChapter = (id: string, chapter: string) =>
   apiFetch<void>(`/submissions/${enc(id)}/library/chapters/${enc(chapter)}`, {
     method: 'DELETE',
@@ -93,6 +109,14 @@ function blobToDataUri(blob: Blob): Promise<string> {
  */
 export const setCover = async (id: string, image: Blob) =>
   post<unknown>(`/library/submissions/${enc(id)}/cover`, { image: await blobToDataUri(image) });
+
+/**
+ * Upload artwork into a slot of my draft (REV-ED-003): `cover` (new series), `poster` or `backdrop` (new
+ * Cinema title). `image` is a `data:` URI; the server sniffs and re-encodes it. A reviewer who holds the
+ * claim may do the same on a submission in review (D-255).
+ */
+export const setArtwork = (id: string, kind: 'cover' | 'poster' | 'backdrop', image: string) =>
+  post<{ kind: string; url: string | null }>(`/submissions/${enc(id)}/artwork/${kind}`, { image });
 
 /** PUT the file bytes to the presigned URL of an upload slot. */
 export async function putFile(slot: UploadSlot, file: Blob): Promise<void> {

@@ -15,6 +15,9 @@ import {
   searchHistory,
   sortParams,
 } from '../searchUi';
+import { warmLoungeRoute } from '../../test/warmRoutes';
+
+warmLoungeRoute();
 
 vi.mock('../../store/connect', () => ({
   connectGateway: vi.fn(),

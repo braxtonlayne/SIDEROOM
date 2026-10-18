@@ -26,7 +26,7 @@ use sr_api::routes::{
 };
 use sr_chat::{
     SendMessage,
-    message::{Component, Embed},
+    message::{Component, Embed, EmbedField},
     social::repo::DmRepository,
 };
 use sr_core::{ChannelId, UserId};
@@ -83,7 +83,7 @@ impl Card {
     }
 }
 
-fn button(style: u8, label: &str, custom_id: String) -> Component {
+pub(crate) fn button(style: u8, label: &str, custom_id: String) -> Component {
     Component {
         kind: 2,
         style: Some(style),
@@ -355,6 +355,59 @@ pub fn review_outcome_card(i: &ReviewCardInfo, outcome: &str, base_url: &str) ->
     }
 }
 
+/// What the `#review-queue` card shows about a package version (D-258).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageCardInfo {
+    pub version_id: i64,
+    pub name: String,
+    pub kind: String,
+    pub version: String,
+    pub author: String,
+}
+
+/// The admin link of a package card; the id in it is how the card is found again.
+pub fn package_review_url(base_url: &str, version_id: i64) -> String {
+    format!("{base_url}/admin/review?package={version_id}")
+}
+
+/// The card for a package version that waits for review. Decisions are made on the review page (a
+/// rejection needs a note), so the one button opens it.
+pub fn package_card(i: &PackageCardInfo, base_url: &str) -> Card {
+    let page = package_review_url(base_url, i.version_id);
+    Card {
+        content: String::new(),
+        embed: Some(Embed {
+            title: Some(clip(&format!("Review: {} {}", i.name, i.version), 200)),
+            kind: Some("rich".into()),
+            description: Some(format!(
+                "Package ({}) from @{}.\n\n[Open the review page]({page})",
+                i.kind.replace('_', " "),
+                i.author,
+            )),
+            color: AMBER,
+            footer: Some(sr_chat::message::EmbedFooter {
+                text: format!("package version #{}", i.version_id),
+                ..Default::default()
+            }),
+            ..Embed::default()
+        }),
+        buttons: vec![link_button("Open review page", page)],
+    }
+}
+
+/// The line that closes a package card (D-253): "Approved by @x", "Rejected by @x", "Revoked by @x"
+/// or "Withdrawn".
+pub fn package_outcome(outcome: &str, by: Option<&str>) -> String {
+    let who = by.map(|n| format!(" by @{n}")).unwrap_or_default();
+    match outcome {
+        "approved" => format!("Approved{who}"),
+        "rejected" => format!("Rejected{who}"),
+        "revoked" => format!("Revoked{who}"),
+        "withdrawn" => "Withdrawn".to_owned(),
+        _ => format!("Decided{who}"),
+    }
+}
+
 /// The review page of a submission in the admin app (opens the reviewer workspace on it).
 pub fn review_page_url(base_url: &str, id: i64) -> String {
     format!("{base_url}/admin/review?submission={id}")
@@ -510,35 +563,171 @@ impl StaffVoice {
             return false;
         };
         let (channel_id, message_id) = (ChannelId::new(c), sr_core::MessageId::new(m));
+        // Only the system user's own cards are rewritten.
+        match self.messages.repo.get_message(channel_id, message_id).await {
+            Ok(Some(m)) if m.author_id == Self::system() => {}
+            _ => return false,
+        }
         let send = card.into_send();
-        let embeds = serde_json::to_value(&send.embeds).unwrap_or(serde_json::Value::Null);
-        let components = serde_json::to_value(&send.components).unwrap_or(serde_json::Value::Null);
-        let updated = sqlx::query(
-            "UPDATE messages SET content = $2, embeds = $3, components = $4, edited_at = now()              WHERE id = $1 AND author_id = $5",
+        matches!(
+            sr_api::routes::messages::system::rewrite_system_card(
+                &self.messages,
+                channel_id,
+                message_id,
+                &send.content,
+                &send.embeds,
+                &send.components,
+            )
+            .await,
+            Ok(true)
         )
-        .bind(message)
-        .bind(&send.content)
-        .bind(embeds)
-        .bind(components)
-        .bind(SYSTEM_USER_ID)
-        .execute(&self.pool)
-        .await;
-        if !matches!(updated, Ok(ref r) if r.rows_affected() == 1) {
+    }
+
+    /// Close an answered card (an offer or a tester invitation): rewrite it without its buttons and
+    /// with `outcome` as a last embed field (or line). Nothing happens when the message is not the
+    /// system user's or has no buttons left, so a card is closed once.
+    pub async fn close_card_at(&self, channel: i64, message: i64, outcome: &str) -> bool {
+        let (Ok(c), Ok(m)) = (u64::try_from(channel), u64::try_from(message)) else {
+            return false;
+        };
+        let Ok(Some(msg)) = self
+            .messages
+            .repo
+            .get_message(ChannelId::new(c), sr_core::MessageId::new(m))
+            .await
+        else {
+            return false;
+        };
+        if msg.author_id != Self::system() || msg.components.is_empty() {
             return false;
         }
-        if let Ok(Some(msg)) = self.messages.repo.get_message(channel_id, message_id).await
-            && let Ok(data) = event_payload(&self.messages, &msg).await
-        {
-            self.messages
-                .publish(DomainEvent::MessageEdited {
-                    guild: msg.guild_id,
-                    channel: channel_id,
-                    message_id: msg.id.get(),
-                    data,
-                })
-                .await;
+        let mut content = msg.content;
+        let mut embed = msg.embeds.into_iter().next();
+        match embed.as_mut() {
+            Some(e) => e.fields.push(EmbedField {
+                name: "Answer".into(),
+                value: clip(outcome, 1024),
+                inline: false,
+            }),
+            None => {
+                content = clip(
+                    &format!(
+                        "{content}
+
+{outcome}"
+                    ),
+                    2000,
+                )
+            }
         }
-        true
+        self.rewrite(
+            channel,
+            message,
+            Card {
+                content,
+                embed,
+                buttons: Vec::new(),
+            },
+        )
+        .await
+    }
+
+    /// Close the newest card of the system user in the Staff Server channel `channel_name` whose
+    /// buttons mention `marker` (see [`Self::close_card_at`]); a card already closed is left alone.
+    pub async fn close_channel_card(
+        &self,
+        channel_name: &str,
+        marker: &str,
+        outcome: &str,
+    ) -> bool {
+        let Some(channel) = self.channel(channel_name).await else {
+            return false;
+        };
+        let Ok(channel) = i64::try_from(channel.get()) else {
+            return false;
+        };
+        // The marker is `name=<digits>"`: nothing in it is special to LIKE.
+        let pattern = format!("%{marker}%");
+        let found: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM messages WHERE channel_id = $1 AND author_id = $2 \
+             AND components::text LIKE $3 ORDER BY id DESC LIMIT 1",
+        )
+        .bind(channel)
+        .bind(SYSTEM_USER_ID)
+        .bind(pattern)
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten();
+        match found {
+            Some(message) => self.close_card_at(channel, message, outcome).await,
+            None => false,
+        }
+    }
+
+    /// Close the card in the system DM to `to` that carries the button `custom_id` (see
+    /// [`Self::close_card_at`]).
+    pub async fn close_dm_card(&self, to: i64, custom_id: &str, outcome: &str) -> bool {
+        let social = PgSocialRepo::new(self.pool.clone());
+        let Ok(target) = u64::try_from(to) else {
+            return false;
+        };
+        let Ok(Some(dm)) = social.find_dm(Self::system(), UserId::new(target)).await else {
+            return false;
+        };
+        let Ok(channel) = i64::try_from(dm.id.get()) else {
+            return false;
+        };
+        // Custom ids are `sr:<action>:<digits>`: nothing in them is special to LIKE.
+        let pattern = format!("%\"{custom_id}\"%");
+        let found: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM messages WHERE channel_id = $1 AND author_id = $2              AND components::text LIKE $3 ORDER BY id DESC LIMIT 1",
+        )
+        .bind(channel)
+        .bind(SYSTEM_USER_ID)
+        .bind(pattern)
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten();
+        match found {
+            Some(message) => self.close_card_at(channel, message, outcome).await,
+            None => false,
+        }
+    }
+
+    /// Close the incident "Resume invites" cards whose pause is over (D-253): the 24-hour pause lapsed
+    /// ("Expired") or somebody reopened invites from the settings page ("Invites were resumed."). A card
+    /// the presser already closed has no button left and is skipped. Returns how many were closed.
+    pub async fn close_stale_resume_cards(&self) -> usize {
+        let rows: Vec<(i64, i64, bool)> = sqlx::query_as(
+            "SELECT m.channel_id, m.id, \
+                    (gc.invites_disabled_until IS NOT NULL AND gc.invites_disabled_until <= now()) \
+             FROM messages m \
+             JOIN channels c ON c.id = m.channel_id \
+             JOIN guild_community gc ON gc.guild_id = c.guild_id \
+             WHERE m.author_id = $1 AND m.id >= sr_snowflake_floor(now() - interval '3 days') \
+               AND m.components::text LIKE '%sr:incident:resume-invites:%' \
+               AND m.components::text LIKE '%' || 'sr:incident:resume-invites:' || c.guild_id::text || '%' \
+               AND NOT (gc.invites_paused OR COALESCE(gc.invites_disabled_until > now(), FALSE)) \
+             LIMIT 100",
+        )
+        .bind(SYSTEM_USER_ID)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap_or_default();
+        let mut closed = 0;
+        for (channel, message, expired) in rows {
+            let outcome = if expired {
+                "Expired: invites are open again."
+            } else {
+                "Invites were resumed."
+            };
+            if self.close_card_at(channel, message, outcome).await {
+                closed += 1;
+            }
+        }
+        closed
     }
 
     /// DM `to` from the system user. Returns the DM channel and message ids.
@@ -605,10 +794,36 @@ impl sr_api::routes::developer::SystemDm for StaffVoice {
         .await
         .is_some()
     }
+
+    async fn close_card(&self, to: i64, custom_id: &str, outcome: &str) -> bool {
+        self.close_dm_card(to, custom_id, outcome).await
+    }
+}
+
+/// The line an answered appointment offer shows instead of its buttons.
+pub fn offer_outcome(state: sr_admin::OfferState) -> Option<&'static str> {
+    use sr_admin::OfferState as S;
+    Some(match state {
+        S::Pending => return None,
+        S::Accepted => "You accepted this offer.",
+        S::Declined => "You declined this offer.",
+        S::Cancelled => "This offer was withdrawn.",
+        S::Expired => "This offer expired.",
+    })
 }
 
 #[async_trait]
 impl StaffNotifier for StaffVoice {
+    async fn offer_closed(&self, offer: &StaffOffer) {
+        if let (Some(channel), Some(message), Some(outcome)) = (
+            offer.dm_channel_id,
+            offer.dm_message_id,
+            offer_outcome(offer.state),
+        ) {
+            self.close_card_at(channel, message, outcome).await;
+        }
+    }
+
     async fn appointment_offer(&self, offer: &StaffOffer) -> Option<(i64, i64)> {
         self.dm(offer.account_id, offer_card(offer)).await
     }
@@ -813,6 +1028,54 @@ impl StaffFeed {
         }
     }
 
+    /// D-258: a package version entered review (post its `#review-queue` card) or reached an outcome
+    /// (close the card through the D-253 helper, once).
+    pub async fn on_package_card(&self, version: i64, outcome: Option<&str>) {
+        let row: Option<(String, String, String, String, Option<String>)> = sqlx::query_as(
+            "SELECT p.name, p.kind, v.version, a.username::text, d.username::text \
+             FROM package_versions v JOIN packages p ON p.id = v.package_id \
+             JOIN accounts a ON a.id = p.author_id LEFT JOIN accounts d ON d.id = v.reviewed_by \
+             WHERE v.id = $1",
+        )
+        .bind(version)
+        .fetch_optional(&self.voice.pool)
+        .await
+        .ok()
+        .flatten();
+        let Some((name, kind, ver, author, decided_by)) = row else {
+            return;
+        };
+        let base = self.voice.base_url().to_owned();
+        match outcome {
+            None => {
+                let info = PackageCardInfo {
+                    version_id: version,
+                    name,
+                    kind,
+                    version: ver,
+                    author,
+                };
+                self.voice
+                    .post("review-queue", package_card(&info, &base))
+                    .await;
+            }
+            Some(o) => {
+                let by = if o == "withdrawn" {
+                    None
+                } else {
+                    decided_by.as_deref()
+                };
+                self.voice
+                    .close_channel_card(
+                        "review-queue",
+                        &format!("package={version}\""),
+                        &package_outcome(o, by),
+                    )
+                    .await;
+            }
+        }
+    }
+
     /// A feed card.
     pub async fn on_feed(
         &self,
@@ -870,6 +1133,10 @@ impl StaffFeed {
                 submission_id,
                 outcome,
             } => self.on_review_card(submission_id, outcome.as_deref()).await,
+            DomainEvent::PackageCard {
+                version_id,
+                outcome,
+            } => self.on_package_card(version_id, outcome.as_deref()).await,
             DomainEvent::MemberLeft { guild, user } => {
                 if let (Ok(g), Ok(u)) = (i64::try_from(guild.get()), i64::try_from(user.get())) {
                     self.on_member_left(g, u).await;

@@ -253,3 +253,101 @@ async fn the_service_extends_publishes_and_places_over_postgres() {
     );
     db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn slots_imports_and_favorites_round_trip() {
+    let db = TestDb::new().await.expect("test database");
+    let pool = db.pool().clone();
+    let repo = PgTvRepo::new(pool.clone());
+    let mut guide = input(110);
+    guide.kind = ChannelKind::ImportedGuide;
+    repo.create_channel(1, &guide, 5, 0).await.unwrap();
+    repo.create_channel(2, &input(111), 6, 0).await.unwrap();
+    assert_eq!(repo.imported_channels().await.unwrap(), vec![1]);
+
+    let slot = |id: i64, wd: u8, start: u16, title: Option<i64>| SlotRecord {
+        id,
+        channel_id: 1,
+        weekday: wd,
+        start_minute: start,
+        duration_min: 30,
+        show_name: format!("Show {id}"),
+        title_id: title,
+        episode_id: None,
+        season_number: Some(1),
+        episode_number: None,
+        note: Some("n".into()),
+        import_id: None,
+    };
+    repo.replace_slots(1, &[slot(11, 2, 1200, Some(7)), slot(10, 0, 1230, None)])
+        .await
+        .unwrap();
+    let got = repo.list_slots(1).await.unwrap();
+    assert_eq!(got.iter().map(|s| s.id).collect::<Vec<_>>(), [10, 11]);
+    assert_eq!(
+        (got[1].weekday, got[1].start_minute, got[1].title_id),
+        (2, 1200, Some(7))
+    );
+    assert_eq!(got[0].season_number, Some(1));
+    // A clash on (weekday, start) rolls the whole replacement back.
+    let clash = repo
+        .replace_slots(1, &[slot(20, 1, 600, None), slot(21, 1, 600, None)])
+        .await;
+    assert!(clash.is_err());
+    assert_eq!(repo.list_slots(1).await.unwrap().len(), 2);
+    repo.replace_slots(1, &[]).await.unwrap();
+    assert!(repo.list_slots(1).await.unwrap().is_empty());
+
+    // Imports: stored pending, listed without rows, confirmed once.
+    let rec = ImportRecord {
+        id: 50,
+        channel_id: 1,
+        created_by: None,
+        format: "csv".into(),
+        confirmed: false,
+        rows: serde_json::json!([{"line": 2}]),
+        report: serde_json::json!({"rows": [], "matched": 0}),
+        created_at_ms: 1_700_000_000_000,
+    };
+    repo.put_import(&rec).await.unwrap();
+    assert_eq!(repo.get_import(50).await.unwrap().unwrap(), rec);
+    let listed = repo.list_imports(1, 10).await.unwrap();
+    assert_eq!(listed.len(), 1);
+    assert!(listed[0].rows.is_null() && listed[0].report == rec.report);
+    assert!(repo.confirm_import(50, 1_700_000_001_000).await.unwrap());
+    assert!(!repo.confirm_import(50, 1_700_000_002_000).await.unwrap());
+    assert!(repo.get_import(50).await.unwrap().unwrap().confirmed);
+
+    // Favorites are per account, idempotent, and gone with the channel.
+    for (acct, person) in [(8_i64, 800_i64), (9, 900)] {
+        sqlx::query("INSERT INTO persons (id) VALUES ($1)")
+            .bind(person)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO accounts (id, person_id, username, email, password_hash) VALUES ($1, $2, $3, $4, 'x')",
+        )
+        .bind(acct)
+        .bind(person)
+        .bind(format!("u{acct}"))
+        .bind(format!("u{acct}@example.test"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    repo.set_favorite(8, 1, true).await.unwrap();
+    repo.set_favorite(8, 1, true).await.unwrap();
+    repo.set_favorite(8, 2, true).await.unwrap();
+    repo.set_favorite(9, 2, true).await.unwrap();
+    // An unknown channel stars nothing.
+    repo.set_favorite(8, 999, true).await.unwrap();
+    assert_eq!(repo.favorites(8).await.unwrap(), vec![1, 2]);
+    repo.set_favorite(8, 1, false).await.unwrap();
+    assert_eq!(repo.favorites(8).await.unwrap(), vec![2]);
+    repo.delete_channel(2).await.unwrap();
+    assert!(repo.favorites(8).await.unwrap().is_empty());
+    assert!(repo.favorites(9).await.unwrap().is_empty());
+    db.cleanup().await.unwrap();
+}

@@ -182,6 +182,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .context("running migrations (database.auto_migrate)")?;
         tracing::info!("migrations applied");
     }
+    // The Patron grace period shown by `sr_patron` is bound once at start (D-073, D-256).
+    let patron_grace_days = sr_db::payments_repo::patron_grace_days(&pool).await;
 
     let ids = Arc::new(
         SnowflakeGenerator::new(SystemClock, cfg.server.worker_id, cfg.server.process_id)
@@ -268,7 +270,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let dev_deps = Arc::new(
         routes::developer::DevDeps::new(
             (*apps_service).clone(),
-            Arc::new(PgChatRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
             bus.clone(),
             Arc::new(routes::developer::AuthPasswordConfirm::new(
                 auth_service.clone(),
@@ -282,16 +284,25 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
 
     let s = &cfg.storage;
-    let storage: Arc<dyn ObjectStorage> = Arc::new(
-        ObjectStoreStorage::s3(
-            &s.endpoint,
-            &s.bucket,
-            &s.region,
-            s.access_key.expose(),
-            s.secret_key.expose(),
+    // `storage.endpoint = "memory:"` keeps every object in this process (lost on restart, presigned
+    // URLs do not work). Only for local browser tests on hosts without an S3 service.
+    let storage: Arc<dyn ObjectStorage> = if s.endpoint == "memory:" {
+        tracing::warn!(
+            "object storage is in memory (storage.endpoint = \"memory:\"): test use only"
+        );
+        Arc::new(ObjectStoreStorage::in_memory())
+    } else {
+        Arc::new(
+            ObjectStoreStorage::s3(
+                &s.endpoint,
+                &s.bucket,
+                &s.region,
+                s.access_key.expose(),
+                s.secret_key.expose(),
+            )
+            .context("configuring object storage")?,
         )
-        .context("configuring object storage")?,
-    );
+    };
 
     // Feature crates register into the registry before it is shared (none
     // exist yet). Their routes are mounted below from `Feature::routes()`.
@@ -302,11 +313,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         Some(bus.clone()),
     );
     let features_listener = features.spawn_invalidation_listener();
+    // The non-secret integration policy an administrator saved wins over the config file (D-254); the
+    // config value is the bootstrap. Read once here, so a change applies from the next start.
+    let (unfurl_cfg, gif_cfg, lookup_cfg) = {
+        let mut c = cfg.clone();
+        crate::integration_policy::overlay(&mut c, &features).await;
+        (c.unfurl, c.gif, c.lookup)
+    };
 
     // Guild endpoints: the chat service over Postgres, with its own snowflake
     // worker (process id + 1, as the message deps use) so ids never collide.
     let chat = ChatService::new(
-        PgChatRepo::new(pool.clone()),
+        PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
         clock.clone(),
         SnowflakeGenerator::new(
             clock.clone(),
@@ -366,7 +384,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let threads_deps = Arc::new(
         routes::threads::ThreadsDeps::new(
             sr_chat::threads::ThreadService::new(
-                PgChatRepo::new(pool.clone()),
+                PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
                 clock.clone(),
                 SnowflakeGenerator::new(
                     clock.clone(),
@@ -396,14 +414,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let cdn_signer =
         sr_storage::cdn::CdnSigner::new(secret_key(cfg.server.secret_key.expose())?.to_vec());
     let messages = routes::messages::MessagesDeps::new(
-        PgChatRepo::new(pool.clone()),
+        PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
         Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
         storage.clone(),
         bus.clone(),
         Arc::new(routes::messages::FixedEntitlements(
             sr_storage::upload::SizePolicy::default().standard_limit,
         )),
-        Arc::new(PgChatRepo::new(pool.clone())),
+        Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         Some(message_hooks),
         clock.clone(),
         cfg.server.worker_id,
@@ -415,21 +433,21 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Age-restricted channels need the 18+ answer (D-032, LNG-CHN-006).
     .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())));
     // Rich messages: polls, stickers and link previews (LNG-MSG-010, LNG-MSG-014).
-    if cfg.unfurl.allow_private_for_tests {
+    if unfurl_cfg.allow_private_for_tests {
         tracing::warn!(
             "unfurl.allow_private_for_tests is ON: link previews may fetch loopback and private \n             addresses. This is for tests only and lets any user probe the internal network."
         );
     }
     let unfurl_policy = sr_unfurl::Policy {
-        deny_hosts: cfg.unfurl.deny_hosts.clone(),
-        allow_hosts: cfg.unfurl.allow_hosts.clone(),
-        allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
+        deny_hosts: unfurl_cfg.deny_hosts.clone(),
+        allow_hosts: unfurl_cfg.allow_hosts.clone(),
+        allow_private_for_tests: unfurl_cfg.allow_private_for_tests,
         ..sr_unfurl::Policy::default()
     };
     let unfurl_policy_for_feeds = unfurl_policy.clone();
     let unfurler = Arc::new(sr_unfurl::production(
         unfurl_policy.clone(),
-        cfg.unfurl.per_host_per_minute.max(1),
+        unfurl_cfg.per_host_per_minute.max(1),
     ));
     // The image proxy (D-176) fetches under the same SSRF policy and deny list.
     let external_images = Arc::new(routes::cdn::external::ExternalImageDeps::new(
@@ -463,7 +481,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // once their member has been offline for a minute (LNG-INV-005).
     let member_joiner = Arc::new(routes::settings::InviteMemberJoiner::new(
         Arc::new(sr_db::invite_join::PgInviteJoinRepo::new(pool.clone())),
-        Arc::new(PgChatRepo::new(pool.clone())),
+        Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         bus.clone(),
     ));
     let temporary_members = Arc::new(crate::gateway_pg::TemporaryMembers::new(
@@ -473,7 +491,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),
-            Arc::new(PgChatRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
             storage.clone(),
             clock.clone(),
             Arc::new(crate::settings_pg::secure_entropy),
@@ -485,7 +503,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_joiner(member_joiner.clone())
         .with_presence(gateway_presence.clone())
         .with_timeouter(Arc::new(routes::settings::AdminMemberTimeouter::new(
-            Arc::new(PgChatRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
             bus.clone(),
         )))
         .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone())),
@@ -751,17 +769,24 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 tv_deps.service.clone(),
             )))
             .with_channels(Arc::new(crate::watchparty::ChatChannelAccess::new(
-                PgChatRepo::new(pool.clone()),
+                PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
                 clock.clone(),
             )))
             .with_limits(Arc::new(crate::watchparty::EntitlementLimits::new(
                 payments.entitlements.clone(),
             )))
             .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())))
-            .with_chat(Arc::new(crate::userfeat::PartyAnnouncer {
-                uf: user_features.clone(),
-                poster: feature_poster.clone(),
-            }));
+            .with_chat(Arc::new(sr_watchparty::ChatHooks(vec![
+                Arc::new(crate::userfeat::PartyAnnouncer {
+                    uf: user_features.clone(),
+                    poster: feature_poster.clone(),
+                }),
+                // The live card in the bound channel (WP-BE-008).
+                Arc::new(crate::party_cards::PartyCards::new(
+                    pool.clone(),
+                    payments.chat.clone(),
+                )),
+            ])));
     watchparty_service.spawn_timers();
     let watchparty_deps = Arc::new(routes::watchparty::WatchPartyDeps::new(
         watchparty_service.clone(),
@@ -772,7 +797,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let activities_deps = Arc::new(routes::activities::ActivitiesDeps::new(
         sr_activities::ActivityService::new(pool.clone(), id_src.clone())
             .with_channels(Arc::new(crate::activities::ChatActivityChannels::new(
-                PgChatRepo::new(pool.clone()),
+                PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
                 clock.clone(),
             )))
             .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone())))
@@ -783,6 +808,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             crate::activities::SafeActivityFetcher::production(),
         )),
     ));
+    // Declarative packages and customised profiles (EXT-PKG, EXT-PRF).
+    let packages_deps = Arc::new(routes::packages::PackagesDeps {
+        service: sr_packages::service::PackageService::new(pool.clone(), id_src.clone())
+            .with_storage(storage.clone())
+            .with_events(Arc::new(routes::packages::BusPackageEvents::new(
+                bus.clone(),
+            ))),
+    });
+
     // J-16: participants follow the voice call (a leave from the channel removes them from the Activity).
     if cfg.activities.enabled {
         sr_activities::VoiceFollower::new(
@@ -863,7 +897,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     };
     let indexer = Arc::new(crate::search_jobs::Indexer {
         index: message_index,
-        repo: Arc::new(PgChatRepo::new(pool.clone())),
+        repo: Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         store: Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
     });
 
@@ -911,7 +945,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // their own service on its own snowflake worker (process id + 3).
     let social_api = routes::social::SocialDeps::new(
         routes::social::DynRepo::new(sr_db::social_repo::PgSocialRepo::new(pool.clone())),
-        Arc::new(PgChatRepo::new(pool.clone())),
+        Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         bus.clone(),
         clock.clone(),
         sr_chat::social::SocialLimits::default(),
@@ -986,15 +1020,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     ));
 
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
-    let gif_source: Option<Arc<dyn routes::gifs::GifSource>> = if cfg.gif.enabled() {
+    let gif_source: Option<Arc<dyn routes::gifs::GifSource>> = if gif_cfg.enabled() {
         Some(Arc::new(routes::gifs::TenorSource::new(
-            cfg.gif.api_key.expose(),
-            &cfg.gif.client_key,
-            &cfg.gif.country,
-            &cfg.gif.locale,
+            gif_cfg.api_key.expose(),
+            &gif_cfg.client_key,
+            &gif_cfg.country,
+            &gif_cfg.locale,
         )))
     } else {
-        if !cfg.gif.provider.is_empty() {
+        if !gif_cfg.provider.is_empty() {
             tracing::warn!(
                 "gif.provider is set but unsupported or missing gif.api_key; the GIF picker stays off"
             );
@@ -1008,7 +1042,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Metadata lookup for the submission editor (REV-ED-005): off unless `[lookup]` enables a
     // provider and the platform setting `review.lookup.enabled` is on.
     let lookup_deps = Arc::new(routes::review::LookupDeps::new(
-        crate::lookup_wiring::providers_from(&cfg.lookup),
+        crate::lookup_wiring::providers_from(&lookup_cfg),
         Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
         Some(cdn_signer.clone()),
     ));
@@ -1026,7 +1060,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     settings_deps.set_event_notifier(Arc::new(crate::events_jobs::EventStartPush {
         bus: bus.clone(),
         social: social_api.clone(),
-        chat: Arc::new(PgChatRepo::new(pool.clone())),
+        chat: Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         store: push_store.clone(),
         sender: push_sender.clone(),
         activity: Some(Arc::new(gateway.clone())),
@@ -1093,6 +1127,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_extras(admin_repo)
         .with_notifier(staff_voice.clone())
         .with_bus(bus.clone());
+    // Incident "Resume invites" cards close once the pause is over, whoever ended it (D-253).
+    let resume_voice = staff_voice.clone();
+    let resume_cards_task = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            tick.tick().await;
+            resume_voice.close_stale_resume_cards().await;
+        }
+    });
     crate::staff_feed::spawn(Arc::new(crate::staff_feed::StaffFeed {
         voice: staff_voice,
         admin: admin_service.clone(),
@@ -1159,6 +1202,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_rate_config(rate_tx)
         .with_features(features.clone())
         .with_integrations(integrations)
+        .with_system_probe(Arc::new(crate::admin_jobs::FsProbe::new(
+            cfg.ingest.roots.clone(),
+        )))
         .with_reauth(require_reauth)
         .with_storage(storage.clone())
         .with_gateway_sessions({
@@ -1227,10 +1273,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(cinema_social_deps)
         .extension(watchparty_deps)
         .extension(activities_deps.clone())
+        .extension(packages_deps.clone())
         .extension(user_feature_deps)
-        .extension(Arc::new(routes::donations::DonationsDeps::new(
-            payments.service.clone(),
-        )))
+        .extension(Arc::new(
+            routes::donations::DonationsDeps::new(payments.service.clone())
+                .with_chat_slot(payments.chat.clone()),
+        ))
         .extension(review_deps.clone())
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
@@ -1461,6 +1509,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     gauge_task.abort();
     seen_task.abort();
     apps_gc_task.abort();
+    resume_cards_task.abort();
     events_voice_listener.abort();
     metrics_task.abort();
     search_consumer.abort();
@@ -1493,6 +1542,12 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     registry
         .register(sr_features::DirectoryHiddenCategoriesFeature)
         .context("registering the directory.hidden_categories feature")?;
+    registry
+        .register(sr_features::AppearanceDefaultsFeature)
+        .context("registering the platform.appearance feature")?;
+    registry
+        .register(sr_features::IntegrationsPolicyFeature)
+        .context("registering the platform.integrations feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
     // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,

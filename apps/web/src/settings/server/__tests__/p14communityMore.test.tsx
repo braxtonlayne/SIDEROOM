@@ -14,6 +14,9 @@ import {
   seed,
   server,
 } from './helpers';
+import { warmLoungeRoute } from '../../../test/warmRoutes';
+
+warmLoungeRoute();
 
 /** Like openSettings, but the test's own handlers (set up after the base ones) win. */
 async function openWith(section: string, setup: () => void) {

@@ -17,9 +17,9 @@ use sr_auth::{
     },
     session::TokenHash,
     store::{
-        AccountRecord, AccountState, AuthStore, DeleteRefusal, DeletedAccount, InviteState,
-        PasskeyRecord, RegisterRejection, RegisterTx, Registered, StoreError, StoreResult,
-        TrustedDeviceRecord,
+        AccountRecord, AccountState, AuthStore, DeleteRefusal, DeletedAccount, DiscordLink,
+        InviteState, PasskeyRecord, RegisterRejection, RegisterTx, Registered, StoreError,
+        StoreResult, TrustedDeviceRecord,
     },
 };
 
@@ -244,7 +244,8 @@ impl AuthStore for PgAuthStore {
     async fn find_by_discord(&self, provider_user_id: &str) -> StoreResult<Option<AccountRecord>> {
         let sql = format!(
             "SELECT {ACCOUNT_COLS} FROM accounts WHERE id = (SELECT account_id FROM \
-             external_identities WHERE provider = 'discord' AND provider_user_id = $1)"
+             external_identities WHERE provider = 'discord' AND provider_user_id = $1 \
+             AND unlinked_at IS NULL)"
         );
         let row = sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(provider_user_id)
@@ -252,6 +253,96 @@ impl AuthStore for PgAuthStore {
             .await
             .map_err(store_err)?;
         row.as_ref().map(account_from_row).transpose()
+    }
+
+    async fn discord_linked(&self, account_id: i64) -> StoreResult<bool> {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM external_identities WHERE account_id = $1 \
+             AND provider = 'discord' AND unlinked_at IS NULL)",
+        )
+        .bind(account_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(store_err)
+    }
+
+    async fn link_discord(
+        &self,
+        account_id: i64,
+        identity_id: i64,
+        provider_user_id: &str,
+    ) -> StoreResult<DiscordLink> {
+        let mut tx = self.pool.begin().await.map_err(store_err)?;
+        // Serialise the checks per account so two callbacks cannot link two identities.
+        sqlx::query("SELECT id FROM accounts WHERE id = $1 FOR UPDATE")
+            .bind(account_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(store_err)?;
+        // The identity's holder: its live row, or else the newest row its person unlinked (a soft
+        // unlink never frees the identity, D-030). Rows a staff move left behind (K-20,
+        // `moved_to_account_id`) are history and never the holder.
+        let owner: Option<(i64, i64)> = sqlx::query_as(
+            "SELECT id, account_id FROM external_identities \
+             WHERE provider = 'discord' AND provider_user_id = $1 \
+             AND moved_to_account_id IS NULL \
+             ORDER BY (unlinked_at IS NULL) DESC, id DESC LIMIT 1",
+        )
+        .bind(provider_user_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(store_err)?;
+        if let Some((row_id, owner)) = owner {
+            if owner != account_id {
+                return Ok(DiscordLink::TakenByOther);
+            }
+            sqlx::query(
+                "UPDATE external_identities SET unlinked_at = NULL, updated_at = now() \
+                 WHERE id = $1",
+            )
+            .bind(row_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(store_err)?;
+            tx.commit().await.map_err(store_err)?;
+            return Ok(DiscordLink::Linked);
+        }
+        let has_one: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM external_identities WHERE account_id = $1 \
+             AND provider = 'discord' AND unlinked_at IS NULL)",
+        )
+        .bind(account_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(store_err)?;
+        if has_one {
+            return Ok(DiscordLink::AlreadyLinked);
+        }
+        sqlx::query(
+            "INSERT INTO external_identities (id, account_id, provider, provider_user_id) \
+             VALUES ($1, $2, 'discord', $3)",
+        )
+        .bind(identity_id)
+        .bind(account_id)
+        .bind(provider_user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(store_err)?;
+        tx.commit().await.map_err(store_err)?;
+        Ok(DiscordLink::Linked)
+    }
+
+    async fn unlink_discord(&self, account_id: i64) -> StoreResult<bool> {
+        let n = sqlx::query(
+            "UPDATE external_identities SET unlinked_at = now(), updated_at = now() \
+             WHERE account_id = $1 AND provider = 'discord' AND unlinked_at IS NULL",
+        )
+        .bind(account_id)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?
+        .rows_affected();
+        Ok(n > 0)
     }
 
     async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()> {
@@ -847,6 +938,7 @@ impl AuthStore for PgAuthStore {
                 invites_revoked: r.invites_revoked,
                 avatar_key: r.avatar_key,
                 banner_key: r.banner_key,
+                profile_media_keys: r.profile_media_keys,
             }),
             Err(crate::account_deletion::Blocked::NotActive) => Err(DeleteRefusal::NotActive),
             Err(crate::account_deletion::Blocked::OwnsGuilds(g)) => {

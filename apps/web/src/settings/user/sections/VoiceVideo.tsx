@@ -5,6 +5,7 @@ import { RemoteAudio } from '../../../voice/playback';
 import { useAudioDevices, useCameras, useMicPermission, useMicTest } from '../../../voice/hooks';
 import { CameraPreview } from '../../../lounge/voice/CameraPreview';
 import { SHARE_PRESETS, presetLabel } from '../../../voice/video';
+import { useSoundboard } from '../../../voice/soundboard';
 import { CuePlayer, type Cue } from '../../../voice/sounds';
 import { browserAudioDeps } from '../../../voice/deps';
 import {
@@ -60,6 +61,8 @@ export function VoiceVideoSection() {
   const settings = useVoiceSettings((s) => s.settings);
   const update = useVoiceSettings((s) => s.update);
   const setKeybind = useVoiceSettings((s) => s.setKeybind);
+  const soundboardVolume = useSoundboard((s) => s.volume);
+  const setSoundboardVolume = useSoundboard((s) => s.setVolume);
   const devices = useAudioDevices();
   const permission = useMicPermission();
   const test = useMicTest({
@@ -423,6 +426,16 @@ export function VoiceVideoSection() {
           showValue
           formatValue={pct}
           onValueChange={(v) => update({ soundVolume: v })}
+        />
+        <Slider
+          label={t('settings.voice.soundboardVolume')}
+          min={0}
+          max={100}
+          step={5}
+          value={soundboardVolume}
+          showValue
+          formatValue={pct}
+          onValueChange={setSoundboardVolume}
         />
         <Button variant="secondary" size="sm" onClick={() => testCue('selfJoin')}>
           {t('settings.voice.playSample')}

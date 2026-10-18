@@ -31,6 +31,7 @@ import { Card, Field, Loaded, SectionTitle } from '../parts';
 import { ChangeUsernameDialog, DisplayNameDialog } from './AccountEdit';
 import { ChangeEmailDialog } from './ChangeEmail';
 import { DeleteAccountDialog } from './DeleteAccount';
+import { DiscordCard } from './DiscordCard';
 import { PasskeysCard } from './Passkeys';
 
 /** Asks for the account password (re-authentication) and runs `onSubmit`; the server error shows inline. */
@@ -618,6 +619,7 @@ export function AccountSection({ me, onSignedOut }: { me: Resource<Me>; onSigned
             <PasswordCard me={m} />
             <TwoFactorCard me={m} reload={me.reload} />
             <PasskeysCard />
+            <DiscordCard />
             <RemovalCard me={m} onSignedOut={onSignedOut} />
           </>
         )}

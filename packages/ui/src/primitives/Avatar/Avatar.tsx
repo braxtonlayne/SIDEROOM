@@ -19,6 +19,8 @@ export interface AvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>, "chil
   size?: 24 | 32 | 40 | 56 | 80;
   status?: AvatarStatus;
   speaking?: boolean;
+  /** Patron ring (D-256): a thin accent ring outside the avatar, drawn from tokens, no artwork. */
+  ring?: boolean;
   /** Decoration slot: decorative overlay (frame, hat) above the image; rendered aria-hidden. */
   decoration?: ReactNode;
 }
@@ -31,15 +33,16 @@ export function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-export function Avatar({ name, src, animatedSrc, size = 40, status, speaking, decoration, className, style, ...rest }: AvatarProps) {
+export function Avatar({ name, src, animatedSrc, size = 40, status, speaking, ring, decoration, className, style, ...rest }: AvatarProps) {
   const [failed, setFailed] = useState<string | null>(null);
   const showImage = !!src && failed !== src;
   return (
     <span
       {...rest}
-      className={cx(styles.avatar, speaking && styles.speaking, className)}
+      className={cx(styles.avatar, speaking && styles.speaking, ring && styles.ring, className)}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.4), ...style }}
       data-speaking={speaking || undefined}
+      data-ring={ring || undefined}
     >
       {showImage ? (
         <>

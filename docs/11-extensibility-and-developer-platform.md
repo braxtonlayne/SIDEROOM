@@ -47,7 +47,7 @@ Slowmode presets, auto-thread for channels, "starboard," welcome DMs, birthday r
    - in guilds owned by the developer or by an accepted app tester (up to 25 testers per application, invitations included, D-204, D-220), or where the developer or an accepted tester has `MANAGE_GUILD`, **and**
    - where the guild has **≤ 25 members** (test servers).
    Installs into larger guilds are refused with error `900120 App not released`.
-4. **Release:** the developer submits a version (manifest: name, description, scopes, requested intents, command list, interaction endpoint, privacy policy URL) for review. Approved → `released`, installable anywhere. New versions that change scopes or intents need re-review. The Activity is reviewed separately, per Activity submission: any change to it withdraws its approval, and it is served only while the application is released and not suspended (D-246, section 3). Command or description changes need re-review only if flagged by the diff.
+4. **Release:** the developer submits a version (manifest: name, description, scopes, requested intents, command list, interaction endpoint, privacy policy URL) for review. Approved → `released`, installable anywhere. New versions that change scopes or intents need re-review. The Activity is reviewed separately, per Activity submission: any change to it withdraws its approval, and it is served only once the application has been released at least once and while it is not suspended (D-246, D-252, section 3). Command or description changes need re-review only if flagged by the diff.
 
 ### 2.2 Developer portal (`/developers/applications`)
 Discord parity: General Information, Installation (install link generator, default scopes/permissions), OAuth2 (redirects, URL generator), Bot (token reset, privileged intents toggles requiring review, public bot toggle), Emojis (app emoji), Webhooks, Rich Presence assets, App Testers (up to 25 testers, invitations included, D-220), Activities (bundle upload and review history, URL mappings, development URL), and **Review** (submission status, reviewer messages).
@@ -78,6 +78,8 @@ Discord parity: General Information, Installation (install link generator, defau
 | `server_template` | Discord-compatible template JSON | Structure validation |
 
 Server owners browse approved packages in **Server Settings → Extensions & Themes**. Users browse them in **User Settings → Appearance → Theme Store** and **Profile → Layouts**. Approved packages enable with one click (D-064).
+
+**Built (p15).** Crate `sr-packages`, migration 0970, `docs/specs/developer-platform.md` sections 3.11 and 3.12. A package is one zip with one manifest file (`theme.json`, `layout.json`, `pack.json`, `recipe.json`, `template.json`); every kind goes through one validator, themes through `sr-theme`. Review is a state on `package_versions` handled in Review Queues > Packages (`REVIEW_PACKAGES`), not a `sr-review` submission kind. A recipe may not name channels or roles, and the applier re-validates it against the live feature registry. Profile layouts hold only placed blocks; a person's own page is `accounts.profile_doc`, validated by the same code. Adding the files of a pack to a server and a server-wide theme are not built yet.
 
 ## 5. Review pipeline
 

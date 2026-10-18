@@ -12,6 +12,7 @@ import { setVoiceController, VoiceController } from '../../../voice/controller';
 import type { ConnectParams, EngineEvents, VoiceEngine } from '../../../voice/engine';
 import { patchSession, resetSession, useVoiceSession } from '../../../voice/session';
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../../../voice/settings';
+import { warmLoungeRoute } from '../../../test/warmRoutes';
 
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
 afterAll(() => vi.unstubAllEnvs());
@@ -89,6 +90,9 @@ beforeEach(() => {
   );
 });
 afterEach(() => setVoiceController(null));
+
+// After the env stubs above, so the warmed modules see the same env as the tests.
+warmLoungeRoute();
 
 describe('voice channel list', () => {
   it('shows participants under the voice channel with speaking ring and mute icon', async () => {

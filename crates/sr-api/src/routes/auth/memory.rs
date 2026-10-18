@@ -10,8 +10,8 @@ use sr_auth::{
     session::TokenHash,
     store::{
         AccountRecord, AccountState, AuthStore, DeleteRefusal, DeletedAccount, DeviceSighting,
-        InviteState, PasskeyRecord, RegisterRejection, RegisterTx, Registered, StoreResult,
-        TrustedDeviceRecord,
+        DiscordLink, InviteState, PasskeyRecord, RegisterRejection, RegisterTx, Registered,
+        StoreResult, TrustedDeviceRecord,
     },
 };
 use std::{
@@ -66,6 +66,8 @@ struct Inner {
     audit: Vec<(i64, String, Option<i64>, String)>,
     /// Discord user id to account id (external identities).
     discord: HashMap<String, i64>,
+    /// Discord user ids whose link was removed in settings (the record stays).
+    discord_unlinked: HashSet<String>,
     banned_emails: HashSet<String>,
     passkeys: Vec<PasskeyRecord>,
     user_handles: HashMap<i64, Vec<u8>>,
@@ -345,10 +347,59 @@ impl AuthStore for MemoryAuthStore {
 
     async fn find_by_discord(&self, provider_user_id: &str) -> StoreResult<Option<AccountRecord>> {
         let g = self.lock();
+        if g.discord_unlinked.contains(provider_user_id) {
+            return Ok(None);
+        }
         Ok(g.discord
             .get(provider_user_id)
             .and_then(|id| g.accounts.get(id))
             .cloned())
+    }
+
+    async fn discord_linked(&self, account_id: i64) -> StoreResult<bool> {
+        let g = self.lock();
+        Ok(g.discord
+            .iter()
+            .any(|(d, id)| *id == account_id && !g.discord_unlinked.contains(d)))
+    }
+
+    async fn link_discord(
+        &self,
+        account_id: i64,
+        _identity_id: i64,
+        provider_user_id: &str,
+    ) -> StoreResult<DiscordLink> {
+        let mut g = self.lock();
+        match g.discord.get(provider_user_id) {
+            Some(owner) if *owner != account_id => return Ok(DiscordLink::TakenByOther),
+            Some(_) => {
+                g.discord_unlinked.remove(provider_user_id);
+                return Ok(DiscordLink::Linked);
+            }
+            None => {}
+        }
+        let has_one = g
+            .discord
+            .iter()
+            .any(|(d, id)| *id == account_id && !g.discord_unlinked.contains(d));
+        if has_one {
+            return Ok(DiscordLink::AlreadyLinked);
+        }
+        g.discord.insert(provider_user_id.to_owned(), account_id);
+        Ok(DiscordLink::Linked)
+    }
+
+    async fn unlink_discord(&self, account_id: i64) -> StoreResult<bool> {
+        let mut g = self.lock();
+        let mine: Vec<String> = g
+            .discord
+            .iter()
+            .filter(|(d, id)| **id == account_id && !g.discord_unlinked.contains(*d))
+            .map(|(d, _)| d.clone())
+            .collect();
+        let any = !mine.is_empty();
+        g.discord_unlinked.extend(mine);
+        Ok(any)
     }
 
     async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()> {

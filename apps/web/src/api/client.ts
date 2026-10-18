@@ -26,6 +26,8 @@ export class ApiError extends Error {
 export interface ApiOptions extends Omit<RequestInit, 'body'> {
   /** JSON-serialisable request body. */
   json?: unknown;
+  /** A raw body (a file); sent as is with the type the file carries. Not retried on a CSRF refresh with `json`. */
+  raw?: Blob | ArrayBuffer | null;
   /** 429 auto-retries. Auth endpoints pass 0 so lockouts surface to the user. */
   retries?: number;
   /** Internal: set once a rejected CSRF token has been refreshed and the request resent. */
@@ -81,7 +83,7 @@ export function clearCsrf(): void {
 const isCsrfRejection = (e: ApiError) => e.status === 403 && /csrf/i.test(e.body?.message ?? '');
 
 export async function apiFetch<T>(path: string, opts: ApiOptions = {}): Promise<T> {
-  const { json, retries = 2, headers, csrfRetried = false, ...init } = opts;
+  const { json, raw, retries = 2, headers, csrfRetried = false, ...init } = opts;
   const method = (init.method ?? 'GET').toUpperCase();
   const mutating = method !== 'GET' && method !== 'HEAD';
   const h = new Headers(headers);
@@ -94,7 +96,7 @@ export async function apiFetch<T>(path: string, opts: ApiOptions = {}): Promise<
     credentials: 'include',
     ...init,
     headers: h,
-    body: json === undefined ? undefined : JSON.stringify(json),
+    body: json === undefined ? (raw ?? undefined) : JSON.stringify(json),
   });
   if (res.status === 429 && retries > 0) {
     const wait = Number(res.headers.get('retry-after') ?? '1') * 1000;

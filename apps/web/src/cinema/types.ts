@@ -54,7 +54,10 @@ export interface Variant {
 export interface Contributor {
   user_id: string;
   name: string;
-  role: string;
+  /** 1 when credited for the film or series itself. */
+  titles: number;
+  /** Credited episodes of this title. */
+  episodes: number;
 }
 
 export interface Season {

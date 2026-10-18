@@ -34,6 +34,31 @@ pub struct IntegrationStatus {
     pub detail: Option<String>,
 }
 
+/// When the last backup, restore check and object snapshot happened (Unix ms; `None` when never), K-10.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, ToSchema)]
+pub struct BackupsView {
+    pub last_run_ms: Option<i64>,
+    pub last_verify_ms: Option<i64>,
+    pub snapshot_ms: Option<i64>,
+}
+
+/// Space on one folder; the sizes are `None` when the path cannot be read (never an error).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, ToSchema)]
+pub struct DiskView {
+    pub path: String,
+    pub total_bytes: Option<u64>,
+    pub free_bytes: Option<u64>,
+}
+
+/// Reads the backup folder and the disks for the System page (blocking file system calls; the route runs it
+/// on a blocking thread). Implemented in `sr-server`.
+pub trait SystemProbe: Send + Sync {
+    /// Backup times from the backup folder (`dir` empty: none configured).
+    fn backups(&self, dir: &str) -> BackupsView;
+    /// Space of the data folder (`data_dir`, empty: the working folder) and of every ingest root.
+    fn disks(&self, data_dir: &str) -> Vec<DiskView>;
+}
+
 /// Collaborators of the admin endpoints.
 pub struct AdminDeps {
     pub service: AdminService,
@@ -50,6 +75,8 @@ pub struct AdminDeps {
     pub storage: Option<Arc<dyn sr_storage::ObjectStorage>>,
     /// Where a saved rate-limit setting goes so the limiter sees it on the next request (H-39).
     pub rate_config: Option<tokio::sync::watch::Sender<crate::rate_limit::RateConfig>>,
+    /// Backup times and disk space for the System page (K-10).
+    pub system_probe: Option<Arc<dyn SystemProbe>>,
 }
 
 impl AdminDeps {
@@ -63,7 +90,14 @@ impl AdminDeps {
             require_reauth: false,
             storage: None,
             rate_config: None,
+            system_probe: None,
         }
+    }
+
+    /// The source of the backup times and disk space on the System page.
+    pub fn with_system_probe(mut self, p: Arc<dyn SystemProbe>) -> Self {
+        self.system_probe = Some(p);
+        self
     }
 
     /// The sender behind `RateLimitConfig::live`: `PATCH /admin/settings` updates it.
@@ -138,6 +172,15 @@ impl StaffCtx {
         auth.send_operator_test_mail(self.caller.user_id)
             .await
             .map_err(auth_err)
+    }
+
+    /// Email `text` to an account's verified address (a staff action that concerned it). `false` when the
+    /// address is not verified, there is no account service or the mailer refused.
+    pub async fn notify_by_mail(&self, account_id: i64, subject: &str, text: &str) -> bool {
+        match &self.auth {
+            Some(auth) => auth.send_notice_mail(account_id, subject, text).await,
+            None => false,
+        }
     }
 
     pub fn now_secs(&self) -> i64 {

@@ -242,6 +242,132 @@ describe('Person record additions (ADM-PPL-004)', () => {
   });
 });
 
+describe('moving a Discord identity (K-20, D-262)', () => {
+  const alice = account();
+  const bob = account({ id: '101', username: 'alice2' });
+  const detailWith = (identities: unknown[]) => ({
+    id: '500',
+    accounts: [alice, bob],
+    ban: null,
+    notes: '',
+    suspicion_level: 0,
+    identities,
+  });
+  const live = {
+    id: '900',
+    account_id: '100',
+    provider: 'discord',
+    provider_user_id: '31337',
+    linked_at_ms: 1_700_000_000_000,
+    unlinked_at_ms: null,
+    moved_to_account_id: null,
+  };
+
+  async function openPerson(perms: Parameters<typeof asStaff>[0]['perms'], identities: unknown[]) {
+    asStaff({ perms });
+    server.use(
+      http.get('*/api/v1/admin/accounts', () =>
+        HttpResponse.json({ items: [alice], next_after: null }),
+      ),
+      http.get('*/api/v1/admin/accounts/100', () => HttpResponse.json(detail())),
+      http.get('*/api/v1/admin/persons/500', () => HttpResponse.json(detailWith(identities))),
+    );
+    openAdmin('accounts');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'View alice' }, SLOW));
+    await screen.findByText('Active sessions', {}, SLOW);
+    await user.click(screen.getByRole('button', { name: 'Open person record' }));
+    await screen.findByRole('list', { name: 'Account chain' }, SLOW);
+    return user;
+  }
+
+  it('moves the identity to another account of the chain with a reason', async () => {
+    let sent: unknown;
+    server.use(
+      http.post('*/api/v1/admin/persons/500/identities/900/move', async ({ request }) => {
+        sent = await readJson(request);
+        return HttpResponse.json({ to_account_id: '101', linked_target: false, emailed: true });
+      }),
+    );
+    const user = await openPerson(['STAFF_BASIC', 'MANAGE_ACCOUNTS'], [live]);
+    expect(screen.getByText('Discord 31337 on @alice')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Move the Discord identity 31337 to another account' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Move to account' });
+    const confirm = within(dialog).getByRole('button', { name: 'Move identity' });
+    // The first other account of the chain is preselected; the reason is required.
+    expect(confirm).toBeDisabled();
+    await user.type(within(dialog).getByLabelText(/Reason/), 'lost the old login');
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(sent).toEqual({ to_account_id: '101', reason: 'lost the old login' }),
+    );
+    expect(
+      await screen.findByText('The identity was moved. The old account was messaged and emailed.'),
+    ).toBeInTheDocument();
+  });
+
+  it('can move it to an account outside the chain by id and shows moved rows as history', async () => {
+    let sent: unknown;
+    server.use(
+      http.post('*/api/v1/admin/persons/500/identities/900/move', async ({ request }) => {
+        sent = await readJson(request);
+        return HttpResponse.json({ to_account_id: '777', linked_target: true, emailed: false });
+      }),
+    );
+    const user = await openPerson(
+      ['STAFF_BASIC', 'MANAGE_ACCOUNTS'],
+      [
+        live,
+        {
+          ...live,
+          id: '800',
+          provider_user_id: '555',
+          unlinked_at_ms: 1_700_000_500_000,
+          moved_to_account_id: '101',
+        },
+      ],
+    );
+    // The moved row is history: it names where it went and has no action.
+    expect(screen.getByText(/Moved to @alice2 on/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Move the Discord identity 555 to another account' }),
+    ).toBeNull();
+    await user.click(
+      screen.getByRole('button', { name: 'Move the Discord identity 31337 to another account' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Move to account' });
+    await user.click(within(dialog).getByRole('combobox', { name: 'Move to account' }));
+    await user.click(await screen.findByRole('option', { name: 'Another account (enter its id)' }));
+    await user.type(within(dialog).getByLabelText('Account id'), '777');
+    await user.type(within(dialog).getByLabelText(/Reason/), 'new account');
+    await user.click(within(dialog).getByRole('button', { name: 'Move identity' }));
+    await waitFor(() => expect(sent).toEqual({ to_account_id: '777', reason: 'new account' }));
+    expect(
+      await screen.findByText('The identity was moved. The old account was messaged.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a refusal from the server', async () => {
+    const user = await openPerson(['STAFF_BASIC', 'MANAGE_ACCOUNTS'], [live]);
+    server.use(
+      http.post('*/api/v1/admin/persons/500/identities/900/move', () =>
+        HttpResponse.json({ message: 'the Person is banned; lift the ban first' }, { status: 409 }),
+      ),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Move the Discord identity 31337 to another account' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Move to account' });
+    await user.type(within(dialog).getByLabelText(/Reason/), 'x');
+    await user.click(within(dialog).getByRole('button', { name: 'Move identity' }));
+    expect(
+      await within(dialog).findByText('the Person is banned; lift the ban first'),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('Servers admin (ADM-COM-002)', () => {
   const guild = (over: Record<string, unknown> = {}) => ({
     id: '9',

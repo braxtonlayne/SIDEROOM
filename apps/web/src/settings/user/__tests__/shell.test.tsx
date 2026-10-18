@@ -8,6 +8,7 @@ import { http, HttpResponse, server } from '../../../test/server';
 import { useLoungeUi } from '../../../lounge/store';
 import { usePrefsStore } from '../prefs';
 import { openSettings, PROFILE, resetPrefs, signedIn } from './helpers';
+import { warmLoungeRoute } from '../../../test/warmRoutes';
 
 // The Lounge runs against the deterministic mock seed here (ESC returns to it).
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
@@ -17,6 +18,9 @@ beforeEach(() => {
   resetPrefs();
   useLoungeUi.setState(useLoungeUi.getInitialState(), true);
 });
+
+// After the env stubs above, so the warmed modules see the same env as the tests.
+warmLoungeRoute();
 
 describe('User Settings shell', () => {
   it('lists the sections in two groups with a roving tab stop and navigates by URL', async () => {

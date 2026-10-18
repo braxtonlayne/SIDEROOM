@@ -54,6 +54,7 @@ pub mod inbox;
 pub mod library;
 pub mod media;
 pub mod messages;
+pub mod packages;
 pub mod push;
 pub mod review;
 pub mod search;
@@ -128,6 +129,7 @@ pub fn all() -> Router<AppState> {
         .merge(tv::router())
         .merge(watchparty::router())
         .merge(activities::router())
+        .merge(packages::router())
         .merge(developer::router())
         .merge(directory::router())
         .merge(donations::router())
@@ -170,6 +172,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(tv::openapi());
     doc.merge(watchparty::openapi());
     doc.merge(activities::openapi());
+    doc.merge(packages::openapi());
     doc.merge(developer::openapi());
     doc.merge(donations::openapi());
     doc.merge(userset::openapi());

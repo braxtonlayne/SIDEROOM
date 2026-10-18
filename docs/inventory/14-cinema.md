@@ -59,7 +59,7 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [x] **CIN-PLY-001** [FE] hls.js / native HLS engine wrapper, ABR with manual override, data saver
 - [x] **CIN-PLY-002** [FE] Controls: play/pause, ±10s, scrubber with sprite thumbnails, volume, speed, audio track menu, subtitle menu + styling, full-screen, PiP, Remote Playback/AirPlay, optional Chromecast (Chromecast Web Sender SDK not included; Remote Playback and AirPlay are)
 - [x] **CIN-PLY-003** [FE] Keyboard shortcuts + on-screen feedback
-- [ ] **CIN-PLY-004** [FE] ASS subtitle renderer (JASSUB, worker) + WebVTT
+- [ ] **CIN-PLY-004** [FE] ASS subtitle renderer (JASSUB, worker) + WebVTT *(waits on owner item 11 (K-13); WebVTT fallback meanwhile)*
 - [x] **CIN-PLY-005** [FE] Skip intro / skip credits buttons (markers)
 - [x] **CIN-PLY-006** [FE] Next episode card with countdown, autoplay toggle, "Are you still watching?"
 - [x] **CIN-PLY-007** [BE] Watch progress API (10s heartbeat, ≥ 90% watched) + cross-device sync *(phase 6: `/cinema/titles/{id}[/episodes/{eid}]/progress`, history, continue watching, `SR_CINEMA_UPDATE`; spec section 8)*
@@ -74,7 +74,7 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 ## CIN-SOC — Social
 - [x] **CIN-SOC-001** [BE] Ratings, reviews, episode comments (reuse LIB-SOC services generically) *(phase 6: ratings 1-10, reviews with spoiler flag and helpful votes, threaded comments with likes, reports and a moderation hook; phase 7: staff report queue, hide/restore and resolve under `/admin/cinema/*` with access-log entries, `RepoCatalog` wiring, merge and delete cascade)*
 - [x] **CIN-SOC-002** [BE] Trending (scoped) + recommendations *(phase 6: scoped trending and "because you watched" recommendations)*
-- [ ] **CIN-SOC-003** [BE] Contribution credits for movies/episodes *(not built in phase 6: needs the cinema submissions pipeline, see cinema-media section 8.8)*
+- [x] **CIN-SOC-003** [BE] Contribution credits for movies/episodes *(not built in phase 6: needs the cinema submissions pipeline, see cinema-media section 8.8)* _(p15 rest-a: credits were already granted by `cinema.title`/`cinema.episodes` (`credit_refs`); new `GET /cinema/titles/{id}/contributors` and the Contributors tab on the title page)_
 
 ## CIN-DL — Patron downloads
 - [x] **CIN-DL-001** [BE] On-demand MP4 remux job of chosen rendition (cached 7 days), original download when allowed, signed single-user link, daily limit · *remux job kind (worker side faked, not run with real ffmpeg), cache, owner-only link redirecting to a short signed URL, daily limit from `cinema_download_grants`; the perk source (donations) does not exist yet*

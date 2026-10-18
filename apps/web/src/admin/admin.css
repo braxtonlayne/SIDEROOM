@@ -109,6 +109,54 @@
   white-space: nowrap;
 }
 
+/* Live TV weekly grid (TV-ADM-003) */
+.adm-week {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+.adm-week-day {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  min-block-size: 120px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md, 6px);
+}
+.adm-week-name {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.adm-week-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.adm-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  inline-size: 100%;
+  padding: 6px 8px;
+  text-align: start;
+  color: inherit;
+  background: var(--ui-bg-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm, 4px);
+  cursor: grab;
+}
+.adm-slot[aria-pressed='true'] {
+  border-color: var(--ui-accent);
+}
+.adm-slot[data-skipped='true'] {
+  border-style: dashed;
+}
+
 /* Cinema publisher tools */
 .adm-cin-grid {
   display: grid;
@@ -345,4 +393,21 @@
 }
 .adm-unsaved-note:empty {
   display: none;
+}
+
+/* Invite graph canvas (ADM-GRAPH-003) */
+.adm-canvas-el {
+  display: block;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md, 6px);
+  background: var(--ui-bg-sunken, var(--ui-bg));
+  touch-action: none;
+  cursor: grab;
+}
+.adm-canvas-el:active {
+  cursor: grabbing;
+}
+.adm-canvas-el:focus-visible {
+  outline: 2px solid var(--ui-focus, var(--ui-accent));
+  outline-offset: 2px;
 }

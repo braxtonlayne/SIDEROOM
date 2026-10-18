@@ -1,7 +1,16 @@
-import { Button, ConfirmDialog, Notice, SegmentedControl, Select, Switch } from '@sideroom/ui';
+import {
+  Button,
+  ConfirmDialog,
+  Notice,
+  SegmentedControl,
+  Select,
+  Slider,
+  Switch,
+} from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import * as cinema from '../../../cinema/my/api';
 import {
+  QUALITY_CAPS,
   readPlayerDefaults,
   writePlayerDefaults,
   type PlayerDefaults,
@@ -9,6 +18,8 @@ import {
 import { useT } from '../../../i18n';
 import {
   DEFAULT_READER_PREFS,
+  PRELOAD_RANGE,
+  preloadCountOf,
   useReaderPrefsStore,
   type ReaderPrefs,
 } from '../../../library/prefs';
@@ -183,7 +194,30 @@ export function CinemaDefaultsCard() {
           ]}
           onValueChange={(v) => set({ subtitleLang: v === 'default' ? null : v })}
         />
-        <p className="us-muted">{t('settings.activityHistory.cinemaMissing')}</p>
+        <label className="us-muted" id="us-audio-lang-label">
+          {t('settings.activityHistory.audioLang')}
+        </label>
+        <Select
+          aria-labelledby="us-audio-lang-label"
+          value={d.audioLang ?? 'default'}
+          options={[
+            { value: 'default', label: t('settings.activityHistory.audioDefault') },
+            ...SUBTITLE_LANGS.map((code) => ({ value: code, label: code })),
+          ]}
+          onValueChange={(v) => set({ audioLang: v === 'default' ? null : v })}
+        />
+        <label className="us-muted" id="us-quality-cap-label">
+          {t('settings.activityHistory.qualityCap')}
+        </label>
+        <Select
+          aria-labelledby="us-quality-cap-label"
+          value={String(d.qualityCap ?? 'none')}
+          options={[
+            { value: 'none', label: t('settings.activityHistory.qualityNoCap') },
+            ...QUALITY_CAPS.map((h) => ({ value: String(h), label: `${h}p` })),
+          ]}
+          onValueChange={(v) => set({ qualityCap: v === 'none' ? null : Number(v) })}
+        />
       </div>
     </Card>
   );
@@ -293,7 +327,15 @@ export function LibraryDefaultsCard() {
             { value: 'sepia', label: t('settings.activityHistory.bgSepia') },
           ]}
         />
-        <p className="us-muted">{t('settings.activityHistory.libraryPreloadMissing')}</p>
+        <Slider
+          label={t('settings.activityHistory.preloadCount')}
+          min={PRELOAD_RANGE[0]}
+          max={PRELOAD_RANGE[1]}
+          step={1}
+          value={preloadCountOf(p.preloadCount)}
+          showValue
+          onValueChange={(v) => set({ preloadCount: preloadCountOf(v) })}
+        />
       </div>
     </Card>
   );

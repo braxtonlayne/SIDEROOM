@@ -88,6 +88,13 @@ fn decision_text(s: &Submission, kind: &str, reason: Option<&str>) -> Option<Str
     })
 }
 
+/// Whose hand a draft metadata write is made with (D-255).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditAs {
+    Submitter,
+    Reviewer,
+}
+
 /// The acting account and its platform permissions (empty for a plain member).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Caller {
@@ -549,9 +556,119 @@ impl ReviewService {
         }
     }
 
+    /// The submission when the caller may edit its draft metadata as a reviewer (D-255): it is
+    /// `in_review`, the caller holds the kind's review permission, is not the submitter, and holds the
+    /// live claim. A claim another reviewer holds is a conflict that names the holder.
+    pub async fn editable_reviewer(&self, c: Caller, id: i64) -> ReviewResult<Submission> {
+        let (s, _) = self.load_for_review(c, id).await?;
+        Self::not_own(c, &s)?;
+        if s.state != SubmissionState::InReview {
+            return Err(ReviewError::Conflict(format!(
+                "a {} submission cannot be edited by a reviewer; claim it first",
+                s.state.as_str().replace('_', " ")
+            )));
+        }
+        let live = s.lease_live(self.now());
+        match s.claimed_by {
+            Some(u) if u == c.user_id && live => Ok(s),
+            Some(u) if live => Err(ReviewError::Conflict(format!(
+                "the review claim is held by account {u}"
+            ))),
+            _ => Err(ReviewError::Conflict(
+                "you do not hold the review claim on this submission".into(),
+            )),
+        }
+    }
+
+    /// The submission for a draft metadata write by the submitter (draft or changes requested) or by
+    /// a reviewer holding the claim, with which of the two it is. A caller who is neither learns
+    /// nothing about the submission.
+    pub async fn editable_for(&self, c: Caller, id: i64) -> ReviewResult<(Submission, EditAs)> {
+        let s = self.load(id).await?;
+        if s.submitter_id == Some(c.user_id) {
+            return Ok((self.editable_mine(c.user_id, id).await?, EditAs::Submitter));
+        }
+        let kind = self.kinds.get(&s.kind)?;
+        if !c.permissions.has(kind.review_permission()) {
+            return Err(ReviewError::NotFound("submission"));
+        }
+        Ok((self.editable_reviewer(c, id).await?, EditAs::Reviewer))
+    }
+
+    /// Post the `metadata_edited` timeline event for a reviewer's write (visible to the submitter).
+    pub async fn note_reviewer_edit(
+        &self,
+        c: Caller,
+        id: i64,
+        fields: &[&str],
+    ) -> ReviewResult<()> {
+        let ev = self.event(
+            "metadata_edited",
+            c.user_id,
+            None,
+            false,
+            json!({ "by": c.user_id.to_string(), "fields": fields }),
+        );
+        self.repo.add_event(id, &ev).await?;
+        Ok(())
+    }
+
+    /// Store member artwork (K-11, REV-ED-003) in a slot of the kind (`cover`, `poster`, `backdrop`).
+    /// Allowed to whoever may write draft metadata (see [`Self::editable_for`]); a reviewer's write
+    /// posts the `metadata_edited` event. Returns the stored image's URL.
+    pub async fn set_artwork(
+        &self,
+        c: Caller,
+        id: i64,
+        slot: &str,
+        image: &[u8],
+    ) -> ReviewResult<Option<String>> {
+        let (s, who) = self.editable_for(c, id).await?;
+        let kind = self.kinds.get(&s.kind)?;
+        if !kind.artwork_slots().contains(&slot) {
+            return Err(ReviewError::Invalid(format!(
+                "a {} submission has no {slot}",
+                s.kind
+            )));
+        }
+        let url = kind.set_artwork(&s, c.user_id, slot, image).await?;
+        if who == EditAs::Reviewer {
+            self.note_reviewer_edit(c, id, &[slot]).await?;
+        }
+        Ok(url)
+    }
+
+    /// Register or relabel an item (a chapter) on behalf of whoever edits: the submitter, or the
+    /// reviewer holding the claim.
+    pub async fn register_item_for(&self, c: Caller, id: i64, item: NewItem) -> ReviewResult<()> {
+        self.editable_for(c, id).await?;
+        self.repo.add_item(id, (self.ids)(), &item).await
+    }
+
+    pub async fn unregister_item_for(&self, c: Caller, id: i64, ref_id: i64) -> ReviewResult<()> {
+        self.editable_for(c, id).await?;
+        self.repo.remove_item(id, ref_id).await?;
+        Ok(())
+    }
+
     /// The caller's own submission, in any state (for kind specific reads).
     pub async fn own(&self, user: i64, id: i64) -> ReviewResult<Submission> {
         self.load_own(user, id).await
+    }
+
+    /// The submission for a kind specific read by its submitter, or by a reviewer of the kind (no claim
+    /// needed to look); anyone else learns nothing.
+    pub async fn readable_for(&self, c: Caller, id: i64) -> ReviewResult<Submission> {
+        let s = self.load(id).await?;
+        if s.submitter_id == Some(c.user_id) {
+            return Ok(s);
+        }
+        let kind = self.kinds.get(&s.kind)?;
+        if c.permissions.has(kind.review_permission()) {
+            Ok(s)
+        } else {
+            Err(ReviewError::NotFound("submission"))
+        }
     }
 
     /// The submission when the caller may review its kind (for kind specific reads).

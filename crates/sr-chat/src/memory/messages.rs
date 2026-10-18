@@ -87,6 +87,19 @@ impl GuildRepository for MemoryBackend {
         Ok(())
     }
 
+    async fn user_guild_ids(&self, user: UserId) -> RepoResult<Vec<GuildId>> {
+        let mut ids: Vec<GuildId> = self
+            .data()
+            .members
+            .iter()
+            .filter(|m| m.user_id == user)
+            .map(|m| m.guild_id)
+            .collect();
+        ids.sort();
+        ids.dedup();
+        Ok(ids)
+    }
+
     async fn get_guild(&self, id: GuildId) -> RepoResult<Option<Guild>> {
         Ok(self.data().guilds.get(&id).cloned())
     }

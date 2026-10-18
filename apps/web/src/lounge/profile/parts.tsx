@@ -36,6 +36,7 @@ export function ProfileAvatar({ view, size = 80 }: { view: ProfileView; size?: 5
       src={view.avatarUrl}
       size={size}
       status={view.presence.status}
+      ring={view.patron}
       decoration={decorationNode(view.decoration)}
     />
   );

@@ -165,6 +165,26 @@ pub async fn post_system_card(
     embeds: Vec<sr_chat::message::Embed>,
     components: Vec<sr_chat::message::Component>,
 ) -> MsgResult<Message> {
+    post_system_card_of(
+        deps,
+        channel_id,
+        id,
+        MessageType::AutoModerationAction,
+        embeds,
+        components,
+    )
+    .await
+}
+
+/// [`post_system_card`] with another system message type (the watch party card is type 200).
+pub async fn post_system_card_of(
+    deps: &MessagesDeps,
+    channel_id: sr_core::ChannelId,
+    id: MessageId,
+    kind: MessageType,
+    embeds: Vec<sr_chat::message::Embed>,
+    components: Vec<sr_chat::message::Component>,
+) -> MsgResult<Message> {
     let ch = deps
         .repo
         .get_channel(channel_id)
@@ -176,7 +196,7 @@ pub async fn post_system_card(
         channel_id,
         guild_id: ch.guild_id,
         author_id: user,
-        kind: MessageType::AutoModerationAction,
+        kind,
         content: String::new(),
         flags: 0,
         edited_at_ms: None,
@@ -209,12 +229,14 @@ pub async fn post_system_card(
     Ok(msg)
 }
 
-/// Rewrite a system card in place (embeds and components) and tell the clients with
-/// `MESSAGE_UPDATE`. `false` when the message is gone.
+/// Rewrite a system card in place (content, embeds and components) and tell the clients with
+/// `MESSAGE_UPDATE`. `false` when the message is gone. The one implementation every card family
+/// closes through (D-253).
 pub async fn rewrite_system_card(
     deps: &MessagesDeps,
     channel_id: sr_core::ChannelId,
     message_id: MessageId,
+    content: &str,
     embeds: &[sr_chat::message::Embed],
     components: &[sr_chat::message::Component],
 ) -> MsgResult<bool> {
@@ -223,7 +245,7 @@ pub async fn rewrite_system_card(
         .replace_card(
             channel_id,
             message_id,
-            "",
+            content,
             embeds,
             components,
             deps.now_ms(),

@@ -80,7 +80,7 @@ export function MiniPlayerView({ onExpand, onClose }: MiniPlayerViewProps) {
 }
 
 function Themed({ onExpand, onClose }: MiniPlayerViewProps) {
-  const theme = useAppliedTheme();
+  const theme = useAppliedTheme(undefined, 'cinema');
   return (
     <ThemeProvider
       section="cinema"

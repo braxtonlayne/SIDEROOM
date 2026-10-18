@@ -1,7 +1,7 @@
 // Review Queues hub (ADM-CNT-001): one tab per queue the staff member may work. Library submissions are the
 // full reviewer workspace; Cinema is the report queue; Apps is developer applications and versions.
-// Directory is the Server Directory queue; Packages has no server routes yet, so its tab says so.
-import { EmptyState, Tabs, type TabItem } from '@sideroom/ui';
+// Directory is the Server Directory queue; Packages is the declarative package queue (EXT-PKG-003).
+import { Tabs, type TabItem } from '@sideroom/ui';
 import { useLocation } from '@tanstack/react-router';
 import { useT } from '../../i18n';
 import { SectionHeader, useAdminViewer } from '../ui';
@@ -9,14 +9,16 @@ import { AppsReview } from './AppsReview';
 import { DirectoryQueue } from './DirectoryQueue';
 import { CinemaReports } from './CinemaReports';
 import { LibraryReviewPanel } from './Review';
+import { PackagesReview } from './PackagesReview';
 
 export function ReviewHubSection() {
   const t = useT();
   const viewer = useAdminViewer();
   // A `#review-queue` card links to `?submission=<id>` (G-68): that is a Library submission, so open its tab.
-  const linked = /(^|&)submission=\d+/.test(
-    useLocation({ select: (l) => l.searchStr }).replace(/^\?/, ''),
-  );
+  const search = useLocation({ select: (l) => l.searchStr }).replace(/^\?/, '');
+  const linked = /(^|&)submission=\d+/.test(search);
+  // A package card links to `?package=<version id>` (D-258): open the Packages tab.
+  const linkedPackage = /(^|&)package=\d+/.test(search);
   const items: TabItem[] = [];
   if (viewer.can('DELETE_CONTENT'))
     items.push({ id: 'cinema', label: t('admin.reviewHub.tabCinema'), content: <CinemaReports /> });
@@ -32,12 +34,7 @@ export function ReviewHubSection() {
     items.push({
       id: 'packages',
       label: t('admin.reviewHub.tabPackages'),
-      content: (
-        <EmptyState
-          title={t('admin.reviewHub.packagesTitle')}
-          description={t('admin.reviewHub.notBuilt')}
-        />
-      ),
+      content: <PackagesReview />,
     });
   if (viewer.can('MANAGE_DIRECTORY'))
     items.push({
@@ -51,7 +48,11 @@ export function ReviewHubSection() {
       <Tabs
         label={t('admin.reviewHub.tabsLabel')}
         items={items}
-        {...(linked && items.some((i) => i.id === 'library') ? { defaultValue: 'library' } : {})}
+        {...(linked && items.some((i) => i.id === 'library')
+          ? { defaultValue: 'library' }
+          : linkedPackage && items.some((i) => i.id === 'packages')
+            ? { defaultValue: 'packages' }
+            : {})}
       />
     </>
   );

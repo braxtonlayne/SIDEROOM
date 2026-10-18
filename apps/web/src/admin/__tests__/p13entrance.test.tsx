@@ -75,7 +75,12 @@ describe('Entrance pages editor', () => {
 
   it('is not offered to staff who hold only MANAGE_FEATURES (D-239)', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_FEATURES'] });
-    server.use(http.get('*/api/v1/admin/features', () => HttpResponse.json([])));
+    // Answer every request the fallback dashboard makes, so the run logs no unhandled requests.
+    server.use(
+      http.get('*/api/v1/admin/features', () => HttpResponse.json([])),
+      http.get('*/api/v1/admin/stats', () => HttpResponse.json({})),
+      http.get('*/api/v1/admin/settings', () => HttpResponse.json([])),
+    );
     openAdmin('entrance');
     // The Features section (also MANAGE_FEATURES) is offered; the Entrance section is not.
     await waitFor(() => expect(within(nav()).getAllByRole('button').length).toBeGreaterThan(0), {

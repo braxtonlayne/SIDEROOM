@@ -329,7 +329,19 @@ impl Client {
         Self { tx, rx }
     }
 
-    async fn send(&self, v: Value) {
+    /// Send a frame. A voice join (op 4 with a channel) declares `sr_e2ee` unless the frame says
+    /// otherwise, like the real client does (D-263); use [`Self::send_exact`] to leave it out.
+    async fn send(&self, mut v: Value) {
+        if v["op"] == 4
+            && v["d"].get("channel_id").is_some_and(|c| !c.is_null())
+            && v["d"].get("sr_e2ee").is_none()
+        {
+            v["d"]["sr_e2ee"] = json!(true);
+        }
+        self.send_exact(v).await;
+    }
+
+    async fn send_exact(&self, v: Value) {
         self.tx.send(Frame::Text(v.to_string())).await.unwrap();
     }
 

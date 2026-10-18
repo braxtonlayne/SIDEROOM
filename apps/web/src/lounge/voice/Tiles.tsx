@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Avatar, Button, ContextMenu, Icon, Popover, Slider } from '@sideroom/ui';
 import { t, useT } from '../../i18n';
 import { voiceController } from '../../voice/controller';
+import { useE2ee } from '../../voice/e2ee/store';
 import { useVoiceSession } from '../../voice/session';
 import { useVoiceSettings, userVolumeOf } from '../../voice/settings';
 import { streamKey, useStreams } from '../../voice/streams';
@@ -102,6 +103,11 @@ export function ParticipantTile({
   const remoteCamera = useRemoteVideo((s) =>
     s.videoOff[p.userId] ? undefined : s.camera[p.userId],
   );
+  // End-to-end encrypted with this person in the current epoch (VOX-UI-003, VOX-E2E-007).
+  const e2eeSecure = useE2ee(
+    (s) =>
+      s.active && s.call?.status === 'secure' && s.call.members.some((m) => m.userId === p.userId),
+  );
   const u = users[p.userId];
   const name = u?.displayName ?? t('lounge.voiceChannel.unknown');
   const self = p.userId === me.id;
@@ -134,7 +140,13 @@ export function ParticipantTile({
               label={t('lounge.voiceChannel.cameraOf', { name })}
             />
           ) : (
-            <Avatar name={name} src={u?.avatarUrl ?? null} size={80} speaking={p.speaking} />
+            <Avatar
+              name={name}
+              src={u?.avatarUrl ?? null}
+              size={80}
+              speaking={p.speaking}
+              ring={u?.patron}
+            />
           )}
           <div className="vc-tile-name">
             <span>{name}</span>
@@ -159,6 +171,9 @@ export function ParticipantTile({
                     : t('lounge.voiceChannel.deafened')
                 }
               />
+            )}
+            {e2eeSecure && (
+              <Icon name="shield" size={16} label={t('lounge.voiceChannel.e2eeSecure')} />
             )}
             {p.video && !hasVideo && !cameraOff && (
               <Icon name="video" size={16} label={t('lounge.voiceChannel.cameraOn')} />

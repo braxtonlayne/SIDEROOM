@@ -2,7 +2,7 @@
 
 Phases 4–6 · Crate `sr-review` · Decisions: D-081–D-083, D-062–D-064, D-074.
 
-One pipeline handles **Cinema** content, **Library** content, **apps**, and **declarative packages**. This spec defines the shared mechanics. Section specs define the per-kind metadata.
+`sr-review` carries Cinema and Library content; application versions, Activity bundles and package versions keep their review state on the versioned object (D-258) and share the Review Queues page, the staff access log and the review conduct (no self-review, a note on rejection, a logged decider, a `#review-queue` card). This spec defines the shared mechanics. Section specs define the per-kind metadata.
 
 ## 1. Roles
 | Actor | Can |
@@ -34,7 +34,7 @@ withdrawn ◄── submitter (any time before approved)                 └─r
 ## 4. Metadata editor (submitter and reviewer)
 Two-pane layout: file tree (left) and form (right). Kind-specific fields (see the cinema and library specs). Common features:
 - Auto-fill from filenames. Optional **metadata lookup** providers behind a feature flag and operator API keys (TMDB, AniList, MangaDex/MangaUpdates/ComicVine): "Fetch details" fills empty fields, and the user confirms each change.
-- Artwork upload with crop (WASM image tools), plus "pick frame from video" for stills.
+- Artwork upload with crop (canvas crop dialog; the server re-encodes and caps the image), plus "pick frame from video" for stills (deferred). Slots: `cover` (Library series), `poster` and `backdrop` (Cinema title). Library series have no banner in this release.
 - Validation summary (missing required fields, duplicates, unsupported files).
 
 ## 5. Reviewer workspace
@@ -42,6 +42,7 @@ Two-pane layout: file tree (left) and form (right). Kind-specific fields (see th
 - **Claim** (soft lock, 30 min, visible to other reviewers).
 - Preview: video proxy player with frame scrub; reader preview of pages; package preview (theme applied live in a sandbox frame); app manifest diff.
 - Duplicate panel: perceptual-hash matches (pages) and title/year/episode matches (video), with "merge into existing" and "mark as replacement."
+- **Edit in place (D-255).** The reviewer who holds the live claim on a submission in `in_review` can fix the draft metadata (series fields, cover, chapter number, title and volume, remove a draft chapter) through the same submission routes the submitter uses (`PUT /submissions/{id}/library/...`, `POST /submissions/{id}/artwork/{kind}`); a stale claim is a 409 that names the holder, the submitter cannot edit while it is in review, and every reviewer write posts a `metadata_edited` timeline event naming the fields. `PUBLISH_*` stays required for the `/admin/library` and `/admin/cinema` writes to published content; credits stay the submitter's. The review page shows the editor as "Editing as reviewer".
 - Decision: approve all / per item; request changes (requires a note, visible to the submitter); reject (reason template + note).
 - Every decision posts a timeline event, notifies the submitter (DM from the system user + `SR_SUBMISSION_UPDATE`), and updates the Staff Server card.
 

@@ -6,6 +6,9 @@ import { http, HttpResponse, server } from '../../test/server';
 import { resetStore, useStore } from '../../store';
 import type * as S from '../../store/types';
 import { useLoungeUi } from '../store';
+import { warmLoungeRoute } from '../../test/warmRoutes';
+
+warmLoungeRoute();
 
 // The gateway is not under test; the store is seeded directly.
 vi.mock('../../store/connect', () => ({

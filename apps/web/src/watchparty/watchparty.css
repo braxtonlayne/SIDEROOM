@@ -430,3 +430,25 @@
   flex-direction: column;
   gap: 0.75rem;
 }
+
+/* The party card inside a message (WP-FE-010). */
+.wp-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-inline-size: 520px;
+  margin-block-start: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--sr-line, var(--ui-border));
+  border-inline-start: 3px solid var(--sr-gold, #c9a24d);
+  border-radius: var(--sr-radius, 4px);
+  background: var(--sr-bg-1, #14120f);
+}
+.wp-card[data-live='false'] {
+  border-inline-start-color: var(--ui-border);
+  opacity: 0.85;
+}
+.wp-card :focus-visible {
+  outline: 2px solid var(--ui-focus, var(--sr-gold));
+  outline-offset: 2px;
+}

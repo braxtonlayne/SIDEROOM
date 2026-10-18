@@ -47,6 +47,9 @@ pub struct UserRef {
     /// The server tag the author displays (LNG-SSET-012).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub primary_guild: Option<crate::routes::social::model::PrimaryGuildObject>,
+    /// Patron badge and ring show for this user (D-256): the Patron entitlement is active or in
+    /// grace and the badge is not hidden. Always present; never a third state.
+    pub sr_patron: bool,
     /// Webhook authors only (DEV-BOT-006): the per-message avatar, an image-proxy path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
@@ -68,6 +71,7 @@ impl UserRef {
                 .get(&id)
                 .and_then(|u| u.primary_guild.as_ref())
                 .map(crate::routes::social::model::PrimaryGuildObject::of),
+            sr_patron: users.get(&id).is_some_and(|u| u.patron),
             avatar_url: None,
         }
     }

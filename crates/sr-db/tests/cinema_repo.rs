@@ -2002,3 +2002,67 @@ async fn assets_are_authorized_through_their_catalog_owner() {
         CinemaError::NotFound("asset")
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn contributors_count_live_credits_for_the_title_and_its_episodes() {
+    let w = world().await;
+    let pool = w.db.pool().clone();
+    let (show, _s, eps) = w.series("Credited show", 4).await;
+    w.publish(show.id).await;
+    let other = w.film("Other film", |_| {}).await;
+    let (a, b, c) = (
+        account(&pool).await,
+        account(&pool).await,
+        account(&pool).await,
+    );
+    let credit = |user: i64, ref_id: i64| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query(
+                "INSERT INTO contribution_credits (id, section, ref_id, user_id) \
+                 VALUES ($1, 'cinema', $2, $3)",
+            )
+            .bind(uid())
+            .bind(ref_id)
+            .bind(user)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+    };
+    credit(a, show.id).await;
+    credit(a, eps[0].id).await;
+    credit(b, eps[1].id).await;
+    credit(b, eps[2].id).await;
+    credit(b, other.id).await; // another title: not counted here
+    credit(c, eps[3].id).await; // will be revoked
+
+    let repo = PgCinemaRepo::new(pool.clone());
+    use sr_cinema::repo::CinemaRepository;
+    sqlx::query("UPDATE contribution_credits SET revoked_at = now() WHERE user_id = $1")
+        .bind(c)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let got = repo.title_contributors(show.id).await.unwrap();
+    let rows: Vec<(i64, i64, i64)> = got
+        .iter()
+        .map(|x| (x.user_id, x.titles, x.episodes))
+        .collect();
+    // Both have two credits here; the lower id comes first.
+    let mut want = vec![(a, 1, 1), (b, 0, 2)];
+    want.sort_by_key(|x| x.0);
+    assert_eq!(rows, want);
+
+    // An opt-out removes the member from the list.
+    sqlx::query("INSERT INTO donor_preferences (user_id, hide_contributions) VALUES ($1, TRUE)")
+        .bind(a)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let got = repo.title_contributors(show.id).await.unwrap();
+    assert_eq!(got.iter().map(|x| x.user_id).collect::<Vec<_>>(), vec![b]);
+    // Through the service an unknown title is not found.
+    assert!(w.svc.title_contributors(1).await.is_err());
+}

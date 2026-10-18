@@ -34,12 +34,12 @@ const APP: ErrorCode = ErrorCode::UnknownApplication;
 type NoStore = [(axum::http::HeaderName, &'static str); 1];
 const NO_STORE: NoStore = [(axum::http::header::CACHE_CONTROL, "no-store")];
 
-/// Staff routes need `REVIEW_APPS` on top of a staff session.
+/// Staff routes need `REVIEW_APPS` on top of a staff session (the Owner holds every permission).
 fn require_review(staff: &StaffCtx) -> MsgResult<()> {
     if staff
         .caller
         .permissions
-        .contains(PlatformPermissions::REVIEW_APPS)
+        .has(PlatformPermissions::REVIEW_APPS)
     {
         Ok(())
     } else {

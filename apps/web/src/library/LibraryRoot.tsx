@@ -16,7 +16,7 @@ function Frame() {
 }
 
 export function LibraryRoot() {
-  const theme = useAppliedTheme();
+  const theme = useAppliedTheme(undefined, 'library');
   const router = useRouter();
   const [client] = useState(
     () =>

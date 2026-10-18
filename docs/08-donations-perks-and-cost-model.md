@@ -30,7 +30,7 @@ Perks follow the user everywhere (D-072):
 | Counts against a server's sender limit | yes | **no** (D-052) |
 | Download Cinema video files | ✗ | ✅ (1080p or lower rendition, or original if staff allow) |
 | Download Library chapters (CBZ/PDF/EPUB) | ✗ | ✅ |
-| Profile badge "Patron" + donor ring | ✗ | ✅ (can hide) |
+| Profile badge + donor ring (one toggle) | ✗ | ✅ ("Show my Patron badge and ring"; `sr_patron` on the user object, D-256) |
 | Everything else (animated avatars, banners, themes, emoji anywhere, long messages, stickers…) | ✅ free | ✅ |
 
 Patron is a 30-day entitlement from confirmation, plus a 3-day grace period (D-073). Paying again extends it. Users can prepay up to 12 months at once.

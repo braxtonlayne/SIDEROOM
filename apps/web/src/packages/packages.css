@@ -1,0 +1,129 @@
+/* Theme Store, Server Extensions and the creator pages (EXT-PKG). Logical properties only. */
+.pkg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-block-end: 12px;
+}
+.pkg-toolbar > :first-child {
+  flex: 1 1 200px;
+}
+.pkg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pkg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+}
+.pkg-card h3,
+.pkg-card p {
+  margin: 0;
+}
+.pkg-card h3 {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.pkg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+}
+.pkg-swatch {
+  display: flex;
+  block-size: 36px;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  border: 1px solid var(--ui-border);
+}
+.pkg-swatch > span {
+  flex: 1;
+}
+.pkg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: auto;
+}
+.pkg-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: 12px;
+  padding: 8px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-overlay);
+  border: 1px solid var(--ui-accent);
+}
+.pkg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pkg-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+}
+.pkg-where {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.pkg-problems {
+  margin: 8px 0 0;
+  padding-inline-start: 20px;
+}
+.pkg-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pkg-items img {
+  inline-size: 32px;
+  block-size: 32px;
+  object-fit: contain;
+}
+.pkg-dropzone {
+  padding: 24px;
+  border: 2px dashed var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  text-align: center;
+}
+.pkg-dropzone[data-over='true'] {
+  border-color: var(--ui-accent);
+}
+.pkg-code {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 0.8125rem;
+}

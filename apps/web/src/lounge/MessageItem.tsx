@@ -32,6 +32,7 @@ import { ReactionRow } from './msg/Reactions';
 import { REMIND_CHOICES } from './shell/savedMessages';
 import { Sticker } from './msg/Sticker';
 import { isSystemMessage, SystemMessage } from './msg/SystemMessage';
+import { PartyMessageCard, SYSTEM_WATCH_PARTY } from '../watchparty/PartyMessageCard';
 import { formatClock, formatFullTime, formatMessageTime } from './time';
 import { ServerTagChip } from './components/ServerTagChip';
 
@@ -176,8 +177,11 @@ function MessageBody({
       {m.attachments && m.attachments.length > 0 && (
         <AttachmentList attachments={m.attachments} voice={!!m.voice} />
       )}
-      {embeds.length > 0 && !m.suppressEmbeds && (
-        <EmbedList embeds={embeds} resolvers={resolvers} />
+      {m.type === SYSTEM_WATCH_PARTY ? (
+        <PartyMessageCard message={m} />
+      ) : (
+        embeds.length > 0 &&
+        !m.suppressEmbeds && <EmbedList embeds={embeds} resolvers={resolvers} />
       )}
       {showCards && inviteCode && <InviteCard code={inviteCode} />}
       {showCards && messageLinks.map((l) => <MessageLinkCard key={l.messageId} link={l} />)}
@@ -581,6 +585,7 @@ function MessageItemImpl(props: MessageItemProps) {
                   name={m.author.displayName}
                   src={m.author.avatarUrl ?? null}
                   size={40}
+                  ring={m.author.patron}
                   aria-hidden="true"
                 />
               </button>
@@ -653,7 +658,10 @@ function MessageItemImpl(props: MessageItemProps) {
                 )}
               </header>
             )}
-            <div className="lng-msg-content">
+            <div
+              className="lng-msg-content"
+              {...(isOwn && prefs.spoilers === 'mine' ? { 'data-spoilers': 'hover' } : {})}
+            >
               {editing && onSaveEdit && onCancelEdit ? (
                 <InlineEdit
                   initial={m.content}

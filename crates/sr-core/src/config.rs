@@ -251,7 +251,9 @@ impl Default for VoiceConfig {
 }
 
 /// `[unfurl]`: server-side link previews (LNG-MSG-014). The feature itself is the
-/// `unfurl` feature module (default on); this section holds operator policy.
+/// `unfurl` feature module (default on); this section holds operator policy. The hosts and the rate
+/// are the bootstrap values: once an administrator saves them on the Email & Integrations page
+/// (`platform.integrations`, D-254) the database row wins, from the next start.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct UnfurlConfig {
@@ -281,7 +283,8 @@ impl Default for UnfurlConfig {
 
 /// `[gif]`: the GIF picker's provider (LNG-EXP-005). Empty `provider` switches the
 /// feature off; the picker then says no provider is connected. The server proxies every
-/// request and every preview, so members' browsers never contact the provider.
+/// request and every preview, so members' browsers never contact the provider. `country` and
+/// `locale` are bootstrap values; a saved `platform.integrations` row wins (D-254). The key stays here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct GifConfig {
@@ -352,7 +355,8 @@ fn roots_from_list_or_csv<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<
 /// (REV-ED-005). Everything is off by default: a provider is used only when the operator turns it
 /// on here (and gave its key, where it needs one) AND the platform setting
 /// `review.lookup.enabled` is on. Requests go out from this server under the SSRF-safe client; the
-/// member's browser never contacts a provider.
+/// member's browser never contacts a provider. The providers offered are the bootstrap value; a saved
+/// `platform.integrations` list wins (D-254). API keys stay here, never in the database.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LookupConfig {

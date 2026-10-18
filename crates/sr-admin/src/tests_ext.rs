@@ -33,6 +33,7 @@ struct Notes {
     notices: Mutex<Vec<String>>,
     broadcasts: Mutex<Vec<Announcement>>,
     dms: Mutex<Vec<(i64, String)>>,
+    closed: Mutex<Vec<(i64, OfferState)>>,
 }
 
 #[async_trait]
@@ -50,6 +51,9 @@ impl StaffNotifier for Notes {
     async fn system_dm(&self, to: i64, text: &str) -> bool {
         self.dms.lock().unwrap().push((to, text.to_owned()));
         true
+    }
+    async fn offer_closed(&self, offer: &StaffOffer) {
+        self.closed.lock().unwrap().push((offer.id, offer.state));
     }
 }
 
@@ -172,6 +176,11 @@ async fn an_offer_makes_nobody_staff_until_accepted() {
         .await
         .unwrap();
     assert_eq!(closed.state, OfferState::Accepted);
+    // The DM card is closed (its buttons go) once the offer is answered.
+    assert_eq!(
+        *e.notes.closed.lock().unwrap(),
+        [(offer.id, OfferState::Accepted)]
+    );
     let c = e.svc.resolve(NEWBIE, None).await.unwrap();
     assert!(c.permissions.has(P::PLATFORM_BAN));
     assert!(e.notes.notices.lock().unwrap()[0].contains("newbie joined the staff as Moderator"));
@@ -216,6 +225,10 @@ async fn declining_leaves_the_account_alone_and_only_the_appointee_can_answer() 
         .await
         .unwrap();
     assert_eq!(closed.state, OfferState::Declined);
+    assert_eq!(
+        *e.notes.closed.lock().unwrap(),
+        [(offer.id, OfferState::Declined)]
+    );
     assert_eq!(
         e.svc.resolve(NEWBIE, None).await.unwrap_err(),
         AdminError::NotStaff
@@ -1014,4 +1027,145 @@ async fn an_active_announcement_can_be_edited_but_not_an_ended_one() {
             .await,
         Err(AdminError::NotFound("announcement"))
     ));
+}
+
+// ---- K-20 (D-262): staff move of a Discord identity ---------------------
+
+#[tokio::test]
+async fn a_staff_member_moves_a_discord_identity_inside_the_chain() {
+    let e = env();
+    let o = owner(&e).await;
+    // OTHER holds the identity; NEWBIE is the account it should end up on.
+    let identity = e.repo.add_identity(OTHER, "4242");
+    let person = OTHER + 500_000;
+
+    // A reason is required.
+    assert_eq!(
+        e.svc
+            .move_identity(&o, person, identity, NEWBIE, None)
+            .await
+            .unwrap_err(),
+        AdminError::ReasonRequired
+    );
+    // An identity of some other Person is not in this chain.
+    assert_eq!(
+        e.svc
+            .move_identity(&o, NEWBIE + 500_000, identity, NEWBIE, Some("x"))
+            .await
+            .unwrap_err(),
+        AdminError::NotFound("identity")
+    );
+
+    let moved = e
+        .svc
+        .move_identity(&o, person, identity, NEWBIE, Some("lost the old login"))
+        .await
+        .unwrap();
+    // The target was linked into the chain by the same call.
+    assert!(moved.linked_target);
+    assert_eq!(
+        (moved.from_account_id, moved.to_account_id),
+        (OTHER, NEWBIE)
+    );
+    let detail = e.svc.person_detail(&o, person).await.unwrap();
+    assert_eq!(detail.accounts.len(), 2);
+    assert_eq!(detail.identities.len(), 2);
+    let old = detail.identities.iter().find(|i| i.id == identity).unwrap();
+    assert!(old.unlinked_at_ms.is_some());
+    assert_eq!(old.moved_to_account_id, Some(NEWBIE));
+    let live: Vec<_> = detail
+        .identities
+        .iter()
+        .filter(|i| i.unlinked_at_ms.is_none())
+        .collect();
+    assert_eq!(live.len(), 1, "exactly one live row per Discord user");
+    assert_eq!(live[0].account_id, NEWBIE);
+    assert_eq!(live[0].provider_user_id, "4242");
+
+    // The old account heard about it.
+    let dms = e.notes.dms.lock().unwrap().clone();
+    assert_eq!(dms.len(), 1);
+    assert_eq!(dms[0].0, OTHER);
+    assert!(dms[0].1.contains("@newbie") && dms[0].1.contains("lost the old login"));
+
+    // The move is in the access log with its reason.
+    let log = e
+        .svc
+        .access_log(&o, AccessLogFilter::default(), Some(50))
+        .await
+        .unwrap();
+    let row = log
+        .items
+        .iter()
+        .find(|r| r.action == "person.identity_move")
+        .expect("audit row");
+    assert_eq!(row.reason, "lost the old login");
+    assert_eq!(row.target_id, Some(person));
+
+    // Moving it back within the chain needs no link and works; the history row cannot be moved while a live one exists.
+    let live_id = live[0].id;
+    let again = e
+        .svc
+        .move_identity(&o, person, live_id, OTHER, Some("and back"))
+        .await
+        .unwrap();
+    assert!(!again.linked_target);
+    assert_eq!(
+        e.svc
+            .move_identity(&o, person, live_id, OTHER, Some("twice"))
+            .await
+            .unwrap_err(),
+        AdminError::Conflict("that Discord identity is already linked to an account".into()),
+        "the row just moved is history; the live row is elsewhere"
+    );
+}
+
+#[tokio::test]
+async fn an_identity_does_not_move_from_or_to_suspended_or_banned_accounts() {
+    let e = env();
+    let o = owner(&e).await;
+    let identity = e.repo.add_identity(OTHER, "777");
+    let person = OTHER + 500_000;
+    e.repo
+        .add_account(40, "frozen", AccountState::Deactivated, None, Some(OWNER));
+    e.repo.add_account(
+        41,
+        "banned",
+        AccountState::PlatformBanned,
+        None,
+        Some(OWNER),
+    );
+    for target in [40, 41] {
+        let err = e
+            .svc
+            .move_identity(&o, person, identity, target, Some("try"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AdminError::Conflict(m) if m.contains("target account")));
+    }
+    // A suspended source account keeps its identity until it is unsuspended.
+    let frozen_identity = e.repo.add_identity(40, "888");
+    let err = e
+        .svc
+        .move_identity(&o, 40 + 500_000, frozen_identity, 40, Some("try"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, AdminError::Conflict(_)));
+    // A banned Person is refused.
+    let ban_person = NEWBIE + 500_000;
+    let id2 = e.repo.add_identity(NEWBIE, "999");
+    e.svc
+        .ban_person(&o, ban_person, None, BanCategory::Standard, Some("spam"))
+        .await
+        .unwrap();
+    let err = e
+        .svc
+        .move_identity(&o, ban_person, id2, OTHER, Some("try"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, AdminError::Conflict(m) if m.contains("banned")));
+    // Nothing was written: no history rows, no DMs.
+    let detail = e.svc.person_detail(&o, person).await.unwrap();
+    assert_eq!(detail.identities.len(), 1);
+    assert!(e.notes.dms.lock().unwrap().is_empty());
 }

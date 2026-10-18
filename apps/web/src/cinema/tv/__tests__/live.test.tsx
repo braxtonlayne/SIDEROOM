@@ -12,6 +12,7 @@ import { installMediaMocks, makeSession, media, resetSession } from '../../playe
 import { STALL_MS } from '../LiveView';
 import { setLivePrefs } from '../livePrefs';
 import { NOW, block, guide, useTvApi } from './fixtures';
+import { warmLoungeRoute } from '../../../test/warmRoutes';
 
 beforeAll(() => {
   installMediaMocks();
@@ -55,6 +56,9 @@ async function openAndPlay(path?: string) {
   await waitFor(() => expect(ctx.session.state.playing).toBe(true));
   return { ...ctx, user };
 }
+
+// After the env stubs above, so the warmed modules see the same env as the tests.
+warmLoungeRoute();
 
 describe('live player', () => {
   it('tunes the channel, shows LIVE and now/next with progress, and has no scrubber; passes axe', async () => {

@@ -110,6 +110,7 @@ const EVENT_LABEL: Record<string, MessageKey> = {
   publish_failed: 'review.shared.eventPublishFailed',
   withdrawn: 'review.shared.stateWithdrawn',
   item_decision: 'review.shared.eventItemDecision',
+  metadata_edited: 'review.shared.eventMetadataEdited',
   stale_warning: 'review.shared.eventStaleWarning',
   abandoned: 'review.shared.eventAbandoned',
   purged: 'review.shared.eventPurged',
@@ -123,6 +124,12 @@ export function eventLabel(e: SubmissionEvent): string {
     return st
       ? t('review.shared.eventItemState', { state: st })
       : t('review.shared.eventItemDecision');
+  }
+  if (e.kind === 'metadata_edited') {
+    const fields = Array.isArray(e.data.fields) ? e.data.fields.map(String).join(', ') : '';
+    return fields
+      ? t('review.shared.eventMetadataEditedFields', { fields })
+      : t('review.shared.eventMetadataEdited');
   }
   const key = EVENT_LABEL[e.kind];
   return key ? t(key) : e.kind.replace(/_/g, ' ');

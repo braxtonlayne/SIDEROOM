@@ -12,6 +12,9 @@ import { disablePush, enablePush, pushStatus, urlBase64ToBytes } from './push';
 import { queuedFiles } from '../lounge/queuedFiles';
 import { parseShare, shareToDraft } from './shareText';
 import { badgeCount, useAppBadge } from './useAppBadge';
+import { warmLoungeRoute } from '../test/warmRoutes';
+
+warmLoungeRoute();
 
 const sharedFile = new File(['x'], 'pic.png', { type: 'image/png' });
 vi.mock('./shareFiles', () => ({

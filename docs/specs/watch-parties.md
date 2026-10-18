@@ -100,7 +100,10 @@ session, and use snowflakes as decimal strings. Times are unix milliseconds on t
 Events are hints for latency; the heartbeat answer and `GET /watch-parties/{id}` are the repair path.
 
 ### 7.4 Not in this build
-A dedicated "Watch Party" channel *type* (D-208: the "Watch party room" preset covers it) and the live-updating chat card (the `ChatHook` port exists; no chat message type for it yet). Concurrent parties per server follow the server level (2, 4, 8, 16 for Level 0 to 3, `sr_server::watchparty::EntitlementLimits` over `Entitlements`, refreshed on `SR_ENTITLEMENT_UPDATE`).
+A dedicated "Watch Party" channel *type* (D-208: the "Watch party room" preset covers it). Concurrent parties per server follow the server level (2, 4, 8, 16 for Level 0 to 3, `sr_server::watchparty::EntitlementLimits` over `Entitlements`, refreshed on `SR_ENTITLEMENT_UPDATE`).
+
+### 7.4a The chat card (WP-BE-008, WP-FE-010)
+A party bound to a channel has one **card**: a message of type **200** authored by the system user, with one embed (author "Watch party", the title, "episode · N watching", `url` `/cinema/party/<id>`; an age-restricted title is not named). The server posts it when the party starts and **rewrites it** (`MESSAGE_UPDATE`) when the media, the host or the headcount changes (at most one edit per 15 seconds per party, the newest change wins) and once more when the party ends (grey, "Ended after N viewers"). `watch_party_cards` (migration 1001) remembers the message of each party. Other clients show the embed. The web client draws the card from the live party state (the same gateway events the channel strip uses) while the party runs, with a Join button, and falls back to the embed once it ended. The opt-in announcer module (userfeat) still posts its own start and end text when enabled.
 
 ### 7.5 Phase 13 rules
 - **Empty rooms (D-227).** A persistent party bound to a voice channel may have `media: null` and state `idle`. The room preset does not ask for a title; the first person to join an idle room hosts and picks the media, and the play gate, limits and age rule run at that moment. Ad-hoc parties still need media at creation.

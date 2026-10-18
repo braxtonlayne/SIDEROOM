@@ -64,6 +64,8 @@ pub mod opt_id {
 pub enum ChannelKind {
     RuleBased,
     Manual,
+    /// A weekly grid of slots imported from a historical guide (TV-ENG-003).
+    ImportedGuide,
 }
 
 impl ChannelKind {
@@ -71,6 +73,7 @@ impl ChannelKind {
         match self {
             Self::RuleBased => "rule_based",
             Self::Manual => "manual",
+            Self::ImportedGuide => "imported_guide",
         }
     }
 
@@ -78,6 +81,7 @@ impl ChannelKind {
         match s {
             "rule_based" => Some(Self::RuleBased),
             "manual" => Some(Self::Manual),
+            "imported_guide" => Some(Self::ImportedGuide),
             _ => None,
         }
     }
@@ -735,6 +739,119 @@ mod tests {
         assert_eq!(parse_hm("9:30"), None);
         assert_eq!(parse_hm("12:60"), None);
     }
+}
+
+// ---- weekly slots and guide imports (TV-ENG-001, TV-ENG-003, TV-ADM-003, TV-ADM-004) -------------
+
+/// One weekly slot of an `imported_guide` channel, as stored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SlotRecord {
+    pub id: i64,
+    pub channel_id: i64,
+    /// 0 = Monday, channel time.
+    pub weekday: u8,
+    /// Minutes after local midnight, 0 to 1439.
+    pub start_minute: u16,
+    pub duration_min: u16,
+    /// The show text as imported or typed.
+    pub show_name: String,
+    /// The matched catalog title; none while the slot matches nothing (skipped when resolving).
+    pub title_id: Option<i64>,
+    pub episode_id: Option<i64>,
+    pub season_number: Option<i32>,
+    pub episode_number: Option<i32>,
+    pub note: Option<String>,
+    pub import_id: Option<i64>,
+}
+
+/// A weekly slot as the API shows and accepts it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[schema(as = TvSlot)]
+pub struct Slot {
+    /// Ignored on input.
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub id: Option<i64>,
+    /// 0 = Monday, in the channel time zone.
+    pub weekday: u8,
+    /// `HH:MM` in the channel time zone.
+    pub start: String,
+    pub duration_min: u16,
+    pub show_name: String,
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub title_id: Option<i64>,
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub episode_id: Option<i64>,
+    #[serde(default)]
+    pub season_number: Option<i32>,
+    #[serde(default)]
+    pub episode_number: Option<i32>,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+impl Slot {
+    pub fn of(r: &SlotRecord) -> Self {
+        Self {
+            id: Some(r.id),
+            weekday: r.weekday,
+            start: format!("{:02}:{:02}", r.start_minute / 60, r.start_minute % 60),
+            duration_min: r.duration_min,
+            show_name: r.show_name.clone(),
+            title_id: r.title_id,
+            episode_id: r.episode_id,
+            season_number: r.season_number,
+            episode_number: r.episode_number,
+            note: r.note.clone(),
+        }
+    }
+
+    /// Validate and normalise into a record (ids are assigned by the caller).
+    pub fn checked(&self, channel_id: i64, id: i64) -> Result<SlotRecord, String> {
+        if self.weekday > 6 {
+            return Err("weekday must be 0 (Monday) to 6 (Sunday)".into());
+        }
+        let start = parse_hm(&self.start)
+            .filter(|m| *m < 1440)
+            .ok_or("start must be HH:MM")?;
+        if !(1..=1440).contains(&self.duration_min) {
+            return Err("duration_min must be 1 to 1440".into());
+        }
+        let show = self.show_name.trim();
+        if show.is_empty() || show.chars().count() > 200 {
+            return Err("show_name must be 1 to 200 characters".into());
+        }
+        let note = trimmed(&self.note, 200, "note")?;
+        Ok(SlotRecord {
+            id,
+            channel_id,
+            weekday: self.weekday,
+            start_minute: u16::try_from(start).map_err(|_| "start must be HH:MM")?,
+            duration_min: self.duration_min,
+            show_name: show.to_owned(),
+            title_id: self.title_id,
+            episode_id: self.episode_id,
+            season_number: self.season_number,
+            episode_number: self.episode_number,
+            note,
+            import_id: None,
+        })
+    }
+}
+
+/// A stored guide import waiting for confirmation (or confirmed).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportRecord {
+    pub id: i64,
+    pub channel_id: i64,
+    pub created_by: Option<i64>,
+    pub format: String,
+    pub confirmed: bool,
+    pub rows: serde_json::Value,
+    pub report: serde_json::Value,
+    pub created_at_ms: i64,
 }
 
 /// A member's reminder for one upcoming block (TV-PLY-005). The title and start are a snapshot taken when

@@ -2457,3 +2457,136 @@ async fn this_wasnt_me_after_completion_revokes_every_session() {
 }
 
 mod passkeys;
+
+#[tokio::test]
+async fn discord_start_uses_pkce() {
+    let h = discord_harness();
+    let r = h
+        .get("/api/v1/sr/auth/discord/start?intent=login")
+        .send()
+        .await;
+    let location = r.headers[header::LOCATION].to_str().unwrap();
+    assert!(location.contains("code_challenge="));
+    assert!(location.contains("code_challenge_method=S256"));
+}
+
+#[tokio::test]
+async fn discord_link_status_start_and_unlink() {
+    use sr_auth::store::{AuthStore, DiscordLink};
+    let h = discord_harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    h.add_account(2, "bob", "bob@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+
+    // Needs a session.
+    let anon = h.get("/api/v1/sr/auth/discord").send().await;
+    assert_eq!(anon.status, StatusCode::UNAUTHORIZED);
+
+    let st = h.get("/api/v1/sr/auth/discord").session(&s).send().await;
+    assert_eq!(st.status, StatusCode::OK);
+    assert_eq!(st.body, json!({"enabled": true, "linked": false}));
+
+    // Starting answers the authorize URL and sets the state cookie.
+    let start = h
+        .post("/api/v1/sr/auth/discord/link", json!({}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(start.status, StatusCode::OK);
+    let url = start.body["url"].as_str().unwrap();
+    let state = start.cookie("sr_oauth_state").expect("state cookie");
+    assert!(url.starts_with("https://discord.com/oauth2/authorize?"));
+    assert!(url.contains(&format!("state={state}")));
+    assert!(url.contains("code_challenge_method=S256"));
+
+    // Unlinking with nothing linked is refused; a wrong password is refused.
+    let none = h
+        .post("/api/v1/sr/auth/discord/unlink", json!({"password": PW}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(none.status, StatusCode::BAD_REQUEST);
+
+    // Link through the store (the callback does the same after Discord answers).
+    assert_eq!(
+        h.store.link_discord(1, 77, "999").await.unwrap(),
+        DiscordLink::Linked
+    );
+    assert_eq!(
+        h.store.link_discord(2, 78, "999").await.unwrap(),
+        DiscordLink::TakenByOther
+    );
+    assert_eq!(
+        h.store.link_discord(1, 79, "888").await.unwrap(),
+        DiscordLink::AlreadyLinked
+    );
+    let st = h.get("/api/v1/sr/auth/discord").session(&s).send().await;
+    assert_eq!(st.body["linked"], true);
+    // Linking twice through the API is refused up front.
+    let again = h
+        .post("/api/v1/sr/auth/discord/link", json!({}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(again.status, StatusCode::BAD_REQUEST);
+
+    let wrong = h
+        .post(
+            "/api/v1/sr/auth/discord/unlink",
+            json!({"password": "nope-nope-nope"}),
+        )
+        .session(&s)
+        .send()
+        .await;
+    assert!(wrong.status.is_client_error());
+    assert_eq!(
+        h.get("/api/v1/sr/auth/discord")
+            .session(&s)
+            .send()
+            .await
+            .body["linked"],
+        true
+    );
+
+    let ok = h
+        .post("/api/v1/sr/auth/discord/unlink", json!({"password": PW}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(ok.status, StatusCode::NO_CONTENT);
+    assert_eq!(
+        h.get("/api/v1/sr/auth/discord")
+            .session(&s)
+            .send()
+            .await
+            .body["linked"],
+        false
+    );
+    // Sign-in with the unlinked identity no longer finds the account, and nobody else can take it.
+    assert!(h.store.find_by_discord("999").await.unwrap().is_none());
+    assert_eq!(
+        h.store.link_discord(2, 80, "999").await.unwrap(),
+        DiscordLink::TakenByOther
+    );
+    // The owner can link it again.
+    assert_eq!(
+        h.store.link_discord(1, 81, "999").await.unwrap(),
+        DiscordLink::Linked
+    );
+    assert!(h.store.find_by_discord("999").await.unwrap().is_some());
+}
+
+#[tokio::test]
+async fn discord_link_routes_are_404_when_not_configured() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let st = h.get("/api/v1/sr/auth/discord").session(&s).send().await;
+    assert_eq!(st.body, json!({"enabled": false, "linked": false}));
+    let start = h
+        .post("/api/v1/sr/auth/discord/link", json!({}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(start.status, StatusCode::NOT_FOUND);
+}

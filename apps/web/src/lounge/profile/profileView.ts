@@ -30,6 +30,8 @@ export interface ProfileView {
   /** The viewer sees this person inside a server and they have a profile of their own there. */
   hasServerProfile: boolean;
   serverTag: string | null;
+  /** Draw the Patron ring (D-256). */
+  patron: boolean;
 }
 
 const clean = (s: string | null | undefined) => (s && s.trim() ? s : null);
@@ -85,5 +87,6 @@ export function useProfileView(userId: string, guildId?: string): ProfileView {
     presence,
     hasServerProfile: !!gp,
     serverTag: tag ?? null,
+    patron: !!(user?.patron ?? profile?.user.sr_patron),
   };
 }

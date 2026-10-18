@@ -22,7 +22,7 @@ mod tests;
 
 pub use error::{ReviewError, ReviewResult};
 pub use kind::{KindDraft, KindRegistry, SubmissionKind};
-pub use service::{Caller, IdSource, ReviewEvents, ReviewService};
+pub use service::{Caller, EditAs, IdSource, ReviewEvents, ReviewService};
 
 /// Name of the gateway event delivered to the submitter (doc 05).
 pub const EVENT_NAME: &str = "SR_SUBMISSION_UPDATE";

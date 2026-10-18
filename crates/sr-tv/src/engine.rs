@@ -319,6 +319,134 @@ pub fn generate(
     }
 }
 
+// ---- imported guides (TV-ENG-003) ----------------------------------------------------------------
+
+/// One weekly slot of an `imported_guide` channel, with what the catalog offers for it.
+#[derive(Debug, Clone)]
+pub struct SlotPlan {
+    /// The slot id; keys the rotation of a series slot in the cursor.
+    pub key: i64,
+    /// 0 = Monday, channel time.
+    pub weekday: u8,
+    pub start_minute: i64,
+    pub duration_min: i64,
+    /// What can air in the slot: one item for a film or a fixed episode, the episodes in order for a series
+    /// (they rotate week by week), nothing when the title is not in the library (the slot is skipped).
+    pub items: Vec<CatalogItem>,
+}
+
+/// Resolve weekly slots to concrete blocks from `max(from_ms, cursor.at_ms)` until a block starts at or
+/// after `to_ms`, deterministically.
+///
+/// * A slot with nothing to air is skipped: the gap is filled by the filler policy (D-102).
+/// * A programme starts at its slot start. If the previous programme overran, it starts when that one ends
+///   (the schedule shifts, "overrun"); if that would be at or past the slot's end, the slot is skipped.
+/// * A programme shorter than its slot leaves a gap that the filler policy fills (bumpers, a slate or bars;
+///   `next_program_early` behaves as a slate here, because a wall-clock grid has fixed starts).
+/// * Without a cursor, the slot already on air at `from_ms` is entered at its own start, so a viewer
+///   tuning in 17 minutes into it lands 17 minutes in (D-100).
+/// * A series slot rotates through its episodes, one per airing, the position kept in the cursor.
+pub fn resolve_slots(
+    ch: &EngineChannel<'_>,
+    bumpers: &[CatalogItem],
+    plans: &[SlotPlan],
+    from_ms: i64,
+    to_ms: i64,
+    cursor: Cursor,
+) -> Generated {
+    let pools = Pools {
+        dayparts: Vec::new(),
+        bumpers: bumpers.to_vec(),
+    };
+    let mut run = Run {
+        ch,
+        pools: &pools,
+        parts: Vec::new(),
+        grid_ms: 0,
+        cursor,
+        blocks: Vec::new(),
+        warnings: Vec::new(),
+    };
+    let fresh = run.cursor.at_ms == 0;
+    let mut t = from_ms.max(run.cursor.at_ms);
+    // Every airing of every slot that can matter: from the day before `t` (a slot past midnight) on.
+    let (first_day, _, _) = ch.zone.local_day(t);
+    let (last_day, _, _) = ch.zone.local_day(to_ms);
+    struct Airing {
+        start: i64,
+        end: i64,
+        plan: usize,
+    }
+    let mut airings: Vec<Airing> = Vec::new();
+    for day in (first_day - 1)..=(last_day + 1) {
+        let dow = i64::from(crate::tz::weekday(day));
+        for (i, p) in plans.iter().enumerate() {
+            if p.items.is_empty() || i64::from(p.weekday) != dow {
+                continue;
+            }
+            let start = ch.zone.from_local(day * MS_DAY + p.start_minute * 60_000);
+            airings.push(Airing {
+                start,
+                end: start + p.duration_min * 60_000,
+                plan: i,
+            });
+        }
+    }
+    airings.sort_by_key(|a| (a.start, a.plan));
+    if fresh && let Some(first) = airings.iter().find(|a| a.end > t) {
+        // Enter the slot on air at its own start; nothing earlier is generated.
+        t = t.min(first.start);
+    }
+    for a in &airings {
+        if a.end <= t {
+            // Swallowed whole by a programme that overran (not merely in the past).
+            if run.blocks.last().is_some_and(|b| a.start >= b.start_ms) {
+                run.warnings.push(format!(
+                    "Slot at minute {} of weekday {} was skipped: the previous programme overran it",
+                    plans[a.plan].start_minute, plans[a.plan].weekday
+                ));
+            }
+            continue;
+        }
+        if a.start >= to_ms {
+            break;
+        }
+        let start = a.start.max(t);
+        if start >= a.end {
+            run.warnings.push(format!(
+                "Slot at minute {} of weekday {} was skipped: the previous programme overran it",
+                plans[a.plan].start_minute, plans[a.plan].weekday
+            ));
+            continue;
+        }
+        let plan = &plans[a.plan];
+        let item = if plan.items.len() == 1 {
+            plan.items[0].clone()
+        } else {
+            let key = format!("slot:{}", plan.key);
+            let at = run.cursor.seq.get(&key).copied().unwrap_or(0);
+            run.cursor.seq.insert(key, at.wrapping_add(1));
+            plan.items[(at % plan.items.len() as u64) as usize].clone()
+        };
+        if start > t {
+            run.fill(t, start);
+        }
+        let end = start + item.duration_ms.max(1000);
+        run.push(start, end, BlockKind::Program, Some(item));
+        t = end;
+    }
+    if t < to_ms {
+        // Nothing more in the window: the rest is filler, which a later extension continues from.
+        let next = airings.iter().find(|a| a.start >= to_ms).map(|a| a.start);
+        run.fill(t, next.unwrap_or(to_ms).max(to_ms));
+    }
+    Generated {
+        cursor: run.cursor,
+        blocks: run.blocks,
+        warnings: run.warnings,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

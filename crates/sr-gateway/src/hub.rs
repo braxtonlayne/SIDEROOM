@@ -508,6 +508,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         | DomainEvent::StaffFeed { .. }
         | DomainEvent::PlatformBroadcast { .. }
         | DomainEvent::ReviewCard { .. }
+        | DomainEvent::PackageCard { .. }
         // Merged with the live sessions by `Gateway::on_user_event`.
         | DomainEvent::PresenceChanged { .. }
         | DomainEvent::UserScoped { .. } => return None,

@@ -8,6 +8,9 @@ import { http, HttpResponse, server } from '../../test/server';
 import { useLoungeUi } from '../store';
 import { useNotifSettings } from '../shell/notifSettings';
 import { useGuideFlags } from '../shell/joinPipeline';
+import { warmLoungeRoute } from '../../test/warmRoutes';
+
+warmLoungeRoute();
 
 vi.mock('../../store/connect', () => ({
   connectGateway: vi.fn(),

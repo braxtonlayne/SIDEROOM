@@ -10,6 +10,7 @@ pub mod directory;
 pub mod feature;
 pub mod moderation;
 pub mod modules;
+pub mod platform_defaults;
 pub mod runtime;
 pub mod schema;
 pub mod service;
@@ -23,6 +24,10 @@ pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
 pub use moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
+pub use platform_defaults::{
+    APPEARANCE_ID, AppearanceDefaultsFeature, INTEGRATIONS_ID, IntegrationsPolicy,
+    IntegrationsPolicyFeature, default_themes_from,
+};
 pub use runtime::{FeatureRuntime, current_module, scope_module};
 pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};
 pub use service::FeatureService;

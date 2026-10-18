@@ -88,6 +88,12 @@ async fn an_owner_invites_by_username_and_the_invitee_answers_the_dm_buttons() {
         (v["accepted"].clone(), v["application_id"].clone()),
         (json!(true), json!(app))
     );
+    // The invitation card in Carol's DM loses its buttons (no Accept again after a reload).
+    assert!(e.dms.1.lock().unwrap().contains(&(
+        CAROL,
+        format!("sr:tester-accept:{invite}"),
+        "You accepted this invitation.".to_owned()
+    )));
     let (st, _) = e
         .post(Who::Session(CAROL), &respond, json!({"accept": true}))
         .await;

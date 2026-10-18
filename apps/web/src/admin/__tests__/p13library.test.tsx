@@ -175,3 +175,41 @@ describe('credits and comment reports (LIB-ADM-002)', () => {
     await waitFor(() => expect(resolved).toEqual({ hide: true }));
   });
 });
+
+describe('featured reading lists (ADM-CNT-004)', () => {
+  it('lists the featured lists, features one by id and takes one away', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'PUBLISH_READING'] });
+    let featured = [{ id: '31', name: 'Quiet mysteries', owner_name: 'Mina', item_count: 4 }];
+    const calls: unknown[] = [];
+    server.use(
+      http.get('*/api/v1/admin/library/series', () =>
+        HttpResponse.json({ items: [], total: 0, limit: 50, offset: 0 }),
+      ),
+      http.get('*/api/v1/library/lists/featured', () => HttpResponse.json({ items: featured })),
+      http.post('*/api/v1/admin/library/lists/:id/feature', async ({ request, params }) => {
+        const body = (await readJson(request)) as { featured: boolean };
+        calls.push([params.id, body.featured]);
+        if (body.featured)
+          featured = [
+            ...featured,
+            { id: '32', name: 'Slow burns', owner_name: 'Ravi', item_count: 2 },
+          ];
+        else featured = featured.filter((l) => l.id !== params.id);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    openAdmin('library-catalog');
+    const user = userEvent.setup();
+    expect(await screen.findByText('Quiet mysteries')).toBeInTheDocument();
+    expect(screen.getByText('By Mina · 4 series')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('List id'), '32');
+    await user.click(screen.getByRole('button', { name: 'Feature list' }));
+    expect(await screen.findByText('Slow burns')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Stop featuring Quiet mysteries' }));
+    await waitFor(() => expect(screen.queryByText('Quiet mysteries')).toBeNull());
+    expect(calls).toEqual([
+      ['32', true],
+      ['31', false],
+    ]);
+  });
+});

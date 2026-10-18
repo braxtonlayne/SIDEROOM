@@ -63,7 +63,21 @@ export function TextImagesSection({ prefs, setPrefs }: PrefsFormProps) {
             checked={prefs.convertEmoticons}
             onChange={(e) => setPrefs({ convertEmoticons: e.target.checked })}
           />
+          <Switch
+            label={t('settings.textImages.stickerSuggestions')}
+            description={t('settings.textImages.stickerSuggestionsDesc')}
+            checked={prefs.stickerSuggestions}
+            onChange={(e) => setPrefs({ stickerSuggestions: e.target.checked })}
+          />
         </div>
+      </Card>
+      <Card id="us-markdown-preview" title={t('settings.textImages.markdownPreview')}>
+        <Switch
+          label={t('settings.textImages.markdownPreviewLabel')}
+          description={t('settings.textImages.markdownPreviewDesc')}
+          checked={prefs.markdownPreview}
+          onChange={(e) => setPrefs({ markdownPreview: e.target.checked })}
+        />
       </Card>
       <Card id="us-spoilers" title={t('settings.textImages.spoilers')}>
         <SegmentedControl
@@ -72,6 +86,7 @@ export function TextImagesSection({ prefs, setPrefs }: PrefsFormProps) {
           onValueChange={(v) => setPrefs({ spoilers: v as SpoilerMode })}
           options={[
             { value: 'click', label: t('settings.textImages.spoilerClick') },
+            { value: 'mine', label: t('settings.textImages.spoilerMine') },
             { value: 'always', label: t('settings.textImages.spoilerAlways') },
           ]}
         />

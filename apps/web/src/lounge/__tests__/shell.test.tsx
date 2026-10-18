@@ -8,6 +8,7 @@ import { setMarkdownEngine, testFallbackEngine } from '../markdown';
 import { useLoungeUi } from '../store';
 import { setVoiceController, VoiceController } from '../../voice/controller';
 import { resetSession } from '../../voice/session';
+import { warmLoungeRoute } from '../../test/warmRoutes';
 
 // These tests drive the Lounge against the deterministic mock seed (opt-in via VITE_SR_MOCK=1).
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
@@ -59,6 +60,9 @@ beforeEach(() => {
   );
 });
 afterEach(() => setVoiceController(null));
+
+// After the env stubs above, so the warmed modules see the same env as the tests.
+warmLoungeRoute();
 
 describe('Lounge shell', () => {
   it('renders rail, channel sidebar, header, messages and composer for a channel', async () => {

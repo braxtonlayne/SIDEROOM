@@ -13,7 +13,7 @@ Phase 3 · Decisions: D-125, D-130–D-133, D-012, D-023, D-031 · Docs 07, 06, 
 | Overview | **Dashboard** | STAFF_BASIC | Accounts vs cap (gauge), online now, voice rooms, egress, storage, job backlog, review queue sizes, donations this month vs hosting cost, recent alerts |
 | | **Setup Wizard** | OPERATOR | First-run checklist (doc 12 §2) |
 | People | **Accounts** | MANAGE_ACCOUNTS | Search (username, email, id, Discord id), filters by state, detail drawer (profile, Person, sessions, IP history, invites issued, invited by, servers, entitlements, flags). Actions: deactivate, reactivate, force password reset, reset 2FA, rename, change email, grant badge |
-| | **Persons** | MANAGE_ACCOUNTS | A Person's account chain, manual link/unlink of accounts, notes, suspicion level |
+| | **Persons** | MANAGE_ACCOUNTS | A Person's account chain, manual link/unlink of accounts, move an identity between accounts of the chain (D-262), notes, suspicion level |
 | | **Invite Graph** | MANAGE_INVITES | Interactive graph (force-directed WebGL; Rust graph layout in WASM for large trees), search, path-to-root, subtree stats, highlight banned nodes, suspicion overlay, credit grants/revokes, freeze/unfreeze invite creation, open codes list |
 | | **Platform Bans** | PLATFORM_BAN | Ban with reason category (serious / standard) + note, unban, list. Serious bans trigger inviter suspicion (D-031) |
 | | **Staff** | APPOINT_STAFF | Staff list, appoint (account picker + roles), revoke, delegation of appointment rights (Owner only) |

@@ -79,9 +79,28 @@ pub async fn resolve_stickers(
 }
 
 /// Copy the client-declared voice metadata onto the upload rows.
+///
+/// The measured duration stays authoritative; the client's recorded waveform replaces the
+/// packet-size envelope when it is consistent with it (K-01, see
+/// [`sr_chat::voice_meta::declared_waveform_is_consistent`]).
 pub fn apply_voice_meta(uploads: &mut [(Attachment, Option<String>)], refs: &[&AttachmentRef]) {
     for ((att, _), r) in uploads.iter_mut().zip(refs) {
-        // Values the server measured from the file (LNG-MSG-019) win over the declared ones.
+        if let (Some(measured), true) = (att.duration_ms, att.waveform.is_some()) {
+            let declared = r
+                .waveform
+                .as_deref()
+                .and_then(|w| data_encoding::BASE64.decode(w.as_bytes()).ok());
+            if let Some(bytes) = declared
+                && sr_chat::voice_meta::declared_waveform_is_consistent(
+                    measured,
+                    r.duration_secs,
+                    bytes.len(),
+                )
+            {
+                att.waveform.clone_from(&r.waveform);
+            }
+            continue;
+        }
         if att.duration_ms.is_none()
             && let Some(d) = r.duration_secs.filter(|d| d.is_finite() && *d > 0.0)
         {
@@ -369,6 +388,36 @@ mod tests {
         let mut ups = vec![(voice(None, None, None, 1), None)];
         apply_voice_meta(&mut ups, &[&bad]);
         assert_eq!(ups[0].0.duration_ms, None);
+    }
+
+    #[test]
+    fn measured_voice_keeps_a_consistent_declared_waveform() {
+        let declared = |secs: f64, wave: &str| AttachmentRef {
+            id: None,
+            uploaded_filename: None,
+            description: None,
+            duration_secs: Some(secs),
+            waveform: Some(wave.into()),
+        };
+        let measured = || {
+            let a = voice(Some("audio/ogg"), Some(2_000), Some("TUVBU1VSRUQ="), 1);
+            vec![(a, None)]
+        };
+        // Consistent: the client's envelope wins, the duration stays the measured one.
+        let mut ups = measured();
+        apply_voice_meta(&mut ups, &[&declared(2.02, "AAEC")]);
+        assert_eq!(ups[0].0.waveform.as_deref(), Some("AAEC"));
+        assert_eq!(ups[0].0.duration_ms, Some(2_000));
+        // Inconsistent duration, or a malformed waveform: the measured envelope stays.
+        for r in [
+            declared(3.0, "AAEC"),
+            declared(2.0, "!!!"),
+            declared(2.0, ""),
+        ] {
+            let mut ups = measured();
+            apply_voice_meta(&mut ups, &[&r]);
+            assert_eq!(ups[0].0.waveform.as_deref(), Some("TUVBU1VSRUQ="));
+        }
     }
 
     #[test]

@@ -93,14 +93,64 @@ describe('folder import', () => {
       two,
       new File(['t'], 'notes.txt'),
     ]);
-    expect(await screen.findByText('S/S c001.cbz')).toBeInTheDocument();
-    expect(screen.getByText('Chapter 1')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Include S/S c001.cbz')).toBeChecked();
+    expect(screen.getByLabelText('Chapter number of S/S c001.cbz')).toHaveValue('1');
     expect(screen.getByText('No chapter number in the name; it is left out')).toBeInTheDocument();
     expect(screen.queryByText('notes.txt')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Create 1 chapter and upload' }));
     await waitFor(() => expect(added).toHaveBeenCalled());
     expect(created).toEqual([{ number: 1, title: null, format: 'images' }]);
     await waitFor(() => expect(begun).toEqual(['90:S c001.cbz']));
+  });
+
+  it('lets the person adjust a row: number, title and exclusion (REV-ED-002)', async () => {
+    const user = userEvent.setup();
+    const created: unknown[] = [];
+    const lib = (chapter: number | null) => ({
+      name: 'x',
+      cinema: null,
+      library: {
+        role: 'archive',
+        series: 'S',
+        volume: null,
+        chapter,
+        title: null,
+        group: null,
+        page: null,
+        warnings: [],
+      },
+    });
+    server.use(
+      http.post('*/api/v1/submissions/naming/parse', () =>
+        HttpResponse.json({ items: [lib(1), lib(null), lib(1)] }),
+      ),
+      http.post('*/api/v1/submissions/5/library/chapters', async ({ request }) => {
+        created.push(await request.json());
+        return HttpResponse.json({ id: String(90 + created.length), number: 1 }, { status: 201 });
+      }),
+    );
+    render(<FolderImport submissionId="5" onAdded={() => undefined} manager={manager(() => 0)} />);
+    const files = ['a.cbz', 'b.cbz', 'c.cbz'].map((n) => {
+      const f = new File(['1'], n);
+      Object.defineProperty(f, 'webkitRelativePath', { value: `S/${n}` });
+      return f;
+    });
+    await user.upload(screen.getByLabelText('Choose a folder'), files);
+    await screen.findByLabelText('Include S/a.cbz');
+    // Two files claim chapter 1: the clash is reported and Create is held back.
+    expect(screen.getByRole('alert')).toHaveTextContent('Two files share chapter number 1.');
+    expect(screen.getByRole('button', { name: /Create 2 chapters/ })).toBeDisabled();
+    // Number the unplaced file, title the first, leave the third out.
+    await user.type(screen.getByLabelText('Chapter number of S/b.cbz'), '2');
+    await user.type(screen.getByLabelText('Title of S/a.cbz'), 'Start');
+    await user.click(screen.getByLabelText('Include S/c.cbz'));
+    expect(screen.queryByRole('alert')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Create 2 chapters and upload' }));
+    await waitFor(() => expect(created).toHaveLength(2));
+    expect(created).toEqual([
+      { number: 1, title: 'Start', format: 'images' },
+      { number: 2, title: null, format: 'images' },
+    ]);
   });
 });
 

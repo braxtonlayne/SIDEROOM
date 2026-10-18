@@ -6,7 +6,9 @@ use std::sync::Mutex;
 use async_trait::async_trait;
 
 use crate::error::{TvError, TvResult};
-use crate::model::{BlockRecord, BlockSource, ChannelInput, ChannelRecord, ReminderRecord};
+use crate::model::{
+    BlockRecord, BlockSource, ChannelInput, ChannelRecord, ImportRecord, ReminderRecord, SlotRecord,
+};
 use crate::schedule::Change;
 
 #[async_trait]
@@ -61,10 +63,34 @@ pub trait TvRepository: Send + Sync {
     async fn list_reminders(&self, account_id: i64) -> TvResult<Vec<ReminderRecord>>;
     /// The member's `tv.reminder_lead_minutes` setting (user settings blob) when it is a number.
     async fn reminder_lead_setting(&self, account_id: i64) -> TvResult<Option<i64>>;
+
+    // ---- weekly slots, guide imports, favorites (migration 1000) ----------------------------------
+
+    /// The weekly slots of a channel by weekday and start.
+    async fn list_slots(&self, channel: i64) -> TvResult<Vec<SlotRecord>>;
+    /// Replace every slot of the channel in one transaction.
+    async fn replace_slots(&self, channel: i64, slots: &[SlotRecord]) -> TvResult<()>;
+    /// Imported-guide channels' ids.
+    async fn imported_channels(&self) -> TvResult<Vec<i64>>;
+    /// Store a pending import.
+    async fn put_import(&self, rec: &ImportRecord) -> TvResult<()>;
+    async fn get_import(&self, id: i64) -> TvResult<Option<ImportRecord>>;
+    /// The channel's imports, newest first, without rows.
+    async fn list_imports(&self, channel: i64, limit: i64) -> TvResult<Vec<ImportRecord>>;
+    /// Mark an import confirmed. `false` when it was confirmed already (or is gone).
+    async fn confirm_import(&self, id: i64, now_ms: i64) -> TvResult<bool>;
+
+    /// The member's starred channels.
+    async fn favorites(&self, account_id: i64) -> TvResult<Vec<i64>>;
+    /// Star or unstar a channel (idempotent).
+    async fn set_favorite(&self, account_id: i64, channel: i64, on: bool) -> TvResult<()>;
 }
 
 #[derive(Default)]
 struct State {
+    slots: Vec<SlotRecord>,
+    imports: Vec<ImportRecord>,
+    favorites: Vec<(i64, i64)>,
     channels: Vec<ChannelRecord>,
     blocks: Vec<BlockRecord>,
     reminders: Vec<ReminderRecord>,
@@ -159,6 +185,9 @@ impl TvRepository for MemoryTvRepo {
         let before = s.channels.len();
         s.channels.retain(|c| c.id != id);
         s.blocks.retain(|b| b.channel_id != id);
+        s.slots.retain(|x| x.channel_id != id);
+        s.imports.retain(|x| x.channel_id != id);
+        s.favorites.retain(|(_, c)| *c != id);
         Ok(s.channels.len() != before)
     }
 
@@ -319,5 +348,92 @@ impl TvRepository for MemoryTvRepo {
             .iter()
             .find(|(a, _)| *a == account_id)
             .map(|(_, m)| *m))
+    }
+
+    async fn list_slots(&self, channel: i64) -> TvResult<Vec<SlotRecord>> {
+        let mut v: Vec<SlotRecord> = self
+            .lock()
+            .slots
+            .iter()
+            .filter(|s| s.channel_id == channel)
+            .cloned()
+            .collect();
+        v.sort_by_key(|s| (s.weekday, s.start_minute, s.id));
+        Ok(v)
+    }
+
+    async fn replace_slots(&self, channel: i64, slots: &[SlotRecord]) -> TvResult<()> {
+        let mut s = self.lock();
+        s.slots.retain(|x| x.channel_id != channel);
+        s.slots.extend(slots.iter().cloned());
+        Ok(())
+    }
+
+    async fn imported_channels(&self) -> TvResult<Vec<i64>> {
+        Ok(self
+            .lock()
+            .channels
+            .iter()
+            .filter(|c| c.input.kind == crate::model::ChannelKind::ImportedGuide)
+            .map(|c| c.id)
+            .collect())
+    }
+
+    async fn put_import(&self, rec: &ImportRecord) -> TvResult<()> {
+        let mut s = self.lock();
+        s.imports.retain(|x| x.id != rec.id);
+        s.imports.push(rec.clone());
+        Ok(())
+    }
+
+    async fn get_import(&self, id: i64) -> TvResult<Option<ImportRecord>> {
+        Ok(self.lock().imports.iter().find(|x| x.id == id).cloned())
+    }
+
+    async fn list_imports(&self, channel: i64, limit: i64) -> TvResult<Vec<ImportRecord>> {
+        let mut v: Vec<ImportRecord> = self
+            .lock()
+            .imports
+            .iter()
+            .filter(|x| x.channel_id == channel)
+            .map(|x| ImportRecord {
+                rows: serde_json::Value::Null,
+                ..x.clone()
+            })
+            .collect();
+        v.sort_by_key(|x| std::cmp::Reverse((x.created_at_ms, x.id)));
+        v.truncate(usize::try_from(limit).unwrap_or(0));
+        Ok(v)
+    }
+
+    async fn confirm_import(&self, id: i64, _now_ms: i64) -> TvResult<bool> {
+        let mut s = self.lock();
+        Ok(s.imports
+            .iter_mut()
+            .find(|x| x.id == id && !x.confirmed)
+            .map(|x| x.confirmed = true)
+            .is_some())
+    }
+
+    async fn favorites(&self, account_id: i64) -> TvResult<Vec<i64>> {
+        let mut v: Vec<i64> = self
+            .lock()
+            .favorites
+            .iter()
+            .filter(|(a, _)| *a == account_id)
+            .map(|(_, c)| *c)
+            .collect();
+        v.sort_unstable();
+        Ok(v)
+    }
+
+    async fn set_favorite(&self, account_id: i64, channel: i64, on: bool) -> TvResult<()> {
+        let mut s = self.lock();
+        s.favorites
+            .retain(|(a, c)| !(*a == account_id && *c == channel));
+        if on {
+            s.favorites.push((account_id, channel));
+        }
+        Ok(())
     }
 }

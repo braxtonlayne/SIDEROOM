@@ -1240,3 +1240,215 @@ async fn a_member_sets_the_cover_of_a_draft_series() {
         Err(ReviewError::Conflict(_))
     ));
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_chapter_rename_keeps_its_volume_and_format() {
+    let w = world().await;
+    let s = w.new_series_submission().await;
+    let ch = w
+        .ops
+        .create_chapter(&s, w.member, None, chapter(1.0))
+        .await
+        .unwrap();
+    let staff = Actor {
+        user_id: w.curator.user_id,
+        permissions: P::PUBLISH_READING | P::DELETE_CONTENT,
+    };
+    let vol = w
+        .lib
+        .create_volume(
+            staff,
+            ch.edition_id,
+            VolumeInput {
+                number: 1.0,
+                title: None,
+                cover_key: None,
+            },
+        )
+        .await
+        .unwrap();
+    // The member names a volume of the edition.
+    let mut input = chapter(1.0);
+    input.volume_id = Some(vol.id);
+    let c = w
+        .ops
+        .update_chapter(&s, w.member, ch.id, input)
+        .await
+        .unwrap();
+    assert_eq!(c.volume_id, Some(vol.id));
+    // A bare rename (no volume, default format) keeps the volume and the format.
+    let mut rename = chapter(2.0);
+    rename.title = Some("Renamed".into());
+    rename.format = ChapterFormat::Pdf;
+    let c = w
+        .ops
+        .update_chapter(&s, w.member, ch.id, rename)
+        .await
+        .unwrap();
+    assert_eq!(c.number, 2.0);
+    assert_eq!(c.title.as_deref(), Some("Renamed"));
+    assert_eq!(c.volume_id, Some(vol.id));
+    assert_eq!(c.format, ChapterFormat::Images);
+    // The draft chapter list carries the volumes of the edition.
+    let list = w.ops.chapters(&s, w.member).await.unwrap();
+    assert_eq!(list.volumes.len(), 1);
+    assert_eq!(list.chapters[0].volume_id, Some(vol.id));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_reviewer_with_the_claim_edits_the_draft_in_place() {
+    use sr_review::EditAs;
+    let w = world().await;
+    let s = w.new_series_submission().await;
+    let ch = w
+        .ops
+        .create_chapter(&s, w.member, None, chapter(1.0))
+        .await
+        .unwrap();
+    w.review
+        .register_item(
+            w.member,
+            s.id,
+            NewItem {
+                ref_id: ch.id,
+                label: "Chapter 1".into(),
+                position: 100,
+            },
+        )
+        .await
+        .unwrap();
+    w.upload(&s, w.member, ch.id, 2).await;
+    let member = Caller::member(w.member);
+    // A draft: the submitter edits; a reviewer or a stranger does not.
+    assert_eq!(
+        w.review.editable_for(member, s.id).await.unwrap().1,
+        EditAs::Submitter
+    );
+    assert!(w.review.editable_for(w.reviewer, s.id).await.is_err());
+    w.review.submit(w.member, s.id).await.unwrap();
+    // In review the submitter is out; the reviewer needs the claim; a stranger learns nothing.
+    assert!(matches!(
+        w.review.editable_for(member, s.id).await,
+        Err(ReviewError::Conflict(_))
+    ));
+    assert!(matches!(
+        w.review.editable_for(w.reviewer, s.id).await,
+        Err(ReviewError::Conflict(_))
+    ));
+    assert!(matches!(
+        w.review.editable_for(Caller::member(w.other), s.id).await,
+        Err(ReviewError::NotFound(_))
+    ));
+    w.review.claim(w.reviewer, s.id, false).await.unwrap();
+    let (_, who) = w.review.editable_for(w.reviewer, s.id).await.unwrap();
+    assert_eq!(who, EditAs::Reviewer);
+    // Another reviewer is told who holds the claim.
+    match w.review.editable_for(w.curator, s.id).await {
+        Err(ReviewError::Conflict(m)) => {
+            assert!(m.contains(&w.reviewer.user_id.to_string()), "{m}")
+        }
+        other => panic!("{other:?}"),
+    }
+    // The write itself goes through the ops under the reviewer's id; the timeline names it.
+    let mut input = chapter(1.0);
+    input.title = Some("Fixed by reviewer".into());
+    let c = w
+        .ops
+        .update_chapter(&s, w.reviewer.user_id, ch.id, input)
+        .await
+        .unwrap();
+    assert_eq!(c.title.as_deref(), Some("Fixed by reviewer"));
+    w.review
+        .note_reviewer_edit(w.reviewer, s.id, &["chapters"])
+        .await
+        .unwrap();
+    let d = w.review.get_mine(w.member, s.id).await.unwrap();
+    let ev = d
+        .events
+        .iter()
+        .find(|e| e.kind == "metadata_edited")
+        .expect("the submitter sees the edit");
+    assert_eq!(ev.data["fields"][0], "chapters");
+    assert_eq!(ev.actor_id, Some(w.reviewer.user_id));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn member_artwork_goes_through_the_submission_rule() {
+    let w = world().await;
+    let s = w.new_series_submission().await;
+    let member = Caller::member(w.member);
+    // The member fills the cover slot of the draft; other slots do not exist for this kind.
+    let url = w
+        .review
+        .set_artwork(member, s.id, "cover", &png(900, 1200, 4))
+        .await
+        .unwrap();
+    assert!(url.is_some_and(|u| u.contains("/cover-")));
+    for slot in ["banner", "poster", "backdrop"] {
+        assert!(matches!(
+            w.review
+                .set_artwork(member, s.id, slot, &png(10, 10, 1))
+                .await,
+            Err(ReviewError::Invalid(_))
+        ));
+    }
+    // A bad image is refused by the kind.
+    assert!(matches!(
+        w.review.set_artwork(member, s.id, "cover", b"nope").await,
+        Err(ReviewError::Invalid(_))
+    ));
+    // A stranger learns nothing; a reviewer without the claim is refused.
+    assert!(matches!(
+        w.review
+            .set_artwork(Caller::member(w.other), s.id, "cover", &png(10, 10, 1))
+            .await,
+        Err(ReviewError::NotFound(_))
+    ));
+    let ch = w
+        .ops
+        .create_chapter(&s, w.member, None, chapter(1.0))
+        .await
+        .unwrap();
+    w.review
+        .register_item(
+            w.member,
+            s.id,
+            NewItem {
+                ref_id: ch.id,
+                label: "Chapter 1".into(),
+                position: 100,
+            },
+        )
+        .await
+        .unwrap();
+    w.upload(&s, w.member, ch.id, 2).await;
+    w.review.submit(w.member, s.id).await.unwrap();
+    // Submitted: the member is out.
+    assert!(matches!(
+        w.review
+            .set_artwork(member, s.id, "cover", &png(10, 10, 1))
+            .await,
+        Err(ReviewError::Conflict(_))
+    ));
+    assert!(matches!(
+        w.review
+            .set_artwork(w.reviewer, s.id, "cover", &png(10, 10, 1))
+            .await,
+        Err(ReviewError::Conflict(_))
+    ));
+    // The reviewer who holds the claim may replace it, and the submitter sees the event.
+    w.review.claim(w.reviewer, s.id, false).await.unwrap();
+    w.review
+        .set_artwork(w.reviewer, s.id, "cover", &png(600, 900, 7))
+        .await
+        .unwrap();
+    let d = w.review.get_mine(w.member, s.id).await.unwrap();
+    assert!(
+        d.events
+            .iter()
+            .any(|e| e.kind == "metadata_edited" && e.data["fields"][0] == "cover")
+    );
+}

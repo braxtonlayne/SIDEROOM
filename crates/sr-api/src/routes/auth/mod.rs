@@ -96,6 +96,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     use utoipa::OpenApi;
     let mut doc = identity::IdentityApiDoc::openapi();
     doc.merge(passkeys::PasskeysApiDoc::openapi());
+    doc.merge(discord::DiscordApiDoc::openapi());
     doc.merge(member_invites::MemberInvitesApiDoc::openapi());
     doc
 }
@@ -126,6 +127,9 @@ pub fn router() -> Router<AppState> {
         .route("/sr/auth/logout-all", post(sessions::logout_all))
         .route("/sr/auth/sessions", get(sessions::list))
         .route("/sr/auth/sessions/{id}", delete(sessions::revoke))
+        .route("/sr/auth/discord", get(discord::status))
+        .route("/sr/auth/discord/link", post(discord::link_start))
+        .route("/sr/auth/discord/unlink", post(discord::unlink))
         .route("/sr/auth/discord/start", get(discord::start))
         .route("/sr/auth/discord/callback", get(discord::callback))
         .route(

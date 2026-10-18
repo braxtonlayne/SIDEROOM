@@ -61,8 +61,35 @@ describe('integrations', () => {
     const list = await screen.findByRole('list', { name: 'Integrations' });
     expect(within(list).getByText('mail.example.test')).toBeInTheDocument();
     expect(within(list).getAllByText('Not configured')).toHaveLength(2);
+    // D-254: the policy is edited under Features; secrets stay operator config.
+    expect(screen.getByText(/integrations policy are edited under Features/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Send a test email to me' }));
     expect(await screen.findByText('Test message sent to staff@example.test.')).toBeInTheDocument();
     expect(sent).toBe(1);
+  });
+});
+
+describe('backups and disk (K-10)', () => {
+  it('shows backup times and folder space, and unreadable paths without failing', async () => {
+    asStaff({ perms: [], owner: true });
+    server.use(
+      http.get('*/api/v1/admin/system', () =>
+        HttpResponse.json({
+          ...SYSTEM,
+          backups: { last_run_ms: 1_800_000_000_000, last_verify_ms: null, snapshot_ms: null },
+          disk: [
+            { path: '/srv/sideroom', total_bytes: 100 * 1024 ** 3, free_bytes: 40 * 1024 ** 3 },
+            { path: '/mnt/gone', total_bytes: null, free_bytes: null },
+          ],
+        }),
+      ),
+    );
+    openAdmin('system');
+    const backups = await screen.findByRole('list', { name: 'Backups' });
+    expect(within(backups).getByText('Last backup')).toBeInTheDocument();
+    expect(within(backups).getAllByText('Never run')).toHaveLength(2);
+    const disk = screen.getByRole('list', { name: 'Disk space' });
+    expect(within(disk).getByText('40.0 GB free of 100.0 GB')).toBeInTheDocument();
+    expect(within(disk).getByText('Not readable')).toBeInTheDocument();
   });
 });

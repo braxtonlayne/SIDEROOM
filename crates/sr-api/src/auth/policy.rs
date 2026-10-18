@@ -76,6 +76,21 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     if p.starts_with("/channels/") && p.ends_with("/scheduled-messages") {
         return true;
     }
+    // Packages, profile pages and guestbooks (EXT-PKG, EXT-PRF) are for people: themes, layouts, recipes
+    // and a page of one's own. A bot has no profile to customise and no server to manage by session.
+    if p.starts_with("/packages")
+        || p.starts_with("/profile-pages")
+        || p.starts_with("/users/@me/packages")
+        || p.starts_with("/users/@me/profile-doc")
+        || p.starts_with("/users/@me/profile-media")
+        || (p.starts_with("/users/")
+            && (p.ends_with("/guestbook")
+                || p.contains("/guestbook/")
+                || p.ends_with("/profile-page")))
+        || (p.starts_with("/guilds/") && p.contains("/packages"))
+    {
+        return true;
+    }
     // Creating guilds and accepting invites is for people.
     if p == "/guilds" && method == Method::POST {
         return true;

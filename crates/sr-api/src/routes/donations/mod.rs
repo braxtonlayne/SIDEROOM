@@ -51,12 +51,15 @@ pub struct DonationsDeps {
     pub(crate) boards: BoardCache,
     /// Contributor board pages, cached hourly (DON-LB-001).
     pub(crate) contributors: ContributorCache,
+    /// The chat module, bound late (member refresh when the badge toggle changes, D-256).
+    pub(crate) chat: ChatSlot,
 }
 
 impl DonationsDeps {
     pub fn new(service: Arc<PaymentService>) -> Self {
         Self {
             service,
+            chat: ChatSlot::default(),
             boards: moka::future::Cache::builder()
                 .max_capacity(16)
                 .time_to_live(Duration::from_secs(3600))
@@ -66,6 +69,13 @@ impl DonationsDeps {
                 .time_to_live(Duration::from_secs(3600))
                 .build(),
         }
+    }
+
+    /// Share the slot the composition root fills with the chat module once it exists.
+    #[must_use]
+    pub fn with_chat_slot(mut self, chat: ChatSlot) -> Self {
+        self.chat = chat;
+        self
     }
 
     /// A cache with a different lifetime (tests).
@@ -277,6 +287,9 @@ impl sr_payments::service::PaymentEvents for BusPaymentEvents {
     async fn entitlement_user(&self, user_id: i64, payload: serde_json::Value) {
         self.to_user(user_id, sr_payments::ENTITLEMENT_EVENT, payload)
             .await;
+        // The Patron badge and ring ride on the user object (D-256): shared servers get the
+        // member again.
+        refresh_patron_flag(&self.chat, user_id).await;
     }
 
     async fn entitlement_guild(&self, guild_id: i64, payload: serde_json::Value) {
@@ -315,6 +328,13 @@ impl sr_payments::service::PaymentEvents for BusPaymentEvents {
         if let Err(e) = self.bus.publish(sr_events::Topic::Platform, ev).await {
             tracing::warn!(error = %e, "publishing a payment staff alert failed");
         }
+    }
+}
+
+/// Re-send the member objects of `user` to their servers once the chat module is up.
+pub(crate) async fn refresh_patron_flag(chat: &ChatSlot, user: i64) {
+    if let (Some(chat), Ok(u)) = (chat.get(), u64::try_from(user)) {
+        chat.refresh_member_objects(sr_core::UserId::new(u)).await;
     }
 }
 

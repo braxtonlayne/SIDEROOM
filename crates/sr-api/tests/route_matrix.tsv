@@ -64,6 +64,7 @@ DELETE	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/integrations/{integration_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-
 DELETE	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-
@@ -89,6 +90,7 @@ DELETE	/library/series/{series_id}/follow	authenticated	self	allow	-
 DELETE	/library/series/{series_id}/rating	authenticated	self	allow	-
 DELETE	/library/series/{series_id}/review	authenticated	self	allow	-
 DELETE	/oauth2/tokens/{grant_id}	authenticated	self	deny	-
+DELETE	/packages/{package_id}	authenticated	author	deny	-
 DELETE	/requests/{request_id}/claim	authenticated	author_or_staff	allow	-
 DELETE	/requests/{request_id}/vote	authenticated	self	allow	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
@@ -96,6 +98,7 @@ DELETE	/sr/invites/{code}	authenticated	self	deny	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-
 DELETE	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	author	allow	-
+DELETE	/tv/favorites/{channel_id}	authenticated	self	allow	-
 DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-
 DELETE	/users/@me/age-confirmation	authenticated	self	deny	-
 DELETE	/users/@me/birthday	authenticated	self	deny	-
@@ -104,10 +107,13 @@ DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
 DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-
+DELETE	/users/@me/packages/{package_id}	authenticated	self	deny	-
+DELETE	/users/@me/profile-media/{media_id}	authenticated	self	deny	-
 DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-
 DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
+DELETE	/users/{user_id}/guestbook/{entry_id}	authenticated	author	deny	-
 DELETE	/watch-parties/{party_id}	authenticated	party_manager	allow	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	party_manager	allow	-
 DELETE	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-
@@ -138,6 +144,8 @@ GET	/admin/cinema/titles	authenticated	staff	deny	-
 GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
 GET	/admin/developers/activities	authenticated	staff	deny	-
 GET	/admin/developers/activities/{application_id}/bundles/{bundle_id}/download	authenticated	staff	deny	-
+GET	/admin/developers/packages	authenticated	staff	deny	-
+GET	/admin/developers/packages/versions/{version_id}/download	authenticated	staff	deny	-
 GET	/admin/developers/requests	authenticated	staff	deny	-
 GET	/admin/developers/versions	authenticated	staff	deny	-
 GET	/admin/directory	authenticated	staff	deny	-
@@ -195,8 +203,12 @@ GET	/admin/transcode/tokens	authenticated	staff	deny	-
 GET	/admin/transcode/workers	authenticated	staff	deny	-
 GET	/admin/tv/channels	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
+GET	/admin/tv/channels/{channel_id}/imports	authenticated	staff	deny	-
+GET	/admin/tv/channels/{channel_id}/imports/{import_id}	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}/schedule	authenticated	staff	deny	-
+GET	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-
+GET	/admin/tv/guide-template	authenticated	staff	deny	-
 GET	/admin/tv/report	authenticated	staff	deny	-
 GET	/announcements/active	authenticated	user	deny	-
 GET	/app-directory	authenticated	user	allow	-
@@ -261,6 +273,7 @@ GET	/cinema/search	authenticated	user	allow	-
 GET	/cinema/titles	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}/comments	authenticated	user	allow	-
+GET	/cinema/titles/{title_id}/contributors	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}/downloads	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}/episodes	authenticated	user	allow	-
 GET	/cinema/titles/{title_id}/episodes/{episode_id}/comments	authenticated	user	allow	-
@@ -315,6 +328,7 @@ GET	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/messages/search	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/modules	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/packages	authenticated	membership	deny	-
 GET	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles	authenticated	membership	allow	-
@@ -382,10 +396,17 @@ GET	/library/users/{user_id}/lists	authenticated	visibility	allow	-
 GET	/oauth2/@me	authenticated	self	allow	any
 GET	/oauth2/authorize	authenticated	self	deny	-
 GET	/oauth2/tokens	authenticated	self	deny	-
+GET	/packages	authenticated	user	deny	-
+GET	/packages/mine	authenticated	self	deny	-
+GET	/packages/versions/{version_id}/files/{path}	authenticated	user	deny	-
+GET	/packages/{package_id}	authenticated	user	deny	-
+GET	/profile-pages/{username}	authenticated	visibility	deny	-
 GET	/push/vapid-key	authenticated	self	deny	-
 GET	/requests	authenticated	user	allow	-
 GET	/soundboard-default-sounds	authenticated	user	allow	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	user	allow	-
+GET	/sr/appearance/defaults	public	none	deny	-
+GET	/sr/auth/discord	authenticated	self	deny	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
 GET	/sr/auth/reauth	authenticated	self	deny	-
 GET	/sr/csrf	authenticated	self	allow	-
@@ -423,6 +444,7 @@ GET	/tv/channels/{channel_id}/live/master.m3u8	authenticated	membership	allow	-
 GET	/tv/channels/{channel_id}/live/v/{file}	authenticated	membership	allow	-
 GET	/tv/channels/{channel_id}/now	authenticated	membership	allow	-
 GET	/tv/channels/{channel_id}/tune	authenticated	membership	allow	-
+GET	/tv/favorites	authenticated	self	allow	-
 GET	/tv/guide	authenticated	user	allow	-
 GET	/tv/reminders	authenticated	self	deny	-
 GET	/tv/timezones	authenticated	user	allow	-
@@ -442,17 +464,22 @@ GET	/users/@me/mentions	authenticated	self	deny	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
 GET	/users/@me/notification-defaults	authenticated	self	deny	-
 GET	/users/@me/notification-keywords	authenticated	self	deny	-
+GET	/users/@me/packages	authenticated	self	deny	-
 GET	/users/@me/presence	authenticated	self	allow	-
 GET	/users/@me/primary-guild	authenticated	self	deny	-
 GET	/users/@me/privacy	authenticated	self	deny	-
 GET	/users/@me/profile	authenticated	self	allow	-
+GET	/users/@me/profile-doc	authenticated	self	deny	-
+GET	/users/@me/profile-media	authenticated	self	deny	-
 GET	/users/@me/read-states	authenticated	self	allow	-
 GET	/users/@me/relationships	authenticated	self	deny	-
 GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 GET	/users/@me/reminders	authenticated	self	deny	-
 GET	/users/@me/scheduled-messages	authenticated	self	deny	-
 GET	/users/@me/settings	authenticated	self	deny	-
+GET	/users/{user_id}/guestbook	authenticated	visibility	deny	-
 GET	/users/{user_id}/profile	authenticated	user	allow	-
+GET	/users/{user_id}/profile-page	authenticated	visibility	deny	-
 GET	/watch-parties/me	authenticated	self	allow	-
 GET	/watch-parties/time	authenticated	user	allow	-
 GET	/watch-parties/{party_id}	authenticated	party_access	allow	-
@@ -559,6 +586,7 @@ POST	/admin/cinema/titles/{title_id}/variants	authenticated	staff	deny	-
 POST	/admin/developers/activities/{application_id}/decision	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/suspend	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/unsuspend	authenticated	staff	deny	-
+POST	/admin/developers/packages/versions/{version_id}/decision	authenticated	staff	deny	-
 POST	/admin/developers/requests/{request_id}/decision	authenticated	staff	deny	-
 POST	/admin/developers/versions/{version_id}/decision	authenticated	staff	deny	-
 POST	/admin/donations/entitlements	authenticated	staff	deny	-
@@ -585,6 +613,7 @@ POST	/admin/library/series/{series_id}/unpublish	authenticated	staff	deny	-
 POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/ban	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/clear-suspicion	authenticated	staff	deny	-
+POST	/admin/persons/{person_id}/identities/{identity_id}/move	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/link	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/unban	authenticated	staff	deny	-
 POST	/admin/reauth	authenticated	staff	deny	-
@@ -608,6 +637,8 @@ POST	/admin/transcode/sweep	authenticated	staff	deny	-
 POST	/admin/transcode/tokens	authenticated	staff	deny	-
 POST	/admin/tv/channels	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/blocks	authenticated	staff	deny	-
+POST	/admin/tv/channels/{channel_id}/imports	authenticated	staff	deny	-
+POST	/admin/tv/channels/{channel_id}/imports/{import_id}/confirm	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/preview	authenticated	staff	deny	-
 POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-
 POST	/applications	authenticated	owner	deny	-
@@ -667,6 +698,7 @@ POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/mfa	authenticated	owner	allow	-
 POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/packages/{package_id}/apply	authenticated	membership	deny	-
 POST	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
@@ -697,10 +729,15 @@ POST	/oauth2/authorize	authenticated	self	deny	-
 POST	/oauth2/introspect	public	none	allow	-
 POST	/oauth2/token	public	none	allow	-
 POST	/oauth2/token/revoke	public	none	allow	-
+POST	/packages	authenticated	user	deny	-
+POST	/packages/versions/{version_id}/withdraw	authenticated	author	deny	-
+POST	/packages/{package_id}/create-guild	authenticated	user	deny	-
 POST	/read-states/ack-bulk	authenticated	membership	allow	-
 POST	/requests	authenticated	user	allow	-
 POST	/requests/{request_id}/fulfil	authenticated	author_or_staff	allow	-
 POST	/sr/auth/account/delete	authenticated	self	deny	-
+POST	/sr/auth/discord/link	authenticated	self	deny	-
+POST	/sr/auth/discord/unlink	authenticated	self	deny	-
 POST	/sr/auth/email/cancel	public	none	deny	-
 POST	/sr/auth/email/change	authenticated	self	deny	-
 POST	/sr/auth/passkeys/login/begin	public	none	deny	-
@@ -716,6 +753,7 @@ POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
 POST	/submissions	authenticated	self	allow	-
 POST	/submissions/naming/parse	authenticated	user	allow	-
+POST	/submissions/{submission_id}/artwork/{kind}	authenticated	author	allow	-
 POST	/submissions/{submission_id}/comments	authenticated	author	allow	-
 POST	/submissions/{submission_id}/library/chapters	authenticated	author	allow	-
 POST	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	author	allow	-
@@ -726,9 +764,12 @@ POST	/users/@me/channels	authenticated	self	allow	-
 POST	/users/@me/connections/{provider}/authorize	authenticated	self	deny	-
 POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-
 POST	/users/@me/data-export	authenticated	self	deny	-
+POST	/users/@me/profile-doc/layout	authenticated	self	deny	-
+POST	/users/@me/profile-media	authenticated	self	deny	-
 POST	/users/@me/push-subscriptions	authenticated	self	deny	-
 POST	/users/@me/relationships	authenticated	self	deny	-
 POST	/users/@me/reminders	authenticated	self	deny	-
+POST	/users/{user_id}/guestbook	authenticated	visibility	deny	-
 POST	/watch-parties	authenticated	party_access	allow	-
 POST	/watch-parties/{party_id}/heartbeat	authenticated	party_member	allow	-
 POST	/watch-parties/{party_id}/host	authenticated	party_manager	allow	-
@@ -772,6 +813,7 @@ PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-
 PUT	/admin/transcode/workers/{worker_id}/drain	authenticated	staff	deny	-
 PUT	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
 PUT	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
+PUT	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-
 PUT	/applications/{application_id}/activity	authenticated	owner	deny	-
 PUT	/applications/{application_id}/commands	authenticated	owner	allow	-
 PUT	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
@@ -800,6 +842,7 @@ PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/incident-actions	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-
 PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-
@@ -822,6 +865,7 @@ PUT	/requests/{request_id}/vote	authenticated	self	allow	-
 PUT	/sr/auth/username	authenticated	self	deny	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-
 PUT	/submissions/{submission_id}/library/series	authenticated	author	allow	-
+PUT	/tv/favorites/{channel_id}	authenticated	self	allow	-
 PUT	/tv/reminders/{block_id}	authenticated	self	deny	-
 PUT	/users/@me/birthday	authenticated	self	deny	-
 PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-
@@ -830,7 +874,9 @@ PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-
 PUT	/users/@me/ignores/{user_id}	authenticated	self	deny	-
 PUT	/users/@me/notes/{user_id}	authenticated	self	deny	-
 PUT	/users/@me/notification-keywords	authenticated	self	deny	-
+PUT	/users/@me/packages/{package_id}	authenticated	self	deny	-
 PUT	/users/@me/primary-guild	authenticated	self	deny	-
+PUT	/users/@me/profile-doc	authenticated	self	deny	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	party_manager	allow	-
 PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-
@@ -842,6 +888,7 @@ PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-
 #undocumented	/healthz
 #undocumented	/internal/metrics
 #undocumented	/openapi.json
+#undocumented	/packages/versions/{version_id}/files/{*path}
 #undocumented	/readyz
 #undocumented	/share
 #undocumented	/sr/age-gate

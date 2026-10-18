@@ -31,9 +31,15 @@
 //!
 //! Only members of the channel, on the session that joined it, may send, and only members
 //! receive. Everything is off unless `voice.e2ee` is set.
+//!
+//! With `voice.e2ee` on a join (op 4) must carry `sr_e2ee: true` (answered with `SR_VOICE_ERROR`
+//! `e2ee_required` and no token otherwise), and a member who has been given `VOICE_SERVER_UPDATE`
+//! but does not send `hello` within [`HELLO_TIMEOUT`] is removed from the channel with the same
+//! code (D-263).
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64;
@@ -54,6 +60,17 @@ pub const MAX_MLS_CHARS: usize = 96 * 1024;
 pub const MAX_WELCOME_TO: usize = 100;
 /// Largest leaf index accepted (a call has at most a few hundred members).
 const MAX_LEAF: u32 = 4096;
+
+/// How long a member may take, after `VOICE_SERVER_UPDATE`, to start the MLS handshake with `hello`.
+pub const HELLO_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// A member who joined an E2EE-required channel and has not said `hello` yet.
+#[derive(Debug, Clone)]
+pub(crate) struct PendingHello {
+    session_id: String,
+    channel: ChannelId,
+    deadline: Instant,
+}
 
 /// One call's delivery-service state.
 #[derive(Debug)]
@@ -110,7 +127,7 @@ fn ms() -> u64 {
 }
 
 impl Gateway {
-    fn e2ee_enabled(&self) -> bool {
+    pub(crate) fn e2ee_enabled(&self) -> bool {
         self.voice_cfg().is_some_and(|v| v.e2ee)
     }
 
@@ -185,6 +202,7 @@ impl Gateway {
         let members = self.voice_occupants(ch);
         match m.kind.as_str() {
             "hello" => {
+                self.st().vx.e2ee_pending.remove(&me);
                 let out = self.e2ee_call_msg(ch, me);
                 self.e2ee_send(&members, |u| u == me, &out);
             }
@@ -262,6 +280,7 @@ impl Gateway {
     /// waiting for them, and forget the call when it empties. If nobody who reported a leaf is
     /// left, the group is gone: the remaining members are told to start a new one.
     pub(crate) fn e2ee_member_left(&self, old: &VoiceState) {
+        self.st().vx.e2ee_pending.remove(&old.user_id);
         let ch = old.channel_id;
         let members = self.voice_occupants(ch);
         let ds = self.e2ee_ds_if_enabled();
@@ -317,8 +336,66 @@ impl Gateway {
         }
     }
 
-    /// Execute transitions whose wait timed out (from the voice sweep).
-    pub(crate) fn e2ee_sweep(&self) {
+    /// A member was given `VOICE_SERVER_UPDATE` in a channel that requires E2EE: they owe `hello`
+    /// within [`HELLO_TIMEOUT`].
+    pub(crate) fn e2ee_expect_hello(&self, st: &VoiceState) {
+        if !self.e2ee_enabled() {
+            return;
+        }
+        self.st().vx.e2ee_pending.insert(
+            st.user_id,
+            PendingHello {
+                session_id: st.session_id.clone(),
+                channel: st.channel_id,
+                deadline: Instant::now() + HELLO_TIMEOUT,
+            },
+        );
+    }
+
+    /// Remove members whose `hello` is overdue at `now`, telling them why.
+    pub(crate) async fn e2ee_hello_sweep(&self, now: Instant) {
+        let due: Vec<(UserId, PendingHello)> = {
+            let mut st = self.st();
+            let due: Vec<UserId> = st
+                .vx
+                .e2ee_pending
+                .iter()
+                .filter(|(_, p)| p.deadline <= now)
+                .map(|(u, _)| *u)
+                .collect();
+            due.into_iter()
+                .filter_map(|u| st.vx.e2ee_pending.remove(&u).map(|p| (u, p)))
+                .collect()
+        };
+        for (user, p) in due {
+            // Only the very join that owed the hello: a member who left or moved is not touched.
+            let Some(v) = self.voice_state(user) else {
+                continue;
+            };
+            if v.session_id != p.session_id || v.channel_id != p.channel {
+                continue;
+            }
+            let session = self.st().sessions.get(&p.session_id).cloned();
+            if let Some(s) = session {
+                self.voice_error(
+                    &s,
+                    v.guild_id,
+                    Some(p.channel),
+                    crate::voice::JoinDenied::E2eeRequired,
+                );
+            }
+            self.voice_leave(user).await;
+        }
+    }
+
+    /// Execute transitions whose wait timed out and drop members whose `hello` is overdue (from the
+    /// voice sweep).
+    pub(crate) async fn e2ee_sweep(&self) {
+        self.e2ee_hello_sweep(Instant::now()).await;
+        self.e2ee_sequencer_sweep();
+    }
+
+    fn e2ee_sequencer_sweep(&self) {
         let now = ms();
         let due: Vec<(ChannelId, u64)> = self
             .st()

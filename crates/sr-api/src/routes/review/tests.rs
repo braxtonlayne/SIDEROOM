@@ -368,6 +368,11 @@ fn member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
             Some(json!({ "body": "hi" })),
         ),
         (Method::GET, "/submissions/7/library/chapters", None),
+        (
+            Method::POST,
+            "/submissions/7/artwork/cover",
+            Some(json!({ "image": "data:image/png;base64,AAAA" })),
+        ),
         (Method::GET, "/requests", None),
         (
             Method::POST,
@@ -819,6 +824,62 @@ async fn the_library_draft_routes_answer_when_the_library_is_off() {
         )
         .await;
     assert_eq!(st, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn the_artwork_route_follows_the_submission_rules() {
+    let e = env().await;
+    let id = e.create(MEMBER, "Series").await;
+    let png = "data:image/png;base64,iVBORw0KGgo=";
+    // A kind without that slot refuses it (the stub kind has none).
+    let (st, b) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            &format!("/submissions/{id}/artwork/cover"),
+            Some(json!({ "image": png })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "{b}");
+    // Somebody else's submission names nothing; a reviewer of the kind is told to claim it first.
+    let (st, _) = e
+        .call(
+            Some(OTHER),
+            Method::POST,
+            &format!("/submissions/{id}/artwork/cover"),
+            Some(json!({ "image": png })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    let (st, _) = e
+        .call(
+            Some(REVIEWER),
+            Method::POST,
+            &format!("/submissions/{id}/artwork/cover"),
+            Some(json!({ "image": png })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    // A malformed id names nothing.
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/submissions/abc/artwork/cover",
+            Some(json!({ "image": png })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    // A body that is not a data URI is a client error.
+    let (st, _) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            &format!("/submissions/{id}/artwork/cover"),
+            Some(json!({ "image": "nope" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

@@ -70,7 +70,7 @@ describe('staff card buttons', () => {
     server.use(http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 't' })));
   });
 
-  it('answers an appointment offer and then disables both buttons', async () => {
+  it('answers an appointment offer and keeps no answered state (the server rewrites the card)', async () => {
     let body: unknown;
     server.use(
       http.post('*/api/v1/staff/offers/77/respond', async ({ request }) => {
@@ -81,8 +81,8 @@ describe('staff card buttons', () => {
     view(offerRows);
     await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
     await waitFor(() => expect(body).toEqual({ accept: true }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Decline' })).toBeDisabled());
-    expect(screen.getByRole('button', { name: 'Accept' })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Accept' })).toBeEnabled());
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeEnabled();
   });
 
   it('declines through the same endpoint', async () => {

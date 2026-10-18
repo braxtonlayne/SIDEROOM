@@ -130,6 +130,34 @@ struct Env {
     rate_rx: tokio::sync::watch::Receiver<crate::rate_limit::RateConfig>,
 }
 
+/// Fixed answers for the System page probes.
+struct FakeProbe;
+
+impl crate::routes::admin::SystemProbe for FakeProbe {
+    fn backups(&self, _dir: &str) -> crate::routes::admin::BackupsView {
+        crate::routes::admin::BackupsView {
+            last_run_ms: Some(1_700_000_000_000),
+            last_verify_ms: None,
+            snapshot_ms: Some(1_700_000_100_000),
+        }
+    }
+
+    fn disks(&self, _data_dir: &str) -> Vec<crate::routes::admin::DiskView> {
+        vec![
+            crate::routes::admin::DiskView {
+                path: "/data".into(),
+                total_bytes: Some(100),
+                free_bytes: Some(40),
+            },
+            crate::routes::admin::DiskView {
+                path: "/gone".into(),
+                total_bytes: None,
+                free_bytes: None,
+            },
+        ]
+    }
+}
+
 async fn env() -> Env {
     env_with(false).await
 }
@@ -223,6 +251,7 @@ async fn env_with(reauth: bool) -> Env {
         }])
         .with_features(features)
         .with_gateway_sessions(Arc::new(|| 7))
+        .with_system_probe(Arc::new(FakeProbe))
         .with_reauth(reauth)
         .with_rate_config(rate_tx)
         .with_storage(Arc::new(sr_storage::ObjectStoreStorage::in_memory()));
@@ -1259,6 +1288,12 @@ async fn settings_features_system_and_jobs() {
         .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(b["gateway_sessions"], 7);
+    // K-10: backup times and disk space come from the probe; unreadable paths have null sizes.
+    assert_eq!(b["backups"]["last_run_ms"], 1_700_000_000_000_i64);
+    assert!(b["backups"]["last_verify_ms"].is_null());
+    assert_eq!(b["disk"][0]["free_bytes"], 40);
+    assert_eq!(b["disk"][1]["path"], "/gone");
+    assert!(b["disk"][1]["total_bytes"].is_null());
     let (_, b) = e.call(Some(BASIC), Method::GET, "/admin/stats", None).await;
     assert!(b["accounts_active"].as_i64().unwrap() >= 5);
     // Jobs.
@@ -2732,4 +2767,92 @@ async fn live_rate_limits_are_bounded_and_reach_the_limiter() {
         .await;
     assert_eq!(s, StatusCode::FORBIDDEN);
     assert_eq!(e.rate_rx.borrow().messages, 120);
+}
+
+#[tokio::test]
+async fn moving_a_discord_identity_needs_the_second_factor_a_reason_and_tells_the_old_account() {
+    let e = env_with(true).await;
+    let identity = e.repo.add_identity(ALICE, "31337");
+    let person = ALICE + 500_000;
+    let path = format!("/admin/persons/{person}/identities/{identity}/move");
+    let body = |reason: Option<&str>| json!({"to_account_id": BOB.to_string(), "reason": reason});
+
+    // Permission first, then the fresh second factor.
+    let (s, _) = e
+        .call(Some(BASIC), Method::POST, &path, Some(body(Some("r"))))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, b) = e
+        .call(Some(MODER), Method::POST, &path, Some(body(Some("r"))))
+        .await;
+    assert_eq!(
+        (s, b["code"].as_u64()),
+        (StatusCode::FORBIDDEN, Some(900_004)),
+        "{b}"
+    );
+    let (s, st) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            "/admin/reauth",
+            Some(json!({ "method": "totp", "code": totp_now(&e) })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{st}");
+
+    // A reason is required.
+    let (s, _) = e
+        .call(Some(MODER), Method::POST, &path, Some(body(None)))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert!(e.mailer.sent().is_empty());
+
+    let (s, v) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &path,
+            Some(body(Some("lost the old login"))),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["to_account_id"], BOB.to_string());
+    assert_eq!(v["linked_target"], true);
+    assert_eq!(v["emailed"], true);
+
+    // The old account got the system DM and an email at its verified address.
+    let dms = e.notes.dms.lock().unwrap().clone();
+    assert!(
+        dms.iter()
+            .any(|(to, text)| *to == ALICE && text.contains("lost the old login"))
+    );
+    let sent = e.mailer.sent();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, format!("u{ALICE}@x.test"));
+    assert!(sent[0].text.contains("@bob") && sent[0].text.contains("lost the old login"));
+
+    // The move is in the access log with its reason, and the Person shows the history.
+    assert!(
+        e.repo
+            .log_rows()
+            .iter()
+            .any(|r| r.action == "person.identity_move" && r.reason == "lost the old login")
+    );
+    let (s, p) = e
+        .call(
+            Some(MODER),
+            Method::GET,
+            &format!("/admin/persons/{person}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{p}");
+    let identities = p["identities"].as_array().unwrap();
+    assert_eq!(identities.len(), 2);
+    let bob = BOB.to_string();
+    assert!(
+        identities
+            .iter()
+            .any(|i| i["unlinked_at_ms"].is_number() && i["moved_to_account_id"] == bob.as_str())
+    );
 }

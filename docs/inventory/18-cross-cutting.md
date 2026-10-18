@@ -47,7 +47,7 @@ All phases.
 - [x] **XC-OPS-007** [OPS] Grafana dashboards JSON _(deploy/monitoring; metric names are checked against the server by scripts/check-ops-files.mjs.)_
 
 ## XC-TEST — Testing infrastructure
-- [ ] **XC-TEST-001** [TEST] Rust test harness: ephemeral Postgres per test (template DB), Garage test bucket, fake clock _(sr_db::testing::TestDb gives each test a template-cloned database; the Garage bucket helper is not included.)_ _(Garage has no Windows build and the live-S3 suite already runs against Garage in `storage.yml`; a per-test bucket helper is not added)_
+- [x] **XC-TEST-001** [TEST] Rust test harness: ephemeral Postgres per test (template DB), Garage test bucket, fake clock _(sr_db::testing::TestDb gives each test a template-cloned database; the Garage bucket helper is not included.)_ _(Garage has no Windows build and the live-S3 suite already runs against Garage in `storage.yml`; a per-test bucket helper is not added)_ _(Garage helper won't build (D-261); `TestDb`, the test clock and `storage.endpoint = memory:` cover it)_
 - [x] **XC-TEST-002** [TEST] Gateway test client utilities (connect as N users, await dispatches) _(`sr_gateway::test_support` (feature `test-support`): TestWorld, TestClient, connect_users, await_dispatch. In-process, no sockets; real-WebSocket clients are not included.)_
 - [x] **XC-TEST-003** [TEST] Frontend MSW mocks generated from OpenAPI _(`packages/api-client/scripts/gen-msw.mjs` emits one handler per operation with schema-shaped placeholder bodies; `mocks:check` is the drift check, wired into the OpenAPI drift workflow. Existing hand-written handlers in apps/web/src/test/server.ts were not migrated.)_
 - [x] **XC-TEST-004** [TEST] Playwright fixtures (seeded users, logged-in contexts, multi-user scenarios) _(`e2e/support/fixtures.ts`: seedUser, signedIn, scenario.ownerAndMember. Typechecks and lists; not run against a live stack in this wave. TOTP and passkey users are not covered by signedIn.)_
@@ -58,7 +58,7 @@ All phases.
 - [x] **XC-CI-002** [OPS] PR title lint (must contain inventory ID or `docs:`/`chore:`)
 - [x] **XC-CI-003** [OPS] Docs link checker
 - [x] **XC-CI-004** [OPS] Decisions-log guard (changes to 01-decisions-log.md require owner review via CODEOWNERS) _(CODEOWNERS lines added; making them binding is the "Require review from Code Owners" branch rule, an owner action.)_
-- [ ] **XC-CI-005** [OPS] Preview deployments for PRs (optional, ephemeral compose on a runner)
+- [ ] **XC-CI-005** [OPS] Preview deployments for PRs (optional, ephemeral compose on a runner) _(won't build (D-261); the `live` e2e job is the per-PR proof)_
 - [x] **XC-CI-006** [OPS] Inventory progress summary in PR checks
 
 ## XC-MOD — Moderation hooks reserved now (full build in Phase 7)

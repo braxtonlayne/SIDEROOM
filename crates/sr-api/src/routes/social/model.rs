@@ -39,6 +39,9 @@ pub struct UserObject {
     /// The server tag this user displays (LNG-SSET-012); Discord's `primary_guild`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub primary_guild: Option<PrimaryGuildObject>,
+    /// Patron badge and ring show for this user (D-256): the Patron entitlement is active or in
+    /// grace and the badge is not hidden. Always present; never a third state.
+    pub sr_patron: bool,
 }
 
 /// A displayed server tag: `{identity_guild_id, identity_enabled, tag, badge, color}`.
@@ -76,6 +79,7 @@ impl UserObject {
                 banner: u.banner_key.clone(),
                 bot: u.bot,
                 primary_guild: u.primary_guild.as_ref().map(PrimaryGuildObject::of),
+                sr_patron: u.patron,
             },
             None => Self {
                 id: id.to_string(),
@@ -85,6 +89,7 @@ impl UserObject {
                 banner: None,
                 bot: false,
                 primary_guild: None,
+                sr_patron: false,
             },
         }
     }

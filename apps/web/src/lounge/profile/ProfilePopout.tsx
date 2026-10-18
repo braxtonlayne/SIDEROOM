@@ -9,6 +9,7 @@ import { useOpenDm } from '../shell/dm';
 import { setMemberRole } from './memberRoles';
 import { usePopout, type ProfileTarget } from './popoutStore';
 import { Badges } from './Badges';
+import { MiniProfile } from '../../profilepage/MiniProfile';
 import { FullProfile } from './FullProfile';
 import { NoteField, ProfileAvatar, ProfileBanner, StatusBubble, Themed } from './parts';
 import { useProfileView } from './profileView';
@@ -184,6 +185,7 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
             </div>
           </section>
         )}
+        {!user?.bot && <MiniProfile userId={target.userId} />}
         {since && (
           <section aria-labelledby="pop-since-h">
             <h3 id="pop-since-h" className="lng-pop-h">

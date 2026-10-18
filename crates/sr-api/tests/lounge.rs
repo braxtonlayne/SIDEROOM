@@ -199,6 +199,7 @@ async fn world() -> World {
                 banner_key: None,
                 bot: false,
                 primary_guild: None,
+                patron: false,
             },
         );
     }

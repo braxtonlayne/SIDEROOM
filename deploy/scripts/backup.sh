@@ -53,6 +53,8 @@ if [ -n "${SR_BACKUP_REPOSITORY:-}" ] && [ -n "${SR_BACKUP_OBJECTS_DIR:-}" ]; th
   else
     "$tool" -r "$SR_BACKUP_REPOSITORY" backup "$SR_BACKUP_OBJECTS_DIR" --tag sideroom-objects
   fi
+  # Marker the System page reads (K-10): its modification time is the last object snapshot.
+  date -u +%s >"$dir/snapshot.ok"
 fi
 
 # Retention: keep the newest dump of each of the last N days, ISO weeks and months.

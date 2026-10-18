@@ -41,7 +41,7 @@ export function pickableStickers(list: readonly GuildSticker[], query: string): 
     .filter((s) => !q || s.name.toLowerCase().includes(q) || s.tags.toLowerCase().includes(q));
 }
 
-function StickerTile({
+export function StickerTile({
   guildId,
   sticker,
   onPick,
