@@ -89,5 +89,5 @@ The local setup:
 Not run: Rust gates and web vitest. No Rust and no `apps/web` code changed.
 
 Housekeeping:
-- My first Playwright attempt lacked `SR_CLI_BIN`/`DATABASE_URL`, so `global-setup` fell back to `cargo run -p sr-cli` and built `sr-cli` into this worktree's `./target` (gitignored, about 34 MB for the binary plus deps). It can be deleted.
+- My first Playwright attempt lacked `SR_CLI_BIN`/`DATABASE_URL`, so `global-setup` fell back to `cargo run -p sr-cli` and built `sr-cli` into this worktree's `./target` (gitignored, about 12 GB). Delete `C:/Users/braxt/Desktop/SIDEROOM_wt/fix-firefox-e2ee/target` to reclaim it; the real build dir is `fix-firefox-e2ee-target`.
 - All servers I started are stopped. The scratch DB `sr_fix_ff` was dropped.
