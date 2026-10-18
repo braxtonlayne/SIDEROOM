@@ -7,6 +7,7 @@ import { classify, failedTests } from './flake-detect.mjs';
 import { issueFor } from './inventory-to-issues.mjs';
 import { parseInventoryText } from './lib/inventory.mjs';
 import { staticImports } from './lib/bundle.mjs';
+import { announceIps, announceValue, defaultRouteAddress, isLoopback } from './ice-announce.mjs';
 
 test('PR titles need an inventory id or a conventional prefix', () => {
   assert.equal(checkTitle('feat(LNG-MSG-014): message edit'), null);
@@ -76,4 +77,40 @@ test('bundle budget follows static imports only', () => {
     'assets/side-2.js',
     'assets/re-4.js',
   ]);
+});
+
+test('ice-announce: the SFU announces a routable address so Firefox can pair with it', async () => {
+  assert.equal(isLoopback('127.0.0.1'), true);
+  assert.equal(isLoopback('127.1.2.3'), true);
+  assert.equal(isLoopback('::1'), true);
+  assert.equal(isLoopback('10.1.0.4'), false);
+  // The figment env form (TOML array of strings) for SR_VOICE__ANNOUNCE_IPS.
+  assert.equal(announceValue('10.1.0.4'), '["10.1.0.4"]');
+  assert.deepEqual(await announceIps(async () => '10.1.0.4'), {
+    value: '["10.1.0.4"]',
+    routable: true,
+  });
+  // No route, or only loopback: keep the old default (Chromium still connects) and say so.
+  for (const found of [null, '127.0.0.1', '0.0.0.0'])
+    assert.deepEqual(await announceIps(async () => found), {
+      value: '["127.0.0.1"]',
+      routable: false,
+    });
+  // A socket that cannot connect (no default route) resolves null instead of throwing.
+  const failing = () => {
+    const handlers = {};
+    return {
+      once: (ev, fn) => (handlers[ev] = fn),
+      connect: () => handlers.error(new Error('ENETUNREACH')),
+      close() {},
+    };
+  };
+  assert.equal(await defaultRouteAddress('192.0.2.1', failing), null);
+  const answering = () => ({
+    once() {},
+    connect: (_port, _host, cb) => cb(),
+    address: () => ({ address: '10.1.0.4' }),
+    close() {},
+  });
+  assert.equal(await defaultRouteAddress('192.0.2.1', answering), '10.1.0.4');
 });

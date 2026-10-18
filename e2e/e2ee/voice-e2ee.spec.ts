@@ -133,9 +133,13 @@ test.describe('Voice E2EE (real browsers)', () => {
     browserName,
     playwright,
   }) => {
-    // Playwright's Windows WebKit has no WebRTC at all; the client would (rightly) refuse the call.
+    // Playwright's Windows WebKit has no WebRTC at all; the client would (rightly) refuse the call. Probe on the
+    // app's own origin (a secure context, like the call), not about:blank.
     const probe = await browser.newPage();
+    await probe.goto(`${process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173'}/`);
     const caps = await probe.evaluate(() => ({
+      ua: navigator.userAgent,
+      secure: window.isSecureContext,
       webrtc: typeof RTCPeerConnection === 'function',
       script:
         typeof (globalThis as { RTCRtpScriptTransform?: unknown }).RTCRtpScriptTransform ===
@@ -146,6 +150,11 @@ test.describe('Voice E2EE (real browsers)', () => {
         (typeof RTCRtpSender === 'function' && 'createEncodedStreams' in RTCRtpSender.prototype),
     }));
     await probe.close();
+    // Recorded in the report, so a skip on CI says what the engine lacked.
+    test.info().annotations.push({
+      type: 'capabilities',
+      description: `${caps.ua}; secure=${caps.secure} webrtc=${caps.webrtc} scriptTransform=${caps.script} transform=${caps.transform}`,
+    });
     test.skip(!caps.webrtc, `${browserName} here has no WebRTC`);
     test.skip(!caps.transform, `${browserName} here has no encoded-frame transform API`);
 

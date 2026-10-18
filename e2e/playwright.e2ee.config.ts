@@ -20,6 +20,9 @@ const chromiumArgs = [
   '--allow-loopback-in-peer-connection',
 ];
 
+// These prefs are not enough on their own: Firefox never paired with the dev SFU's 127.0.0.1 candidate in CI
+// (ICE failed). Run the server with a routable announce address for Firefox:
+//   SR_VOICE__ANNOUNCE_IPS="$(node scripts/ice-announce.mjs)"   (see that script and e2e.yml)
 const firefoxUserPrefs = {
   'media.navigator.streams.fake': true,
   'media.navigator.permission.disabled': true,

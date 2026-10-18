@@ -125,10 +125,27 @@ jobs:
       - name: Voice E2EE (Firefox, WebKit)
         if: always()
         continue-on-error: true
-        run: ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=firefox --project=webkit
+        run: |
+          # Firefox never paired its candidates with the SFU's default 127.0.0.1 here: ICE failed when the 5 s
+          # trickle grace period ended (run 39157431844). Announce the runner's default-route address instead
+          # (scripts/ice-announce.mjs says why; docs/dev/handoff/fix-firefox-e2ee.md has the evidence).
+          SR_VOICE__ANNOUNCE_IPS="$(node scripts/ice-announce.mjs)"
+          export SR_VOICE__ANNOUNCE_IPS
+          echo "SFU announces $SR_VOICE__ANNOUNCE_IPS"
+          # Firefox's AudioContext never finished resuming on the runner (most likely no audio output device), so
+          # give it a PulseAudio null sink. Best effort: the run goes on without it. The package lists are fresh
+          # from the browser install step.
+          if sudo apt-get install -y -qq --no-install-recommends pulseaudio >/dev/null; then
+            { pulseaudio --start --exit-idle-time=-1 &&
+              pactl load-module module-null-sink sink_name=sr_null >/dev/null &&
+              pactl set-default-sink sr_null; } || echo "PulseAudio null sink not available"
+          fi
+          ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=firefox --project=webkit
         env:
           CI: "true"
           SR_VOICE__E2EE: "true"
+          # SFU signalling and ICE detail in server.log, in case Firefox still fails.
+          SR_LOG__FILTER: "info,sr_voice=debug,str0m=debug"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
