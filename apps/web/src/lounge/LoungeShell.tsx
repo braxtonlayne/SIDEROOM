@@ -20,6 +20,7 @@ import { ComingSoon } from '@sideroom/ui';
 import { firstTextChannel, HOME, navigableChannels, step } from './channels';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
+import { useServerAppearance } from '../packages/serverAppearance';
 import { loadMarkdownEngine } from './markdown';
 import { loadPermEngine } from './permEngine';
 import {
@@ -246,6 +247,7 @@ function Shell() {
   useVisualViewport();
   const openSettings = useOpenUserSettings();
   const theme = useAppliedTheme();
+  const serverLook = useServerAppearance(isHome ? undefined : guildId, theme.allowServerTheming);
   useLoungeShortcuts({
     openSwitcher: () => setSwitcher(true),
     toggleSheet: () => setSheet((s) => !s),
@@ -290,12 +292,12 @@ function Shell() {
   return (
     <ThemeProvider
       section="lounge"
-      serverAccent={guild?.accent ?? null}
+      serverAccent={serverLook.accent ?? guild?.accent ?? null}
       allowServerTheming={theme.allowServerTheming}
       userGlobal={theme.userGlobal}
       perSection={theme.perSection}
       appearance={theme.appearance}
-      style={theme.style}
+      style={{ ...theme.style, ...serverLook.style }}
       {...theme.data}
       className="lng-root"
       data-mobile={isMobile || undefined}

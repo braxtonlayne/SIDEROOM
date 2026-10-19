@@ -6608,6 +6608,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/appearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The theme tokens and accent colour a member's client applies in this server (any member). */
+        get: operations["get_appearance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set or clear the server accent colour (`MANAGE_GUILD`). */
+        patch: operations["set_appearance"];
+        trace?: never;
+    };
     "/guilds/{guild_id}/audit-logs": {
         parameters: {
             query?: never;
@@ -7223,6 +7241,28 @@ export interface paths {
          *     out keep their current value. Nothing is applied if any entry is no longer valid.
          */
         post: operations["apply_recipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/packages/{package_id}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add an approved emoji, sticker or sound pack to the server: the pack is turned on and its items become
+         *     the server's own emoji, stickers or sounds (`MANAGE_GUILD` and the expression permissions). Items that do
+         *     not fit (a name the server already uses, no free slot, a file type the list does not take) are listed
+         *     under `skipped`; the rest are added. Take the pack away again with `DELETE /guilds/{id}/packages/{package}`.
+         */
+        post: operations["import_pack"];
         delete?: never;
         options?: never;
         head?: never;
@@ -17183,6 +17223,21 @@ export interface components {
             id: string;
             username?: string | null;
         };
+        /** @description One item copied into the server. */
+        PackImportAdded: {
+            id: string;
+            name: string;
+        };
+        PackImportResult: {
+            added: components["schemas"]["PackImportAdded"][];
+            enablement: components["schemas"]["PackageEnablement"];
+            skipped: components["schemas"]["PackImportSkipped"][];
+        };
+        /** @description An item that was not copied, and why. */
+        PackImportSkipped: {
+            name: string;
+            reason: string;
+        };
         /** @description A sticker inside a pack. */
         PackStickerObject: {
             available: boolean;
@@ -17201,6 +17256,14 @@ export interface components {
              * @description 1 = standard sticker.
              */
             type: number;
+        };
+        /** @description Body of `PATCH /guilds/{id}/appearance`. */
+        PackageAppearanceBody: {
+            /**
+             * Format: int32
+             * @description The accent colour as `0xRRGGBB`; `null` clears it. Absent keeps it.
+             */
+            accent_color?: number | null;
         };
         PackageCreateGuildBody: {
             /** @description 2 to 100 characters. */
@@ -17233,6 +17296,25 @@ export interface components {
             path: string;
             /** Format: int64 */
             size: number;
+        };
+        /** @description What a member's client applies for a server (`GET /guilds/{id}/appearance`). */
+        PackageGuildAppearance: {
+            /**
+             * Format: int32
+             * @description The server accent colour as `0xRRGGBB`, null when unset.
+             */
+            accent_color?: number | null;
+            theme?: null | components["schemas"]["PackageGuildTheme"];
+        };
+        PackageGuildTheme: {
+            name: string;
+            package_id: string;
+            /** @description `light` or `dark`. */
+            scheme: string;
+            slug: string;
+            /** @description `--ui-*` design tokens, validated when the package was reviewed. */
+            tokens: Record<string, never>;
+            version_id: string;
         };
         /** @enum {string} */
         PackageKind: "theme" | "profile_layout" | "emoji_pack" | "sticker_pack" | "sound_pack" | "recipe" | "server_template";
@@ -42268,6 +42350,94 @@ export interface operations {
             };
         };
     };
+    get_appearance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageGuildAppearance"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_appearance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageAppearanceBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageGuildAppearance"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_audit_log: {
         parameters: {
             query?: {
@@ -44432,6 +44602,54 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    import_pack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackImportResult"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

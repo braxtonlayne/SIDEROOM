@@ -113,6 +113,37 @@ pub struct Enablement {
     pub payload: Option<Value>,
 }
 
+/// What a member's client applies for a server (`GET /guilds/{id}/appearance`).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = PackageGuildAppearance)]
+pub struct Appearance {
+    /// The server accent colour as `0xRRGGBB`, null when unset.
+    pub accent_color: Option<i32>,
+    /// The server-wide theme, null when the server uses the built-in look.
+    pub theme: Option<AppearanceTheme>,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = PackageGuildTheme)]
+pub struct AppearanceTheme {
+    pub package_id: String,
+    pub version_id: String,
+    pub slug: String,
+    pub name: String,
+    /// `light` or `dark`.
+    pub scheme: String,
+    /// `--ui-*` design tokens, validated when the package was reviewed.
+    #[schema(value_type = Object)]
+    pub tokens: Value,
+}
+
+/// One image or sound of a pack, ready to become a server emoji, sticker or sound.
+#[derive(Debug, Clone)]
+pub struct PackItemData {
+    pub name: String,
+    pub bytes: Bytes,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[schema(as = PackageDecision)]
@@ -859,6 +890,150 @@ impl PackageService {
         if n == 0 {
             return Err(PackageError::NotFound("package"));
         }
+        Ok(())
+    }
+
+    // ------------------------------------------------------------ server appearance (LNG-SSET-050)
+
+    /// What members' clients lay over their interface in a server: the server-wide theme (a guild theme
+    /// enablement; the `lounge` one wins over `all`) and the accent colour.
+    pub async fn appearance(&self, guild: i64) -> PackageResult<Appearance> {
+        let accent: Option<Option<i32>> =
+            sqlx::query_scalar("SELECT accent_color FROM guild_appearance WHERE guild_id = $1")
+                .bind(guild)
+                .fetch_optional(self.pool())
+                .await?;
+        let on = self.enabled("guild", guild).await?;
+        let pick = |section: &str| {
+            on.iter()
+                .find(|e| e.kind == PackageKind::Theme && e.section == section)
+        };
+        let theme = pick("lounge").or_else(|| pick("all")).and_then(|e| {
+            let p = e.payload.as_ref()?;
+            Some(AppearanceTheme {
+                package_id: e.package_id.clone(),
+                version_id: e.version_id.clone(),
+                slug: e.slug.clone(),
+                name: e.name.clone(),
+                scheme: if p.get("scheme").and_then(Value::as_str) == Some("light") {
+                    "light"
+                } else {
+                    "dark"
+                }
+                .to_owned(),
+                tokens: p.get("tokens").cloned().unwrap_or_else(|| json!({})),
+            })
+        });
+        Ok(Appearance {
+            accent_color: accent.flatten(),
+            theme,
+        })
+    }
+
+    /// Set or clear the server accent colour (`0xRRGGBB`).
+    pub async fn set_accent(&self, guild: i64, color: Option<i32>, by: i64) -> PackageResult<()> {
+        if color.is_some_and(|c| !(0..=0x00FF_FFFF).contains(&c)) {
+            return Err(PackageError::Invalid(
+                "accent_color",
+                "A colour is 0 to 16777215.".to_owned(),
+            ));
+        }
+        sqlx::query(
+            "INSERT INTO guild_appearance (guild_id, accent_color, updated_by) VALUES ($1, $2, $3) \
+             ON CONFLICT (guild_id) DO UPDATE SET accent_color = $2, updated_by = $3, updated_at = now()",
+        )
+        .bind(guild)
+        .bind(color)
+        .bind(by)
+        .execute(self.pool())
+        .await?;
+        Ok(())
+    }
+
+    // ------------------------------------------------------------ pack items in a server
+
+    /// The images or sounds of an approved emoji, sticker or sound pack, read out of its zip once.
+    pub async fn pack_contents(&self, version_id: i64) -> PackageResult<Vec<PackItemData>> {
+        let (kind, payload) = self.approved_payload(version_id).await?;
+        if !matches!(
+            kind,
+            PackageKind::EmojiPack | PackageKind::StickerPack | PackageKind::SoundPack
+        ) {
+            return Err(PackageError::Conflict("That is not a pack.".to_owned()));
+        }
+        let key: String =
+            sqlx::query_scalar("SELECT artifact_key FROM package_versions WHERE id = $1")
+                .bind(version_id)
+                .fetch_one(self.pool())
+                .await?;
+        let zip = match self.storage()?.get(&key).await {
+            Ok(b) => b.to_vec(),
+            Err(StorageError::NotFound(_)) => return Err(PackageError::NotFound("version")),
+            Err(e) => return Err(PackageError::Storage(e.to_string())),
+        };
+        let files = zip_unpack(zip).await?;
+        let items = payload
+            .get("items")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        Ok(items
+            .iter()
+            .filter_map(|i| {
+                let name = i.get("name")?.as_str()?.to_owned();
+                let file = i.get("file")?.as_str()?;
+                Some(PackItemData {
+                    name,
+                    bytes: Bytes::from(files.get(file)?.clone()),
+                })
+            })
+            .collect())
+    }
+
+    /// Remember that these items of a server came from a pack.
+    pub async fn record_pack_items(
+        &self,
+        guild: i64,
+        package: i64,
+        item_kind: &str,
+        ids: &[i64],
+        by: i64,
+    ) -> PackageResult<()> {
+        for id in ids {
+            sqlx::query(
+                "INSERT INTO guild_pack_items (guild_id, package_id, item_kind, item_id, added_by) \
+                 VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
+            )
+            .bind(guild)
+            .bind(package)
+            .bind(item_kind)
+            .bind(id)
+            .bind(by)
+            .execute(self.pool())
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// The `(item kind, item id)` pairs a server got from a pack.
+    pub async fn pack_items(&self, guild: i64, package: i64) -> PackageResult<Vec<(String, i64)>> {
+        Ok(sqlx::query_as(
+            "SELECT item_kind, item_id FROM guild_pack_items WHERE guild_id = $1 AND package_id = $2 \
+             ORDER BY item_id",
+        )
+        .bind(guild)
+        .bind(package)
+        .fetch_all(self.pool())
+        .await?)
+    }
+
+    /// Forget every item recorded for a pack in a server.
+    pub async fn forget_pack_items(&self, guild: i64, package: i64) -> PackageResult<()> {
+        sqlx::query("DELETE FROM guild_pack_items WHERE guild_id = $1 AND package_id = $2")
+            .bind(guild)
+            .bind(package)
+            .execute(self.pool())
+            .await?;
         Ok(())
     }
 

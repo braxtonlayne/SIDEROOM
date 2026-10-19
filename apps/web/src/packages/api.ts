@@ -148,10 +148,10 @@ export const disableForMe = (packageId: string) =>
   apiFetch<void>(`/users/@me/packages/${id(packageId)}`, { method: 'DELETE', ...ro });
 export const guildEnabled = (guildId: string) =>
   apiFetch<Enablement[]>(`/guilds/${id(guildId)}/packages`, ro);
-export const enableForGuild = (guildId: string, packageId: string) =>
+export const enableForGuild = (guildId: string, packageId: string, section = 'all') =>
   apiFetch<Enablement>(`/guilds/${id(guildId)}/packages/${id(packageId)}`, {
     method: 'PUT',
-    json: {},
+    json: { section },
     ...ro,
   });
 export const disableForGuild = (guildId: string, packageId: string) =>
@@ -214,3 +214,32 @@ export const decidePackage = (
   });
 export const packageDownloadUrl = (versionId: string) =>
   `/api/v1/admin/developers/packages/versions/${id(versionId)}/download`;
+
+// ---- server look: theme, accent colour, packs added to a server (LNG-SSET-050) ----
+export interface GuildAppearance {
+  /** 0xRRGGBB, null when the server has none. */
+  accent_color: number | null;
+  theme: {
+    package_id: string;
+    version_id: string;
+    slug: string;
+    name: string;
+    scheme: 'light' | 'dark';
+    tokens: Record<string, string>;
+  } | null;
+}
+export interface PackImportResult {
+  enablement: Enablement;
+  added: { name: string; id: string }[];
+  skipped: { name: string; reason: string }[];
+}
+export const guildAppearance = (guildId: string) =>
+  apiFetch<GuildAppearance>(`/guilds/${id(guildId)}/appearance`, ro);
+export const setGuildAccent = (guildId: string, accent: number | null) =>
+  apiFetch<GuildAppearance>(`/guilds/${id(guildId)}/appearance`, {
+    method: 'PATCH',
+    json: { accent_color: accent },
+    ...ro,
+  });
+export const importPack = (guildId: string, packageId: string) =>
+  apiPost<PackImportResult>(`/guilds/${id(guildId)}/packages/${id(packageId)}/import`, {});

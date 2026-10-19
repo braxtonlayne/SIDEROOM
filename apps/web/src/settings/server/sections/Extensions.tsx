@@ -2,7 +2,16 @@
 // (a preset of feature module settings) are applied after the manager has seen what they change; sound,
 // emoji and sticker packs can be browsed; server templates start a new server. Packages are data and were
 // reviewed by staff (D-063, D-064); nothing here runs code.
-import { Badge, Button, EmptyState, Modal, Notice, Select, TextInput } from '@sideroom/ui';
+import {
+  Badge,
+  Button,
+  ColorPicker,
+  EmptyState,
+  Modal,
+  Notice,
+  Select,
+  TextInput,
+} from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT, type MessageKey } from '../../../i18n';
@@ -10,6 +19,11 @@ import {
   applyRecipe,
   createGuildFromPackage,
   disableForGuild,
+  enableForGuild,
+  guildAppearance,
+  importPack,
+  setGuildAccent,
+  type PackImportResult,
   guildEnabled,
   listPackages,
   versionFileUrl,
@@ -18,12 +32,14 @@ import {
   type PackageView,
 } from '../../../packages/api';
 import { useLoad } from '../../../packages/useLoad';
+import { accentOfHex, hexOfAccent } from '../../../packages/serverAppearance';
 import '../../../packages/packages.css';
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, SectionHeader, useAction } from '../ui';
 
 const KINDS: { kind: PackageKind; label: MessageKey }[] = [
   { kind: 'recipe', label: 'settings.extensions.kindRecipe' },
+  { kind: 'theme', label: 'settings.extensions.kindTheme' },
   { kind: 'emoji_pack', label: 'settings.extensions.kindEmoji' },
   { kind: 'sticker_pack', label: 'settings.extensions.kindSticker' },
   { kind: 'sound_pack', label: 'settings.extensions.kindSound' },
@@ -147,16 +163,97 @@ function TemplateDialog({ pkg, onClose }: { pkg: PackageView; onClose: () => voi
   );
 }
 
+/** What an "Add to server" did: the items that were added and the ones that did not fit, with the reason. */
+function ImportReport({ name, result }: { name: string; result: PackImportResult }) {
+  const t = useT();
+  return (
+    <Notice
+      variant={result.skipped.length > 0 ? 'warning' : 'success'}
+      title={t('settings.extensions.importTitle', { name })}
+    >
+      <p>{t('settings.extensions.importAdded', { count: result.added.length })}</p>
+      {result.skipped.length > 0 && (
+        <ul aria-label={t('settings.extensions.importSkipped')}>
+          {result.skipped.map((s) => (
+            <li key={s.name}>
+              <code>{s.name}</code> {s.reason}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Notice>
+  );
+}
+
+/** The server accent colour and the theme every member sees in this server (LNG-SSET-050). */
+function LookCard({ guildId, themeName }: { guildId: string; themeName: string | null }) {
+  const t = useT();
+  const action = useAction();
+  const look = useLoad(`ext-look:${guildId}`, () => guildAppearance(guildId));
+  const saved = hexOfAccent(look.data?.accent_color);
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? saved ?? '#c2b08f';
+  const save = (accent: number | null) =>
+    void action
+      .run(() => setGuildAccent(guildId, accent))
+      .then((out) => {
+        if (out) {
+          setDraft(null);
+          look.reload();
+        }
+      });
+  return (
+    <section aria-labelledby="ext-look-h" className="pkg-look">
+      <h2 className="ss-subtitle" id="ext-look-h">
+        {t('settings.extensions.lookTitle')}
+      </h2>
+      <p className="ss-sub">{t('settings.extensions.lookBody')}</p>
+      <p>
+        <strong>{t('settings.extensions.themeLabel')}</strong>{' '}
+        {themeName ?? t('settings.extensions.themeNone')}
+      </p>
+      <ColorPicker
+        label={t('settings.extensions.accentLabel')}
+        value={shown}
+        onValueChange={setDraft}
+      />
+      <div className="pkg-actions">
+        <Button
+          size="sm"
+          variant="primary"
+          loading={action.busy}
+          disabled={draft === null || accentOfHex(draft) === null}
+          onClick={() => save(accentOfHex(draft ?? ''))}
+        >
+          {t('settings.extensions.accentSave')}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={action.busy}
+          disabled={saved === null}
+          onClick={() => save(null)}
+        >
+          {t('settings.extensions.accentClear')}
+        </Button>
+      </div>
+      <ActionStatus error={action.error} done={action.done} />
+    </section>
+  );
+}
+
 export function ExtensionsSection({ guildId }: SectionProps) {
   const t = useT();
   const [kind, setKind] = useState<PackageKind>('recipe');
   const [query, setQuery] = useState('');
   const [applying, setApplying] = useState<PackageView | null>(null);
   const [templating, setTemplating] = useState<PackageView | null>(null);
+  const [imported, setImported] = useState<{ name: string; result: PackImportResult } | null>(null);
   const action = useAction();
   const on = useLoad<Enablement[]>(`ext-on:${guildId}`, () => guildEnabled(guildId));
   const list = useLoad<PackageView[]>(`ext:${kind}:${query}`, () => listPackages(kind, query));
   const appliedIds = new Set((on.data ?? []).map((e) => e.package_id));
+  const themeOn = (on.data ?? []).find((e) => e.kind === 'theme');
 
   return (
     <>
@@ -165,6 +262,9 @@ export function ExtensionsSection({ guildId }: SectionProps) {
         description={t('settings.extensions.description')}
       />
       <ActionStatus error={action.error} done={action.done} />
+
+      <LookCard guildId={guildId} themeName={themeOn?.name ?? null} />
+      {imported && <ImportReport name={imported.name} result={imported.result} />}
 
       {(on.data ?? []).length > 0 && (
         <section aria-labelledby="ext-on-h">
@@ -213,9 +313,9 @@ export function ExtensionsSection({ guildId }: SectionProps) {
         />
       </div>
 
-      {kind !== 'recipe' && kind !== 'server_template' && (
-        <Notice variant="info" title={t('settings.extensions.packsTitle')}>
-          {t('settings.extensions.packsBody')}
+      {kind !== 'recipe' && kind !== 'server_template' && kind !== 'theme' && (
+        <Notice variant="info" title={t('settings.extensions.packsAddTitle')}>
+          {t('settings.extensions.packsAddBody')}
         </Notice>
       )}
 
@@ -283,6 +383,68 @@ export function ExtensionsSection({ guildId }: SectionProps) {
                     {t('settings.extensions.createServer')}
                   </Button>
                 )}
+                {(p.kind === 'emoji_pack' ||
+                  p.kind === 'sticker_pack' ||
+                  p.kind === 'sound_pack') &&
+                  (appliedIds.has(p.id) ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={action.busy}
+                      aria-label={t('settings.extensions.removePack', { name: p.name })}
+                      onClick={() =>
+                        void action
+                          .run(() => disableForGuild(guildId, p.id))
+                          .then(() => on.reload())
+                      }
+                    >
+                      {t('settings.extensions.removeFromServer')}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      loading={action.busy}
+                      aria-label={t('settings.extensions.addPack', { name: p.name })}
+                      onClick={() =>
+                        void action
+                          .run(() => importPack(guildId, p.id))
+                          .then((result) => {
+                            if (result) setImported({ name: p.name, result });
+                            on.reload();
+                          })
+                      }
+                    >
+                      {t('settings.extensions.addToServer')}
+                    </Button>
+                  ))}
+                {p.kind === 'theme' &&
+                  (appliedIds.has(p.id) ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={action.busy}
+                      onClick={() =>
+                        void action
+                          .run(() => disableForGuild(guildId, p.id))
+                          .then(() => on.reload())
+                      }
+                    >
+                      {t('settings.extensions.themeStop')}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      loading={action.busy}
+                      aria-label={t('settings.extensions.themeUseNamed', { name: p.name })}
+                      onClick={() =>
+                        void action.run(() => enableForGuild(guildId, p.id)).then(() => on.reload())
+                      }
+                    >
+                      {t('settings.extensions.themeUse')}
+                    </Button>
+                  ))}
               </div>
             </li>
           ))}

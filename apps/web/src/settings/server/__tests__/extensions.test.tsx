@@ -30,7 +30,14 @@ const pkg = (over: object) => ({
 });
 
 describe('Server Settings > Extensions (EXT-PKG-006)', () => {
-  beforeEach(() => seed({ perms: [MANAGE.guild] }));
+  beforeEach(() => {
+    seed({ perms: [MANAGE.guild] });
+    server.use(
+      http.get('*/api/v1/guilds/g1/appearance', () =>
+        HttpResponse.json({ accent_color: null, theme: null }),
+      ),
+    );
+  });
 
   it('shows what a recipe will change before applying it, and applies it once confirmed', async () => {
     const applied = capture();
@@ -84,7 +91,7 @@ describe('Server Settings > Extensions (EXT-PKG-006)', () => {
     expect(screen.getByRole('button', { name: 'Apply again' })).toBeInTheDocument();
   });
 
-  it('previews packs without offering to add them, and lists a refusal', async () => {
+  it('lists the items of a pack and offers to add it', async () => {
     server.use(
       http.get('*/api/v1/packages', ({ request }) =>
         HttpResponse.json(
@@ -108,10 +115,11 @@ describe('Server Settings > Extensions (EXT-PKG-006)', () => {
     await user.click(await screen.findByRole('combobox', { name: 'Kind' }));
     await user.click(await screen.findByRole('option', { name: 'Emoji packs' }));
     expect(await screen.findByRole('heading', { name: 'Faces' })).toBeInTheDocument();
-    expect(screen.getByText('Browse only for now')).toBeInTheDocument();
+    expect(screen.getByText('Packs are copied into your server')).toBeInTheDocument();
     const img = screen.getByRole('img', { name: 'wave' });
     expect(img).toHaveAttribute('src', '/api/v1/packages/versions/21/files/emoji/wave.png');
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add Faces to this server' })).toBeInTheDocument();
   });
 
   it('creates a server from a template package', async () => {

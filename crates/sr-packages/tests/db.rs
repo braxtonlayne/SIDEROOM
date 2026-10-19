@@ -845,3 +845,111 @@ async fn profile_pictures_are_capped_owned_and_dropped_when_a_saved_document_sto
     assert_eq!(svc.media_keys(other).await.unwrap().len(), 1);
     db.cleanup().await.unwrap();
 }
+
+async fn guild(pool: &PgPool, owner: i64) -> i64 {
+    let id = uid();
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'Book Club', $2)")
+        .bind(id)
+        .bind(owner)
+        .execute(pool)
+        .await
+        .unwrap();
+    id
+}
+
+async fn approved(r: &Rig, author: i64, staff: i64, zip: Vec<u8>) -> (i64, i64) {
+    let v = r.svc.submit(author, zip, &Checks::lenient()).await.unwrap();
+    let (pid, vid): (i64, i64) = (v.package_id.parse().unwrap(), v.id.parse().unwrap());
+    r.svc
+        .decide(vid, staff, Decision::Approve, None)
+        .await
+        .unwrap();
+    (pid, vid)
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn a_server_gets_a_theme_an_accent_colour_and_pack_items_it_can_take_back() {
+    let r = rig().await;
+    let author = account(&r.pool).await;
+    let staff = account(&r.pool).await;
+    let owner = account(&r.pool).await;
+    let g = guild(&r.pool, owner).await;
+
+    // Nothing chosen: the built-in look.
+    let a = r.svc.appearance(g).await.unwrap();
+    assert!(a.theme.is_none() && a.accent_color.is_none());
+
+    // A theme turned on for the server shows up for members, with its tokens.
+    let (theme, _) = approved(&r, author, staff, theme_zip("ocean-night", "1.0.0")).await;
+    r.svc
+        .enable("guild", g, theme, "all", json!({}), owner)
+        .await
+        .unwrap();
+    let a = r.svc.appearance(g).await.unwrap();
+    let t = a.theme.expect("a server theme");
+    assert_eq!(t.slug, "ocean-night");
+    assert_eq!(t.scheme, "dark");
+    assert_eq!(t.tokens["--ui-accent"], "#5865f2");
+
+    // The accent colour is set, replaced, cleared, and refused outside 0..=0xFFFFFF.
+    r.svc.set_accent(g, Some(0x336699), owner).await.unwrap();
+    assert_eq!(
+        r.svc.appearance(g).await.unwrap().accent_color,
+        Some(0x336699)
+    );
+    r.svc.set_accent(g, Some(0x112233), owner).await.unwrap();
+    assert_eq!(
+        r.svc.appearance(g).await.unwrap().accent_color,
+        Some(0x112233)
+    );
+    r.svc.set_accent(g, None, owner).await.unwrap();
+    assert_eq!(r.svc.appearance(g).await.unwrap().accent_color, None);
+    assert!(r.svc.set_accent(g, Some(0x0100_0000), owner).await.is_err());
+    assert!(r.svc.set_accent(g, Some(-1), owner).await.is_err());
+
+    // Turning the theme off returns to the built-in look.
+    r.svc.disable("guild", g, theme).await.unwrap();
+    assert!(r.svc.appearance(g).await.unwrap().theme.is_none());
+
+    // A pack's images are read out of its zip, and the items a server got from it are remembered.
+    let (pack, vid) = approved(&r, author, staff, emoji_zip("faces")).await;
+    let en = r
+        .svc
+        .enable("guild", g, pack, "all", json!({}), owner)
+        .await
+        .unwrap();
+    assert_eq!(en.version_id, vid.to_string());
+    let items = r.svc.pack_contents(vid).await.unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].name, "wave");
+    assert!(items[0].bytes.starts_with(b"\x89PNG"));
+    assert!(r.svc.pack_contents(i64::MAX).await.is_err());
+    r.svc
+        .record_pack_items(g, pack, "emoji", &[7, 8], owner)
+        .await
+        .unwrap();
+    r.svc
+        .record_pack_items(g, pack, "emoji", &[7], owner)
+        .await
+        .unwrap();
+    assert_eq!(
+        r.svc.pack_items(g, pack).await.unwrap(),
+        vec![("emoji".to_owned(), 7), ("emoji".to_owned(), 8)]
+    );
+    r.svc.forget_pack_items(g, pack).await.unwrap();
+    assert!(r.svc.pack_items(g, pack).await.unwrap().is_empty());
+
+    // A theme is not a pack.
+    assert!(matches!(
+        r.svc
+            .pack_contents(
+                approved(&r, author, staff, theme_zip("other-theme", "1.0.0"))
+                    .await
+                    .1
+            )
+            .await
+            .unwrap_err(),
+        PackageError::Conflict(_)
+    ));
+}

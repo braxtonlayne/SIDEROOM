@@ -36,7 +36,7 @@ use sr_packages::{
 };
 use utoipa::ToSchema;
 
-fn id(raw: &str) -> MsgResult<i64> {
+pub(super) fn id(raw: &str) -> MsgResult<i64> {
     raw.parse::<i64>()
         .ok()
         .filter(|v| *v > 0)
@@ -302,7 +302,7 @@ pub async fn disable_for_me(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn gid(raw: &str) -> MsgResult<GuildId> {
+pub(super) fn gid(raw: &str) -> MsgResult<GuildId> {
     raw.parse::<u64>()
         .ok()
         .filter(|v| *v > 0)
@@ -310,12 +310,12 @@ fn gid(raw: &str) -> MsgResult<GuildId> {
         .ok_or_else(|| ApiError::new(ErrorCode::UnknownGuild).into())
 }
 
-async fn require_manage(
+pub(super) async fn require_manage(
     settings: &SettingsDeps,
     user: i64,
     guild: GuildId,
     gate: Option<&MfaGate>,
-) -> MsgResult<()> {
+) -> MsgResult<crate::routes::settings::deps::GuildAccess> {
     let user = UserId::new(u64::try_from(user).unwrap_or(0));
     let acc = settings.guild_access(user, guild).await?;
     if let Some(g) = gate {
@@ -324,7 +324,7 @@ async fn require_manage(
     if !acc.perms.has(Permissions::MANAGE_GUILD) {
         return Err(ErrorCode::MissingPermissions.into());
     }
-    Ok(())
+    Ok(acc)
 }
 
 /// What is turned on in a server (`MANAGE_GUILD`).
@@ -375,19 +375,33 @@ pub async fn enable_for_guild(
         .into());
     }
     let section = body.section.unwrap_or_else(|| "all".to_owned());
-    Ok(Json(
-        deps.service
-            .enable(
-                "guild",
-                i64::try_from(g.get()).unwrap_or(0),
-                package,
-                &section,
-                Value::Object(Map::new()),
-                p.user_id,
+    let kind = deps.service.get(package).await.map_err(pkg)?.kind;
+    // A server theme reaches members in the Lounge, so it applies to `all` sections or to `lounge` only.
+    if kind == PackageKind::Theme && !matches!(section.as_str(), "all" | "lounge") {
+        return Err(ApiError::invalid_form()
+            .field(
+                "section",
+                "INVALID_VALUE",
+                "A server theme applies to all sections or to the Lounge.",
             )
-            .await
-            .map_err(pkg)?,
-    ))
+            .into());
+    }
+    let en = deps
+        .service
+        .enable(
+            "guild",
+            i64::try_from(g.get()).unwrap_or(0),
+            package,
+            &section,
+            Value::Object(Map::new()),
+            p.user_id,
+        )
+        .await
+        .map_err(pkg)?;
+    if kind == PackageKind::Theme {
+        super::appearance::announce(&settings, g).await;
+    }
+    Ok(Json(en))
 }
 
 /// Turn a package off in a server (`MANAGE_GUILD`).
@@ -406,11 +420,32 @@ pub async fn disable_for_guild(
     Path((guild, package)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let g = gid(&guild)?;
-    require_manage(&settings, p.user_id, g, Some(&gate)).await?;
+    let acc = require_manage(&settings, p.user_id, g, Some(&gate)).await?;
+    let gi = i64::try_from(g.get()).unwrap_or(0);
+    let package = id(&package)?;
+    let kind = deps
+        .service
+        .enabled("guild", gi)
+        .await
+        .map_err(pkg)?
+        .into_iter()
+        .find(|e| e.package_id == package.to_string())
+        .map(|e| e.kind);
+    // A pack takes the items it added with it (what the server uploaded itself stays).
+    if matches!(
+        kind,
+        Some(PackageKind::EmojiPack | PackageKind::StickerPack | PackageKind::SoundPack)
+    ) {
+        let user = UserId::new(u64::try_from(p.user_id).unwrap_or(0));
+        super::appearance::remove_pack(&settings, &deps, &acc, user, g, package).await?;
+    }
     deps.service
-        .disable("guild", i64::try_from(g.get()).unwrap_or(0), id(&package)?)
+        .disable("guild", gi, package)
         .await
         .map_err(pkg)?;
+    if kind == Some(PackageKind::Theme) {
+        super::appearance::announce(&settings, g).await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -425,6 +425,12 @@ pub enum DomainEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// `SR_GUILD_APPEARANCE_UPDATE` for the members of a guild (its server theme or accent colour changed);
+    /// `payload` is `{guild_id}` and the client reads `GET /guilds/{id}/appearance` again.
+    GuildAppearanceUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
     /// `WEBHOOKS_UPDATE`; the gateway builds `{guild_id, channel_id}`.
     WebhooksUpdated {
         guild: GuildId,
@@ -579,6 +585,7 @@ impl DomainEvent {
             | Self::VoiceJoined { guild, .. }
             | Self::VoiceLeft { guild, .. }
             | Self::GuildEntitlementUpdated { guild, .. }
+            | Self::GuildAppearanceUpdated { guild, .. }
             | Self::WebhooksUpdated { guild, .. }
             | Self::AutoModRuleCreated { guild, .. }
             | Self::AutoModRuleUpdated { guild, .. }
@@ -785,6 +792,10 @@ mod tests {
                 payload: p.clone(),
             },
             DomainEvent::GuildEntitlementUpdated {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::GuildAppearanceUpdated {
                 guild: g,
                 payload: p.clone(),
             },
