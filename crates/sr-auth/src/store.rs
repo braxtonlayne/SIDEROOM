@@ -286,6 +286,10 @@ pub trait AuthStore: Send + Sync {
     async fn account_cap_override(&self) -> StoreResult<Option<u64>> {
         Ok(None)
     }
+    /// Record the minimum age the person affirmed at registration (D-294, `accounts.age_declared`).
+    async fn set_declared_min_age(&self, _account_id: i64, _age: u8) -> StoreResult<()> {
+        Ok(())
+    }
     /// One transaction: lock the invite row and require `open`; take the cap
     /// advisory lock and reject at the cap; require issuer credit >= 1;
     /// match or create the Person and reject banned Persons; create the

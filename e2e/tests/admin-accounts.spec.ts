@@ -29,6 +29,7 @@ test('Owner suspends and reactivates an account from the admin pages', async ({
       username,
       password: 'Admin-E2e-Passw0rd-9!',
       accepted_house_notes: true,
+      confirmed_min_age: 13,
     },
   });
   expect(res.ok(), await res.text()).toBeTruthy();

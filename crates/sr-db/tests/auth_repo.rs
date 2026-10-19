@@ -641,3 +641,24 @@ async fn login_devices_are_remembered_per_account() {
     store.set_login_alerts(a, true).await.unwrap();
     assert!(store.login_alerts_enabled(a).await.unwrap());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_declared_minimum_age_is_recorded_once_and_bounded() {
+    use sr_auth::store::AuthStore;
+    let pool = pool().await;
+    let store = sr_db::auth_store::PgAuthStore::new(pool.clone(), repo(&pool), Arc::new(uid));
+    let a = account(&pool).await;
+    let declared = |pool: PgPool| async move {
+        sqlx::query_scalar::<_, Option<i16>>("SELECT age_declared FROM accounts WHERE id = $1")
+            .bind(a)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+    };
+    assert_eq!(declared(pool.clone()).await, None);
+    store.set_declared_min_age(a, 16).await.unwrap();
+    assert_eq!(declared(pool.clone()).await, Some(16));
+    // The column refuses anything outside 13..=18.
+    assert!(store.set_declared_min_age(a, 12).await.is_err());
+}

@@ -723,6 +723,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"reauth_status","method":"get","path":"/sr/auth/reauth","status":200,"body":{"enrolled":false,"fresh":false,"window_secs":0}},
   {"id":"reauth","method":"post","path":"/sr/auth/reauth","status":200,"body":{"enrolled":false,"fresh":false,"window_secs":0}},
   {"id":"change_username","method":"put","path":"/sr/auth/username","status":200,"body":null},
+  {"id":"compliance_public","method":"get","path":"/sr/compliance/public","status":200,"body":{"minimum_age":0}},
   {"id":"csrf_token","method":"get","path":"/sr/csrf","status":200,"body":{"token":"string"}},
   {"id":"get_emoji_info","method":"get","path":"/sr/emojis/:emoji_id","status":200,"body":{"animated":false,"id":"1","name":"string"}},
   {"id":"get_emoji_url","method":"get","path":"/sr/emojis/:emoji_id/url","status":200,"body":{"expires_at":0,"url":"string"}},

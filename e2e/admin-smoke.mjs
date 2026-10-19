@@ -66,6 +66,7 @@ async function register(name, issuer) {
     username: name,
     password: pw,
     accepted_house_notes: true,
+    confirmed_min_age: 13,
   });
   c.csrf = (await c.call('GET', '/sr/csrf')).body?.token ?? '';
   return { c, id: r.body?.id, r };

@@ -50146,6 +50146,27 @@
         ]
       }
     },
+    "/sr/compliance/public": {
+      "get": {
+        "tags": [
+          "features"
+        ],
+        "summary": "The minimum registration age and the operator's country and contact (public: the entrance\npages and the privacy page are read before sign-in).",
+        "operationId": "compliance_public",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicComplianceObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sr/csrf": {
       "get": {
         "tags": [],
@@ -79332,6 +79353,35 @@
             "type": "integer",
             "description": "Members that would be (preview) or were (execute) removed.",
             "minimum": 0
+          }
+        }
+      },
+      "PublicComplianceObject": {
+        "type": "object",
+        "description": "What visitors may know about the instance's compliance settings (M-06, D-293 to D-295).",
+        "required": [
+          "minimum_age"
+        ],
+        "properties": {
+          "minimum_age": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The age a person must be to register (13 unless the operator raised it).",
+            "minimum": 0
+          },
+          "operator_contact": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The operator's contact address, also the copyright notice address, when set."
+          },
+          "operator_country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The operator's country (ISO 3166-1 alpha-2), when set."
           }
         }
       },

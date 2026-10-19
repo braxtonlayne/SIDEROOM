@@ -9873,6 +9873,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/compliance/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The minimum registration age and the operator's country and contact (public: the entrance
+         *     pages and the privacy page are read before sign-in).
+         */
+        get: operations["compliance_public"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/csrf": {
         parameters: {
             query?: never;
@@ -18197,6 +18217,18 @@ export interface components {
         PruneResult: {
             /** @description Members that would be (preview) or were (execute) removed. */
             pruned: number;
+        };
+        /** @description What visitors may know about the instance's compliance settings (M-06, D-293 to D-295). */
+        PublicComplianceObject: {
+            /**
+             * Format: int32
+             * @description The age a person must be to register (13 unless the operator raised it).
+             */
+            minimum_age: number;
+            /** @description The operator's contact address, also the copyright notice address, when set. */
+            operator_contact?: string | null;
+            /** @description The operator's country (ISO 3166-1 alpha-2), when set. */
+            operator_country?: string | null;
         };
         /** @description The `keys` of a browser `PushSubscription`. */
         PushKeys: {
@@ -53215,6 +53247,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    compliance_public: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicComplianceObject"];
                 };
             };
         };

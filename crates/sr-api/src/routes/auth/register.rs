@@ -8,7 +8,11 @@ use super::{
     throttle::Rule,
     validate,
 };
-use crate::{auth::parse_cookie, state::AppState};
+use crate::{
+    auth::parse_cookie,
+    routes::{MaybeExt, settings::features::GuildFeatures},
+    state::AppState,
+};
 use axum::{
     Json,
     extract::State,
@@ -35,6 +39,10 @@ pub struct RegisterBody {
     password: String,
     #[serde(default)]
     accepted_house_notes: bool,
+    /// "I am at least {minimum age}" (D-294): the age the person affirmed, which must reach the
+    /// platform's minimum (`platform.compliance` `accounts.minimum_age`, default 13).
+    #[serde(default)]
+    confirmed_min_age: Option<u8>,
 }
 
 fn closed() -> AuthRouteError {
@@ -52,6 +60,7 @@ fn unusable() -> AuthRouteError {
 pub async fn register(
     State(state): State<AppState>,
     Svc { svc, ip }: Svc,
+    MaybeExt(features): MaybeExt<GuildFeatures>,
     headers: HeaderMap,
     Json(body): Json<RegisterBody>,
 ) -> R<impl IntoResponse> {
@@ -88,6 +97,18 @@ pub async fn register(
         });
     if !body.accepted_house_notes {
         problems.push(("rules", "Please confirm you have read the house notes."));
+    }
+    let min_age = match &features {
+        Some(gf) => {
+            crate::routes::settings::features::compliance_settings(gf)
+                .await
+                .minimum_age
+        }
+        None => sr_features::ComplianceSettings::default().minimum_age,
+    };
+    let age_message = format!("Please confirm you are at least {min_age}.");
+    if body.confirmed_min_age.is_none_or(|a| a < min_age) {
+        problems.push(("age", age_message.as_str()));
     }
     let local = email.split('@').next().unwrap_or("");
     let context = [username.as_str(), local, "sideroom", "side room"];
@@ -173,6 +194,14 @@ pub async fn register(
         svc.discord_links.take(token, now);
         let secure = state.settings().secure_cookies;
         cookies.push((header::SET_COOKIE, clear_oauth_cookie(LINK_COOKIE, secure)));
+    }
+    if let Some(age) = body.confirmed_min_age
+        && let Err(e) = svc
+            .store
+            .set_declared_min_age(registered.account_id, age.min(18))
+            .await
+    {
+        tracing::warn!(error = %e, "could not record the declared age");
     }
     spawn_verification(svc.clone(), state.now_secs(), registered.account_id, email);
     announce_new_member(&svc, registered.account_id, registered.issuer_id).await;
