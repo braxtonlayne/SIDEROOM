@@ -791,10 +791,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                     poster: feature_poster.clone(),
                 }),
                 // The live card in the bound channel (WP-BE-008).
-                Arc::new(crate::party_cards::PartyCards::new(
-                    pool.clone(),
-                    payments.chat.clone(),
-                )),
+                Arc::new(
+                    crate::party_cards::PartyCards::new(pool.clone(), payments.chat.clone())
+                        .with_features(user_features.clone()),
+                ),
                 // CHANNEL_UPDATE when a room stops being one.
                 Arc::new(crate::party_rooms::RoomFlagHook::new(
                     PgChatRepo::new(pool.clone()),
@@ -1610,6 +1610,15 @@ fn integration_status(
             (!cfg.smtp.host.is_empty()).then(|| format!("{}:{}", cfg.smtp.host, cfg.smtp.port)),
         ),
         item("discord_oauth", !cfg.discord.client_id.is_empty(), None),
+        // The URI to register on the same Discord application for account linking (M-05, D-292).
+        item(
+            "discord_connections_redirect",
+            !cfg.discord.client_id.is_empty() || !cfg.connections.discord.client_id.is_empty(),
+            Some(format!(
+                "{}/api/v1/connections/discord/callback",
+                cfg.server.public_url.trim_end_matches('/')
+            )),
+        ),
         item("voice", voice, None),
         item(
             "turn",

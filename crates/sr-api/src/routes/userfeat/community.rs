@@ -94,6 +94,7 @@ pub async fn modules(
         f::RSS_ID,
         f::LIBRARY_FEED_ID,
         f::WATCH_PARTY_ANNOUNCER_ID,
+        f::WATCH_PARTY_CARDS_ID,
         f::SUGGESTIONS_ID,
         f::TICKETS_ID,
     ] {
