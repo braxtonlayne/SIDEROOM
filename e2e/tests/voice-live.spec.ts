@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { STATE_FILE, type BootstrapState } from '../global-setup';
 import { createInvite } from '../support/cli';
+import { openTheDoor } from '../support/register';
 
 /**
  * Voice live test: two Chromium contexts join one server voice channel with Chromium's fake audio device and
@@ -156,8 +157,7 @@ test.describe('Voice live', () => {
     await b.getByLabel('Password', { exact: true }).fill(friend.password);
     await b.getByLabel('Confirm password').fill(friend.password);
     await b.getByLabel(/house notes/).check();
-    await b.getByRole('button', { name: 'Open the door' }).click();
-    await expect(b).toHaveURL(/\/channels/);
+    await openTheDoor(b);
     await b.goto(new URL(link).pathname);
     await b.getByRole('button', { name: 'Accept invite' }).click();
     await expect(b.getByRole('heading', { level: 1, name: 'general' })).toBeVisible();

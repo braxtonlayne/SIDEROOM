@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { STATE_FILE, type BootstrapState } from '../global-setup';
 import { createInvite } from '../support/cli';
+import { openTheDoor } from '../support/register';
 
 /**
  * Lounge shell, sidebar and modal flows against the real server: a template server, channel management
@@ -133,8 +134,7 @@ test.describe('Lounge shell flows', () => {
     await a.getByLabel('Password', { exact: true }).fill(user.password);
     await a.getByLabel('Confirm password').fill(user.password);
     await a.getByLabel(/house notes/).check();
-    await a.getByRole('button', { name: 'Open the door' }).click();
-    await expect(a).toHaveURL(/\/channels/);
+    await openTheDoor(a);
 
     const first = `Rail A ${stamp}`;
     const second = `Rail B ${stamp}`;
@@ -190,8 +190,7 @@ test.describe('Lounge shell flows', () => {
     await b.getByLabel('Password', { exact: true }).fill(friend.password);
     await b.getByLabel('Confirm password').fill(friend.password);
     await b.getByLabel(/house notes/).check();
-    await b.getByRole('button', { name: 'Open the door' }).click();
-    await expect(b).toHaveURL(/\/channels/);
+    await openTheDoor(b);
 
     // A: Friends > Add Friend.
     await a.goto('/channels/@me');

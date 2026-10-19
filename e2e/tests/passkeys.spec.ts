@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type CDPSession, type Page } from '@playwright/test';
 import { createInvite } from '../support/cli';
+import { openTheDoor } from '../support/register';
 
 /**
  * Passkeys end to end (ENT-AUTH-010, Q83): Chromium's CDP WebAuthn virtual authenticator registers a
@@ -45,8 +46,7 @@ async function register(page: Page, friend: { username: string; email: string; p
   await page.getByLabel('Password', { exact: true }).fill(friend.password);
   await page.getByLabel('Confirm password').fill(friend.password);
   await page.getByLabel(/house notes/).check();
-  await page.getByRole('button', { name: 'Open the door' }).click();
-  await expect(page).toHaveURL(/\/channels/);
+  await openTheDoor(page);
 }
 
 async function logout(page: Page) {
