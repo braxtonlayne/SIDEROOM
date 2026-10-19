@@ -11,6 +11,12 @@ ignore = [
   # approved MLS provider, D-249) needs; it never ends up in the shipped binary. Revisit when
   # hpke-rs or libcrux drop it.
   { id = "RUSTSEC-2026-0173", reason = "build-time proc-macro of the MLS crypto provider; no safe upgrade" },
+  { id = "RUSTSEC-2026-0049", reason = "serenity 0.12 (sdk-compat feature, M-16) pins rustls 0.22 / rustls-webpki 0.102; test-only sample bot talking to a local test server, never in a shipped binary; revisit with serenity 0.13" },
+  { id = "RUSTSEC-2026-0098", reason = "serenity 0.12 (sdk-compat feature, M-16) pins rustls 0.22 / rustls-webpki 0.102; test-only sample bot talking to a local test server, never in a shipped binary; revisit with serenity 0.13" },
+  { id = "RUSTSEC-2026-0099", reason = "serenity 0.12 (sdk-compat feature, M-16) pins rustls 0.22 / rustls-webpki 0.102; test-only sample bot talking to a local test server, never in a shipped binary; revisit with serenity 0.13" },
+  { id = "RUSTSEC-2026-0104", reason = "serenity 0.12 (sdk-compat feature, M-16) pins rustls 0.22 / rustls-webpki 0.102; test-only sample bot talking to a local test server, never in a shipped binary; revisit with serenity 0.13" },
+  { id = "RUSTSEC-2026-0346", reason = "serenity 0.12 (sdk-compat feature, M-16) pins rustls 0.22 / rustls-webpki 0.102; test-only sample bot talking to a local test server, never in a shipped binary; revisit with serenity 0.13" },
+  { id = "RUSTSEC-2026-0349", reason = "serenity 0.12 (sdk-compat feature, M-16) pins rustls 0.22 / rustls-webpki 0.102; test-only sample bot talking to a local test server, never in a shipped binary; revisit with serenity 0.13" },
 ]
 
 [licenses]
@@ -66,6 +72,8 @@ deny = [
         "sr-unfurl",
         "sr-push",
         "sr-sdk",
+        # M-16: serenity, the feature-gated sample bot of the SDK compatibility workflow (not in any shipped binary).
+        "serenity",
         "sr-storage",
         "sr-transcoder",
         "oauth2",

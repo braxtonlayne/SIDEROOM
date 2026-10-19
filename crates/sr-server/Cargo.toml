@@ -61,9 +61,9 @@ tempfile = "3"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 tracing = "0.1"
 # Exact pin (D-306): the newest 0.12.x release that was at least two weeks old when added (2025-12-20).
-# No TLS backend at all (the compat run talks plain http/ws to a local test server, and a TLS stack
-# would pull rustls 0.22 with open advisories); used only by examples/serenity_bot.rs.
-serenity = { version = "=0.12.5", optional = true, default-features = false, features = ["client", "gateway", "model", "http"] }
+# serenity insists on a TLS backend (rustls_backend; native-tls is banned). It pulls rustls 0.22, whose
+# advisories are listed in deny.toml with reasons; used only by examples/serenity_bot.rs.
+serenity = { version = "=0.12.5", optional = true, default-features = false, features = ["client", "gateway", "model", "http", "rustls_backend"] }
 
 [dev-dependencies]
 zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }

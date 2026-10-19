@@ -11,7 +11,7 @@
 
 ## Decisions and deviations
 
-- **No TLS backend for serenity.** With `rustls_backend`, `cargo deny` fails on three open advisories in rustls-webpki 0.102.8 (RUSTSEC-2026-0099, -0104 and one more), pinned there by serenity 0.12's rustls 0.22. The compat run speaks plain http/ws to a local test server, so no TLS is needed and nothing was added to the advisory ignore list. `cargo deny check` passes; no licence was added to `deny.toml` (ISC was allowed already). If a future run must reach a TLS server, that needs an owner decision on the ignore entries.
+- **serenity needs a TLS backend, so `deny.toml` changed (owner should look).** Without `rustls_backend` or `native_tls_backend` serenity 0.12.5 refuses to compile (`build.rs`), and native-tls is banned, so the feature is `rustls_backend`. That pulls rustls 0.22 / rustls-webpki 0.102 (no upgrade within serenity 0.12) and reqwest 0.12. `cargo deny check` then needed: six advisory ignores (RUSTSEC-2026-0049, -0098, -0099, -0104, -0346, -0349, each with a reason: feature-gated test-only sample bot, plain-http local test server, never in a shipped binary) and `serenity` added to the reqwest `wrappers` list. No licence was added (ISC and the rest were allowed already). Undo path: drop the feature and these entries together. Revisit with serenity 0.13.
 - serenity is an optional `[dependencies]` entry, not `[dev-dependencies]`: Cargo cannot make a dev-dependency optional, and the feature gate is the item's requirement. It is in `Cargo.lock` regardless.
 - The item says "sr-cli creating an application and bot token"; sr-cli has no such command, so the driver creates them over the public REST API as the bootstrapped Owner (the same way the e2e specs do).
 - The item says "through the existing issue-generator script"; `scripts/inventory-to-issues.mjs` only files issues for unticked inventory items, so `e2e/sdk-compat/open-issue.mjs` does it (dry run unless `--create`; only this workflow passes `--create`).
@@ -25,7 +25,7 @@
 
 ## Tests run
 
-- `pnpm --filter @sideroom/sdk-compat test` and `check` (3 tests, syntax), `node --test scripts/ci-scripts.test.mjs` (6), prettier on the new files, `cargo deny check` (ok), plus the cargo gates listed in the last section of the final report.
+- `pnpm --filter @sideroom/sdk-compat test` and `check` (3 tests, syntax), `node --test scripts/ci-scripts.test.mjs` (6), prettier on the new files, `cargo deny check` (ok), `cargo fmt --check -p sr-server`, `cargo clippy -j 2 -p sr-server --example serenity_bot --features sdk-compat -D warnings` (clean), `cargo build -j 2 -p sr-server --example serenity_bot --features sdk-compat` (ok, built once).
 
 ## Owner questions
 

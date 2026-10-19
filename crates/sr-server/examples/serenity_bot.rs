@@ -18,8 +18,9 @@
 
 use serde_json::{Value, json};
 use serenity::all::{
-    ClientBuilder, Command, Context, CreateCommand, CreateInteractionResponse, CreateInteractionResponseMessage,
-    EventHandler, GatewayIntents, Guild, HttpBuilder, Interaction, Message, Ready,
+    ClientBuilder, Command, Context, CreateCommand, CreateInteractionResponse,
+    CreateInteractionResponseMessage, EventHandler, GatewayIntents, Guild, HttpBuilder,
+    Interaction, Message, Ready,
 };
 use serenity::async_trait;
 
@@ -40,8 +41,12 @@ impl EventHandler for Handler {
         }));
         let cmd = CreateCommand::new("ping").description("Answers pong");
         match Command::create_global_command(&ctx.http, cmd).await {
-            Ok(c) => emit(json!({"event": "command_registered", "name": c.name, "id": c.id.to_string()})),
-            Err(e) => emit(json!({"event": "error", "where": "create_global_command", "message": e.to_string()})),
+            Ok(c) => {
+                emit(json!({"event": "command_registered", "name": c.name, "id": c.id.to_string()}))
+            }
+            Err(e) => emit(
+                json!({"event": "error", "where": "create_global_command", "message": e.to_string()}),
+            ),
         }
     }
 
@@ -80,7 +85,9 @@ impl EventHandler for Handler {
         );
         match command.create_response(&ctx.http, reply).await {
             Ok(()) => emit(json!({"event": "interaction_replied"})),
-            Err(e) => emit(json!({"event": "error", "where": "create_response", "message": e.to_string()})),
+            Err(e) => emit(
+                json!({"event": "error", "where": "create_response", "message": e.to_string()}),
+            ),
         }
     }
 }
