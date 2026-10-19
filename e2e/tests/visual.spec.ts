@@ -6,8 +6,12 @@ import { apiPost, loginApi, bootstrapState } from '../support/fixtures';
  *
  * Opt-in (SR_E2E_VISUAL=1) and chromium-only: pixels depend on the OS font stack and rasteriser, so the
  * committed baselines (`visual.spec.ts-snapshots/*-chromium-win32.png`) only match the platform that made
- * them. CI (linux) skips the file unless baselines for its platform were generated there with
- * `SR_E2E_VISUAL=1 playwright test visual --update-snapshots`. See docs/dev/handoff/feat-p16-e2e.md.
+ * them.
+ * Windows baselines are for local runs. The linux baselines (`*-chromium-linux.png`) are the CI reference and come
+ * from the manual `visual-baselines` job in .github/workflows/e2e.yml (L-20, D-275): dispatch it, download the
+ * `visual-baselines-linux` artifact, commit the PNGs. Refresh them in the same PR as a Playwright or Chromium bump
+ * or an intended change to a captured page. Until they exist, CI skips the file (no SR_E2E_VISUAL there).
+ * See docs/dev/handoff/feat-p16-e2e.md.
  */
 test.skip(
   process.env.SR_E2E_VISUAL !== '1',
