@@ -242,3 +242,47 @@ async fn packs_need_manage_guild_expressions_alone_and_themes_and_recipes_keep_m
     let (st, _) = user(EXPR, Method::PUT, one(recipe), Some(json!({}))).await;
     assert_eq!(st, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn the_review_queue_approve_button_decides_once_and_refuses_self_review() {
+    use crate::routes::admin::announce::press_package_button;
+    use sr_core::PlatformPermissions;
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let storage: Arc<dyn sr_storage::ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    let svc = PackageService::new(pool.clone(), Arc::new(uid)).with_storage(storage);
+    let (author, staff) = (uid(), uid());
+    account(&pool, author).await;
+    account(&pool, staff).await;
+    let v = svc
+        .submit(author, theme_zip(), &Checks::lenient())
+        .await
+        .unwrap();
+    let vid: i64 = v.id.parse().unwrap();
+    let perms = PlatformPermissions::REVIEW_PACKAGES;
+
+    // Without the permission nothing happens; the author cannot approve their own package.
+    assert!(
+        press_package_button(&svc, PlatformPermissions::empty(), staff, vid)
+            .await
+            .is_err()
+    );
+    let own = press_package_button(&svc, perms, author, vid).await.unwrap();
+    assert!(!own.ok);
+    assert_eq!(own.message, "You cannot review your own package.");
+    // Another reviewer approves once; a stale second press answers "Already decided.".
+    let first = press_package_button(&svc, perms, staff, vid).await.unwrap();
+    assert!(first.ok, "{first:?}");
+    let again = press_package_button(&svc, perms, staff, vid).await.unwrap();
+    assert!(!again.ok);
+    assert_eq!(again.message, "Already decided.");
+    let state: String =
+        sqlx::query_scalar("SELECT review_state FROM package_versions WHERE id = $1")
+            .bind(vid)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(state, "approved");
+    db.cleanup().await.unwrap();
+}

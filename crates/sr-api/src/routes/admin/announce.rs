@@ -311,6 +311,79 @@ async fn run_review_button(
     Ok(result)
 }
 
+/// `sr:package-approve:<version_id>` (M-11, D-301).
+fn parse_package_button(custom_id: &str) -> Option<i64> {
+    custom_id
+        .strip_prefix("sr:package-approve:")?
+        .parse()
+        .ok()
+        .filter(|v| *v > 0)
+}
+
+/// Approve a package version from its `#review-queue` card. Runs `PackageService::decide` as
+/// the presser, so the `REVIEW_PACKAGES` permission, the two-person rule (shown as the toast
+/// "You cannot review your own package.") and the access log apply; the card itself is closed by
+/// the usual outcome event ("Approved by @x", once). A version that is no longer pending answers
+/// "Already decided.". Reject stays a link to the review page's dialog.
+pub async fn press_package_button(
+    service: &sr_packages::service::PackageService,
+    permissions: sr_core::PlatformPermissions,
+    presser: i64,
+    version: i64,
+) -> Result<CardActionResult, HttpError> {
+    use sr_packages::PackageError;
+    use sr_packages::service::Decision;
+    let answer = |ok: bool, message: &str| CardActionResult {
+        ok,
+        message: message.into(),
+        link: None,
+    };
+    if !permissions.contains(sr_core::PlatformPermissions::REVIEW_PACKAGES) {
+        return Err(HttpError::from(ErrorCode::MissingPermissions));
+    }
+    match service
+        .decide(version, presser, Decision::Approve, None)
+        .await
+    {
+        Ok(_) => Ok(answer(true, "Approved.")),
+        Err(PackageError::SelfReview) => Ok(answer(false, "You cannot review your own package.")),
+        Err(PackageError::Conflict(_)) => Ok(answer(false, "Already decided.")),
+        Err(PackageError::NotFound(_)) => Err(ErrorCode::UnknownMessage.into()),
+        Err(e) => {
+            tracing::error!(error = %e, "package approval from a card failed");
+            Err(ErrorCode::SrInternal.into())
+        }
+    }
+}
+
+async fn run_package_button(
+    ctx: &StaffCtx,
+    packages: &crate::routes::packages::PackagesDeps,
+    version: i64,
+) -> Result<CardActionResult, HttpError> {
+    let result = press_package_button(
+        &packages.service,
+        ctx.caller.permissions,
+        ctx.caller.user_id,
+        version,
+    )
+    .await?;
+    if result.ok
+        && let Err(e) = ctx
+        .svc()
+        .record_action(
+            &ctx.caller,
+            "developer.package_approve",
+            Some(("package_version", version)),
+            serde_json::json!({"via": "review-queue card"}),
+        )
+        .await
+    {
+        tracing::error!(error = %e, "package decision was not written to the access log");
+    }
+    Ok(result)
+}
+
 fn has_custom_id(components: &[Component], wanted: &str) -> bool {
     components
         .iter()
@@ -330,6 +403,7 @@ pub async fn card_action(
     ctx: StaffCtx,
     MaybeExt(messages): MaybeExt<MessagesDeps>,
     MaybeExt(review): MaybeExt<ReviewDeps>,
+    MaybeExt(packages): MaybeExt<crate::routes::packages::PackagesDeps>,
     Json(b): Json<CardActionBody>,
 ) -> ApiResult<Json<CardActionResult>> {
     let channel = ChannelId::new(id(&b.channel_id)? as u64);
@@ -362,10 +436,17 @@ pub async fn card_action(
     // A review card that was already decided has lost its buttons; pressing a stale copy of one
     // still gets the answer "already decided" (G-68).
     let review_press = parse_review_button(&b.custom_id);
+    let package_press = parse_package_button(&b.custom_id);
     if msg.author_id != UserId::new(SYSTEM_USER_ID as u64)
-        || (review_press.is_none() && !has_custom_id(&msg.components, &b.custom_id))
+        || (review_press.is_none()
+            && package_press.is_none()
+            && !has_custom_id(&msg.components, &b.custom_id))
     {
         return Err(ErrorCode::UnknownMessage.into());
+    }
+    if let Some(version) = package_press {
+        let packages = packages.ok_or_else(|| HttpError::from(ErrorCode::SrInternal))?;
+        return run_package_button(&ctx, &packages, version).await.map(Json);
     }
     if let Some((press, submission)) = review_press {
         let review = review.ok_or_else(|| HttpError::from(ErrorCode::SrInternal))?;

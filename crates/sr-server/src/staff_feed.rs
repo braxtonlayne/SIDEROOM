@@ -391,7 +391,14 @@ pub fn package_card(i: &PackageCardInfo, base_url: &str) -> Card {
             }),
             ..Embed::default()
         }),
-        buttons: vec![link_button("Open review page", page)],
+        buttons: vec![
+            button(
+                SUCCESS,
+                "Approve",
+                format!("sr:package-approve:{}", i.version_id),
+            ),
+            link_button("Open review page", page),
+        ],
     }
 }
 
