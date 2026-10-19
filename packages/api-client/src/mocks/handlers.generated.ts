@@ -259,6 +259,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"admin_tv_put_slots","method":"put","path":"/admin/tv/channels/:channel_id/slots","status":200,"body":{"items":[{}]}},
   {"id":"admin_tv_guide_template","method":"get","path":"/admin/tv/guide-template","status":200,"body":null},
   {"id":"admin_tv_report","method":"get","path":"/admin/tv/report","status":200,"body":{"channels":[{}],"from_ms":0,"items":[{}],"to_ms":0}},
+  {"id":"admin_tv_slate","method":"get","path":"/admin/tv/slate","status":200,"body":{"configured":false,"playable":false}},
   {"id":"active","method":"get","path":"/announcements/active","status":200,"body":[{"body":"string","created_at_ms":0,"created_by":"string","id":"1","send_dm":false,"severity":"info","starts_at_ms":0,"title":"string"}]},
   {"id":"search","method":"get","path":"/app-directory","status":200,"body":{"has_more":false,"items":[{}]}},
   {"id":"app_page","method":"get","path":"/app-directory/:application_id","status":200,"body":{"bot_id":"1","description":"string","id":"1","installs":0,"name":"string","tags":["string"],"commands":[{}],"install_permissions":"string","install_scopes":["string"]}},

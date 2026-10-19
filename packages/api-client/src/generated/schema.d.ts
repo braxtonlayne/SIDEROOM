@@ -3758,6 +3758,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tv/slate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The off-air slate: whether one is configured (platform setting `tv.slate_asset`, made by `sr-cli tv slate`,
+         *     D-269), its asset id and whether it plays.
+         */
+        get: operations["admin_tv_slate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/announcements/active": {
         parameters: {
             query?: never;
@@ -20107,6 +20127,20 @@ export interface components {
             offset_ms?: number | null;
             title_id: string;
         };
+        /** @description The off-air slate for staff (D-269): what is configured and whether it plays. */
+        TvSlate: {
+            /** @description The configured asset id. */
+            asset_id?: string | null;
+            /** @description A slate asset is configured (setting `tv.slate_asset`, or the `SR_TV_SLATE_ASSET` fallback). */
+            configured: boolean;
+            /**
+             * Format: int64
+             * @description Length of one pass of the loop, when known.
+             */
+            duration_ms?: number | null;
+            /** @description The asset exists and has renditions to play. */
+            playable: boolean;
+        };
         /** @description A weekly slot as the API shows and accepts it. */
         TvSlot: {
             /** Format: int32 */
@@ -23073,6 +23107,15 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The asset is the Live TV slate. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -33490,6 +33533,41 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_slate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvSlate"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

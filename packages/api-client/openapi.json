@@ -3278,6 +3278,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The asset is the Live TV slate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -18817,6 +18827,52 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/slate": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The off-air slate: whether one is configured (platform setting `tv.slate_asset`, made by `sr-cli tv slate`,\nD-269), its asset id and whether it plays.",
+        "operationId": "admin_tv_slate",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvSlate"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "",
             "content": {
               "application/json": {
@@ -85479,6 +85535,39 @@
           },
           "title_id": {
             "type": "string"
+          }
+        }
+      },
+      "TvSlate": {
+        "type": "object",
+        "description": "The off-air slate for staff (D-269): what is configured and whether it plays.",
+        "required": [
+          "configured",
+          "playable"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The configured asset id."
+          },
+          "configured": {
+            "type": "boolean",
+            "description": "A slate asset is configured (setting `tv.slate_asset`, or the `SR_TV_SLATE_ASSET` fallback)."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Length of one pass of the loop, when known."
+          },
+          "playable": {
+            "type": "boolean",
+            "description": "The asset exists and has renditions to play."
           }
         }
       },

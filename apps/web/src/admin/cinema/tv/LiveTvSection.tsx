@@ -40,6 +40,39 @@ export function LiveTvSection() {
   return <ChannelList onOpen={setOpen} />;
 }
 
+/** A read-only row: is an off-air slate configured, and does it play. Failures just leave the row out. */
+function SlateRow() {
+  const t = useT();
+  const res = useLoad<tv.AdminSlate | null>('tv-slate', async () => {
+    try {
+      return await tv.getSlate();
+    } catch {
+      return null;
+    }
+  });
+  const s = res.data;
+  if (!s) return null;
+  return (
+    <section className="ss-meta" aria-label={t('admin.liveTv.slate.title')} data-testid="tv-slate">
+      <strong>{t('admin.liveTv.slate.title')}</strong>{' '}
+      {!s.configured ? (
+        <>
+          {t('admin.liveTv.slate.none')} <code>sr-cli tv slate</code>
+        </>
+      ) : !s.playable ? (
+        t('admin.liveTv.slate.notPlayable', { id: s.asset_id ?? '' })
+      ) : s.duration_ms ? (
+        t('admin.liveTv.slate.set', {
+          id: s.asset_id ?? '',
+          seconds: Math.round(s.duration_ms / 1000),
+        })
+      ) : (
+        t('admin.liveTv.slate.setNoLength', { id: s.asset_id ?? '' })
+      )}
+    </section>
+  );
+}
+
 function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
   const t = useT();
   const [unavailable, setUnavailable] = useState(false);
@@ -87,6 +120,7 @@ function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
           description={t('admin.liveTv.empty.description')}
         />
       )}
+      {!unavailable && <SlateRow />}
       {res.data && res.data.items.length > 0 && (
         <ul className="ss-list" aria-label={t('admin.liveTv.list')}>
           {[...res.data.items]
