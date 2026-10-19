@@ -12,6 +12,7 @@ import { setVoiceController, VoiceController } from '../../../voice/controller';
 import type { ConnectParams, EngineEvents, VoiceEngine } from '../../../voice/engine';
 import { patchSession, resetSession, useVoiceSession } from '../../../voice/session';
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../../../voice/settings';
+import { setPreviewFetcher } from '../useStreamPreview';
 import { warmLoungeRoute } from '../../../test/warmRoutes';
 
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
@@ -103,6 +104,31 @@ describe('voice channel list', () => {
     expect(mara).not.toBeNull();
     const muted = within(list).getByText('Doge').closest('.lng-voice-member')!;
     expect(within(muted as HTMLElement).getByRole('img', { name: 'Muted' })).toBeInTheDocument();
+  });
+
+  it('shows the stream thumbnail while hovering a streaming row (LNG-CHN-010)', async () => {
+    const user = userEvent.setup();
+    const seen: string[] = [];
+    const create = vi.fn(() => 'blob:row-thumb');
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() }));
+    setPreviewFetcher(async (key) => {
+      seen.push(key);
+      return new Response(new Blob(['jpeg']), { status: 200, headers: { etag: '"1"' } });
+    });
+    at('/channels/1001/2001');
+    const sidebar = await screen.findByTestId('channel-sidebar');
+    const row = (await within(sidebar).findByText('Kestrel')).closest('.lng-voice-member')!;
+    expect(within(sidebar).queryByRole('img', { name: /Preview of the stream/ })).toBeNull();
+    await user.hover(row);
+    const img = await within(sidebar).findByRole('img', { name: /Preview of the stream/ });
+    expect(img).toHaveAttribute('src', 'blob:row-thumb');
+    expect(seen[0]).toMatch(/^guild:1001:2012:5$/);
+    await user.unhover(row);
+    await waitFor(() =>
+      expect(within(sidebar).queryByRole('img', { name: /Preview of the stream/ })).toBeNull(),
+    );
+    setPreviewFetcher(null);
+    vi.unstubAllGlobals();
   });
 
   it('clicking a voice channel joins it, sends the gateway op and opens the voice view', async () => {

@@ -16,10 +16,12 @@ import { RovingNav } from '../a11y/RovingNav';
 import { formatTime, useT } from '../i18n';
 import { useStore } from '../store';
 import { useVoiceSession } from '../voice/session';
+import { streamKey } from '../voice/streams';
 import { useJoinVoice } from './voice/actions';
 import { ChannelStatusLine } from './voice/VoiceStatusBar';
 import './voice/voice-p10.css';
 import { useVoicePerms } from './voice/perms';
+import { useStreamPreview } from './voice/useStreamPreview';
 import { useVoiceUserMenu } from './voice/useVoiceUserMenu';
 import { dropVoiceUser, isVoiceDrag, readVoiceDrag, startVoiceDrag } from './voice/voiceDrag';
 import { groupChannels, isVoiceLike } from './channels';
@@ -72,6 +74,12 @@ function VoiceMemberRow({
     channel.id,
   );
   const canMove = useVoicePerms(channel.guildId, channel.id).moveMembers;
+  // Hover or focus on a streamer's row shows the stream's latest thumbnail (LNG-CHN-010).
+  const [hover, setHover] = useState(false);
+  const preview = useStreamPreview(
+    m.streaming ? streamKey(channel.guildId, channel.id, m.userId) : null,
+    hover && !!m.streaming,
+  );
   if (!u) return null;
   return (
     <li
@@ -94,10 +102,24 @@ function VoiceMemberRow({
         items={menu}
         label={t('lounge.channelSidebar.voiceActions', { name: u.displayName })}
       >
-        <div className="lng-voice-member" data-speaking={m.speaking || undefined}>
+        <div
+          className="lng-voice-member"
+          data-speaking={m.speaking || undefined}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          onFocus={() => setHover(true)}
+          onBlur={() => setHover(false)}
+        >
           <Avatar name={u.displayName} src={u.avatarUrl ?? null} size={24} speaking={m.speaking} />
           <span className="lng-voice-name">{u.displayName}</span>
           {m.streaming && <span className="lng-live">{t('lounge.channelSidebar.live')}</span>}
+          {preview && (
+            <img
+              className="lng-live-preview"
+              src={preview}
+              alt={t('lounge.voiceStream.previewOf', { name: u.displayName })}
+            />
+          )}
           {m.video && <Icon name="video" size={16} label={t('lounge.channelSidebar.cameraOn')} />}
           {m.serverMuted ? (
             <Icon name="mic-off" size={16} label={t('lounge.channelSidebar.serverMuted')} />
