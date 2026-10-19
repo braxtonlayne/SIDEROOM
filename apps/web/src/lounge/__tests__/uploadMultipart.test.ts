@@ -1,5 +1,17 @@
 import { http, HttpResponse, server } from '../../test/server';
-import { resumeKey, uploadFiles, type PendingFile, type UploadHandlers } from '../msg/upload';
+import {
+  ChatUploads,
+  MemoryLedger,
+  setChatUploads,
+  type ChatUploadRow,
+} from '../../lib/uploadLedger';
+import {
+  reattachUploads,
+  resumeKey,
+  uploadFiles,
+  type PendingFile,
+  type UploadHandlers,
+} from '../msg/upload';
 
 // 10 bytes cut into parts of 4: 4 + 4 + 2.
 const BYTES = '0123456789';
@@ -201,5 +213,156 @@ describe('Resumable multipart upload (LNG-CMP-007)', () => {
     ).rejects.toThrow();
     await vi.waitFor(() => expect(calls).toContain('abort'));
     expect(localStorage.getItem(RESUME)).toBe('{}');
+  });
+});
+
+describe('IndexedDB ledger for chat uploads (D-271)', () => {
+  const useLedger = () => {
+    const ledger = new MemoryLedger<ChatUploadRow>();
+    setChatUploads(new ChatUploads(ledger, () => undefined));
+    return ledger;
+  };
+  afterEach(() => setChatUploads(null));
+
+  it('writes a row for a multipart slot, keeps the parts done, and removes it on complete', async () => {
+    const ledger = useLedger();
+    fakeApi();
+    let rowSeen: ChatUploadRow | undefined;
+    const put = vi.fn(async (u: string) => {
+      if (u === url(3)) rowSeen = (await ledger.all())[0];
+    });
+    await uploadFiles('c1', [pending(mkFile())], handlers(put));
+    expect(rowSeen).toMatchObject({
+      id: '77',
+      channelId: 'c1',
+      uploadFilename: '77/film.bin',
+      size: 10,
+      partSize: 4,
+      partCount: 3,
+    });
+    expect(rowSeen?.file).toBeInstanceOf(Blob);
+    await vi.waitFor(async () => expect(await ledger.all()).toEqual([]));
+    // The ledger took the row, so no localStorage fallback was written.
+    expect(localStorage.getItem(RESUME)).toBeNull();
+  });
+
+  it('falls back to the localStorage record when the ledger cannot store the row', async () => {
+    setChatUploads(
+      new ChatUploads(
+        {
+          put: async () => false,
+          all: async () => [],
+          remove: async () => undefined,
+        },
+        () => undefined,
+      ),
+    );
+    fakeApi();
+    const put = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    await uploadFiles('c1', [pending(mkFile())], handlers(put)).catch(() => undefined);
+    const saved = JSON.parse(localStorage.getItem(RESUME) ?? '{}') as Record<string, unknown>;
+    expect(Object.keys(saved)).toEqual([resumeKey('c1', mkFile())]);
+  });
+
+  it('removes the row when the user cancels', async () => {
+    const ledger = useLedger();
+    const calls = fakeApi();
+    const ctl = new AbortController();
+    const put = vi.fn(async () => {
+      ctl.abort();
+      throw new Error('aborted');
+    });
+    await expect(
+      uploadFiles('c1', [pending(mkFile())], handlers(put, ctl.signal)),
+    ).rejects.toThrow();
+    await vi.waitFor(() => expect(calls).toContain('abort'));
+    expect(await ledger.all()).toEqual([]);
+  });
+
+  const storedRow = (over: Partial<ChatUploadRow> = {}): ChatUploadRow => ({
+    id: '77',
+    channelId: 'c1',
+    uploadFilename: '77/film.bin',
+    size: 10,
+    partSize: 4,
+    partCount: 3,
+    done: [1, 2],
+    savedAt: Date.now(),
+    file: mkFile(),
+    maxSize: 100,
+    ...over,
+  });
+  const partsBody = () => ({
+    part_size: 4,
+    part_count: 3,
+    received: [
+      { part_number: 1, size: 4 },
+      { part_number: 2, size: 4 },
+    ],
+    missing: [{ part_number: 3, url: url(3) }],
+  });
+
+  it('reattaches a stored upload after a reload and sends only the missing parts', async () => {
+    const ledger = useLedger();
+    await ledger.put(storedRow());
+    const calls = fakeApi(partsBody);
+    const put = vi.fn<(u: string) => Promise<void>>(async () => undefined);
+    const added: PendingFile[] = [];
+    const patches: Record<string, unknown>[] = [];
+    await reattachUploads('c1', {
+      ...handlers(put),
+      onAdd: (f) => added.push(...f),
+      onUpdate: (_id, p) => patches.push(p),
+    });
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ status: 'uploading', name: 'film.bin' });
+    expect(added[0]?.progress).toBeCloseTo(2 / 3);
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put.mock.calls[0]?.[0]).toBe(url(3));
+    expect(calls).toEqual(['parts', 'complete']);
+    expect(patches.at(-1)).toMatchObject({
+      status: 'done',
+      uploaded: { uploadedFilename: '77/film.bin' },
+    });
+    expect(await ledger.all()).toEqual([]);
+  });
+
+  it('removes a row when the server answers 404 for the slot', async () => {
+    const ledger = useLedger();
+    await ledger.put(storedRow());
+    server.use(
+      http.get('*/api/v1/channels/c1/attachments/77/parts', () =>
+        HttpResponse.json({ message: 'gone' }, { status: 404 }),
+      ),
+    );
+    const put = vi.fn(async () => undefined);
+    await reattachUploads('c1', { ...handlers(put), onAdd: () => undefined });
+    expect(put).not.toHaveBeenCalled();
+    expect(await ledger.all()).toEqual([]);
+  });
+
+  it('keeps the row when the network fails, and ignores other channels', async () => {
+    const ledger = useLedger();
+    await ledger.put(storedRow());
+    await ledger.put(storedRow({ id: '88', channelId: 'c2' }));
+    server.use(http.get('*/api/v1/channels/c1/attachments/77/parts', () => HttpResponse.error()));
+    const added: PendingFile[] = [];
+    await reattachUploads('c1', { ...handlers(vi.fn()), onAdd: (f) => added.push(...f) });
+    expect(added).toHaveLength(1);
+    expect((await ledger.all()).map((r) => r.id).sort()).toEqual(['77', '88']);
+  });
+
+  it('a reattached file that is already uploaded is not sent again', async () => {
+    const calls = fakeApi();
+    const f: PendingFile = {
+      ...pending(mkFile()),
+      status: 'done',
+      uploaded: { id: 'f1', uploadedFilename: '77/film.bin' },
+    };
+    const out = await uploadFiles('c1', [f], handlers(vi.fn()));
+    expect(out).toEqual([{ id: 'f1', uploadedFilename: '77/film.bin' }]);
+    expect(calls).toEqual([]);
   });
 });

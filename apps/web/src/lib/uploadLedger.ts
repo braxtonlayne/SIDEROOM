@@ -244,7 +244,11 @@ export function setChatUploads(c: ChatUploads | null): void {
 export async function clearUploadsOnSignOut(): Promise<void> {
   try {
     const rows = await chatUploads().all();
-    await Promise.all(rows.map((r) => abortChatSlot(r, true)));
+    // Sign-out must not wait on a slow network: the requests are keepalive and go on without us.
+    await Promise.race([
+      Promise.all(rows.map((r) => abortChatSlot(r, true))),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
     await chatUploads().clear();
     const lib = defaultLedger<{ id: string }>('uploads');
     for (const r of await lib.all()) await lib.remove(r.id);
