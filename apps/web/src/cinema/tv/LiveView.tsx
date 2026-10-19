@@ -11,7 +11,14 @@ import { PauseGlyph, PlayGlyph, VolumeGlyph, Fullscreen, ExitFullscreen } from '
 import { Feedback } from '../player/Overlays';
 import { playerSession, usePlayer } from '../player/session';
 import { getChannelNow, getGuide, tvKeys } from './api';
-import { ChannelList, ChannelOsd, InfoBanner, Slate, TuningStatic } from './LiveOverlays';
+import {
+  ChannelList,
+  ChannelOsd,
+  InfoBanner,
+  Slate,
+  SlateCaption,
+  TuningStatic,
+} from './LiveOverlays';
 import { playStaticBurst, setLivePrefs, useLivePrefs } from './livePrefs';
 import {
   HOUR,
@@ -162,6 +169,11 @@ export function LiveView({
     s.store.setState({ info: { ...cur, title: nowTitle } });
   }, [s, channelId, nowTitle]);
 
+  // The channel is off air and the server plays its slate loop (D-266): the picture is a real stream, the
+  // off-air captions go over it. It ends by itself when the next programme starts (the playlists carry on).
+  const slateStream =
+    !!grant?.slate && (!now || now.playable === false) && !(next && next.start_ms <= nowMs);
+
   /* ---- chrome ---- */
   const poke = useCallback(() => {
     setChrome(true);
@@ -228,7 +240,7 @@ export function LiveView({
   const gaveUp = reconnects >= MAX_RECONNECTS;
   // A slate or off-air block has no stream (the playlists answer 404): the client draws its own slate and does not
   // treat the missing picture as a dropped signal.
-  const onSlate = now?.playable === false;
+  const onSlate = now?.playable === false && !slateStream;
   const stalled = status === 'ready' && !onSlate && ((waiting && !needsGesture) || ended);
   // When the slate ends the player (which gave up on the 404) tunes in again.
   const wasSlate = useRef(false);
@@ -386,6 +398,7 @@ export function LiveView({
       {prefs.crt && <div className="ltv-crt" aria-hidden="true" />}
       <TuningStatic visible={showStatic} />
       {onSlate && now && <Slate title={now.title} />}
+      {slateStream && <SlateCaption next={next} />}
 
       <div className="cpl-top">
         <button

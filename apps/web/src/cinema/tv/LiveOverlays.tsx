@@ -190,6 +190,21 @@ export function TuningStatic({ visible }: { visible: boolean }) {
   return <div className="ltv-static" data-testid="tuning-static" aria-hidden="true" />;
 }
 
+/** The captions over the instance slate loop while a channel is off air (D-266); the picture is the stream. */
+export function SlateCaption({ next }: { next: TvBlock | null }) {
+  const tr = useT();
+  return (
+    <div className="ltv-slate-caption" role="status" data-testid="slate-caption">
+      <p className="ltv-slate-caption-title">{tr('cinema.nowPanel.offAir')}</p>
+      <p className="ltv-slate-caption-body">
+        {next
+          ? tr('cinema.nowPanel.offAirNext', { title: next.title })
+          : tr('cinema.nowPanel.offAirBody')}
+      </p>
+    </div>
+  );
+}
+
 /** The client-drawn slate for blocks with no media: colour bars and the block's own title. */
 export function Slate({ title }: { title: string }) {
   return (

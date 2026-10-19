@@ -772,7 +772,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"tv_live_master","method":"get","path":"/tv/channels/:channel_id/live/master.m3u8","status":200,"body":null},
   {"id":"tv_live_video","method":"get","path":"/tv/channels/:channel_id/live/v/:file","status":200,"body":null},
   {"id":"tv_channel_now","method":"get","path":"/tv/channels/:channel_id/now","status":200,"body":{"at_ms":0,"channel_id":"1","viewers":0}},
-  {"id":"tv_channel_tune","method":"get","path":"/tv/channels/:channel_id/tune","status":200,"body":{"channel_id":"1","state":"live","viewers":0}},
+  {"id":"tv_channel_tune","method":"get","path":"/tv/channels/:channel_id/tune","status":200,"body":{"channel_id":"1","slate":false,"state":"live","viewers":0}},
   {"id":"tv_favorites","method":"get","path":"/tv/favorites","status":200,"body":{"items":["string"]}},
   {"id":"tv_favorite_set","method":"put","path":"/tv/favorites/:channel_id","status":204,"body":null},
   {"id":"tv_favorite_clear","method":"delete","path":"/tv/favorites/:channel_id","status":204,"body":null},

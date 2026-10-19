@@ -117,6 +117,10 @@ pub struct Tune {
     pub state: TuneState,
     /// API path of the master playlist.
     pub master_url: Option<String>,
+    /// True when `master_url` is the instance slate loop played while the channel is off air (D-266):
+    /// `state` stays `off_air` and `current`, `offset_ms` stay null. False when the programme is live or
+    /// there is no slate (then there is no `master_url` either).
+    pub slate: bool,
     pub current: Option<Block>,
     pub offset_ms: Option<i64>,
     pub next: Option<Block>,
@@ -661,6 +665,7 @@ impl TvService {
             } else {
                 TuneState::OffAir
             },
+            slate: slate_master.is_some(),
             master_url: live
                 .filter(|_| self.live.is_some())
                 .map(|_| format!("{LIVE_PREFIX}/{id}/live/master.m3u8"))

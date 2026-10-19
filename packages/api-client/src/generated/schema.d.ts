@@ -20143,6 +20143,12 @@ export interface components {
             next?: null | components["schemas"]["TvBlock"];
             /** Format: int64 */
             offset_ms?: number | null;
+            /**
+             * @description True when `master_url` is the instance slate loop played while the channel is off air (D-266):
+             *     `state` stays `off_air` and `current`, `offset_ms` stay null. False when the programme is live or
+             *     there is no slate (then there is no `master_url` either).
+             */
+            slate: boolean;
             state: components["schemas"]["TvTuneState"];
             /** Format: int32 */
             viewers: number;

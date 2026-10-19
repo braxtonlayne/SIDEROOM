@@ -546,6 +546,7 @@ async fn tuning_and_the_live_playlists_end_to_end() {
     // Off air before the schedule exists is impossible (it is extended on demand); tune right away.
     let t = e.svc.tune(MEMBER, id).await.unwrap();
     assert_eq!(t.state, TuneState::Live);
+    assert!(!t.slate, "a programme on air is not the slate");
     assert_eq!(
         t.master_url.unwrap(),
         format!("/api/v1/tv/channels/{id}/live/master.m3u8")
@@ -603,6 +604,7 @@ async fn channels_without_media_are_off_air() {
     let t = e.svc.tune(MEMBER, id).await.unwrap();
     assert_eq!(t.state, TuneState::OffAir);
     assert!(t.master_url.is_none() && t.current.is_none());
+    assert!(!t.slate, "no slate configured: nothing to play");
     assert_eq!(
         e.svc.live_media(MEMBER, id, Track::Video(720)).await,
         Err(TvError::OffAir)
@@ -639,6 +641,8 @@ async fn an_off_air_channel_shows_the_slate_instead_of_404() {
     let t = svc.tune(MEMBER, id).await.unwrap();
     assert_eq!(t.state, TuneState::OffAir, "the guide still says off air");
     assert!(t.master_url.is_some(), "but the stream answers");
+    assert!(t.slate, "the master is the slate (D-266)");
+    assert!(t.current.is_none() && t.offset_ms.is_none());
     let master = svc.live_master(MEMBER, id).await.unwrap();
     assert!(master.contains("v/720.m3u8"));
     let media = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();

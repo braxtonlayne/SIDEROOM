@@ -74,6 +74,8 @@ export interface TuneGrant {
   channel: TvChannel;
   /** Signed HLS master playlist (live). */
   master_url: string;
+  /** The channel is off air and `master_url` plays the instance slate (D-266). */
+  slate?: boolean;
   expires_at_ms: number;
   refresh_at_ms?: number | null;
   now: TvBlock | null;

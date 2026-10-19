@@ -85584,6 +85584,7 @@
         "required": [
           "channel_id",
           "state",
+          "slate",
           "viewers"
         ],
         "properties": {
@@ -85623,6 +85624,10 @@
               "null"
             ],
             "format": "int64"
+          },
+          "slate": {
+            "type": "boolean",
+            "description": "True when `master_url` is the instance slate loop played while the channel is off air (D-266):\n`state` stays `off_air` and `current`, `offset_ms` stay null. False when the programme is live or\nthere is no slate (then there is no `master_url` either)."
           },
           "state": {
             "$ref": "#/components/schemas/TvTuneState"
