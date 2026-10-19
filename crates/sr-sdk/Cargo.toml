@@ -12,10 +12,11 @@ workspace = true
 # P15-DEV-5: bots in voice are on by default now that the transport exists.
 default = ["voice-e2ee", "voice-transport"]
 # DEV-BOT-007: the end-to-end encryption half of bots in voice (MLS key agreement and the frame transform),
-# on the same sr-e2ee crate as the browser client. Off by default: it pulls in openmls.
+# on the same sr-e2ee crate as the browser client. On by default (D-268); opt out with `default-features = false`
+# (drops openmls and p256).
 voice-e2ee = ["dep:sr-e2ee", "dep:p256", "dep:base64"]
-# DEV-BOT-007: the media transport of bots in voice (SFU WebSocket, WebRTC via str0m, Opus frames). Off by
-# default: it pulls in str0m, which the SFU itself already uses.
+# DEV-BOT-007: the media transport of bots in voice (SFU WebSocket, WebRTC via str0m, Opus frames). On by
+# default (D-268); opt out with `default-features = false` (drops str0m).
 voice-transport = ["dep:str0m"]
 
 [dependencies]
