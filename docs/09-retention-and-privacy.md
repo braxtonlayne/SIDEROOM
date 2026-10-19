@@ -52,6 +52,8 @@ Settings → Activity Privacy:
 
 Settings → Data & Privacy → **Request my data**. A Discord-style package (JSON + attachments index) is built by a job and offered as a download link for 7 days. It includes the user's messages, servers, settings, history, ratings, reviews, invites issued, and invoices.
 
+The due date of a data-subject request is computed from the `compliance.data_request_deadline_days` setting (default 30, `platform.compliance`, M-06, D-295) when the request is created; the operator's country and contact address, when set there, appear on the privacy summary (`/house-notes#privacy`) and on `/help`.
+
 ## 5. Future: moderation & compliance (Phase 7)
 
 Not built now (D-126); the full Phase 7 design is `docs/specs/moderation-compliance.md`. Reserved now so nothing needs a painful migration later:
