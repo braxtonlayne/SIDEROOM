@@ -31,6 +31,13 @@ pub enum Blocked {
 /// Longest URL the fetcher accepts.
 pub const MAX_URL_LEN: usize = 2048;
 
+/// The deny and allow host lists as one value, so a live handle can swap both together.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HostLists {
+    pub deny_hosts: Vec<String>,
+    pub allow_hosts: Vec<String>,
+}
+
 /// Operator-controlled knobs of the policy.
 #[derive(Debug, Clone, Default)]
 pub struct Policy {
@@ -47,9 +54,23 @@ pub struct Policy {
     /// (for example a self-hosted esplora node). Off by default; only ever set from an
     /// explicit operator setting, never from user input.
     pub allow_private_hosts: bool,
+    /// When set, the deny and allow lists are read from this handle on every check instead of
+    /// from `deny_hosts` / `allow_hosts`, so a saved change applies without a restart (D-300).
+    pub live_hosts: Option<crate::live::Live<HostLists>>,
 }
 
 impl Policy {
+    /// Run `f` with the deny and allow lists in force right now.
+    fn with_lists<R>(&self, f: impl FnOnce(&[String], &[String]) -> R) -> R {
+        match &self.live_hosts {
+            Some(l) => {
+                let lists = l.load();
+                f(&lists.deny_hosts, &lists.allow_hosts)
+            }
+            None => f(&self.deny_hosts, &self.allow_hosts),
+        }
+    }
+
     /// Check the syntactic parts of `url` (scheme, host, credentials, deny list).
     pub fn check_url(&self, url: &Url) -> Result<(), Blocked> {
         if url.as_str().len() > MAX_URL_LEN {
@@ -63,15 +84,15 @@ impl Policy {
         }
         match url.host() {
             None => Err(Blocked::NoHost),
-            Some(Host::Domain(d)) => {
-                if self.is_denied(d) {
+            Some(Host::Domain(d)) => self.with_lists(|deny, allow| {
+                if matches_list(deny, d) {
                     Err(Blocked::DeniedHost)
-                } else if !self.allow_hosts.is_empty() && !matches_list(&self.allow_hosts, d) {
+                } else if !allow.is_empty() && !matches_list(allow, d) {
                     Err(Blocked::NotAllowedHost)
                 } else {
                     Ok(())
                 }
-            }
+            }),
             // Literal addresses are checked for range here and need no lookup.
             Some(Host::Ipv4(ip)) => self
                 .check_ip(IpAddr::V4(ip))
@@ -84,12 +105,12 @@ impl Policy {
 
     /// Whether `host` or one of its parents is on the deny list.
     pub fn is_denied(&self, host: &str) -> bool {
-        matches_list(&self.deny_hosts, host)
+        self.with_lists(|deny, _| matches_list(deny, host))
     }
 
     /// A literal IP address cannot be on a host allow list.
     fn no_allow_list(&self) -> Result<(), Blocked> {
-        if self.allow_hosts.is_empty() {
+        if self.with_lists(|_, allow| allow.is_empty()) {
             Ok(())
         } else {
             Err(Blocked::NotAllowedHost)
@@ -262,6 +283,35 @@ mod tests {
         ] {
             assert!(!is_forbidden_ip(ip(good)), "{good} must be allowed");
         }
+    }
+
+    #[test]
+    fn live_lists_replace_the_static_ones_on_every_check() {
+        let live = crate::live::Live::new(HostLists::default());
+        let p = Policy {
+            live_hosts: Some(live.clone()),
+            deny_hosts: vec!["ignored.example".into()],
+            ..Policy::default()
+        };
+        let u = |s: &str| Url::parse(s).unwrap();
+        assert_eq!(p.check_url(&u("https://ignored.example/")), Ok(()));
+        live.store(HostLists {
+            deny_hosts: vec!["evil.example".into()],
+            allow_hosts: vec![],
+        });
+        assert_eq!(
+            p.check_url(&u("https://www.evil.example/")),
+            Err(Blocked::DeniedHost)
+        );
+        live.store(HostLists {
+            deny_hosts: vec![],
+            allow_hosts: vec!["only.example".into()],
+        });
+        assert_eq!(
+            p.check_url(&u("https://other.example/")),
+            Err(Blocked::NotAllowedHost)
+        );
+        assert_eq!(p.check_url(&u("https://only.example/")), Ok(()));
     }
 
     #[test]

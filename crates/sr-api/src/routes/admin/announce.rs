@@ -370,14 +370,14 @@ async fn run_package_button(
     .await?;
     if result.ok
         && let Err(e) = ctx
-        .svc()
-        .record_action(
-            &ctx.caller,
-            "developer.package_approve",
-            Some(("package_version", version)),
-            serde_json::json!({"via": "review-queue card"}),
-        )
-        .await
+            .svc()
+            .record_action(
+                &ctx.caller,
+                "developer.package_approve",
+                Some(("package_version", version)),
+                serde_json::json!({"via": "review-queue card"}),
+            )
+            .await
     {
         tracing::error!(error = %e, "package decision was not written to the access log");
     }

@@ -1021,7 +1021,10 @@ async fn the_sweep_removes_only_old_unreferenced_profile_pictures() {
     .await
     .unwrap();
 
-    assert_eq!(svc.sweep_unreferenced_media(24 * 3600, 100).await.unwrap(), 1);
+    assert_eq!(
+        svc.sweep_unreferenced_media(24 * 3600, 100).await.unwrap(),
+        1
+    );
     assert!(storage.head(&pics[0].1).await.is_ok(), "referenced stays");
     assert!(storage.head(&pics[1].1).await.is_err(), "old orphan goes");
     assert!(storage.head(&pics[2].1).await.is_ok(), "fresh orphan stays");
@@ -1034,6 +1037,9 @@ async fn the_sweep_removes_only_old_unreferenced_profile_pictures() {
         .collect();
     assert_eq!(left.len(), 2);
     // A second run finds nothing to do.
-    assert_eq!(svc.sweep_unreferenced_media(24 * 3600, 100).await.unwrap(), 0);
+    assert_eq!(
+        svc.sweep_unreferenced_media(24 * 3600, 100).await.unwrap(),
+        0
+    );
     db.cleanup().await.unwrap();
 }

@@ -268,7 +268,9 @@ async fn the_review_queue_approve_button_decides_once_and_refuses_self_review() 
             .await
             .is_err()
     );
-    let own = press_package_button(&svc, perms, author, vid).await.unwrap();
+    let own = press_package_button(&svc, perms, author, vid)
+        .await
+        .unwrap();
     assert!(!own.ok);
     assert_eq!(own.message, "You cannot review your own package.");
     // Another reviewer approves once; a stale second press answers "Already decided.".
