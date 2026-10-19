@@ -11,7 +11,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sr_tv::model::{Block, Channel, ChannelInput};
-use sr_tv::service::{NowView, PlaceInput, Preview, Published, Report, SetNowInput};
+use sr_tv::service::{NowView, PlaceInput, Preview, Published, Report, SetNowInput, SlateStatus};
 use utoipa::{IntoParams, ToSchema};
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
@@ -356,6 +356,21 @@ pub async fn report(ctx: StaffTv, Query(p): Query<ReportParams>) -> ApiResult<Js
     let channel = p.channel.as_deref().map(|c| id(c, "channel")).transpose()?;
     ctx.svc()
         .report(ctx.actor(), p.from, p.to, channel)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// The off-air slate: whether one is configured (platform setting `tv.slate_asset`, made by `sr-cli tv slate`,
+/// D-269), its asset id and whether it plays.
+#[utoipa::path(
+    get, path = "/admin/tv/slate", operation_id = "admin_tv_slate",
+    responses((status = 200, body = SlateStatus), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn slate(ctx: StaffTv) -> ApiResult<Json<SlateStatus>> {
+    ctx.svc()
+        .slate_status(ctx.actor())
         .await
         .map(Json)
         .map_err(map_err)
