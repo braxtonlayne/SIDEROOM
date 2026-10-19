@@ -32,6 +32,9 @@ jobs:
       - run: pnpm -r --if-present typecheck
       - run: pnpm -r --if-present test
       - run: pnpm --filter @sideroom/web build
+      # K-13, M-08: production dependency licences against an allow-list (GPL-3.0 only for rvfc-polyfill, LGPL for jassub).
+      - name: Licence allow-list
+        run: pnpm licenses list --json --prod | node scripts/check-licenses.mjs
       # XC-PERF-002: first-load JavaScript per section stays inside the gzip budgets in scripts/bundle-budget.json.
       - name: Bundle budget
         run: node scripts/check-bundle-budget.mjs
