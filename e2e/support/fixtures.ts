@@ -111,7 +111,12 @@ export async function registerUser(
     email: `${label}_${s}@example.test`,
     password: 'Seeded-Passw0rd-9!',
   };
-  const body = { code: createInvite(`e2e ${label} ${s}`), ...user, accepted_house_notes: true, confirmed_min_age: 13 };
+  const body = {
+    code: createInvite(`e2e ${label} ${s}`),
+    ...user,
+    accepted_house_notes: true,
+    confirmed_min_age: 13,
+  };
   // Registration allows 5 per minute per address: wait out a short window instead of failing.
   for (let attempt = 0; ; attempt++) {
     const res = await request.post(`${API}/sr/register`, { headers: headers(), data: body });

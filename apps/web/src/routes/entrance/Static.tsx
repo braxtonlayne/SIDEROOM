@@ -133,8 +133,7 @@ export function HelpSections() {
         <section aria-labelledby="help-copyright">
           <h2 id="help-copyright">{t('entrance.support.copyright.title')}</h2>
           <p>
-            {t('entrance.support.copyright.body')}{' '}
-            <a href={`mailto:${contact}`}>{contact}</a>
+            {t('entrance.support.copyright.body')} <a href={`mailto:${contact}`}>{contact}</a>
           </p>
         </section>
       )}
