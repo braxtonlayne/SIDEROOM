@@ -3,6 +3,7 @@ import { useState } from 'react';
 import * as api from '../api';
 import { formatNumber, type MessageKey, useT } from '../../i18n';
 import { formatBytes } from '../../lounge/msg/format';
+import { CopyButton } from '../../developers/ui';
 import {
   ActionStatus,
   Async,
@@ -24,7 +25,10 @@ const INTEGRATION_LABELS: Record<string, MessageKey> = {
   gif: 'admin.system.integrationGif',
   push: 'admin.system.integrationPush',
   connections: 'admin.system.integrationConnections',
+  discord_connections_redirect: 'admin.system.integrationDiscordRedirect',
 };
+
+const REDIRECT_ID = 'discord_connections_redirect';
 
 export function SystemSection() {
   const t = useT();
@@ -134,13 +138,21 @@ export function SystemSection() {
                         <div className="ss-name">
                           {INTEGRATION_LABELS[i.id] ? t(INTEGRATION_LABELS[i.id]!) : i.id}
                         </div>
-                        {i.detail && <div className="ss-meta">{i.detail}</div>}
+                        {i.detail && (
+                          <div className={i.id === REDIRECT_ID ? 'ss-meta adm-mono' : 'ss-meta'}>
+                            {i.detail}
+                          </div>
+                        )}
+                        {i.id === REDIRECT_ID && (
+                          <div className="ss-meta">{t('admin.system.redirectHint')}</div>
+                        )}
                       </div>
                       <Badge variant={i.configured ? 'success' : 'neutral'}>
                         {i.configured
                           ? t('admin.system.integrationConfigured')
                           : t('admin.system.integrationMissing')}
                       </Badge>
+                      {i.id === REDIRECT_ID && i.detail && <CopyButton text={i.detail} />}
                       {i.id === 'smtp' && i.configured && (
                         <Button
                           size="sm"
