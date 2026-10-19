@@ -29,3 +29,20 @@ Answered 2026-10-19 as D-280 to D-283 (`docs/01-decisions-log.md`, "Phase 16 ext
 3. Adding a pack needs both `MANAGE_GUILD` (the existing extension rule) and `MANAGE_GUILD_EXPRESSIONS` (the item rule). Removing a pack deletes its items without asking again beyond the button.
 4. Re-adding a pack skips names the server already has (so a repeat does not duplicate).
 5. Sticker packs accept PNG/APNG/GIF only (WebP stickers are not a server sticker format today); those items are reported as skipped.
+
+## Follow-ups (L-40..L-43, D-280..D-283)
+
+Done (all four ticked in `docs/dev/answers-followups-p16.md`):
+
+* **L-40.** Precedence documented (doc 10, developer-platform spec, `serverAppearance.ts`); vitest for accent over the theme's accent token and the switch off. Finding: `LoungeShell` laid the server style after the member's style, so it also beat a Theme Store preview. Fixed: while a preview is open the server theme and accent step aside (`p16ServerLook.test.tsx`).
+* **L-41.** `PackageService::enable` stores a guild theme's `all` as `lounge` (and replaces an older `all` row); other sections are refused; OpenAPI description of `section`; docs 10 and spec ("Not built" trimmed, import and appearance routes listed). No migration: 1060 is new on this branch, and `appearance()` still reads an `all` row.
+* **L-42.** `require_manage_or_expressions` (MFA gate for either permission) for import, removal of a pack and the list (an expressions-only viewer gets packs only); removal keeps `MANAGE_GUILD` for themes, recipes and templates, and answers 404 to either holder when nothing is on. `Enablement.item_count` (packs in a server) added; OpenAPI, api-client types and MSW mocks regenerated. Web: the Extensions section opens for either permission, expressions-only viewers get the three pack kinds, no Server look card and no non-pack rows; the remove button and its aria-label name the count (`p16-ext-2.ts`; old keys removed from `p16-ext-1.ts`). Route matrix rows stay `membership` (no `?`). Docs: doc 07 paragraph, spec routes line.
+* **L-43.** Validator refuses WebP under `stickers/`; `image_dims` reads `VP8 `/`VP8L`/`VP8X` so the pixel cap covers WebP emoji; unit tests; import guard comment names D-283.
+
+Tests run: sr-packages unit (20) and Postgres suite (10, scratch DB); sr-api lib (613 + the new Postgres route test `settings/tests/packages_pg.rs`: expressions-only may import and remove a pack, not enable a theme or apply a recipe; `MANAGE_GUILD` alone may still import; guest refused), `route_matrix`, `openapi_names`; fmt and clippy `-D warnings` (sr-packages, sr-api, all targets); web tsc, eslint (touched dirs), prettier, full vitest (254 files, 2343 tests, 2 workers), vite build and the bundle budget.
+
+Still open / notes:
+
+* A direct `PUT /guilds/{id}/packages/{pkg}` for a pack still needs `MANAGE_GUILD` (the page uses `import`, which turns the pack on itself).
+* `MANAGE_GUILD` without `MANAGE_GUILD_EXPRESSIONS` can still import and remove a pack as before, but the item-level permission skips or leaves the files (existing behaviour, not changed).
+* The wasm package had to be built in this worktree first (the five formerly unloadable test files now run and pass).
