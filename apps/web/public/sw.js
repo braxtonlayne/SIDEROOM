@@ -21,7 +21,16 @@ const CACHE = 'sr-static-' + BUILD;
 const SHELL = '/index.html';
 const OFFLINE = '/offline.html';
 
-const BYPASS_PREFIXES = ['/api/', '/gateway', '/cdn/', '/internal/', '/developers/', '/oauth/'];
+// '/THIRD_PARTY_NOTICES.md' (D-287) is a plain static file linked from /help, never the app shell.
+const BYPASS_PREFIXES = [
+  '/api/',
+  '/gateway',
+  '/cdn/',
+  '/internal/',
+  '/developers/',
+  '/oauth/',
+  '/THIRD_PARTY_NOTICES.md',
+];
 const STATIC_PREFIXES = ['/assets/', '/fonts/', '/icons/', '/entrance/'];
 const STATIC_FILES = ['/manifest.webmanifest', '/offline.css', '/offline.html'];
 

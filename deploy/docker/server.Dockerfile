@@ -28,6 +28,8 @@ COPY --from=build /out/sr-server /usr/local/bin/sr-server
 # The operator tool ships in the image too, so a compose install runs it with
 # `docker compose run --rm --entrypoint /usr/local/bin/sr-cli sr-server migrate` and needs no host binary.
 COPY --from=build /out/sr-cli /usr/local/bin/sr-cli
+# Licence notices that must accompany the binaries (D-287): hand-maintained at the repo root.
+COPY --from=build /src/THIRD_PARTY_NOTICES.md /usr/share/doc/sideroom/THIRD_PARTY_NOTICES.md
 # Config: SR_CONFIG (TOML path) plus SR_* env vars (docs/dev/server.md).
 EXPOSE 8080
 # No shell or curl in this image: the binary probes its own /readyz (SR_* env as for `serve`).

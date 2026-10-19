@@ -17,7 +17,7 @@ jobs:
         with: { targets: wasm32-unknown-unknown }
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
-        with: { tool: "wasm-pack" }
+        with: { tool: 'wasm-pack' }
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -26,6 +26,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Builds packages/wasm/dist, which the web build and tests load.
       - run: pnpm --filter @sideroom/wasm build
+      # M-01 (D-287): the served notices file is a copy of the root file.
+      - run: node scripts/check-notices-copy.mjs
       - run: pnpm -r --if-present lint
       - run: pnpm -r --if-present typecheck
       - run: pnpm -r --if-present test
@@ -60,7 +62,7 @@ jobs:
       - run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
       - run: pnpm --filter @sideroom/e2e test:static
         env:
-          CI: "true"
+          CI: 'true'
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
