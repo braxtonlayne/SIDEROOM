@@ -273,7 +273,7 @@ pub async fn create_channel(
         let target: Snowflake = id(&format!("permission_overwrites.{n}.id"), raw)?;
         overwrites.push(overwrite_from(target, o)?);
     }
-    let view = api
+    let mut view = api
         .create_channel(user, gid, input, overwrites)
         .await
         .map_err(ce)?;
@@ -284,6 +284,20 @@ pub async fn create_channel(
             let _ = api.delete_channel(user, view.channel.id).await;
             return Err(e);
         }
+        // The CHANNEL_CREATE went out before the party existed: send CHANNEL_UPDATE so live clients
+        // see the room flag too (the repo reads it with the channel).
+        if let Ok(v) = api
+            .edit_channel(
+                user,
+                view.channel.id,
+                ChannelPatch::default(),
+                ChannelMove::default(),
+            )
+            .await
+        {
+            view = v;
+        }
+        view.channel.watch_party_room = true;
     }
     Ok((StatusCode::CREATED, Json(ChannelObject::from(&view))))
 }

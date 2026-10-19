@@ -417,6 +417,29 @@ async fn a_watch_party_room_is_a_persistent_party_that_outlives_its_creator() {
         .await
         .unwrap();
     assert!(party.settings.persistent);
+    // The channel reads as a Watch party room, in one list read for the whole guild (no per-channel lookup).
+    let chat = PgChatRepo::new(r.pool.clone());
+    let flags = |list: Vec<sr_chat::Channel>| {
+        list.into_iter()
+            .map(|c| (c.id.get() as i64, c.watch_party_room))
+            .collect::<Vec<_>>()
+    };
+    let listed = flags(
+        sr_chat::repo::ChannelRepository::list_guild_channels(
+            &chat,
+            sr_core::GuildId::new(r.guild as u64),
+        )
+        .await
+        .unwrap(),
+    );
+    assert!(listed.contains(&(vc, true)), "{listed:?}");
+    assert!(
+        listed
+            .iter()
+            .filter(|(id, _)| *id != vc)
+            .all(|(_, room)| !room),
+        "only the room is flagged: {listed:?}"
+    );
     r.svc.leave(v(creator).await, party.id).await.unwrap();
     assert_eq!(r.svc.sweep().await.unwrap(), 0);
     let again = r.svc.in_channel(v(other).await, vc).await.unwrap();

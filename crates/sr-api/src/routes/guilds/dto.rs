@@ -355,6 +355,9 @@ pub struct ChannelObject {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<String>)]
     pub rtc_region: Option<Option<String>>,
+    /// Voice channels: true for a Watch party room (D-208), a channel with a standing watch party.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_watch_party_room: Option<bool>,
 }
 
 impl ChannelObject {
@@ -412,6 +415,7 @@ impl ChannelObject {
             default_auto_archive_duration: c.forum.default_auto_archive_duration,
             video_quality_mode: c.kind.is_voice_like().then_some(c.video_quality_mode),
             rtc_region: c.kind.is_voice_like().then_some(None),
+            sr_watch_party_room: (c.kind == ChannelType::Voice).then_some(c.watch_party_room),
         }
     }
 

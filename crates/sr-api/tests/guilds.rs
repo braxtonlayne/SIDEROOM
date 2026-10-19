@@ -1598,6 +1598,11 @@ async fn the_watch_party_room_preset_is_validated_before_anything_is_created() {
     )
     .await;
     assert_eq!(s, StatusCode::CREATED, "{body}");
+    // Voice channels report whether they are a room; other channels carry no such field.
+    assert_eq!(body["sr_watch_party_room"], json!(false), "{body}");
+    let (s, text) = post(&f, &path, "owner", json!({"name": "chat", "type": 0})).await;
+    assert_eq!(s, StatusCode::CREATED, "{text}");
+    assert!(text.get("sr_watch_party_room").is_none(), "{text}");
 }
 
 /// Keeps the audit `changes` keys of every entry (J-08).

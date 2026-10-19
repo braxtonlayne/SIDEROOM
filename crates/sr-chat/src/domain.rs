@@ -277,6 +277,9 @@ pub struct Channel {
     /// the 720p tier whatever the occupancy). Discord's `video_quality_mode`; always 1 on other
     /// channels.
     pub video_quality_mode: u8,
+    /// A voice channel with a standing (persistent, not ended) watch party: a Watch party room
+    /// (D-208). Read from the party table with the channel; never stored on the channel itself.
+    pub watch_party_room: bool,
 }
 
 impl Channel {
@@ -299,6 +302,7 @@ impl Channel {
             thread: None,
             forum: ForumConfig::default(),
             video_quality_mode: VIDEO_QUALITY_AUTO,
+            watch_party_room: false,
         }
     }
 }

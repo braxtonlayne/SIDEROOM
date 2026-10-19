@@ -192,6 +192,8 @@ pub(crate) const CHANNEL_SELECT: &str = "SELECT c.id, c.guild_id, c.type, c.name
     c.last_message_id, c.owner_id, c.flags, c.available_tags, c.default_reaction_emoji, \
     c.default_sort_order, c.default_forum_layout, c.default_thread_rate_limit, \
     c.default_auto_archive_duration, c.video_quality_mode, \
+    EXISTS (SELECT 1 FROM watch_parties wp WHERE wp.channel_id = c.id \
+            AND wp.persistent AND wp.ended_at_ms IS NULL) AS wp_room, \
     tm.archived AS t_archived, tm.auto_archive_duration AS t_auto_archive, \
     (extract(epoch FROM tm.archive_timestamp) * 1000)::bigint AS t_archive_ms, \
     tm.locked AS t_locked, tm.invitable AS t_invitable, \
@@ -279,6 +281,7 @@ pub(crate) fn channel_from(r: &PgRow) -> RepoResult<Channel> {
         },
         video_quality_mode: u8::try_from(r.try_get::<i16, _>("video_quality_mode").map_err(db)?)
             .unwrap_or(1),
+        watch_party_room: r.try_get::<bool, _>("wp_room").unwrap_or(false),
     })
 }
 
