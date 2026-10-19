@@ -159,7 +159,7 @@ describe('Resumable multipart upload (LNG-CMP-007)', () => {
       ],
       missing: [{ part_number: 3, url: url(3) }],
     }));
-    const put = vi.fn(async (_u: string) => undefined);
+    const put = vi.fn<(u: string) => Promise<void>>(async () => undefined);
     const out = await uploadFiles('c1', [pending(file)], handlers(put));
     expect(out[0]?.uploadedFilename).toBe('77/film.bin');
     expect(put).toHaveBeenCalledTimes(1);
