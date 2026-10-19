@@ -2563,3 +2563,28 @@ Status: `NO-CODE`. Follow-up: K-22.
 ### Still with the owner from earlier rounds
 
 Unchanged: the UnRAR licence confirmation (D-170), the eight NEEDS-OWNER items of the Phase 8 to 11 round, the production `[ingest] roots` layout (P13-REV-3) and the JASSUB licence (P15-RST-2, owner item 11). This round adds nothing to [open-questions.md](open-questions.md).
+
+## Phase 16 lounge questions (answered 2026-10-19)
+
+Two owner questions from the `feat/p16-lounge` handoff (`docs/dev/handoff/feat-p16-lounge.md`: Server Settings > Watch Parties & Library, webcam bubbles over the watch-party stage). Same rules as the earlier rounds: [01-decisions-log.md](01-decisions-log.md) wins; Discord parity by default; privacy and safety per docs 09 and 15; conservative defaults; one Owner running a friend-group instance on one node. Status key as before: `ADOPTED` = a product decision, recorded as D-264 onward; `DEFAULT` = engineering default, implement without the owner; `NEEDS-OWNER` = needs the human; `NO-CODE` = informational or already resolved. Follow-ups are L-01 onward in [dev/answers-followups-p16.md](dev/answers-followups-p16.md); the round needs no migration, route or OpenAPI change.
+
+| Status | Count |
+|---|---|
+| ADOPTED | 0 |
+| DEFAULT | 2 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Watch parties (P16-LNG, branch `feat/p16-lounge`)
+
+**P16-LNG-1. Should watch parties have a stored per-server "default party channel" setting (the LNG-SSET-051 inventory line names one)? Today the channel is chosen when a party is started.**
+Decision: no stored setting; the channel is chosen at start, as built, and the server's standing party channel is the **Watch party room**. Discord has nothing to copy here: Go Live and Activities start in the voice channel the person is in, and no server setting points elsewhere. SIDE ROOM already has the two things a "default channel" would stand in for. A persistent party bound to a voice channel is the room preset of D-208 and D-227 (`sr_watch_party_room`), which is exactly "the channel where this server watches things", can exist more than once, carries its own permissions, and is visible in the channel list; and the place a start is announced is the announcer module's channel, already on the settings page. A third pointer in guild settings would be a stale reference waiting to happen (the channel is deleted or renamed, the starter lacks `START_WATCH_PARTY` or `CONNECT` there, a voice room is "defaulted" for someone starting from a text thread), would need a new column, route, permission check and settings form for a friend group's one or two servers, and would still be overridden by every entry point that already knows its channel (the call bar passes its voice channel, a channel card starts in its channel, a room starts in itself). What is worth doing is making the picker's first suggestion right: the Watch together dialog (`watchparty/StartPartyDialog.tsx`) lists a server's Watch party rooms first, marked as rooms, and preselects the destination last used in that server (a client-side memory like the live-TV preferences, not account state, since it is a convenience and not a setting). The LNG-SSET-051 inventory wording changes from "default party channel" to "where parties live: Watch party rooms", and the settings page says so with a link to creating a room.
+Status: `DEFAULT` (D-264). Follow-ups: L-01, L-02.
+
+**P16-LNG-2. Should webcam bubbles over the watch-party stage (WP-FE-012) stay hidden by default (viewer opts in with Show cameras), or show by default when the viewer is in a connected call?**
+Decision: shown by default, when there is a camera to show, with a remembered "Hide cameras". The parity case is Discord's focused view: when a stream or Activity fills the screen in a voice channel, the other participants' tiles (cameras included) stay in a strip until the viewer collapses it, and the collapse is remembered; nobody has to opt in to see a friend who turned a camera on. The watch-party stage replaces the voice grid for a voice-bound party, so with the bubbles off by default a camera turned on during a party is seen by nobody unless each viewer finds the button, which defeats the point of turning it on. The cost of showing is nil: the SFU already sends every subscriber everyone's camera at the thumbnail layer unless the client asks for more (voice spec section 4, "who receives what"), so the bubbles add a decode, not a subscription, and the thumbnail layer is the right size for a bubble. Privacy is unchanged: a camera is published by its owner's explicit action under the `STREAM` permission and the sender allowance (D-050), and the bubbles show only what the call already shows. Two refinements to "show by default": when no camera is live the stage shows only the small "Hide cameras" control (no empty list, no "nobody has a camera on" text until the viewer has asked for cameras and there are none), and the viewer's "Hide" is an account preference (`watchPartyCameras` in the user prefs, default on, with a switch under Settings > Voice & Video) rather than a per-party toggle that resets each time, which is how the other display options (Hide names, role colours) behave. Outside a connected call the component still renders nothing.
+Status: `DEFAULT` (D-265). Follow-up: L-03.
+
+### Still with the owner from earlier rounds
+
+Unchanged: the UnRAR licence confirmation (D-170), the eight NEEDS-OWNER items of the Phase 8 to 11 round, the production `[ingest] roots` layout (P13-REV-3) and the JASSUB licence (P15-RST-2, owner item 11). This round adds nothing to [open-questions.md](open-questions.md).

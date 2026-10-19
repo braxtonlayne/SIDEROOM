@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-router';
 import { vi } from 'vitest';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
+import { useLoungeUi } from '../../lounge/store';
 import { emitDispatch } from '../../store/events';
 import { http, HttpResponse, server } from '../../test/server';
 import { StartPartyDialog, type StartPartyDialogProps } from '../StartPartyDialog';
@@ -43,6 +44,8 @@ vi.mock('../../lounge/data', () => ({
       ch('51', 'house-notes', 'announcement', { canSend: false }),
       ch('52', 'Movie night', 'voice'),
       ch('53', 'staff', 'text', { locked: true }),
+      ch('54', 'Lounge call', 'voice'),
+      ch('55', 'Cinema room', 'voice', { watchPartyRoom: true }),
     ],
   }),
   useDms: () => [
@@ -79,6 +82,11 @@ const withTitle: StartPartyDialogProps['title'] = {
   label: 'Akira',
 };
 
+beforeEach(() => {
+  localStorage.removeItem('sr.watchparty.lastDest');
+  useLoungeUi.setState({ lastLocation: null });
+});
+
 describe('StartPartyDialog with a title', () => {
   it('offers private, the channels you can post in, and DMs, and passes axe', async () => {
     const onClose = vi.fn();
@@ -87,10 +95,13 @@ describe('StartPartyDialog with a title', () => {
     const labels = within(where)
       .getAllByRole('option')
       .map((o) => o.textContent);
+    // Watch party rooms first, then voice channels, then text channels (D-264).
     expect(labels).toEqual([
       'Private party (invite link)',
-      '#general',
+      'Voice: Cinema room (Watch party room)',
       'Voice: Movie night',
+      'Voice: Lounge call',
+      '#general',
       'Ana',
     ]);
     // Announcement channel you cannot post in, and the locked channel, are not offered.
@@ -125,6 +136,48 @@ describe('StartPartyDialog with a title', () => {
     onCreate();
     mount(<StartPartyDialog open onClose={() => undefined} title={withTitle} channelId="52" />);
     expect(await screen.findByRole('combobox', { name: 'Where to watch' })).toHaveValue('52');
+  });
+
+  it('preselects the last destination used in the active server when it is still offered', async () => {
+    localStorage.setItem('sr.watchparty.lastDest', JSON.stringify({ '5': '54' }));
+    useLoungeUi.setState({ lastLocation: { guildId: '5' } });
+    mount(<StartPartyDialog open onClose={() => undefined} title={withTitle} />);
+    expect(await screen.findByRole('combobox', { name: 'Where to watch' })).toHaveValue('54');
+  });
+
+  it('falls back to a private party when the remembered channel is gone', async () => {
+    localStorage.setItem('sr.watchparty.lastDest', JSON.stringify({ '5': '999' }));
+    useLoungeUi.setState({ lastLocation: { guildId: '5' } });
+    mount(<StartPartyDialog open onClose={() => undefined} title={withTitle} />);
+    expect(await screen.findByRole('combobox', { name: 'Where to watch' })).toHaveValue(
+      '__private',
+    );
+  });
+
+  it('ignores a corrupt memory', async () => {
+    localStorage.setItem('sr.watchparty.lastDest', '{nope');
+    useLoungeUi.setState({ lastLocation: { guildId: '5' } });
+    mount(<StartPartyDialog open onClose={() => undefined} title={withTitle} />);
+    expect(await screen.findByRole('combobox', { name: 'Where to watch' })).toHaveValue(
+      '__private',
+    );
+  });
+
+  it("lets the caller's channel win over the memory", async () => {
+    localStorage.setItem('sr.watchparty.lastDest', JSON.stringify({ '5': '54' }));
+    useLoungeUi.setState({ lastLocation: { guildId: '5' } });
+    mount(<StartPartyDialog open onClose={() => undefined} title={withTitle} channelId="50" />);
+    expect(await screen.findByRole('combobox', { name: 'Where to watch' })).toHaveValue('50');
+  });
+
+  it('remembers the destination after a successful start', async () => {
+    onCreate();
+    mount(<StartPartyDialog open onClose={() => undefined} title={withTitle} channelId="55" />);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Start party' }));
+    await waitFor(() => expect(created).toHaveLength(1));
+    expect(JSON.parse(localStorage.getItem('sr.watchparty.lastDest') ?? '{}')).toEqual({
+      '5': '55',
+    });
   });
 
   it('explains a refusal and keeps the dialog open', async () => {

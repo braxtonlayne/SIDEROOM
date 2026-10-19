@@ -25,13 +25,11 @@ const REACTION_ROLES_ID = 'lounge.reaction_roles';
 /** Channel type code of a category; it holds channels and is not somewhere a module can post. */
 const CATEGORY = 4;
 
-export function FeaturesSection({ guildId }: SectionProps) {
-  const t = useT();
-  const res = useResource(`features-${guildId}`, () => api.listFeatures(guildId));
+/** The channel and role choices a module's pickers offer for this server. */
+export function useFeaturePickers(guildId: string): PickerChoices {
   const channels = useChannels(guildId);
   const { roles } = useGuild(guildId);
-  const [query, setQuery] = useState('');
-  const pickers = useMemo<PickerChoices>(
+  return useMemo<PickerChoices>(
     () => ({
       channels: channels
         .filter((c) => c.type !== CATEGORY)
@@ -40,6 +38,13 @@ export function FeaturesSection({ guildId }: SectionProps) {
     }),
     [channels, roles, guildId],
   );
+}
+
+export function FeaturesSection({ guildId }: SectionProps) {
+  const t = useT();
+  const res = useResource(`features-${guildId}`, () => api.listFeatures(guildId));
+  const [query, setQuery] = useState('');
+  const pickers = useFeaturePickers(guildId);
 
   return (
     <>
@@ -92,7 +97,7 @@ export function FeaturesSection({ guildId }: SectionProps) {
   );
 }
 
-function FeatureCard({
+export function FeatureCard({
   guildId,
   feature,
   pickers,

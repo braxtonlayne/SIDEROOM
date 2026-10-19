@@ -1845,3 +1845,22 @@
 .lng-guild-header[data-banner]:hover {
   filter: brightness(1.1);
 }
+
+/* stream thumbnail on hover of a streamer's voice row (LNG-CHN-010) */
+.lng-voice-member {
+  position: relative;
+}
+.lng-live-preview {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: 0;
+  z-index: 5;
+  inline-size: min(100%, 220px);
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--ui-border);
+  background: #000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}

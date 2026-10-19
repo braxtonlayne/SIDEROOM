@@ -63325,6 +63325,13 @@
             ],
             "description": "Voice and stage channels: always `null` (this installation has one voice region)."
           },
+          "sr_watch_party_room": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Voice channels: true for a Watch party room (D-208), a channel with a standing watch party."
+          },
           "thread_metadata": {
             "oneOf": [
               {

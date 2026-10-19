@@ -13247,6 +13247,8 @@ export interface components {
             rate_limit_per_user: number;
             /** @description Voice and stage channels: always `null` (this installation has one voice region). */
             rtc_region?: string | null;
+            /** @description Voice channels: true for a Watch party room (D-208), a channel with a standing watch party. */
+            sr_watch_party_room?: boolean | null;
             thread_metadata?: null | components["schemas"]["ThreadMetadataObject"];
             topic?: string | null;
             /**

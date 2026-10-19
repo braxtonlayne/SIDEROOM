@@ -14,6 +14,7 @@ import { PickMedia } from './PickMedia';
 import { QueuePanel } from './QueuePanel';
 import { partyController, useParty } from './runtime';
 import { ShareDialog } from './ShareDialog';
+import { WebcamBubbles } from './WebcamBubbles';
 import { clock } from './sync';
 import './watchparty.css';
 
@@ -107,6 +108,7 @@ export function Theatre({ onExit }: { onExit: () => void }) {
         <section className="wp-stage-wrap" aria-label={tr('watchparty.theatre.sharedPlayer')}>
           <div ref={stageRef} className="wp-stage" />
           {!media && <PickMedia />}
+          <WebcamBubbles />
           <ReactionsOverlay />
           <WaitingBanner />
           <GestureButton />

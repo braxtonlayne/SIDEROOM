@@ -251,6 +251,7 @@ export function toLoungeChannel(
     ...(permissions ? { permissions } : {}),
     ...(c.rate_limit_per_user ? { slowmodeSeconds: c.rate_limit_per_user } : {}),
     ...(c.user_limit ? { userLimit: c.user_limit } : {}),
+    ...(c.sr_watch_party_room === true ? { watchPartyRoom: true } : {}),
   };
 }
 

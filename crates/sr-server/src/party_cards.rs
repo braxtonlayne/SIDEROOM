@@ -277,6 +277,8 @@ impl ChatHook for PartyCards {
             AnnouncementKind::Started => self.post(&a).await,
             AnnouncementKind::Updated => self.update(a).await,
             AnnouncementKind::Ended => self.end(a).await,
+            // Only the channel's room flag changes; the room hook handles it.
+            AnnouncementKind::RoomClosed => {}
         }
     }
 }

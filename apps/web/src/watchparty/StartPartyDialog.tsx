@@ -7,8 +7,10 @@ import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import { useOptionalAgeGate, isAgeGateError } from '../lib/ageGate';
 import { useAllChannels, useDms, useGuilds, useUsers } from '../lounge/data';
+import { useLoungeUi } from '../lounge/store';
 import { holdGateway } from '../store/connect';
 import { httpPartyApi } from './api';
+import { getLastDest, setLastDest } from './lastDest';
 import { TitlePicker, type PickedTitle } from './TitlePicker';
 
 export interface StartPartyDialogProps {
@@ -39,7 +41,9 @@ export function StartPartyDialog({
   const dms = useDms();
   const users = useUsers();
   const [picked, setPicked] = useState<PickedTitle | null>(null);
-  const [dest, setDest] = useState(channelId ?? PRIVATE);
+  const lastGuildId = useLoungeUi((s) => s.lastLocation?.guildId);
+  // null until the viewer picks: then the caller's channel, the remembered one, or a private party.
+  const [picks, setDest] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,27 +54,37 @@ export function StartPartyDialog({
   }, [open]);
   useEffect(() => {
     if (open) {
-      setDest(channelId ?? PRIVATE);
+      setDest(null);
       setPicked(null);
       setError(null);
     }
   }, [open, channelId]);
 
-  const groups = useMemo(
-    () =>
-      guilds
-        .map((g) => ({
-          guild: g,
-          list: (channels[g.id] ?? []).filter(
-            (c) =>
-              (c.type === 'text' || c.type === 'announcement'
-                ? c.canSend
-                : c.type === 'voice' && (c.permissions?.connect ?? true)) && !c.locked,
-          ),
-        }))
-        .filter((g) => g.list.length > 0),
-    [guilds, channels],
-  );
+  // Watch party rooms first, then voice channels, then text and announcement channels, each in list order (D-264).
+  const groups = useMemo(() => {
+    const rank = (c: { type: string; watchPartyRoom?: boolean }) =>
+      c.type === 'voice' && c.watchPartyRoom ? 0 : c.type === 'voice' ? 1 : 2;
+    return guilds
+      .map((g) => {
+        const list = (channels[g.id] ?? []).filter(
+          (c) =>
+            (c.type === 'text' || c.type === 'announcement'
+              ? c.canSend
+              : c.type === 'voice' && (c.permissions?.connect ?? true)) && !c.locked,
+        );
+        // Array.prototype.sort is stable, so list order is kept inside a rank.
+        return { guild: g, list: [...list].sort((a, b) => rank(a) - rank(b)) };
+      })
+      .filter((g) => g.list.length > 0);
+  }, [guilds, channels]);
+
+  const remembered = useMemo(() => {
+    if (!open || !lastGuildId) return null; // re-read storage each time the dialog opens
+    const last = getLastDest(lastGuildId);
+    const group = groups.find((g) => g.guild.id === lastGuildId);
+    return last && group?.list.some((c) => c.id === last) ? last : null;
+  }, [groups, lastGuildId, open]);
+  const dest = picks ?? channelId ?? remembered ?? PRIVATE;
 
   const chosen: { titleId: string; episodeId: string | null; variantId: string | null } | null =
     liveChannel
@@ -107,6 +121,10 @@ export function StartPartyDialog({
         if (isAgeGateError(e) && age && (await age.ensureAdult()))
           party = await httpPartyApi.create(input);
         else throw e;
+      }
+      if (dest !== PRIVATE) {
+        const g = groups.find((x) => x.list.some((c) => c.id === dest));
+        if (g) setLastDest(g.guild.id, dest);
       }
       onClose();
       router.history.push(`/cinema/party/${party.id}`);
@@ -168,6 +186,7 @@ export function StartPartyDialog({
                   <option key={c.id} value={c.id}>
                     {c.type === 'voice' ? t('watchparty.startDialog.voicePrefix') : '#'}
                     {c.name}
+                    {c.watchPartyRoom ? ` (${t('watchparty.start.room')})` : ''}
                   </option>
                 ))}
               </optgroup>

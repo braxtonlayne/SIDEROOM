@@ -236,6 +236,9 @@ pub enum AnnouncementKind {
     Started,
     /// The media, the host or the headcount changed while the party runs.
     Updated,
+    /// The channel stopped being a Watch party room: its persistent party ended or was made ordinary.
+    /// The channel object's room flag changes, so clients need a CHANNEL_UPDATE; no card changes.
+    RoomClosed,
     Ended,
 }
 
