@@ -1266,6 +1266,22 @@ async fn expressions_updates_dispatch_with_the_expressions_intent() {
 }
 
 #[tokio::test]
+async fn guild_appearance_update_is_dispatched_to_members() {
+    let e = env();
+    let mut member = connect(&e);
+    member.identify("bot:1", intents::GUILDS, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::GuildAppearanceUpdated {
+            guild: G1,
+            payload: json!({ "guild_id": "1" }),
+        },
+    )
+    .await;
+    let d = member.expect_event("SR_GUILD_APPEARANCE_UPDATE").await;
+    assert_eq!(d["d"]["guild_id"], "1");
+}
+#[tokio::test]
 async fn webhooks_update_carries_guild_and_channel() {
     let e = env();
     let mut a = connect(&e);

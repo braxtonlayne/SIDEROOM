@@ -32929,6 +32929,138 @@
         ]
       }
     },
+    "/guilds/{guild_id}/appearance": {
+      "get": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "The theme tokens and accent colour a member's client applies in this server (any member).",
+        "operationId": "get_appearance",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageGuildAppearance"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "Set or clear the server accent colour (`MANAGE_GUILD`).",
+        "operationId": "set_appearance",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageAppearanceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageGuildAppearance"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/audit-logs": {
       "get": {
         "tags": [
@@ -36375,7 +36507,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "What is turned on in a server (`MANAGE_GUILD`).",
+        "summary": "What is turned on in a server (`MANAGE_GUILD`; `MANAGE_GUILD_EXPRESSIONS` alone sees only the packs, D-282).",
         "operationId": "guild_enabled",
         "parameters": [
           {
@@ -36509,7 +36641,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "Turn a package off in a server (`MANAGE_GUILD`).",
+        "summary": "Turn a package off in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack `MANAGE_GUILD_EXPRESSIONS`\nalone is enough, D-282). A pack takes the items it added with it.",
         "operationId": "disable_for_guild",
         "parameters": [
           {
@@ -36622,6 +36754,82 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/packages/{package_id}/import": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "Add an approved emoji, sticker or sound pack to the server: the pack is turned on and its items become\nthe server's own emoji, stickers or sounds (`MANAGE_GUILD_EXPRESSIONS` alone suffices, `MANAGE_GUILD` too, D-282). Items that do\nnot fit (a name the server already uses, no free slot, a file type the list does not take) are listed\nunder `skipped`; the rest are added. Take the pack away again with `DELETE /guilds/{id}/packages/{package}`.",
+        "operationId": "import_pack",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "package_id",
+            "in": "path",
+            "description": "Package snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackImportResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -68732,7 +68940,7 @@
               "string",
               "null"
             ],
-            "description": "Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`."
+            "description": "Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. For a server\n`all` means the Lounge for a server; a server theme never recolours Cinema, Library or the Entrance (D-281)."
           }
         }
       },
@@ -76006,6 +76214,63 @@
           }
         }
       },
+      "PackImportAdded": {
+        "type": "object",
+        "description": "One item copied into the server.",
+        "required": [
+          "name",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PackImportResult": {
+        "type": "object",
+        "required": [
+          "enablement",
+          "added",
+          "skipped"
+        ],
+        "properties": {
+          "added": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackImportAdded"
+            }
+          },
+          "enablement": {
+            "$ref": "#/components/schemas/PackageEnablement"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackImportSkipped"
+            }
+          }
+        }
+      },
+      "PackImportSkipped": {
+        "type": "object",
+        "description": "An item that was not copied, and why.",
+        "required": [
+          "name",
+          "reason"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "PackStickerObject": {
         "type": "object",
         "description": "A sticker inside a pack.",
@@ -76050,6 +76315,20 @@
             "format": "int32",
             "description": "1 = standard sticker.",
             "minimum": 0
+          }
+        }
+      },
+      "PackageAppearanceBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/appearance`.",
+        "properties": {
+          "accent_color": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The accent colour as `0xRRGGBB`; `null` clears it. Absent keeps it."
           }
         }
       },
@@ -76113,6 +76392,14 @@
             "type": "integer",
             "format": "int64"
           },
+          "item_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "For a pack turned on in a server: how many emoji, stickers or sounds it added and are still there to be\ntaken away (D-282). Absent for every other enablement."
+          },
           "kind": {
             "$ref": "#/components/schemas/PackageKind"
           },
@@ -76161,6 +76448,64 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "PackageGuildAppearance": {
+        "type": "object",
+        "description": "What a member's client applies for a server (`GET /guilds/{id}/appearance`).",
+        "properties": {
+          "accent_color": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The server accent colour as `0xRRGGBB`, null when unset."
+          },
+          "theme": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PackageGuildTheme",
+                "description": "The server-wide theme, null when the server uses the built-in look."
+              }
+            ]
+          }
+        }
+      },
+      "PackageGuildTheme": {
+        "type": "object",
+        "required": [
+          "package_id",
+          "version_id",
+          "slug",
+          "name",
+          "scheme",
+          "tokens"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "package_id": {
+            "type": "string"
+          },
+          "scheme": {
+            "type": "string",
+            "description": "`light` or `dark`."
+          },
+          "slug": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "object",
+            "description": "`--ui-*` design tokens, validated when the package was reviewed."
+          },
+          "version_id": {
+            "type": "string"
           }
         }
       },

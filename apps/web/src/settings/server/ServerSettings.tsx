@@ -138,7 +138,8 @@ export const SECTIONS: SectionDef[] = [
     id: 'extensions',
     label: 'settings.server.extensions',
     group: 'APPS',
-    visible: (v) => v.can('MANAGE_GUILD'),
+    // Packs need MANAGE_GUILD_EXPRESSIONS alone; themes, recipes and templates keep MANAGE_GUILD (D-282).
+    visible: (v) => any(v, 'MANAGE_GUILD', 'MANAGE_GUILD_EXPRESSIONS'),
     component: ExtensionsSection,
   },
   {

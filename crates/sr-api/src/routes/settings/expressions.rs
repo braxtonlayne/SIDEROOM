@@ -269,7 +269,7 @@ fn role_ids(acc: &GuildAccess, raw: &[String]) -> ApiResult<Vec<RoleId>> {
     Ok(out)
 }
 
-async fn publish_emojis(deps: &SettingsDeps, guild: GuildId) {
+pub(crate) async fn publish_emojis(deps: &SettingsDeps, guild: GuildId) {
     let Ok(list) = deps.service.repo().list_emoji(guild).await else {
         return;
     };
@@ -287,7 +287,7 @@ async fn publish_emojis(deps: &SettingsDeps, guild: GuildId) {
     .await;
 }
 
-async fn publish_stickers(deps: &SettingsDeps, guild: GuildId) {
+pub(crate) async fn publish_stickers(deps: &SettingsDeps, guild: GuildId) {
     let Ok(list) = deps.service.repo().list_stickers(guild).await else {
         return;
     };
@@ -305,7 +305,7 @@ async fn publish_stickers(deps: &SettingsDeps, guild: GuildId) {
     .await;
 }
 
-async fn store(deps: &SettingsDeps, key: &str, data: Bytes) -> ApiResult<()> {
+pub(crate) async fn store(deps: &SettingsDeps, key: &str, data: Bytes) -> ApiResult<()> {
     deps.storage.put(key, data).await.map_err(|e| {
         tracing::error!(error = %e, key, "object storage failure");
         HttpError::from(ErrorCode::SrInternal)

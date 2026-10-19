@@ -35,6 +35,7 @@ function setup() {
     status: vi.fn(),
     speaking: vi.fn(),
     quality: vi.fn(),
+    remoteQuality: vi.fn(),
     fatal: vi.fn(),
     level: vi.fn(),
     micLost: vi.fn(),
@@ -230,6 +231,37 @@ describe('RtcVoiceEngine media', () => {
     pc.stats = [{ type: 'candidate-pair', state: 'succeeded', currentRoundTripTime: 0.03 }];
     await vi.advanceTimersByTimeAsync(QUALITY_INTERVAL_MS + 10);
     expect(events.quality).toHaveBeenLastCalledWith({ level: 'good', pingMs: 30, lossPct: null });
+  });
+
+  it('reports per-person quality from the receivers of remote microphone lines (VOX-UI-003)', async () => {
+    const { world, events, engine } = setup();
+    const { pc } = await handshake(world, engine);
+    let received = 100;
+    const receiver = {
+      getStats: async () => ({
+        forEach: (cb: (s: Record<string, unknown>) => void) =>
+          cb({
+            type: 'inbound-rtp',
+            kind: 'audio',
+            packetsReceived: received,
+            packetsLost: 0,
+            bytesReceived: received * 80,
+            jitter: 0.004,
+          }),
+      }),
+    };
+    pc.receive('u7', receiver);
+    await vi.advanceTimersByTimeAsync(QUALITY_INTERVAL_MS + 10);
+    expect(events.remoteQuality).toHaveBeenLastCalledWith(
+      'u7',
+      expect.objectContaining({ level: 'good' }),
+    );
+    received = 200;
+    await vi.advanceTimersByTimeAsync(QUALITY_INTERVAL_MS);
+    expect(events.remoteQuality).toHaveBeenLastCalledWith(
+      'u7',
+      expect.objectContaining({ level: 'good', lossPct: 0, jitterMs: 4 }),
+    );
   });
 
   it('answers a server renegotiation offer with SDP_ANSWER', async () => {

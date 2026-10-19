@@ -336,11 +336,12 @@ export class FakePeer implements PeerLike {
     return stream;
   }
   /** Simulate the SFU forwarding someone's audio. */
-  receive(userId: string) {
+  receive(userId: string, receiver?: unknown) {
     const stream = new FakeStream([new FakeTrack('remote')], userId);
     this.ontrack?.({
       track: { kind: 'audio' } as MediaStreamTrack,
       streams: [stream as unknown as MediaStream],
+      ...(receiver ? { receiver } : {}),
     });
     return stream;
   }

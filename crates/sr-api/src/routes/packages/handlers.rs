@@ -36,7 +36,7 @@ use sr_packages::{
 };
 use utoipa::ToSchema;
 
-fn id(raw: &str) -> MsgResult<i64> {
+pub(super) fn id(raw: &str) -> MsgResult<i64> {
     raw.parse::<i64>()
         .ok()
         .filter(|v| *v > 0)
@@ -233,7 +233,8 @@ pub async fn version_file(
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct EnableBody {
-    /// Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`.
+    /// Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. For a server
+    /// `all` means the Lounge for a server; a server theme never recolours Cinema, Library or the Entrance (D-281).
     #[serde(default)]
     pub section: Option<String>,
 }
@@ -302,7 +303,7 @@ pub async fn disable_for_me(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn gid(raw: &str) -> MsgResult<GuildId> {
+pub(super) fn gid(raw: &str) -> MsgResult<GuildId> {
     raw.parse::<u64>()
         .ok()
         .filter(|v| *v > 0)
@@ -310,12 +311,12 @@ fn gid(raw: &str) -> MsgResult<GuildId> {
         .ok_or_else(|| ApiError::new(ErrorCode::UnknownGuild).into())
 }
 
-async fn require_manage(
+pub(super) async fn require_manage(
     settings: &SettingsDeps,
     user: i64,
     guild: GuildId,
     gate: Option<&MfaGate>,
-) -> MsgResult<()> {
+) -> MsgResult<crate::routes::settings::deps::GuildAccess> {
     let user = UserId::new(u64::try_from(user).unwrap_or(0));
     let acc = settings.guild_access(user, guild).await?;
     if let Some(g) = gate {
@@ -324,10 +325,40 @@ async fn require_manage(
     if !acc.perms.has(Permissions::MANAGE_GUILD) {
         return Err(ErrorCode::MissingPermissions.into());
     }
-    Ok(())
+    Ok(acc)
 }
 
-/// What is turned on in a server (`MANAGE_GUILD`).
+/// Like [`require_manage`], but `MANAGE_GUILD_EXPRESSIONS` alone is enough too: emoji, sticker and sound packs
+/// belong to whoever manages the server's expressions (D-282). The MFA gate applies to either (D-223).
+pub(super) async fn require_manage_or_expressions(
+    settings: &SettingsDeps,
+    user: i64,
+    guild: GuildId,
+    gate: Option<&MfaGate>,
+) -> MsgResult<crate::routes::settings::deps::GuildAccess> {
+    let user = UserId::new(u64::try_from(user).unwrap_or(0));
+    let acc = settings.guild_access(user, guild).await?;
+    if let Some(g) = gate {
+        acc.require_mfa(g, user, Permissions::MANAGE_GUILD).await?;
+        acc.require_mfa(g, user, Permissions::MANAGE_GUILD_EXPRESSIONS)
+            .await?;
+    }
+    if !acc.perms.has(Permissions::MANAGE_GUILD)
+        && !acc.perms.has(Permissions::MANAGE_GUILD_EXPRESSIONS)
+    {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
+    Ok(acc)
+}
+
+fn is_pack(kind: PackageKind) -> bool {
+    matches!(
+        kind,
+        PackageKind::EmojiPack | PackageKind::StickerPack | PackageKind::SoundPack
+    )
+}
+
+/// What is turned on in a server (`MANAGE_GUILD`; `MANAGE_GUILD_EXPRESSIONS` alone sees only the packs, D-282).
 #[utoipa::path(
     get, path = "/guilds/{guild_id}/packages", tag = "packages",
     params(("guild_id" = String, Path, description = "Guild snowflake")),
@@ -341,9 +372,13 @@ pub async fn guild_enabled(
     Path(guild): Path<String>,
 ) -> MsgResult<Json<Vec<Enablement>>> {
     let g = gid(&guild)?;
-    require_manage(&settings, p.user_id, g, None).await?;
+    let acc = require_manage_or_expressions(&settings, p.user_id, g, None).await?;
     let gi = i64::try_from(g.get()).unwrap_or(0);
-    Ok(Json(deps.service.enabled("guild", gi).await.map_err(pkg)?))
+    let mut on = deps.service.enabled("guild", gi).await.map_err(pkg)?;
+    if !acc.perms.has(Permissions::MANAGE_GUILD) {
+        on.retain(|e| is_pack(e.kind));
+    }
+    Ok(Json(on))
 }
 
 /// Turn an approved package on in a server (`MANAGE_GUILD`). Recipes are applied with `/apply` instead.
@@ -375,22 +410,37 @@ pub async fn enable_for_guild(
         .into());
     }
     let section = body.section.unwrap_or_else(|| "all".to_owned());
-    Ok(Json(
-        deps.service
-            .enable(
-                "guild",
-                i64::try_from(g.get()).unwrap_or(0),
-                package,
-                &section,
-                Value::Object(Map::new()),
-                p.user_id,
+    let kind = deps.service.get(package).await.map_err(pkg)?.kind;
+    // A server theme recolours the Lounge only (D-281): `all` and `lounge` mean the same and are stored as `lounge`.
+    if kind == PackageKind::Theme && !matches!(section.as_str(), "all" | "lounge") {
+        return Err(ApiError::invalid_form()
+            .field(
+                "section",
+                "INVALID_VALUE",
+                "A server theme applies to all sections or to the Lounge.",
             )
-            .await
-            .map_err(pkg)?,
-    ))
+            .into());
+    }
+    let en = deps
+        .service
+        .enable(
+            "guild",
+            i64::try_from(g.get()).unwrap_or(0),
+            package,
+            &section,
+            Value::Object(Map::new()),
+            p.user_id,
+        )
+        .await
+        .map_err(pkg)?;
+    if kind == PackageKind::Theme {
+        super::appearance::announce(&settings, g).await;
+    }
+    Ok(Json(en))
 }
 
-/// Turn a package off in a server (`MANAGE_GUILD`).
+/// Turn a package off in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack `MANAGE_GUILD_EXPRESSIONS`
+/// alone is enough, D-282). A pack takes the items it added with it.
 #[utoipa::path(
     delete, path = "/guilds/{guild_id}/packages/{package_id}", tag = "packages",
     params(("guild_id" = String, Path, description = "Guild snowflake"),
@@ -406,11 +456,35 @@ pub async fn disable_for_guild(
     Path((guild, package)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let g = gid(&guild)?;
-    require_manage(&settings, p.user_id, g, Some(&gate)).await?;
+    let gi = i64::try_from(g.get()).unwrap_or(0);
+    let package = id(&package)?;
+    let kind = deps
+        .service
+        .enabled("guild", gi)
+        .await
+        .map_err(pkg)?
+        .into_iter()
+        .find(|e| e.package_id == package.to_string())
+        .map(|e| e.kind);
+    // The kind decides the permission (D-282): packs need `MANAGE_GUILD_EXPRESSIONS` or `MANAGE_GUILD`; themes,
+    // recipes and templates need `MANAGE_GUILD`. Nothing on at all answers 404 to either holder.
+    let acc = if kind.is_none_or(is_pack) {
+        require_manage_or_expressions(&settings, p.user_id, g, Some(&gate)).await?
+    } else {
+        require_manage(&settings, p.user_id, g, Some(&gate)).await?
+    };
+    // A pack takes the items it added with it (what the server uploaded itself stays).
+    if kind.is_some_and(is_pack) {
+        let user = UserId::new(u64::try_from(p.user_id).unwrap_or(0));
+        super::appearance::remove_pack(&settings, &deps, &acc, user, g, package).await?;
+    }
     deps.service
-        .disable("guild", i64::try_from(g.get()).unwrap_or(0), id(&package)?)
+        .disable("guild", gi, package)
         .await
         .map_err(pkg)?;
+    if kind == Some(PackageKind::Theme) {
+        super::appearance::announce(&settings, g).await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

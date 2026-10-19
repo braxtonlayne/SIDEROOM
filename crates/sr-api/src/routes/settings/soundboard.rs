@@ -148,7 +148,7 @@ async fn list_json(deps: &SettingsDeps, guild: GuildId) -> ApiResult<Vec<Value>>
     Ok(list.iter().map(|s| sound_value(s, &users)).collect())
 }
 
-async fn publish_sounds(deps: &SettingsDeps, guild: GuildId) {
+pub(crate) async fn publish_sounds(deps: &SettingsDeps, guild: GuildId) {
     let Ok(list) = deps.service.repo().list_sounds(guild).await else {
         return;
     };

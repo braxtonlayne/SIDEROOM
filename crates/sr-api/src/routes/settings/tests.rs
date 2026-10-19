@@ -87,6 +87,8 @@ struct Opts {
     voice: Option<Arc<dyn crate::routes::voice::VoiceBackend>>,
     /// Register the per-server feature routes over fake feature actions.
     features: bool,
+    /// Register the packages routes over a Postgres-backed service (D-282 tests).
+    packages: Option<Arc<crate::routes::packages::PackagesDeps>>,
 }
 
 async fn env() -> Env {
@@ -308,13 +310,18 @@ async fn env_with(opts: Opts) -> Env {
         let gf = features_tests::wire(&backend, dyn_clock.clone(), bus.clone(), actions.clone());
         builder = builder.extension(Arc::new(gf));
     }
+    let with_packages = opts.packages.is_some();
+    if let Some(p) = opts.packages {
+        builder = builder.extension(p);
+    }
     let state = builder.build();
-    let app = build_router(
-        state,
-        router()
-            .merge(messages::router())
-            .merge(crate::routes::directory::router()),
-    );
+    let mut routes = router()
+        .merge(messages::router())
+        .merge(crate::routes::directory::router());
+    if with_packages {
+        routes = routes.merge(crate::routes::packages::router());
+    }
+    let app = build_router(state, routes);
     Env {
         app,
         backend,
@@ -3849,3 +3856,5 @@ async fn a_blocked_message_still_gets_an_alert_card_without_a_delete_button() {
         Some(format!("Banned by <@{MOD}>"))
     );
 }
+
+mod packages_pg;

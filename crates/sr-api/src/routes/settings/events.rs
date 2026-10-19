@@ -16,6 +16,7 @@
 //! | `AutoModActionExecuted` | `AUTO_MODERATION_ACTION_EXECUTION` |
 //! | `AuditLogEntryCreated` | `GUILD_AUDIT_LOG_ENTRY_CREATE` |
 //! | `CommunityChanged` | `GUILD_UPDATE` (full guild object) |
+//! | `AppearanceChanged` | `SR_GUILD_APPEARANCE_UPDATE` (`{guild_id}`; the client reads the appearance again) |
 //! | `ScheduledEvent` | `GUILD_SCHEDULED_EVENT_CREATE/UPDATE/DELETE/USER_ADD/USER_REMOVE` |
 
 use async_trait::async_trait;
@@ -82,6 +83,11 @@ pub enum SettingsEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// The server theme or accent colour changed; `payload` is `{guild_id}`.
+    AppearanceChanged {
+        guild: GuildId,
+        payload: Value,
+    },
     /// A scheduled event changed, or a member marked or cleared their interest; `payload` is
     /// the event object or `{guild_scheduled_event_id, user_id, guild_id}`.
     ScheduledEvent {
@@ -112,6 +118,7 @@ impl SettingsEvent {
             | Self::AutoModActionExecuted { guild, .. }
             | Self::AuditLogEntryCreated { guild, .. }
             | Self::CommunityChanged { guild, .. }
+            | Self::AppearanceChanged { guild, .. }
             | Self::ScheduledEvent { guild, .. }
             | Self::MemberJoined { guild, .. } => *guild,
         }
@@ -131,6 +138,7 @@ impl SettingsEvent {
             Self::AutoModActionExecuted { .. } => "AUTO_MODERATION_ACTION_EXECUTION",
             Self::AuditLogEntryCreated { .. } => "GUILD_AUDIT_LOG_ENTRY_CREATE",
             Self::CommunityChanged { .. } => "GUILD_UPDATE",
+            Self::AppearanceChanged { .. } => "SR_GUILD_APPEARANCE_UPDATE",
             Self::ScheduledEvent { kind, .. } => kind.dispatch_name(),
             Self::MemberJoined { .. } => "GUILD_MEMBER_ADD",
         }
@@ -207,6 +215,9 @@ impl SettingsEvent {
                 guild,
                 payload: entry,
             },
+            Self::AppearanceChanged { guild, payload } => {
+                DomainEvent::GuildAppearanceUpdated { guild, payload }
+            }
             Self::CommunityChanged { guild, payload } => {
                 DomainEvent::GuildUpdated { guild, payload }
             }
@@ -393,6 +404,16 @@ mod tests {
                     entry: p.clone(),
                 },
                 DomainEvent::AuditLogEntryCreated {
+                    guild: G,
+                    payload: p.clone(),
+                },
+            ),
+            (
+                SettingsEvent::AppearanceChanged {
+                    guild: G,
+                    payload: p.clone(),
+                },
+                DomainEvent::GuildAppearanceUpdated {
                     guild: G,
                     payload: p.clone(),
                 },
