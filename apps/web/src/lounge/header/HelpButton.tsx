@@ -5,7 +5,7 @@ import { useT } from '../../i18n';
 import { ShortcutSheet } from '../ShortcutSheet';
 import { useSupportEnabled } from '../shell/useSupportEnabled';
 
-/** Header "?" menu (LNG-CHN-018): the keyboard shortcut sheet, and the support page when the operator turned it on. */
+/** Header "?" menu (LNG-CHN-018): the keyboard shortcut sheet, and the public help page, and the support page when the operator turned it on. */
 export function HelpButton({ iconSize = 20 }: { iconSize?: ComponentProps<typeof Icon>['size'] }) {
   const t = useT();
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export function HelpButton({ iconSize = 20 }: { iconSize?: ComponentProps<typeof
         label={t('lounge.channelHeader.help')}
         items={[
           { label: t('lounge.helpMenu.shortcuts'), onSelect: () => setSheet(true) },
+          { label: t('lounge.helpMenu.help'), onSelect: () => void navigate({ to: '/help' }) },
           ...(supportOn
             ? [
                 {

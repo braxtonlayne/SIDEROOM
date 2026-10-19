@@ -20,4 +20,8 @@ export default {
   'support.page.signInBody':
     'The hosting bar, Patron and Server Levels are shown to signed-in members.',
   'support.page.signInLink': 'Sign in',
+  'support.page.needHelp': 'Need help?',
+  'support.page.helpLink': 'Read the help page',
+  // Header help menu (D-270): always offers the public help page.
+  'lounge.helpMenu.help': 'Help',
 } satisfies Record<string, string>;

@@ -89,7 +89,7 @@ function DefaultHouseNotes() {
   );
 }
 
-/** The few self-service answers, then "ask whoever invited you"; the Help part of the /support page. */
+/** The few self-service answers, then "ask whoever invited you"; the body of the /help page. */
 export function HelpSections() {
   const t = useT();
   return (
@@ -120,5 +120,19 @@ export function HelpSections() {
         </p>
       </section>
     </>
+  );
+}
+
+/** `/help` (D-270): the public help answers; `/support` is the donation page and only links here. */
+export function Help() {
+  const t = useT();
+  return (
+    <EntranceShell nav="member-access" footerRight="House notes">
+      <main className="ent-prose ent-notes">
+        <h1>{t('entrance.support.title')}</h1>
+        <p>{t('entrance.support.intro')}</p>
+        <HelpSections />
+      </main>
+    </EntranceShell>
   );
 }

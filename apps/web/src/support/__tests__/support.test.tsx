@@ -516,7 +516,7 @@ describe('/support page (DON-UI-001)', () => {
     return router;
   };
 
-  it('explains why to donate, shows the hosting bar, Patron, Server Levels, credits and the help answers', async () => {
+  it('explains why to donate, shows the hosting bar, Patron, Server Levels, credits and a link to the help page', async () => {
     supportApi();
     openPage();
     expect(await screen.findByRole('heading', { name: 'Support SIDE ROOM' })).toBeInTheDocument();
@@ -535,9 +535,12 @@ describe('/support page (DON-UI-001)', () => {
       'href',
       '/support/leaderboards',
     );
-    // The help answers the page used to be are still on it.
-    expect(screen.getByRole('heading', { name: 'Help' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument();
+    // The help answers moved to /help (D-270); the page ends with one link.
+    expect(screen.getByRole('link', { name: 'Read the help page' })).toHaveAttribute(
+      'href',
+      '/help',
+    );
+    expect(screen.queryByRole('heading', { name: 'I cannot sign in' })).toBeNull();
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
@@ -552,6 +555,6 @@ describe('/support page (DON-UI-001)', () => {
     );
     openPage();
     expect(await screen.findByText('Sign in to support SIDE ROOM')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Help' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Read the help page' })).toBeInTheDocument();
   });
 });

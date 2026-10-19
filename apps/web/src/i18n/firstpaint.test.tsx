@@ -35,6 +35,7 @@ describe('first paint with only the core catalog', () => {
     ['/reset/tok', 'Choose a new one.'],
     ['/no-invitation', 'No invitation?'],
     ['/house-notes', 'House notes'],
+    ['/help', 'Help'],
   ])('renders the entrance route %s without the rest catalog', async (path, heading) => {
     const { store } = await freshApp(path);
     expect(store.isRestLoaded()).toBe(false);
@@ -80,7 +81,7 @@ describe('first paint with only the core catalog', () => {
 
 describe('core paths', () => {
   it('lists the entrance and nothing app-like', () => {
-    for (const p of ['/', '/login', '/register', '/join/abc', '/reset/x']) {
+    for (const p of ['/', '/login', '/register', '/join/abc', '/reset/x', '/help']) {
       expect(isCorePath(p), p).toBe(true);
     }
     for (const p of [

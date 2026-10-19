@@ -7,7 +7,6 @@ import { Link } from '@tanstack/react-router';
 import { formatDate, useT } from '../i18n';
 import { useResource } from '../settings/user/api';
 import { Card, Loaded } from '../settings/user/parts';
-import { HelpSections } from '../routes/entrance/Static';
 import * as api from './api';
 import { usd, type DonationConfig } from './api';
 import { HostingBar, perkLines } from './SupportPanel';
@@ -141,11 +140,9 @@ export function SupportPage() {
           <p>
             <Link to="/support/leaderboards">{t('support.page.leaderboards')}</Link>
           </p>
-          <section aria-labelledby="sup-help-h" className="ent-prose ent-notes">
-            <h2 id="sup-help-h">{t('entrance.support.title')}</h2>
-            <p>{t('entrance.support.intro')}</p>
-            <HelpSections />
-          </section>
+          <p className="us-muted">
+            {t('support.page.needHelp')} <Link to="/help">{t('support.page.helpLink')}</Link>
+          </p>
         </main>
       </ToastProvider>
     </ThemeProvider>
