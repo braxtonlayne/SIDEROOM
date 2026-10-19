@@ -92,3 +92,8 @@ explain-hot-paths:
 # Scaffold a feature module (FTR-CORE-001): `just new-feature lounge.birthday_roles`
 new-feature id:
     bash scripts/new-feature.sh {{id}}
+
+# D-289: render the SVG sources of the starter sticker packs to PNG (packages/starter-packs/*/src -> stickers). Uses the
+# Playwright Chromium of the e2e package; `node scripts/render-stickers.mjs --check` is what CI runs.
+stickers:
+    node scripts/render-stickers.mjs
