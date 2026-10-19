@@ -19,6 +19,8 @@ Base `integration/phase16`. No migrations, no new routes, no OpenAPI change, no 
 `cargo test -j 2`: `-p sr-tv` (75 lib + 3 hls_sync), `-p sr-transcoder slate` (3), `-p sr-cli` (incl. `library_seed`, Postgres test with `--include-ignored` against a scratch DB, dropped afterwards), `-p sr-sdk` (41 lib + voice_e2ee 5 + voice_transport 5, default features). `cargo clippy -D warnings --all-targets` clean for sr-tv, sr-transcoder, sr-cli, sr-sdk; `clippy -p sr-server` clean; `cargo fmt --check` clean. Not run: the sr-api TV route tests and sr-server Postgres suites (the touched surface there is one `with_slate` call).
 
 ## Decisions / owner questions
+Answered 2026-10-19 as P16-BE-1 to P16-BE-4 in `docs/open-question-answers.md` (D-266 to D-269; follow-ups L-10 to L-15 in `docs/dev/answers-followups-p16.md`): the player plays the slate (`Tune.slate`), the 2^32 offset is replaced by chaining the slate into the channel's numbering, the SDK defaults stay, and `sr-cli tv slate` makes and registers the asset on the transcoder host.
+
 1. Should the web player play the slate while a channel is off air (needs `state` or a new `slate` flag in `Tune`, plus OpenAPI)? Default kept: no.
 2. Slate sequence numbers use a 2^32 offset so they stay above wall-clock-seeded programme numbers; returning to a programme drops back (a discontinuity precedes it). OK, or should programme seeding move above it?
 3. `voice-e2ee`/`voice-transport` are default features of `sr-sdk` now (per P15-DEV-5); bots that do not want openmls/str0m must use `default-features = false`.
