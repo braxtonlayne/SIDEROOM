@@ -968,3 +968,72 @@ async fn a_server_gets_a_theme_an_accent_colour_and_pack_items_it_can_take_back(
         PackageError::Conflict(_)
     ));
 }
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn the_sweep_removes_only_old_unreferenced_profile_pictures() {
+    use sr_packages::service::media::NewMedia;
+    let db = TestDb::new().await.unwrap();
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    let pool = db.pool().clone();
+    let svc = PackageService::new(pool.clone(), Arc::new(uid)).with_storage(storage.clone());
+    let me = account(&pool).await;
+
+    let mut pics = Vec::new();
+    for _ in 0..3 {
+        let id = svc.media_id();
+        let key = format!("avatars/{me}/{id:032x}");
+        storage
+            .put(&key, bytes::Bytes::from_static(b"png"))
+            .await
+            .unwrap();
+        svc.media_add(
+            me,
+            NewMedia {
+                id,
+                kind: "gallery".into(),
+                object_key: key.clone(),
+                content_type: "image/png".into(),
+                width: 64,
+                height: 64,
+                bytes: 3,
+            },
+        )
+        .await
+        .unwrap();
+        pics.push((id, key));
+    }
+    // The saved document names pics[0]; pics[0] and pics[1] are two days old, pics[2] is fresh.
+    let doc = json!({"version": 1, "style": {}, "blocks": [
+        {"id": "g", "type": "gallery", "x": 0, "y": 0, "w": 6, "h": 3,
+         "config": {"items": [{"image_id": pics[0].0.to_string()}]}}]});
+    sqlx::query("UPDATE accounts SET profile_doc = $2 WHERE id = $1")
+        .bind(me)
+        .bind(&doc)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE profile_media SET created_at = now() - interval '2 days' WHERE id = ANY($1)",
+    )
+    .bind([pics[0].0, pics[1].0].to_vec())
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(svc.sweep_unreferenced_media(24 * 3600, 100).await.unwrap(), 1);
+    assert!(storage.head(&pics[0].1).await.is_ok(), "referenced stays");
+    assert!(storage.head(&pics[1].1).await.is_err(), "old orphan goes");
+    assert!(storage.head(&pics[2].1).await.is_ok(), "fresh orphan stays");
+    let left: Vec<String> = svc
+        .media_list(me)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|m| m.id)
+        .collect();
+    assert_eq!(left.len(), 2);
+    // A second run finds nothing to do.
+    assert_eq!(svc.sweep_unreferenced_media(24 * 3600, 100).await.unwrap(), 0);
+    db.cleanup().await.unwrap();
+}

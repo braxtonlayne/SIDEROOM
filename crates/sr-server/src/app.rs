@@ -1437,6 +1437,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         storage.clone(),
         social_api.clone(),
         provider_client.clone(),
+        packages_deps.service.clone(),
     );
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
