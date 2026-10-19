@@ -345,6 +345,22 @@ describe('call controls', () => {
     expect(screen.queryByRole('complementary', { name: 'Text chat for General' })).toBeNull();
   });
 
+  it('keeps the secondary controls in a sheet opened from the bar (VOX-UI-016)', async () => {
+    const user = userEvent.setup();
+    const bar = await joined(user);
+    const toggle = within(bar).getByRole('button', { name: 'More call controls' });
+    const sheet = within(bar).getByRole('group', { name: 'Share, chat, activities and layout' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(sheet).not.toHaveAttribute('data-open');
+    expect(within(sheet).getByRole('button', { name: 'Text chat' })).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: 'Disconnect' })).not.toBe(sheet);
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(sheet).toHaveAttribute('data-open', 'true');
+    await user.keyboard('{Escape}');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('focus mode spotlights one tile and keeps the others in a strip', async () => {
     const user = userEvent.setup();
     await joined(user);
