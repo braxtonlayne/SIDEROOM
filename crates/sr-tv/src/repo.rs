@@ -7,7 +7,8 @@ use async_trait::async_trait;
 
 use crate::error::{TvError, TvResult};
 use crate::model::{
-    BlockRecord, BlockSource, ChannelInput, ChannelRecord, ImportRecord, ReminderRecord, SlotRecord,
+    BlockRecord, BlockSource, ChainAnchor, ChannelInput, ChannelRecord, ImportRecord,
+    ReminderRecord, SlotRecord,
 };
 use crate::schedule::Change;
 
@@ -49,8 +50,18 @@ pub trait TvRepository: Send + Sync {
     /// exists already (two requests extending the same schedule). Returns the rows written.
     async fn apply(&self, channel: i64, change: &Change, ignore_conflicts: bool)
     -> TvResult<usize>;
-    /// Record the HLS bases of a block unless it has them. Returns the stored pair.
-    async fn set_bases(&self, id: i64, seq_base: i64, disc_base: i64) -> TvResult<(i64, i64)>;
+    /// Record the HLS bases of a block unless it has them. Returns the stored pair. `on_air` is the number of
+    /// segments the block puts on the air: in the same transaction the chain anchor of the channel advances to
+    /// the end of the block (`seq_base + on_air`, `disc_base + 1`) when that is later than the anchor (D-285).
+    async fn set_bases(
+        &self,
+        id: i64,
+        seq_base: i64,
+        disc_base: i64,
+        on_air: i64,
+    ) -> TvResult<(i64, i64)>;
+    /// Overwrite the chain anchor (an edit moved the end of the anchoring block).
+    async fn set_anchor(&self, channel: i64, anchor: ChainAnchor) -> TvResult<()>;
 
     /// Store a reminder; setting it again replaces the earlier one.
     async fn put_reminder(&self, r: &ReminderRecord) -> TvResult<()>;
@@ -152,6 +163,7 @@ impl TvRepository for MemoryTvRepo {
             seed,
             created_at_ms: now_ms,
             updated_at_ms: now_ms,
+            chain: None,
         };
         s.channels.push(rec.clone());
         Ok(rec)
@@ -284,19 +296,45 @@ impl TvRepository for MemoryTvRepo {
         Ok(written)
     }
 
-    async fn set_bases(&self, id: i64, seq_base: i64, disc_base: i64) -> TvResult<(i64, i64)> {
+    async fn set_bases(
+        &self,
+        id: i64,
+        seq_base: i64,
+        disc_base: i64,
+        on_air: i64,
+    ) -> TvResult<(i64, i64)> {
         let mut s = self.lock();
         let b = s
             .blocks
             .iter_mut()
             .find(|b| b.id == id)
             .ok_or(TvError::NotFound("block"))?;
-        if let (Some(a), Some(d)) = (b.seq_base, b.disc_base) {
-            return Ok((a, d));
+        if b.seq_base.is_none() || b.disc_base.is_none() {
+            b.seq_base = Some(seq_base);
+            b.disc_base = Some(disc_base);
         }
-        b.seq_base = Some(seq_base);
-        b.disc_base = Some(disc_base);
-        Ok((seq_base, disc_base))
+        let seq = b.seq_base.unwrap_or(seq_base);
+        let disc = b.disc_base.unwrap_or(disc_base);
+        let (channel, end_ms) = (b.channel_id, b.end_ms);
+        if let Some(c) = s.channels.iter_mut().find(|c| c.id == channel)
+            && c.chain.is_none_or(|a| a.end_ms < end_ms)
+        {
+            c.chain = Some(ChainAnchor {
+                end_ms,
+                seq: seq + on_air,
+                disc: disc + 1,
+                block_id: id,
+            });
+        }
+        Ok((seq, disc))
+    }
+
+    async fn set_anchor(&self, channel: i64, anchor: ChainAnchor) -> TvResult<()> {
+        let mut s = self.lock();
+        if let Some(c) = s.channels.iter_mut().find(|c| c.id == channel) {
+            c.chain = Some(anchor);
+        }
+        Ok(())
     }
 
     async fn put_reminder(&self, r: &ReminderRecord) -> TvResult<()> {

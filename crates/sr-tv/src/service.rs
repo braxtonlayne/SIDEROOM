@@ -228,6 +228,10 @@ pub struct Report {
     pub items: Vec<ReportItem>,
 }
 
+/// What `lead_programme` finds: the programme before (when its numbers agree), the bases and start of the
+/// programme, and the end of the last programme before it (the slate is not listed from before that).
+type LeadInfo = (Option<LiveBlock>, i64, i64, i64, Option<i64>);
+
 pub struct TvService {
     repo: Arc<dyn TvRepository>,
     catalog: Arc<dyn TvCatalog>,
@@ -370,32 +374,122 @@ impl TvService {
         self.asset(id).await.ok()
     }
 
-    /// The last programme with media on `channel` that ended at or before `t_ms` (the one the slate counts on
-    /// from, D-267), with its asset; `None` when there is none within two weeks, when its numbering bases were
-    /// never assigned, or when its asset is gone (the slate is then seeded from the wall clock). The search
-    /// widens 1 hour, 1 day, 14 days; the answer does not depend on which stage found it.
-    async fn last_programme_before(&self, channel: i64, t_ms: i64) -> TvResult<Option<LiveBlock>> {
-        for span in [HOUR_MS, DAY_MS, 14 * DAY_MS] {
-            let found = self
-                .repo
-                .blocks_overlapping(&[channel], t_ms - span, t_ms)
-                .await?
-                .into_iter()
-                .filter(|b| b.kind.has_media() && b.asset_id.is_some() && b.end_ms <= t_ms)
-                .max_by_key(|b| b.end_ms);
-            let Some(block) = found else { continue };
-            let (Some(asset_id), Some(_), Some(_)) =
-                (block.asset_id, block.seq_base, block.disc_base)
-            else {
-                return Ok(None);
-            };
-            return match self.asset(asset_id).await {
-                Ok(asset) => Ok(Some(LiveBlock { block, asset })),
-                Err(TvError::OffAir) => Ok(None),
-                Err(e) => Err(e),
-            };
+    /// The anchoring programme with its asset (D-285), when it is still the block the anchor was taken from,
+    /// has bases and its asset is there; used to list its tail in the first window after its end.
+    async fn anchor_block(&self, a: &ChainAnchor) -> TvResult<Option<LiveBlock>> {
+        let Some(block) = self.repo.get_block(a.block_id).await? else {
+            return Ok(None);
+        };
+        let (Some(asset_id), Some(_), Some(_)) = (block.asset_id, block.seq_base, block.disc_base)
+        else {
+            return Ok(None);
+        };
+        if block.end_ms != a.end_ms {
+            return Ok(None);
         }
-        Ok(None)
+        match self.asset(asset_id).await {
+            Ok(asset) => Ok(Some(LiveBlock { block, asset })),
+            Err(TvError::OffAir) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Move the anchor to the new end of its block after a schedule edit that extended or shortened it
+    /// (D-285). A block that is gone, or whose asset is gone, leaves the anchor where it is.
+    async fn refresh_anchor(&self, channel: i64) -> TvResult<()> {
+        let Some(a) = self.repo.get_channel(channel).await?.and_then(|c| c.chain) else {
+            return Ok(());
+        };
+        let Some(block) = self.repo.get_block(a.block_id).await? else {
+            return Ok(());
+        };
+        let (Some(asset_id), Some(seq), Some(disc)) =
+            (block.asset_id, block.seq_base, block.disc_base)
+        else {
+            return Ok(());
+        };
+        if block.end_ms == a.end_ms {
+            return Ok(());
+        }
+        let Ok(asset) = self.asset(asset_id).await else {
+            return Ok(());
+        };
+        let next = ChainAnchor {
+            end_ms: block.end_ms,
+            seq: seq + live::on_air_count(&block, &asset),
+            disc: disc + 1,
+            block_id: a.block_id,
+        };
+        self.repo.set_anchor(channel, next).await
+    }
+
+    /// The anchor the slate counts on from at `now_ms`. An anchor that lies in the future (its programme was
+    /// cut short or removed while viewers were on it, and the slate plays now) is brought to `now_ms` with the
+    /// same numbers: everything issued so far is below them, so the slate carries on upward (D-285).
+    async fn slate_anchor(&self, channel: i64, now_ms: i64) -> TvResult<Option<ChainAnchor>> {
+        let Some(a) = self.repo.get_channel(channel).await?.and_then(|c| c.chain) else {
+            return Ok(None);
+        };
+        if a.end_ms <= now_ms {
+            return Ok(Some(a));
+        }
+        self.refresh_anchor(channel).await?;
+        let Some(a) = self.repo.get_channel(channel).await?.and_then(|c| c.chain) else {
+            return Ok(None);
+        };
+        if a.end_ms <= now_ms {
+            return Ok(Some(a));
+        }
+        // A full window of slate lies between the moved anchor and now, so no later window (for instance the
+        // one that lists the slate back from a following programme) starts before an earlier one.
+        let pad = match self.slate_asset().await {
+            Some(s) => live::slate_window_ms(&s),
+            None => 0,
+        };
+        let moved = ChainAnchor {
+            end_ms: now_ms - pad,
+            ..a
+        };
+        self.repo.set_anchor(channel, moved).await?;
+        Ok(Some(moved))
+    }
+
+    /// For a programme `c` that follows a gap: the programme before it when its numbers agree with the bases
+    /// of `c` (so its tail can be listed), else nothing; with `c`'s bases and start, from which the slate
+    /// before it is counted back (D-285). `None` when `c` has no bases.
+    async fn lead_programme(
+        &self,
+        channel: i64,
+        c: &BlockRecord,
+        slate: &PlaybackAsset,
+    ) -> TvResult<Option<LeadInfo>> {
+        let (Some(seq), Some(disc)) = (c.seq_base, c.disc_base) else {
+            return Ok(None);
+        };
+        let found = self
+            .repo
+            .blocks_overlapping(&[channel], c.start_ms - HOUR_MS, c.start_ms)
+            .await?
+            .into_iter()
+            .filter(|b| b.kind.has_media() && b.asset_id.is_some() && b.end_ms <= c.start_ms)
+            .max_by_key(|b| b.end_ms);
+        // The slate is not listed from before the last programme ended, whatever became of its asset.
+        let bound = found.as_ref().map(|b| b.end_ms);
+        if let Some(block) = found
+            && block.seq_base.is_some()
+            && block.disc_base.is_some()
+            && let Some(asset_id) = block.asset_id
+            && let Ok(asset) = self.asset(asset_id).await
+        {
+            let lb = LiveBlock { block, asset };
+            let agrees = live::SlateChain::after(&lb).is_some_and(|ch| {
+                live::slate_position(slate, Some(&ch), c.start_ms) == Some((seq - 1, disc - 1))
+            });
+            if agrees {
+                return Ok(Some((Some(lb), seq, disc, c.start_ms, bound)));
+            }
+        }
+        Ok(Some((None, seq, disc, c.start_ms, bound)))
     }
 
     pub fn presence(&self) -> &Arc<dyn Presence> {
@@ -809,10 +903,8 @@ impl TvService {
                 continue;
             }
             let start = blocks[n].block.start_ms;
-            let contiguous: bool;
             let pred: Option<(i64, i64)> = if n > 0 {
                 let p = &blocks[n - 1];
-                contiguous = p.block.end_ms == start;
                 match (p.block.seq_base, p.block.disc_base) {
                     (Some(s), Some(d)) if p.block.end_ms == start => {
                         Some((s + live::on_air_count(&p.block, &p.asset), d + 1))
@@ -826,7 +918,6 @@ impl TvService {
                     .await?
                     .into_iter()
                     .find(|p| p.end_ms == start && p.kind.has_media());
-                contiguous = found.is_some();
                 match found {
                     Some(p) => match (p.seq_base, p.disc_base, p.asset_id) {
                         (Some(s), Some(d), Some(a)) => {
@@ -839,12 +930,18 @@ impl TvService {
                 }
             };
             let seed = start / 1000;
+            // No chained predecessor (also a contiguous one that was never viewed): count on from the slate
+            // segment on air at the start when a slate is configured (D-285).
             let pred = match pred {
-                None if !contiguous => self.bases_from_slate(channel, start).await?,
+                None => self.bases_from_slate(channel, start).await?,
                 other => other,
             };
             let (seq, disc) = pred.unwrap_or((seed, seed));
-            let (seq, disc) = self.repo.set_bases(blocks[n].block.id, seq, disc).await?;
+            let on_air = live::on_air_count(&blocks[n].block, &blocks[n].asset);
+            let (seq, disc) = self
+                .repo
+                .set_bases(blocks[n].block.id, seq, disc, on_air)
+                .await?;
             blocks[n].block.seq_base = Some(seq);
             blocks[n].block.disc_base = Some(disc);
         }
@@ -857,8 +954,15 @@ impl TvService {
         let Some(slate) = self.slate_asset().await else {
             return Ok(None);
         };
-        let last = self.last_programme_before(channel, start_ms).await?;
-        let chain = last.as_ref().and_then(live::SlateChain::after);
+        let anchor = self
+            .repo
+            .get_channel(channel)
+            .await?
+            .and_then(|c| c.chain)
+            .filter(|a| a.end_ms <= start_ms);
+        let chain = anchor
+            .as_ref()
+            .map(|a| live::SlateChain::from_anchor(a, None));
         Ok(live::bases_after_slate(&slate, chain.as_ref(), start_ms))
     }
 
@@ -918,8 +1022,14 @@ impl TvService {
                 let slate = self.slate_asset().await.ok_or(TvError::OffAir)?;
                 self.presence.touch(id, viewer.user_id, now);
                 let signer = self.live_deps()?.signer.clone();
-                let last = self.last_programme_before(id, now).await?;
-                let chain = last.as_ref().and_then(live::SlateChain::after);
+                let anchor = self.slate_anchor(id, now).await?;
+                let prev = match &anchor {
+                    Some(a) if now - a.end_ms < LEAD_WINDOW_MS => self.anchor_block(a).await?,
+                    _ => None,
+                };
+                let chain = anchor
+                    .as_ref()
+                    .map(|a| live::SlateChain::from_anchor(a, prev.as_ref()));
                 return live::render_slate_media(
                     &slate,
                     track,
@@ -939,13 +1049,18 @@ impl TvService {
             [only] if now - only.block.start_ms < LEAD_WINDOW_MS => self.slate_asset().await,
             _ => None,
         };
-        let last = match (&slate, blocks.first()) {
-            (Some(_), Some(b)) => self.last_programme_before(id, b.block.start_ms).await?,
+        let before = match (&slate, blocks.first()) {
+            (Some(asset), Some(c)) => self.lead_programme(id, &c.block, asset).await?,
             _ => None,
         };
         let lead = slate.as_ref().map(|asset| live::SlateLead {
             asset,
-            chain: last.as_ref().and_then(live::SlateChain::after),
+            chain: before
+                .as_ref()
+                .map(|(prev, seq, disc, start, bound)| match prev {
+                    Some(p) => live::SlateChain::after(p).expect("bases checked"),
+                    None => live::SlateChain::before_programme(*start, *seq, *disc, *bound),
+                }),
         });
         live::render_media_with_lead(
             &blocks,
@@ -1142,6 +1257,7 @@ impl TvService {
                 false,
             )
             .await?;
+        self.refresh_anchor(id).await?;
         Ok(Published {
             from_ms: cut,
             to_ms: g.cursor.at_ms.max(to),
@@ -1187,6 +1303,7 @@ impl TvService {
         let mut new_id = || self.id();
         let change = place(&existing, rec.clone(), &mut new_id);
         self.repo.apply(rec.channel_id, &change, false).await?;
+        self.refresh_anchor(rec.channel_id).await?;
         Ok(rec.wire())
     }
 

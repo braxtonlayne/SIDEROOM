@@ -198,7 +198,9 @@ fn both_clients_see_the_discontinuity_at_the_programme_boundary() {
 
 use sr_tv::live::{
     SlateChain, SlateLead, bases_after_slate, render_media_with_lead, render_slate_media,
+    slate_position, slate_window_ms,
 };
+use sr_tv::model::ChainAnchor;
 use std::collections::HashMap;
 
 /// xorshift64, so the schedules are reproducible without a dependency.
@@ -263,8 +265,10 @@ fn entries(text: &str) -> Vec<Seg> {
 
 #[test]
 fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
+    const HOUR: i64 = 3_600_000;
+    const DAY: i64 = 24 * HOUR;
     let slate_id = 9999;
-    for case in 0..80_u64 {
+    for case in 0..150_u64 {
         let mut rng = Rng(0x9E37_79B9_7F4A_7C15 ^ (case + 1).wrapping_mul(0xD1B5_4A32_D192_ED03));
         for _ in 0..4 {
             rng.next();
@@ -275,13 +279,24 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
         let seg_ms = (slate_secs * 1000.0) as i64;
         let n_slate = slate.media.videos[0].segments.len() as i64;
         let cycle_ms = seg_ms * n_slate;
-        // Programmes with gaps (some none: contiguous), cut and offset at random, from a start that is
-        // not aligned to anything.
+        // Programmes with gaps (some none: contiguous; some longer than 14 days), cut and offset at random,
+        // from a start that is not aligned to anything. Some are never viewed (nobody samples inside them) and
+        // some lose their asset while (or before) they air.
         let t0 = 1_700_000_000_000 + rng.range(0, 999_999);
         let mut cursor = t0;
-        let mut live: Vec<LiveBlock> = Vec::new();
-        for id in 1..=rng.range(3, 6) {
-            cursor += [0, 0, rng.range(1, 90_000)][rng.range(0, 2) as usize];
+        let mut proto: Vec<LiveBlock> = Vec::new();
+        let mut unviewed: Vec<bool> = Vec::new();
+        let mut gone_at: Vec<Option<i64>> = Vec::new();
+        for id in 1..=rng.range(4, 8) {
+            let gap = match rng.range(0, 5) {
+                0 | 1 => 0,
+                2 | 3 => rng.range(1, 90_000),
+                4 => rng.range(2 * HOUR, 3 * DAY),
+                _ => rng.range(15 * DAY, 40 * DAY),
+            };
+            // A block after one that loses its asset is not contiguous with it (the service would not play it).
+            let after_gone = gone_at.last().is_some_and(Option::is_some);
+            cursor += if after_gone { gap.max(1_000) } else { gap };
             let seg = [2.0, 4.0, 6.0][rng.range(0, 2) as usize];
             let len = rng.range(20, 240) * 1000;
             let offset = rng.range(0, 40) * 1000;
@@ -291,47 +306,137 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
             b.block.offset_ms = offset;
             b.block.seq_base = None;
             b.block.disc_base = None;
-            live.push(b);
+            proto.push(b);
+            unviewed.push(rng.range(0, 4) == 0);
+            gone_at.push(match rng.range(0, 6) {
+                0 => Some(cursor - rng.range(1, 3 * DAY)),
+                1 => Some(cursor + rng.range(0, len)),
+                _ => None,
+            });
             cursor += len;
-        }
-        // Bases as the service assigns them: from the contiguous programme before, else from the slate
-        // segment on air at the start (itself counting on from the last programme before the gap).
-        for i in 0..live.len() {
-            let (seq, disc) = match i.checked_sub(1).map(|p| &live[p]) {
-                Some(p) if p.block.end_ms == live[i].block.start_ms => (
-                    p.block.seq_base.unwrap() + on_air_count(&p.block, &p.asset),
-                    p.block.disc_base.unwrap() + 1,
-                ),
-                prev => {
-                    let chain = prev.and_then(SlateChain::after);
-                    bases_after_slate(&slate, chain.as_ref(), live[i].block.start_ms).unwrap()
-                }
-            };
-            live[i].block.seq_base = Some(seq);
-            live[i].block.disc_base = Some(disc);
         }
         let t_end = cursor + 60_000;
         for track in [Track::Video(720), Track::Video(480), Track::Audio] {
+            // The channel as the service keeps it: bases per block, assigned when first viewed (and the block
+            // before a viewed one, when contiguous), and the chain anchor.
+            let mut live = proto.clone();
+            let mut anchor: Option<ChainAnchor> = None;
+            let gone = |i: usize, t: i64| gone_at[i].is_some_and(|g| g <= t);
+            // Give block `i` its bases. Returns false when the block cannot be played.
+            let assign =
+                |live: &mut Vec<LiveBlock>, anchor: &mut Option<ChainAnchor>, i: usize, t: i64| {
+                    fn go(
+                        live: &mut Vec<LiveBlock>,
+                        anchor: &mut Option<ChainAnchor>,
+                        slate: &PlaybackAsset,
+                        i: usize,
+                        gone: &dyn Fn(usize, i64) -> bool,
+                        t: i64,
+                    ) {
+                        if live[i].block.seq_base.is_some() {
+                            return;
+                        }
+                        let start = live[i].block.start_ms;
+                        let contiguous_pred =
+                            i > 0 && live[i - 1].block.end_ms == start && !gone(i - 1, t);
+                        if contiguous_pred {
+                            go(live, anchor, slate, i - 1, gone, t);
+                        }
+                        let chained = contiguous_pred
+                            .then(|| {
+                                let p = &live[i - 1];
+                                Some((
+                                    p.block.seq_base? + on_air_count(&p.block, &p.asset),
+                                    p.block.disc_base? + 1,
+                                ))
+                            })
+                            .flatten();
+                        let (seq, disc) = chained.unwrap_or_else(|| {
+                            let chain = anchor
+                                .filter(|a| a.end_ms <= start)
+                                .map(|a| SlateChain::from_anchor(&a, None));
+                            bases_after_slate(slate, chain.as_ref(), start).unwrap()
+                        });
+                        live[i].block.seq_base = Some(seq);
+                        live[i].block.disc_base = Some(disc);
+                        let end = live[i].block.end_ms;
+                        if anchor.is_none_or(|a| a.end_ms < end) {
+                            *anchor = Some(ChainAnchor {
+                                end_ms: end,
+                                seq: seq + on_air_count(&live[i].block, &live[i].asset),
+                                disc: disc + 1,
+                                block_id: live[i].block.id,
+                            });
+                        }
+                    }
+                    go(live, anchor, &slate, i, &gone, t);
+                };
             // Every number maps to one segment and one discontinuity counter, whoever asks and when.
             let mut seen: HashMap<i64, (i64, String, String)> = HashMap::new();
             let (mut last_head, mut last_disc, mut last_edge) = (i64::MIN, i64::MIN, i64::MIN);
+            let mut last_text = String::new();
             let mut t = t0 - 5_000;
             while t < t_end {
+                // Long gaps: look at their start and their end, not at the middle.
+                if let Some(next) = live.iter().map(|b| b.block.start_ms).find(|s| *s > t)
+                    && next - t > 200_000
+                    && live.iter().all(|b| !b.block.contains(t))
+                    && t - live
+                        .iter()
+                        .map(|b| b.block.end_ms)
+                        .filter(|e| *e <= t)
+                        .max()
+                        .unwrap_or(t0)
+                        > 60_000
+                {
+                    t = next - 60_000;
+                }
                 let cur = live.iter().position(|b| b.block.contains(t));
-                let (text, expect): (String, (String, String)) = match cur {
+                let playable = cur.filter(|c| !gone(*c, t));
+                if let Some(c) = cur
+                    && playable.is_some()
+                    && unviewed[c]
+                {
+                    t += rng.range(400, 3_500);
+                    continue;
+                }
+                let (text, expect): (String, (String, String)) = match playable {
                     Some(c) => {
+                        assign(&mut live, &mut anchor, c, t);
                         let mut blocks = Vec::new();
                         if c > 0 && live[c - 1].block.end_ms == live[c].block.start_ms {
                             blocks.push(live[c - 1].clone());
                         }
                         blocks.push(live[c].clone());
-                        let last = c
-                            .checked_sub(1)
-                            .map(|p| &live[p])
-                            .filter(|p| p.block.end_ms <= live[c].block.start_ms);
+                        // The slate before a young programme, as the service finds it.
+                        let cb = &live[c];
+                        let (seq, disc) = (cb.block.seq_base.unwrap(), cb.block.disc_base.unwrap());
+                        let start = cb.block.start_ms;
+                        let found = live
+                            .iter()
+                            .enumerate()
+                            .filter(|(i, b)| {
+                                *i != c && b.block.end_ms <= start && b.block.end_ms > start - HOUR
+                            })
+                            .max_by_key(|(_, b)| b.block.end_ms)
+                            .map(|(i, b)| (i, b.clone()));
+                        let bound = found.as_ref().map(|(_, b)| b.block.end_ms);
+                        let prev = found
+                            .filter(|(i, b)| !gone(*i, t) && b.block.seq_base.is_some())
+                            .map(|(_, b)| b)
+                            .filter(|b| {
+                                SlateChain::after(b).is_some_and(|ch| {
+                                    slate_position(&slate, Some(&ch), start)
+                                        == Some((seq - 1, disc - 1))
+                                })
+                            });
+                        let chain = match &prev {
+                            Some(p) => SlateChain::after(p).unwrap(),
+                            None => SlateChain::before_programme(start, seq, disc, bound),
+                        };
                         let lead = SlateLead {
                             asset: &slate,
-                            chain: last.and_then(SlateChain::after),
+                            chain: Some(chain),
                         };
                         let text = render_media_with_lead(&blocks, track, t, Some(&lead), &Sig, 0)
                             .unwrap();
@@ -342,8 +447,25 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
                         (text, (b.asset.id.to_string(), format!("seg_{k:05}.m4s")))
                     }
                     None => {
-                        let last = live.iter().rfind(|b| b.block.end_ms <= t);
-                        let chain = last.and_then(SlateChain::after);
+                        // The slate counts on from the stored anchor; one in the future (its programme was cut
+                        // short or lost its asset while on air) is brought to now with the same numbers.
+                        if let Some(a) = anchor
+                            && a.end_ms > t
+                        {
+                            let pad = slate_window_ms(&slate);
+                            anchor = Some(ChainAnchor {
+                                end_ms: t - pad,
+                                ..a
+                            });
+                        }
+                        let tail = anchor.and_then(|a| {
+                            let i = live.iter().position(|b| b.block.id == a.block_id)?;
+                            (!gone(i, t)
+                                && live[i].block.end_ms == a.end_ms
+                                && t - a.end_ms < 120_000)
+                                .then(|| live[i].clone())
+                        });
+                        let chain = anchor.map(|a| SlateChain::from_anchor(&a, tail.as_ref()));
                         let text =
                             render_slate_media(&slate, track, t, chain.as_ref(), &Sig, 0).unwrap();
                         let g = (t % cycle_ms) / seg_ms;
@@ -360,7 +482,22 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
                 let (head, disc, edge) = (es[0].0, es[0].1, es.last().unwrap().0);
                 assert!(
                     head >= last_head,
-                    "{ctx}: media sequence {head} < {last_head}\n{text}"
+                    "{ctx}: media sequence {head} < {last_head}
+{text}
+PREVIOUS:
+{last_text}
+ANCHOR {anchor:?}
+BLOCKS {:?}
+GONE {gone_at:?} UNVIEWED {unviewed:?}",
+                    live.iter()
+                        .map(|b| (
+                            b.block.id,
+                            b.block.start_ms - t0,
+                            b.block.end_ms - t0,
+                            b.block.seq_base,
+                            b.block.disc_base
+                        ))
+                        .collect::<Vec<_>>()
                 );
                 assert!(
                     disc >= last_disc,
@@ -377,6 +514,7 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
                     );
                 }
                 (last_head, last_disc, last_edge) = (head, disc, edge);
+                last_text = text.clone();
                 t += rng.range(400, 3_500);
             }
         }

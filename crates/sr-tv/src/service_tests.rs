@@ -658,7 +658,12 @@ async fn an_off_air_channel_shows_the_slate_instead_of_404() {
 
 /// The service with a slate (asset 9999: three 2 s segments) next to the programme assets of `env`.
 fn with_slate(e: &Env) -> TvService {
-    let source = MemoryPlaybackSource::new();
+    with_slate_source(e).0
+}
+
+/// [`with_slate`] and its playback source, so a test can take an asset away.
+fn with_slate_source(e: &Env) -> (TvService, Arc<MemoryPlaybackSource>) {
+    let source = Arc::new(MemoryPlaybackSource::new());
     for n in 1..=40 {
         source.insert(asset(7100 + n, 300));
     }
@@ -675,17 +680,18 @@ fn with_slate(e: &Env) -> TvService {
     }
     source.insert(slate);
     let next = Arc::new(AtomicI64::new(50_000));
-    TvService::new(
+    let svc = TvService::new(
         e.repo.clone(),
         Arc::new(e.catalog.clone()),
         e.clock.clone(),
         Arc::new(move || next.fetch_add(1, Ordering::SeqCst)),
     )
     .with_live(LiveDeps {
-        source: Arc::new(source),
+        source: source.clone(),
         signer: Arc::new(Sig),
     })
-    .with_slate(9999)
+    .with_slate(9999);
+    (svc, source)
 }
 
 fn header_of(text: &str, name: &str) -> i64 {
@@ -820,6 +826,128 @@ async fn a_slate_setting_is_followed_without_a_restart() {
     *setting.0.lock().unwrap() = None;
     e.clock.advance_ms(crate::service::SLATE_REFRESH_MS + 1);
     assert!(!svc.tune(MEMBER, id).await.unwrap().slate);
+}
+
+async fn manual_channel(e: &Env, number: i32) -> i64 {
+    let mut manual = input(number, ChannelRules::default());
+    manual.kind = ChannelKind::Manual;
+    e.svc.create_channel(e.staff, manual).await.unwrap().id
+}
+
+async fn place(e: &Env, id: i64, episode: i64, start: i64, end: Option<i64>) {
+    let input = PlaceInput {
+        title_id: 7,
+        episode_id: Some(episode),
+        start_ms: start,
+        end_ms: end,
+    };
+    e.svc.place_block(e.staff, id, input).await.unwrap();
+}
+
+async fn anchor_of(e: &Env, id: i64) -> Option<ChainAnchor> {
+    e.repo.get_channel(id).await.unwrap().unwrap().chain
+}
+
+#[tokio::test]
+async fn the_chain_anchor_follows_viewed_programmes_and_never_moves_back() {
+    let e = env();
+    let svc = with_slate(&e);
+    let id = manual_channel(&e, 320).await;
+    let t = utc(2025, 6, 2, 20, 0);
+    place(&e, id, 7101, t, None).await;
+    place(&e, id, 7102, t + 40 * MIN, None).await;
+    assert_eq!(anchor_of(&e, id).await, None, "nothing viewed yet");
+
+    // 20:01: A is viewed; the anchor is its end with the numbers after its last segment.
+    e.clock.advance_ms(MIN);
+    let a = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    let a_base = header_of(&a, "#EXT-X-MEDIA-SEQUENCE:") - 5;
+    let first = anchor_of(&e, id).await.unwrap();
+    assert_eq!(first.end_ms, t + 30 * MIN);
+    assert_eq!(first.seq, a_base + 300);
+    // Viewing A again, or the slate after it, does not move it.
+    svc.live_media(ADULT, id, Track::Video(720)).await.unwrap();
+    e.clock.advance_ms(30 * MIN);
+    svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    assert_eq!(anchor_of(&e, id).await, Some(first));
+
+    // 20:41: B is viewed; it counts on from the slate on air at 20:40, and the anchor moves to its end.
+    e.clock.advance_ms(10 * MIN);
+    svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    let second = anchor_of(&e, id).await.unwrap();
+    assert_eq!(second.end_ms, t + 70 * MIN);
+    assert_eq!(second.seq, a_base + 300 + 300 + 1 + 300);
+    assert!(second.disc > first.disc);
+}
+
+#[tokio::test]
+async fn an_edit_that_shortens_the_anchoring_programme_rewrites_the_anchor() {
+    let e = env();
+    let svc = with_slate(&e);
+    let id = manual_channel(&e, 321).await;
+    let t = utc(2025, 6, 2, 20, 0);
+    place(&e, id, 7101, t, None).await;
+    e.clock.advance_ms(MIN);
+    let a = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    let a_base = header_of(&a, "#EXT-X-MEDIA-SEQUENCE:") - 5;
+    assert_eq!(anchor_of(&e, id).await.unwrap().end_ms, t + 30 * MIN);
+    // Another programme laid over the second half cuts A at 20:15: 150 segments on air.
+    place(&e, id, 7102, t + 15 * MIN, None).await;
+    let cut = anchor_of(&e, id).await.unwrap();
+    assert_eq!(cut.end_ms, t + 15 * MIN);
+    assert_eq!(cut.seq, a_base + 150);
+}
+
+#[tokio::test]
+async fn the_slate_keeps_counting_when_the_asset_of_the_last_programme_is_gone() {
+    let e = env();
+    let (svc, source) = with_slate_source(&e);
+    let id = manual_channel(&e, 322).await;
+    let t = utc(2025, 6, 2, 20, 0);
+    place(&e, id, 7101, t, None).await;
+    e.clock.advance_ms(MIN);
+    svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    e.clock.advance_ms(29 * MIN + 1_000);
+    let edge = |text: &str| {
+        let head = header_of(text, "#EXT-X-MEDIA-SEQUENCE:");
+        head + text.lines().filter(|l| l.starts_with("/cdn/hls/")).count() as i64 - 1
+    };
+    let before = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    source.remove(7101);
+    e.clock.advance_ms(6_000);
+    let after = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    assert_eq!(edge(&after) - edge(&before), 3, "three slate segments on");
+    assert!(
+        !after.contains("/cdn/hls/7101/"),
+        "no tail without the asset"
+    );
+    // Days later (far past any search window) it still counts on from the same place.
+    e.clock.advance_ms(20 * 24 * 60 * MIN);
+    let much_later = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    assert!(edge(&much_later) > edge(&after));
+    assert!(
+        header_of(&much_later, "#EXT-X-MEDIA-SEQUENCE:")
+            > header_of(&before, "#EXT-X-MEDIA-SEQUENCE:")
+    );
+}
+
+#[tokio::test]
+async fn a_programme_whose_predecessor_was_never_viewed_counts_on_from_the_slate() {
+    let e = env();
+    let svc = with_slate(&e);
+    let id = manual_channel(&e, 323).await;
+    let t = utc(2025, 6, 2, 20, 0);
+    place(&e, id, 7101, t, None).await;
+    // B starts exactly when A ends; nobody watched A.
+    place(&e, id, 7102, t + 30 * MIN, None).await;
+    e.clock.advance_ms(31 * MIN);
+    let b = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    // A was loaded as the programme before B and numbered from the slate (no anchor yet: the slate's own
+    // count since the epoch), B follows A. Nothing is seconds-seeded: the numbers are far below it.
+    let head = header_of(&b, "#EXT-X-MEDIA-SEQUENCE:");
+    assert!(head < t / 1000, "slate-seeded, not seconds-seeded: {head}");
+    let a = anchor_of(&e, id).await.unwrap();
+    assert_eq!(a.end_ms, t + 60 * MIN);
 }
 
 // ---- reminders (G-10) ------------------------------------------------------------------------

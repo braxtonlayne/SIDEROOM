@@ -14,16 +14,18 @@
 //!
 //! - A block stores `seq_base` (the number of its first on-air segment) and `disc_base` (its discontinuity
 //!   counter). Chained from the block right before it (`seq_base + segments on air`, `disc_base + 1`).
-//! - With no contiguous predecessor and a slate configured, a block chains from the slate segment on air at
-//!   its start (that segment's number + 1, discontinuity + 1). The slate, in turn, counts on from the last
-//!   programme with media that ended before it ([`SlateChain`]): the slate segment on air at that end is
-//!   last + 1 with discontinuity sequence + 1, each later segment adds one, each wrap of the loop one
-//!   discontinuity.
-//! - Only where there is nothing to chain from (no slate, or no earlier programme on the channel) the number
-//!   is seeded (a programme from the wall clock in seconds, the slate from its own segment and loop count since
-//!   the epoch, which grow by exactly one). Seconds only grow and a segment lasts at least a second, so a
-//!   chained number stays below a later seed of a programme; the slate seed matters only on a channel that
-//!   never aired a programme within two weeks.
+//! - With no chained predecessor (none, or a contiguous one that was never viewed) and a slate configured, a block
+//!   chains from the slate segment on air at its start (that segment's number + 1, discontinuity + 1).
+//! - The slate counts on from the per-channel **chain anchor** (D-285, `tv_channels.chain_*`): the end of the last
+//!   viewed programme, with the numbers of the segment on air then ([`SlateChain`]). The repository advances it
+//!   whenever a block gets its bases and the block ends later than the anchor, never moves it back, and a
+//!   schedule edit that moves the end of the anchoring block rewrites it. The slate segment on air at the anchor
+//!   end carries the anchor numbers, each later segment adds one, each wrap of the loop one discontinuity. A
+//!   gap of any length, a removed asset or a never-viewed block change nothing: the numbers are monotone in
+//!   wall time for every viewer.
+//! - Only a channel with no anchor yet seeds: the slate from its own global segment index and loop pass since the
+//!   epoch (they grow by exactly one, as a window lists consecutive numbers), a programme without a slate from
+//!   the wall clock in seconds.
 //!
 //! Programme boundaries, on either side of a slate too, carry `#EXT-X-DISCONTINUITY`, a new `#EXT-X-MAP` and
 //! a `#EXT-X-PROGRAM-DATE-TIME`; the window lists both sides of a boundary while it is young
@@ -36,7 +38,7 @@ use sr_media::playlist::{
     AudioVariant, MediaSet, PlaylistConfig, Segment, UrlSigner, VideoVariant, render_master,
 };
 
-use crate::model::BlockRecord;
+use crate::model::{BlockRecord, ChainAnchor};
 use crate::tz::{MS_DAY, civil_from_days};
 
 /// Segments in a media playlist (spec section 5: "e.g. 6").
@@ -308,9 +310,10 @@ impl<'a> SlateLoop<'a> {
     }
 }
 
-/// Where the slate's numbering starts (D-267): the last programme with media that ended before the gap.
-/// The slate segment on air at that programme's end is numbered one above its last segment, with the
-/// discontinuity sequence one above its own; every later slate segment counts on from there.
+/// Where the slate's numbering starts (D-267, D-285): the end of the last viewed programme of the channel (the
+/// stored chain anchor). The slate segment on air at that end carries `seq` and `disc` (the programme's last
+/// media sequence + 1, its discontinuity counter + 1); every later slate segment adds one, each wrap of the loop
+/// one discontinuity.
 #[derive(Debug, Clone, Copy)]
 pub struct SlateChain<'a> {
     /// When the programme ended (ms).
@@ -318,18 +321,59 @@ pub struct SlateChain<'a> {
     seq: i64,
     disc: i64,
     /// The programme, so a window just after the boundary can list its tail.
-    prev: &'a LiveBlock,
+    prev: Option<&'a LiveBlock>,
+    /// The numbers also hold before `end_ms` (a chain counted back from a programme that follows the slate).
+    unbounded: bool,
+    /// For an unbounded chain: the slate is not listed from before this time (the end of the programme before).
+    lower_ms: Option<i64>,
 }
 
 impl<'a> SlateChain<'a> {
+    /// The chain stored for a channel; `prev` is the anchoring block when its asset is still there.
+    pub fn from_anchor(a: &ChainAnchor, prev: Option<&'a LiveBlock>) -> Self {
+        Self {
+            end_ms: a.end_ms,
+            seq: a.seq,
+            disc: a.disc,
+            prev,
+            unbounded: false,
+            lower_ms: None,
+        }
+    }
+
     /// The chain after `last`, or `None` when its numbering bases were never assigned.
     pub fn after(last: &'a LiveBlock) -> Option<Self> {
         Some(Self {
             end_ms: last.block.end_ms,
             seq: last.block.seq_base? + on_air_count(&last.block, &last.asset),
             disc: last.block.disc_base? + 1,
-            prev: last,
+            prev: Some(last),
+            unbounded: false,
+            lower_ms: None,
         })
+    }
+
+    /// The chain of the slate before a programme that starts at `start_ms` with bases `seq_base` and `disc_base`
+    /// taken from the slate segment on air then: counted back, so it needs no stored anchor.
+    pub fn before_programme(
+        start_ms: i64,
+        seq_base: i64,
+        disc_base: i64,
+        lower_ms: Option<i64>,
+    ) -> Self {
+        Self {
+            end_ms: start_ms,
+            seq: seq_base - 1,
+            disc: disc_base - 1,
+            prev: None,
+            unbounded: true,
+            lower_ms,
+        }
+    }
+
+    /// The chain numbers `(seq, disc)` of the slate segment on air at `t_ms` for the slate `asset`.
+    pub fn position(&self, asset: &PlaybackAsset, t_ms: i64) -> Option<(i64, i64)> {
+        slate_position(asset, Some(self), t_ms)
     }
 }
 
@@ -352,6 +396,19 @@ pub fn slate_position(
     Some(sl.numbering(chain, sl.index_at(t_ms)))
 }
 
+/// How long the window of a slate takes: the longest segment of its loop times [`WINDOW_SEGMENTS`] (ms).
+pub fn slate_window_ms(asset: &PlaybackAsset) -> i64 {
+    SlateLoop::lowest(asset).map_or(0, |sl| {
+        let longest = sl
+            .segs
+            .iter()
+            .map(|s| (s.duration_secs * 1000.0).ceil() as i64)
+            .max()
+            .unwrap_or(0);
+        longest * WINDOW_SEGMENTS as i64
+    })
+}
+
 /// The numbering bases (`seq_base`, `disc_base`) of a programme starting at `start_ms` with no programme
 /// right before it, chained from the slate segment on air at that moment (D-267): that segment's numbers + 1.
 pub fn bases_after_slate(
@@ -372,12 +429,22 @@ fn slate_entries<'a>(
     g: i64,
 ) -> Vec<Entry<'a>> {
     let floor = (g - (WINDOW_SEGMENTS as i64 - 1)).max(0);
-    let g0 = chain.map(|c| sl.index_at(c.end_ms));
+    let g0 = chain
+        .and_then(|c| {
+            if c.unbounded {
+                c.lower_ms
+            } else {
+                Some(c.end_ms)
+            }
+        })
+        .map(|ms| sl.index_at(ms));
     let lo = g0.map_or(floor, |g0| g0.max(floor));
     let mut out = Vec::new();
     if let (Some(c), Some(g0)) = (chain, g0)
+        && !c.unbounded
         && lo == g0
-        && let Some(tail) = block_entries(c.prev, track, None)
+        && let Some(prev) = c.prev
+        && let Some(tail) = block_entries(prev, track, None)
     {
         out.extend(tail);
     }
@@ -986,6 +1053,34 @@ pub(crate) mod tests {
         let text = render_media(&[c], Track::Video(720), 65_000, &Sig, 0).unwrap();
         assert_eq!(seqs(&text).0, 64);
         assert_eq!(disc_tags(&text), 0);
+    }
+
+    #[test]
+    fn a_stored_anchor_numbers_like_the_programme_it_was_taken_from() {
+        let b = lb(1, 0, 60_000, 0, 100, 4, 10);
+        let anchor = ChainAnchor {
+            end_ms: 60_000,
+            seq: 110,
+            disc: 5,
+            block_id: 1,
+        };
+        let s = slate();
+        let from_block = SlateChain::after(&b).unwrap();
+        let from_anchor = SlateChain::from_anchor(&anchor, Some(&b));
+        for t in [60_000, 64_000, 70_000, 80_000, 5_000_000] {
+            let (x, y) = (
+                render_slate_media(&s, Track::Video(720), t, Some(&from_block), &Sig, 0),
+                render_slate_media(&s, Track::Video(720), t, Some(&from_anchor), &Sig, 0),
+            );
+            assert_eq!(x, y, "t={t}");
+        }
+        // Without the programme (its asset is gone) the numbers are the same, only the tail is missing.
+        let bare = SlateChain::from_anchor(&anchor, None);
+        let text = render_slate_media(&s, Track::Video(720), 70_000, Some(&bare), &Sig, 0).unwrap();
+        assert_eq!(seqs(&text).0, 110);
+        assert!(!text.contains("/cdn/hls/100/"));
+        // No anchor at all: the slate seeds from its own count since the epoch.
+        assert_eq!(slate_position(&s, None, 64_000), Some((32, 10)));
     }
 
     #[test]
