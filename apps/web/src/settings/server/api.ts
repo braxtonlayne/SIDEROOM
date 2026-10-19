@@ -425,6 +425,11 @@ export const modifyStickerReq = (
 ) => send<StickerObject>(`/guilds/${g}/stickers/${id}`, 'PATCH', body);
 export const deleteSticker = (g: string, id: string) =>
   send<void>(`/guilds/${g}/stickers/${id}`, 'DELETE');
+/** Whether the server hides the default sticker packs from its picker (D-289). */
+export const getDefaultStickers = (g: string) =>
+  apiFetch<{ hidden: boolean }>(`/guilds/${g}/default-sticker-packs`, { retries: 0 });
+export const setDefaultStickers = (g: string, hidden: boolean) =>
+  send<{ hidden: boolean }>(`/guilds/${g}/default-sticker-packs`, 'PUT', { hidden });
 
 /** Slot limits are operator-configured and not exposed by the API: these are the sr-chat defaults. */
 export const EXPRESSION_DEFAULTS = {

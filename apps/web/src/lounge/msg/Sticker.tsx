@@ -9,13 +9,19 @@ import { useAnimatedSrc } from './staticFrame';
 const cache = new Map<string, Promise<string | null>>();
 
 /** Signed CDN URL of a guild sticker (cached for the session; null when it cannot be resolved). */
-export function stickerUrl(guildId: string, id: string): Promise<string | null> {
-  const key = `${guildId}:${id}`;
+export function stickerUrl(guildId: string | undefined, id: string): Promise<string | null> {
+  const key = `${guildId ?? ''}:${id}`;
   let p = cache.get(key);
   if (!p) {
-    p = apiFetch<{ url: string }>(`/guilds/${guildId}/stickers/${id}/url?size=256`, {
-      retries: 0,
-    })
+    // A guild's own sticker, else a default-pack sticker (platform sticker, no server of its own, D-289).
+    p = (
+      guildId
+        ? apiFetch<{ url: string }>(`/guilds/${guildId}/stickers/${id}/url?size=256`, {
+            retries: 0,
+          })
+        : Promise.reject(new Error('no server'))
+    )
+      .catch(() => apiFetch<{ url: string }>(`/stickers/${id}/url?size=256`, { retries: 0 }))
       .then((r) => r.url)
       .catch(() => {
         cache.delete(key);
@@ -43,7 +49,7 @@ export function Sticker({
   const shown = useAnimatedSrc(url, useSavedPrefs().stickerAnimation, active);
   useEffect(() => {
     let live = true;
-    if (guildId) void stickerUrl(guildId, sticker.id).then((u) => live && setUrl(u));
+    void stickerUrl(guildId, sticker.id).then((u) => live && setUrl(u));
     return () => {
       live = false;
     };

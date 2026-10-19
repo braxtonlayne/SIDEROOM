@@ -677,6 +677,35 @@ impl ExpressionRepository for PgSettingsRepo {
             .map_err(db)?;
         Ok(r.rows_affected() > 0)
     }
+
+    async fn default_stickers_hidden(&self, guild: GuildId) -> RepoResult<bool> {
+        let hidden: Option<bool> = sqlx::query_scalar(
+            "SELECT hide_default_packs FROM guild_sticker_settings WHERE guild_id = $1",
+        )
+        .bind(i(guild.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(hidden.unwrap_or(false))
+    }
+
+    async fn set_default_stickers_hidden(
+        &self,
+        guild: GuildId,
+        hidden: bool,
+        by: UserId,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_sticker_settings (guild_id, hide_default_packs, updated_by) VALUES ($1, $2, $3) \n             ON CONFLICT (guild_id) DO UPDATE SET hide_default_packs = $2, updated_by = $3, updated_at = now()",
+        )
+        .bind(i(guild.get()))
+        .bind(hidden)
+        .bind(i(by.get()))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
 }
 
 async fn set_emoji_roles(

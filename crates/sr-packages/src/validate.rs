@@ -567,7 +567,10 @@ fn check_item_text(kind: PackageKind, it: &PackItem, errs: &mut Vec<String>) {
         return;
     }
     if kind != PackageKind::StickerPack {
-        errs.push(format!("{}: description and tags are for stickers", it.name));
+        errs.push(format!(
+            "{}: description and tags are for stickers",
+            it.name
+        ));
         return;
     }
     if let Some(d) = &it.description
@@ -577,7 +580,10 @@ fn check_item_text(kind: PackageKind, it: &PackItem, errs: &mut Vec<String>) {
     }
     let joined = it.tags.join(", ");
     if it.tags.len() > 10
-        || it.tags.iter().any(|t| !(1..=30).contains(&t.chars().count()))
+        || it
+            .tags
+            .iter()
+            .any(|t| !(1..=30).contains(&t.chars().count()))
         || joined.chars().count() > 200
     {
         errs.push(format!(
