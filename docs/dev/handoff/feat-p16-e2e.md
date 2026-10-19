@@ -7,9 +7,11 @@
   - CI choice: opt-in with `SR_E2E_VISUAL=1`, chromium only. Pixel output depends on the OS fonts and rasteriser, and Playwright names baselines per platform (`*-chromium-win32.png`), so the committed baselines are Windows ones; a default CI run (linux) skips the file instead of failing on missing baselines. To enable on CI: run once with `SR_E2E_VISUAL=1 ... --update-snapshots` on the linux runner, commit the `-linux` PNGs, then set the variable in the workflow.
   - Library has no seed data (ingest needs files), so Library snapshots show empty states; masks were not needed because no dynamic text is on screen in the captured viewport.
 
+- **L-20** `.github/workflows/e2e.yml`: `workflow_dispatch` trigger and a `visual-baselines` job (ubuntu, Chromium, `SR_E2E_VISUAL=1`, `tests/visual.spec.ts --update-snapshots`) that uploads `*-chromium-linux.png` as artifact `visual-baselines-linux` (plus a report artifact) and writes a job summary on how to commit them. `contents: read`, no commits or pushes. `playwright` and `live` are skipped on dispatch. This was the third copy of the setup steps, so they moved into the composite action `.github/actions/e2e-stack/action.yml` (toolchains, Postgres/Garage, cargo build, pnpm install, WASM); the three jobs use it. Validated by parsing both YAML files with js-yaml only (actionlint/shellcheck not installed, workflow not run).
+
 ## Still open
 - Comparison "vs mockups" is by eye only; baselines are the app's own rendering. Library with real series covers needs an ingest fixture.
-- Visual job not wired into the CI workflow (needs linux baselines, see above).
+- L-21 (report-only `visual` job) and L-22 wait for the first linux baselines; a human must dispatch `visual-baselines` and commit the `visual-baselines-linux` artifact (needs a push, so not done here).
 
 ## Tests run
 - entrance-journey 4 runs green (1 + `--repeat-each=3`); visual 3 repeats green plus a run without the env var (9 skipped); `tsc --noEmit` in e2e clean. Chromium project only, scratch DB `sr_e2e_p16e` (dropped), Vite + sr-server started by me and stopped by PID.
