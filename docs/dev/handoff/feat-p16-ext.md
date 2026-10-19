@@ -22,6 +22,8 @@ Branch `feat/p16-ext` (based on `feat/p16-lounge`). Migration `1060_guild_appear
 - No Playwright, no servers. The import handler itself (HTTP layer over SettingsService) has no HTTP-level test: the sr-api test harness has no Postgres-backed package service; the storage-side pieces are covered by the service test and the UI by MSW.
 
 ## Decisions / owner questions
+
+Answered 2026-10-19 as D-280 to D-283 (`docs/01-decisions-log.md`, "Phase 16 extensions questions" in `docs/open-question-answers.md`); code follow-ups L-40 to L-43 in `docs/dev/answers-followups-p16.md`. In short: 1 confirmed (D-280); 2 confirmed, `all` stored as `lounge` (D-281); 3 changed, `MANAGE_GUILD_EXPRESSIONS` alone for packs (D-282); 4 and 5 confirmed, the pack validator refuses WebP stickers at upload (D-283).
 1. Precedence: the server theme is laid over the viewer's own Theme Store theme while they are in that server (their "Allow server themes" switch is the opt-out); the Theme Store preview still wins. Accent colour set by a manager wins over an accent token in the theme. Confirm.
 2. A server theme applies in the Lounge only (sections `all` or `lounge`); Cinema/Library/Entrance are not recoloured by a server.
 3. Adding a pack needs both `MANAGE_GUILD` (the existing extension rule) and `MANAGE_GUILD_EXPRESSIONS` (the item rule). Removing a pack deletes its items without asking again beyond the button.
