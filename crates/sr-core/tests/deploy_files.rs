@@ -663,6 +663,18 @@ fn electrs_is_an_optional_private_payments_profile_with_default_price_sources() 
         e.section("ports").is_empty(),
         "electrs publishes no port: only the compose network reaches it"
     );
+    // D-312: bitcoind stays on the host; the container reaches it through the host gateway.
+    assert_eq!(
+        e.section("extra_hosts"),
+        ["- \"host.docker.internal:host-gateway\""],
+        "electrs reaches the host-run bitcoind through extra_hosts"
+    );
+    assert!(
+        e.section("command")
+            .iter()
+            .any(|l| l.contains("SR_ELECTRS_DAEMON_RPC_ADDR:-host.docker.internal:8332")),
+        "electrs defaults to the host's bitcoind RPC port"
+    );
     let env = env_file("deploy/compose/.env.prod.example");
     // Off until the operator turns the profile on: donations stay off with an empty endpoint.
     assert_eq!(env["SR_PAYMENTS_ESPLORA_URL"], "");

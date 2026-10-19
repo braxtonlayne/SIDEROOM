@@ -153,6 +153,7 @@ services:
       - --db-dir=/data
       - --http-addr=0.0.0.0:3000
       - --electrum-rpc-addr=127.0.0.1:50001
+    # The node stays on the host (D-312); docs/12-deployment-and-operations.md section 2.1 "Running electrs".
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

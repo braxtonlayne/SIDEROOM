@@ -162,6 +162,8 @@ creation answers 403 `SR_FEATURE_DISABLED`). Misconfiguration is logged, never f
 |---|---|
 | `SR_PAYMENTS_ESPLORA_URL` | _(production Compose, D-288: empty by default; `http://electrs:3000` with the `payments` profile, which also sets `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1`)_ Esplora REST base (`https://mempool.space/api` or a self-hosted electrs/mempool). Read-only: `GET /blocks/tip/height` and `GET /address/{a}/txs` for addresses this server derived |
 | `SR_PAYMENTS_RATE_SOURCES` | _(production Compose default: Coinbase `/data/amount`, Kraken `/result/XXBTZUSD/c/0`, CoinGecko `/bitcoin/usd`)_ JSON array `[{"name","url","pointer"}]` of price sources; `pointer` is an RFC 6901 pointer to the USD price (`/data/amount`). At most 5. The median is used; sources that disagree by more than 10% are refused |
+| `SR_ELECTRS_DAEMON_RPC_ADDR` | _(production Compose, `payments` profile only, D-312)_ The RPC address of the host-run, non-pruned `bitcoind` that `electrs` reads; default `host.docker.internal:8332`, reached through the service's `extra_hosts` entry (doc 12 section 2.1) |
+| `SR_BITCOIND_DIR` | _(production Compose, `payments` profile only, D-312)_ The host's `bitcoind` data directory, mounted read-only into `electrs` for the blocks and the `.cookie` file; default `/var/lib/bitcoind` |
 | `SR_PAYMENTS_DESCRIPTOR`, `SR_PAYMENTS_NETWORK` | A watch-only descriptor to register at startup when no wallet exists (`mainnet` default). Admin > Donations > Wallet does the same with a reason and an access-log row |
 | `SR_DOWNLOADS_LEGACY_FALLBACK` | `0` (default since Phase 12): only entitlements grant the download perk; `1`: `cinema_download_grants` still does |
 
