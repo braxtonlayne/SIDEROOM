@@ -2,6 +2,7 @@
 // simulate-now, manual override ("now control") and the what-aired report. Needs MANAGE_TV (Media Curator and up).
 // Routes: docs/specs/cinema-live-tv.md section 8.5 (see tvApi.ts); a server without them gets "not available yet".
 import { Badge, Button, ConfirmDialog, EmptyState, Notice, Tabs } from '@sideroom/ui';
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
 import { SectionHeader, useAdminViewer } from '../../ui';
@@ -68,6 +69,17 @@ function SlateRow() {
         })
       ) : (
         t('admin.liveTv.slate.setNoLength', { id: s.asset_id ?? '' })
+      )}
+      {s.configured && (
+        <>
+          {' '}
+          {t('admin.liveTv.slate.remove')} <code>sr-cli tv slate --remove</code>{' '}
+          {t('admin.liveTv.slate.orLimits')}{' '}
+          <Link to="/admin/$section" params={{ section: 'limits' }}>
+            {t('admin.liveTv.slate.limitsLink')}
+          </Link>
+          .
+        </>
       )}
     </section>
   );
