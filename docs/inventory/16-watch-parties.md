@@ -26,5 +26,5 @@ Phase 5. Spec: [watch-parties](../specs/watch-parties.md).
 - [x] **WP-FE-009** [FE] Destination picker modal (channels you can post in, DMs, private link)
 - [x] **WP-FE-010** [FE] Party card in chat (now playing, viewers, Join) *(p15 rest-c: `PartyMessageCard.tsx` in `MessageItem`; one shared party state per channel in `useChannelParty.ts`)* (the strip at the top of the channel stays)
 - [x] **WP-FE-011** [FE] Mini player + voice continuity when navigating sections
-- [x] **WP-FE-012** [FE] Webcam bubbles overlay (optional, from the voice call) *p16 lounge: `watchparty/WebcamBubbles.tsx` (round bubbles of the call cameras over the stage, off by default with a Show/Hide cameras toggle, hidden outside a call; test `p16bubbles.test.tsx`).*
+- [x] **WP-FE-012** [FE] Webcam bubbles overlay (optional, from the voice call) *p16 lounge: `watchparty/WebcamBubbles.tsx` (round bubbles of the call cameras over the stage, on by default when a camera is live, Hide cameras remembered in user prefs (D-265), hidden outside a call; test `p16bubbles.test.tsx`).*
 - [x] **WP-FE-013** [TEST] 10-client drift simulation (±300 ms target) (apps/web/src/watchparty/__tests__/drift.sim.test.ts)

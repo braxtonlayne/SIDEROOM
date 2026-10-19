@@ -15,6 +15,7 @@ import {
   VOLUME_RANGE,
 } from '../../../voice/settings';
 import { levelFraction, THRESHOLD_RANGE } from '../../../voice/vad';
+import { usePrefsStore } from '../prefs';
 import { KeybindRecorder } from '../KeybindRecorder';
 import { Card, SectionTitle } from '../parts';
 
@@ -60,6 +61,8 @@ export function VoiceVideoSection() {
   const t = useT();
   const settings = useVoiceSettings((s) => s.settings);
   const update = useVoiceSettings((s) => s.update);
+  const prefs = usePrefsStore((s) => s.prefs);
+  const savePrefs = usePrefsStore((s) => s.save);
   const setKeybind = useVoiceSettings((s) => s.setKeybind);
   const soundboardVolume = useSoundboard((s) => s.volume);
   const setSoundboardVolume = useSoundboard((s) => s.setVolume);
@@ -394,6 +397,15 @@ export function VoiceVideoSection() {
           onChange={(e) => update({ shareAudio: e.target.checked })}
         />
         <p className="us-muted">{t('settings.voice.shareEntitlement')}</p>
+      </Card>
+
+      <Card id="us-voice-party" title={t('settings.voice.watchPartyTitle')}>
+        <Switch
+          label={t('settings.voice.watchPartyCameras')}
+          description={t('settings.voice.watchPartyCamerasHelp')}
+          checked={prefs.watchPartyCameras}
+          onChange={(e) => savePrefs({ ...prefs, watchPartyCameras: e.target.checked })}
+        />
       </Card>
 
       <Card id="us-voice-sounds" title={t('settings.voice.sounds')}>

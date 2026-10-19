@@ -116,6 +116,8 @@ export interface UserPrefs {
   streamerSilence: boolean;
   // Advanced
   developerMode: boolean;
+  /** Round camera bubbles over the watch party stage while in a call (D-265). On by default; "Hide cameras" turns it off. */
+  watchPartyCameras: boolean;
   /** Shows the diagnostics card and the pseudo-languages for people building on SIDE ROOM. */
   appTestMode: boolean;
 }
@@ -175,6 +177,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   streamerHideInvites: true,
   streamerSilence: true,
   developerMode: false,
+  watchPartyCameras: true,
   appTestMode: false,
 };
 
@@ -278,6 +281,7 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     streamerHideInvites: bool(r.streamerHideInvites, d.streamerHideInvites),
     streamerSilence: bool(r.streamerSilence, d.streamerSilence),
     developerMode: bool(r.developerMode, d.developerMode),
+    watchPartyCameras: bool(r.watchPartyCameras, d.watchPartyCameras),
     appTestMode: bool(r.appTestMode, d.appTestMode),
   };
 }

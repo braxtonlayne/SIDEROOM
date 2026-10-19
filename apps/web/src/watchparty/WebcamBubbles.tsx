@@ -1,10 +1,13 @@
 // Webcam bubbles over the watch party stage (WP-FE-012). When the viewer is also in a voice call, the cameras
 // of the call (their own and everyone who has video on) float over the picture as small round bubbles. It is
-// optional: a button in the corner turns it on and off, and it shows nothing at all outside a call.
+// shown by default (D-265); "Hide cameras" in the corner turns it off and the choice is an account preference
+// (`watchPartyCameras`). Outside a call it shows nothing at all. Bubbles are thumbnail-sized and make no extra
+// subscription (VideoSurface reports no viewport).
 import { Button, Icon } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../i18n';
 import { VideoSurface } from '../lounge/voice/VideoSurface';
+import { usePrefsStore } from '../settings/user/prefs';
 import { useStore } from '../store/store';
 import { useVoiceSession } from '../voice/session';
 import { useLocalVideo, useRemoteVideo } from '../voice/video';
@@ -17,7 +20,11 @@ export function WebcamBubbles() {
   const remote = useRemoteVideo((s) => s.camera);
   const videoOff = useRemoteVideo((s) => s.videoOff);
   const users = useStore((s) => s.users);
-  const [shown, setShown] = useState(false);
+  const prefs = usePrefsStore((s) => s.prefs);
+  const save = usePrefsStore((s) => s.save);
+  const on = prefs.watchPartyCameras;
+  // Pressing "Show cameras" with nobody on camera is acknowledged with the status line, for this view only.
+  const [asked, setAsked] = useState(false);
   if (!inCall) return null;
 
   const nameOf = (id: string) => {
@@ -34,19 +41,22 @@ export function WebcamBubbles() {
         size="sm"
         variant="secondary"
         className="wp-bubbles-toggle"
-        aria-pressed={shown}
-        onClick={() => setShown((v) => !v)}
+        aria-pressed={on}
+        onClick={() => {
+          setAsked(!on);
+          save({ ...prefs, watchPartyCameras: !on });
+        }}
       >
-        <Icon name={shown ? 'video' : 'video-off'} size={16} />
-        {shown ? t('watchparty.bubbles.hide') : t('watchparty.bubbles.show')}
+        <Icon name={on ? 'video' : 'video-off'} size={16} />
+        {on ? t('watchparty.bubbles.hide') : t('watchparty.bubbles.show')}
       </Button>
-      {shown && (
+      {on && count === 0 && asked && (
+        <p className="wp-bubble-empty" role="status">
+          {t('watchparty.bubbles.none')}
+        </p>
+      )}
+      {on && count > 0 && (
         <ul className="wp-bubble-list" aria-label={t('watchparty.bubbles.label')}>
-          {count === 0 && (
-            <li className="wp-bubble-empty" role="status">
-              {t('watchparty.bubbles.none')}
-            </li>
-          )}
           {self && (
             <li className="wp-bubble" data-testid="wp-bubble-self">
               <VideoSurface

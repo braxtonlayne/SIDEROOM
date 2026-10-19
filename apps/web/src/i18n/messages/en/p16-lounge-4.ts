@@ -2,6 +2,7 @@ export default {
   // Watch together picker (L-01, D-264)
   'watchparty.start.room': 'Watch party room',
   // Webcam bubbles preference (L-03, D-265)
+  'settings.voice.watchPartyTitle': 'Watch parties',
   'settings.voice.watchPartyCameras': 'Show cameras over watch parties',
   'settings.voice.watchPartyCamerasHelp':
     'Round camera bubbles over the picture while you are in a call. You can also hide them from the party screen.',
