@@ -16,6 +16,7 @@ Phase 0 · Theme `sideroom` · Mockups: `assets/mockups/entrance-landing.jpg`, `
 | `/oauth/discord/callback` | public | Discord OAuth return |
 | `/invite/:code` | public shell; join requires login | Server invite (see §6) |
 | `/house-notes` | public | Short static page: what SIDE ROOM is and its house rules (operator-editable markdown) |
+| `/help` | public | Static: the self-service help answers (cannot sign in, lost second factor, no invitation, rules); `/support` is the donation page (D-270) |
 | `/no-invitation` | public | Static: "SIDE ROOM is invitation-only. Ask someone you know who's a member." No form, no waitlist |
 
 Logged-in users who visit `/` or `/login` are redirected to their last section (default: the Lounge).
