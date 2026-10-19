@@ -29,7 +29,7 @@ Expected production lineup (the owner's words): several "Adult Swim" channels fr
 | **rule_based** | Rules generate the schedule: content pool (filters: genre, kind, decade, tags, collection), block length, ordering (sequential per series / shuffle / weighted), daypart rules (e.g. 22:00–02:00 only age-restricted allowed if the channel is restricted), reruns spacing |
 | **manual** | Staff place programs on a calendar |
 
-**Filler policy** for gaps: `bumpers` (short clips tagged `filler`), `next_program_early`, `slate` (a styled "We'll be right back" card with music), or `off_air` (color bars + tone, very retro).
+**Filler policy** for gaps: `bumpers` (short clips tagged `filler`), `next_program_early`, `slate` (a styled "We'll be right back" card with music), or `off_air` (color bars + tone, very retro). Until a styled card exists one instance slate loop (colour bars and a tone at -20 dBFS, made by `sr-cli tv slate`) serves both policies (D-266).
 
 ## 5. Schedule engine (`sr-tv`)
 - Channel timezone (D-103), default = operator timezone. The guide displays viewer-local times with a toggle to "channel time" (useful for era-authentic "8 PM block" channels).
@@ -39,7 +39,7 @@ Expected production lineup (the owner's words): several "Adult Swim" channels fr
   1. now = server time. Find the current block and the segment index covering `now - block.start`.
   2. Emit a sliding-window media playlist (e.g. 6 segments) of signed URLs to existing VOD segments for that rendition, `#EXT-X-MEDIA-SEQUENCE` derived from wall-clock (so all viewers share sequence numbers), `#EXT-X-DISCONTINUITY` at program boundaries, `#EXT-X-PROGRAM-DATE-TIME` tags.
   3. A master playlist lists the 1080/720/480 variants (only those available for all upcoming blocks. If a program lacks a rung, the player drops to the common subset).
-- No process runs per channel. Cost is one cheap computation per playlist request (a few per viewer per minute). "Dies once they leave" (D-101) is automatic.
+  4. **One numbering domain (D-267).** The slate is part of the same media-sequence and discontinuity-sequence chain as the programmes: the first slate segment after a programme is its last segment number + 1 (discontinuity sequence + 1), every later slate segment adds one, a programme that starts after a gap counts on from the slate segment on air at its start, and the window across such a boundary lists both sides with `#EXT-X-DISCONTINUITY`, `#EXT-X-MAP` and `#EXT-X-PROGRAM-DATE-TIME`. Numbers are wall-clock seeded only where nothing precedes them. While a channel is off air the master offers the standard rung set and `GET /tv/channels/{id}/tune` answers `state: off_air` with `slate: true` and the slate `master_url` (`current` and `offset_ms` null), so the player plays the slate with its off-air captions over it; without a slate there is no `master_url` and `slate` is false. per playlist request (a few per viewer per minute). "Dies once they leave" (D-101) is automatic.
 - Guide API: `GET /sr/tv/guide?from&to&channels=` returns blocks for the grid. `GET /sr/tv/channels/{id}/now`.
 
 ## 6. Admin (MANAGE_TV)
@@ -62,7 +62,7 @@ Conventions (as Cinema): ids are Snowflakes and travel as decimal **strings**; t
 
 * A channel has a `kind`: `rule_based` (the schedule is generated from `rules`) or `manual` (staff place programmes). `manual` is the third kind besides `imported_guide` (8.6). Logo upload is **not built yet** (reminders are built: `tv_reminders`, migration 0780; favorites and the guide import, migration 1000); `logo_key` is stored and shown as a signed `/cdn/<key>` URL when set.
 * The schedule is a list of non-overlapping **blocks** per channel. Rule-based channels are extended lazily and deterministically (same rules, same catalog, same seed give the same blocks): a read that needs blocks the channel does not have yet generates and stores them, up to 24 h ahead. Staff can also preview and publish a schedule explicitly (8.5).
-* A block is `kind` `program` (a title or an episode from the Cinema catalog), `filler` (a short bumper), `slate` or `off_air` (no media; the client shows its own slate or colour bars). Gaps between programmes are filled by the channel's filler policy.
+* A block is `kind` `program` (a title or an episode from the Cinema catalog), `filler` (a short bumper), `slate` or `off_air` (no media: the instance slate loop plays, D-266; a client without a slate shows its own card). Gaps between programmes are filled by the channel's filler policy.
 * Times of day in rules are in the channel `timezone` (any IANA zone name, resolved with `jiff` and its bundled tz database; `GET /tv/timezones` lists every zone). The guide itself is in absolute milliseconds; clients render viewer-local or channel time.
 * Age restriction (D-184): restricted titles are scheduled on any channel whose rules include them and are always listed; **opening a stream** (`tune`, the live playlists) whose window contains a restricted programme answers **403 code 900011** until `POST /sr/age-gate {over_18:true}`.
 
