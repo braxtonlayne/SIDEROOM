@@ -6439,6 +6439,7 @@ name = "sr-sdk"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "axum",
  "base64 0.23.1",
  "futures",
  "p256 0.13.2",
@@ -6448,6 +6449,9 @@ dependencies = [
  "sr-core",
  "sr-e2ee",
  "sr-gateway",
+ "sr-voice",
+ "sr-voice-proto",
+ "str0m",
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite",

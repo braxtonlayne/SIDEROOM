@@ -260,6 +260,23 @@ impl GatewayHandle {
         Ok(rx)
     }
 
+    /// Send gateway op 4 (voice state update) on the shard that owns `guild_id`: join (or, with a null
+    /// `channel_id` in `body`, leave) a voice channel. `body` is the op's `d`; see
+    /// `sr_sdk::voice_transport::voice_state_body` and `sr_sdk::voice::E2eeCall::join_state` (DEV-BOT-007).
+    /// The answer arrives as a `VOICE_SERVER_UPDATE` dispatch (`Event::Other`).
+    pub async fn voice_state_update(&self, guild_id: &str, body: Value) -> Result<()> {
+        let count = self.inner.lock().expect("gateway handle lock").count;
+        if count == 0 {
+            return Err(Error::Invalid("the client has not started".into()));
+        }
+        let shard = shard_for_guild(guild_id, count)
+            .ok_or_else(|| Error::Invalid("guild_id is not a snowflake".into()))?;
+        let tx = self.sender_for(shard)?;
+        tx.send(json!({"op": 4, "d": body}).to_string())
+            .await
+            .map_err(|_| Error::Transport("the shard has stopped".into()))
+    }
+
     /// Set the bot's presence on every shard running in this process.
     pub async fn update_presence(&self, p: &PresenceUpdate) -> Result<()> {
         let senders: Vec<_> = {
@@ -356,6 +373,25 @@ mod tests {
         assert!(
             rx.recv().await.is_none(),
             "stream ends after the last chunk"
+        );
+    }
+
+    #[tokio::test]
+    async fn op4_goes_to_the_shard_of_the_guild() {
+        let h = GatewayHandle::default();
+        assert!(matches!(
+            h.voice_state_update("42", json!({})).await,
+            Err(Error::Invalid(_))
+        ));
+        let (tx, mut wire) = mpsc::channel(4);
+        h.register_shards(1, HashMap::from([(0, tx)]));
+        h.voice_state_update("42", json!({"channel_id": "7", "sr_e2ee": true}))
+            .await
+            .expect("sent");
+        let frame: Value = serde_json::from_str(&wire.recv().await.expect("frame")).expect("json");
+        assert_eq!(
+            frame,
+            json!({"op": 4, "d": {"channel_id": "7", "sr_e2ee": true}})
         );
     }
 

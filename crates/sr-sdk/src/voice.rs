@@ -11,9 +11,10 @@
 //!   and the `execute` that says to switch encryptors;
 //! * [`E2eeMedia`]: turns those keys into frame encryption (your own frames) and decryption (everyone else's).
 //!
-//! What is not here is the media transport: joining the channel with gateway op 4, the `VOICE_SERVER_UPDATE`
-//! handshake with the SFU and RTP/Opus over WebRTC. The SDK does not ship a WebRTC stack, so a bot brings its
-//! own and hands frames to [`E2eeMedia`]; see the Bot SDKs page of the developer portal.
+//! The media transport (joining with gateway op 4, the `VOICE_SERVER_UPDATE` handshake with the SFU and Opus over
+//! WebRTC) is `crate::voice_transport` behind the `voice-transport` feature; [`E2eeMedia`] is a
+//! `voice_transport::FrameTransform` there. A bot that brings its own WebRTC stack can hand frames to
+//! [`E2eeMedia`] directly.
 //!
 //! The module is sans-IO: no sockets, no clock of its own (callers pass `Instant`s and millisecond times) and
 //! no randomness beyond what `openmls` draws.
