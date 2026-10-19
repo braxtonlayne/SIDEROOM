@@ -57,4 +57,4 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [x] **ENT-UI-023** [FE] Logged-in redirect from `/` and `/login` to last section
 - [x] **ENT-UI-024** [FE] Responsive layouts < 900px (stacked hero, door as background)
 - [x] **ENT-UI-025** [FE] Operator-editable copy loading (Admin → Entrance) with defaults _p13 web: `entranceCopy.tsx` loader (GET /sr/entrance/copy, cached, no catalog keys so first paint is unchanged) and Admin → Entrance pages (`admin/sections/Entrance.tsx`, through withReauth); landing note shown under the invite box; tests `entranceCopy.test.tsx`, `p13entrance.test.tsx`._
-- [ ] **ENT-UI-026** [TEST] Playwright: invite → register → verify → logout → login with TOTP → passkey login
+- [x] **ENT-UI-026** [TEST] Playwright: invite → register → verify → logout → login with TOTP → passkey login _Done in phase 16: `e2e/tests/entrance-journey.spec.ts` (whole chain through the UI; verification link read from the log-only mailer via `e2e/support/mailLog.ts`), plus `exit-gate.spec.ts` and `passkeys.spec.ts`._
