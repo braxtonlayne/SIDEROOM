@@ -99,7 +99,7 @@ Prefix `/api/v1/sr/...`. These are first-party-only unless an OAuth scope is gra
 | Credits | `GET /sr/invite-credits` |
 | Donations | `POST /sr/invoices`, `GET /sr/invoices/{id}`, `GET /sr/entitlements/@me`, `GET /sr/guilds/{id}/boost-status`, `GET /sr/leaderboards/{kind}` |
 | Cinema | `/sr/cinema/titles`, `/titles/{id}`, `/seasons`, `/episodes`, `/assets/{id}/playback`, `/progress`, `/lists`, `/ratings`, `/reviews`, `/search`, `/trending?scope=friends\|known\|global` |
-| Live TV | `/sr/tv/channels`, `/sr/tv/guide?from&to`, `/sr/tv/channels/{id}/now` |
+| Live TV | `/sr/tv/channels`, `/sr/tv/guide?from&to`, `/sr/tv/channels/{id}/now`, `/sr/tv/channels/{id}/tune` (`state`, `master_url`, and `slate`: true when an off-air channel plays the instance slate, D-266) |
 | Library | `/sr/library/series`, `/editions`, `/chapters/{id}/pages`, `/progress`, `/bookmarks`, … |
 | Voice | `GET /sr/voice/turn` (ephemeral TURN credentials), `PATCH /guilds/{id}/voice-states/{user_id}` (moderators; section 6.5), stage instances, stream previews, DM calls and the soundboard (section 6.6) |
 | Submissions | `/sr/submissions` (create draft, upload parts, submit, withdraw), `POST /submissions/{id}/artwork/{kind}` (`cover` for a new Library series, `poster` and `backdrop` for a new Cinema title; body `{image: <data URI>}`, sniffed and re-encoded; the submitter while the draft is editable, a reviewer who holds the live claim while it is in review; D-255), `/sr/review/queue`, `/sr/review/{id}/decision` |

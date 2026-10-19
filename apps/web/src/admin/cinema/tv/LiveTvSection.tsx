@@ -2,6 +2,7 @@
 // simulate-now, manual override ("now control") and the what-aired report. Needs MANAGE_TV (Media Curator and up).
 // Routes: docs/specs/cinema-live-tv.md section 8.5 (see tvApi.ts); a server without them gets "not available yet".
 import { Badge, Button, ConfirmDialog, EmptyState, Notice, Tabs } from '@sideroom/ui';
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
 import { SectionHeader, useAdminViewer } from '../../ui';
@@ -38,6 +39,50 @@ export function LiveTvSection() {
   if (open)
     return <ChannelDetail id={open === 'new' ? null : open} onClose={() => setOpen(null)} />;
   return <ChannelList onOpen={setOpen} />;
+}
+
+/** A read-only row: is an off-air slate configured, and does it play. Failures just leave the row out. */
+function SlateRow() {
+  const t = useT();
+  const res = useLoad<tv.AdminSlate | null>('tv-slate', async () => {
+    try {
+      return await tv.getSlate();
+    } catch {
+      return null;
+    }
+  });
+  const s = res.data;
+  if (!s) return null;
+  return (
+    <section className="ss-meta" aria-label={t('admin.liveTv.slate.title')} data-testid="tv-slate">
+      <strong>{t('admin.liveTv.slate.title')}</strong>{' '}
+      {!s.configured ? (
+        <>
+          {t('admin.liveTv.slate.none')} <code>sr-cli tv slate</code>
+        </>
+      ) : !s.playable ? (
+        t('admin.liveTv.slate.notPlayable', { id: s.asset_id ?? '' })
+      ) : s.duration_ms ? (
+        t('admin.liveTv.slate.set', {
+          id: s.asset_id ?? '',
+          seconds: Math.round(s.duration_ms / 1000),
+        })
+      ) : (
+        t('admin.liveTv.slate.setNoLength', { id: s.asset_id ?? '' })
+      )}
+      {s.configured && (
+        <>
+          {' '}
+          {t('admin.liveTv.slate.remove')} <code>sr-cli tv slate --remove</code>{' '}
+          {t('admin.liveTv.slate.orLimits')}{' '}
+          <Link to="/admin/$section" params={{ section: 'limits' }}>
+            {t('admin.liveTv.slate.limitsLink')}
+          </Link>
+          .
+        </>
+      )}
+    </section>
+  );
 }
 
 function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
@@ -87,6 +132,7 @@ function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
           description={t('admin.liveTv.empty.description')}
         />
       )}
+      {!unavailable && <SlateRow />}
       {res.data && res.data.items.length > 0 && (
         <ul className="ss-list" aria-label={t('admin.liveTv.list')}>
           {[...res.data.items]

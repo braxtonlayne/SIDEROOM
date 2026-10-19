@@ -17,6 +17,7 @@ Goal: running stack in under 15 minutes.
 2. `pnpm install`
 3. `just dev` starts the stack from `deploy/compose/dev.yml` and bootstraps Garage (layout, dev key, bucket).
 4. `just migrate` then `just seed`.
+   `just seed` also queues the Live TV slate (the off-air colour-bars loop) when `ffmpeg` is on your PATH and says so when it skips it; without ffmpeg, run `sr-cli tv slate` later on any machine that has it (needs the server and a transcoder worker running).
 5. Run the server (`cargo run -p sr-server`) and the web app (`pnpm --filter web dev`) once those crates and apps land.
 
 ## Services

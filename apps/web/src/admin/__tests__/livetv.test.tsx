@@ -663,3 +663,86 @@ describe('Live TV admin helpers', () => {
     expect(isUnavailable(new ApiError(500, 'x', null))).toBe(false);
   });
 });
+
+describe('Live TV admin: off-air slate', () => {
+  const slateIs = (body: Record<string, unknown>) =>
+    server.use(http.get('*/api/v1/admin/tv/slate', () => HttpResponse.json(body)));
+
+  it('shows the configured slate with its asset id and length', async () => {
+    asStaff({ perms: [...CURATOR] });
+    useTvAdmin();
+    slateIs({ configured: true, asset_id: '777', playable: true, duration_ms: 12_000 });
+    openAdmin('cinema-live-tv');
+    const row = await screen.findByTestId('tv-slate');
+    expect(row).toHaveTextContent('Off-air slate');
+    expect(row).toHaveTextContent('Asset 777 · one pass of the loop lasts 12 s');
+  });
+
+  it('says how to make one when none is configured', async () => {
+    asStaff({ perms: [...CURATOR] });
+    useTvAdmin();
+    slateIs({ configured: false, playable: false });
+    openAdmin('cinema-live-tv');
+    const row = await screen.findByTestId('tv-slate');
+    expect(row).toHaveTextContent('None.');
+    expect(within(row).getByText('sr-cli tv slate')).toBeInTheDocument();
+  });
+
+  it('says when the slate is set but does not play yet, and stays quiet when the route is missing', async () => {
+    asStaff({ perms: [...CURATOR] });
+    useTvAdmin();
+    slateIs({ configured: true, asset_id: '778', playable: false });
+    openAdmin('cinema-live-tv');
+    expect(await screen.findByTestId('tv-slate')).toHaveTextContent(
+      'Asset 778 is set but has no renditions to play yet',
+    );
+  });
+
+  it('leaves the row out when the server cannot tell', async () => {
+    asStaff({ perms: [...CURATOR] });
+    useTvAdmin();
+    server.use(http.get('*/api/v1/admin/tv/slate', () => new HttpResponse(null, { status: 500 })));
+    openAdmin('cinema-live-tv');
+    await screen.findByRole('heading', { name: 'Live TV' });
+    await screen.findByRole('list', { name: 'Channels' });
+    expect(screen.queryByTestId('tv-slate')).not.toBeInTheDocument();
+  });
+});
+
+describe('Live TV admin: removing the slate', () => {
+  it('names the removal command and links to the setting when a slate is configured', async () => {
+    asStaff({ perms: [...CURATOR] });
+    useTvAdmin();
+    server.use(
+      http.get('*/api/v1/admin/tv/slate', () =>
+        HttpResponse.json({
+          configured: true,
+          asset_id: '777',
+          playable: true,
+          duration_ms: 12_000,
+        }),
+      ),
+    );
+    openAdmin('cinema-live-tv');
+    const row = await screen.findByTestId('tv-slate');
+    expect(within(row).getByText('sr-cli tv slate --remove')).toBeInTheDocument();
+    expect(within(row).getByRole('link', { name: 'Limits' })).toHaveAttribute(
+      'href',
+      '/admin/limits',
+    );
+    expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('shows no removal hint when there is no slate', async () => {
+    asStaff({ perms: [...CURATOR] });
+    useTvAdmin();
+    server.use(
+      http.get('*/api/v1/admin/tv/slate', () =>
+        HttpResponse.json({ configured: false, playable: false }),
+      ),
+    );
+    openAdmin('cinema-live-tv');
+    const row = await screen.findByTestId('tv-slate');
+    expect(within(row).queryByText('sr-cli tv slate --remove')).not.toBeInTheDocument();
+  });
+});

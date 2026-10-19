@@ -63,6 +63,8 @@ fn store_unsupported<T>() -> Result<T, StoreError> {
 #[derive(Default)]
 struct Stub {
     tokens: Mutex<Vec<(WorkerToken, String)>>,
+    /// What `list_assets` returns.
+    assets: Mutex<Vec<Asset>>,
 }
 
 #[async_trait]
@@ -150,7 +152,7 @@ impl MediaRepository for Stub {
         Ok(None)
     }
     async fn list_assets(&self, _: &AssetQuery) -> MediaResult<Vec<Asset>> {
-        Ok(vec![])
+        Ok(self.assets.lock().unwrap().clone())
     }
     async fn transition_asset(
         &self,
@@ -340,6 +342,20 @@ struct Env {
 }
 
 async fn env_with(media: bool) -> Env {
+    env_build(media, None).await
+}
+
+/// A fixed Live TV slate asset id, as the platform setting would give it.
+struct FixedSlate(i64);
+
+#[async_trait]
+impl sr_tv::SlateSource for FixedSlate {
+    async fn asset_id(&self) -> Option<i64> {
+        Some(self.0)
+    }
+}
+
+async fn env_build(media: bool, slate: Option<i64>) -> Env {
     let admin = Arc::new(MemoryAdminRepo::default());
     admin.add_account(
         SYSTEM_USER_ID,
@@ -439,7 +455,11 @@ async fn env_with(media: bool) -> Env {
         .extension(Arc::new(AdminDeps::new(svc)))
         .extension(Arc::new(cinema));
     if media {
-        b = b.extension(Arc::new(MediaDeps::new(media_svc, Arc::new(downloads))));
+        let mut deps = MediaDeps::new(media_svc, Arc::new(downloads));
+        if let Some(id) = slate {
+            deps = deps.with_slate_source(Arc::new(FixedSlate(id)));
+        }
+        b = b.extension(Arc::new(deps));
     }
     Env {
         app: build_router(b.build(), router()),
@@ -827,4 +847,78 @@ fn regex_free_template(path: &str) -> String {
         }
     }
     out.join("/")
+}
+
+fn listed_asset(id: i64) -> Asset {
+    Asset {
+        id,
+        title_id: None,
+        episode_id: None,
+        uploaded_by: None,
+        state: AssetState::Published,
+        error: None,
+        filename: format!("{id}.mp4"),
+        original_size: 1,
+        original_tier: "hot".into(),
+        original_deleted: false,
+        original_downloads: false,
+        auto_ladder: true,
+        duration_ms: Some(12_000),
+        profile_version: Some(1),
+        has_proxy: false,
+        playable: true,
+        published_at_ms: None,
+        created_at_ms: 0,
+        updated_at_ms: 0,
+        original_key: format!("originals/{id}/source.mp4"),
+        original_ext: "mp4".into(),
+        hls_prefix: None,
+        proxy_key: None,
+    }
+}
+
+#[tokio::test]
+async fn the_live_tv_slate_is_hidden_from_the_asset_list_and_stays_out_of_the_catalogue() {
+    let e = env_build(true, Some(900)).await;
+    *e.stub.assets.lock().unwrap() = vec![listed_asset(901), listed_asset(900), listed_asset(899)];
+    let (s, list) = e
+        .call(Some(PUBLISHER), Method::GET, "/admin/cinema/assets", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    let ids: Vec<&str> = list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["901", "899"], "the slate (900) is system-owned");
+    // It cannot be given to a title or opened for download.
+    let (s, b) = e
+        .call(
+            Some(PUBLISHER),
+            Method::PUT,
+            "/admin/cinema/assets/900/link",
+            Some(json!({ "title_id": "5" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{b}");
+    let (s, b) = e
+        .call(
+            Some(PUBLISHER),
+            Method::PUT,
+            "/admin/cinema/assets/900/original-downloads",
+            Some(json!({ "enabled": true })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{b}");
+    // Another asset is not affected by the guard (the stub has no such row: 404 from the service).
+    let (s, _) = e
+        .call(
+            Some(PUBLISHER),
+            Method::PUT,
+            "/admin/cinema/assets/899/original-downloads",
+            Some(json!({ "enabled": true })),
+        )
+        .await;
+    assert_ne!(s, StatusCode::CONFLICT);
 }

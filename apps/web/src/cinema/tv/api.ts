@@ -166,6 +166,8 @@ interface WireTune {
   channel_id: string;
   state: 'live' | 'off_air';
   master_url?: string | null;
+  /** True when `master_url` is the instance slate loop played off air (D-266). */
+  slate?: boolean;
   current?: WireBlock | null;
   next?: WireBlock | null;
   offset_ms?: number | null;
@@ -178,18 +180,20 @@ const MASTER_TTL_MS = 24 * 3_600_000;
 /**
  * `GET /tv/channels/{id}/tune` plus the channel itself: the live master playlist (a session-authenticated API
  * path), what is on now and next. Also what the player calls to refresh. 403 code 900011 is the age gate (D-184);
- * an off-air channel throws `OffAirError`.
+ * an off-air channel throws `OffAirError` unless the server plays its slate (`slate`, D-266): then the grant carries
+ * the slate master and the view draws the off-air captions over it.
  */
 export async function tuneChannel(id: string): Promise<TuneGrant> {
   const [tune, channel] = await Promise.all([
     apiFetch<WireTune>(`${BASE}/channels/${enc(id)}/tune`, { retries: 0 }),
     apiFetch<WireChannel>(`${BASE}/channels/${enc(id)}`, { retries: 0 }),
   ]);
-  if (tune.state === 'off_air' || !tune.master_url) throw new OffAirError();
+  if (!tune.master_url) throw new OffAirError();
   const now = Date.now();
   return {
     channel: toChannel(channel),
     master_url: tune.master_url,
+    slate: tune.state === 'off_air' && tune.slate === true,
     expires_at_ms: now + MASTER_TTL_MS,
     refresh_at_ms: null,
     now: tune.current ? toBlock(tune.current) : null,

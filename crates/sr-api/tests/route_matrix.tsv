@@ -211,6 +211,7 @@ GET	/admin/tv/channels/{channel_id}/schedule	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-
 GET	/admin/tv/guide-template	authenticated	staff	deny	-
 GET	/admin/tv/report	authenticated	staff	deny	-
+GET	/admin/tv/slate	authenticated	staff	deny	-
 GET	/announcements/active	authenticated	user	deny	-
 GET	/app-directory	authenticated	user	allow	-
 GET	/app-directory/tags	authenticated	user	allow	-

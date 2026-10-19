@@ -459,3 +459,61 @@ async fn reminders_are_stored_replaced_taken_once_and_follow_the_account() {
     );
     db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_slate_setting_is_read_before_the_environment_fallback() {
+    use crate::tv_catalog::PgSlateSetting;
+    use sr_tv::SlateSource;
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let owner = account(&pool).await;
+    let set = |value: serde_json::Value| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query(
+                "INSERT INTO platform_settings (key, value, updated_by) VALUES ($1, $2, $3) \
+                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            )
+            .bind(sr_admin::settings::TV_SLATE_ASSET)
+            .bind(value)
+            .bind(owner)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+    };
+    // Nothing set: no slate without a fallback, the environment value with one.
+    assert_eq!(
+        PgSlateSetting::new(pool.clone(), None).asset_id().await,
+        None
+    );
+    let with_env = PgSlateSetting::new(pool.clone(), Some(77));
+    assert_eq!(with_env.asset_id().await, Some(77));
+    // The setting wins over the environment, and a change shows on the next read.
+    set(serde_json::json!("4242")).await;
+    assert_eq!(with_env.asset_id().await, Some(4242));
+    set(serde_json::json!("5151")).await;
+    assert_eq!(with_env.asset_id().await, Some(5151));
+    // Cleared (empty) or unreadable: back to the fallback.
+    set(serde_json::json!("")).await;
+    assert_eq!(with_env.asset_id().await, Some(77));
+    set(serde_json::json!("not an id")).await;
+    assert_eq!(with_env.asset_id().await, Some(77));
+    db.cleanup().await.unwrap();
+}
+
+#[test]
+fn asset_ids_in_text_are_whole_positive_numbers() {
+    use crate::tv_catalog::parse_asset_id;
+    assert_eq!(parse_asset_id(" 123 "), Some(123));
+    for bad in ["", "0", "-4", "12x", "1.5"] {
+        assert_eq!(parse_asset_id(bad), None, "{bad}");
+    }
+}
+
+/// `sr-cli tv slate` queues the probe by this kind (sr-cli cannot depend on the server crate): they must agree.
+#[test]
+fn the_probe_job_kind_is_the_one_sr_cli_queues() {
+    assert_eq!(crate::media_jobs::PROBE_KIND, "cinema.probe");
+}

@@ -43,11 +43,29 @@ use utoipa::OpenApi;
 pub struct MediaDeps {
     pub media: MediaService,
     pub downloads: Arc<DownloadService>,
+    /// Where the Live TV slate asset id comes from: that asset is system-owned (D-269), so the asset list hides
+    /// it and it is not linked to a title.
+    slate: Option<Arc<dyn sr_tv::SlateSource>>,
 }
 
 impl MediaDeps {
     pub fn new(media: MediaService, downloads: Arc<DownloadService>) -> Self {
-        Self { media, downloads }
+        Self {
+            media,
+            downloads,
+            slate: None,
+        }
+    }
+
+    /// The setting the slate asset id is read from (the same source Live TV uses).
+    pub fn with_slate_source(mut self, slate: Arc<dyn sr_tv::SlateSource>) -> Self {
+        self.slate = Some(slate);
+        self
+    }
+
+    /// The asset id of the Live TV slate, when one is configured.
+    pub async fn slate_asset(&self) -> Option<i64> {
+        self.slate.as_ref()?.asset_id().await
     }
 }
 

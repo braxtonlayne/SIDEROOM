@@ -254,6 +254,7 @@ pub fn router() -> Router<AppState> {
             post(guide::confirm_import),
         )
         .route("/admin/tv/report", get(admin::report))
+        .route("/admin/tv/slate", get(admin::slate))
 }
 
 /// OpenAPI fragment for the Live TV endpoints.
@@ -285,6 +286,7 @@ pub fn router() -> Router<AppState> {
         admin::set_now,
         admin::remove_block,
         admin::report,
+        admin::slate,
         guide::slots,
         guide::put_slots,
         guide::template,
@@ -330,6 +332,7 @@ pub fn router() -> Router<AppState> {
         sr_tv::service::PlaceInput,
         sr_tv::service::SetNowInput,
         sr_tv::service::Report,
+        sr_tv::service::SlateStatus,
         sr_tv::service::ReportChannel,
         sr_tv::service::ReportItem,
         guide::SlotList,

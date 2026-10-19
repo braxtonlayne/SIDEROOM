@@ -1,0 +1,66 @@
+# Handoff: feat/p16-backend (TV-HLS-003, TV-HLS-005, FND-DB-009, DEV-BOT-007)
+
+Base `integration/phase16`. No migrations, no new routes, no OpenAPI change, no web change. No new crates (Cargo.lock only gained dependency edges: `sr-cli` -> `image`, `sr-library`; `sr-sdk` -> `str0m` plus dev-deps `sr-voice`, `sr-voice-proto`, `axum`).
+
+## Done
+- **TV-HLS-003 slate.** `sr_tv::live::render_slate_media` loops a configured slate asset on the wall clock (anchored at the epoch, so every client sees the same window; discontinuity + map + PDT at every wrap; sequence numbers start at 2^32 so they never go backwards from a programme). `TvService::with_slate(asset_id)`; wired in `sr-server` from env `SR_TV_SLATE_ASSET`. `live_master` and `live_media` fall back to it on `OffAir` (age gate and unknown channel errors still win); `tune` returns `master_url` for an off-air channel when a slate exists (state stays `off_air`). `sr_transcoder::slate::slate_source_args` builds the ffmpeg `lavfi` command (smptebars or testsrc2 plus a sine tone, no input file). Tests: `live::tests::the_slate_loops_...`, `service_tests::an_off_air_channel_shows_the_slate_instead_of_404`, three args tests.
+- **TV-HLS-005.** `crates/sr-tv/tests/hls_sync.rs`: clients with +-1 s skew stay within one segment on video and audio for ten minutes of polling, sequence never moves backwards, discontinuity/map/disc-sequence at a programme boundary. No browser.
+- **FND-DB-009.** `sr-cli seed` now also creates three published library series (manga, comic, webtoon) whose pages are drawn in code (CC0, `crates/sr-cli/src/library_seed.rs`), run through the real ingest pipeline (WebP, variants, blurhash) into the bucket, cover set, idempotent by title. Skipped with a message when `storage.endpoint` is `memory:` or the bucket is unreachable. Postgres test `samples_are_seeded_published_and_idempotent` (in-memory storage).
+- **DEV-BOT-007.** `sr_sdk::voice_transport` (feature `voice-transport`; `voice-e2ee` and `voice-transport` are now default features, P15-DEV-5): `voice_state_body`, `GatewayHandle::voice_state_update` (op 4 on the guild's shard), `VoiceServerUpdate::from_dispatch`, `VoiceSession` (SFU WebSocket IDENTIFY/READY/heartbeat, str0m session, one send-only audio line, answers the SFU's offers, `send_opus`, `pump` -> `VoiceEvent`), `FrameTransform` (implemented by `E2eeMedia`). In a call declaring E2EE, `send_opus` fails with `EncryptionRequired` without a transform and undecryptable frames are reported, not played. `tests/voice_transport.rs` (5 tests) runs two sessions against the real in-process SFU, including real epoch keys. Example `examples/voice_bot.rs`. Spec 3.13, README and inventory updated.
+
+## Still open (and why)
+- **Slate media bytes.** There is no ffmpeg on this machine, so no slate asset was actually encoded. To go live: run `slate_source_args` (smptebars, 12 s) on a machine with ffmpeg, ingest the MP4 as a normal asset through the existing transcode job with 2 s segments in the same rungs as the programmes, then set `SR_TV_SLATE_ASSET=<asset id>`. A CLI wrapper for that is not written. The master offers the slate's own rungs; a client that switches between programme and slate gets a discontinuity but may change rung set.
+- **Tune state for slate.** I kept `state: off_air` (guide semantics) and only added `master_url`; the web player does not use `master_url` while off air. Whether the player should play the slate is a product call (owner question 1).
+- **TV-HLS-005 Safari** itself (real device) is the e2e agent's / manual.
+- **DEV-BOT-007 leftovers:** TypeScript SDK voice, reconnect/resume of the SFU socket, Opus encode/decode (bot supplies frames), a live run against a real server (the example compiles; the SFU round trip is tested in-process only), ICE-TCP/TURN.
+- **FND-DB-009:** Cinema/video samples are not seeded (they need a transcode run). Library search is indexed on the next server start (`reindex_all`).
+
+## Tests run
+`cargo test -j 2`: `-p sr-tv` (75 lib + 3 hls_sync), `-p sr-transcoder slate` (3), `-p sr-cli` (incl. `library_seed`, Postgres test with `--include-ignored` against a scratch DB, dropped afterwards), `-p sr-sdk` (41 lib + voice_e2ee 5 + voice_transport 5, default features). `cargo clippy -D warnings --all-targets` clean for sr-tv, sr-transcoder, sr-cli, sr-sdk; `clippy -p sr-server` clean; `cargo fmt --check` clean. Not run: the sr-api TV route tests and sr-server Postgres suites (the touched surface there is one `with_slate` call).
+
+## Decisions / owner questions
+Answered 2026-10-19 as P16-BE-1 to P16-BE-4 in `docs/open-question-answers.md` (D-266 to D-269; follow-ups L-10 to L-15 in `docs/dev/answers-followups-p16.md`): the player plays the slate (`Tune.slate`), the 2^32 offset is replaced by chaining the slate into the channel's numbering, the SDK defaults stay, and `sr-cli tv slate` makes and registers the asset on the transcoder host.
+
+1. Should the web player play the slate while a channel is off air (needs `state` or a new `slate` flag in `Tune`, plus OpenAPI)? Default kept: no.
+2. Slate sequence numbers use a 2^32 offset so they stay above wall-clock-seeded programme numbers; returning to a programme drops back (a discontinuity precedes it). OK, or should programme seeding move above it?
+3. `voice-e2ee`/`voice-transport` are default features of `sr-sdk` now (per P15-DEV-5); bots that do not want openmls/str0m must use `default-features = false`.
+
+## Follow-ups (L-10 to L-15, agent backend-2)
+
+All six items of `docs/dev/answers-followups-p16.md` are done and ticked. Small commits prefixed with the id. The part of "Still open" above about the slate bytes, the Tune state and the 2^32 offset is superseded by what follows.
+
+- **L-10** `Tune.slate` (OpenAPI field with the D-266 description), web plays `master_url` off air and draws the existing `cinema.nowPanel.offAir` / `offAirNext` strings over the picture (`SlateCaption`); the caption ends when the next programme starts. The guide preview keeps its still picture off air. No new i18n keys for L-10.
+- **L-11** `volume=-20dB` after the sine source.
+- **L-12** One numbering domain. `SLATE_SEQ_BASE` removed. A slate counts on from the last programme with media that ended before the gap (searched 1 h, 1 day, 14 days back; `Service::last_programme_before`), a programme with no contiguous predecessor counts on from the slate segment on air at its start, and the windows on both sides of a boundary list both sides. Off air the master offers the standard rungs (480/720/1080 intersected with the slate; one `warn` log when the slate lacks one). Decisions taken while implementing:
+  - With no earlier programme to chain from, the slate is seeded from its own global segment index and loop pass count since the epoch (not seconds): a window lists consecutive numbers, so the seed has to grow by exactly one per segment and per wrap; a seconds seed does not (the property test found this).
+  - A programme whose contiguous predecessor exists but has no bases (never viewed) is still seeded from the wall clock as before; only "no contiguous predecessor" chains from the slate.
+  - A slate after a programme that was never viewed (no bases) is seeded the same way as one with no programme before it.
+  - The asset of the last programme is loaded on slate playlist requests (one lookup), and the lead (slate before a young programme) only within the first 2 minutes of a programme.
+- **L-13** README, Cargo.toml comments, CI steps; the three `--no-default-features` builds, clippy and `cargo test -p sr-sdk --no-default-features` pass.
+- **L-14** `sr-cli tv slate [--picture bars|moving] [--seconds 12] [--ffmpeg] [--wait-secs]`; `sr-cli seed` queues it when ffmpeg is found. The original goes to `originals/<id>/source.mp4` directly (not through the multipart presign, which needs a server), the asset is recorded as `uploaded` with no title and the system user as uploader, and the same probe job a staff upload queues is enqueued; the running server's probe and ladder jobs and a transcoder worker do the rest. A second run retires the previous asset (state `removed`; retention deletes the files after its grace days). Setting `tv.slate_asset` is a text setting (group `tv`, digits or empty) written through `AdminService::patch_settings`, so it is audited and editable under Admin -> Limits too. `TvService::with_slate_source` reads it every 10 s (`PgSlateSetting`: setting, then `SR_TV_SLATE_ASSET`), so a CLI run applies without restart. The watch the other registry settings use is a push from the PATCH route inside one process; a CLI write in another process needs polling, hence the 10 s refresh. New route `GET /admin/tv/slate` (matrix row, OpenAPI `TvSlate`), read-only row in `LiveTvSection`. The assets list hides the slate; there is no asset delete route, so "refuse to delete" is "refuse to link it to a title or open its original for download" (409). New path dependencies of `sr-cli`: `sr-media`, `sr-transcoder` (no new external crates; `tokio::process` was avoided so no tokio feature changed).
+- **L-15** spec, inventory, API doc; also doc 12 and `getting-started.md` for L-14.
+
+### Tests run (all with `-j 2`, one process at a time, own scratch DB `sr_p16be_scratch`, dropped after)
+`cargo test -p sr-tv` (82 lib incl. 4 new live tests and 2 service tests, 4 hls_sync incl. the random-schedule property test: 80 schedules x 3 tracks), `-p sr-transcoder slate`, `-p sr-sdk --no-default-features` and default features, `-p sr-admin settings`, `-p sr-cli --bins -- --include-ignored` (18, incl. the Postgres ingest/register/replace test), `-p sr-api -- --include-ignored` (all: 616 lib + route matrix + openapi names + others), `-p sr-server tv_ -- --include-ignored` (7, incl. the setting-before-env test). `cargo fmt --all --check` and `cargo clippy -D warnings --all-targets` on sr-tv, sr-transcoder, sr-cli, sr-sdk, sr-admin, sr-api, sr-server. Web: tsc, eslint, prettier --check, the whole vitest suite (2292 tests in 243 files, plus the 5 files that need the wasm build once it was built: 34 tests), vite build and the bundle budget (all ok). No test runs ffmpeg and nothing was transcoded.
+
+### Still open
+- A real run of `sr-cli tv slate` against a server, a transcoder worker and ffmpeg (none here); the pieces are tested separately.
+- `docs/specs/cinema-live-tv.md` says a styled "We'll be right back" card is future work; one slate serves both policies until then.
+- Safari / device checks of the slate-to-programme switch are the e2e agent's.
+
+### Owner questions
+1. Slate numbers with nothing earlier to chain from (no programme within two weeks) are seeded from the slate's own counters, below the seconds-seeded numbers of programmes. A client that stays on the slate across the two-week search limit while a programme chain exists would see numbers jump. Fine, or should the search be unbounded?
+2. Should Admin get an actual "remove slate" action (clear the setting) in the row, or is the CLI plus the Limits setting enough?
+
+Answered 2026-10-19 by the owner proxy: D-285 (stored per-channel anchor, L-16) and D-286 (no Admin action; `sr-cli tv slate --remove`, L-17) in `docs/01-decisions-log.md`, P16-BE-5 and P16-BE-6 in `docs/open-question-answers.md`.
+
+## Follow-ups, second round (L-16 and L-17, agent backend-2)
+
+Both ticked. Small commits prefixed with the id.
+
+- **L-16 (D-285)**. Migration `1040_tv_channel_chain.sql` adds `chain_end_ms`, `chain_seq`, `chain_disc` and, beyond the follow-up text, `chain_block_id` (the rewrite on an edit has to know which block anchors). The repository advances the anchor in the `set_bases` transaction (later end only) and the service rewrites it after an edit that moved the end of the anchoring block (`refresh_anchor` after place, publish and set-now). Decisions taken while implementing:
+  - The lead (slate before a young programme) cannot read the anchor, because by then the programme itself has moved it. It counts the slate back from the programme's own bases (the slate segment on air at its start is `seq_base - 1`) and lists the programme before it as a tail only when that programme's numbers agree. It is not listed from before the end of the last programme before it (any, even one whose asset is gone), so it never reaches programme numbers.
+  - An anchor in the future (its programme was cut short or removed while viewers were on it, so the slate plays now) moves to now minus one full window of slate, same numbers. Without the padding a later lead window started before an earlier slate window and the head went backwards (the property test found it).
+  - Replacing the slate by a loop of another length can renumber once for a client on it; the CLI says so (heuristic: it warns when the lengths differ or are not both known yet).
+  - An existing channel has no anchor until its next viewed programme: the slate seeds from its own count once more, as D-285 says.
+- **L-17 (D-286)**. `sr-cli tv slate --remove`. The Admin row names it and links to Limits; no button, no route. API-visible output did not change, so OpenAPI was not regenerated.

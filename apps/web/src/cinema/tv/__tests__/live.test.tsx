@@ -280,6 +280,44 @@ describe('live player', () => {
     const ctx = renderLive();
     expect(await screen.findByText('This channel is off the air')).toBeInTheDocument();
     expect(ctx.engine.load).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('slate-caption')).not.toBeInTheDocument();
+  });
+
+  it('plays the instance slate with the off-air captions over it when the server offers one (D-266)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: NOW });
+    const g = guide();
+    g.blocks.c101 = [block('c101', 30, 60, { id: 'later', title: 'Cowboy Bebop' })];
+    useTvApi({
+      guide: g,
+      tune: (id) =>
+        HttpResponse.json({
+          channel_id: id,
+          state: 'off_air',
+          slate: true,
+          master_url: `/api/v1/tv/channels/${id}/live/master.m3u8`,
+          current: null,
+          offset_ms: null,
+          viewers: 0,
+        }),
+    });
+    const ctx = renderLive();
+    await waitFor(() =>
+      expect(ctx.engine.load).toHaveBeenCalledWith(
+        '/api/v1/tv/channels/c101/live/master.m3u8',
+        undefined,
+      ),
+    );
+    const caption = await screen.findByTestId('slate-caption');
+    expect(caption).toHaveTextContent('Off the air');
+    expect(caption).toHaveTextContent('Up next: Cowboy Bebop.');
+    expect(screen.queryByText('This channel is off the air')).not.toBeInTheDocument();
+    expect(ctx.session.state.info?.live).toEqual({ channel_id: 'c101' });
+  });
+
+  it('does not draw the off-air captions while a programme is on', async () => {
+    useTvApi();
+    await openAndPlay();
+    expect(screen.queryByTestId('slate-caption')).not.toBeInTheDocument();
   });
 
   it('asks the session to refresh the signed URL by channel (tv:<id>) and applies it', async () => {

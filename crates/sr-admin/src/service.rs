@@ -240,6 +240,16 @@ impl AdminService {
         self.setting_i64(key).await
     }
 
+    /// The stored value of a text setting, or an empty string (startup wiring and the Live TV slate).
+    pub async fn setting_value_text(&self, key: &str) -> AdminResult<String> {
+        let stored = self.repo.settings().await?;
+        Ok(stored
+            .get(key)
+            .and_then(|s| s.value.as_str())
+            .unwrap_or("")
+            .to_owned())
+    }
+
     pub(crate) async fn setting_i64(&self, key: &str) -> AdminResult<i64> {
         let stored = self.repo.settings().await?;
         let def =

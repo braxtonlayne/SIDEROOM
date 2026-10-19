@@ -42,6 +42,14 @@ jobs:
       # no offline metadata (.sqlx/) to verify. Revisit if query! macros are ever adopted.
       - name: sqlx offline metadata check (no-op by design)
         run: echo "no compile-time-checked queries; nothing to prepare"
+      # D-268 / L-13: the opt-out of bot voice (no openmls, no str0m) must keep compiling and passing.
+      - name: sr-sdk without default features
+        run: |
+          cargo build -p sr-sdk --no-default-features
+          cargo build -p sr-sdk --no-default-features --features voice-transport
+          cargo build -p sr-sdk --no-default-features --features voice-e2ee
+          cargo clippy -p sr-sdk --no-default-features --all-targets -- -D warnings
+          cargo test -p sr-sdk --no-default-features
       - run: cargo nextest run --workspace
       # D-163 / F-01: the #[ignore]d Postgres suites (sr-db). Single-threaded because the tests
       # share one database; sr-storage's live S3 suite has its own workflow (storage.yml).

@@ -22,6 +22,8 @@ pub mod model;
 pub mod ops;
 #[cfg(feature = "voice-e2ee")]
 pub mod voice;
+#[cfg(feature = "voice-transport")]
+pub mod voice_transport;
 
 pub use cache::Cache;
 pub use client::{Client, ClientBuilder, EventHandler, Shards};

@@ -171,13 +171,55 @@ async fn blocks_apply_query_and_number_atomically() {
     assert_eq!(repo.cursor_block(1, 1000).await.unwrap().unwrap().id, 51);
 
     // Bases are written once.
-    assert_eq!(repo.set_bases(11, 500, 7).await.unwrap(), (500, 7));
-    assert_eq!(repo.set_bases(11, 900, 9).await.unwrap(), (500, 7));
+    assert_eq!(repo.set_bases(11, 500, 7, 10).await.unwrap(), (500, 7));
+    assert_eq!(repo.set_bases(11, 900, 9, 10).await.unwrap(), (500, 7));
     assert_eq!(
         repo.get_block(11).await.unwrap().unwrap().seq_base,
         Some(500)
     );
-    assert!(repo.set_bases(404, 1, 1).await.is_err());
+    assert!(repo.set_bases(404, 1, 1, 1).await.is_err());
+
+    // The channel chain anchor (D-285) follows the bases and only moves to a later end.
+    assert_eq!(
+        anchor(&repo, 1).await,
+        Some(ChainAnchor {
+            end_ms: 100,
+            seq: 510,
+            disc: 8,
+            block_id: 11
+        })
+    );
+    repo.set_bases(12, 600, 8, 4).await.unwrap();
+    assert_eq!(
+        anchor(&repo, 1).await,
+        Some(ChainAnchor {
+            end_ms: 120,
+            seq: 604,
+            disc: 9,
+            block_id: 12
+        })
+    );
+    repo.set_bases(50, 1, 1, 1).await.unwrap();
+    assert_eq!(
+        anchor(&repo, 1).await.unwrap().block_id,
+        50,
+        "ends at 140: later wins"
+    );
+    repo.set_bases(11, 1, 1, 1).await.unwrap();
+    assert_eq!(
+        anchor(&repo, 1).await.unwrap().block_id,
+        50,
+        "never moves back"
+    );
+    let moved = ChainAnchor {
+        end_ms: 130,
+        seq: 700,
+        disc: 12,
+        block_id: 50,
+    };
+    repo.set_anchor(1, moved).await.unwrap();
+    assert_eq!(anchor(&repo, 1).await, Some(moved));
+    assert_eq!(anchor(&repo, 2).await, None, "other channels are untouched");
 
     // Deleting a channel takes its blocks along.
     repo.delete_channel(1).await.unwrap();
@@ -350,4 +392,8 @@ async fn slots_imports_and_favorites_round_trip() {
     assert!(repo.favorites(8).await.unwrap().is_empty());
     assert!(repo.favorites(9).await.unwrap().is_empty());
     db.cleanup().await.unwrap();
+}
+
+async fn anchor(repo: &PgTvRepo, channel: i64) -> Option<ChainAnchor> {
+    repo.get_channel(channel).await.unwrap().unwrap().chain
 }

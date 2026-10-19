@@ -44,7 +44,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **FND-DB-006** [BE] Job runner (tokio tasks, concurrency per kind, graceful shutdown)
 - [x] **FND-DB-007** [DB] Monthly partition manager for `messages` (create-ahead job)
 - [x] **FND-DB-008** [BE] Repository pattern + transaction helper (`with_tx`) + advisory lock helper
-- [ ] **FND-DB-009** [OPS] Seed command (dev data: users, servers, messages, library samples with CC0 media) _(`sr-cli seed` creates users and the dev guild with 200 messages; library samples with CC0 media are not seeded)_
+- [x] **FND-DB-009** [OPS] Seed command (dev data: users, servers, messages, library samples with CC0 media) _(`sr-cli seed` creates users and the dev guild with 200 messages; library samples with CC0 media are not seeded)_ _p16: `crates/sr-cli/src/library_seed.rs` seeds three published sample series (manga, comic, webtoon; 10 chapters-pages total) with pages drawn in code (CC0), run through the real ingest pipeline into the bucket; idempotent, skips when storage is unreachable or `memory:`; Postgres test `samples_are_seeded_published_and_idempotent`. Cinema samples (video) still need a transcode run_
 
 ## FND-EVT — `sr-events`
 - [x] **FND-EVT-001** [BE] `EventBus` trait + `InProcessBus` (tokio broadcast per topic)

@@ -21,6 +21,17 @@ use utoipa::{IntoParams, ToSchema};
 
 const NEED: (P, &str) = (P::PUBLISH_MEDIA, "PUBLISH_MEDIA");
 
+/// The Live TV slate is system-owned (D-269): it stays out of the Cinema catalogue and cannot be given to a
+/// title or opened for download.
+async fn refuse_slate(ctx: &MediaCtx, asset_id: i64) -> ApiResult<()> {
+    if ctx.deps.slate_asset().await == Some(asset_id) {
+        return Err(map_err(MediaError::Conflict(
+            "this asset is the Live TV slate; change the slate with sr-cli tv slate".into(),
+        )));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Default, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct AssetListParams {
@@ -49,6 +60,7 @@ pub struct AssetList {
 pub async fn list(ctx: MediaCtx, Query(p): Query<AssetListParams>) -> ApiResult<Json<AssetList>> {
     ctx.require(NEED.0, NEED.1)?;
     let limit = p.limit.unwrap_or(50).clamp(1, 200);
+    let slate = ctx.deps.slate_asset().await;
     let items = ctx
         .media()
         .list_assets(AssetQuery {
@@ -60,9 +72,11 @@ pub async fn list(ctx: MediaCtx, Query(p): Query<AssetListParams>) -> ApiResult<
         })
         .await
         .map_err(map_err)?;
+    // The next page cursor follows the unfiltered page; the slate is system-owned and never listed (D-269).
     let next_before = (items.len() as u32 == limit)
         .then(|| items.last().map(|a| a.id.to_string()))
         .flatten();
+    let items = items.into_iter().filter(|a| Some(a.id) != slate).collect();
     Ok(Json(AssetList { items, next_before }))
 }
 
@@ -228,6 +242,7 @@ pub async fn link(
 ) -> ApiResult<Json<Asset>> {
     ctx.require(NEED.0, NEED.1)?;
     let asset_id = id(&asset_id, "asset")?;
+    refuse_slate(&ctx, asset_id).await?;
     let title = b.title_id.as_deref().map(|t| id(t, "title")).transpose()?;
     let episode = b
         .episode_id
@@ -295,7 +310,8 @@ pub struct OriginalDownloadsBody {
     put, path = "/admin/cinema/assets/{asset_id}/original-downloads", operation_id = "admin_cinema_original_downloads",
     request_body = OriginalDownloadsBody,
     params(("asset_id" = String, Path, description = "Asset snowflake")),
-    responses((status = 200, body = Asset), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    responses((status = 200, body = Asset), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody),
+              (status = 409, body = ErrorBody, description = "The asset is the Live TV slate.")),
     security(("session" = []))
 )]
 pub async fn original_downloads(
@@ -304,9 +320,11 @@ pub async fn original_downloads(
     Json(b): Json<OriginalDownloadsBody>,
 ) -> ApiResult<Json<Asset>> {
     ctx.require(NEED.0, NEED.1)?;
+    let asset_id = id(&asset_id, "asset")?;
+    refuse_slate(&ctx, asset_id).await?;
     let a = ctx
         .media()
-        .set_original_downloads(id(&asset_id, "asset")?, b.enabled)
+        .set_original_downloads(asset_id, b.enabled)
         .await
         .map_err(map_err)?;
     ctx.audit(

@@ -25,6 +25,8 @@ export function LivePreview({
       try {
         const grant = await tuneChannel(channelId);
         if (dead) return;
+        // The slate loop (D-266) is for the full view; the preview keeps its still picture off air.
+        if (grant.slate) throw new Error('off air');
         engine = await createEngine(video);
         if (dead) {
           engine.destroy();
