@@ -652,6 +652,122 @@ async fn an_off_air_channel_shows_the_slate_instead_of_404() {
     );
 }
 
+/// The service with a slate (asset 9999: three 2 s segments) next to the programme assets of `env`.
+fn with_slate(e: &Env) -> TvService {
+    let source = MemoryPlaybackSource::new();
+    for n in 1..=40 {
+        source.insert(asset(7100 + n, 300));
+    }
+    let mut slate = asset(9999, 3);
+    for v in &mut slate.media.videos {
+        for s in &mut v.segments {
+            s.duration_secs = 2.0;
+        }
+    }
+    for au in &mut slate.media.audios {
+        for s in &mut au.segments {
+            s.duration_secs = 2.0;
+        }
+    }
+    source.insert(slate);
+    let next = Arc::new(AtomicI64::new(50_000));
+    TvService::new(
+        e.repo.clone(),
+        Arc::new(e.catalog.clone()),
+        e.clock.clone(),
+        Arc::new(move || next.fetch_add(1, Ordering::SeqCst)),
+    )
+    .with_live(LiveDeps {
+        source: Arc::new(source),
+        signer: Arc::new(Sig),
+    })
+    .with_slate(9999)
+}
+
+fn header_of(text: &str, name: &str) -> i64 {
+    text.lines()
+        .find_map(|l| l.strip_prefix(name))
+        .unwrap()
+        .parse()
+        .unwrap()
+}
+
+#[tokio::test]
+async fn the_slate_chains_with_the_programmes_around_it() {
+    let e = env();
+    let svc = with_slate(&e);
+    let mut manual = input(310, ChannelRules::default());
+    manual.kind = ChannelKind::Manual;
+    let id = e.svc.create_channel(e.staff, manual).await.unwrap().id;
+    let t = utc(2025, 6, 2, 20, 0);
+    // A (30 min) at 20:00, a ten minute gap, B at 20:40.
+    for (ep, start) in [(7101, t), (7102, t + 40 * MIN)] {
+        let input = PlaceInput {
+            title_id: 7,
+            episode_id: Some(ep),
+            start_ms: start,
+            end_ms: None,
+        };
+        e.svc.place_block(e.staff, id, input).await.unwrap();
+    }
+    let seq = |text: &str| header_of(text, "#EXT-X-MEDIA-SEQUENCE:");
+    let disc_tags = |text: &str| text.matches("#EXT-X-DISCONTINUITY\n").count();
+
+    // 20:01: A is on air; its segment 10 is the newest, so the head is segment 5.
+    e.clock.advance_ms(MIN);
+    let a = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    let a_base = seq(&a) - 5;
+
+    // 20:30:01: A has ended, the slate follows it. Its first segment is numbered one above A's last
+    // (300 segments on air), the tail of A is still listed, with one discontinuity between.
+    e.clock.advance_ms(29 * MIN + 1_000);
+    let s1 = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    assert!(s1.contains("/cdn/hls/7101/v/720p/seg_00299.m4s"), "{s1}");
+    assert!(s1.contains("/cdn/hls/9999/v/720p/seg_"), "{s1}");
+    assert_eq!(disc_tags(&s1), 1);
+    let tune = svc.tune(MEMBER, id).await.unwrap();
+    assert_eq!(
+        tune.state,
+        TuneState::OffAir,
+        "the guide still says off air"
+    );
+
+    // Six seconds on: the window moved by three slate segments (2 s each), nothing renumbered.
+    e.clock.advance_ms(6_000);
+    let s2 = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    assert_eq!(seq(&s2) - seq(&s1), 3);
+
+    // 20:40:01: B starts mid-slate. It counts on from the slate segment on air at 20:40:00, which is
+    // 300 slate segments after the first one: B's first segment is a_base + 300 + 300 + 1, and the
+    // window lists the slate's last five segments before it with one discontinuity.
+    e.clock.advance_ms(9 * MIN + 54_000);
+    let b = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    assert!(b.contains("/cdn/hls/7102/v/720p/seg_00000.m4s"), "{b}");
+    // The last discontinuity is the one into B (the slate loop wraps inside its tail as well).
+    let after_last = b
+        .rsplit_once(
+            "#EXT-X-DISCONTINUITY
+",
+        )
+        .unwrap()
+        .1;
+    assert!(
+        after_last.starts_with("#EXT-X-MAP:URI=\"/cdn/hls/7102/"),
+        "{b}"
+    );
+    assert_eq!(seq(&b), a_base + 601 - 5, "{b}");
+    // The audio playlist numbers alike.
+    let audio = svc.live_media(MEMBER, id, Track::Audio).await.unwrap();
+    assert_eq!(seq(&audio), seq(&b));
+
+    // The same channel without the slate has nothing on between the programmes.
+    e.clock.set(t + 35 * MIN);
+    assert_eq!(
+        e.svc.live_media(MEMBER, id, Track::Video(720)).await,
+        Err(TvError::OffAir)
+    );
+}
+
 // ---- reminders (G-10) ------------------------------------------------------------------------
 
 #[derive(Default)]

@@ -20,8 +20,10 @@
 //!   last + 1 with discontinuity sequence + 1, each later segment adds one, each wrap of the loop one
 //!   discontinuity.
 //! - Only where there is nothing to chain from (no slate, or no earlier programme on the channel) the number
-//!   is seeded from the wall clock in seconds: seconds only grow and a segment lasts at least a second, so
-//!   a chained number never exceeds a later seed and numbers never go backwards.
+//!   is seeded (a programme from the wall clock in seconds, the slate from its own segment and loop count since
+//!   the epoch, which grow by exactly one). Seconds only grow and a segment lasts at least a second, so a
+//!   chained number stays below a later seed of a programme; the slate seed matters only on a channel that
+//!   never aired a programme within two weeks.
 //!
 //! Programme boundaries, on either side of a slate too, carry `#EXT-X-DISCONTINUITY`, a new `#EXT-X-MAP` and
 //! a `#EXT-X-PROGRAM-DATE-TIME`; the window lists both sides of a boundary while it is young
@@ -274,9 +276,11 @@ impl<'a> SlateLoop<'a> {
         g.div_euclid(self.n()) * self.cycle_ms + self.starts[g.rem_euclid(self.n()) as usize]
     }
 
-    /// (media sequence, discontinuity sequence) of segment `g`: counted on from the programme before the
-    /// gap when there is one (D-267), else seeded from the wall clock in seconds (as a programme with no
-    /// predecessor is, so numbers never go backwards: a segment lasts at least a second).
+    /// gap when there is one (D-267), else seeded with the slate's own count since the epoch: the global
+    /// segment index and the loop pass number. Both must grow by exactly one per segment or wrap (a window
+    /// lists consecutive numbers), so a seconds seed would not do; they sit below the seconds-seeded numbers
+    /// of a programme, which only matters for a client that stays on across the two-week search limit.
+    /// wrap, which a seconds seed would not).
     fn numbering(&self, chain: Option<&SlateChain<'_>>, g: i64) -> (i64, i64) {
         let cycle = g.div_euclid(self.n());
         match chain {
@@ -284,7 +288,7 @@ impl<'a> SlateLoop<'a> {
                 let g0 = self.index_at(c.end_ms);
                 (c.seq + (g - g0), c.disc + (cycle - g0.div_euclid(self.n())))
             }
-            None => (self.start_of(g) / 1000, cycle * self.cycle_ms / 1000),
+            None => (g, cycle),
         }
     }
 
@@ -867,8 +871,8 @@ pub(crate) mod tests {
         // 13 s: cycle 2 (12 s..18 s), segment 0 on air; global index 6. Window 1..=6.
         let text = render_slate_media(&a, Track::Video(720), 13_000, None, &Sig, 0).unwrap();
         let (seq, segs) = seqs(&text);
-        // No programme before it: seeded from the wall clock in seconds (segment 1 starts at 2 s).
-        assert_eq!(seq, 2);
+        // No programme before it: seeded from the wall clock in seconds (global index 1).
+        assert_eq!(seq, 1);
         assert_eq!(segs.len(), WINDOW_SEGMENTS);
         assert_eq!(segs[0], "/cdn/hls/77/v/720p/seg_00001.m4s");
         assert_eq!(segs[5], "/cdn/hls/77/v/720p/seg_00000.m4s");
@@ -975,8 +979,8 @@ pub(crate) mod tests {
     fn without_a_slate_or_an_earlier_programme_the_seed_is_the_wall_clock() {
         let s = slate();
         // No programme before: slate numbers are seconds; a programme chains from the slate segment.
-        assert_eq!(slate_position(&s, None, 64_000), Some((64, 60)));
-        assert_eq!(bases_after_slate(&s, None, 64_000), Some((65, 61)));
+        assert_eq!(slate_position(&s, None, 64_000), Some((32, 10)));
+        assert_eq!(bases_after_slate(&s, None, 64_000), Some((33, 11)));
         // A programme without a lead is numbered by its own bases as before.
         let c = lb(2, 64_000, 130_000, 0, 64, 64, 11);
         let text = render_media(&[c], Track::Video(720), 65_000, &Sig, 0).unwrap();

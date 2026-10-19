@@ -193,3 +193,192 @@ fn both_clients_see_the_discontinuity_at_the_programme_boundary() {
     assert_eq!(maps.len(), 2);
     assert_ne!(maps[0], maps[1]);
 }
+
+// ---- D-267: one numbering domain across programmes and the slate ---------------------------------------
+
+use sr_tv::live::{
+    SlateChain, SlateLead, bases_after_slate, render_media_with_lead, render_slate_media,
+};
+use std::collections::HashMap;
+
+/// xorshift64, so the schedules are reproducible without a dependency.
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+    fn range(&mut self, lo: i64, hi: i64) -> i64 {
+        lo + (self.next() % (hi - lo + 1) as u64) as i64
+    }
+}
+
+/// An asset whose segments (and those of its audio) last `seg_secs` each.
+fn asset_with(id: i64, n: usize, seg_secs: f64) -> PlaybackAsset {
+    let mut a = asset(id, n);
+    for v in &mut a.media.videos {
+        for s in &mut v.segments {
+            s.duration_secs = seg_secs;
+        }
+    }
+    for au in &mut a.media.audios {
+        for s in &mut au.segments {
+            s.duration_secs = seg_secs;
+        }
+    }
+    a.duration_ms = Some((n as f64 * seg_secs * 1000.0) as i64);
+    a
+}
+
+/// One entry of a parsed playlist: (sequence, discontinuity counter, asset id, segment file).
+type Seg = (i64, i64, String, String);
+
+fn entries(text: &str) -> Vec<Seg> {
+    let (head, _) = parse(text);
+    let mut disc: i64 = text
+        .lines()
+        .find_map(|l| l.strip_prefix("#EXT-X-DISCONTINUITY-SEQUENCE:"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    let mut out = Vec::new();
+    for l in text.lines() {
+        if l == "#EXT-X-DISCONTINUITY" {
+            disc += 1;
+        } else if let Some(p) = l.strip_prefix("/cdn/hls/") {
+            let p = p.split('?').next().unwrap();
+            let (asset, file) = (p.split('/').next().unwrap(), p.rsplit('/').next().unwrap());
+            out.push((
+                head + out.len() as i64,
+                disc,
+                asset.to_owned(),
+                file.to_owned(),
+            ));
+        }
+    }
+    out
+}
+
+#[test]
+fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
+    let slate_id = 9999;
+    for case in 0..80_u64 {
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15 ^ (case + 1).wrapping_mul(0xD1B5_4A32_D192_ED03));
+        for _ in 0..4 {
+            rng.next();
+        }
+        // The slate: 2..=5 segments of 1, 2, 2.5 or 4 s, whatever the programmes use.
+        let slate_secs = [1.0, 2.0, 2.5, 4.0][rng.range(0, 3) as usize];
+        let slate = asset_with(slate_id, rng.range(2, 5) as usize, slate_secs);
+        let seg_ms = (slate_secs * 1000.0) as i64;
+        let n_slate = slate.media.videos[0].segments.len() as i64;
+        let cycle_ms = seg_ms * n_slate;
+        // Programmes with gaps (some none: contiguous), cut and offset at random, from a start that is
+        // not aligned to anything.
+        let t0 = 1_700_000_000_000 + rng.range(0, 999_999);
+        let mut cursor = t0;
+        let mut live: Vec<LiveBlock> = Vec::new();
+        for id in 1..=rng.range(3, 6) {
+            cursor += [0, 0, rng.range(1, 90_000)][rng.range(0, 2) as usize];
+            let seg = [2.0, 4.0, 6.0][rng.range(0, 2) as usize];
+            let len = rng.range(20, 240) * 1000;
+            let offset = rng.range(0, 40) * 1000;
+            let n = ((len + offset) as f64 / (seg * 1000.0)).ceil() as usize + 2;
+            let mut b = block(id, cursor, cursor + len, 0, 0, n);
+            b.asset = asset_with(id * 100, n, seg);
+            b.block.offset_ms = offset;
+            b.block.seq_base = None;
+            b.block.disc_base = None;
+            live.push(b);
+            cursor += len;
+        }
+        // Bases as the service assigns them: from the contiguous programme before, else from the slate
+        // segment on air at the start (itself counting on from the last programme before the gap).
+        for i in 0..live.len() {
+            let (seq, disc) = match i.checked_sub(1).map(|p| &live[p]) {
+                Some(p) if p.block.end_ms == live[i].block.start_ms => (
+                    p.block.seq_base.unwrap() + on_air_count(&p.block, &p.asset),
+                    p.block.disc_base.unwrap() + 1,
+                ),
+                prev => {
+                    let chain = prev.and_then(SlateChain::after);
+                    bases_after_slate(&slate, chain.as_ref(), live[i].block.start_ms).unwrap()
+                }
+            };
+            live[i].block.seq_base = Some(seq);
+            live[i].block.disc_base = Some(disc);
+        }
+        let t_end = cursor + 60_000;
+        for track in [Track::Video(720), Track::Video(480), Track::Audio] {
+            // Every number maps to one segment and one discontinuity counter, whoever asks and when.
+            let mut seen: HashMap<i64, (i64, String, String)> = HashMap::new();
+            let (mut last_head, mut last_disc, mut last_edge) = (i64::MIN, i64::MIN, i64::MIN);
+            let mut t = t0 - 5_000;
+            while t < t_end {
+                let cur = live.iter().position(|b| b.block.contains(t));
+                let (text, expect): (String, (String, String)) = match cur {
+                    Some(c) => {
+                        let mut blocks = Vec::new();
+                        if c > 0 && live[c - 1].block.end_ms == live[c].block.start_ms {
+                            blocks.push(live[c - 1].clone());
+                        }
+                        blocks.push(live[c].clone());
+                        let last = c
+                            .checked_sub(1)
+                            .map(|p| &live[p])
+                            .filter(|p| p.block.end_ms <= live[c].block.start_ms);
+                        let lead = SlateLead {
+                            asset: &slate,
+                            chain: last.and_then(SlateChain::after),
+                        };
+                        let text = render_media_with_lead(&blocks, track, t, Some(&lead), &Sig, 0)
+                            .unwrap();
+                        let b = &live[c];
+                        let bseg =
+                            (b.asset.media.videos[0].segments[0].duration_secs * 1000.0) as i64;
+                        let k = (t - b.block.start_ms + b.block.offset_ms) / bseg;
+                        (text, (b.asset.id.to_string(), format!("seg_{k:05}.m4s")))
+                    }
+                    None => {
+                        let last = live.iter().rfind(|b| b.block.end_ms <= t);
+                        let chain = last.and_then(SlateChain::after);
+                        let text =
+                            render_slate_media(&slate, track, t, chain.as_ref(), &Sig, 0).unwrap();
+                        let g = (t % cycle_ms) / seg_ms;
+                        assert!(g < n_slate);
+                        (text, (slate_id.to_string(), format!("seg_{g:05}.m4s")))
+                    }
+                };
+                let es = entries(&text);
+                let ctx = format!("case {case} {track:?} t0+{} ms", t - t0);
+                // The window always holds the segment on air, last.
+                let tail = es.last().unwrap();
+                assert_eq!((tail.2.clone(), tail.3.clone()), expect, "{ctx}\n{text}");
+                // Neither counter nor the live edge ever decreases between two reloads.
+                let (head, disc, edge) = (es[0].0, es[0].1, es.last().unwrap().0);
+                assert!(
+                    head >= last_head,
+                    "{ctx}: media sequence {head} < {last_head}\n{text}"
+                );
+                assert!(
+                    disc >= last_disc,
+                    "{ctx}: discontinuity sequence {disc} < {last_disc}"
+                );
+                assert!(edge >= last_edge, "{ctx}: live edge {edge} < {last_edge}");
+                // A number is one segment with one counter, for every client.
+                for (s, d, a, f) in es {
+                    let prev = seen.entry(s).or_insert((d, a.clone(), f.clone()));
+                    assert_eq!(
+                        *prev,
+                        (d, a, f),
+                        "{ctx}: sequence {s} changed meaning\n{text}"
+                    );
+                }
+                (last_head, last_disc, last_edge) = (head, disc, edge);
+                t += rng.range(400, 3_500);
+            }
+        }
+    }
+}
