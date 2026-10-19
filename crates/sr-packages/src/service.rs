@@ -842,15 +842,27 @@ impl PackageService {
                 "That kind of package cannot be turned on here.".to_owned(),
             ));
         }
+        // A server theme recolours the Lounge only (D-281): `all` and `lounge` mean the same and are stored as
+        // `lounge`; the theme already on replaces any older row stored as `all` too.
+        let guild_theme = scope == "guild" && kind == PackageKind::Theme;
+        if guild_theme && !matches!(section, "all" | "lounge") {
+            return Err(PackageError::Invalid(
+                "section",
+                "A server theme applies to the Lounge only.".to_owned(),
+            ));
+        }
+        let section = if guild_theme { "lounge" } else { section };
         let mut tx = self.pool().begin().await?;
         if kind == PackageKind::Theme {
             sqlx::query(
                 "DELETE FROM package_enablements e USING packages p \
-                 WHERE e.scope = $1 AND e.scope_id = $2 AND e.section = $3 AND p.id = e.package_id AND p.kind = 'theme'",
+                 WHERE e.scope = $1 AND e.scope_id = $2 AND (e.section = $3 OR ($4 AND e.section = 'all')) \
+                   AND p.id = e.package_id AND p.kind = 'theme'",
             )
             .bind(scope)
             .bind(scope_id)
             .bind(section)
+            .bind(guild_theme)
             .execute(&mut *tx)
             .await?;
         }

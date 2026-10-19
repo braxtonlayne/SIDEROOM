@@ -891,6 +891,21 @@ async fn a_server_gets_a_theme_an_accent_colour_and_pack_items_it_can_take_back(
     assert_eq!(t.slug, "ocean-night");
     assert_eq!(t.scheme, "dark");
     assert_eq!(t.tokens["--ui-accent"], "#5865f2");
+    // `all` is stored as `lounge` for a server (D-281); any other section is refused.
+    let en = r.svc.enabled("guild", g).await.unwrap();
+    assert_eq!(
+        en.iter()
+            .find(|e| e.package_id == theme.to_string())
+            .unwrap()
+            .section,
+        "lounge"
+    );
+    assert!(
+        r.svc
+            .enable("guild", g, theme, "cinema", json!({}), owner)
+            .await
+            .is_err()
+    );
 
     // The accent colour is set, replaced, cleared, and refused outside 0..=0xFFFFFF.
     r.svc.set_accent(g, Some(0x336699), owner).await.unwrap();

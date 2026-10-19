@@ -233,7 +233,8 @@ pub async fn version_file(
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct EnableBody {
-    /// Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`.
+    /// Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. For a server
+    /// `all` means the Lounge for a server; a server theme never recolours Cinema, Library or the Entrance (D-281).
     #[serde(default)]
     pub section: Option<String>,
 }
@@ -376,7 +377,7 @@ pub async fn enable_for_guild(
     }
     let section = body.section.unwrap_or_else(|| "all".to_owned());
     let kind = deps.service.get(package).await.map_err(pkg)?.kind;
-    // A server theme reaches members in the Lounge, so it applies to `all` sections or to `lounge` only.
+    // A server theme recolours the Lounge only (D-281): `all` and `lounge` mean the same and are stored as `lounge`.
     if kind == PackageKind::Theme && !matches!(section.as_str(), "all" | "lounge") {
         return Err(ApiError::invalid_form()
             .field(
