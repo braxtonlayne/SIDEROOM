@@ -115,6 +115,14 @@ pub fn router() -> Router<AppState> {
             "/channels/{channel_id}/attachments/{upload_id}/complete",
             post(attachments::complete_upload),
         )
+        .route(
+            "/channels/{channel_id}/attachments/{upload_id}/parts",
+            get(attachments::upload_parts),
+        )
+        .route(
+            "/channels/{channel_id}/attachments/{upload_id}",
+            delete(attachments::abort_upload),
+        )
         .merge(sticker_packs::routes())
 }
 
@@ -146,6 +154,8 @@ pub fn router() -> Router<AppState> {
         polls::expire,
         attachments::request_slots,
         attachments::complete_upload,
+        attachments::upload_parts,
+        attachments::abort_upload,
         sticker_packs::list_packs,
         sticker_packs::sticker_url,
     ),

@@ -984,6 +984,23 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         storage: storage.clone(),
         clock: clock.clone(),
     });
+    // Large chat attachments go up as resumable multipart uploads (LNG-CMP-007); like the library's,
+    // they need the S3 API, so a memory store or SR_MEDIA_SINGLE_PUT=1 keeps single PUTs.
+    let messages = if s.endpoint == "memory:"
+        || std::env::var("SR_MEDIA_SINGLE_PUT").is_ok_and(|v| v == "1")
+    {
+        messages
+    } else {
+        let s3 = sr_storage::s3multipart::S3Multipart::new(
+            &s.endpoint,
+            &s.bucket,
+            &s.region,
+            s.access_key.expose(),
+            s.secret_key.expose(),
+        )
+        .context("configuring chat multipart uploads")?;
+        messages.with_multipart(sr_library::MultipartWiring::new(Arc::new(s3)))
+    };
     // D-238: the upload limit follows the donations runtime (Patron perk, server level).
     let messages = messages.with_upload_entitlements(Arc::new(
         crate::upload_limits::PaymentsUploadLimits::new(
@@ -1363,7 +1380,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         storage.clone(),
         messages.clone(),
     );
-    let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
+    let runner = crate::jobs::register_attachment_gc(
+        runner,
+        &pool,
+        storage.clone(),
+        messages.multipart.as_ref().map(|m| m.store.clone()),
+    );
     let runner = crate::jobs::register_audit_purge(runner, &pool);
     let runner = crate::jobs::register_reap(runner, &pool);
     let runner = crate::jobs::register_insights(runner, &pool);
