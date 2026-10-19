@@ -346,7 +346,7 @@ pub const CATALOG: &[SettingDef] = &[
         min: 0.0,
         max: 20.0,
         default_int: 0,
-        description: "Asset id of the Live TV slate loop played while a channel is off air (made by sr-cli tv slate; empty: none).",
+        description: "Asset id of the Live TV slate loop played while a channel is off air (made by sr-cli tv slate; empty: none). To remove it, prefer `sr-cli tv slate --remove`, which also retires the asset.",
     },
 ];
 

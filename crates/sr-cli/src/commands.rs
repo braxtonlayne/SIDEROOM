@@ -91,7 +91,20 @@ pub async fn run(cli: Cli) -> Result<()> {
             seconds,
             ffmpeg,
             wait_secs,
+            remove,
         }) => {
+            if remove {
+                let env = std::env::var("SR_TV_SLATE_ASSET")
+                    .ok()
+                    .and_then(|v| v.trim().parse::<i64>().ok())
+                    .filter(|n| *n > 0);
+                let done = crate::tv::remove_slate(&pool, &ids, env).await?;
+                println!("{}", crate::tv::removal_message(&done));
+                return Ok(());
+            }
+            let ffmpeg = ffmpeg
+                .or_else(|| std::env::var("SR_FFMPEG").ok())
+                .unwrap_or_else(|| "ffmpeg".into());
             let opts = crate::tv::SlateOptions {
                 picture,
                 seconds,

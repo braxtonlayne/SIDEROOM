@@ -109,17 +109,20 @@ pub enum TvCmd {
     /// run replaces the asset and removes the previous one. Prints the asset id.
     Slate {
         /// The test picture.
-        #[arg(long, value_enum, default_value = "bars")]
+        #[arg(long, value_enum, default_value = "bars", conflicts_with = "remove")]
         picture: tv::Picture,
         /// Length of the loop in seconds (1 to 600).
-        #[arg(long, default_value_t = 12)]
+        #[arg(long, default_value_t = 12, conflicts_with = "remove")]
         seconds: u32,
-        /// The ffmpeg binary.
-        #[arg(long, env = "SR_FFMPEG", default_value = "ffmpeg")]
-        ffmpeg: String,
+        /// The ffmpeg binary (default: SR_FFMPEG, else ffmpeg on PATH).
+        #[arg(long, conflicts_with = "remove")]
+        ffmpeg: Option<String>,
         /// How long to wait for the transcode, in seconds.
-        #[arg(long, default_value_t = tv::DEFAULT_WAIT_SECS)]
+        #[arg(long, default_value_t = tv::DEFAULT_WAIT_SECS, conflicts_with = "remove")]
         wait_secs: u64,
+        /// Instead of making a slate: clear `tv.slate_asset` and retire the slate asset. Prints what it did.
+        #[arg(long)]
+        remove: bool,
     },
 }
 
@@ -232,6 +235,24 @@ mod tests {
                 ..
             })
         ));
+        let remove = Cli::try_parse_from(["sr-cli", "tv", "slate", "--remove"]).unwrap();
+        assert!(matches!(
+            remove.command,
+            Command::Tv(TvCmd::Slate { remove: true, .. })
+        ));
+        // --remove is exclusive with the options of making one.
+        for extra in [
+            ["--picture", "moving"],
+            ["--seconds", "6"],
+            ["--ffmpeg", "ff"],
+            ["--wait-secs", "5"],
+        ] {
+            assert!(
+                Cli::try_parse_from(["sr-cli", "tv", "slate", "--remove", extra[0], extra[1]])
+                    .is_err(),
+                "{extra:?}"
+            );
+        }
         let moving = Cli::try_parse_from([
             "sr-cli",
             "tv",

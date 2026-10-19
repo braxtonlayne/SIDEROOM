@@ -235,27 +235,103 @@ pub async fn register(pool: &PgPool, ids: &IdSource, id: i64) -> Result<Option<i
         .await
         .map_err(|e| anyhow::anyhow!("writing the {TV_SLATE_ASSET} setting: {e}"))?;
     if let Some(old) = previous {
-        // Retention deletes the files after its grace period.
-        let repo = PgMediaRepo::new(pool.clone(), ids.clone());
-        let _ = repo
-            .transition_asset(
-                old,
-                &[
-                    AssetState::Uploaded,
-                    AssetState::Probing,
-                    AssetState::ProxyReady,
-                    AssetState::InReview,
-                    AssetState::Approved,
-                    AssetState::Transcoding,
-                    AssetState::Published,
-                    AssetState::Failed,
-                ],
-                AssetState::Removed,
-                None,
-            )
-            .await;
+        retire(pool, ids, old).await;
     }
     Ok(previous)
+}
+
+/// Retire a slate asset: state `removed`; retention deletes the files after its grace period.
+async fn retire(pool: &PgPool, ids: &IdSource, asset: i64) {
+    let repo = PgMediaRepo::new(pool.clone(), ids.clone());
+    let _ = repo
+        .transition_asset(
+            asset,
+            &[
+                AssetState::Uploaded,
+                AssetState::Probing,
+                AssetState::ProxyReady,
+                AssetState::InReview,
+                AssetState::Approved,
+                AssetState::Transcoding,
+                AssetState::Published,
+                AssetState::Failed,
+            ],
+            AssetState::Removed,
+            None,
+        )
+        .await;
+}
+
+/// What `tv slate --remove` did.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Removal {
+    /// The asset that was the slate and is now retired; `None` when the setting was empty already.
+    pub removed: Option<i64>,
+    /// The `SR_TV_SLATE_ASSET` fallback, when set: the server keeps using it until the variable is unset.
+    pub env_fallback: Option<i64>,
+}
+
+/// `tv slate --remove` (D-286): clear `tv.slate_asset` through the settings registry (audited, as the system user)
+/// and retire the asset the way a replacement retires the previous one. With the setting empty already it does
+/// nothing. The environment fallback is reported, never touched.
+pub async fn remove_slate(
+    pool: &PgPool,
+    ids: &IdSource,
+    env_fallback: Option<i64>,
+) -> Result<Removal> {
+    let admin = AdminService::new(Arc::new(PgAdminRepo::new(pool.clone(), ids.clone())));
+    let current = current_slate(&admin).await?;
+    if let Some(id) = current {
+        admin
+            .patch_settings(
+                &Caller::operator(SYSTEM_USER_ID),
+                &[(TV_SLATE_ASSET.to_owned(), json!(""))],
+                Some("sr-cli tv slate --remove"),
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("clearing the {TV_SLATE_ASSET} setting: {e}"))?;
+        retire(pool, ids, id).await;
+    }
+    Ok(Removal {
+        removed: current,
+        env_fallback,
+    })
+}
+
+/// The sentences `tv slate --remove` prints.
+pub fn removal_message(r: &Removal) -> String {
+    let mut out = match r.removed {
+        Some(id) => format!(
+            "slate cleared; asset {id} retired (its files are deleted after the retention grace period)"
+        ),
+        None => "no slate is set; nothing to remove".to_owned(),
+    };
+    if let Some(env) = r.env_fallback {
+        out.push_str(&format!(
+            "\nSR_TV_SLATE_ASSET={env} is still set in the environment, so the server keeps playing that asset; unset the variable (and restart) to finish"
+        ));
+    }
+    out
+}
+
+/// A slate of another loop length numbers its segments differently, so a client that is on the slate while it is
+/// replaced may see a renumbering (D-285); say so when the lengths differ or are not both known yet.
+async fn loop_length_warning(pool: &PgPool, ids: &IdSource, old: i64, new: i64) -> Option<String> {
+    let repo = PgMediaRepo::new(pool.clone(), ids.clone());
+    let len = |id| {
+        let repo = &repo;
+        async move {
+            repo.get_asset(id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|a| a.duration_ms)
+        }
+    };
+    let (a, b) = (len(old).await, len(new).await);
+    (a.is_none() || a != b).then(|| {
+        "note: the new loop may differ in length from the old one; clients on the slate at this moment may see the segment numbers jump once".to_owned()
+    })
 }
 
 /// Make the slate, ingest it, wait for the renditions, register it and retire the previous one. Returns the new
@@ -294,6 +370,9 @@ pub async fn make_slate(
     }
     if let Some(old) = register(pool, &ids, id).await? {
         println!("previous slate asset {old} removed");
+        if let Some(w) = loop_length_warning(pool, &ids, old, id).await {
+            println!("{w}");
+        }
     }
     println!("{id}");
     Ok(id)
@@ -418,6 +497,30 @@ mod pg_tests {
         assert_eq!(old.state, AssetState::Removed);
         // Registering the same asset again retires nothing.
         assert_eq!(register(&pool, &ids, second).await.unwrap(), None);
+
+        // --remove clears the setting and retires the asset; the environment fallback is only reported.
+        let done = remove_slate(&pool, &ids, Some(77)).await.unwrap();
+        assert_eq!(
+            done,
+            Removal {
+                removed: Some(second),
+                env_fallback: Some(77)
+            }
+        );
+        assert_eq!(current_slate(&admin).await.unwrap(), None);
+        let gone = repo.get_asset(second).await.unwrap().unwrap();
+        assert_eq!(gone.state, AssetState::Removed);
+        assert!(removal_message(&done).contains("SR_TV_SLATE_ASSET=77"));
+        // A second --remove is a no-op that says so.
+        let again = remove_slate(&pool, &ids, None).await.unwrap();
+        assert_eq!(
+            again,
+            Removal {
+                removed: None,
+                env_fallback: None
+            }
+        );
+        assert!(removal_message(&again).contains("nothing to remove"));
         db.cleanup().await.unwrap();
     }
 }
