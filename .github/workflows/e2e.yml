@@ -140,7 +140,7 @@ jobs:
               pactl load-module module-null-sink sink_name=sr_null >/dev/null &&
               pactl set-default-sink sr_null; } || echo "PulseAudio null sink not available"
           fi
-          ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=firefox --project=webkit
+          ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=firefox --project=webkit --repeat-each=5 --retries=0
         env:
           CI: "true"
           SR_VOICE__E2EE: "true"
