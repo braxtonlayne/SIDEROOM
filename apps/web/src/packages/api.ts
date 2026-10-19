@@ -87,6 +87,8 @@ export interface Enablement {
   enabled_at_ms: number;
   update_available: boolean;
   payload: Record<string, unknown> | null;
+  /** For a pack turned on in a server: how many items it added and that are still there (D-282). */
+  item_count?: number | null;
 }
 
 export interface ApplyResult {

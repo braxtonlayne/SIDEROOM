@@ -242,9 +242,14 @@ function LookCard({ guildId, themeName }: { guildId: string; themeName: string |
   );
 }
 
-export function ExtensionsSection({ guildId }: SectionProps) {
+const PACK_KINDS: PackageKind[] = ['emoji_pack', 'sticker_pack', 'sound_pack'];
+
+export function ExtensionsSection({ guildId, viewer }: SectionProps) {
   const t = useT();
-  const [kind, setKind] = useState<PackageKind>('recipe');
+  // Packs need MANAGE_GUILD_EXPRESSIONS alone; everything else needs MANAGE_GUILD (D-282).
+  const manager = viewer.can('MANAGE_GUILD');
+  const kinds = manager ? KINDS : KINDS.filter((k) => PACK_KINDS.includes(k.kind));
+  const [kind, setKind] = useState<PackageKind>(manager ? 'recipe' : 'emoji_pack');
   const [query, setQuery] = useState('');
   const [applying, setApplying] = useState<PackageView | null>(null);
   const [templating, setTemplating] = useState<PackageView | null>(null);
@@ -252,8 +257,10 @@ export function ExtensionsSection({ guildId }: SectionProps) {
   const action = useAction();
   const on = useLoad<Enablement[]>(`ext-on:${guildId}`, () => guildEnabled(guildId));
   const list = useLoad<PackageView[]>(`ext:${kind}:${query}`, () => listPackages(kind, query));
-  const appliedIds = new Set((on.data ?? []).map((e) => e.package_id));
-  const themeOn = (on.data ?? []).find((e) => e.kind === 'theme');
+  const shown = (on.data ?? []).filter((e) => manager || PACK_KINDS.includes(e.kind));
+  const appliedIds = new Set(shown.map((e) => e.package_id));
+  const themeOn = shown.find((e) => e.kind === 'theme');
+  const countOf = (id: string) => shown.find((e) => e.package_id === id)?.item_count ?? 0;
 
   return (
     <>
@@ -263,16 +270,16 @@ export function ExtensionsSection({ guildId }: SectionProps) {
       />
       <ActionStatus error={action.error} done={action.done} />
 
-      <LookCard guildId={guildId} themeName={themeOn?.name ?? null} />
+      {manager && <LookCard guildId={guildId} themeName={themeOn?.name ?? null} />}
       {imported && <ImportReport name={imported.name} result={imported.result} />}
 
-      {(on.data ?? []).length > 0 && (
+      {shown.length > 0 && (
         <section aria-labelledby="ext-on-h">
           <h2 className="ss-subtitle" id="ext-on-h">
             {t('settings.extensions.turnedOn')}
           </h2>
           <ul className="pkg-list">
-            {(on.data ?? []).map((e) => (
+            {shown.map((e) => (
               <li key={e.package_id} className="pkg-row">
                 <span>
                   <strong>{e.name}</strong> <span className="ss-sub">{e.version}</span>{' '}
@@ -307,7 +314,7 @@ export function ExtensionsSection({ guildId }: SectionProps) {
         />
         <Select
           aria-label={t('settings.extensions.kind')}
-          options={KINDS.map((k) => ({ value: k.kind, label: t(k.label) }))}
+          options={kinds.map((k) => ({ value: k.kind, label: t(k.label) }))}
           value={kind}
           onValueChange={(v) => setKind(v as PackageKind)}
         />
@@ -391,14 +398,17 @@ export function ExtensionsSection({ guildId }: SectionProps) {
                       size="sm"
                       variant="secondary"
                       loading={action.busy}
-                      aria-label={t('settings.extensions.removePack', { name: p.name })}
+                      aria-label={t('settings.extensions.removePackCount', {
+                        name: p.name,
+                        count: countOf(p.id),
+                      })}
                       onClick={() =>
                         void action
                           .run(() => disableForGuild(guildId, p.id))
                           .then(() => on.reload())
                       }
                     >
-                      {t('settings.extensions.removeFromServer')}
+                      {t('settings.extensions.removeFromServerCount', { count: countOf(p.id) })}
                     </Button>
                   ) : (
                     <Button

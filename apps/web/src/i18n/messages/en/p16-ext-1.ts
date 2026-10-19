@@ -23,8 +23,6 @@ export default {
     'Adding a pack puts its emoji, stickers or sounds in this server using free slots. Taking the pack away removes only the items it added.',
   'settings.extensions.addToServer': 'Add to server',
   'settings.extensions.addPack': 'Add {name} to this server',
-  'settings.extensions.removeFromServer': 'Remove from server',
-  'settings.extensions.removePack': 'Remove {name} and the items it added',
   'settings.extensions.importTitle': '{name} was added',
   'settings.extensions.importAdded':
     '{count, plural, one {# item was added.} other {# items were added.}}',
