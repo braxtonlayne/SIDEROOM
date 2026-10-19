@@ -19,7 +19,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-009** [FE] Display name, pronouns, avatar (upload/crop/animated, remove), avatar decoration picker, profile effect picker, banner (image/animated or color), profile theme (two colors), about me (190 chars + markdown), server tag display picker *Built: settings/user/sections/Profile.tsx (avatar and banner upload/crop/animated/remove, display name, pronouns, about me 190, accent colour, profile effect and avatar decoration pickers over /sr/profile-catalog, two-colour profile theme `theme_colors`) and ServerTagCard.tsx; tests profile.test.tsx, p13profile.test.tsx.*
    - Built: display name, pronouns, avatar and banner (pick, crop, GIF kept as is, remove), accent colour, about me (190). Not built, needs server fields: avatar decorations, profile effects, a two-colour profile theme, server tag display, markdown in about me.
 - [x] **LNG-USET-010** [FE] Live preview card (popout style)
-- [ ] **LNG-USET-011** [FE] Profile Layout entry ("MySpace mode", Phase 6 → EXT) *Still open: Phase 6 / EXT, not started.*
+- [x] **LNG-USET-011** [FE] Profile Layout entry ("MySpace mode", Phase 6 → EXT) *Still open: Phase 6 / EXT, not started.* *p16 audit: already built, Profile settings link to the profile page editor at `/profile-page/edit` (`sections/Profile.tsx`, EXT-PRF).*
    - Open: deferred to the extension phase (Profile Layout); nothing to build now.
 
 ## Content & Social
@@ -77,7 +77,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 ## Appearance
 - [x] **LNG-USET-037** [FE] Theme: Light / Dark / Ash / Onyx / Sync with computer; Side Room theme option (Light / Dark / Ash / Onyx / Sync with computer / Side Room)
 - [x] **LNG-USET-038** [FE] Per-section themes (Lounge / Cinema / Library / Entrance) pickers (Lounge, Cinema, Library and Entrance pickers (Cinema applies when its shell reads the preference))
-- [ ] **LNG-USET-039** [FE] Theme Store entry (approved packages) *Still open: no approved-packages Theme Store endpoint for the web client yet.*
+- [x] **LNG-USET-039** [FE] Theme Store entry (approved packages) *Still open: no approved-packages Theme Store endpoint for the web client yet.* *p16 audit: already built, Theme Store card in Settings > Appearance (`packages/ThemeStore.tsx`, `sections/Appearance.tsx`, EXT-PKG-005).*
    - Theme Store entry not built (there is no theme package store yet).
 - [x] **LNG-USET-040** [FE] Message display (Cozy/Compact), show avatars in compact, chat font scaling, space between message groups, zoom level *Partial: Cozy/Compact, chat font scale, message gap and zoom are built (sections/Appearance.tsx). p14: "Show avatars in Compact mode" (`compactAvatars` pref, MessageItem.tsx, msgGaps.test.tsx).* 
    - Built: cozy/compact, chat font scale, space between groups, zoom. Not offered: show avatars in compact (compact has no avatar column).
