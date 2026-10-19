@@ -1603,6 +1603,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
         .register(sr_features::AppearanceDefaultsFeature)
         .context("registering the platform.appearance feature")?;
     registry
+        .register(sr_features::ComplianceFeature)
+        .context("registering the platform.compliance feature")?;
+    registry
         .register(sr_features::IntegrationsPolicyFeature)
         .context("registering the platform.integrations feature")?;
     sr_features::modules::register_all(&mut registry)

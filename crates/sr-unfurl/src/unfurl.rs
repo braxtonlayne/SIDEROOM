@@ -469,7 +469,9 @@ mod tests {
         let mut r = TableResolver::default();
         r.0.insert("site.test".into(), vec![ip("93.184.216.34")]);
         let t = Arc::new(ScriptedTransport {
-            routes: [("http://site.test/a".to_owned(), page)].into_iter().collect(),
+            routes: [("http://site.test/a".to_owned(), page)]
+                .into_iter()
+                .collect(),
             ..ScriptedTransport::default()
         });
         let policy = Policy {
