@@ -90,6 +90,8 @@ struct Env {
     clock: Arc<ManualClock>,
     bus: Arc<InProcessBus>,
     storage: Arc<ObjectStoreStorage>,
+    /// Stand-in for the S3 multipart API behind large uploads (LNG-CMP-007).
+    parts: Arc<sr_library::multipart::MemoryPartStore>,
     guild: GuildId,
     ch: ChannelId,
     deps: Arc<MessagesDeps>,
@@ -154,6 +156,7 @@ async fn env_build(
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
     let audit = Arc::new(AuditLog::default());
+    let parts = Arc::new(sr_library::multipart::MemoryPartStore::new(storage.clone()));
     let deps = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
@@ -170,7 +173,8 @@ async fn env_build(
     .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
         b"messages-test-secret-0123456789ab".to_vec(),
     ))
-    .with_audit(audit.clone());
+    .with_audit(audit.clone())
+    .with_multipart(sr_library::MultipartWiring::new(parts.clone()).with_part_size(16 * MIB));
     let deps = match age {
         Some(a) => deps.with_age_gate(a),
         None => deps,
@@ -203,6 +207,7 @@ async fn env_build(
         clock,
         bus,
         storage,
+        parts,
         guild,
         ch,
         deps,
@@ -1413,6 +1418,154 @@ async fn upload_then_message_sniffs_content_type() {
     assert_eq!(list[0]["attachments"][0]["id"], a["id"]);
     let r = e.post("/messages", "bob", msg).await;
     assert_eq!(r.0, StatusCode::BAD_REQUEST);
+}
+
+async fn delete(e: &Env, path: &str, who: &str) -> StatusCode {
+    e.status(Method::DELETE, path, who).await
+}
+
+#[tokio::test]
+async fn large_uploads_are_multipart_resumable_and_complete_from_the_stored_parts() {
+    let e = env_with(Arc::new(Perks(false))).await;
+    let size = 70 * MIB; // five parts of 16 MiB, the last one 6 MiB
+    let (s, v) = e
+        .post(
+            "/attachments",
+            "owner",
+            json!({"files": [{"id": "0", "filename": "film.bin", "file_size": size}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let slot = v["attachments"][0].clone();
+    assert_eq!(slot["upload_url"], "");
+    let mp = &slot["multipart"];
+    assert_eq!(mp["part_size"], 16 * MIB);
+    assert_eq!(mp["part_count"], 5);
+    assert_eq!(mp["parts"].as_array().unwrap().len(), 5);
+    let up = slot["upload_id"].as_str().unwrap().to_owned();
+    let mp_id = e
+        .deps
+        .store
+        .attachment_multipart(up.parse().unwrap())
+        .await
+        .unwrap()
+        .unwrap()
+        .0;
+
+    // Nothing is in yet: every part is missing. Another user cannot look.
+    let (s, p) = e.get(&format!("/attachments/{up}/parts"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{p}");
+    assert_eq!(p["received"].as_array().unwrap().len(), 0);
+    assert_eq!(p["missing"].as_array().unwrap().len(), 5);
+    let r = e.get(&format!("/attachments/{up}/parts"), "bob").await;
+    assert_eq!(r.0, StatusCode::NOT_FOUND);
+
+    // Two parts arrive (one of them with the wrong size), then the connection drops.
+    let part = |n: usize| Bytes::from(vec![n as u8; (16 * MIB) as usize]);
+    e.parts.put_part(&mp_id, 1, part(1));
+    e.parts.put_part(&mp_id, 2, Bytes::from_static(b"short"));
+    let (_, p) = e.get(&format!("/attachments/{up}/parts"), "owner").await;
+    assert_eq!(p["received"].as_array().unwrap().len(), 1);
+    assert_eq!(p["received"][0]["part_number"], 1);
+    let missing: Vec<u64> = p["missing"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["part_number"].as_u64().unwrap())
+        .collect();
+    assert_eq!(missing, vec![2, 3, 4, 5]);
+
+    // Completing early is refused and leaves the slot usable.
+    let r = e
+        .post(&format!("/attachments/{up}/complete"), "owner", json!({}))
+        .await;
+    assert_eq!(r.0, StatusCode::BAD_REQUEST, "{}", r.1);
+
+    // The rest arrives after the resume.
+    for n in 2..=4 {
+        e.parts.put_part(&mp_id, n as u32, part(n));
+    }
+    e.parts
+        .put_part(&mp_id, 5, Bytes::from(vec![5u8; (6 * MIB) as usize]));
+    let (s, a) = e
+        .post(&format!("/attachments/{up}/complete"), "owner", json!({}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{a}");
+    assert_eq!(a["size"], size);
+    let stored = e
+        .storage
+        .head(&slot_key(e.ch, &slot, "film.bin"))
+        .await
+        .unwrap();
+    assert_eq!(stored.size, size);
+    // The multipart record is gone and the upload is no longer resumable.
+    assert!(
+        e.deps
+            .store
+            .attachment_multipart(up.parse().unwrap())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let r = e.get(&format!("/attachments/{up}/parts"), "owner").await;
+    assert_eq!(r.0, StatusCode::BAD_REQUEST);
+    // Completing twice is harmless.
+    let r = e
+        .post(&format!("/attachments/{up}/complete"), "owner", json!({}))
+        .await;
+    assert_eq!(r.0, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn aborting_a_multipart_upload_frees_its_parts_and_small_files_stay_single_put() {
+    let e = env_with(Arc::new(Perks(false))).await;
+    let (_, v) = e
+        .post(
+            "/attachments",
+            "owner",
+            json!({"files": [
+                {"id": "big", "filename": "big.bin", "file_size": 70 * MIB},
+                {"id": "small", "filename": "small.bin", "file_size": 5 * MIB},
+            ]}),
+        )
+        .await;
+    let big = &v["attachments"][0];
+    let small = &v["attachments"][1];
+    assert!(small["multipart"].is_null());
+    assert!(small["upload_url"].as_str().unwrap().contains("small.bin"));
+    let up = big["upload_id"].as_str().unwrap();
+    let mp_id = e
+        .deps
+        .store
+        .attachment_multipart(up.parse().unwrap())
+        .await
+        .unwrap()
+        .unwrap()
+        .0;
+    // Only the owner of the upload may cancel it.
+    assert_eq!(
+        delete(&e, &format!("/attachments/{up}"), "bob").await,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        delete(&e, &format!("/attachments/{up}"), "owner").await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(e.parts.aborted(), vec![mp_id]);
+    assert!(
+        e.deps
+            .store
+            .attachment_multipart(up.parse().unwrap())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    // A single-PUT slot can be cancelled too.
+    let small_id = small["upload_id"].as_str().unwrap();
+    assert_eq!(
+        delete(&e, &format!("/attachments/{small_id}"), "owner").await,
+        StatusCode::NO_CONTENT
+    );
 }
 
 #[tokio::test]

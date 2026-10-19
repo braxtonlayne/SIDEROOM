@@ -1650,6 +1650,46 @@ impl MessageStore for PgMessageStore {
         Ok(())
     }
 
+    async fn set_attachment_multipart(
+        &self,
+        id: AttachmentId,
+        multipart_id: &str,
+        part_size: u64,
+    ) -> StoreResult<()> {
+        sqlx::query(
+            "INSERT INTO attachment_multipart (attachment_id, multipart_id, part_size) \
+             VALUES ($1, $2, $3) \
+             ON CONFLICT (attachment_id) DO UPDATE SET multipart_id = $2, part_size = $3",
+        )
+        .bind(i(id.get()))
+        .bind(multipart_id)
+        .bind(i64::try_from(part_size).unwrap_or(i64::MAX))
+        .execute(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(())
+    }
+
+    async fn attachment_multipart(&self, id: AttachmentId) -> StoreResult<Option<(String, u64)>> {
+        let row: Option<(String, i64)> = sqlx::query_as(
+            "SELECT multipart_id, part_size FROM attachment_multipart WHERE attachment_id = $1",
+        )
+        .bind(i(id.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(row.map(|(m, p)| (m, u64::try_from(p).unwrap_or(0))))
+    }
+
+    async fn clear_attachment_multipart(&self, id: AttachmentId) -> StoreResult<()> {
+        sqlx::query("DELETE FROM attachment_multipart WHERE attachment_id = $1")
+            .bind(i(id.get()))
+            .execute(&self.pool)
+            .await
+            .map_err(sdb)?;
+        Ok(())
+    }
+
     async fn attachments_of(
         &self,
         messages: &[MessageId],
@@ -1749,6 +1789,24 @@ pub async fn stale_pending_attachments(
     Ok(rows
         .into_iter()
         .map(|(id, key)| (AttachmentId::new(u(id)), key))
+        .collect())
+}
+
+/// Multipart upload ids behind the given upload slots (slots without one are left out).
+pub async fn attachment_multipart_ids(
+    pool: &PgPool,
+    ids: &[AttachmentId],
+) -> crate::DbResult<Vec<(AttachmentId, String)>> {
+    let ids: Vec<i64> = ids.iter().map(|a| i(a.get())).collect();
+    let rows: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT attachment_id, multipart_id FROM attachment_multipart WHERE attachment_id = ANY($1)",
+    )
+    .bind(ids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, m)| (AttachmentId::new(u(id)), m))
         .collect())
 }
 

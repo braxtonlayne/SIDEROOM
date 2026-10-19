@@ -33,6 +33,8 @@ pub struct Data {
     /// (message, emoji key) -> reactions in insertion order.
     reactions: BTreeMap<(MessageId, String), (EmojiKey, Vec<UserId>)>,
     attachments: HashMap<AttachmentId, Attachment>,
+    /// Multipart upload id and part size per large upload slot.
+    multipart: HashMap<AttachmentId, (String, u64)>,
     /// Accounts for the user lookup (open question 157).
     pub users: HashMap<UserId, crate::repo::UserSummary>,
     /// Poll votes `(message, answer, user)` for [`crate::rich_repo::RichStore`].
@@ -598,6 +600,27 @@ impl MessageStore for MemoryBackend {
             }
             None => Err(StoreError("unknown attachment".into())),
         }
+    }
+
+    async fn set_attachment_multipart(
+        &self,
+        id: AttachmentId,
+        multipart_id: &str,
+        part_size: u64,
+    ) -> StoreResult<()> {
+        self.data()
+            .multipart
+            .insert(id, (multipart_id.to_owned(), part_size));
+        Ok(())
+    }
+
+    async fn attachment_multipart(&self, id: AttachmentId) -> StoreResult<Option<(String, u64)>> {
+        Ok(self.data().multipart.get(&id).cloned())
+    }
+
+    async fn clear_attachment_multipart(&self, id: AttachmentId) -> StoreResult<()> {
+        self.data().multipart.remove(&id);
+        Ok(())
     }
 
     async fn attachments_of(

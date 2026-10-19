@@ -77,7 +77,13 @@ import { UploadTray } from './msg/UploadTray';
 import { isPatron } from './msg/uploadLimit';
 import { queuedFiles } from './queuedFiles';
 import { formatBytes } from './msg/format';
-import { MAX_FILES, uploadFiles, type PendingFile } from './msg/upload';
+import {
+  discardChatUpload,
+  MAX_FILES,
+  reattachUploads,
+  uploadFiles,
+  type PendingFile,
+} from './msg/upload';
 import { imageMeta } from './msg/blurhash';
 import { VoiceRecorder, type VoiceClip } from './msg/VoiceRecorder';
 import { VOICE_FLAG, voiceMimeType } from './msg/voice';
@@ -382,8 +388,29 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     setFiles((cur) => cur.map((f) => (f.id === id ? { ...f, ...patch } : f)));
   }, []);
 
+  // A multipart upload that a reload interrupted comes back into the tray and continues (D-271).
+  useEffect(() => {
+    const ctl = new AbortController();
+    const ids = new Set<string>();
+    void reattachUploads(channelId, {
+      signal: ctl.signal,
+      onUpdate: patchFile,
+      onAdd: (found) => {
+        for (const f of found) ids.add(f.id);
+        setFiles((cur) => [...cur.filter((x) => !ids.has(x.id)), ...found].slice(0, MAX_FILES));
+      },
+    });
+    return () => {
+      ctl.abort();
+      setFiles((cur) => cur.filter((f) => !ids.has(f.id)));
+    };
+  }, [channelId, patchFile]);
+  const resuming = !sending && files.some((f) => f.resume && f.status === 'uploading');
+
   const removeFile = (id: string) => {
     if (sending) abort.current?.abort();
+    const gone = files.find((f) => f.id === id);
+    if (gone?.resume) discardChatUpload(channelId, gone.resume.uploadId);
     setFiles((cur) => cur.filter((f) => f.id !== id));
   };
 
@@ -451,7 +478,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const showSendButton = useSavedPrefs().showSendButton;
   const send = () => {
-    if (sending || cooldownLeft > 0) return;
+    if (sending || resuming || cooldownLeft > 0) return;
     let content = resolveTokens(text.trim(), tokens.current);
     if (!content && files.length === 0) return;
     if (content.length > MAX_MESSAGE_LENGTH) return;
@@ -1095,7 +1122,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               type="button"
               className="lng-icon-btn lng-send"
               aria-label={t('lounge.composer.send')}
-              disabled={!hasContent || remaining < 0 || sending || cooldownLeft > 0}
+              disabled={!hasContent || remaining < 0 || sending || resuming || cooldownLeft > 0}
               onClick={send}
             >
               <Icon name="arrow-right" size={20} />

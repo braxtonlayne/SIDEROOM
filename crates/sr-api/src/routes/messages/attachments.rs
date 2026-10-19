@@ -16,6 +16,9 @@ use axum::{Json, extract::Path};
 use sr_chat::ChatError;
 use sr_core::permissions::Permissions;
 use sr_core::{AttachmentId, ChannelId, ErrorCode, UserId};
+use sr_library::multipart::{
+    MultipartSlot, MultipartWiring, PART_URL_TTL, PartUrl, ReceivedPart, UploadParts, check_parts,
+};
 use sr_storage::StorageError;
 use sr_storage::storage::PresignMethod;
 use sr_storage::upload::sniff::is_strippable_image;
@@ -179,22 +182,133 @@ pub async fn request_slots(
             height: f.height,
             blurhash: f.blurhash.clone(),
         };
-        let url = deps
-            .storage
-            .presign(PresignMethod::Put, &att.key, deps.upload_url_ttl)
-            .await?;
         deps.store.insert_attachment(&att).await?;
+        // Files above the multipart threshold go up in parts that can be resumed (LNG-CMP-007).
+        let (url, multipart, ttl) = match (&deps.multipart, d.multipart) {
+            (Some(m), true) => {
+                let slot = begin_multipart(&deps, m, &att).await?;
+                (String::new(), Some(slot), PART_URL_TTL)
+            }
+            _ => {
+                let url = deps
+                    .storage
+                    .presign(PresignMethod::Put, &att.key, deps.upload_url_ttl)
+                    .await?;
+                (url, None, deps.upload_url_ttl)
+            }
+        };
         slots.push(UploadSlot {
             id: f.id.clone().unwrap_or_else(|| id.to_string()),
             upload_id: id.to_string(),
             upload_url: url,
             upload_filename: upload_filename(&att),
-            upload_url_expires_in: deps.upload_url_ttl.as_secs(),
+            upload_url_expires_in: ttl.as_secs(),
             max_size,
             expires_after: d.expires_after.map(|t| t.as_secs()),
+            multipart,
         });
     }
     Ok(Json(UploadSlotsResponse { attachments: slots }))
+}
+
+fn storage_err(e: impl std::fmt::Display) -> MsgError {
+    tracing::warn!(error = %e, "multipart upload storage call failed");
+    ErrorCode::SrInternal.into()
+}
+
+fn part_urls(
+    m: &MultipartWiring,
+    att: &Attachment,
+    multipart_id: &str,
+    numbers: impl Iterator<Item = u32>,
+) -> MsgResult<Vec<PartUrl>> {
+    numbers
+        .map(|n| {
+            m.store
+                .presign_part(&att.key, multipart_id, n, PART_URL_TTL)
+                .map(|url| PartUrl {
+                    part_number: n,
+                    url,
+                })
+                .map_err(storage_err)
+        })
+        .collect()
+}
+
+/// Start the multipart upload behind a freshly recorded slot.
+async fn begin_multipart(
+    deps: &MessagesDeps,
+    m: &MultipartWiring,
+    att: &Attachment,
+) -> MsgResult<MultipartSlot> {
+    let (part_size, part_count) = m.plan(att.size);
+    let content_type = att
+        .declared_content_type
+        .as_deref()
+        .unwrap_or("application/octet-stream");
+    let id = m
+        .store
+        .create(&att.key, content_type)
+        .await
+        .map_err(storage_err)?;
+    if let Err(e) = deps
+        .store
+        .set_attachment_multipart(att.id, &id, part_size)
+        .await
+    {
+        let _ = m.store.abort(&att.key, &id).await;
+        return Err(e.into());
+    }
+    let parts = part_urls(m, att, &id, 1..=part_count)?;
+    Ok(MultipartSlot {
+        part_size,
+        part_count,
+        parts,
+    })
+}
+
+fn part_count_of(size: u64, part_size: u64) -> u32 {
+    u32::try_from(size.div_ceil(part_size.max(1)).max(1)).unwrap_or(u32::MAX)
+}
+
+/// Let the store assemble the parts it holds into the object. Idempotent: once the object
+/// exists nothing is done.
+async fn assemble(deps: &MessagesDeps, att: &Attachment) -> MsgResult<()> {
+    let Some((multipart_id, part_size)) = deps.store.attachment_multipart(att.id).await? else {
+        return Ok(());
+    };
+    if deps.storage.head(&att.key).await.is_ok() {
+        deps.store.clear_attachment_multipart(att.id).await?;
+        return Ok(());
+    }
+    let m = deps.multipart.as_ref().ok_or_else(|| {
+        invalid(
+            "attachments",
+            "UPLOAD_INVALID",
+            "Resumable uploads are not available on this server.",
+        )
+    })?;
+    let part_count = part_count_of(att.size, part_size);
+    let stored = m
+        .store
+        .list_parts(&att.key, &multipart_id)
+        .await
+        .map_err(storage_err)?;
+    let parts = check_parts(&stored, att.size, part_size, part_count)
+        .map_err(|e| invalid("attachments", "UPLOAD_INVALID", &e))?;
+    m.store
+        .complete(&att.key, &multipart_id, &parts)
+        .await
+        .map_err(|e| {
+            tracing::warn!(upload = %att.id, error = %e, "completing a multipart upload failed");
+            invalid(
+                "attachments",
+                "UPLOAD_INVALID",
+                "The storage did not accept the uploaded parts.",
+            )
+        })?;
+    deps.store.clear_attachment_multipart(att.id).await?;
+    Ok(())
 }
 
 /// A truncated read may end mid-character; that is still UTF-8 so far.
@@ -212,6 +326,7 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
         return Ok(());
     }
     let bad = |msg: &str| invalid("attachments", "UPLOAD_INVALID", msg);
+    assemble(deps, att).await?;
     let info = match deps.storage.head(&att.key).await {
         Ok(i) => i,
         Err(StorageError::NotFound(_)) => return Err(bad("The file has not been uploaded.")),
@@ -345,6 +460,132 @@ pub async fn complete_upload(
     let mut att = load_upload(&deps, user, channel_id, upload_id).await?;
     finalize(&deps, &mut att).await?;
     Ok(Json(super::model::attachment_object(&att)))
+}
+
+/// Resume a multipart upload: the parts that arrived and fresh URLs for the missing ones.
+#[utoipa::path(
+    get,
+    path = "/channels/{channel_id}/attachments/{upload_id}/parts",
+    params(
+        ("channel_id" = String, Path, description = "Channel snowflake"),
+        ("upload_id" = String, Path, description = "Upload id from the slot response"),
+    ),
+    responses(
+        (status = 200, body = UploadParts),
+        (status = 400, body = ErrorBody, description = "Not a multipart upload, or already completed"),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+    ),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn upload_parts(
+    p: Principal,
+    Ext(deps): Ext<MessagesDeps>,
+    Path((channel_id, upload_id)): Path<(String, String)>,
+) -> MsgResult<Json<UploadParts>> {
+    let user = actor(&p);
+    let channel_id: ChannelId = parse_id(&channel_id, ErrorCode::UnknownChannel)?;
+    let upload_id: AttachmentId = parse_id(&upload_id, ErrorCode::UnknownChannel)?;
+    let acc = deps.access(user, channel_id).await?;
+    acc.require(Permissions::ATTACH_FILES)?;
+    let att = load_upload(&deps, user, channel_id, upload_id).await?;
+    let not_resumable = || {
+        invalid(
+            "upload_id",
+            "UPLOAD_INVALID",
+            "This upload is not a resumable one.",
+        )
+    };
+    let m = deps.multipart.as_ref().ok_or_else(not_resumable)?;
+    if att.state != UploadState::Pending {
+        return Err(not_resumable());
+    }
+    let (multipart_id, part_size) = deps
+        .store
+        .attachment_multipart(att.id)
+        .await?
+        .ok_or_else(not_resumable)?;
+    let part_count = part_count_of(att.size, part_size);
+    let stored = m
+        .store
+        .list_parts(&att.key, &multipart_id)
+        .await
+        .map_err(storage_err)?;
+    let want = |n: u32| {
+        if n == part_count {
+            att.size
+                .saturating_sub(part_size * u64::from(part_count - 1))
+        } else {
+            part_size
+        }
+    };
+    let received: Vec<ReceivedPart> = stored
+        .iter()
+        .filter(|s| s.number >= 1 && s.number <= part_count && s.size == want(s.number))
+        .map(|s| ReceivedPart {
+            part_number: s.number,
+            size: s.size,
+        })
+        .collect();
+    let missing = part_urls(
+        m,
+        &att,
+        &multipart_id,
+        (1..=part_count).filter(|n| !received.iter().any(|r| r.part_number == *n)),
+    )?;
+    Ok(Json(UploadParts {
+        part_size,
+        part_count,
+        received,
+        missing,
+        expires_in_secs: PART_URL_TTL.as_secs(),
+    }))
+}
+
+/// Cancel an upload that was not attached to a message: frees the uploaded parts or the stored object.
+#[utoipa::path(
+    delete,
+    path = "/channels/{channel_id}/attachments/{upload_id}",
+    params(
+        ("channel_id" = String, Path, description = "Channel snowflake"),
+        ("upload_id" = String, Path, description = "Upload id from the slot response"),
+    ),
+    responses(
+        (status = 204, description = "Upload discarded"),
+        (status = 400, body = ErrorBody, description = "Already attached to a message"),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+    ),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn abort_upload(
+    p: Principal,
+    Ext(deps): Ext<MessagesDeps>,
+    Path((channel_id, upload_id)): Path<(String, String)>,
+) -> MsgResult<axum::http::StatusCode> {
+    let user = actor(&p);
+    let channel_id: ChannelId = parse_id(&channel_id, ErrorCode::UnknownChannel)?;
+    let upload_id: AttachmentId = parse_id(&upload_id, ErrorCode::UnknownChannel)?;
+    let acc = deps.access(user, channel_id).await?;
+    acc.require(Permissions::ATTACH_FILES)?;
+    let att = load_upload(&deps, user, channel_id, upload_id).await?;
+    if att.state == UploadState::Attached || att.message_id.is_some() {
+        return Err(invalid(
+            "upload_id",
+            "UPLOAD_INVALID",
+            "This file is already part of a message.",
+        ));
+    }
+    if let (Some(m), Some((multipart_id, _))) = (
+        &deps.multipart,
+        deps.store.attachment_multipart(att.id).await?,
+    ) && let Err(e) = m.store.abort(&att.key, &multipart_id).await
+    {
+        tracing::warn!(upload = %att.id, error = %e, "aborting a multipart upload failed");
+    }
+    deps.store.clear_attachment_multipart(att.id).await?;
+    let _ = deps.storage.delete(&att.key).await;
+    Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
 /// An upload the caller owns in this channel (404 otherwise, so ids do not leak).

@@ -181,6 +181,9 @@ pub struct MessagesDeps {
     /// How long a nonce keeps deduplicating (Discord: a few minutes).
     pub nonce_window_ms: i64,
     pub upload_url_ttl: Duration,
+    /// Resumable multipart uploads for files above the multipart threshold (LNG-CMP-007);
+    /// without it every file is one presigned PUT.
+    pub multipart: Option<sr_library::MultipartWiring>,
     /// Polls, stickers and link previews (see [`super::rich`]).
     pub rich: super::rich::RichDeps,
 }
@@ -231,6 +234,7 @@ impl MessagesDeps {
             size_policy: SizePolicy::default(),
             nonce_window_ms: i64::try_from(NONCE_WINDOW.as_millis()).unwrap_or(i64::MAX),
             upload_url_ttl: Duration::from_secs(15 * 60),
+            multipart: None,
             rich: super::rich::RichDeps::default(),
         })
     }
@@ -470,6 +474,12 @@ impl MessagesDeps {
             ),
             _ => false,
         }
+    }
+
+    /// Turn on resumable multipart uploads of large attachments (LNG-CMP-007).
+    pub fn with_multipart(mut self, m: sr_library::MultipartWiring) -> Self {
+        self.multipart = Some(m);
+        self
     }
 
     /// Swap in the upload entitlement source (the composition root passes the payments-backed one).

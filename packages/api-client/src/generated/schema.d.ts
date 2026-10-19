@@ -4430,6 +4430,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/attachments/{upload_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel an upload that was not attached to a message: frees the uploaded parts or the stored object. */
+        delete: operations["abort_upload"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/attachments/{upload_id}/complete": {
         parameters: {
             query?: never;
@@ -4441,6 +4458,23 @@ export interface paths {
         put?: never;
         /** Mark an uploaded file complete and learn its verified content type. */
         post: operations["complete_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/attachments/{upload_id}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resume a multipart upload: the parts that arrived and fresh URLs for the missing ones. */
+        get: operations["upload_parts"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -16739,6 +16773,7 @@ export interface components {
              * @description The maximum accepted size for this caller.
              */
             max_size: number;
+            multipart?: null | components["schemas"]["MultipartSlot"];
             /** @description Opaque name to pass as `uploaded_filename` when creating the message. */
             upload_filename: string;
             /** @description Server-side upload id; reference it from the message. */
@@ -35639,6 +35674,54 @@ export interface operations {
             };
         };
     };
+    abort_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Upload id from the slot response */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload discarded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already attached to a message */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     complete_upload: {
         parameters: {
             query?: never;
@@ -35661,6 +35744,55 @@ export interface operations {
                     "application/json": components["schemas"]["AttachmentObject"];
                 };
             };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    upload_parts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Upload id from the slot response */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadParts"];
+                };
+            };
+            /** @description Not a multipart upload, or already completed */
             400: {
                 headers: {
                     [name: string]: unknown;

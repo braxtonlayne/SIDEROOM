@@ -127,7 +127,7 @@ export function parseDollars(raw: string): number | null {
   return cents > 0 ? cents : null;
 }
 
-function HostingBar({ cfg }: { cfg: DonationConfig }) {
+export function HostingBar({ cfg }: { cfg: DonationConfig }) {
   const t = useT();
   const { cost_cents, donated_this_month_cents } = cfg.hosting;
   return (

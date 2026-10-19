@@ -22225,6 +22225,78 @@
         ]
       }
     },
+    "/channels/{channel_id}/attachments/{upload_id}": {
+      "delete": {
+        "tags": [
+          "attachments"
+        ],
+        "summary": "Cancel an upload that was not attached to a message: frees the uploaded parts or the stored object.",
+        "operationId": "abort_upload",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload id from the slot response",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Upload discarded"
+          },
+          "400": {
+            "description": "Already attached to a message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/attachments/{upload_id}/complete": {
       "post": {
         "tags": [
@@ -22265,6 +22337,85 @@
           },
           "400": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/attachments/{upload_id}/parts": {
+      "get": {
+        "tags": [
+          "attachments"
+        ],
+        "summary": "Resume a multipart upload: the parts that arrived and fresh URLs for the missing ones.",
+        "operationId": "upload_parts",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload id from the slot response",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadParts"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a multipart upload, or already completed",
             "content": {
               "application/json": {
                 "schema": {
@@ -74602,6 +74753,17 @@
             "format": "int64",
             "description": "The maximum accepted size for this caller.",
             "minimum": 0
+          },
+          "multipart": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MultipartSlot",
+                "description": "Present for files above 64 MB on a server with multipart storage: send the file in\n`part_size` parts to these URLs (`upload_url` is empty then), resume with\n`GET .../attachments/{upload_id}/parts`, and finish with `/complete`."
+              }
+            ]
           },
           "upload_filename": {
             "type": "string",

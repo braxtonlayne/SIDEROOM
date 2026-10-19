@@ -26,12 +26,20 @@ describe('static entrance pages', () => {
     }
   });
 
-  it('the Library footer help link lands on a real page', async () => {
+  it('the Library footer help link lands on the help page', async () => {
     const footer = readFileSync(resolve(__dirname, '../../library/Home.tsx'), 'utf8');
-    expect(footer).toContain('href="/support"');
-    at('/support');
+    expect(footer).toContain('href="/help"');
+    at('/help');
     expect(await screen.findByRole('heading', { level: 1, name: 'Help' })).toBeVisible();
     const main = within(screen.getByRole('main'));
+    for (const h of [
+      'I cannot sign in',
+      'I lost my second factor',
+      'I do not have an invitation',
+      'Something is wrong here',
+    ]) {
+      expect(main.getByRole('heading', { name: h })).toBeVisible();
+    }
     expect(main.getByRole('link', { name: 'Reset my password' })).toHaveAttribute(
       'href',
       '/forgot',

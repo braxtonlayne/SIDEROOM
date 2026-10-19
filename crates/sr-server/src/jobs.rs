@@ -361,13 +361,23 @@ const ATTACHMENT_GC_BATCH: i64 = 500;
 async fn attachment_gc_handler(
     pool: PgPool,
     storage: Arc<dyn ObjectStorage>,
+    parts: Option<Arc<dyn sr_library::multipart::PartStore>>,
     job: Job,
 ) -> Result<(), HandlerError> {
     let cutoff = now_unix_ms() - ATTACHMENT_GC_AGE_MS;
     let stale =
         sr_db::chat_repo::stale_pending_attachments(&pool, cutoff, ATTACHMENT_GC_BATCH).await?;
+    // Free the parts of multipart uploads that were never completed (LNG-CMP-007).
+    let ids: Vec<_> = stale.iter().map(|(id, _)| *id).collect();
+    let multipart = sr_db::chat_repo::attachment_multipart_ids(&pool, &ids).await?;
     let mut removable = Vec::with_capacity(stale.len());
     for (id, key) in stale {
+        if let (Some(store), Some((_, mp))) = (&parts, multipart.iter().find(|(m, _)| *m == id))
+            && let Err(e) = store.abort(&key, mp).await
+        {
+            tracing::warn!(error = %e, key = %key, "aborting an abandoned multipart upload failed; retrying later");
+            continue;
+        }
         match storage.delete(&key).await {
             Ok(()) => removable.push(id),
             Err(e) => {
@@ -389,10 +399,16 @@ pub fn register_attachment_gc(
     runner: JobRunner,
     pool: &PgPool,
     storage: Arc<dyn ObjectStorage>,
+    parts: Option<Arc<dyn sr_library::multipart::PartStore>>,
 ) -> JobRunner {
     let pool = pool.clone();
     runner.register(ATTACHMENT_GC_KIND, 1, move |job| {
-        Box::pin(attachment_gc_handler(pool.clone(), storage.clone(), job))
+        Box::pin(attachment_gc_handler(
+            pool.clone(),
+            storage.clone(),
+            parts.clone(),
+            job,
+        ))
     })
 }
 
