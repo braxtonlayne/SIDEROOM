@@ -140,7 +140,7 @@ Work implied by the "Owner round (answered 2026-10-19, delegated)" section of [o
 
 ### Donation copy
 
-- [ ] **M-18 (D-298) Final `/support` copy.** Replace these keys in `apps/web/src/i18n/messages/en/p16-uploads-1.ts` with exactly the strings below, remove the "draft" comment at the top of the file and the "copy is a draft" notes in inventory DON-UI-001 and `docs/specs/donations.md`; keep every other key as it is; update `support/__tests__/support.test.tsx` where it asserts the old text. Size: XS.
+- [x] **M-18 (D-298) Final `/support` copy.** Replace these keys in `apps/web/src/i18n/messages/en/p16-uploads-1.ts` with exactly the strings below, remove the "draft" comment at the top of the file and the "copy is a draft" notes in inventory DON-UI-001 and `docs/specs/donations.md`; keep every other key as it is; update `support/__tests__/support.test.tsx` where it asserts the old text. Size: XS. *(p17: final strings in p16-uploads-1.ts, draft notes removed; support.test.tsx asserts headings/CTAs only, so unchanged)*
   - `support.page.title`: `Support SIDE ROOM`
   - `support.page.whyTitle`: `Why donate`
   - `support.page.whyBody`: `SIDE ROOM is a private, invite-only place run by its owner for its members. It costs real money every month: the server, the storage behind the Cinema and the Library, and the bandwidth for calls and watch parties. Donations go toward that bill.`
