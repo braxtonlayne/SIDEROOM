@@ -406,7 +406,7 @@ fn layout(
     ))
 }
 
-/// Pixel size of a PNG or GIF, from the header.
+/// Pixel size of a PNG, GIF or WebP, from the header.
 fn image_dims(data: &[u8]) -> Option<(u32, u32)> {
     if data.len() >= 24 && data.starts_with(b"\x89PNG\r\n\x1a\n") {
         let w = u32::from_be_bytes(data[16..20].try_into().ok()?);
@@ -418,7 +418,44 @@ fn image_dims(data: &[u8]) -> Option<(u32, u32)> {
         let h = u32::from(u16::from_le_bytes(data[8..10].try_into().ok()?));
         return Some((w, h));
     }
+    if is_webp(data) {
+        return webp_dims(data);
+    }
     None
+}
+
+/// Canvas size of a WebP from its first chunk: `VP8 ` (lossy), `VP8L` (lossless) or `VP8X` (extended).
+fn webp_dims(d: &[u8]) -> Option<(u32, u32)> {
+    let chunk = d.get(12..16)?;
+    let body = d.get(20..)?;
+    match chunk {
+        b"VP8 " => {
+            // 3 bytes of frame tag, the start code 9D 01 2A, then two 14-bit sizes.
+            if body.len() < 10 || body[3..6] != [0x9d, 0x01, 0x2a] {
+                return None;
+            }
+            let w = u32::from(u16::from_le_bytes(body[6..8].try_into().ok()?) & 0x3fff);
+            let h = u32::from(u16::from_le_bytes(body[8..10].try_into().ok()?) & 0x3fff);
+            Some((w, h))
+        }
+        b"VP8L" => {
+            // Signature 0x2F, then two 14-bit (size - 1) fields.
+            if body.len() < 5 || body[0] != 0x2f {
+                return None;
+            }
+            let bits = u32::from_le_bytes(body[1..5].try_into().ok()?);
+            Some(((bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1))
+        }
+        b"VP8X" => {
+            if body.len() < 10 {
+                return None;
+            }
+            let w = u32::from_le_bytes([body[4], body[5], body[6], 0]) + 1;
+            let h = u32::from_le_bytes([body[7], body[8], body[9], 0]) + 1;
+            Some((w, h))
+        }
+        _ => None,
+    }
 }
 
 fn is_webp(d: &[u8]) -> bool {
@@ -482,6 +519,9 @@ fn pack(
             if !(data.starts_with(b"OggS") || is_mp3(data)) {
                 errs.push(format!("{}: must be an Ogg or MP3 file", it.file));
             }
+        } else if kind == PackageKind::StickerPack && is_webp(data) {
+            // Stickers are PNG, APNG or GIF (D-283); emoji also take WebP, as on Discord.
+            errs.push(format!("{}: stickers are PNG, APNG or GIF files", it.file));
         } else if let Some((w, h)) = image_dims(data) {
             if w == 0 || h == 0 || w > max_px || h > max_px {
                 errs.push(format!(
@@ -489,7 +529,7 @@ fn pack(
                     it.file
                 ));
             }
-        } else if !is_webp(data) {
+        } else {
             errs.push(format!("{}: must be a PNG, GIF or WebP image", it.file));
         }
     }
@@ -583,6 +623,76 @@ mod tests {
         v.extend_from_slice(&h.to_be_bytes());
         v.extend_from_slice(&[8, 6, 0, 0, 0]);
         v
+    }
+
+    /// A WebP header of the given chunk type (`VP8 `, `VP8L` or `VP8X`) for a `w` by `h` canvas.
+    fn webp(chunk: &[u8; 4], w: u32, h: u32) -> Vec<u8> {
+        let mut body = Vec::new();
+        match chunk {
+            b"VP8 " => {
+                body.extend_from_slice(&[0, 0, 0, 0x9d, 0x01, 0x2a]);
+                body.extend_from_slice(&(w as u16).to_le_bytes());
+                body.extend_from_slice(&(h as u16).to_le_bytes());
+            }
+            b"VP8L" => {
+                body.push(0x2f);
+                body.extend_from_slice(&((w - 1) | ((h - 1) << 14)).to_le_bytes());
+            }
+            _ => {
+                body.extend_from_slice(&[0, 0, 0, 0]);
+                body.extend_from_slice(&(w - 1).to_le_bytes()[..3]);
+                body.extend_from_slice(&(h - 1).to_le_bytes()[..3]);
+            }
+        }
+        let mut v = b"RIFF".to_vec();
+        v.extend_from_slice(&(4 + 8 + body.len() as u32).to_le_bytes());
+        v.extend_from_slice(b"WEBP");
+        v.extend_from_slice(chunk);
+        v.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        v.extend_from_slice(&body);
+        v
+    }
+
+    #[test]
+    fn webp_dimensions_are_read_from_all_three_chunk_types() {
+        assert_eq!(image_dims(&webp(b"VP8 ", 300, 200)), Some((300, 200)));
+        assert_eq!(image_dims(&webp(b"VP8L", 300, 200)), Some((300, 200)));
+        assert_eq!(image_dims(&webp(b"VP8X", 300, 200)), Some((300, 200)));
+        assert_eq!(image_dims(b"RIFF    WEBPVP8 "), None);
+    }
+
+    #[test]
+    fn emoji_take_webp_within_the_pixel_cap_and_stickers_do_not_take_webp() {
+        let emoji = format!(
+            r#"{{"kind": "emoji_pack", {HEAD}, "items": [{{"name": "wave", "file": "emoji/wave.webp"}}]}}"#
+        );
+        for chunk in [b"VP8 ", b"VP8L", b"VP8X"] {
+            let ok = files(&[
+                ("pack.json", emoji.as_bytes()),
+                ("emoji/wave.webp", &webp(chunk, 128, 128)),
+            ]);
+            assert!(validate(&ok, &Checks::lenient()).is_ok());
+            let big = files(&[
+                ("pack.json", emoji.as_bytes()),
+                ("emoji/wave.webp", &webp(chunk, 900, 900)),
+            ]);
+            assert!(validate(&big, &Checks::lenient()).unwrap_err()[0].contains("pixels"));
+        }
+
+        let sticker = |file: &str, data: &[u8]| {
+            let m = format!(
+                r#"{{"kind": "sticker_pack", {HEAD}, "items": [{{"name": "wave", "file": "{file}"}}]}}"#
+            );
+            validate(
+                &files(&[("pack.json", m.as_bytes()), (file, data)]),
+                &Checks::lenient(),
+            )
+        };
+        assert_eq!(
+            sticker("stickers/wave.webp", &webp(b"VP8L", 128, 128)).unwrap_err()[0],
+            "stickers/wave.webp: stickers are PNG, APNG or GIF files"
+        );
+        assert!(sticker("stickers/wave.png", &png(128, 128)).is_ok());
     }
 
     const HEAD: &str = r#""id": "my-pack", "name": "My pack", "version": "1.0.0", "author": "me""#;

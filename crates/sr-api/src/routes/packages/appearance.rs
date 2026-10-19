@@ -405,6 +405,8 @@ impl Ctx<'_> {
         ids
     }
 
+    /// The pack validator refuses a WebP sticker at upload (D-283); the skip below stays as the guard for packs
+    /// approved before that rule.
     async fn stickers(&mut self, items: Vec<PackItemData>) -> Vec<i64> {
         let mut ids = Vec::new();
         let taken: Vec<String> = self
