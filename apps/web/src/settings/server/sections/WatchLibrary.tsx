@@ -36,6 +36,17 @@ export function WatchLibrarySection({ guildId, viewer }: SectionProps) {
           </Link>
         )}
       </article>
+      <article className="ss-card" aria-labelledby="wl-where-h">
+        <h2 id="wl-where-h" className="ss-card-title">
+          {t('settings.watchLibrary.whereTitle')}
+        </h2>
+        <p className="ss-desc">{t('settings.watchLibrary.whereBody')}</p>
+        {viewer.can('MANAGE_CHANNELS') && (
+          <Link to="/settings/server/$guildId/$section" params={{ guildId, section: 'channels' }}>
+            {t('settings.watchLibrary.createRoom')}
+          </Link>
+        )}
+      </article>
       <Async res={res} label={t('settings.features.loading')}>
         {(features) => {
           const mine = WATCH_LIBRARY_FEATURE_IDS.map((id) =>

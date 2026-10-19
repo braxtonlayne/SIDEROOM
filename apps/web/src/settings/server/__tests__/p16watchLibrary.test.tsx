@@ -33,6 +33,24 @@ describe('Server settings > Watch Parties & Library', () => {
     expect(screen.queryByRole('button', { name: 'Watch Parties & Library' })).toBeNull();
   });
 
+  it('explains where parties live and links to channels only with Manage Channels (D-264)', async () => {
+    seed({ perms: [MANAGE.guild, MANAGE.channels] });
+    server.use(http.get('*/api/v1/guilds/g1/sr/features', () => HttpResponse.json([announcer()])));
+    await openSettings('watch-library');
+    expect(await screen.findByRole('heading', { name: 'Where parties live' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Open channels to create a Watch party room' }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the channels link without Manage Channels', async () => {
+    seed({ perms: [MANAGE.guild] });
+    server.use(http.get('*/api/v1/guilds/g1/sr/features', () => HttpResponse.json([announcer()])));
+    await openSettings('watch-library');
+    expect(await screen.findByRole('heading', { name: 'Where parties live' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Watch party room/ })).toBeNull();
+  });
+
   it('shows only the two modules and saves the announce channel', async () => {
     seed({ perms: [MANAGE.guild] });
     const cap = capture();
