@@ -19,4 +19,4 @@
 - No migrations, no new dependencies.
 
 ## Owner questions
-- Should CI run the visual specs (needs linux baselines committed)?
+- Should CI run the visual specs (needs linux baselines committed)? Answered: yes, linux Chromium only, report-only first, baselines from a `workflow_dispatch` job that uploads them for a human to commit (D-275, P16-E2E-1; follow-ups L-20 to L-22 in `docs/dev/answers-followups-p16.md`).
