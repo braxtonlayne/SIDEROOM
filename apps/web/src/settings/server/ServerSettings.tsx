@@ -34,6 +34,7 @@ import { OverviewSection } from './sections/Overview';
 import { RolesSection } from './sections/Roles';
 import { ServerSupportSection } from './sections/ServerSupport';
 import { TagSection } from './sections/Tag';
+import { WatchLibrarySection } from './sections/WatchLibrary';
 
 export interface SectionProps {
   guildId: string;
@@ -139,6 +140,13 @@ export const SECTIONS: SectionDef[] = [
     group: 'APPS',
     visible: (v) => v.can('MANAGE_GUILD'),
     component: ExtensionsSection,
+  },
+  {
+    id: 'watch-library',
+    label: 'settings.server.watchLibrary',
+    group: 'APPS',
+    visible: (v) => v.can('MANAGE_GUILD'),
+    component: WatchLibrarySection,
   },
   {
     id: 'integrations',
