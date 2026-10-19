@@ -7250,7 +7250,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Turn an approved package on in a server (`MANAGE_GUILD`). Recipes are applied with `/apply` instead. */
+        /**
+         * Turn an approved package on in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack
+         *     `MANAGE_GUILD_EXPRESSIONS` alone is enough, D-282). Recipes are applied with `/apply` instead.
+         */
         put: operations["enable_for_guild"];
         post?: never;
         /**

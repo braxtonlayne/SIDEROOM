@@ -381,7 +381,8 @@ pub async fn guild_enabled(
     Ok(Json(on))
 }
 
-/// Turn an approved package on in a server (`MANAGE_GUILD`). Recipes are applied with `/apply` instead.
+/// Turn an approved package on in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack
+/// `MANAGE_GUILD_EXPRESSIONS` alone is enough, D-282). Recipes are applied with `/apply` instead.
 #[utoipa::path(
     put, path = "/guilds/{guild_id}/packages/{package_id}", tag = "packages",
     params(("guild_id" = String, Path, description = "Guild snowflake"),
@@ -400,9 +401,15 @@ pub async fn enable_for_guild(
     ApiJson(body): ApiJson<EnableBody>,
 ) -> MsgResult<Json<Enablement>> {
     let g = gid(&guild)?;
-    require_manage(&settings, p.user_id, g, Some(&gate)).await?;
+    // The kind decides the permission (D-282): an emoji, sticker or sound pack needs `MANAGE_GUILD_EXPRESSIONS`
+    // or `MANAGE_GUILD`, as its import and removal do; themes, recipes and templates need `MANAGE_GUILD`.
+    let acc = require_manage_or_expressions(&settings, p.user_id, g, Some(&gate)).await?;
     let package = id(&package)?;
-    if deps.service.get(package).await.map_err(pkg)?.kind == PackageKind::Recipe {
+    let kind = deps.service.get(package).await.map_err(pkg)?.kind;
+    if !is_pack(kind) && !acc.perms.has(Permissions::MANAGE_GUILD) {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
+    if kind == PackageKind::Recipe {
         return Err(ApiError::with_message(
             ErrorCode::SrConflict,
             "A recipe is applied, not turned on.",
@@ -410,7 +417,6 @@ pub async fn enable_for_guild(
         .into());
     }
     let section = body.section.unwrap_or_else(|| "all".to_owned());
-    let kind = deps.service.get(package).await.map_err(pkg)?.kind;
     // A server theme recolours the Lounge only (D-281): `all` and `lounge` mean the same and are stored as `lounge`.
     if kind == PackageKind::Theme && !matches!(section.as_str(), "all" | "lounge") {
         return Err(ApiError::invalid_form()

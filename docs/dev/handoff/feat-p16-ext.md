@@ -43,6 +43,6 @@ Tests run: sr-packages unit (20) and Postgres suite (10, scratch DB); sr-api lib
 
 Still open / notes:
 
-* A direct `PUT /guilds/{id}/packages/{pkg}` for a pack still needs `MANAGE_GUILD` (the page uses `import`, which turns the pack on itself).
+* A direct `PUT /guilds/{id}/packages/{pkg}` for a pack needed `MANAGE_GUILD` on this branch; fixed on `integration/phase16`, where it accepts `MANAGE_GUILD_EXPRESSIONS` alone like import and removal (D-282).
 * `MANAGE_GUILD` without `MANAGE_GUILD_EXPRESSIONS` can still import and remove a pack as before, but the item-level permission skips or leaves the files (existing behaviour, not changed).
 * The wasm package had to be built in this worktree first (the five formerly unloadable test files now run and pass).

@@ -223,4 +223,22 @@ async fn packs_need_manage_guild_expressions_alone_and_themes_and_recipes_keep_m
     // create are skipped by the item permission).
     let (st, body) = user(MGR, Method::POST, import(pack), None).await;
     assert_eq!(st, StatusCode::OK, "{body}");
+
+    // Turning a pack on directly (PUT) follows the same rule as its import and removal (D-282):
+    // MANAGE_GUILD_EXPRESSIONS alone is enough, a plain member is refused, and a theme still is not.
+    let (st, _) = user(BOB, Method::PUT, one(pack), Some(json!({}))).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (st, body) = user(EXPR, Method::PUT, one(pack), Some(json!({}))).await;
+    assert_eq!(st, StatusCode::OK, "{body}");
+    assert_eq!(body["kind"], "emoji_pack");
+    let (st, _) = user(
+        EXPR,
+        Method::PUT,
+        one(theme),
+        Some(json!({"section": "lounge"})),
+    )
+    .await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (st, _) = user(EXPR, Method::PUT, one(recipe), Some(json!({}))).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
 }
