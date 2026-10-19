@@ -28,6 +28,8 @@ pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
 const HOUR_MS: i64 = 3_600_000;
 const DAY_MS: i64 = 86_400_000;
 /// Rule-based channels are extended at least this far ahead of a read.
+/// A programme this young (ms) may still show the slate before it in its window (6 segments of up to 12 s).
+const LEAD_WINDOW_MS: i64 = 120_000;
 const AHEAD_MS: i64 = 24 * HOUR_MS;
 /// The longest window the guide answers.
 pub const MAX_GUIDE_MS: i64 = 48 * HOUR_MS;
@@ -204,6 +206,8 @@ pub struct TvService {
     live: Option<LiveDeps>,
     /// The slate asset (TV-HLS-003): answered instead of 404 when a channel is off air.
     slate: Option<i64>,
+    /// The off-air master was logged once for lacking a standard rung (D-267).
+    slate_rung_logged: std::sync::atomic::AtomicBool,
     /// One schedule extension at a time (the writes are idempotent anyway; this saves duplicate work).
     extend: tokio::sync::Mutex<()>,
 }
@@ -261,6 +265,7 @@ impl TvService {
             presence: Arc::new(MemoryPresence::new()),
             live: None,
             slate: None,
+            slate_rung_logged: std::sync::atomic::AtomicBool::new(false),
             extend: tokio::sync::Mutex::new(()),
         }
     }
@@ -288,6 +293,34 @@ impl TvService {
     async fn slate_asset(&self) -> Option<PlaybackAsset> {
         let id = self.slate?;
         self.asset(id).await.ok()
+    }
+
+    /// The last programme with media on `channel` that ended at or before `t_ms` (the one the slate counts on
+    /// from, D-267), with its asset; `None` when there is none within two weeks, when its numbering bases were
+    /// never assigned, or when its asset is gone (the slate is then seeded from the wall clock). The search
+    /// widens 1 hour, 1 day, 14 days; the answer does not depend on which stage found it.
+    async fn last_programme_before(&self, channel: i64, t_ms: i64) -> TvResult<Option<LiveBlock>> {
+        for span in [HOUR_MS, DAY_MS, 14 * DAY_MS] {
+            let found = self
+                .repo
+                .blocks_overlapping(&[channel], t_ms - span, t_ms)
+                .await?
+                .into_iter()
+                .filter(|b| b.kind.has_media() && b.asset_id.is_some() && b.end_ms <= t_ms)
+                .max_by_key(|b| b.end_ms);
+            let Some(block) = found else { continue };
+            let (Some(asset_id), Some(_), Some(_)) =
+                (block.asset_id, block.seq_base, block.disc_base)
+            else {
+                return Ok(None);
+            };
+            return match self.asset(asset_id).await {
+                Ok(asset) => Ok(Some(LiveBlock { block, asset })),
+                Err(TvError::OffAir) => Ok(None),
+                Err(e) => Err(e),
+            };
+        }
+        Ok(None)
     }
 
     pub fn presence(&self) -> &Arc<dyn Presence> {
@@ -700,8 +733,10 @@ impl TvService {
                 continue;
             }
             let start = blocks[n].block.start_ms;
+            let contiguous: bool;
             let pred: Option<(i64, i64)> = if n > 0 {
                 let p = &blocks[n - 1];
+                contiguous = p.block.end_ms == start;
                 match (p.block.seq_base, p.block.disc_base) {
                     (Some(s), Some(d)) if p.block.end_ms == start => {
                         Some((s + live::on_air_count(&p.block, &p.asset), d + 1))
@@ -715,6 +750,7 @@ impl TvService {
                     .await?
                     .into_iter()
                     .find(|p| p.end_ms == start && p.kind.has_media());
+                contiguous = found.is_some();
                 match found {
                     Some(p) => match (p.seq_base, p.disc_base, p.asset_id) {
                         (Some(s), Some(d), Some(a)) => {
@@ -727,12 +763,27 @@ impl TvService {
                 }
             };
             let seed = start / 1000;
+            let pred = match pred {
+                None if !contiguous => self.bases_from_slate(channel, start).await?,
+                other => other,
+            };
             let (seq, disc) = pred.unwrap_or((seed, seed));
             let (seq, disc) = self.repo.set_bases(blocks[n].block.id, seq, disc).await?;
             blocks[n].block.seq_base = Some(seq);
             blocks[n].block.disc_base = Some(disc);
         }
         Ok(())
+    }
+
+    /// The bases of a programme at `start_ms` with no programme right before it: counted on from the slate
+    /// segment on air then (D-267). `None` without a slate.
+    async fn bases_from_slate(&self, channel: i64, start_ms: i64) -> TvResult<Option<(i64, i64)>> {
+        let Some(slate) = self.slate_asset().await else {
+            return Ok(None);
+        };
+        let last = self.last_programme_before(channel, start_ms).await?;
+        let chain = last.as_ref().and_then(live::SlateChain::after);
+        Ok(live::bases_after_slate(&slate, chain.as_ref(), start_ms))
     }
 
     /// The master playlist for the channel now: the heights every programme of the next hours has.
@@ -742,7 +793,19 @@ impl TvService {
             Ok(b) => b,
             Err(TvError::OffAir) => {
                 let slate = self.slate_asset().await.ok_or(TvError::OffAir)?;
-                return live::render_live_master(&[&slate], u64::try_from(now / 1000).unwrap_or(0))
+                let missing = live::slate_missing_heights(&slate);
+                if !missing.is_empty()
+                    && !self
+                        .slate_rung_logged
+                        .swap(true, std::sync::atomic::Ordering::Relaxed)
+                {
+                    tracing::warn!(
+                        asset = slate.id,
+                        ?missing,
+                        "the TV slate lacks standard rungs; the off-air master offers the ones it has"
+                    );
+                }
+                return live::render_slate_master(&slate, u64::try_from(now / 1000).unwrap_or(0))
                     .ok_or(TvError::OffAir);
             }
             Err(e) => return Err(e),
@@ -779,10 +842,13 @@ impl TvService {
                 let slate = self.slate_asset().await.ok_or(TvError::OffAir)?;
                 self.presence.touch(id, viewer.user_id, now);
                 let signer = self.live_deps()?.signer.clone();
+                let last = self.last_programme_before(id, now).await?;
+                let chain = last.as_ref().and_then(live::SlateChain::after);
                 return live::render_slate_media(
                     &slate,
                     track,
                     now,
+                    chain.as_ref(),
                     signer.as_ref(),
                     u64::try_from(now / 1000).unwrap_or(0),
                 )
@@ -792,10 +858,24 @@ impl TvService {
         };
         self.presence.touch(id, viewer.user_id, now);
         let signer = self.live_deps()?.signer.clone();
-        live::render_media(
+        // A programme that has only just begun after a gap lists the slate before it (D-267).
+        let slate = match blocks.as_slice() {
+            [only] if now - only.block.start_ms < LEAD_WINDOW_MS => self.slate_asset().await,
+            _ => None,
+        };
+        let last = match (&slate, blocks.first()) {
+            (Some(_), Some(b)) => self.last_programme_before(id, b.block.start_ms).await?,
+            _ => None,
+        };
+        let lead = slate.as_ref().map(|asset| live::SlateLead {
+            asset,
+            chain: last.as_ref().and_then(live::SlateChain::after),
+        });
+        live::render_media_with_lead(
             &blocks,
             track,
             now,
+            lead.as_ref(),
             signer.as_ref(),
             u64::try_from(now / 1000).unwrap_or(0),
         )
