@@ -449,7 +449,10 @@ async fn channels_guide_now_and_tune_have_the_documented_shapes() {
         )
         .await;
     assert_eq!(s, StatusCode::OK, "{t}");
-    assert_eq!(t["slate"], false, "a programme is on air, not the slate (D-266)");
+    assert_eq!(
+        t["slate"], false,
+        "a programme is on air, not the slate (D-266)"
+    );
     assert_eq!(t["state"], "live");
     assert_eq!(
         t["master_url"],
