@@ -20,7 +20,9 @@ const ALLOWED = new Set([
 // licence expression -> the only packages allowed to carry it
 const BY_NAME = new Map([
   // JASSUB bundles libass (ISC), FreeType (FTL), fribidi (LGPL-2.1), etc.; own chunk, worker and wasm shipped as
-  // separate unminified files (LGPL-2.1 section 6).
+  // separate unminified files (LGPL-2.1 section 6). Accepted by name because D-314 reads this package.json
+  // expression as the licence that governs (stricter than the MIT LICENSE file, which covers the JS wrapper only);
+  // the texts are in THIRD_PARTY_NOTICES.md.
   [
     'LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0',
     new Set(['jassub']),

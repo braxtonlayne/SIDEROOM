@@ -17,7 +17,7 @@
 - **JASSUB** 2.5.16, https://github.com/ThaUnknown/jassub, licence LGPL-2.1-or-later (package.json expression: `LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0`; the package's LICENSE file is the MIT text, "Copyright (c) 2021-2022 JASSUB contributors, (c) 2017-2021 JavascriptSubtitlesOctopus contributors"). Used unmodified. Relinking (LGPL-2.1 s.6): the web build serves JASSUB's worker (`assets/jassub-worker-*.js`) and WebAssembly modules (`assets/jassub-worker*.wasm`) as separate, unminified-by-us files that can be replaced; the source is the npm package `jassub@2.5.16` at the repository above.
 - **libass** (ISC), **FreeType** (FreeType Licence FTL, or GPL-2.0-or-later), **fribidi** (LGPL-2.1-or-later), plus HarfBuzz/zlib-class components compiled into the wasm: include the licence texts shipped in the jassub package and upstream.
 - **rvfc-polyfill** 1.0.8, GPL-3.0, imported by jassub and shipped as is in the JASSUB chunk (owner decision D-309).
-- JASSUB default font (`dist/default.woff2`): check its licence before release (not inspected here).
+- JASSUB default font (`dist/default.woff2`): Liberation Sans 2.00.5, OFL 1.1 (D-314). The notices were filled in on integration/phase17 (M-24).
 
 ## Tests run (all in the worktree)
 - web `tsc --noEmit`: clean. `vite build` + `scripts/check-bundle-budget.mjs`: all budgets ok (cinema-player 245.7 of 600 KB). jassubLoader vitest: 4 passed.
