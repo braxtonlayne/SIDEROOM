@@ -620,6 +620,12 @@ pub async fn set_default_stickers(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let acc = deps.guild_access(user, gid).await?;
+    if !acc
+        .perms
+        .has(sr_core::permissions::Permissions::MANAGE_GUILD_EXPRESSIONS)
+    {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
     acc.require_mfa(
         &gate,
         user,

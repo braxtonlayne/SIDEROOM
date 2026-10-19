@@ -768,7 +768,7 @@ mod tests {
         .unwrap();
         assert_eq!(ok.payload["items"][0]["tags"][1], "hi");
         assert_eq!(ok.payload["items"][0]["description"], "A wave");
-        let many = format!(r#", "tags": [{}]"#, vec![r#""t""#; 11].join(","));
+        let many = format!(r#", "tags": [{}]"#, [r#""t""#; 11].join(","));
         assert!(pack("sticker_pack", "stickers", &many).unwrap_err()[0].contains("tags"));
         assert!(
             pack("emoji_pack", "emoji", r#", "tags": ["a"]"#).unwrap_err()[0]

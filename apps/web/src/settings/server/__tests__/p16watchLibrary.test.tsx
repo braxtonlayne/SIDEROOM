@@ -90,10 +90,13 @@ describe('Server settings > Watch Parties & Library: party cards (M-14, D-304)',
     });
     server.use(
       http.get('*/api/v1/guilds/g1/sr/features', () => HttpResponse.json([cards])),
-      http.patch('*/api/v1/guilds/g1/sr/features/community.watch_party_cards', async ({ request }) => {
-        await cap.record(request);
-        return HttpResponse.json({ ...cards, enabled: false });
-      }),
+      http.patch(
+        '*/api/v1/guilds/g1/sr/features/community.watch_party_cards',
+        async ({ request }) => {
+          await cap.record(request);
+          return HttpResponse.json({ ...cards, enabled: false });
+        },
+      ),
     );
     await openSettings('watch-library');
     expect(await screen.findByRole('heading', { name: 'Watch party cards' })).toBeInTheDocument();
