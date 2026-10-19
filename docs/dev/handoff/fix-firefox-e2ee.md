@@ -1,21 +1,64 @@
-# Handoff: fix/firefox-e2ee (voice E2EE on Firefox in CI)
+# Handoff: fix/firefox-e2ee (voice E2EE on Firefox in CI, then E2EE on by default)
 
-Worktree `C:\Users\braxt\Desktop\SIDEROOM_wt\fix-firefox-e2ee`, branch `fix/firefox-e2ee` (base main `3d353e8`). Local commits only: nothing pushed, no PR. No migrations, no Rust or web client code changed. **The E2EE defaults were NOT flipped.**
+Worktree `C:\Users\braxt\Desktop\SIDEROOM_wt\fix-firefox-e2ee`, branch `fix/firefox-e2ee` (base main `3d353e8`), draft PR #38. No migrations. **The E2EE defaults are now ON** (D-249), in local commits on top of the pushed ones: not pushed, the PR not edited.
 
 ## Resume here
 
-**State:** the Firefox failure in CI run 39157431844 is an ICE failure between Firefox and the SFU's `127.0.0.1` candidate. It is not in E2EE. The fix is in the CI step: the SFU now announces the runner's default-route address. Nothing here could run Firefox: it does not start on this Windows host ("side-by-side configuration is incorrect"). So the fix is untested on Firefox until CI runs it.
+**State:**
+- Pass 1 (pushed): the Firefox failure in CI run 39157431844 was ICE, not E2EE: Firefox never paired with the SFU's `127.0.0.1` candidate. The `live` job now announces the runner's default-route address. Root cause and evidence below.
+- Proof: CI run 39224043323, job `live`: the Firefox voice-e2ee spec passed **5 of 5** with `--repeat-each=5 --retries=0`; the required Chromium E2EE step passed; WebKit skipped (Linux WebKit has no `RTCRtpScriptTransform`).
+- Pass 2 (local commit `feat(VOX-E2E-003): turn voice E2EE on by default`): the defaults flipped, the Firefox step is required and runs once, and WebKit is its own `continue-on-error` step. See "Pass 2" below.
 
 **Next steps (owner or coordinator):**
+1. Push the branch and check the `live` job: `Voice, Activities and message components (Chromium)` now runs voice and Activities calls with E2EE on (defaults), and `Voice E2EE (Firefox)` is required.
+2. Owner review points: the new `sr_e2ee` field in `VOICE_SERVER_UPDATE` (the server decides whether a call is E2EE; see "Pass 2"), and the bot lockout (DEV-BOT-007).
 
-1. Push `fix/firefox-e2ee` and let `e2e.yml` run. Look at the `live` job's `Voice E2EE (Firefox, WebKit)` step. Its log prints `SFU announces ["10.x.x.x"]`.
-2. Re-run the `live` job until Firefox passes **5 times in a row**. Locally the equivalent is `--repeat-each=5`; in CI, add `--repeat-each=5` to that step's command for one push, or re-run the job five times.
-3. Then flip the defaults per D-249, in a separate change:
-   - `crates/sr-core/src/config.rs`: `voice.e2ee` default on, plus its doc comment.
-   - `apps/web/src/voice/e2ee/flag.ts`: default on, plus its doc comment.
-   - Spec 5.x and doc 12. Tick VOX-E2E-003.
-   - In `.github/workflows/e2e.yml`, drop `continue-on-error` for Firefox. Split the step if WebKit still skips, so the Firefox run is required on its own.
-4. If Firefox still fails, read "If it still fails" below first.
+## Pass 2: E2EE on by default
+
+| What | Where |
+|---|---|
+| `voice.e2ee` defaults to `true`; config test covers the default and `e2ee = false` | `crates/sr-core/src/config.rs` |
+| `VITE_SR_VOICE_E2EE` is on unless `0` or `false` | `apps/web/src/voice/e2ee/flag.ts` |
+| `VOICE_SERVER_UPDATE` carries `sr_e2ee` (the server's `voice.e2ee`); gateway tests assert both values | `crates/sr-gateway/src/voice.rs`, `voice_e2ee_tests.rs` |
+| The controller runs E2EE only when the server says `sr_e2ee: true`; otherwise it joins DTLS-SRTP only and sends no op 101 | `apps/web/src/voice/controller.ts`, `voice/e2ee/serverFlag.ts` |
+| Refusal copy (D-263): "Your browser can't join encrypted calls; use a current Chrome, Edge, Firefox or Safari." A client that declared E2EE and is still refused (no `hello` in 10 s) gets "End-to-end encryption could not start..." instead | `i18n/messages/en/p15-k2-1.ts`, `p14-e2ee-1.ts`, `controller.ts` |
+| Settings > Advanced shows "encrypted in transit" once a call showed the server has E2EE off | `settings/user/sections/AdvancedVoice.tsx` |
+| CI: Firefox E2EE a single required run (report, traces and server.log kept as `*-firefox`); WebKit a separate `continue-on-error` step | `.github/workflows/e2e.yml` |
+| Docs: server.md row; spec section 5 status and "Browsers"; doc 05 `VOICE_SERVER_UPDATE`; doc 12 operator note (how to turn it off); threat model T16; VOX-E2E-003 ticked with the CI evidence | `docs/` |
+
+**Why `sr_e2ee` in `VOICE_SERVER_UPDATE`.** Without it, a server with `voice.e2ee = false` and a web build with E2EE on (now the default) would run the transform with no MLS group, and the fail-closed transform drops every frame: silent calls. Now the server switch alone turns E2EE off, with no rebuild. Trust: the server serves the web app, so it could already ship a build without E2EE; following its word adds no power. The user sees it (no shield, no codes). Recorded in T16.
+
+**Browsers** (MDN browser-compat-data, checked 2026-10-19): `RTCRtpScriptTransform` in Chrome/Edge 141+, Firefox 117+, Safari 15.4+ (macOS and iOS); older Chromium uses `createEncodedStreams`. Chromium and Firefox are proven in CI; **Safari is untested**.
+
+**Can lock users out:**
+- Browsers with neither API (old Chromium without `createEncodedStreams` is unlikely; old Safari < 15.4; some embedded webviews) are refused with the message above. Intended by D-263.
+- **Bots in voice:** any bot or Discord-library voice client that does not speak MLS gets `e2ee_required` (DEV-BOT-007: the SDK has the MLS half but no transport). Operators who need voice bots must set `voice.e2ee = false`.
+- A build made with `VITE_SR_VOICE_E2EE=0` against a server with `voice.e2ee` on: every join refused. Documented in doc 12.
+- Safari: has the API but untested; a Safari-specific transform bug would make its calls silent or fail.
+
+### Pass 2 verification (Windows host)
+
+| What | Result |
+|---|---|
+| `cargo fmt --all --check` | ok |
+| `cargo clippy -D warnings --all-targets` on sr-core, sr-gateway, sr-e2ee | ok |
+| `cargo test`: sr-core (62), sr-gateway (177), sr-voice + sr-e2ee (all pass, incl. loopback), sr-api (613 lib + integration targets), sr-server (53 + the voice Postgres tests with `--include-ignored` on scratch DB `sr_ff_default`) | all pass |
+| web typecheck, eslint, prettier on touched files | ok |
+| vitest `--maxWorkers=2`, voice/lounge-voice/i18n/settings subset | 358 passed |
+| vitest full suite | 2319 of 2320; the one failure (`admin/__tests__/p10.test.tsx`, a 5 s timeout under load) passes alone and is unrelated |
+| web build + bundle budget | ok |
+| `node --test scripts/*.test.mjs` | 13 passed |
+| e2e `tsc --noEmit`; e2e.yml parsed (js-yaml) | ok |
+| Playwright Chromium, sr-server with **no** `SR_VOICE__E2EE` and Vite with **no** `VITE_SR_VOICE_E2EE` (both defaults): `tests/voice-live.spec.ts` | 1 passed |
+| same defaults: `e2ee/voice-e2ee.spec.ts` (MLS group, codes, encrypted frames, observer sees only ciphertext) | 1 passed |
+| sr-server with `SR_VOICE__E2EE=false`, same default-on web build: `voice-live.spec.ts` | 1 passed (audio arrives: the off switch works without a rebuild) |
+| Firefox, WebKit | not run locally (Firefox does not start here; Windows WebKit has no WebRTC); CI covers them |
+
+Servers and Vite I started were stopped by PID; scratch DBs `sr_ff_default` and `sr_ff_e2e` dropped.
+
+---
+
+# Pass 1 (history)
 
 ## Root cause
 
