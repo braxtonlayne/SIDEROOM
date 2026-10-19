@@ -2813,3 +2813,51 @@ The following were raised in the brief but the docs already carry their decision
 ### Still with the owner
 
 Nothing. Every owner item of [open-questions.md](open-questions.md) is answered; what remains there are actions (downloads, an external account, host and CI work, a lawyer's review), not decisions.
+
+## Phase 17 round (answered 2026-10-19, delegated)
+
+The questions the four Phase 17 branches left in their handoffs (`docs/dev/handoff/feat-p17-sdk.md`, `feat-p17-server-a.md`, `feat-p17-server-b.md`, `feat-p17-jassub.md`), answered by the owner's proxy under the same delegation and limits as the owner round above: decide and document only (no code, build, download or push), legal items get a reasoned project default that is plainly not legal advice, GPL dependencies are acceptable (D-309). Decisions are D-310 to D-315 in [01-decisions-log.md](01-decisions-log.md); follow-ups are M-20 to M-25 under "Phase 17 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 6 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Supply chain (P17-SDK, branch `feat/p17-sdk`)
+
+**P17-1 (M-16, D-306). serenity needs `rustls_backend`, which pulls rustls 0.22 / rustls-webpki 0.102 with six advisories; `deny.toml` now ignores them and lists `serenity` as a reqwest wrapper. Accept, exclude the feature from the deny graph, or move the bot out of the workspace?**
+Decision: move it out. `e2e/sdk-compat/serenity-bot/` becomes its own Cargo project (empty `[workspace]` table, own `Cargo.lock` resolved offline from the cached registry, own `deny.toml` carrying the six ignores with the same reasons), `sr-server` loses the `sdk-compat` feature, the optional dependency and the example, and the main `deny.toml` drops the six ignores and the `serenity` wrapper; `sdk-compat.yml` builds it with `--manifest-path` and runs `cargo deny check` there. The main gate must mean "nothing we ship has a known advisory", and advisory ignores are by id, so keeping them would let a shipped crate that later pulled rustls 0.22 through unnoticed; `[graph] exclude` would clean the check but not the lockfile. The bot uses nothing from `sr-server`, so nothing is lost.
+Status: `ADOPTED` (D-310). Follow-up: M-20. No download: the crates are already in the registry cache from the build the branch did.
+
+### Registration (P17-SRV-A, branch `feat/p17-server-a`)
+
+**P17-2 (M-06, D-294). One checkbox for house notes and minimum age, or two?**
+Decision: two. The age line is a declaration the whole D-294 approach rests on, and a bundled tick is weak evidence that it was made; the API already carries `accepted_house_notes` and `confirmed_min_age` separately with separate errors, so only the form and the e2e specs change. Both boxes required, neither pre-ticked. Not legal advice; the D-294 lawyer note gains the form of the declaration.
+Status: `ADOPTED` (D-311). Follow-up: M-21.
+
+### Donations (P17-SRV-B, branch `feat/p17-server-b`)
+
+**P17-3 (M-02, D-288). Should the `payments` profile also ship `bitcoind`, or stay host-run via env?**
+Decision: host-run, as built. A 700 GB non-pruned node is host infrastructure (disk, sync time, its own upgrades, backups the stack does not model), and D-288 already made running `electrs` the owner's action; the node is the same action. Doc 12 gets the recipe (no pruning, disk and sync, `extra_hosts` to reach the host's RPC, cookie or auth mounted read-only, `SR_BITCOIND_DIR`, mempool.space as the interim with its privacy cost). The electrs image digest stays the owner's to pin. A containerised node can be a later second profile.
+Status: `ADOPTED` (D-312). Follow-up: M-22. Owner action: pin the electrs digest, run or point at a node.
+
+**P17-4 (M-03, D-289). Full CC0 1.0 legal code in the starter pack `LICENSE`?**
+Decision: yes, appended under the existing dedication, from the verbatim copy already on disk: `%USERPROFILE%\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\constant_time_eq-0.4.2\LICENSE-CC0` (byte-identical to `node_modules/.pnpm/boxen@8.0.1/node_modules/type-fest/license-cc0`); no download. The pack is seeded into offline installs and should carry its own licence text.
+Status: `ADOPTED` (D-313). Follow-up: M-23.
+
+### Cinema (P17-JAS, branch `feat/p17-jassub`)
+
+**P17-5 (M-08, D-297, D-309). JASSUB's `package.json` says LGPL-2.1-or-later, its LICENSE file says MIT: which reading? And the bundled default font?**
+Decision: the LGPL reading, confirmed; the expression covers the compiled libass, fribidi, FreeType and HarfBuzz parts and the MIT file covers only the wrapper, so the stricter reading satisfies both and costs nothing new. The font is Liberation Sans Regular 2.00.5 (name table of `dist/default.woff2`: Google 2010 and Red Hat 2012 copyright, SIL OFL 1.1, "Liberation" a Red Hat trademark); shipped unmodified, so its notice is the copyright and trademark lines plus the OFL 1.1 text in `THIRD_PARTY_NOTICES.md`. Not legal advice; a lawyer should confirm one OFL text with two headers is fine and that upstream's WOFF2 conversion is not a modification that attaches to the project.
+Status: `ADOPTED` (D-314). Follow-up: M-24.
+
+### Moderation (P17-SRV-A, branch `feat/p17-server-a`)
+
+**P17-6 (M-06 remainder). The due dates, strike counter and counter-notice waits have no backend to attach to. Build the Phase 7 moderation backend next, and is the remainder deferred into it?**
+Decision: yes to both. Three decisions now have settings with nothing reading them and the spec is finished; the processes are obligations from the first EU or US member, and nothing else blocks launch after the D-308 actions. Scope is the spec's delivery plan steps 1 to 3 in order (cases and reports with holds; the takedown register with the strike counter and counter-notice restore; the data-request queue with `due_at` and one extension), each behind its own flag, with the inventory enumerated first; dashboards and the suspicion panel stay later. The Setup Wizard clause of M-06 is dropped (Admin > Features is the editor).
+Status: `ADOPTED` (D-315). Follow-up: M-25 (the backend, with the M-06 remainder as its sub-items).
+
+### Still with the owner
+
+Actions only, no decisions: pin the `electrs` image digest (a pull), the lawyer's review named in D-287, D-293 to D-295, D-297, D-309, D-311 and D-314, and the downloads and dispatches already listed in [open-questions.md](open-questions.md).
