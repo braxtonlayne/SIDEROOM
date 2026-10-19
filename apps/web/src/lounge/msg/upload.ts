@@ -6,10 +6,13 @@
  * Files over 64 MB come back from the server as a multipart slot (LNG-CMP-007): the file is cut into the
  * announced parts, up to three go out at once, a failed part is retried with a pause, and when a part keeps
  * failing (network loss) the client asks the server which parts arrived and sends only the rest. The slot is
- * remembered in localStorage, so after a reload, sending the same file again in the same channel continues
- * the old upload instead of starting over.
+ * remembered in the browser's IndexedDB ledger together with the file (D-271, lib/uploadLedger.ts): after a
+ * reload the composer reattaches it and `reattachUploads` continues where it stopped. When the ledger cannot
+ * store the row (quota, blocked database) a localStorage record is kept instead, and sending the same file
+ * again in the same channel continues the old upload.
  */
-import { apiFetch } from '../../api/client';
+import { ApiError, apiFetch } from '../../api/client';
+import { chatUploads, type ChatUploadRow } from '../../lib/uploadLedger';
 import type { UploadedFile } from '../data';
 
 export const MAX_FILES = 10;
@@ -27,6 +30,10 @@ export interface PendingFile {
   error?: string | undefined;
   /** Pixel size and BlurHash of an image, read in the browser (see blurhash.ts). */
   meta?: { width: number; height: number; blurhash?: string | undefined } | undefined;
+  /** A multipart upload this file continues (reattached from the ledger after a reload). */
+  resume?: { uploadId: string; uploadFilename: string; maxSize: number } | undefined;
+  /** The message reference, once the server has the whole file; such a file is not uploaded again. */
+  uploaded?: UploadedFile | undefined;
 }
 
 /** Discord marks spoilers by a filename prefix; the renderer reads it back. */
@@ -200,6 +207,20 @@ function stateFromParts(p: UploadParts): PartState {
   };
 }
 
+/** The server no longer holds this slot (swept, completed elsewhere, or the channel is gone). */
+const slotGone = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.status === 403);
+
+/** Rows of uploads that are running in this page, so part progress can be written back to the ledger. */
+const liveRows = new Map<string, ChatUploadRow>();
+const trackParts = (uploadId: string) => (done: number[]) => {
+  const row = liveRows.get(uploadId);
+  if (row) void chatUploads().setDone(row, done);
+};
+const dropRow = (uploadId: string) => {
+  liveRows.delete(uploadId);
+  void chatUploads().remove(uploadId);
+};
+
 /**
  * Sends the parts that are not yet at the server. A part is retried with a pause; when parts keep failing
  * the server is asked what it holds (and for fresh URLs) and only the rest is sent, up to RESUME_ROUNDS times.
@@ -211,6 +232,7 @@ async function sendParts(
   st: PartState,
   h: UploadHandlers,
   report: (fraction: number) => void,
+  onPart?: (done: number[]) => void,
 ): Promise<void> {
   const { signal } = h;
   const put = h.putPart ?? putFile;
@@ -244,6 +266,7 @@ async function sendParts(
         inflight.delete(n);
         st.done.add(n);
         emit();
+        onPart?.([...st.done].sort((a, b) => a - b));
         return true;
       } catch (e) {
         inflight.delete(n);
@@ -305,7 +328,8 @@ export async function uploadFiles(
   // A multipart upload of the same file that was interrupted earlier continues where it stopped.
   const saved = readResume();
   for (const f of files) {
-    const rec = saved[resumeKey(channelId, f.file)];
+    if (f.uploaded) continue;
+    const rec = f.resume ?? saved[resumeKey(channelId, f.file)];
     if (!rec) continue;
     try {
       const parts = stateFromParts(await fetchParts(channelId, rec.uploadId));
@@ -318,12 +342,14 @@ export async function uploadFiles(
         },
         parts,
       });
-    } catch {
-      forgetResume(resumeKey(channelId, f.file)); // finished, swept or never real: start fresh
+    } catch (e) {
+      // Finished, swept or never real: start fresh. A network error keeps the old slot for later.
+      if (slotGone(e) || !f.resume) forgetResume(resumeKey(channelId, f.file));
+      if (slotGone(e)) dropRow(rec.uploadId);
     }
   }
 
-  const fresh = files.filter((f) => !plans.has(f.id));
+  const fresh = files.filter((f) => !plans.has(f.id) && !f.uploaded);
   if (fresh.length > 0) {
     try {
       const res = await apiFetch<{ attachments: Slot[] }>(`/channels/${channelId}/attachments`, {
@@ -361,11 +387,31 @@ export async function uploadFiles(
             : {}),
         });
         if (mp) {
-          saveResume(resumeKey(channelId, f.file), {
-            uploadId: s.upload_id,
+          const row: ChatUploadRow = {
+            id: s.upload_id,
+            channelId,
             uploadFilename: s.upload_filename,
+            size: f.file.size,
+            partSize: mp.part_size,
+            partCount: mp.part_count,
+            done: [],
+            savedAt: Date.now(),
+            file: f.file,
             maxSize: s.max_size,
-          });
+            ...(f.description ? { description: f.description } : {}),
+          };
+          liveRows.set(s.upload_id, row);
+          // The ledger keeps the file for a reload; when it cannot, the localStorage record is the fallback.
+          const stored = await chatUploads()
+            .add(row)
+            .catch(() => false);
+          if (!stored) {
+            saveResume(resumeKey(channelId, f.file), {
+              uploadId: s.upload_id,
+              uploadFilename: s.upload_filename,
+              maxSize: s.max_size,
+            });
+          }
         }
       }
     } catch (e) {
@@ -382,6 +428,10 @@ export async function uploadFiles(
       const i = next++;
       const f = files[i];
       if (!f) return;
+      if (f.uploaded) {
+        results[i] = f.uploaded;
+        continue;
+      }
       const plan = plans.get(f.id);
       if (!plan) {
         onUpdate(f.id, { status: 'error', error: 'No upload slot.' });
@@ -392,8 +442,14 @@ export async function uploadFiles(
       onUpdate(f.id, { status: 'uploading', progress: 0, error: undefined });
       try {
         if (plan.parts) {
-          await sendParts(channelId, slot.upload_id, f.file, plan.parts, h, (p) =>
-            onUpdate(f.id, { progress: p }),
+          await sendParts(
+            channelId,
+            slot.upload_id,
+            f.file,
+            plan.parts,
+            h,
+            (p) => onUpdate(f.id, { progress: p }),
+            trackParts(slot.upload_id),
           );
         } else if (slot.upload_url) {
           await putFile(slot.upload_url, f.file, (p) => onUpdate(f.id, { progress: p }), signal);
@@ -404,11 +460,13 @@ export async function uploadFiles(
           retries: 0,
         });
         forgetResume(key);
+        dropRow(slot.upload_id);
       } catch (e) {
         const cancelled = signal.aborted;
         if (cancelled && plan.parts) {
           // Cancel frees the parts already stored; a network failure keeps them for the resume.
           forgetResume(key);
+          dropRow(slot.upload_id);
           void apiFetch(`/channels/${channelId}/attachments/${slot.upload_id}`, {
             method: 'DELETE',
             retries: 0,
@@ -420,15 +478,131 @@ export async function uploadFiles(
         });
         throw e;
       }
-      onUpdate(f.id, { status: 'done', progress: 1 });
       results[i] = {
         id: slot.id,
         uploadedFilename: slot.upload_filename,
         ...(f.description ? { description: f.description } : {}),
       };
+      onUpdate(f.id, { status: 'done', progress: 1, uploaded: results[i] });
     }
   };
   const pool = Math.min(3, files.length);
   await Promise.all(Array.from({ length: pool }, worker));
   return results;
+}
+
+// ---- Reattaching uploads after a reload (D-271) ------------------------------------------------
+
+/** Controllers of reattached uploads running in this page, by upload id. */
+const resumers = new Map<string, AbortController>();
+
+export interface ReattachHandlers extends UploadHandlers {
+  /** Called once with the files that were found for this channel (already in `uploading` state). */
+  onAdd: (files: PendingFile[]) => void;
+}
+
+/**
+ * On mount of a channel's composer: reads the channel's rows from the ledger, hands them to `onAdd` as
+ * `PendingFile`s in `uploading` state at their progress, and continues each from `GET .../parts` without
+ * a click. The message is still sent by the user. A row whose slot the server no longer knows, or whose
+ * channel the user lost access to, is removed (and its slot aborted when the server still answers).
+ * `h.signal` firing (the composer unmounts) pauses the uploads and keeps the rows.
+ */
+export async function reattachUploads(channelId: string, h: ReattachHandlers): Promise<void> {
+  const rows = await chatUploads()
+    .forChannel(channelId)
+    .catch(() => [] as ChatUploadRow[]);
+  if (rows.length === 0 || h.signal.aborted) return;
+  const pf = (r: ChatUploadRow): PendingFile => ({
+    id: `r${r.id}`,
+    file:
+      r.file instanceof File
+        ? r.file
+        : new File([r.file], r.uploadFilename.split('/').pop() ?? 'file'),
+    name: (r.uploadFilename.split('/').pop() ?? r.uploadFilename).replace(/^SPOILER_/, ''),
+    spoiler: /(^|\/)SPOILER_/.test(r.uploadFilename),
+    description: r.description ?? '',
+    progress: r.partCount > 0 ? r.done.length / r.partCount : 0,
+    status: 'uploading',
+    resume: { uploadId: r.id, uploadFilename: r.uploadFilename, maxSize: r.maxSize ?? 0 },
+  });
+  const files = rows.map(pf);
+  h.onAdd(files);
+  await Promise.all(rows.map((row, i) => continueRow(channelId, row, files[i]!, h)));
+}
+
+async function continueRow(
+  channelId: string,
+  row: ChatUploadRow,
+  f: PendingFile,
+  h: ReattachHandlers,
+): Promise<void> {
+  const ctl = new AbortController();
+  resumers.set(row.id, ctl);
+  const stop = () => ctl.abort();
+  h.signal.addEventListener('abort', stop, { once: true });
+  const own: UploadHandlers = { ...h, signal: ctl.signal };
+  try {
+    let parts: PartState;
+    try {
+      parts = stateFromParts(await fetchParts(channelId, row.id));
+    } catch (e) {
+      if (slotGone(e)) {
+        // 404: the slot is gone. 403: the channel is no longer open to this user; free the slot if we still can.
+        dropRow(row.id);
+        if ((e as ApiError).status === 403) {
+          void apiFetch(`/channels/${channelId}/attachments/${row.id}`, {
+            method: 'DELETE',
+            retries: 0,
+          }).catch(() => undefined);
+        }
+        h.onUpdate(f.id, { status: 'error', error: 'This upload is no longer available.' });
+        return;
+      }
+      throw e;
+    }
+    liveRows.set(row.id, row);
+    h.onUpdate(f.id, { progress: row.partCount > 0 ? parts.done.size / parts.count : 0 });
+    await sendParts(
+      channelId,
+      row.id,
+      row.file,
+      parts,
+      own,
+      (p) => h.onUpdate(f.id, { progress: p }),
+      trackParts(row.id),
+    );
+    await apiFetch(`/channels/${channelId}/attachments/${row.id}/complete`, {
+      method: 'POST',
+      json: {},
+      retries: 0,
+    });
+    dropRow(row.id);
+    const ref: UploadedFile = {
+      id: f.id,
+      uploadedFilename: row.uploadFilename,
+      ...(f.description ? { description: f.description } : {}),
+    };
+    h.onUpdate(f.id, { status: 'done', progress: 1, uploaded: ref });
+  } catch (e) {
+    // Paused (unmount) or cancelled: the ledger row stays unless `discardChatUpload` removes it.
+    if (ctl.signal.aborted) return;
+    h.onUpdate(f.id, {
+      status: 'error',
+      error: e instanceof Error ? e.message : 'Upload failed.',
+    });
+  } finally {
+    h.signal.removeEventListener('abort', stop);
+    resumers.delete(row.id);
+  }
+}
+
+/** The user removed a reattached file: stop it, free the stored parts and forget the row. */
+export function discardChatUpload(channelId: string, uploadId: string): void {
+  resumers.get(uploadId)?.abort();
+  dropRow(uploadId);
+  void apiFetch(`/channels/${channelId}/attachments/${uploadId}`, {
+    method: 'DELETE',
+    retries: 0,
+  }).catch(() => undefined);
 }
