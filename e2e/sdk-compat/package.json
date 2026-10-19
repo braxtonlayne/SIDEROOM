@@ -1,0 +1,15 @@
+{
+  "name": "@sideroom/sdk-compat",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Weekly SDK compatibility run (M-16, D-306, DEV-SDK-003): real discord.js against a SIDE ROOM test server. Not a dependency of any app.",
+  "scripts": {
+    "check": "node --check run.mjs && node --check discordjs-bot.mjs && node --check lib/provision.mjs && node --check lib/junit.mjs && node --check lib/steps.mjs && node --check open-issue.mjs",
+    "test": "node --test",
+    "run": "node run.mjs"
+  },
+  "dependencies": {
+    "discord.js": "14.27.0"
+  }
+}
