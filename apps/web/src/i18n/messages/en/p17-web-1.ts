@@ -8,9 +8,4 @@ export default {
     'Blocks you placed by hand are kept until the next publish. Build the weekly grid in the Guide tab afterwards.',
   'admin.channelPanels.now.manualSwitchConfirm': 'Switch kind',
   'admin.channelPanels.now.manualSwitched': 'Channel switched to an imported guide.',
-  // M-01 (D-287): third-party notices link on /help.
-  'entrance.support.notices.title': 'Third-party notices',
-  'entrance.support.notices.body':
-    'SIDE ROOM includes software under other licences that ask for attribution.',
-  'entrance.support.notices.link': 'Read the third-party notices',
 } satisfies Record<string, string>;
