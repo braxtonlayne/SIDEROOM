@@ -5,7 +5,7 @@
 //
 // Environment: SDK_COMPAT_BASE (default http://127.0.0.1:8080; also the server's SR_SERVER__PUBLIC_URL),
 // SDK_COMPAT_OWNER and SDK_COMPAT_PASSWORD (the bootstrapped Owner; same defaults as e2e/global-setup.ts),
-// SDK_COMPAT_SERENITY_BIN (a built serenity_bot example; default: cargo run it).
+// SDK_COMPAT_SERENITY_BIN (a built e2e/sdk-compat/serenity-bot binary; default: cargo run its manifest).
 // Exit code 0 when every check passed, 1 otherwise. A one-line summary also goes to $GITHUB_STEP_SUMMARY.
 import { spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -34,10 +34,10 @@ function versionOf(l) {
       'discord.js'
     ];
   }
-  const m = readFileSync(resolve(repo, 'crates/sr-server/Cargo.toml'), 'utf8').match(
+  const m = readFileSync(resolve(here, 'serenity-bot/Cargo.toml'), 'utf8').match(
     /serenity\s*=\s*\{[^}]*version\s*=\s*"=?([^"]+)"/,
   );
-  if (!m) throw new Error('serenity is not pinned in crates/sr-server/Cargo.toml');
+  if (!m) throw new Error('serenity is not pinned in e2e/sdk-compat/serenity-bot/Cargo.toml');
   return m[1];
 }
 
@@ -51,18 +51,7 @@ function spawnBot(l, env) {
     if (bin) return spawn(bin, [], { env: full, cwd: repo });
     return spawn(
       'cargo',
-      [
-        'run',
-        '-q',
-        '-j',
-        '2',
-        '-p',
-        'sr-server',
-        '--example',
-        'serenity_bot',
-        '--features',
-        'sdk-compat',
-      ],
+      ['run', '-q', '-j', '2', '--manifest-path', resolve(here, 'serenity-bot/Cargo.toml')],
       { env: full, cwd: repo },
     );
   }

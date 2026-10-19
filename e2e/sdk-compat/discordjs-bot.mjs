@@ -1,5 +1,5 @@
 // discord.js sample bot for the weekly SDK compatibility run (M-16, D-306, DEV-SDK-003).
-// Prints the same JSON-lines events as crates/sr-server/examples/serenity_bot.rs; run.mjs drives it.
+// Prints the same JSON-lines events as e2e/sdk-compat/serenity-bot/src/main.rs; run.mjs drives it.
 //
 // Environment: SDK_COMPAT_BASE (server origin, no path), SDK_COMPAT_TOKEN (bot token),
 // SDK_COMPAT_CONTENT ("1" asks for the privileged MESSAGE_CONTENT intent).

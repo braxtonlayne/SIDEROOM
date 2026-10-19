@@ -1,5 +1,5 @@
 // The tier-2 walk of docs/dev/sdk-compat.md, shared by every library (M-16). A library's sample bot prints
-// one JSON object per line (see crates/sr-server/examples/serenity_bot.rs for the list of events); this
+// one JSON object per line (see e2e/sdk-compat/serenity-bot/src/main.rs for the list of events); this
 // module drives the people (messages, the slash command) and turns what the bot saw into check results.
 
 export const checkNames = [

@@ -1,10 +1,10 @@
 //! serenity sample bot for the weekly SDK compatibility run (M-16, D-306, DEV-SDK-003).
 //!
-//! Behind the `sdk-compat` feature, so a normal workspace build never compiles serenity:
+//! Its own Cargo project outside the workspace (M-20, D-310), so a workspace build never compiles serenity:
 //!
 //! ```sh
 //! SDK_COMPAT_BASE=http://127.0.0.1:8080 SDK_COMPAT_TOKEN=... SDK_COMPAT_CONTENT=1 \
-//!   cargo run -p sr-server --example serenity_bot --features sdk-compat
+//!   cargo run --manifest-path e2e/sdk-compat/serenity-bot/Cargo.toml
 //! ```
 //!
 //! The bot walks tier 2 of `docs/dev/sdk-compat.md` and prints one JSON object per line on stdout (the

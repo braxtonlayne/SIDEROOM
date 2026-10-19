@@ -1,7 +1,7 @@
 name: SDK compatibility
 # M-16 (D-306, DEV-SDK-003): real Discord libraries against a SIDE ROOM test server, weekly and on demand, never per
-# pull request. Tier 2 of docs/dev/sdk-compat.md. discord.js (e2e/sdk-compat, pinned) and serenity (the
-# `sdk-compat` feature of sr-server, pinned) each walk READY, GUILD_CREATE, a slash command round trip,
+# pull request. Tier 2 of docs/dev/sdk-compat.md. discord.js (e2e/sdk-compat, pinned) and serenity (its own
+# Cargo project e2e/sdk-compat/serenity-bot, pinned, outside the workspace: M-20, D-310) each walk READY, GUILD_CREATE, a slash command round trip,
 # MESSAGE_CONTENT gating and a 403. A failure opens or updates one issue "SDK compat: <library> <version>".
 on:
   schedule:
@@ -35,11 +35,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-stack
-      - name: Build the serenity sample bot
+      - uses: taiki-e/install-action@v2
+        if: matrix.library == 'serenity'
+        with: { tool: "cargo-deny" }
+      - name: Build and check the serenity sample bot (its own Cargo project, M-20)
         if: matrix.library == 'serenity'
         run: |
-          cargo build -j 2 -p sr-server --example serenity_bot --features sdk-compat
-          echo "SDK_COMPAT_SERENITY_BIN=$PWD/target/debug/examples/serenity_bot" >> "$GITHUB_ENV"
+          cargo build -j 2 --manifest-path e2e/sdk-compat/serenity-bot/Cargo.toml
+          cargo deny --manifest-path e2e/sdk-compat/serenity-bot/Cargo.toml check
+          echo "SDK_COMPAT_SERENITY_BIN=$PWD/e2e/sdk-compat/serenity-bot/target/debug/sideroom-serenity-bot" >> "$GITHUB_ENV"
       - name: Migrate, bootstrap the Owner, start sr-server
         run: |
           ./target/debug/sr-cli migrate
