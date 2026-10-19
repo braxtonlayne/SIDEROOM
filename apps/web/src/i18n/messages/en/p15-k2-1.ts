@@ -2,7 +2,8 @@
 // K-16, K-17, K-18 (D-259, D-260): profile page pictures, uploads and the guestbook count.
 // K-20 (D-262): move a Discord identity to another account.
 export default {
-  'voice.e2ee.required': 'This server requires encrypted calls; your browser cannot join.',
+  'voice.e2ee.required':
+    "Your browser can't join encrypted calls; use a current Chrome, Edge, Firefox or Safari.",
   'lounge.profilePage.guestbookCount':
     '{count, plural, one {# entry} other {# entries}} of {limit}. A guestbook holds at most {limit}; remove old entries to make room.',
   'lounge.profileEditor.backgroundKind': 'Background',

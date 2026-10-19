@@ -71,8 +71,8 @@ jobs:
     timeout-minutes: 45
     env:
       SR_VOICE__ENABLED: "true"
-      # SR_VOICE__E2EE is set on the E2EE steps only: with it on, the server refuses a voice join that does not
-      # declare E2EE (K-21, D-263), and the first step's web build has no E2EE flag.
+      # Voice E2EE is on by default in sr-server and the web build (D-249), so the first step runs voice and Activities
+      # calls encrypted with the defaults; the E2EE steps set SR_VOICE__E2EE explicitly.
       SR_ACTIVITIES__ENABLED: "true"
       # The staff offer card spec appoints staff; the e2e Owner has no second factor.
       SR_ADMIN_REQUIRE_REAUTH: "0"
@@ -120,12 +120,46 @@ jobs:
         env:
           CI: "true"
           SR_VOICE__E2EE: "true"
-      # Not proven yet (Firefox does not start on the Windows dev host, Windows WebKit has no WebRTC): informational
-      # until it has passed here; the E2EE defaults stay off until it does (D-249, feat-p15-browser handoff).
-      - name: Voice E2EE (Firefox, WebKit)
+      # Required since run 39224043323 passed it 5 of 5 (--repeat-each=5 --retries=0), which turned the E2EE defaults
+      # on (D-249, VOX-E2E-003).
+      - name: Voice E2EE (Firefox)
+        if: always()
+        run: |
+          # Firefox never paired its candidates with the SFU's default 127.0.0.1 here: ICE failed when the 5 s
+          # trickle grace period ended (run 39157431844). Announce the runner's default-route address instead
+          # (scripts/ice-announce.mjs says why; docs/dev/handoff/fix-firefox-e2ee.md has the evidence).
+          SR_VOICE__ANNOUNCE_IPS="$(node scripts/ice-announce.mjs)"
+          export SR_VOICE__ANNOUNCE_IPS
+          echo "SFU announces $SR_VOICE__ANNOUNCE_IPS"
+          # Firefox's AudioContext never finished resuming on the runner (most likely no audio output device), so
+          # give it a PulseAudio null sink. Best effort: the run goes on without it. The package lists are fresh
+          # from the browser install step.
+          if sudo apt-get install -y -qq --no-install-recommends pulseaudio >/dev/null; then
+            { pulseaudio --start --exit-idle-time=-1 &&
+              pactl load-module module-null-sink sink_name=sr_null >/dev/null &&
+              pactl set-default-sink sr_null; } || echo "PulseAudio null sink not available"
+          fi
+          status=0
+          ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=firefox || status=$?
+          # The WebKit step reuses the report folder and server.log: keep Firefox's.
+          cp server.log server-e2ee-firefox.log || true
+          cp -r e2e/playwright-report-e2ee e2e/playwright-report-e2ee-firefox || true
+          cp -r e2e/test-results-e2ee e2e/test-results-e2ee-firefox || true
+          exit "$status"
+        env:
+          CI: "true"
+          SR_VOICE__E2EE: "true"
+          # SFU signalling and ICE detail in server.log, in case Firefox fails.
+          SR_LOG__FILTER: "info,sr_voice=debug,str0m=debug"
+      # Informational: Playwright's Linux WebKit has no RTCRtpScriptTransform, so the spec skips itself with a reason
+      # (the `capabilities` annotation in the report). Safari itself is untested.
+      - name: Voice E2EE (WebKit)
         if: always()
         continue-on-error: true
-        run: ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=firefox --project=webkit
+        run: |
+          SR_VOICE__ANNOUNCE_IPS="$(node scripts/ice-announce.mjs)"
+          export SR_VOICE__ANNOUNCE_IPS
+          ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=webkit
         env:
           CI: "true"
           SR_VOICE__E2EE: "true"
@@ -141,3 +175,6 @@ jobs:
             server.log
             server-live.log
             server-e2ee-chromium.log
+            server-e2ee-firefox.log
+            e2e/playwright-report-e2ee-firefox
+            e2e/test-results-e2ee-firefox

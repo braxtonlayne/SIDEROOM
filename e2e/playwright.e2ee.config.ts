@@ -1,9 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Voice end-to-end encryption in real browsers (VOX-E2E-003, D-249). Same stack as playwright.config.ts, but
- * the web build has `VITE_SR_VOICE_E2EE=1`, and sr-server must run with `SR_VOICE__ENABLED=true` and
- * `SR_VOICE__E2EE=true` (the op 101 relay). Set SR_E2E_VOICE=1 when that server is up.
+ * Voice end-to-end encryption in real browsers (VOX-E2E-003, D-249). Same stack as playwright.config.ts. E2EE is on
+ * by default in the web build and in sr-server; this config still sets `VITE_SR_VOICE_E2EE=1`, and the server must
+ * run with `SR_VOICE__ENABLED=true` (and `voice.e2ee` left on). Set SR_E2E_VOICE=1 when that server is up.
  *
  *   pnpm --filter @sideroom/e2e exec playwright test -c playwright.e2ee.config.ts --project=chromium
  *
@@ -20,6 +20,9 @@ const chromiumArgs = [
   '--allow-loopback-in-peer-connection',
 ];
 
+// These prefs are not enough on their own: Firefox never paired with the dev SFU's 127.0.0.1 candidate in CI
+// (ICE failed). Run the server with a routable announce address for Firefox:
+//   SR_VOICE__ANNOUNCE_IPS="$(node scripts/ice-announce.mjs)"   (see that script and e2e.yml)
 const firefoxUserPrefs = {
   'media.navigator.streams.fake': true,
   'media.navigator.permission.disabled': true,

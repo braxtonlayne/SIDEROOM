@@ -3,3 +3,5 @@ playwright-report/
 test-results/
 playwright-report-e2ee/
 test-results-e2ee/
+playwright-report-e2ee-firefox/
+test-results-e2ee-firefox/

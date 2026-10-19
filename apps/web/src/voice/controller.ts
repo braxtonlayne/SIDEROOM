@@ -37,6 +37,7 @@ import { streamerState } from '../settings/user/prefs';
 import { CuePlayer, cueEnabled, type Cue } from './sounds';
 import { VadGate } from './vad';
 import { e2eeDeclared, e2eeFlagEnabled } from './e2ee/flag';
+import { noteServerE2ee } from './e2ee/serverFlag';
 import type { E2eeRuntime, E2eeStartContext, E2eeStarter } from './e2ee/runtime';
 import { VIDEO_PUBLISH } from './protocol';
 import { PreviewUploader, type PreviewDeps, browserPreviewDeps } from './preview';
@@ -99,8 +100,9 @@ export interface ControllerDeps {
   /** Announce a soundboard play (VOX-SB-003); `POST /channels/{id}/send-soundboard-sound` by default. */
   sendSound?: (channelId: string, body: SendSoundBody) => Promise<void>;
   /**
-   * VOX-E2E-003: start end-to-end encryption for a call (`voice.e2ee`). Absent: calls are
-   * DTLS-SRTP only. `unsupported`: the browser has no encoded-frame API, so the join fails.
+   * VOX-E2E-003: start end-to-end encryption for a call. It runs only when the server says the call is
+   * encrypted (`sr_e2ee: true` in `VOICE_SERVER_UPDATE`, its `voice.e2ee`). Absent, or the server says
+   * false: calls are DTLS-SRTP only. `unsupported`: the browser has no encoded-frame API, so the join fails.
    */
   e2ee?: E2eeStarter;
   /**
@@ -736,9 +738,14 @@ export class VoiceController {
       }
       // Stream ops (18 to 22) are answered with `channel_id: null`; a refused stream op never ends the call.
       if (d.channel_id === null) return;
+      const code = String(d.code ?? '');
       this.fail({
         code: 'refused',
-        message: refusalText(String(d.code ?? ''), String(d.message ?? '')),
+        // A client that declared E2EE and is still refused did not finish the handshake in time.
+        message:
+          code === 'e2ee_required' && this.deps.e2eeDeclared?.()
+            ? e2eeFailedText()
+            : refusalText(code, String(d.message ?? '')),
       });
     } else if (event === 'VOICE_SERVER_UPDATE') {
       const sameGuild = (typeof d.guild_id === 'string' ? d.guild_id : DM_GUILD_ID) === t.guildId;
@@ -750,7 +757,9 @@ export class VoiceController {
         endpoint: String(d.endpoint ?? ''),
         token: String(d.token ?? ''),
         ...(Array.isArray(d.ice_servers) ? { ice_servers: d.ice_servers } : {}),
+        sr_e2ee: d.sr_e2ee === true,
       } as VoiceServerInfo;
+      noteServerE2ee(d.sr_e2ee === true);
       // A new server for a live session (node move / re-key): reconnect to it.
       if (this.started) {
         this.teardownEngine();
@@ -842,10 +851,13 @@ export class VoiceController {
     this.started = true;
     clearTimeout(this.waitTimer);
     patchSession({ status: 'connecting', error: null });
-    const starter = this.deps.e2ee;
+    // The server decides whether this call is end-to-end encrypted (`voice.e2ee`); it also serves this app,
+    // so trusting its word adds nothing it could not already do. Off: join without E2EE.
+    const encrypted = this.server.sr_e2ee === true;
+    const starter = encrypted ? this.deps.e2ee : undefined;
     if (!starter) {
       // Declared but not running E2EE (the e2e observer): say hello so the server keeps us in the call.
-      if (this.deps.e2eeDeclared?.())
+      if (encrypted && this.deps.e2eeDeclared?.())
         this.deps.sendGateway(Op.E2EE_MLS, { type: 'hello', channel_id: t.channelId });
       this.startEngine(t, me);
       return;

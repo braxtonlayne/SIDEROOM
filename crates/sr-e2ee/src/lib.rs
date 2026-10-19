@@ -21,8 +21,8 @@
 //!   service's external-sender key, and each sender's per-epoch base secret from the exporter
 //!   ([`keys::SENDER_SECRET_LABEL`]).
 //!
-//! Off by default (`voice.e2ee` on the server, `VITE_SR_VOICE_E2EE` in the web build) until the
-//! media path has run in real browsers.
+//! On by default (`voice.e2ee` on the server, `VITE_SR_VOICE_E2EE` in the web build, D-249) since the
+//! media path passed in Chromium and Firefox (VOX-E2E-003).
 
 pub mod codec;
 pub mod frame;
