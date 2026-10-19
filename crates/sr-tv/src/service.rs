@@ -202,6 +202,8 @@ pub struct TvService {
     ids: IdSource,
     presence: Arc<dyn Presence>,
     live: Option<LiveDeps>,
+    /// The slate asset (TV-HLS-003): answered instead of 404 when a channel is off air.
+    slate: Option<i64>,
     /// One schedule extension at a time (the writes are idempotent anyway; this saves duplicate work).
     extend: tokio::sync::Mutex<()>,
 }
@@ -258,6 +260,7 @@ impl TvService {
             ids,
             presence: Arc::new(MemoryPresence::new()),
             live: None,
+            slate: None,
             extend: tokio::sync::Mutex::new(()),
         }
     }
@@ -272,6 +275,19 @@ impl TvService {
     pub fn with_live(mut self, live: LiveDeps) -> Self {
         self.live = Some(live);
         self
+    }
+
+    /// The asset (a normally transcoded short loop, see `sr_transcoder::slate`) that off-air and filler
+    /// time shows instead of answering 404 (TV-HLS-003).
+    pub fn with_slate(mut self, asset_id: i64) -> Self {
+        self.slate = Some(asset_id);
+        self
+    }
+
+    /// The slate asset, when one is configured and playable.
+    async fn slate_asset(&self) -> Option<PlaybackAsset> {
+        let id = self.slate?;
+        self.asset(id).await.ok()
     }
 
     pub fn presence(&self) -> &Arc<dyn Presence> {
@@ -599,6 +615,12 @@ impl TvService {
         if let Some(c) = live {
             Self::gate(viewer, &[c])?;
         }
+        let slate_master =
+            if live.is_none() && self.live.is_some() && self.slate_asset().await.is_some() {
+                Some(format!("{LIVE_PREFIX}/{id}/live/master.m3u8"))
+            } else {
+                None
+            };
         Ok(Tune {
             channel_id: id,
             state: if live.is_some() && self.live.is_some() {
@@ -608,7 +630,8 @@ impl TvService {
             },
             master_url: live
                 .filter(|_| self.live.is_some())
-                .map(|_| format!("{LIVE_PREFIX}/{id}/live/master.m3u8")),
+                .map(|_| format!("{LIVE_PREFIX}/{id}/live/master.m3u8"))
+                .or(slate_master),
             offset_ms: cur.as_ref().map(|c| c.offset_ms + (now - c.start_ms)),
             current: cur.as_ref().map(BlockRecord::wire),
             next: next.as_ref().map(BlockRecord::wire),
@@ -715,7 +738,15 @@ impl TvService {
     /// The master playlist for the channel now: the heights every programme of the next hours has.
     pub async fn live_master(&self, viewer: Viewer, id: i64) -> TvResult<String> {
         let now = self.clock_ms();
-        let on_air = self.on_air(viewer, id, now).await?;
+        let on_air = match self.on_air(viewer, id, now).await {
+            Ok(b) => b,
+            Err(TvError::OffAir) => {
+                let slate = self.slate_asset().await.ok_or(TvError::OffAir)?;
+                return live::render_live_master(&[&slate], u64::try_from(now / 1000).unwrap_or(0))
+                    .ok_or(TvError::OffAir);
+            }
+            Err(e) => return Err(e),
+        };
         let cur = on_air.last().ok_or(TvError::OffAir)?;
         let upcoming = self
             .repo
@@ -742,7 +773,23 @@ impl TvService {
     /// A media playlist now. Counts the member as a viewer.
     pub async fn live_media(&self, viewer: Viewer, id: i64, track: Track) -> TvResult<String> {
         let now = self.clock_ms();
-        let blocks = self.on_air(viewer, id, now).await?;
+        let blocks = match self.on_air(viewer, id, now).await {
+            Ok(b) => b,
+            Err(TvError::OffAir) => {
+                let slate = self.slate_asset().await.ok_or(TvError::OffAir)?;
+                self.presence.touch(id, viewer.user_id, now);
+                let signer = self.live_deps()?.signer.clone();
+                return live::render_slate_media(
+                    &slate,
+                    track,
+                    now,
+                    signer.as_ref(),
+                    u64::try_from(now / 1000).unwrap_or(0),
+                )
+                .ok_or(TvError::OffAir);
+            }
+            Err(e) => return Err(e),
+        };
         self.presence.touch(id, viewer.user_id, now);
         let signer = self.live_deps()?.signer.clone();
         live::render_media(

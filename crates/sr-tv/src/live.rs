@@ -229,6 +229,78 @@ pub fn render_media(
     Some(out)
 }
 
+/// Slate sequence numbers start here, above any wall-clock-seeded programme number (unix seconds stay
+/// below 2^32 until 2106), so a player switching from a programme to the slate never sees them go backwards.
+pub const SLATE_SEQ_BASE: i64 = 1 << 32;
+
+/// The media playlist of the slate (TV-HLS-003): the short pre-encoded loop `asset` repeated forever on
+/// the wall clock, so an off-air channel answers a playable live playlist instead of 404. Every client
+/// sees the same window (the loop is anchored at the unix epoch); each wrap of the loop carries a
+/// discontinuity, a new map and a program date time, as a programme boundary does.
+pub fn render_slate_media(
+    asset: &PlaybackAsset,
+    track: Track,
+    now_ms: i64,
+    signer: &dyn UrlSigner,
+    now_secs: u64,
+) -> Option<String> {
+    let (init, segs) = track_of(asset, track)?;
+    if segs.is_empty() {
+        return None;
+    }
+    // Segment k of one loop starts `starts[k]` ms into it.
+    let mut starts = Vec::with_capacity(segs.len());
+    let mut acc = 0.0_f64;
+    for s in segs {
+        starts.push((acc * 1000.0).round() as i64);
+        acc += s.duration_secs;
+    }
+    let cycle_ms = (acc * 1000.0).round() as i64;
+    if cycle_ms <= 0 {
+        return None;
+    }
+    let n = segs.len() as i64;
+    let now = now_ms.max(0);
+    let cycle = now / cycle_ms;
+    let pos = now % cycle_ms;
+    let k = starts.partition_point(|s| *s <= pos) as i64 - 1;
+    let g = cycle * n + k;
+    let first = (g - (WINDOW_SEGMENTS as i64 - 1)).max(0);
+    let target = segs
+        .iter()
+        .map(|s| s.duration_secs)
+        .fold(1.0_f64, f64::max)
+        .ceil() as u64;
+    let expires = now_secs + URL_TTL_SECS;
+    let mut out = format!(
+        "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:{target}\n#EXT-X-MEDIA-SEQUENCE:{}\n\
+         #EXT-X-DISCONTINUITY-SEQUENCE:{}\n#EXT-X-INDEPENDENT-SEGMENTS\n",
+        SLATE_SEQ_BASE + first,
+        SLATE_SEQ_BASE + first / n
+    );
+    let mut prev_cycle: Option<i64> = None;
+    for gi in first..=g {
+        let (c, ki) = (gi / n, (gi % n) as usize);
+        if prev_cycle != Some(c) {
+            if prev_cycle.is_some() {
+                out.push_str("#EXT-X-DISCONTINUITY\n");
+            }
+            out.push_str(&format!(
+                "#EXT-X-MAP:URI=\"{}\"\n#EXT-X-PROGRAM-DATE-TIME:{}\n",
+                signed(signer, asset.id, init, expires),
+                iso(c * cycle_ms + starts[ki])
+            ));
+            prev_cycle = Some(c);
+        }
+        out.push_str(&format!(
+            "#EXTINF:{:.6},\n{}\n",
+            segs[ki].duration_secs,
+            signed(signer, asset.id, &segs[ki].path, expires)
+        ));
+    }
+    Some(out)
+}
+
 /// Turn "relative path" into itself: the live master points at sibling endpoints, not at the CDN.
 struct Relative;
 
@@ -565,6 +637,33 @@ pub(crate) mod tests {
         assert!(!silent.contains("TYPE=AUDIO") && !silent.contains("AUDIO=\"aud\""));
     }
 
+    #[test]
+    fn the_slate_loops_on_the_wall_clock_with_a_discontinuity_at_each_wrap() {
+        // A 3-segment, 2 s loop (6 s cycle).
+        let mut a = asset(77, 3);
+        for v in &mut a.media.videos {
+            for s in &mut v.segments {
+                s.duration_secs = 2.0;
+            }
+        }
+        // 13 s: cycle 2 (12 s..18 s), segment 0 on air; global index 6. Window 1..=6.
+        let text = render_slate_media(&a, Track::Video(720), 13_000, &Sig, 0).unwrap();
+        let (seq, segs) = seqs(&text);
+        assert_eq!(seq, SLATE_SEQ_BASE + 1);
+        assert_eq!(segs.len(), WINDOW_SEGMENTS);
+        assert_eq!(segs[0], "/cdn/hls/77/v/720p/seg_00001.m4s");
+        assert_eq!(segs[5], "/cdn/hls/77/v/720p/seg_00000.m4s");
+        assert_eq!(text.matches("#EXT-X-DISCONTINUITY\n").count(), 2);
+        assert_eq!(text.matches("#EXT-X-MAP").count(), 3);
+        assert!(text.contains(&format!("#EXT-X-DISCONTINUITY-SEQUENCE:{}", SLATE_SEQ_BASE)));
+        // Two clients a second apart see the same window.
+        let b = render_slate_media(&a, Track::Video(720), 13_900, &Sig, 0).unwrap();
+        assert_eq!(seqs(&b), (seq, segs));
+        // Audio has a loop too; a track the asset lacks has none.
+        assert!(render_slate_media(&a, Track::Audio, 13_000, &Sig, 0).is_some());
+        a.media.audios.clear();
+        assert!(render_slate_media(&a, Track::Audio, 13_000, &Sig, 0).is_none());
+    }
     #[test]
     fn iso_formats_milliseconds() {
         assert_eq!(iso(0), "1970-01-01T00:00:00.000Z");

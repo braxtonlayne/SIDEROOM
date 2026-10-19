@@ -16,4 +16,5 @@ pub mod cli;
 pub mod encoders;
 pub mod http_client;
 pub mod progress;
+pub mod slate;
 pub mod worker;

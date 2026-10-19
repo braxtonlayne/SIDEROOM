@@ -646,24 +646,30 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // Live TV (TV-ENG, TV-HLS): the schedule is stored in Postgres, pools come from the catalog repository,
     // and the live playlists are cut from the same renditions the VOD player uses (`/cdn/hls/<asset>/...`).
+    // `SR_TV_SLATE_ASSET` is the id of a transcoded slate loop (TV-HLS-003, see sr_transcoder::slate).
+    let tv_slate = std::env::var("SR_TV_SLATE_ASSET")
+        .ok()
+        .and_then(|v| v.trim().parse::<i64>().ok());
+    let mut tv_service = sr_tv::TvService::new(
+        Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
+        Arc::new(
+            crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(Arc::new(
+                crate::tv_catalog::PgAssetDurations::new(pool.clone()),
+            )),
+        ),
+        clock.clone(),
+        id_src.clone(),
+    )
+    .with_live(sr_tv::LiveDeps {
+        source: Arc::new(crate::media_jobs::PgPlaybackSource::new(media_repo.clone())),
+        signer: Arc::new(cdn_signer.clone()),
+    });
+    if let Some(id) = tv_slate {
+        tv_service = tv_service.with_slate(id);
+    }
     let tv_deps = Arc::new(
-        routes::tv::TvDeps::new(
-            sr_tv::TvService::new(
-                Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
-                Arc::new(
-                    crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(
-                        Arc::new(crate::tv_catalog::PgAssetDurations::new(pool.clone())),
-                    ),
-                ),
-                clock.clone(),
-                id_src.clone(),
-            )
-            .with_live(sr_tv::LiveDeps {
-                source: Arc::new(crate::media_jobs::PgPlaybackSource::new(media_repo.clone())),
-                signer: Arc::new(cdn_signer.clone()),
-            }),
-        )
-        .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
+        routes::tv::TvDeps::new(tv_service)
+            .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
     let tv_deps_for_reminders = tv_deps.clone();
 

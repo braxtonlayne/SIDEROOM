@@ -612,6 +612,46 @@ async fn channels_without_media_are_off_air() {
     assert!(g.channels[0].blocks.is_empty());
 }
 
+#[tokio::test]
+async fn an_off_air_channel_shows_the_slate_instead_of_404() {
+    let e = env();
+    let id = channel(&e, 201, ChannelRules::default()).await;
+    let source = MemoryPlaybackSource::new();
+    let mut slate = asset(9999, 2);
+    for v in &mut slate.media.videos {
+        for s in &mut v.segments {
+            s.duration_secs = 2.0;
+        }
+    }
+    source.insert(slate);
+    let next = Arc::new(AtomicI64::new(5000));
+    let svc = TvService::new(
+        e.repo.clone(),
+        Arc::new(e.catalog.clone()),
+        e.clock.clone(),
+        Arc::new(move || next.fetch_add(1, Ordering::SeqCst)),
+    )
+    .with_live(LiveDeps {
+        source: Arc::new(source),
+        signer: Arc::new(Sig),
+    })
+    .with_slate(9999);
+    let t = svc.tune(MEMBER, id).await.unwrap();
+    assert_eq!(t.state, TuneState::OffAir, "the guide still says off air");
+    assert!(t.master_url.is_some(), "but the stream answers");
+    let master = svc.live_master(MEMBER, id).await.unwrap();
+    assert!(master.contains("v/720.m3u8"));
+    let media = svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    assert!(media.contains("/cdn/hls/9999/v/720p/seg_0000"), "{media}");
+    assert!(!media.contains("ENDLIST"));
+    assert!(svc.live_media(MEMBER, id, Track::Audio).await.is_ok());
+    // Without a configured slate it is still off air.
+    assert_eq!(
+        e.svc.live_media(MEMBER, id, Track::Video(720)).await,
+        Err(TvError::OffAir)
+    );
+}
+
 // ---- reminders (G-10) ------------------------------------------------------------------------
 
 #[derive(Default)]
