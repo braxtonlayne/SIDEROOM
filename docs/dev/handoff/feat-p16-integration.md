@@ -4,7 +4,7 @@ Main checkout `C:\Users\braxt\Desktop\SIDEROOM_repo`, branch `integration/phase1
 
 ## Resume here
 
-**State (2026-10-19): done.** All five Phase 16 branches are merged, `feat/p16-backend` included (it was finished during this pass and merged last). Every gate passes on the fully merged tree, Playwright included (results below). No servers or test processes of this pass are running. The scratch databases `sr_p16_int` and `sr_p16_ie2e` were dropped.
+**State (2026-10-19): done.** All five Phase 16 branches are merged, `feat/p16-backend` included (it was finished during this pass and merged last). Every gate passes on the fully merged tree, Playwright included (results below). No servers or test processes of this pass are running. The scratch databases `sr_p16_int` and `sr_p16_ie2e` were dropped, and so were the 67 leftover `sr_tpl_*` migration templates (no connections and no cargo, vitest or Playwright processes were running at the time).
 
 **What is left for the owner or CI:**
 
