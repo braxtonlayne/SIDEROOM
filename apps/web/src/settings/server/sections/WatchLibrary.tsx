@@ -38,9 +38,9 @@ export function WatchLibrarySection({ guildId, viewer }: SectionProps) {
       </article>
       <Async res={res} label={t('settings.features.loading')}>
         {(features) => {
-          const mine = WATCH_LIBRARY_FEATURE_IDS.map((id) => features.find((f) => f.id === id)).filter(
-            (f): f is api.GuildFeature => !!f,
-          );
+          const mine = WATCH_LIBRARY_FEATURE_IDS.map((id) =>
+            features.find((f) => f.id === id),
+          ).filter((f): f is api.GuildFeature => !!f);
           if (mine.length === 0)
             return <Notice variant="info">{t('settings.watchLibrary.none')}</Notice>;
           return (
