@@ -772,6 +772,56 @@ async fn the_slate_chains_with_the_programmes_around_it() {
     );
 }
 
+struct SettingSlate(std::sync::Mutex<Option<i64>>);
+
+#[async_trait::async_trait]
+impl crate::service::SlateSource for SettingSlate {
+    async fn asset_id(&self) -> Option<i64> {
+        *self.0.lock().unwrap()
+    }
+}
+
+#[tokio::test]
+async fn a_slate_setting_is_followed_without_a_restart() {
+    let e = env();
+    let id = channel(&e, 202, ChannelRules::default()).await;
+    let source = MemoryPlaybackSource::new();
+    let mut slate = asset(9999, 2);
+    for v in &mut slate.media.videos {
+        for s in &mut v.segments {
+            s.duration_secs = 2.0;
+        }
+    }
+    source.insert(slate);
+    let setting = Arc::new(SettingSlate(std::sync::Mutex::new(None)));
+    let next = Arc::new(AtomicI64::new(5000));
+    let svc = TvService::new(
+        e.repo.clone(),
+        Arc::new(e.catalog.clone()),
+        e.clock.clone(),
+        Arc::new(move || next.fetch_add(1, Ordering::SeqCst)),
+    )
+    .with_live(LiveDeps {
+        source: Arc::new(source),
+        signer: Arc::new(Sig),
+    })
+    .with_slate_source(setting.clone());
+    // No slate set: off air, and nothing to play.
+    let t = svc.tune(MEMBER, id).await.unwrap();
+    assert!(!t.slate && t.master_url.is_none());
+    // `sr-cli tv slate` writes the setting; the service asks again after the refresh interval.
+    *setting.0.lock().unwrap() = Some(9999);
+    assert!(!svc.tune(MEMBER, id).await.unwrap().slate, "answer reused");
+    e.clock.advance_ms(crate::service::SLATE_REFRESH_MS + 1);
+    let t = svc.tune(MEMBER, id).await.unwrap();
+    assert!(t.slate && t.master_url.is_some());
+    assert_eq!(svc.slate_id().await, Some(9999));
+    // Cleared again: back to off air without a stream.
+    *setting.0.lock().unwrap() = None;
+    e.clock.advance_ms(crate::service::SLATE_REFRESH_MS + 1);
+    assert!(!svc.tune(MEMBER, id).await.unwrap().slate);
+}
+
 // ---- reminders (G-10) ------------------------------------------------------------------------
 
 #[derive(Default)]

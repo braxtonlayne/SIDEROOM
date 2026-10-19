@@ -326,3 +326,45 @@ impl TvCatalog for RepoTvCatalog {
         self.collect(&filter, false, limit).await
     }
 }
+
+/// The Live TV slate asset id (D-269): the platform setting `tv.slate_asset` (written by `sr-cli tv slate` or
+/// Admin -> Limits) wins, the `SR_TV_SLATE_ASSET` environment value is the bootstrap fallback. Read through
+/// [`sr_tv::TvService::with_slate_source`], so a change applies within seconds and needs no restart.
+pub struct PgSlateSetting {
+    pool: sqlx::PgPool,
+    fallback: Option<i64>,
+}
+
+impl PgSlateSetting {
+    pub fn new(pool: sqlx::PgPool, fallback: Option<i64>) -> Self {
+        Self { pool, fallback }
+    }
+}
+
+/// An asset id in text (digits); anything else, empty included, is no id.
+pub fn parse_asset_id(text: &str) -> Option<i64> {
+    text.trim().parse::<i64>().ok().filter(|n| *n > 0)
+}
+
+#[async_trait]
+impl sr_tv::SlateSource for PgSlateSetting {
+    async fn asset_id(&self) -> Option<i64> {
+        let stored = sqlx::query_scalar::<_, serde_json::Value>(
+            "SELECT value FROM platform_settings WHERE key = $1",
+        )
+        .bind(sr_admin::settings::TV_SLATE_ASSET)
+        .fetch_optional(&self.pool)
+        .await;
+        match stored {
+            Ok(v) => v
+                .as_ref()
+                .and_then(|v| v.as_str())
+                .and_then(parse_asset_id)
+                .or(self.fallback),
+            Err(e) => {
+                tracing::warn!(error = %e, "could not read the tv.slate_asset setting");
+                self.fallback
+            }
+        }
+    }
+}

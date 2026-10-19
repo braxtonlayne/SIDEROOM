@@ -25,6 +25,16 @@ pub use guide_ops::{ConfirmInput, ConfirmedGuide, GuideChoice, ImportView};
 
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
 
+/// Where the Live TV slate asset id comes from while the server runs (D-269): the platform setting
+/// `tv.slate_asset`, then the `SR_TV_SLATE_ASSET` fallback. `None` means no slate.
+#[async_trait::async_trait]
+pub trait SlateSource: Send + Sync {
+    async fn asset_id(&self) -> Option<i64>;
+}
+
+/// How long a [`SlateSource`] answer is reused (ms).
+pub const SLATE_REFRESH_MS: i64 = 10_000;
+
 const HOUR_MS: i64 = 3_600_000;
 const DAY_MS: i64 = 86_400_000;
 /// Rule-based channels are extended at least this far ahead of a read.
@@ -127,6 +137,23 @@ pub struct Tune {
     pub viewers: u32,
 }
 
+/// The off-air slate for staff (D-269): what is configured and whether it plays.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = TvSlate)]
+pub struct SlateStatus {
+    /// A slate asset is configured (setting `tv.slate_asset`, or the `SR_TV_SLATE_ASSET` fallback).
+    pub configured: bool,
+    /// The configured asset id.
+    #[serde(default, with = "opt_id", skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<String>)]
+    pub asset_id: Option<i64>,
+    /// The asset exists and has renditions to play.
+    pub playable: bool,
+    /// Length of one pass of the loop, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<i64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 #[schema(as = TvPreview)]
 pub struct Preview {
@@ -210,6 +237,9 @@ pub struct TvService {
     live: Option<LiveDeps>,
     /// The slate asset (TV-HLS-003): answered instead of 404 when a channel is off air.
     slate: Option<i64>,
+    /// Where the slate comes from when it is a setting that can change while the server runs (D-269).
+    slate_source: Option<Arc<dyn SlateSource>>,
+    slate_cache: std::sync::Mutex<Option<(i64, Option<i64>)>>,
     /// The off-air master was logged once for lacking a standard rung (D-267).
     slate_rung_logged: std::sync::atomic::AtomicBool,
     /// One schedule extension at a time (the writes are idempotent anyway; this saves duplicate work).
@@ -269,6 +299,8 @@ impl TvService {
             presence: Arc::new(MemoryPresence::new()),
             live: None,
             slate: None,
+            slate_source: None,
+            slate_cache: std::sync::Mutex::new(None),
             slate_rung_logged: std::sync::atomic::AtomicBool::new(false),
             extend: tokio::sync::Mutex::new(()),
         }
@@ -293,9 +325,48 @@ impl TvService {
         self
     }
 
+    /// The slate asset comes from `source` (a platform setting with an environment fallback), asked at most
+    /// every [`SLATE_REFRESH_MS`], so a change made by `sr-cli tv slate` applies without a restart (D-269).
+    pub fn with_slate_source(mut self, source: Arc<dyn SlateSource>) -> Self {
+        self.slate_source = Some(source);
+        self
+    }
+
+    /// The configured slate asset id (not checked for playability).
+    pub async fn slate_id(&self) -> Option<i64> {
+        if let Some(id) = self.slate {
+            return Some(id);
+        }
+        let source = self.slate_source.as_ref()?;
+        let now = self.clock_ms();
+        if let Some((at, id)) = *self.slate_cache.lock().ok()?
+            && (0..SLATE_REFRESH_MS).contains(&(now - at))
+        {
+            return id;
+        }
+        let id = source.asset_id().await;
+        if let Ok(mut c) = self.slate_cache.lock() {
+            *c = Some((now, id));
+        }
+        id
+    }
+
+    /// Staff view of the slate (`MANAGE_TV`).
+    pub async fn slate_status(&self, a: Actor) -> TvResult<SlateStatus> {
+        a.need()?;
+        let asset_id = self.slate_id().await;
+        let asset = self.slate_asset().await;
+        Ok(SlateStatus {
+            configured: asset_id.is_some(),
+            asset_id,
+            playable: asset.is_some(),
+            duration_ms: asset.and_then(|a| a.duration_ms),
+        })
+    }
+
     /// The slate asset, when one is configured and playable.
     async fn slate_asset(&self) -> Option<PlaybackAsset> {
-        let id = self.slate?;
+        let id = self.slate_id().await?;
         self.asset(id).await.ok()
     }
 
