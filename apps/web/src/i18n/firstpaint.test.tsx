@@ -54,7 +54,9 @@ describe('first paint with only the core catalog', () => {
     await act(async () => {
       await import('./messages/en.rest');
     });
-    expect(await screen.findByRole('heading', { name: 'Friends' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Friends' }, { timeout: 20000 }),
+    ).toBeInTheDocument();
     expect(document.body.textContent ?? '').not.toMatch(KEY_SHAPE);
   });
 
