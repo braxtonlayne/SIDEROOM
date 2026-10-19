@@ -3,7 +3,7 @@
  * The controller (controller.ts) is the only writer; components read through the selectors/hooks here.
  */
 import { create } from 'zustand';
-import { UNKNOWN_QUALITY, type ConnectionQuality } from './quality';
+import { UNKNOWN_QUALITY, type ConnectionQuality, type RemoteQuality } from './quality';
 
 export type SessionStatus =
   'idle' | 'joining' | 'connecting' | 'connected' | 'reconnecting' | 'error';
@@ -37,6 +37,8 @@ export interface VoiceSession {
   camera: boolean;
   screen: boolean;
   quality: ConnectionQuality;
+  /** Connection quality of each remote person's microphone line, by user id (VOX-UI-003). */
+  remoteQuality: Record<string, RemoteQuality>;
   /** Recent round-trip times in ms (oldest first), for the ping graph. */
   pingHistory: number[];
   /** The SFU's egress governor lowered the quality of this room. */
@@ -68,6 +70,7 @@ export const IDLE_SESSION: VoiceSession = {
   camera: false,
   screen: false,
   quality: UNKNOWN_QUALITY,
+  remoteQuality: {},
   pingHistory: [],
   reducedQuality: false,
   refusal: null,
