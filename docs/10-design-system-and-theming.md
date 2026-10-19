@@ -12,7 +12,7 @@ Every visual value is a CSS custom property (token). Components never hard-code 
 | Entrance, Cinema, Library, Support | `sideroom` | Deep olive-black, cream type, muted gold, editorial serif display, letter-spaced caps |
 | Live TV page | `sideroom-broadcast` (extends `sideroom`) | Same palette with a monospaced "teletext" layer for times and channel numbers, CRT preview frame, scanline overlay |
 
-Users can pick **one theme for everything** (e.g. "Side Room everywhere") or **per-section themes** (Settings → Appearance → Per-section themes). Server owners can set a server accent and banner that recolor that server's channel list and header, if the viewer allows server theming (default on).
+Users can pick **one theme for everything** (e.g. "Side Room everywhere") or **per-section themes** (Settings → Appearance → Per-section themes). Server owners can set a server accent and banner that recolor that server's channel list and header, if the viewer allows server theming (default on). The look is layered, from the bottom: the section's built-in theme, the platform default (D-254), the member's own theme (global or per section), the server theme while that server is open, the server accent colour, and last a Theme Store preview while it is open (D-280). One switch, "Allow server themes", covers the server's theme and accent together; off, the member sees only their own theme. The manager's accent wins over the theme's accent token, which is only the author's default.
 
 ## 2. `sideroom` tokens (from the mockups)
 

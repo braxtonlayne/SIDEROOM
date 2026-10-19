@@ -61,4 +61,48 @@ describe('server appearance (LNG-SSET-050)', () => {
     expect(off.result.current).toEqual({ accent: null, style: {} });
     expect(home.result.current).toEqual({ accent: null, style: {} });
   });
+
+  it('puts the manager accent over the theme accent token (D-280)', async () => {
+    server.use(
+      http.get('*/api/v1/guilds/g1/appearance', () =>
+        HttpResponse.json({
+          accent_color: 0x336699,
+          theme: {
+            package_id: '1',
+            version_id: '2',
+            slug: 'dusk',
+            name: 'Dusk',
+            scheme: 'dark',
+            tokens: { '--ui-bg': '#222', '--ui-accent': '#ff0000' },
+          },
+        }),
+      ),
+    );
+    const { result } = renderHook(() => useServerAppearance('g1', true));
+    await waitFor(() => expect(result.current.accent).toBe('#336699'));
+    const style = result.current.style as Record<string, string>;
+    expect(style['--ui-bg']).toBe('#222');
+    expect(style['--ui-accent']).toBe('#336699');
+  });
+
+  it('applies neither theme nor accent when the one switch is off (D-280)', async () => {
+    server.use(
+      http.get('*/api/v1/guilds/g1/appearance', () =>
+        HttpResponse.json({
+          accent_color: 0x336699,
+          theme: {
+            package_id: '1',
+            version_id: '2',
+            slug: 'dusk',
+            name: 'Dusk',
+            scheme: 'dark',
+            tokens: { '--ui-bg': '#222' },
+          },
+        }),
+      ),
+    );
+    const off = renderHook(() => useServerAppearance('g1', false));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(off.result.current).toEqual({ accent: null, style: {} });
+  });
 });

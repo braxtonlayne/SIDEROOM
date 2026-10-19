@@ -1,6 +1,11 @@
 // What a server's managers chose for its look (LNG-SSET-050): a server-wide theme and an accent colour. Members'
 // clients read it when they open the server and again on `SR_GUILD_APPEARANCE_UPDATE`. A theme is only design
 // tokens (D-063); they are checked again here before they touch the DOM, like a Theme Store theme.
+//
+// Precedence (D-280), from the bottom: the built-in theme, the platform default, the member's own theme (global or
+// per section), the server theme (Lounge of that server only, D-281), the server accent, a Theme Store preview.
+// One switch, "Allow server themes", covers theme and accent together. The manager's accent wins over the theme's
+// accent token because it is the narrower, later choice; the token is only the author's default.
 import { useEffect, useMemo, type CSSProperties } from 'react';
 import { serverAccentTokens } from '@sideroom/ui';
 import { create } from 'zustand';
