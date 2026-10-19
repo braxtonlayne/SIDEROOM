@@ -33,7 +33,21 @@ client.once('clientReady', async (c) => {
   }
 });
 
-client.on('guildCreate', (g) => emit({ event: 'guild_create', guild: g.id, name: g.name }));
+// discord.js only emits `guildCreate` for a guild it did not know at READY. The bot is installed before it
+// connects, so its server is in READY's unavailable list and the GUILD_CREATE that follows surfaces as
+// `guildAvailable` before `clientReady` (the client waits for those guilds). Report those from the cache once
+// ready, and later ones from either event, so the check sees the GUILD_CREATE the library received.
+const seen = new Set();
+const guildCreate = (g) => {
+  if (seen.has(g.id)) return;
+  seen.add(g.id);
+  emit({ event: 'guild_create', guild: g.id, name: g.name });
+};
+client.once('clientReady', (c) => {
+  for (const g of c.guilds.cache.values()) if (g.available) guildCreate(g);
+});
+client.on('guildCreate', guildCreate);
+client.on('guildAvailable', guildCreate);
 
 client.on('messageCreate', async (m) => {
   if (m.author.bot) return;
