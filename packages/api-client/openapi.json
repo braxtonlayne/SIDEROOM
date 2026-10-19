@@ -36507,7 +36507,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "What is turned on in a server (`MANAGE_GUILD`).",
+        "summary": "What is turned on in a server (`MANAGE_GUILD`; `MANAGE_GUILD_EXPRESSIONS` alone sees only the packs, D-282).",
         "operationId": "guild_enabled",
         "parameters": [
           {
@@ -36641,7 +36641,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "Turn a package off in a server (`MANAGE_GUILD`).",
+        "summary": "Turn a package off in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack `MANAGE_GUILD_EXPRESSIONS`\nalone is enough, D-282). A pack takes the items it added with it.",
         "operationId": "disable_for_guild",
         "parameters": [
           {
@@ -36776,7 +36776,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "Add an approved emoji, sticker or sound pack to the server: the pack is turned on and its items become\nthe server's own emoji, stickers or sounds (`MANAGE_GUILD` and the expression permissions). Items that do\nnot fit (a name the server already uses, no free slot, a file type the list does not take) are listed\nunder `skipped`; the rest are added. Take the pack away again with `DELETE /guilds/{id}/packages/{package}`.",
+        "summary": "Add an approved emoji, sticker or sound pack to the server: the pack is turned on and its items become\nthe server's own emoji, stickers or sounds (`MANAGE_GUILD_EXPRESSIONS` alone suffices, `MANAGE_GUILD` too, D-282). Items that do\nnot fit (a name the server already uses, no free slot, a file type the list does not take) are listed\nunder `skipped`; the rest are added. Take the pack away again with `DELETE /guilds/{id}/packages/{package}`.",
         "operationId": "import_pack",
         "parameters": [
           {
@@ -68933,7 +68933,7 @@
               "string",
               "null"
             ],
-            "description": "Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`."
+            "description": "Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. For a server\n`all` means the Lounge for a server; a server theme never recolours Cinema, Library or the Entrance (D-281)."
           }
         }
       },
@@ -76384,6 +76384,14 @@
           "enabled_at_ms": {
             "type": "integer",
             "format": "int64"
+          },
+          "item_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "For a pack turned on in a server: how many emoji, stickers or sounds it added and are still there to be\ntaken away (D-282). Absent for every other enablement."
           },
           "kind": {
             "$ref": "#/components/schemas/PackageKind"

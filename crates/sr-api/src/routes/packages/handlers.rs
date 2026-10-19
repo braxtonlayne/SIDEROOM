@@ -328,7 +328,37 @@ pub(super) async fn require_manage(
     Ok(acc)
 }
 
-/// What is turned on in a server (`MANAGE_GUILD`).
+/// Like [`require_manage`], but `MANAGE_GUILD_EXPRESSIONS` alone is enough too: emoji, sticker and sound packs
+/// belong to whoever manages the server's expressions (D-282). The MFA gate applies to either (D-223).
+pub(super) async fn require_manage_or_expressions(
+    settings: &SettingsDeps,
+    user: i64,
+    guild: GuildId,
+    gate: Option<&MfaGate>,
+) -> MsgResult<crate::routes::settings::deps::GuildAccess> {
+    let user = UserId::new(u64::try_from(user).unwrap_or(0));
+    let acc = settings.guild_access(user, guild).await?;
+    if let Some(g) = gate {
+        acc.require_mfa(g, user, Permissions::MANAGE_GUILD).await?;
+        acc.require_mfa(g, user, Permissions::MANAGE_GUILD_EXPRESSIONS)
+            .await?;
+    }
+    if !acc.perms.has(Permissions::MANAGE_GUILD)
+        && !acc.perms.has(Permissions::MANAGE_GUILD_EXPRESSIONS)
+    {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
+    Ok(acc)
+}
+
+fn is_pack(kind: PackageKind) -> bool {
+    matches!(
+        kind,
+        PackageKind::EmojiPack | PackageKind::StickerPack | PackageKind::SoundPack
+    )
+}
+
+/// What is turned on in a server (`MANAGE_GUILD`; `MANAGE_GUILD_EXPRESSIONS` alone sees only the packs, D-282).
 #[utoipa::path(
     get, path = "/guilds/{guild_id}/packages", tag = "packages",
     params(("guild_id" = String, Path, description = "Guild snowflake")),
@@ -342,9 +372,13 @@ pub async fn guild_enabled(
     Path(guild): Path<String>,
 ) -> MsgResult<Json<Vec<Enablement>>> {
     let g = gid(&guild)?;
-    require_manage(&settings, p.user_id, g, None).await?;
+    let acc = require_manage_or_expressions(&settings, p.user_id, g, None).await?;
     let gi = i64::try_from(g.get()).unwrap_or(0);
-    Ok(Json(deps.service.enabled("guild", gi).await.map_err(pkg)?))
+    let mut on = deps.service.enabled("guild", gi).await.map_err(pkg)?;
+    if !acc.perms.has(Permissions::MANAGE_GUILD) {
+        on.retain(|e| is_pack(e.kind));
+    }
+    Ok(Json(on))
 }
 
 /// Turn an approved package on in a server (`MANAGE_GUILD`). Recipes are applied with `/apply` instead.
@@ -405,7 +439,8 @@ pub async fn enable_for_guild(
     Ok(Json(en))
 }
 
-/// Turn a package off in a server (`MANAGE_GUILD`).
+/// Turn a package off in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack `MANAGE_GUILD_EXPRESSIONS`
+/// alone is enough, D-282). A pack takes the items it added with it.
 #[utoipa::path(
     delete, path = "/guilds/{guild_id}/packages/{package_id}", tag = "packages",
     params(("guild_id" = String, Path, description = "Guild snowflake"),
@@ -421,7 +456,6 @@ pub async fn disable_for_guild(
     Path((guild, package)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let g = gid(&guild)?;
-    let acc = require_manage(&settings, p.user_id, g, Some(&gate)).await?;
     let gi = i64::try_from(g.get()).unwrap_or(0);
     let package = id(&package)?;
     let kind = deps
@@ -432,11 +466,15 @@ pub async fn disable_for_guild(
         .into_iter()
         .find(|e| e.package_id == package.to_string())
         .map(|e| e.kind);
+    // The kind decides the permission (D-282): packs need `MANAGE_GUILD_EXPRESSIONS` or `MANAGE_GUILD`; themes,
+    // recipes and templates need `MANAGE_GUILD`. Nothing on at all answers 404 to either holder.
+    let acc = if kind.is_none_or(is_pack) {
+        require_manage_or_expressions(&settings, p.user_id, g, Some(&gate)).await?
+    } else {
+        require_manage(&settings, p.user_id, g, Some(&gate)).await?
+    };
     // A pack takes the items it added with it (what the server uploaded itself stays).
-    if matches!(
-        kind,
-        Some(PackageKind::EmojiPack | PackageKind::StickerPack | PackageKind::SoundPack)
-    ) {
+    if kind.is_some_and(is_pack) {
         let user = UserId::new(u64::try_from(p.user_id).unwrap_or(0));
         super::appearance::remove_pack(&settings, &deps, &acc, user, g, package).await?;
     }

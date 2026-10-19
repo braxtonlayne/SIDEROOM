@@ -3,8 +3,9 @@
 //!
 //! * `GET /guilds/{id}/appearance` (any member): the theme tokens and the accent colour to apply;
 //! * `PATCH /guilds/{id}/appearance` (`MANAGE_GUILD`): the accent colour;
-//! * `POST /guilds/{id}/packages/{package}/import` (`MANAGE_GUILD`, and the expression permissions the item
-//!   routes ask for): turn an emoji, sticker or sound pack on and copy its items into the server's own lists.
+//! * `POST /guilds/{id}/packages/{package}/import` (`MANAGE_GUILD_EXPRESSIONS` or `MANAGE_GUILD`, D-282; the item
+//!   routes' own permission still applies to each file): turn an emoji, sticker or sound pack on and copy its items
+//!   into the server's own lists.
 //!
 //! A theme is chosen with the existing `PUT /guilds/{id}/packages/{package}`; every change announces
 //! `SR_GUILD_APPEARANCE_UPDATE` so open clients read the appearance again. Taking a pack away
@@ -149,7 +150,7 @@ pub struct ImportResult {
 }
 
 /// Add an approved emoji, sticker or sound pack to the server: the pack is turned on and its items become
-/// the server's own emoji, stickers or sounds (`MANAGE_GUILD` and the expression permissions). Items that do
+/// the server's own emoji, stickers or sounds (`MANAGE_GUILD_EXPRESSIONS` alone suffices, `MANAGE_GUILD` too, D-282). Items that do
 /// not fit (a name the server already uses, no free slot, a file type the list does not take) are listed
 /// under `skipped`; the rest are added. Take the pack away again with `DELETE /guilds/{id}/packages/{package}`.
 #[utoipa::path(
@@ -168,7 +169,8 @@ pub async fn import_pack(
     Path((guild, package)): Path<(String, String)>,
 ) -> MsgResult<Json<ImportResult>> {
     let g = super::handlers::gid(&guild)?;
-    let acc = super::handlers::require_manage(&settings, p.user_id, g, Some(&gate)).await?;
+    let acc = super::handlers::require_manage_or_expressions(&settings, p.user_id, g, Some(&gate))
+        .await?;
     let package = super::handlers::id(&package)?;
     let view = deps.service.get(package).await.map_err(pkg)?;
     if !matches!(

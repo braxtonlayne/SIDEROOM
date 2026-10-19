@@ -7198,7 +7198,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** What is turned on in a server (`MANAGE_GUILD`). */
+        /** What is turned on in a server (`MANAGE_GUILD`; `MANAGE_GUILD_EXPRESSIONS` alone sees only the packs, D-282). */
         get: operations["guild_enabled"];
         put?: never;
         post?: never;
@@ -7219,7 +7219,10 @@ export interface paths {
         /** Turn an approved package on in a server (`MANAGE_GUILD`). Recipes are applied with `/apply` instead. */
         put: operations["enable_for_guild"];
         post?: never;
-        /** Turn a package off in a server (`MANAGE_GUILD`). */
+        /**
+         * Turn a package off in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack `MANAGE_GUILD_EXPRESSIONS`
+         *     alone is enough, D-282). A pack takes the items it added with it.
+         */
         delete: operations["disable_for_guild"];
         options?: never;
         head?: never;
@@ -7258,7 +7261,7 @@ export interface paths {
         put?: never;
         /**
          * Add an approved emoji, sticker or sound pack to the server: the pack is turned on and its items become
-         *     the server's own emoji, stickers or sounds (`MANAGE_GUILD` and the expression permissions). Items that do
+         *     the server's own emoji, stickers or sounds (`MANAGE_GUILD_EXPRESSIONS` alone suffices, `MANAGE_GUILD` too, D-282). Items that do
          *     not fit (a name the server already uses, no free slot, a file type the list does not take) are listed
          *     under `skipped`; the rest are added. Take the pack away again with `DELETE /guilds/{id}/packages/{package}`.
          */
@@ -14971,7 +14974,10 @@ export interface components {
             user: components["schemas"]["GuildUserRef"];
         };
         EnableBody: {
-            /** @description Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. */
+            /**
+             * @description Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. For a server
+             *     `all` means the Lounge for a server; a server theme never recolours Cinema, Library or the Entrance (D-281).
+             */
             section?: string | null;
         };
         /** @description State of an application's HTTP interactions endpoint (D-186). */
@@ -17280,6 +17286,12 @@ export interface components {
             config: Record<string, never>;
             /** Format: int64 */
             enabled_at_ms: number;
+            /**
+             * Format: int64
+             * @description For a pack turned on in a server: how many emoji, stickers or sounds it added and are still there to be
+             *     taken away (D-282). Absent for every other enablement.
+             */
+            item_count?: number | null;
             kind: components["schemas"]["PackageKind"];
             name: string;
             package_id: string;

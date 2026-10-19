@@ -111,6 +111,10 @@ pub struct Enablement {
     pub update_available: bool,
     #[schema(value_type = Option<Object>)]
     pub payload: Option<Value>,
+    /// For a pack turned on in a server: how many emoji, stickers or sounds it added and are still there to be
+    /// taken away (D-282). Absent for every other enablement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item_count: Option<i64>,
 }
 
 /// What a member's client applies for a server (`GET /guilds/{id}/appearance`).
@@ -1053,7 +1057,9 @@ impl PackageService {
     pub async fn enabled(&self, scope: &str, scope_id: i64) -> PackageResult<Vec<Enablement>> {
         let sql = format!(
             "SELECT e.package_id, e.version_id, p.kind, p.slug, p.name, v.version, v.manifest, e.section, e.config, \
-             {} AS enabled_ms, (p.latest_version_id IS NOT NULL AND p.latest_version_id <> e.version_id) AS update_available \
+             {} AS enabled_ms, (p.latest_version_id IS NOT NULL AND p.latest_version_id <> e.version_id) AS update_available, \
+             (SELECT count(*) FROM guild_pack_items i WHERE e.scope = 'guild' AND i.guild_id = e.scope_id \
+                AND i.package_id = e.package_id) AS item_count \
              FROM package_enablements e JOIN packages p ON p.id = e.package_id \
              JOIN package_versions v ON v.id = e.version_id \
              WHERE e.scope = $1 AND e.scope_id = $2 AND v.review_state = 'approved' ORDER BY e.enabled_at DESC LIMIT 200",
@@ -1083,6 +1089,17 @@ impl PackageService {
                     payload: (kind != PackageKind::ServerTemplate)
                         .then(|| manifest.get("payload").cloned())
                         .flatten(),
+                    item_count: if scope == "guild"
+                        && matches!(
+                            kind,
+                            PackageKind::EmojiPack
+                                | PackageKind::StickerPack
+                                | PackageKind::SoundPack
+                        ) {
+                        Some(r.try_get::<i64, _>("item_count")?)
+                    } else {
+                        None
+                    },
                 })
             })
             .collect::<Result<_, sqlx::Error>>()
