@@ -62,6 +62,24 @@ describe('profile decoration and theme (LNG-USET-009)', () => {
   });
 });
 
+describe('empty decoration catalogue (D-290)', () => {
+  it('hides the decoration picker while the catalogue has none', async () => {
+    server.use(
+      http.get('*/api/v1/users/@me/profile', () => HttpResponse.json(PROFILE)),
+      http.get('*/api/v1/users/@me/presence', () =>
+        HttpResponse.json({ status: 'online', custom_status: null }),
+      ),
+      http.get('*/api/v1/sr/profile-catalog', () =>
+        HttpResponse.json({ effects: [], decorations: [] }),
+      ),
+    );
+    openSettings('profile');
+    await screen.findByLabelText(/display name/i);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByRole('combobox', { name: 'Avatar decoration' })).toBeNull();
+  });
+});
+
 describe('TTS speed pref (LNG-USET-042)', () => {
   it('clamps the speed and defaults to normal', async () => {
     const { sanitizePrefs } = await import('../prefs');

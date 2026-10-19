@@ -1,11 +1,11 @@
 export default {
-  // /support page (DON-UI-001). Copy is a draft until the owner supplies the final wording.
+  // /support page (DON-UI-001). Final copy (D-298).
   'support.page.title': 'Support SIDE ROOM',
   'support.page.whyTitle': 'Why donate',
   'support.page.whyBody':
-    'SIDE ROOM is run by its members for its members. Donations pay for the servers, storage and bandwidth that keep the lounge, the cinema and the library running.',
+    'SIDE ROOM is a private, invite-only place run by its owner for its members. It costs real money every month: the server, the storage behind the Cinema and the Library, and the bandwidth for calls and watch parties. Donations go toward that bill.',
   'support.page.whyNoAds':
-    'There are no ads and no trackers. Giving is optional and never needed to use the site.',
+    'There are no ads and no third-party trackers here. Giving is optional: everything you can do today is free, and a donation adds a few thank-you perks on top rather than unlocking the site.',
   'support.page.patronCta': 'Become a Patron',
   'support.page.patronExtend': 'Add Patron months',
   'support.page.levelsTitle': 'Server Levels',

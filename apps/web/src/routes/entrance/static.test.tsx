@@ -40,6 +40,10 @@ describe('static entrance pages', () => {
     ]) {
       expect(main.getByRole('heading', { name: h })).toBeVisible();
     }
+    expect(main.getByRole('link', { name: 'Read the third-party notices' })).toHaveAttribute(
+      'href',
+      '/THIRD_PARTY_NOTICES.md',
+    );
     expect(main.getByRole('link', { name: 'Reset my password' })).toHaveAttribute(
       'href',
       '/forgot',

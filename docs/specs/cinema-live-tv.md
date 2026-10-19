@@ -27,7 +27,7 @@ Expected production lineup (the owner's words): several "Adult Swim" channels fr
 |---|---|
 | **imported_guide** | A historical lineup (e.g. "Adult Swim — Fall 2003") imported as a weekly schedule of slots referencing shows/episodes. Slots whose content isn't in the library are **skipped** (D-102): the previous program's end flows into the next available slot, and any gap is filled with filler per policy |
 | **rule_based** | Rules generate the schedule: content pool (filters: genre, kind, decade, tags, collection), block length, ordering (sequential per series / shuffle / weighted), daypart rules (e.g. 22:00–02:00 only age-restricted allowed if the channel is restricted), reruns spacing |
-| **manual** | Staff place programs on a calendar |
+| **manual** | Staff place programs on a calendar. For a lineup that repeats every week, choose Imported guide and build the grid in the Guide tab (D-303); the Now control tab of a manual channel says so and offers the switch |
 
 **Filler policy** for gaps: `bumpers` (short clips tagged `filler`), `next_program_early`, `slate` (a styled "We'll be right back" card with music), or `off_air` (color bars + tone, very retro). Until a styled card exists one instance slate loop (colour bars and a tone at -20 dBFS, made by `sr-cli tv slate`) serves both policies (D-266).
 

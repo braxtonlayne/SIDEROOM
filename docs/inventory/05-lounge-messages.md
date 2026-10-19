@@ -87,7 +87,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-CMP-014** [FE] Up-arrow to edit last message
 - [x] **LNG-CMP-015** [FE] Built-in slash commands: /shrug, /tableflip, /unflip, /me, /spoiler, /nick, /tts, /thread, /msg, /giphy-equivalent (GIF provider), /remind (feature), /poll *No /giphy: there is no GIF provider (LNG-EXP-005).*
 - [x] **LNG-CMP-016** [FE] Composer icons row: GIF, sticker, emoji (gift icon **removed**)
-- [ ] **LNG-CMP-001** [FE] Rich composer on Lexical (inline tokens for mentions, emoji, channels, timestamps) *(scheduled after the LNG-MSGUI gaps; the composer stays a textarea through Phase 2, D-174)*
+- [x] **LNG-CMP-001** [FE] Composer highlight backdrop (D-299); Lexical not planned: inline tokens for mentions, emoji, channels, timestamps *(p17 M-09: `lounge/ComposerBackdrop.tsx` under the transparent-text textarea, tokens from `tokenizeComposer` in `composerText.ts`, off above 2,000 characters; test `lounge/__tests__/p17ComposerBackdrop.test.tsx`)* *(scheduled after the LNG-MSGUI gaps; the composer stays a textarea through Phase 2, D-174)*
 
 ## LNG-EXP — Expression (emoji, stickers, GIFs, soundboard data)
 - [x] **LNG-EXP-001** [DB] emojis, stickers, sticker_packs, soundboard_sounds *Partial: emojis, emoji_roles, stickers (0032) and soundboard_sounds (0640) exist; sticker_packs does not (default packs, EXP-004).* *(p12 lounge-ch-be: `sticker_packs` and `stickers.pack_id` exist (migration 0794); default packs wait for artwork (LNG-EXP-004))*

@@ -344,7 +344,14 @@ export function SchedulePanel({ channel }: { channel: tv.AdminChannel }) {
 
 /* ------------------------------------------------------------ now control */
 
-export function NowControl({ channel }: { channel: tv.AdminChannel }) {
+export function NowControl({
+  channel,
+  onKindChanged,
+}: {
+  channel: tv.AdminChannel;
+  /** Called with the saved channel after the manual-to-guide switch (D-303). */
+  onKindChanged?: (c: tv.AdminChannel) => void;
+}) {
   const t = useT();
   const { res, unavailable } = useChannelLoad(`tv-now-${channel.id}`, () =>
     tv.getNowAt(channel.id),
@@ -355,7 +362,7 @@ export function NowControl({ channel }: { channel: tv.AdminChannel }) {
   const [placePicked, setPlacePicked] = useState<Found | null>(null);
   const [placeEpisode, setPlaceEpisode] = useState('');
   const [placeStart, setPlaceStart] = useState('');
-  const [dialog, setDialog] = useState<'now' | 'remove' | null>(null);
+  const [dialog, setDialog] = useState<'now' | 'remove' | 'kind' | null>(null);
   const { busy, error, notice, run } = useRun();
 
   if (unavailable) return <NotAvailableYet what={t('admin.channelPanels.now.what')} />;
@@ -386,6 +393,14 @@ export function NowControl({ channel }: { channel: tv.AdminChannel }) {
   return (
     <>
       <Banner error={error} notice={notice} />
+      {channel.kind === 'manual' && (
+        <p className="ss-meta" data-testid="manual-lineup-hint">
+          {t('admin.channelPanels.now.manualHint')}{' '}
+          <Button variant="link" onClick={() => setDialog('kind')}>
+            {t('admin.channelPanels.now.manualSwitch')}
+          </Button>
+        </p>
+      )}
       <dl className="adm-kv" aria-label={t('admin.channelPanels.now.aria')}>
         <dt>{t('admin.channelPanels.now.onAir')}</dt>
         <dd>{cur ? blockLine(cur) : t('admin.channelPanels.now.offAir')}</dd>
@@ -483,6 +498,34 @@ export function NowControl({ channel }: { channel: tv.AdminChannel }) {
           </Button>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={dialog === 'kind'}
+        title={t('admin.channelPanels.now.manualSwitchTitle', { name: channel.name })}
+        description={t('admin.channelPanels.now.manualSwitchBody')}
+        confirmLabel={t('admin.channelPanels.now.manualSwitchConfirm')}
+        loading={busy}
+        onCancel={() => setDialog(null)}
+        onConfirm={() =>
+          void done(async () => {
+            const saved = await tv.updateChannel(channel.id, {
+              number: channel.number,
+              name: channel.name,
+              call_sign: channel.call_sign ?? null,
+              era_label: channel.era_label ?? null,
+              theme: channel.theme,
+              ...(channel.logo_key ? { logo_key: channel.logo_key } : {}),
+              enabled: channel.enabled,
+              kind: 'imported_guide',
+              timezone: channel.timezone,
+              age_restricted: channel.age_restricted,
+              filler_policy: channel.filler_policy,
+              rules: null,
+            });
+            onKindChanged?.(saved);
+          }, t('admin.channelPanels.now.manualSwitched'))
+        }
+      />
 
       <ConfirmDialog
         open={dialog === 'now' && !!picked}

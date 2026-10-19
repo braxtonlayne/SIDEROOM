@@ -165,6 +165,11 @@ export default {
   'entrance.support.title': 'Help',
   'entrance.support.intro':
     'The common ways to get unstuck. If none of these fit, ask the person who invited you.',
+  // M-01 (D-287): third-party notices link on /help.
+  'entrance.support.notices.title': 'Third-party notices',
+  'entrance.support.notices.body':
+    'SIDE ROOM includes software under other licences that ask for attribution.',
+  'entrance.support.notices.link': 'Read the third-party notices',
   'entrance.support.signin.title': 'I cannot sign in',
   'entrance.support.signin.body': 'Reset your password with the link on the sign-in page.',
   'entrance.support.signin.link': 'Reset my password',
