@@ -193,6 +193,49 @@ pub async fn overlay(cfg: &mut Config, features: &FeatureService) {
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn saving_the_policy_reaches_the_live_handles_through_the_settings_event() {
+        use serde_json::json;
+        use sr_events::InProcessBus;
+        use sr_features::{FeatureRegistry, InMemorySettingsStore};
+        let mut registry = FeatureRegistry::new();
+        registry
+            .register(sr_features::IntegrationsPolicyFeature)
+            .unwrap();
+        let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
+        let features = FeatureService::new(
+            Arc::new(registry),
+            Arc::new(InMemorySettingsStore::new()),
+            Some(bus.clone()),
+        );
+        let base = Config::default();
+        let live = LivePolicy::new(IntegrationPolicy::resolve(
+            &base,
+            &IntegrationsPolicy::default(),
+        ));
+        let task = spawn_subscriber(live.clone(), base, features.clone(), bus);
+        tokio::task::yield_now().await;
+        assert!(live.hosts.load().deny_hosts.is_empty());
+        let saved = json!({"unfurl": {"deny_hosts": ["evil.example"]}, "gif": {"country": "fr"}});
+        features
+            .set_settings(
+                INTEGRATIONS_ID,
+                &ScopeRef::Platform,
+                saved.as_object().unwrap().clone(),
+            )
+            .await
+            .unwrap();
+        for _ in 0..100 {
+            if live.hosts.load().deny_hosts == ["evil.example"] {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        assert_eq!(live.hosts.load().deny_hosts, ["evil.example"]);
+        assert_eq!(live.gif.load().country, "FR");
+        task.abort();
+    }
+
     #[test]
     fn a_published_policy_is_visible_to_every_reader() {
         let base = Config::default();
