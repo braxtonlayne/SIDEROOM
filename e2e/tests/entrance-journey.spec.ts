@@ -1,6 +1,6 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { createInvite } from '../support/cli';
-import { openTheDoor } from '../support/register';
+import { openTheDoor, tickConfirmations } from '../support/register';
 import { mailedToken } from '../support/mailLog';
 import { nextWindowCode, totp } from '../support/totp';
 
@@ -61,7 +61,7 @@ test('invite, register, verify, TOTP login, passkey login', async ({ page }) => 
   await page.getByLabel('Username').fill(me.username);
   await page.getByLabel('Password', { exact: true }).fill(me.password);
   await page.getByLabel('Confirm password').fill(me.password);
-  await page.getByLabel(/house notes/).check();
+  await tickConfirmations(page);
   await openTheDoor(page);
 
   // Verify the address through the emailed link.

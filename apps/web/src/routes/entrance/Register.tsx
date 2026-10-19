@@ -45,6 +45,7 @@ export function Register() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [rules, setRules] = useState(false);
+  const [age, setAge] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -108,6 +109,7 @@ export function Register() {
     if (pw) e.password = pw;
     if (confirm !== password) e.confirm = t('entrance.register.mismatch');
     if (!rules) e.rules = t('entrance.register.rulesRequired');
+    if (!age) e.age = t('entrance.register.ageRequired', { age: minimumAge });
     return e;
   };
 
@@ -137,7 +139,8 @@ export function Register() {
         display_name: displayName.trim() || undefined,
         password,
         accepted_house_notes: true,
-        confirmed_min_age: minimumAge,
+        // D-311: sent only with the age box ticked; the server's 400 `errors.age` stays the backstop.
+        confirmed_min_age: age ? minimumAge : undefined,
       });
       clearInviteCode();
       router.history.push('/channels');
@@ -252,16 +255,27 @@ export function Register() {
             label={
               <>
                 {t('entrance.register.rulesBefore')}{' '}
-                <Link to="/house-notes">{t('entrance.register.rulesLink')}</Link>.{' '}
-                {t('entrance.register.ageConfirm', { age: minimumAge })}
+                <Link to="/house-notes">{t('entrance.register.rulesLink')}</Link>.
               </>
             }
             checked={rules}
             onChange={(e) => setRules(e.target.checked)}
           />
-          {(errors.rules ?? errors.age) && (
+          {errors.rules && (
             <p role="alert" className="ent-footnote">
-              {errors.rules ?? errors.age}
+              {errors.rules}
+            </p>
+          )}
+        </div>
+        <div>
+          <Checkbox
+            label={t('entrance.register.ageConfirm', { age: minimumAge })}
+            checked={age}
+            onChange={(e) => setAge(e.target.checked)}
+          />
+          {errors.age && (
+            <p role="alert" className="ent-footnote">
+              {errors.age}
             </p>
           )}
         </div>

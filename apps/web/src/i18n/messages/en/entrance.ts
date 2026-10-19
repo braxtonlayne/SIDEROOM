@@ -330,6 +330,8 @@ export default {
   'entrance.invite.groupMembers': '{count} members',
   // Registration and entrance copy that states the minimum age (M-06, D-294)
   'entrance.register.ageConfirm': 'I am at least {age} years old.',
+  // Its own checkbox and error since D-311 (M-21).
+  'entrance.register.ageRequired': 'Please confirm you are at least {age}.',
   'entrance.register.ageNotice': 'You must be at least {age} to join.',
   'entrance.landing.ageNotice': 'You must be at least {age} to join.',
   // Operator details on the privacy summary and /help (M-06, D-293, D-295)

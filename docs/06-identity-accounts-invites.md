@@ -37,7 +37,7 @@ Decisions: D-013, D-014, D-020–D-032.
 1. Visitor enters a code on the landing page ("Check invitation").
    - `GET /sr/invites/{code}` → `{valid: bool}`. It does not reveal the issuer or anything else. Rate-limited per IP (10/min, 50/day).
    - If the cap is reached: response `{valid:false, reason:"closed"}`. Copy: "The door's closed for now."
-2. Valid → registration form: username, display name, email, password (min 10 chars, zxcvbn score ≥ 3 via `zxcvbn` Rust crate), date-of-birth **not** collected. Checkbox: accept house rules and affirm "I am at least {age}" (p17, M-06, D-294: `accounts.minimum_age` from the `platform.compliance` settings, default 13, 13 to 18; the landing and the form say "You must be at least {age} to join"; the affirmed value is recorded in `accounts.age_declared`; no identity check).
+2. Valid → registration form: username, display name, email, password (min 10 chars, zxcvbn score ≥ 3 via `zxcvbn` Rust crate), date-of-birth **not** collected. Two confirmations, each its own unticked, required checkbox (D-311): "I've read the house notes" and "I am at least {age} years old." (p17, M-06, D-294: `accounts.minimum_age` from the `platform.compliance` settings, default 13, 13 to 18; the landing and the form say "You must be at least {age} to join"; the affirmed value is recorded in `accounts.age_declared`; no identity check).
    - **Or** "Continue with Discord": OAuth → we receive the Discord id, username, email (if granted), and avatar, which prefill the form. The user still must set username, email, and password (D-027). The Discord identity is linked.
 3. `POST /sr/register {code, …}` runs in **one transaction**:
    1. `SELECT … FOR UPDATE` the invite. Must be `open`.

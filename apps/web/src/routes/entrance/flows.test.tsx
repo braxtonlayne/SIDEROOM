@@ -224,7 +224,8 @@ describe('register', () => {
     await user.type(screen.getByLabelText('Username'), 'sam');
     await user.type(screen.getByLabelText('Password'), 'correct Horse 9 battery!');
     await user.type(screen.getByLabelText('Confirm password'), 'correct Horse 9 battery!');
-    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('checkbox', { name: /house notes/ }));
+    await user.click(screen.getByRole('checkbox', { name: /at least/ }));
     await user.click(screen.getByRole('button', { name: /open the door/i }));
     await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
     expect(body).toMatchObject({ confirmed_min_age: 16, accepted_house_notes: true });
@@ -235,7 +236,8 @@ describe('register', () => {
     await user.type(screen.getByLabelText('Username'), 'sam');
     await user.type(screen.getByLabelText('Password'), 'correct Horse 9 battery!');
     await user.type(screen.getByLabelText('Confirm password'), 'correct Horse 9 battery!');
-    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('checkbox', { name: /house notes/ }));
+    await user.click(screen.getByRole('checkbox', { name: /at least/ }));
   };
 
   it('validates before submitting', async () => {
@@ -248,6 +250,35 @@ describe('register', () => {
     expect(screen.getByText('Use at least 10 characters.')).toBeInTheDocument();
     expect(screen.getByText("Those passwords don't match.")).toBeInTheDocument();
     expect(screen.getByText('Please confirm you have read the house notes.')).toBeInTheDocument();
+    expect(screen.getByText('Please confirm you are at least 13.')).toBeInTheDocument();
+  });
+
+  it('keeps the house notes and the age as two separate confirmations (D-311)', async () => {
+    let posted = false;
+    server.use(
+      http.get('*/api/v1/sr/usernames/check', () => HttpResponse.json({ available: true })),
+      http.post('*/api/v1/sr/register', () => {
+        posted = true;
+        return HttpResponse.json({ id: '1' });
+      }),
+    );
+    const user = userEvent.setup();
+    at('/register');
+    await user.type(await screen.findByLabelText('Email'), 'sam@example.com');
+    await user.type(screen.getByLabelText('Username'), 'sam');
+    await user.type(screen.getByLabelText('Password'), 'correct Horse 9 battery!');
+    await user.type(screen.getByLabelText('Confirm password'), 'correct Horse 9 battery!');
+    const notes = screen.getByRole('checkbox', { name: /house notes/ });
+    const age = screen.getByRole('checkbox', { name: /I am at least 13 years old/ });
+    expect(notes).not.toBe(age);
+    // The house-notes label is back to its own sentence.
+    expect(notes.closest('label')?.textContent ?? '').not.toMatch(/at least/);
+    await user.click(notes);
+    await user.click(screen.getByRole('button', { name: /open the door/i }));
+    // Only the age is missing: its own error, and nothing is sent.
+    expect(await screen.findByText('Please confirm you are at least 13.')).toBeInTheDocument();
+    expect(screen.queryByText('Please confirm you have read the house notes.')).toBeNull();
+    expect(posted).toBe(false);
   });
 
   it('checks username availability live', async () => {

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { STATE_FILE, type BootstrapState } from '../global-setup';
 import { createInvite } from '../support/cli';
-import { openTheDoor } from '../support/register';
+import { openTheDoor, tickConfirmations } from '../support/register';
 import { nextWindowCode, secretFromOtpauth, totp } from '../support/totp';
 
 /**
@@ -79,7 +79,7 @@ test.describe('Phase 0 exit gate', () => {
     await page.getByLabel('Username').fill(friend.username);
     await page.getByLabel('Password', { exact: true }).fill(friend.password);
     await page.getByLabel('Confirm password').fill(friend.password);
-    await page.getByLabel(/house notes/).check();
+    await tickConfirmations(page);
     await openTheDoor(page);
 
     // Enrol TOTP through the API using the otpauth secret (cookie session + CSRF header).
