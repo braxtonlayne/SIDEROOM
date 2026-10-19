@@ -60,3 +60,41 @@ export function typingLabel(names: readonly string[]): string | null {
 }
 
 export const MAX_MESSAGE_LENGTH = 2000;
+
+export type ComposerTokenKind = 'text' | 'mention' | 'channel' | 'emoji' | 'timestamp';
+export interface ComposerToken {
+  kind: ComposerTokenKind;
+  text: string;
+}
+
+/** Longest text the highlight backdrop mirrors (D-299); longer drafts are left plain. */
+export const BACKDROP_MAX_CHARS = 2000;
+
+// User, nickname and role mentions, channels, custom emoji, timestamps and the two broadcast words.
+const TOKEN_RE = /<@[!&]?\d+>|<#\d+>|<a?:\w{2,32}:\d+>|<t:-?\d+(?::[tTdDfFR])?>|@everyone|@here/g;
+
+/**
+ * Splits a draft into plain text and the tokens the composer recognises. Concatenating the `text` of every
+ * piece gives back the input exactly, so a mirror of it lines up character for character with the textarea.
+ */
+export function tokenizeComposer(value: string): ComposerToken[] {
+  const out: ComposerToken[] = [];
+  let last = 0;
+  for (const m of value.matchAll(TOKEN_RE)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push({ kind: 'text', text: value.slice(last, at) });
+    const s = m[0];
+    const kind: ComposerTokenKind =
+      s.startsWith('<@') || s.startsWith('@')
+        ? 'mention'
+        : s.startsWith('<#')
+          ? 'channel'
+          : s.startsWith('<t:')
+            ? 'timestamp'
+            : 'emoji';
+    out.push({ kind, text: s });
+    last = at + s.length;
+  }
+  if (last < value.length) out.push({ kind: 'text', text: value.slice(last) });
+  return out;
+}

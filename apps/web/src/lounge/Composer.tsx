@@ -74,6 +74,7 @@ import { useReportOutcome } from './apps/useReportOutcome';
 import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
 import { UploadTray } from './msg/UploadTray';
+import { ComposerBackdrop, backdropActive } from './ComposerBackdrop';
 import { isPatron } from './msg/uploadLimit';
 import { queuedFiles } from './queuedFiles';
 import { formatBytes } from './msg/format';
@@ -958,27 +959,31 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             onSend={sendVoice}
           />
         ) : (
-          <textarea
-            ref={ref}
-            className="lng-textarea"
-            data-composer
-            rows={1}
-            aria-label={t('lounge.composer.message', { target })}
-            aria-controls={acOpen ? acId : undefined}
-            aria-activedescendant={acOpen ? `${acId}-${activeIdx}` : undefined}
-            placeholder={
-              cooldownLeft > 0
-                ? t('lounge.composer.slowmodePlaceholder', { seconds: cooldownLeft })
-                : t('lounge.composer.message', { target })
-            }
-            value={text}
-            onChange={onChange}
-            onKeyDown={onKeyDown}
-            onKeyUp={trackSelection}
-            onSelect={trackSelection}
-            onClick={trackSelection}
-            onPaste={onPaste}
-          />
+          <div className="lng-composer-field">
+            {backdropActive(text) && <ComposerBackdrop text={text} target={ref} />}
+            <textarea
+              ref={ref}
+              className="lng-textarea"
+              data-backdrop={backdropActive(text) || undefined}
+              data-composer
+              rows={1}
+              aria-label={t('lounge.composer.message', { target })}
+              aria-controls={acOpen ? acId : undefined}
+              aria-activedescendant={acOpen ? `${acId}-${activeIdx}` : undefined}
+              placeholder={
+                cooldownLeft > 0
+                  ? t('lounge.composer.slowmodePlaceholder', { seconds: cooldownLeft })
+                  : t('lounge.composer.message', { target })
+              }
+              value={text}
+              onChange={onChange}
+              onKeyDown={onKeyDown}
+              onKeyUp={trackSelection}
+              onSelect={trackSelection}
+              onClick={trackSelection}
+              onPaste={onPaste}
+            />
+          </div>
         )}
         {showCounter && !recording && (
           <span
