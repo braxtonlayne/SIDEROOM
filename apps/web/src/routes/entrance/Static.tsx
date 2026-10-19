@@ -89,40 +89,36 @@ function DefaultHouseNotes() {
   );
 }
 
-/** Help stub linked from the Library footer: the few self-service answers, then "ask whoever invited you". */
-export function Support() {
+/** The few self-service answers, then "ask whoever invited you"; the Help part of the /support page. */
+export function HelpSections() {
   const t = useT();
   return (
-    <EntranceShell nav="member-access" footerRight="House notes">
-      <main className="ent-prose ent-notes">
-        <h1>{t('entrance.support.title')}</h1>
-        <p>{t('entrance.support.intro')}</p>
-        <section aria-labelledby="help-signin">
-          <h2 id="help-signin">{t('entrance.support.signin.title')}</h2>
-          <p>
-            {t('entrance.support.signin.body')}{' '}
-            <Link to="/forgot">{t('entrance.support.signin.link')}</Link>
-          </p>
-        </section>
-        <section aria-labelledby="help-2fa">
-          <h2 id="help-2fa">{t('entrance.support.twofa.title')}</h2>
-          <p>{t('entrance.support.twofa.body')}</p>
-        </section>
-        <section aria-labelledby="help-invite">
-          <h2 id="help-invite">{t('entrance.support.invite.title')}</h2>
-          <p>
-            {t('entrance.support.invite.body')}{' '}
-            <Link to="/no-invitation">{t('entrance.support.invite.link')}</Link>
-          </p>
-        </section>
-        <section aria-labelledby="help-rules">
-          <h2 id="help-rules">{t('entrance.support.rules.title')}</h2>
-          <p>
-            {t('entrance.support.rules.body')}{' '}
-            <Link to="/house-notes">{t('entrance.support.rules.link')}</Link>
-          </p>
-        </section>
-      </main>
-    </EntranceShell>
+    <>
+      <section aria-labelledby="help-signin">
+        <h2 id="help-signin">{t('entrance.support.signin.title')}</h2>
+        <p>
+          {t('entrance.support.signin.body')}{' '}
+          <Link to="/forgot">{t('entrance.support.signin.link')}</Link>
+        </p>
+      </section>
+      <section aria-labelledby="help-2fa">
+        <h2 id="help-2fa">{t('entrance.support.twofa.title')}</h2>
+        <p>{t('entrance.support.twofa.body')}</p>
+      </section>
+      <section aria-labelledby="help-invite">
+        <h2 id="help-invite">{t('entrance.support.invite.title')}</h2>
+        <p>
+          {t('entrance.support.invite.body')}{' '}
+          <Link to="/no-invitation">{t('entrance.support.invite.link')}</Link>
+        </p>
+      </section>
+      <section aria-labelledby="help-rules">
+        <h2 id="help-rules">{t('entrance.support.rules.title')}</h2>
+        <p>
+          {t('entrance.support.rules.body')}{' '}
+          <Link to="/house-notes">{t('entrance.support.rules.link')}</Link>
+        </p>
+      </section>
+    </>
   );
 }

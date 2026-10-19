@@ -14,7 +14,6 @@ const EXACT = new Set([
   '/forgot',
   '/no-invitation',
   '/house-notes',
-  '/support',
   '/email-change/cancel',
   '/oauth/discord/callback',
 ]);

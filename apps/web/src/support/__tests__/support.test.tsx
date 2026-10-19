@@ -508,3 +508,50 @@ describe('Support: perks table, contributions, explorer links (LNG-USET-031..033
     expect(links[0]).toHaveAttribute('href', 'https://explorer.example/tx/abc');
   });
 });
+
+describe('/support page (DON-UI-001)', () => {
+  const openPage = () => {
+    const router = createAppRouter(createMemoryHistory({ initialEntries: ['/support'] }));
+    render(<RouterProvider router={router} />);
+    return router;
+  };
+
+  it('explains why to donate, shows the hosting bar, Patron, Server Levels, credits and the help answers', async () => {
+    supportApi();
+    openPage();
+    expect(await screen.findByRole('heading', { name: 'Support SIDE ROOM' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Why donate' })).toBeInTheDocument();
+    const bar = await screen.findByRole('progressbar', { name: /Donations this month/ });
+    expect(bar).toHaveAttribute('aria-valuenow', '4200');
+    expect(screen.getByText('You are not a Patron.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Become a Patron' })).toHaveAttribute(
+      'href',
+      '/settings/user/support',
+    );
+    const levels = screen.getByRole('heading', { name: 'Server Levels' }).closest('section');
+    expect(levels).toHaveTextContent('Level 2: from $25.00 given');
+    expect(screen.getByRole('heading', { name: 'Invite credits' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'See the leaderboards' })).toHaveAttribute(
+      'href',
+      '/support/leaderboards',
+    );
+    // The help answers the page used to be are still on it.
+    expect(screen.getByRole('heading', { name: 'Help' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument();
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it('shows a sign-in prompt, not an error, to a visitor who is not signed in', async () => {
+    server.use(
+      http.get('*/api/v1/donations/config', () =>
+        HttpResponse.json({ code: 401, message: 'Unauthorized' }, { status: 401 }),
+      ),
+      http.get('*/api/v1/donations/me', () =>
+        HttpResponse.json({ code: 401, message: 'Unauthorized' }, { status: 401 }),
+      ),
+    );
+    openPage();
+    expect(await screen.findByText('Sign in to support SIDE ROOM')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Help' })).toBeInTheDocument();
+  });
+});
