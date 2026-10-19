@@ -22,6 +22,8 @@ sr-auth = { path = "../sr-auth" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-library = { path = "../sr-library" }
+sr-media = { path = "../sr-media" }
+sr-transcoder = { path = "../sr-transcoder" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 sr-db = { path = "../sr-db" }
 sr-storage = { path = "../sr-storage" }

@@ -19,7 +19,7 @@ use sr_db::{
     auth_store::PgAuthStore,
 };
 
-use crate::{Cli, Command, InviteCmd, PackageCmd, StaffCmd, StorageCmd, UserCmd, guilds};
+use crate::{Cli, Command, InviteCmd, PackageCmd, StaffCmd, StorageCmd, TvCmd, UserCmd, guilds};
 use sr_admin::{AdminService, Caller, SYSTEM_USER_ID as ADMIN_SYSTEM_USER};
 use sr_db::admin_repo::PgAdminRepo;
 
@@ -86,6 +86,20 @@ pub async fn run(cli: Cli) -> Result<()> {
             no_backup,
             backup_dir,
         } => crate::ops::upgrade(&cfg, &pool, &backup_dir, no_backup, dry_run, now_ms()).await?,
+        Command::Tv(TvCmd::Slate {
+            picture,
+            seconds,
+            ffmpeg,
+            wait_secs,
+        }) => {
+            let opts = crate::tv::SlateOptions {
+                picture,
+                seconds,
+                ffmpeg,
+                wait: Some(std::time::Duration::from_secs(wait_secs)),
+            };
+            crate::tv::make_slate(&pool, &cfg, ids, &opts).await?;
+        }
         // Handled before the database connection above.
         Command::Storage(_) | Command::Package(_) => {}
     }
@@ -616,12 +630,42 @@ async fn seed(
             guilds::DEV_MESSAGES
         );
     }
-    let library = seed_library_samples(pool, cfg, ids, member_ids.first().copied()).await;
+    let library = seed_library_samples(pool, cfg, ids.clone(), member_ids.first().copied()).await;
+    let slate = seed_tv_slate(pool, cfg, ids).await;
     println!(
-        "seeded {created} new dev account(s) ({} already existed); {dev_guild}; {library}",
+        "seeded {created} new dev account(s) ({} already existed); {dev_guild}; {library}; {slate}",
         SEED_USERS.len() - created
     );
     Ok(())
+}
+
+/// The Live TV slate (L-14): made when ffmpeg is on PATH and none is set yet, queued without waiting for the
+/// transcode (a running server plays it once the renditions are ready); skipped with a sentence otherwise.
+async fn seed_tv_slate(pool: &PgPool, cfg: &Config, ids: IdSource) -> String {
+    let ffmpeg = std::env::var("SR_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    let admin = admin_service(pool, ids.clone());
+    match admin
+        .setting_value_text(sr_admin::settings::TV_SLATE_ASSET)
+        .await
+    {
+        Ok(v) if !v.trim().is_empty() => return "TV slate already set".into(),
+        Ok(_) => {}
+        Err(e) => return format!("TV slate skipped ({e})"),
+    }
+    let found = crate::tv::ffmpeg_found(&ffmpeg).await;
+    if let Some(why) = crate::tv::refusal(&cfg.storage.endpoint, found, &ffmpeg) {
+        return format!("TV slate skipped ({why})");
+    }
+    let opts = crate::tv::SlateOptions {
+        picture: crate::tv::Picture::Bars,
+        seconds: 12,
+        ffmpeg,
+        wait: None,
+    };
+    match crate::tv::make_slate(pool, cfg, ids, &opts).await {
+        Ok(id) => format!("TV slate asset {id} queued for transcoding"),
+        Err(e) => format!("TV slate skipped ({e:#})"),
+    }
 }
 
 /// Library samples (FND-DB-009): generated pages stored in the bucket. A bucket that cannot be reached does not
