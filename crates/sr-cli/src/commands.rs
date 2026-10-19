@@ -616,11 +616,49 @@ async fn seed(
             guilds::DEV_MESSAGES
         );
     }
+    let library = seed_library_samples(pool, cfg, ids, member_ids.first().copied()).await;
     println!(
-        "seeded {created} new dev account(s) ({} already existed); {dev_guild}; library samples are not seeded (schema not yet defined)",
+        "seeded {created} new dev account(s) ({} already existed); {dev_guild}; {library}",
         SEED_USERS.len() - created
     );
     Ok(())
+}
+
+/// Library samples (FND-DB-009): generated pages stored in the bucket. A bucket that cannot be reached does not
+/// fail the seed; the sentence says what happened.
+async fn seed_library_samples(
+    pool: &PgPool,
+    cfg: &Config,
+    ids: IdSource,
+    owner: Option<i64>,
+) -> String {
+    let Some(owner) = owner else {
+        return "library samples skipped (no seeded account)".into();
+    };
+    let s = &cfg.storage;
+    if s.endpoint == "memory:" {
+        return "library samples skipped (storage.endpoint is memory:, objects would not outlive this command)".into();
+    }
+    let run = async {
+        let storage = sr_storage::ObjectStoreStorage::s3(
+            &s.endpoint,
+            &s.bucket,
+            &s.region,
+            s.access_key.expose(),
+            s.secret_key.expose(),
+        )
+        .context("configuring object storage")?;
+        let secret = parse_secret_key(cfg.server.secret_key.expose())
+            .map_err(|e| anyhow::anyhow!("server.secret_key: {e}"))?;
+        crate::library_seed::seed_library(pool, &storage, ids, owner, secret.to_vec()).await
+    };
+    match run.await {
+        Ok((0, _)) => "library samples already exist".into(),
+        Ok((series, pages)) => format!(
+            "created {series} library sample series ({pages} generated CC0 pages); run the server once to index them for search"
+        ),
+        Err(e) => format!("library samples skipped ({e:#})"),
+    }
 }
 
 /// Largest single file read from a theme folder (the platform caps assets at 2 MB; this leaves room to report it).

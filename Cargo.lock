@@ -6044,6 +6044,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "clap",
+ "image",
  "rpassword",
  "serde_json",
  "sha2 0.11.0",
@@ -6054,6 +6055,7 @@ dependencies = [
  "sr-chat",
  "sr-core",
  "sr-db",
+ "sr-library",
  "sr-packages",
  "sr-storage",
  "sr-theme",

@@ -3,6 +3,7 @@
 
 mod commands;
 mod guilds;
+mod library_seed;
 mod ops;
 
 use std::path::PathBuf;
