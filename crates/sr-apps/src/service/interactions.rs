@@ -215,7 +215,11 @@ impl AppsService {
         self.repo
             .command_by_id(command_id)
             .await?
-            .filter(|c| c.application_id == app && (c.guild_id.is_none() || c.guild_id == guild))
+            .filter(|c| {
+                c.application_id == app
+                    && (c.guild_id.is_none() || c.guild_id == guild)
+                    && c.guild_offered()
+            })
             .ok_or(AppsError::UnknownCommand)
     }
 
