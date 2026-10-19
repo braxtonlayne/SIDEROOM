@@ -183,6 +183,7 @@ class Client {
       username: name,
       password: 'Smoke-Test-Passw0rd-xyz!',
       accepted_house_notes: true,
+      confirmed_min_age: 13,
     });
     this.id = r.body?.id;
     this.csrf = (await this.call('GET', '/sr/csrf')).body?.token ?? '';

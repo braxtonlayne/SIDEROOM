@@ -17,7 +17,7 @@
 
 mod accounts;
 mod accounts_ext;
-mod announce;
+pub(crate) mod announce;
 pub use announce::{ReviewPress, press_review_button};
 mod ctx;
 mod entrance;

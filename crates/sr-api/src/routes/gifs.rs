@@ -79,13 +79,19 @@ pub trait GifSource: Send + Sync {
 
 // ---- Tenor v2 --------------------------------------------------------------------
 
+/// The GIF region and locale an administrator can change while the server runs (D-300).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GifRegion {
+    pub country: String,
+    pub locale: String,
+}
+
 /// Tenor API v2 over the SSRF-safe client.
 pub struct TenorSource {
     client: sr_net::SafeClient,
     key: String,
     client_key: String,
-    country: String,
-    locale: String,
+    region: sr_net::Live<GifRegion>,
 }
 
 const TENOR_BASE: &str = "https://tenor.googleapis.com/v2";
@@ -97,20 +103,30 @@ impl TenorSource {
             client: sr_net::SafeClient::production(sr_net::Policy::default(), "SideRoom-GifProxy"),
             key: key.to_owned(),
             client_key: client_key.to_owned(),
-            country: country.to_owned(),
-            locale: locale.to_owned(),
+            region: sr_net::Live::new(GifRegion {
+                country: country.to_owned(),
+                locale: locale.to_owned(),
+            }),
         }
+    }
+
+    /// Read the region and locale from a live handle on every request instead of the values
+    /// given at construction.
+    pub fn with_live_region(mut self, region: sr_net::Live<GifRegion>) -> Self {
+        self.region = region;
+        self
     }
 
     async fn fetch(&self, path: &str, extra: &[(&str, &str)]) -> Result<Value, SourceError> {
         let mut url = url::Url::parse(&format!("{TENOR_BASE}/{path}"))
             .map_err(|e| SourceError(e.to_string()))?;
+        let region = self.region.load();
         {
             let mut q = url.query_pairs_mut();
             q.append_pair("key", &self.key)
                 .append_pair("client_key", &self.client_key)
-                .append_pair("country", &self.country)
-                .append_pair("locale", &self.locale)
+                .append_pair("country", &region.country)
+                .append_pair("locale", &region.locale)
                 .append_pair("contentfilter", "medium");
             for (k, v) in extra {
                 q.append_pair(k, v);

@@ -4,6 +4,7 @@ import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../router';
 import { http, HttpResponse, server } from '../../test/server';
 import { warmLoungeRoute } from '../../test/warmRoutes';
+import { resetCompliancePublic } from '../../lib/compliancePublic';
 
 warmLoungeRoute();
 
@@ -198,7 +199,36 @@ describe('2FA', () => {
 });
 
 describe('register', () => {
-  beforeEach(() => sessionStorage.setItem('sr.invite', 'ABCDE-FGHJK'));
+  beforeEach(() => {
+    resetCompliancePublic();
+    sessionStorage.setItem('sr.invite', 'ABCDE-FGHJK');
+  });
+
+  it('states the minimum age from the server and sends the affirmed age', async () => {
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.get('*/api/v1/sr/compliance/public', () => HttpResponse.json({ minimum_age: 16 })),
+      http.get('*/api/v1/sr/usernames/check', () => HttpResponse.json({ available: true })),
+      http.post('*/api/v1/sr/register', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: '1' });
+      }),
+    );
+    const user = userEvent.setup();
+    const router = at('/register');
+    expect(await screen.findByText('You must be at least 16 to join.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: /I am at least 16 years old/ }),
+    ).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Email'), 'sam@example.com');
+    await user.type(screen.getByLabelText('Username'), 'sam');
+    await user.type(screen.getByLabelText('Password'), 'correct Horse 9 battery!');
+    await user.type(screen.getByLabelText('Confirm password'), 'correct Horse 9 battery!');
+    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: /open the door/i }));
+    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    expect(body).toMatchObject({ confirmed_min_age: 16, accepted_house_notes: true });
+  });
 
   const fillValid = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.type(await screen.findByLabelText('Email'), 'sam@example.com');

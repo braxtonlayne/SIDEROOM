@@ -53,7 +53,8 @@ impl AppsService {
         if app.release_state != ReleaseState::Released || !app.bot_public {
             return Err(AppsError::NotFound("application"));
         }
-        let commands = self.repo.commands(app.id, None).await?;
+        let mut commands = self.repo.commands(app.id, None).await?;
+        commands.retain(|c| c.guild_offered());
         let installs = self.repo.installs(app.id).await?.len() as i64;
         Ok((
             DirectoryEntry {

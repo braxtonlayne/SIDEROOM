@@ -314,12 +314,24 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let features_listener = features.spawn_invalidation_listener();
     // The non-secret integration policy an administrator saved wins over the config file (D-254); the
-    // config value is the bootstrap. Read once here, so a change applies from the next start.
-    let (unfurl_cfg, gif_cfg, lookup_cfg) = {
+    // config value is the bootstrap. It lives in a swappable handle that the consumers read per
+    // request, and a subscriber to the settings event republishes it (D-300), so a change applies
+    // without a restart.
+    let boot_cfg = {
         let mut c = cfg.clone();
         crate::integration_policy::overlay(&mut c, &features).await;
-        (c.unfurl, c.gif, c.lookup)
+        c
     };
+    let live_policy = crate::integration_policy::LivePolicy::new(
+        crate::integration_policy::IntegrationPolicy::from_config(&boot_cfg),
+    );
+    let (unfurl_cfg, gif_cfg) = (boot_cfg.unfurl, boot_cfg.gif);
+    let _policy_task = crate::integration_policy::spawn_subscriber(
+        live_policy.clone(),
+        cfg.clone(),
+        features.clone(),
+        bus.clone(),
+    );
 
     // Guild endpoints: the chat service over Postgres, with its own snowflake
     // worker (process id + 1, as the message deps use) so ids never collide.
@@ -442,6 +454,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         deny_hosts: unfurl_cfg.deny_hosts.clone(),
         allow_hosts: unfurl_cfg.allow_hosts.clone(),
         allow_private_for_tests: unfurl_cfg.allow_private_for_tests,
+        live_hosts: Some(live_policy.hosts.clone()),
         ..sr_unfurl::Policy::default()
     };
     let unfurl_policy_for_feeds = unfurl_policy.clone();
@@ -449,6 +462,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         unfurl_policy.clone(),
         unfurl_cfg.per_host_per_minute.max(1),
     ));
+    live_policy.attach_unfurler(unfurler.clone());
     // The image proxy (D-176) fetches under the same SSRF policy and deny list.
     let external_images = Arc::new(routes::cdn::external::ExternalImageDeps::new(
         sr_unfurl::production_fetcher(unfurl_policy),
@@ -1052,12 +1066,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
     let gif_source: Option<Arc<dyn routes::gifs::GifSource>> = if gif_cfg.enabled() {
-        Some(Arc::new(routes::gifs::TenorSource::new(
-            gif_cfg.api_key.expose(),
-            &gif_cfg.client_key,
-            &gif_cfg.country,
-            &gif_cfg.locale,
-        )))
+        Some(Arc::new(
+            routes::gifs::TenorSource::new(
+                gif_cfg.api_key.expose(),
+                &gif_cfg.client_key,
+                &gif_cfg.country,
+                &gif_cfg.locale,
+            )
+            .with_live_region(live_policy.gif.clone()),
+        ))
     } else {
         if !gif_cfg.provider.is_empty() {
             tracing::warn!(
@@ -1072,11 +1089,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     ));
     // Metadata lookup for the submission editor (REV-ED-005): off unless `[lookup]` enables a
     // provider and the platform setting `review.lookup.enabled` is on.
-    let lookup_deps = Arc::new(routes::review::LookupDeps::new(
-        crate::lookup_wiring::providers_from(&lookup_cfg),
-        Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
-        Some(cdn_signer.clone()),
-    ));
+    let lookup_deps = Arc::new(
+        routes::review::LookupDeps::new(
+            crate::lookup_wiring::all_providers_from(&cfg.lookup),
+            Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
+            Some(cdn_signer.clone()),
+        )
+        .with_live_enabled(live_policy.lookup.clone()),
+    );
     let push_subject = if cfg.server.public_url.starts_with("https://") {
         cfg.server.public_url.trim_end_matches('/').to_owned()
     } else {
@@ -1437,6 +1457,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         storage.clone(),
         social_api.clone(),
         provider_client.clone(),
+        packages_deps.service.clone(),
     );
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
@@ -1581,6 +1602,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     registry
         .register(sr_features::AppearanceDefaultsFeature)
         .context("registering the platform.appearance feature")?;
+    registry
+        .register(sr_features::ComplianceFeature)
+        .context("registering the platform.compliance feature")?;
     registry
         .register(sr_features::IntegrationsPolicyFeature)
         .context("registering the platform.integrations feature")?;

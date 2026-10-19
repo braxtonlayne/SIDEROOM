@@ -299,7 +299,7 @@ fn reg_body(code: &InviteCode, username: &str, email: &str) -> Value {
         "username": username,
         "display_name": "Sam",
         "password": PW,
-        "accepted_house_notes": true,
+        "accepted_house_notes": true, "confirmed_min_age": 13,
     })
 }
 
@@ -551,7 +551,7 @@ async fn register_validation_errors_are_field_scoped() {
         .await;
     assert_eq!(r.status, StatusCode::BAD_REQUEST);
     assert_eq!(r.body["code"], 50035);
-    for f in ["email", "username", "password", "rules"] {
+    for f in ["email", "username", "password", "rules", "age"] {
         assert!(
             r.body["errors"][f]["_errors"][0]["message"].is_string(),
             "{f}"
@@ -563,6 +563,32 @@ async fn register_validation_errors_are_field_scoped() {
         h.get(&invite_uri(&code.formatted())).send().await.body,
         json!({"valid": true})
     );
+}
+
+#[tokio::test]
+async fn registration_needs_the_age_confirmation_to_reach_the_minimum() {
+    let h = harness();
+    let code = h.issuer_with_invite(1, 5);
+    for age in [json!(null), json!(12)] {
+        let mut body = reg_body(&code, "ageless", "ageless@x.test");
+        body["confirmed_min_age"] = age;
+        let r = h.post("/api/v1/sr/register", body).send().await;
+        assert_eq!(r.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            r.body["errors"]["age"]["_errors"][0]["message"],
+            "Please confirm you are at least 13."
+        );
+    }
+    // Nothing was consumed, and the right confirmation goes through.
+    assert_eq!(h.store.balance(1), 5);
+    let r = h
+        .post(
+            "/api/v1/sr/register",
+            reg_body(&code, "of_age", "of_age@x.test"),
+        )
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::CREATED);
 }
 
 #[tokio::test]

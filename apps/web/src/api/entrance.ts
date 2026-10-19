@@ -17,6 +17,8 @@ export interface RegisterRequest {
   display_name?: string;
   password: string;
   accepted_house_notes: true;
+  /** The minimum age the person affirmed ("I am at least {age}"); the server refuses less than its own minimum. */
+  confirmed_min_age: number;
 }
 /** Registration signs the new account in (cookie), so the CSRF token is reloaded afterwards. */
 export const register = async (req: RegisterRequest) => {

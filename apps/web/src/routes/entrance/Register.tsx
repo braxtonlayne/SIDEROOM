@@ -13,6 +13,7 @@ import {
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { Divider, DiscordButton, FormError } from '../../components/FormParts';
 import { useT } from '../../i18n/react';
+import { useCompliancePublic } from '../../lib/compliancePublic';
 import { clearInviteCode, heldInviteCode } from '../../lib/inviteCode';
 import {
   USERNAME_HINT,
@@ -21,7 +22,7 @@ import {
   validateUsername,
 } from '../../lib/validation';
 
-type Field = 'email' | 'username' | 'display_name' | 'password' | 'confirm' | 'rules';
+type Field = 'email' | 'username' | 'display_name' | 'password' | 'confirm' | 'rules' | 'age';
 type UsernameState = 'idle' | 'checking' | 'free' | 'taken';
 
 function fieldErrorsFrom(e: ApiError): Partial<Record<Field, string>> {
@@ -37,6 +38,7 @@ export function Register() {
   const t = useT();
   const router = useRouter();
   const [code] = useState(() => heldInviteCode());
+  const { minimum_age: minimumAge } = useCompliancePublic();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -135,6 +137,7 @@ export function Register() {
         display_name: displayName.trim() || undefined,
         password,
         accepted_house_notes: true,
+        confirmed_min_age: minimumAge,
       });
       clearInviteCode();
       router.history.push('/channels');
@@ -249,21 +252,23 @@ export function Register() {
             label={
               <>
                 {t('entrance.register.rulesBefore')}{' '}
-                <Link to="/house-notes">{t('entrance.register.rulesLink')}</Link>.
+                <Link to="/house-notes">{t('entrance.register.rulesLink')}</Link>.{' '}
+                {t('entrance.register.ageConfirm', { age: minimumAge })}
               </>
             }
             checked={rules}
             onChange={(e) => setRules(e.target.checked)}
           />
-          {errors.rules && (
+          {(errors.rules ?? errors.age) && (
             <p role="alert" className="ent-footnote">
-              {errors.rules}
+              {errors.rules ?? errors.age}
             </p>
           )}
         </div>
         <GoldButton type="submit" arrow disabled={busy} aria-busy={busy}>
           {busy ? t('entrance.register.submitting') : t('entrance.register.submit')}
         </GoldButton>
+        <p className="ent-footnote">{t('entrance.register.ageNotice', { age: minimumAge })}</p>
         <p className="ent-footnote">{t('entrance.register.footnote')}</p>
       </form>
     </AuthSplit>

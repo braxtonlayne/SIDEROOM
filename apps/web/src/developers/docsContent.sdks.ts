@@ -54,7 +54,7 @@ export const SDK_PAGES: DocPage[] = [
           'A non-ephemeral interaction reply is a normal message from the bot and needs Send Messages in the channel.',
           'Privileged intents are reviewed when you release a version; until then the ones you ask for work in test servers.',
           'Sharding: use the count GET /gateway/bot recommends (one per 1000 servers).',
-          'Interactions work in servers only: no direct messages and no user installs.',
+          'Interactions work in servers only: no direct messages and no user installs. Commands that register integration_types [1] are accepted (HTTP 200) and ignored: they are never listed, autocompleted or dispatched, and integration_types containing 0 is stored as [0].',
           'Buttons round trip on messages; select menus and modal text inputs pass through the interaction payload but are not stored on the message.',
           'Editing a posted interaction message changes its content only.',
           'Webhooks: username, avatar_url, wait and thread_id work. An executed message shows the webhook as its author.',

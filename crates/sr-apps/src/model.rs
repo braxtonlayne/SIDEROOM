@@ -367,6 +367,14 @@ pub struct Command {
     pub version: i64,
 }
 
+impl Command {
+    /// False for user-install-only commands (`integration_types` without `0`), which are
+    /// stored but never offered or dispatched in a guild (D-305).
+    pub fn guild_offered(&self) -> bool {
+        crate::commands::integration_types_guild_offered(&self.integration_types)
+    }
+}
+
 /// A command as submitted, validated, before ids and versions are assigned.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NewCommand {

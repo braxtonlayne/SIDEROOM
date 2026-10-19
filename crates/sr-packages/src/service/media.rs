@@ -229,12 +229,16 @@ impl PackageService {
         Ok(out)
     }
 
-    /// After a document was saved: drop the pictures it no longer names (rows and files).
+    /// After a document was saved: drop the pictures it no longer names (rows and files). With
+    /// `min_age_secs` only pictures uploaded at least that long ago go (the sweep, D-302: a picture
+    /// uploaded a moment ago may belong to a document that is still being edited). Returns how many
+    /// pictures were dropped.
     pub(super) async fn drop_unreferenced_media(
         &self,
         user: i64,
         doc: &ProfileDoc,
-    ) -> PackageResult<()> {
+        min_age_secs: Option<i64>,
+    ) -> PackageResult<u64> {
         let (bg, gallery) = profile_doc::media_refs(doc);
         let keep: Vec<i64> = bg
             .iter()
@@ -242,16 +246,56 @@ impl PackageService {
             .filter_map(|s| s.parse().ok())
             .collect();
         let gone: Vec<String> = sqlx::query_scalar(
-            "DELETE FROM profile_media WHERE account_id = $1 AND id <> ALL($2) RETURNING object_key",
+            "DELETE FROM profile_media WHERE account_id = $1 AND id <> ALL($2)              AND ($3::float8 IS NULL OR created_at < now() - $3::float8 * interval '1 second')              RETURNING object_key",
         )
         .bind(user)
         .bind(&keep)
+        .bind(min_age_secs.map(|s| s as f64))
         .fetch_all(self.pool())
         .await?;
         for key in &gone {
             self.remove_object(user, key).await;
         }
-        Ok(())
+        Ok(gone.len() as u64)
+    }
+
+    /// The sweep of unreferenced profile media (D-302): pictures older than `min_age_secs` that the
+    /// owner's saved document does not name are deleted with their files, account by account (at most
+    /// `max_accounts` per run). An account whose saved document cannot be read is skipped, so a
+    /// broken document never makes the sweep delete everything. Returns the number of pictures removed.
+    pub async fn sweep_unreferenced_media(
+        &self,
+        min_age_secs: i64,
+        max_accounts: i64,
+    ) -> PackageResult<u64> {
+        let accounts: Vec<(i64, Option<Value>)> = sqlx::query_as(
+            "SELECT a.id, a.profile_doc FROM accounts a WHERE a.id IN (               SELECT DISTINCT account_id FROM profile_media                WHERE created_at < now() - $1::float8 * interval '1 second' LIMIT $2)",
+        )
+        .bind(min_age_secs as f64)
+        .bind(max_accounts)
+        .fetch_all(self.pool())
+        .await?;
+        let mut removed = 0;
+        for (user, raw) in accounts {
+            let doc = match raw {
+                None | Some(Value::Null) => ProfileDoc::default(),
+                Some(v) => match serde_json::from_value::<ProfileDoc>(v) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        tracing::warn!(error = %e, user, "profile media sweep skipped an unreadable document");
+                        continue;
+                    }
+                },
+            };
+            let n = self
+                .drop_unreferenced_media(user, &doc, Some(min_age_secs))
+                .await?;
+            if n > 0 {
+                tracing::debug!(user, removed = n, "unreferenced profile pictures swept");
+            }
+            removed += n;
+        }
+        Ok(removed)
     }
 
     /// The media of `user` that `doc` names, for a served page.

@@ -332,6 +332,7 @@ impl AppsService {
                 commands.extend(self.repo.commands(application.id, None).await?);
             }
             commands.extend(self.repo.commands(application.id, Some(guild)).await?);
+            commands.retain(|c| c.guild_offered());
             if !commands.is_empty() {
                 out.push(IndexEntry {
                     application,

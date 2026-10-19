@@ -1010,7 +1010,11 @@ async fn a_package_version_gets_a_review_queue_card_that_closes_once() {
     );
     let comps: Value = card.get("components");
     assert_eq!(
-        comps[0]["components"][0]["url"],
+        comps[0]["components"][0]["custom_id"],
+        "sr:package-approve:9002"
+    );
+    assert_eq!(
+        comps[0]["components"][1]["url"],
         "https://sr.test/admin/review?package=9002"
     );
 

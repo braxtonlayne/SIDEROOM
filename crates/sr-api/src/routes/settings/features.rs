@@ -81,6 +81,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/sr/features/flags", get(client_flags))
         .route("/sr/appearance/defaults", get(appearance_defaults))
+        .route("/sr/compliance/public", get(compliance_public))
         .route("/guilds/{guild_id}/sr/features", get(list_features))
         .route(
             "/guilds/{guild_id}/sr/features/{feature_id}",
@@ -162,6 +163,48 @@ pub async fn appearance_defaults(
     };
     Ok(Json(AppearanceDefaultsObject {
         default_theme_by_section: sr_features::default_themes_from(&values),
+    }))
+}
+
+/// The compliance settings the server uses, with defaults when none were saved.
+pub async fn compliance_settings(gf: &GuildFeatures) -> sr_features::ComplianceSettings {
+    let values = gf
+        .ctx
+        .settings
+        .effective_settings(sr_features::COMPLIANCE_ID, &ScopeRef::Platform)
+        .await
+        .unwrap_or_default();
+    sr_features::ComplianceSettings::from_values(&values)
+}
+
+/// What visitors may know about the instance's compliance settings (M-06, D-293 to D-295).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PublicComplianceObject {
+    /// The age a person must be to register (13 unless the operator raised it).
+    pub minimum_age: u8,
+    /// The operator's country (ISO 3166-1 alpha-2), when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operator_country: Option<String>,
+    /// The operator's contact address, also the copyright notice address, when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operator_contact: Option<String>,
+}
+
+/// The minimum registration age and the operator's country and contact (public: the entrance
+/// pages and the privacy page are read before sign-in).
+#[utoipa::path(
+    get,
+    path = "/sr/compliance/public",
+    responses((status = 200, body = PublicComplianceObject))
+)]
+pub async fn compliance_public(
+    Ext(gf): Ext<GuildFeatures>,
+) -> ApiResult<Json<PublicComplianceObject>> {
+    let s = compliance_settings(&gf).await;
+    Ok(Json(PublicComplianceObject {
+        minimum_age: s.minimum_age,
+        operator_country: s.operator_country,
+        operator_contact: s.operator_contact,
     }))
 }
 

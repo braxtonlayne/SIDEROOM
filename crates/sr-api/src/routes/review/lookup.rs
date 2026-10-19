@@ -112,6 +112,9 @@ pub trait LookupSwitch: Send + Sync {
 /// routes report the feature as off.
 pub struct LookupDeps {
     providers: Vec<Arc<dyn LookupProvider>>,
+    /// Provider ids that are offered right now; `None` offers every configured provider. Live,
+    /// so a saved policy applies without a restart (D-300).
+    enabled: Option<sr_net::Live<Vec<String>>>,
     switch: Arc<dyn LookupSwitch>,
     signer: Option<CdnSigner>,
     cache: Cache<String, Arc<Vec<RawCandidate>>>,
@@ -125,6 +128,7 @@ impl LookupDeps {
     ) -> Self {
         Self {
             providers,
+            enabled: None,
             switch,
             signer,
             cache: Cache::builder()
@@ -134,12 +138,24 @@ impl LookupDeps {
         }
     }
 
+    /// Offer only the providers whose id is in this live list.
+    pub fn with_live_enabled(mut self, enabled: sr_net::Live<Vec<String>>) -> Self {
+        self.enabled = Some(enabled);
+        self
+    }
+
     async fn active(&self, section: Section) -> Vec<&Arc<dyn LookupProvider>> {
         if self.providers.is_empty() || !self.switch.enabled().await {
             return Vec::new();
         }
+        let enabled = self.enabled.as_ref().map(|e| e.load());
         self.providers
             .iter()
+            .filter(|p| {
+                enabled
+                    .as_ref()
+                    .is_none_or(|ids| ids.iter().any(|i| i == p.id()))
+            })
             .filter(|p| p.serves(section))
             .collect()
     }
@@ -1062,6 +1078,19 @@ mod tests {
             on.active(Section::Cinema).await.is_empty(),
             "only for its sections"
         );
+    }
+
+    #[tokio::test]
+    async fn the_enabled_list_applies_live() {
+        let one: Vec<Arc<dyn LookupProvider>> = vec![Arc::new(Fixed(vec![]))];
+        let live = sr_net::Live::new(Vec::<String>::new());
+        let deps =
+            LookupDeps::new(one, Arc::new(Switch(true)), None).with_live_enabled(live.clone());
+        assert!(deps.active(Section::Library).await.is_empty());
+        live.store(vec!["fixed".to_owned()]);
+        assert_eq!(deps.active(Section::Library).await.len(), 1);
+        live.store(vec!["other".to_owned()]);
+        assert!(deps.active(Section::Library).await.is_empty());
     }
 
     #[test]

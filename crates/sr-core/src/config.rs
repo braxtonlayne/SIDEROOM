@@ -256,7 +256,7 @@ impl Default for VoiceConfig {
 /// `[unfurl]`: server-side link previews (LNG-MSG-014). The feature itself is the
 /// `unfurl` feature module (default on); this section holds operator policy. The hosts and the rate
 /// are the bootstrap values: once an administrator saves them on the Email & Integrations page
-/// (`platform.integrations`, D-254) the database row wins, from the next start.
+/// (`platform.integrations`, D-254) the database row wins, and applies live (D-300).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct UnfurlConfig {
