@@ -20,6 +20,7 @@ const ROUTES = [
   '/no-invitation',
   '/house-notes',
   '/support',
+  '/help',
   '/login/2fa',
 ];
 
