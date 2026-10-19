@@ -26,7 +26,7 @@ impl SlatePicture {
 }
 
 /// Arguments for ffmpeg to write the slate source MP4 to `out` (absolute or relative, checked): H.264 High
-/// with a keyframe every two seconds and a 440 Hz AAC tone, `secs` long. The size must be even and sane.
+/// with a keyframe every two seconds and a 440 Hz AAC tone at -20 dB, `secs` long. The size must be even and sane.
 pub fn slate_source_args(
     picture: SlatePicture,
     out: &str,
@@ -67,6 +67,9 @@ pub fn slate_source_args(
     a.extend(s(&[
         "-sc_threshold",
         "0",
+        // D-266: the tone sits around -20 dBFS, not at full scale.
+        "-af",
+        "volume=-20dB",
         "-c:a",
         "aac",
         "-b:a",
@@ -94,6 +97,8 @@ mod tests {
         assert_eq!(a.last().unwrap(), "slate.mp4");
         let g = a.iter().position(|x| x == "-g").unwrap();
         assert_eq!(a[g + 1], "50", "a keyframe every two seconds");
+        let af = a.iter().position(|x| x == "-af").unwrap();
+        assert_eq!(a[af + 1], "volume=-20dB", "tone at -20 dBFS (D-266)");
     }
 
     #[test]
