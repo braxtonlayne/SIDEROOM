@@ -786,6 +786,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                     pool.clone(),
                     payments.chat.clone(),
                 )),
+                // CHANNEL_UPDATE when a room stops being one.
+                Arc::new(crate::party_rooms::RoomFlagHook::new(
+                    PgChatRepo::new(pool.clone()),
+                    bus.clone(),
+                )),
             ])));
     watchparty_service.spawn_timers();
     let watchparty_deps = Arc::new(routes::watchparty::WatchPartyDeps::new(
