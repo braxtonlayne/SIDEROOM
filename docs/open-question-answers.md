@@ -2703,3 +2703,113 @@ Status: `DEFAULT` (D-283). Follow-up: L-43.
 ### Still with the owner from earlier rounds
 
 Unchanged: the UnRAR licence confirmation (D-170), the eight NEEDS-OWNER items of the Phase 8 to 11 round, the production `[ingest] roots` layout (P13-REV-3) and the JASSUB licence (P15-RST-2, owner item 11). This round adds nothing to [open-questions.md](open-questions.md).
+
+## Owner round (answered 2026-10-19, delegated)
+
+The owner delegated every open owner item in one instruction ("have a fable agent answer all of your questions"), including legal, money wording, artwork, external accounts and downloads, which earlier rounds kept for the human. Two limits applied: the proxy only decides and documents (no download, install, registration, push or CI change is performed; each becomes an action for the owner or the integrator, listed at the end of [open-questions.md](open-questions.md)), and legal items get a reasoned project default that is plainly not legal advice, naming what a lawyer should check before launch. Same rules otherwise: [01-decisions-log.md](01-decisions-log.md) wins; Discord parity by default; privacy and safety per docs 09 and 15; Rust first per doc 03; conservative security defaults; one Owner running a friend-group instance on one node. Decisions are D-287 to D-308 (status `Default (owner-delegated)`); follow-ups are M-01 onward in [dev/answers-followups-p16.md](dev/answers-followups-p16.md), section "Owner round". Items that docs already showed decided are noted as such and get no new row.
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 22 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### The twelve owner items of open-questions.md
+
+**OR-1 (owner item 1, D-170). UnRAR licence for RAR/CBR reading: keep it on, or delete the `unrar` dependency?**
+Decision: keep it on behind `library.ingest.rar_enabled` and ship the UnRAR licence text in a new `THIRD_PARTY_NOTICES.md`. The RARLAB licence allows use "in any software to handle RAR archives without limitations" and forbids only building a RAR-compatible archiver; SIDE ROOM decompresses with unmodified vendored source, which is the permitted case, and the one obligation is that the licence paragraph accompanies the software. The notices file is the first artefact the project has for that (none existed; `cargo deny` cannot see the real licence because the crate manifest says `MIT OR Apache-2.0`), and it is copied into the server image by the release workflow and linked from `/help`. Not legal advice; a lawyer should confirm the archiver clause is irrelevant and the notice placement suffices.
+Status: `ADOPTED` (D-287). Follow-up: M-01.
+
+**OR-2 (owner item 2, P8-DON-4). Esplora endpoint and price sources.**
+Decision: self-hosted `electrs` on the node, as an optional `payments` profile of the production Compose stack on the private network, so derived addresses never leave the box; `https://mempool.space/api` is the documented interim with its privacy cost spelled out. Price sources, three and keyless so the median is a real median: Coinbase spot, Kraken ticker and CoinGecko simple price (exact URLs and RFC 6901 pointers in D-288). They become the installer's defaults in `.env.prod`, and Admin > Donations shows each source's last answer so a dead source is visible. Running `electrs` is the owner's action (image pull, initial chain sync, disk).
+Status: `ADOPTED` (D-288). Follow-up: M-02. Owner action: run the `payments` profile, or set the interim URL.
+
+**OR-3 (owner item 3, P11-MSG-1, LNG-EXP-004). Default sticker packs (artwork): can a CC0 or self-drawn starter set be produced in code?**
+Decision: yes, one, and it ships: "Side Room Words", sixteen typographic stickers (`brb`, `gg`, `lol`, `yes`, `no`, `hype`, `ok`, `wow`, `nice`, `oof`, `sad`, `popcorn`, `movie night`, `reading`, `afk`, `gn`) in the Entrance type and palette of doc 10, released CC0-1.0. Typography rather than figures because it needs no drawing skill, no licence beyond the OFL fonts already in the repo (the OFL permits rendered glyphs in images), and it looks like the product rather than clip-art. The SVG sources live in the repo; a script renders them to 320x320 PNG with the Playwright Chromium that is already installed, so there is no new download; the PNGs, `pack.json` and `LICENSE` are committed and pass `sr-cli package validate`. Installation is a new `sr-cli package seed <dir>` that registers the folder as an approved `sticker_pack` package authored by the system user (idempotent; the installer runs it), which is the install route LNG-EXP-004 said was missing. Servers get it in the picker's "Default" section and a manager can hide it. Packs with figures stay owner-supplied or reviewed packages.
+Status: `ADOPTED` (D-289). Follow-up: M-03.
+
+**OR-4 (owner item 4, P11-SHL-3). Avatar decoration artwork.**
+Decision: closed with the four CSS effects as the whole catalogue; no decoration artwork is produced in code (it would be clip-art) and none is coming from the owner. The empty `decorations` list stays in the catalogue so a reviewed layer-4 package can fill it later; the editor hides the picker while it is empty.
+Status: `ADOPTED` (D-290). Follow-up: M-04 (docs and the hidden picker).
+
+**OR-5 (owner item 5, P11-CLI-1). Server-tag badge glyphs.**
+Decision: the 16 Unicode glyphs are final. They render in the viewer's own font, cost nothing and carry no licence; `lib/serverTag.ts` takes an SVG sheet without a data change if anyone draws one, as a polish item.
+Status: `ADOPTED` (D-291). Follow-up: M-04 (inventory line).
+
+**OR-6 (owner item 6, P11-USB-2). Discord OAuth app for account linking.**
+Decision: reuse the one `[discord]` application. The owner registers `<public_url>/api/v1/connections/discord/callback` as a second redirect URI in the Discord developer portal; until then the Connections button stays hidden. Admin > System gains a row that prints the exact URI to copy (it already lists the sign-in callback as configured-or-not).
+Status: `ADOPTED` (D-292). Follow-up: M-05. Owner action: register the URI (external account).
+
+**OR-7 (owner item 7, MOD-4). Copyright process (legal).**
+Decision: the default is the launch process: staff-entered notices, staff-recorded counter-notices with a 10-business-day restore unless a court filing is recorded, strike review at 3 upheld takedowns in 12 months opening a case (never an automatic suspension), the notice address published on `/help`. `moderation.strike_review_threshold` becomes a real platform setting (it is spec-only today). Not legal advice; a lawyer should check DMCA section 512 agent registration (US), DSA articles 16 and 17 (EU) and the counter-notice wait for the operator's jurisdiction.
+Status: `ADOPTED` (D-293). Follow-up: M-06. Owner action: the lawyer check before launch; publish the notice address.
+
+**OR-8 (owner item 8, MOD-5). Minimum age and underage handling (legal).**
+Decision: 13 by self-declaration on the invite landing, as the platform setting `accounts.minimum_age` so a country with a higher digital-consent age is one setting away; under 18 found later is reset-and-restrict, under 13 is a suspension; no identity verification. Not legal advice; a lawyer should check the consent age and the sufficiency of self-declaration where the instance runs.
+Status: `ADOPTED` (D-294). Follow-up: M-06. Owner action: the lawyer check; set the age if the jurisdiction needs more than 13.
+
+**OR-9 (owner item 9, MOD-6). Data-subject deadline and jurisdiction (legal).**
+Decision: 30 days (`compliance.data_request_deadline_days`, a real setting with a documented extension on the queue), the D-124 retention stated as G-66 already does, and the operator's country and contact shown on the privacy page from a platform setting the Setup Wizard asks for, so the jurisdiction is visible instead of implied. Not legal advice; a lawyer should check the lawful basis for each retained record and any representative or registration duty.
+Status: `ADOPTED` (D-295). Follow-up: M-06. Owner action: the lawyer check; fill in the country and contact.
+
+**OR-10 (owner item 10, P13-REV-3). Production `[ingest] roots`.**
+Decision: `/srv/sideroom/ingest` on the node, read-only bind mount, as H-48 built; moves to the Storage Box by changing `SR_INGEST_DIR` if it is mounted. Nothing to build.
+Status: `ADOPTED` (D-296). No code follow-up. Owner action: create the directory or mount on the host.
+
+**OR-11 (owner item 11, P15-RST-2, K-13). JASSUB: accept GPL-3.0 `rvfc-polyfill`, stub it, or WebVTT only?**
+Decision: stub it. The project is proprietary, so a GPL-3.0 module in the bundle is not an option, and WebVTT-only gives up typesetting for a 1 KiB polyfill whose only job is browsers older than Chromium 83, Safari 15.4 and Firefox 132. The loader checks `requestVideoFrameCallback` before importing `jassub`; `rvfc-polyfill` is replaced at the package-manager level by a local empty package (pnpm override) and at the bundler level by a Vite alias, and the build asserts no polyfill code is in the cinema chunks. Everything K-13 planned for LGPL-2.1 compliance stands (own chunk, separate worker and `.wasm`, notices, `pnpm licenses` allow-list naming `jassub` as the only LGPL package). Version: `jassub@2.5.16`, the audited one (`abslink`, `lfa-ponyfill`, `throughput` arrive with it; 2.5.17 may replace it after the same audit). Not legal advice; a lawyer should check LGPL section 6 for a minified importing chunk, the FTL choice for FreeType, JASSUB's bundled font licence, and that the substitution is not a modification of `jassub`.
+Status: `ADOPTED` (D-297). Follow-up: M-08. Integrator action: the download (`pnpm add jassub@2.5.16` in `apps/web`), confirmed with the owner.
+
+**OR-12 (owner item 12, P16-UPL-3). `/support` donation copy (money wording).**
+Decision: final copy written; the exact replacement strings for `apps/web/src/i18n/messages/en/p16-uploads-1.ts` are in M-18. Rules it follows: donations go toward the hosting bill and nothing is earmarked; "no ads and no third-party trackers" is said because it is true of the shipped app; Patron is thank-you perks on a product that is free to use; Server Levels are a 30-day pool with the downgrade named; no tax, non-profit, longevity or "keep your level" promises. The page stays read-only (D-270).
+Status: `ADOPTED` (D-298). Follow-up: M-18.
+
+### Items not in open-questions.md
+
+**OR-13 (LNG-CMP-001). Rich composer on Lexical now, or keep the textarea?**
+Decision: keep the textarea; re-scope LNG-CMP-001 to a highlight backdrop behind it (coloured mention, channel, emoji and timestamp tokens, scroll-synced), no framework. The composer already does everything but the look of pills; Lexical is a download, 40 to 60 KB gzipped into a lounge chunk at 402 of 600 KB, and a rewrite of a tested 1,200-line component with its own selection and IME semantics. The backdrop is a few hundred lines, keeps native textarea behaviour for keyboards and screen readers, and is removable.
+Status: `ADOPTED` (D-299). Follow-up: M-09.
+
+**OR-14 (K-12). Integrations policy changes: apply live, or on restart?**
+Decision: live. Admin edits a setting and expects it to take effect; "at the next start" needs shell access and drops every session. The policy (hosts, rates, GIF locale, lookup providers) moves behind a swappable handle the unfurler, GIF client and lookup providers read per use; the HTTP clients and keys are not rebuilt (operator config, D-254).
+Status: `ADOPTED` (D-300). Follow-up: M-07.
+
+**OR-15 (feat-p15-k2 question 1). An Approve button on package review cards?**
+Decision: yes, parity with REV-RV-005: Approve runs `PackageService::decide` under the presser's `REVIEW_PACKAGES`, the K-15 self-review refusal and the access log apply, Reject stays on the review page (needs a note), the link stays.
+Status: `ADOPTED` (D-301). Follow-up: M-11.
+
+**OR-16 (feat-p15-k2 question 2, K-17). Lifetime of an uploaded but unsaved profile picture?**
+Decision: dropped at the next save, as built, plus a daily sweep of `profile_media` rows older than 24 hours that the saved document does not name, for the person who uploads and closes the tab.
+Status: `ADOPTED` (D-302). Follow-up: M-12.
+
+**OR-17 (feat-p15-rest-c note). A weekly template on manual Live TV channels?**
+Decision: no. A repeating lineup is an `imported_guide` channel (its grid is editable by hand); a manual channel places on a calendar; two schedulers on one channel would need precedence rules with nothing to copy. The signpost is added in the Now control tab and the kind picker.
+Status: `ADOPTED` (D-303). Follow-up: M-13.
+
+**OR-18 (feat-p15-rest-c note). A per-server opt-out for watch-party chat cards?**
+Decision: yes, default on: "Post a live card in the channel when a party starts" on Server Settings > Watch Parties & Library, a `community.watch_party_cards` module setting with `MANAGE_GUILD`, read by `PartyCards` before it posts; a running card is still finished. The announcer stays independent.
+Status: `ADOPTED` (D-304). Follow-up: M-14.
+
+**OR-19 (DEV-APP-007). User-installed apps (Discord user installs)?**
+Decision: not built; DEV-APP-007 closes at server installs. It is a privacy surface (an app following a person into every server and DM) that a friend-group instance does not need, and a large build (user authorization, `contexts` and `integration_types` enforcement, a management page). Wire compatibility is kept: `integration_types` and `contexts` are accepted and stored, `1` is ignored, a `[1]`-only command is accepted and never offered; the porting guide says so.
+Status: `ADOPTED` (D-305). Follow-up: M-15.
+
+**OR-20 (DEV-SDK-003, P13-DEV-7). The SDK compatibility CI action (a download)?**
+Decision: build it, as P13-DEV-7 sliced it: discord.js and serenity against a test server in a weekly workflow, in their own packages so neither enters the app graphs, pinned to the newest release at least two weeks old when added; discord.py and twilight later if the first two earn it.
+Status: `ADOPTED` (D-306). Follow-up: M-16. Integrator action: the downloads, confirmed with the owner.
+
+**OR-21 (D-275, L-20). Should the integrator dispatch `visual-baselines` now and commit the linux PNGs?**
+Decision: yes, now; L-21 lands after. The dispatch needs the workflow on `main` (a push), the artifact is a download confirmed with the owner, the PNGs go in a PR of their own. A failure of the stack rather than the screenshots is reported and fixed first; baselines are never hand-made.
+Status: `ADOPTED` (D-307). Follow-up: M-17. Integrator action: push, dispatch, download the artifact, commit.
+
+**OR-22 (human actions 1 to 5). Which are launch-blocking?**
+Decision: blocking are the first green CI run with the branch-protection and audit triage (human action 3, XC 1 and 4), the first real install with the VAPID keys (XC 2 and 3) and `corepack prepare pnpm@10.12.1 --activate` on development machines (human action 1); optional after launch are the Discord corpus review (human action 2) and ffmpeg on a development machine (human action 5). Nothing here is performed by the proxy.
+Status: `ADOPTED` (D-308). No code follow-up. Owner and integrator actions as listed in [open-questions.md](open-questions.md).
+
+### Already decided, no new row
+
+The following were raised in the brief but the docs already carry their decision: the Approve/Reject card family for library and cinema submissions (REV-RV-005, G-68); the `sr-sdk` voice feature defaults (D-268); the `/support` versus `/help` split (D-270); the per-server "default party channel" (D-264, none); the Live TV slate questions (D-266, D-267, D-269, D-285, D-286). None is reopened.
+
+### Still with the owner
+
+Nothing. Every owner item of [open-questions.md](open-questions.md) is answered; what remains there are actions (downloads, an external account, host and CI work, a lawyer's review), not decisions.
