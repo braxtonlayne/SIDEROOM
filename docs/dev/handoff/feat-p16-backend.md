@@ -51,3 +51,5 @@ All six items of `docs/dev/answers-followups-p16.md` are done and ticked. Small 
 ### Owner questions
 1. Slate numbers with nothing earlier to chain from (no programme within two weeks) are seeded from the slate's own counters, below the seconds-seeded numbers of programmes. A client that stays on the slate across the two-week search limit while a programme chain exists would see numbers jump. Fine, or should the search be unbounded?
 2. Should Admin get an actual "remove slate" action (clear the setting) in the row, or is the CLI plus the Limits setting enough?
+
+Answered 2026-10-19 by the owner proxy: D-285 (stored per-channel anchor, L-16) and D-286 (no Admin action; `sr-cli tv slate --remove`, L-17) in `docs/01-decisions-log.md`, P16-BE-5 and P16-BE-6 in `docs/open-question-answers.md`.
