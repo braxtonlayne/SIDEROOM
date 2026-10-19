@@ -41,7 +41,7 @@ All six items of `docs/dev/answers-followups-p16.md` are done and ticked. Small 
 - **L-15** spec, inventory, API doc; also doc 12 and `getting-started.md` for L-14.
 
 ### Tests run (all with `-j 2`, one process at a time, own scratch DB `sr_p16be_scratch`, dropped after)
-`cargo test -p sr-tv` (82 lib incl. 4 new live tests and 2 service tests, 4 hls_sync incl. the random-schedule property test: 80 schedules x 3 tracks), `-p sr-transcoder slate`, `-p sr-sdk --no-default-features` and default features, `-p sr-admin settings`, `-p sr-cli --bins -- --include-ignored` (18, incl. the Postgres ingest/register/replace test), `-p sr-api -- --include-ignored` (all: 616 lib + route matrix + openapi names + others), `-p sr-server tv_ -- --include-ignored` (7, incl. the setting-before-env test). `cargo fmt --all --check` and `cargo clippy -D warnings --all-targets` on sr-tv, sr-transcoder, sr-cli, sr-sdk, sr-admin, sr-api, sr-server. Web: tsc, eslint, prettier, vitest (see the final report for the run list), build and bundle budget. No test runs ffmpeg and nothing was transcoded.
+`cargo test -p sr-tv` (82 lib incl. 4 new live tests and 2 service tests, 4 hls_sync incl. the random-schedule property test: 80 schedules x 3 tracks), `-p sr-transcoder slate`, `-p sr-sdk --no-default-features` and default features, `-p sr-admin settings`, `-p sr-cli --bins -- --include-ignored` (18, incl. the Postgres ingest/register/replace test), `-p sr-api -- --include-ignored` (all: 616 lib + route matrix + openapi names + others), `-p sr-server tv_ -- --include-ignored` (7, incl. the setting-before-env test). `cargo fmt --all --check` and `cargo clippy -D warnings --all-targets` on sr-tv, sr-transcoder, sr-cli, sr-sdk, sr-admin, sr-api, sr-server. Web: tsc, eslint, prettier --check, the whole vitest suite (2292 tests in 243 files, plus the 5 files that need the wasm build once it was built: 34 tests), vite build and the bundle budget (all ok). No test runs ffmpeg and nothing was transcoded.
 
 ### Still open
 - A real run of `sr-cli tv slate` against a server, a transcoder worker and ffmpeg (none here); the pieces are tested separately.
@@ -49,5 +49,5 @@ All six items of `docs/dev/answers-followups-p16.md` are done and ticked. Small 
 - Safari / device checks of the slate-to-programme switch are the e2e agent's.
 
 ### Owner questions
-1. The slate seed (no earlier programme within two weeks) restarts from the loop count since the epoch; a client that stayed on the slate for two weeks without a programme and then sees one chain would see numbers jump, never go back in practice. Acceptable?
+1. Slate numbers with nothing earlier to chain from (no programme within two weeks) are seeded from the slate's own counters, below the seconds-seeded numbers of programmes. A client that stays on the slate across the two-week search limit while a programme chain exists would see numbers jump. Fine, or should the search be unbounded?
 2. Should Admin get an actual "remove slate" action (clear the setting) in the row, or is the CLI plus the Limits setting enough?
