@@ -51,7 +51,7 @@ All phases.
 - [x] **XC-TEST-002** [TEST] Gateway test client utilities (connect as N users, await dispatches) _(`sr_gateway::test_support` (feature `test-support`): TestWorld, TestClient, connect_users, await_dispatch. In-process, no sockets; real-WebSocket clients are not included.)_
 - [x] **XC-TEST-003** [TEST] Frontend MSW mocks generated from OpenAPI _(`packages/api-client/scripts/gen-msw.mjs` emits one handler per operation with schema-shaped placeholder bodies; `mocks:check` is the drift check, wired into the OpenAPI drift workflow. Existing hand-written handlers in apps/web/src/test/server.ts were not migrated.)_
 - [x] **XC-TEST-004** [TEST] Playwright fixtures (seeded users, logged-in contexts, multi-user scenarios) _(`e2e/support/fixtures.ts`: seedUser, signedIn, scenario.ownerAndMember. Typechecks and lists; not run against a live stack in this wave. TOTP and passkey users are not covered by signedIn.)_
-- [ ] **XC-TEST-005** [TEST] Visual regression snapshots for Entrance/Cinema/Library vs mockups _(not started: needs a Playwright run against a live stack, which this wave could not do)_
+- [x] **XC-TEST-005** [TEST] Visual regression snapshots for Entrance/Cinema/Library vs mockups _Done in phase 16: `e2e/tests/visual.spec.ts` (9 pages, chromium/win32 baselines in `e2e/tests/visual.spec.ts-snapshots`, opt-in `SR_E2E_VISUAL=1`); the mockup comparison is by eye, the baselines are the app's own rendering._
 
 ## XC-CI — Repo automation
 - [x] **XC-CI-001** [OPS] Issue generation script: inventory items → GitHub issues (labels by area/phase, milestone by phase) _(Dry run by default; the owner runs it with --create.)_
