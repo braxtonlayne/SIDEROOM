@@ -646,24 +646,33 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // Live TV (TV-ENG, TV-HLS): the schedule is stored in Postgres, pools come from the catalog repository,
     // and the live playlists are cut from the same renditions the VOD player uses (`/cdn/hls/<asset>/...`).
+    // The slate is a transcoded loop (TV-HLS-003, `sr-cli tv slate`, D-269): the platform setting `tv.slate_asset`
+    // first, `SR_TV_SLATE_ASSET` as the bootstrap fallback; a change applies without a restart.
+    let tv_slate_env = std::env::var("SR_TV_SLATE_ASSET")
+        .ok()
+        .and_then(|v| crate::tv_catalog::parse_asset_id(&v));
+    let tv_slate: Arc<dyn sr_tv::SlateSource> = Arc::new(crate::tv_catalog::PgSlateSetting::new(
+        pool.clone(),
+        tv_slate_env,
+    ));
+    let tv_service = sr_tv::TvService::new(
+        Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
+        Arc::new(
+            crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(Arc::new(
+                crate::tv_catalog::PgAssetDurations::new(pool.clone()),
+            )),
+        ),
+        clock.clone(),
+        id_src.clone(),
+    )
+    .with_live(sr_tv::LiveDeps {
+        source: Arc::new(crate::media_jobs::PgPlaybackSource::new(media_repo.clone())),
+        signer: Arc::new(cdn_signer.clone()),
+    })
+    .with_slate_source(tv_slate.clone());
     let tv_deps = Arc::new(
-        routes::tv::TvDeps::new(
-            sr_tv::TvService::new(
-                Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
-                Arc::new(
-                    crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(
-                        Arc::new(crate::tv_catalog::PgAssetDurations::new(pool.clone())),
-                    ),
-                ),
-                clock.clone(),
-                id_src.clone(),
-            )
-            .with_live(sr_tv::LiveDeps {
-                source: Arc::new(crate::media_jobs::PgPlaybackSource::new(media_repo.clone())),
-                signer: Arc::new(cdn_signer.clone()),
-            }),
-        )
-        .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
+        routes::tv::TvDeps::new(tv_service)
+            .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
     let tv_deps_for_reminders = tv_deps.clone();
 
@@ -738,10 +747,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         secs_clock.clone(),
     ));
     let media_service_shared = Arc::new(media_service.clone());
-    let media_deps = Arc::new(routes::cinema_media::MediaDeps::new(
-        media_service,
-        download_service.clone(),
-    ));
+    let media_deps = Arc::new(
+        routes::cinema_media::MediaDeps::new(media_service, download_service.clone())
+            .with_slate_source(tv_slate.clone()),
+    );
     let worker_routes = with_request_id(sr_media::http::router(Arc::new(
         sr_media::worker_api::WorkerService {
             store: media_repo.clone(),
@@ -785,6 +794,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 Arc::new(crate::party_cards::PartyCards::new(
                     pool.clone(),
                     payments.chat.clone(),
+                )),
+                // CHANNEL_UPDATE when a room stops being one.
+                Arc::new(crate::party_rooms::RoomFlagHook::new(
+                    PgChatRepo::new(pool.clone()),
+                    bus.clone(),
                 )),
             ])));
     watchparty_service.spawn_timers();
@@ -984,6 +998,23 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         storage: storage.clone(),
         clock: clock.clone(),
     });
+    // Large chat attachments go up as resumable multipart uploads (LNG-CMP-007); like the library's,
+    // they need the S3 API, so a memory store or SR_MEDIA_SINGLE_PUT=1 keeps single PUTs.
+    let messages = if s.endpoint == "memory:"
+        || std::env::var("SR_MEDIA_SINGLE_PUT").is_ok_and(|v| v == "1")
+    {
+        messages
+    } else {
+        let s3 = sr_storage::s3multipart::S3Multipart::new(
+            &s.endpoint,
+            &s.bucket,
+            &s.region,
+            s.access_key.expose(),
+            s.secret_key.expose(),
+        )
+        .context("configuring chat multipart uploads")?;
+        messages.with_multipart(sr_library::MultipartWiring::new(Arc::new(s3)))
+    };
     // D-238: the upload limit follows the donations runtime (Patron perk, server level).
     let messages = messages.with_upload_entitlements(Arc::new(
         crate::upload_limits::PaymentsUploadLimits::new(
@@ -1363,7 +1394,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         storage.clone(),
         messages.clone(),
     );
-    let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
+    let runner = crate::jobs::register_attachment_gc(
+        runner,
+        &pool,
+        storage.clone(),
+        messages.multipart.as_ref().map(|m| m.store.clone()),
+    );
     let runner = crate::jobs::register_audit_purge(runner, &pool);
     let runner = crate::jobs::register_reap(runner, &pool);
     let runner = crate::jobs::register_insights(runner, &pool);

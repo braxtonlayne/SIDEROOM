@@ -973,6 +973,10 @@ export class VoiceController {
               ? useVoiceSession.getState().pingHistory
               : [...useVoiceSession.getState().pingHistory, quality.pingMs].slice(-PING_HISTORY),
         }),
+      remoteQuality: (userId, q) => {
+        const rest = omit(useVoiceSession.getState().remoteQuality, userId);
+        patchSession({ remoteQuality: q ? { ...rest, [userId]: q } : rest });
+      },
       fatal: (e) => this.onEngineFatal(e),
       level: (db) => this.onLevelReading(db),
       micLost: () => this.recoverMic(),

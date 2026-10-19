@@ -60,6 +60,9 @@ impl SettingDef {
                 .ok_or_else(|| "must be true or false".to_owned()),
             SettingKind::Text => {
                 let s = v.as_str().ok_or("must be text")?;
+                if self.key == TV_SLATE_ASSET && !s.chars().all(|c| c.is_ascii_digit()) {
+                    return Err("must be an asset id (digits) or empty".to_owned());
+                }
                 if s.chars().count() as f64 > self.max {
                     return Err(format!("must be at most {} characters", self.max));
                 }
@@ -107,6 +110,11 @@ pub const ALERTS_DISK_PERCENT: &str = "alerts.disk_percent";
 pub const ALERTS_BACKUP_MAX_AGE_HOURS: &str = "alerts.backup_max_age_hours";
 pub const OPS_DISK_PATH: &str = "ops.disk_path";
 pub const OPS_BACKUP_DIR: &str = "ops.backup_dir";
+
+/// Live TV: the asset id (as text, empty for none) of the instance slate loop played while a channel is off air
+/// (D-266, D-269). `sr-cli tv slate` makes the asset and writes this; the server reads it before the
+/// `SR_TV_SLATE_ASSET` environment fallback and follows a change without a restart.
+pub const TV_SLATE_ASSET: &str = "tv.slate_asset";
 
 pub const CATALOG: &[SettingDef] = &[
     int(
@@ -331,6 +339,15 @@ pub const CATALOG: &[SettingDef] = &[
         default_int: 0,
         description: "Backup directory (SR_BACKUP_DIR of deploy/scripts/backup.sh); empty turns the backup alert off.",
     },
+    SettingDef {
+        key: TV_SLATE_ASSET,
+        group: "tv",
+        kind: SettingKind::Text,
+        min: 0.0,
+        max: 20.0,
+        default_int: 0,
+        description: "Asset id of the Live TV slate loop played while a channel is off air (made by sr-cli tv slate; empty: none). To remove it, prefer `sr-cli tv slate --remove`, which also retires the asset.",
+    },
 ];
 
 /// Definition of `key`, if it is an editable setting.
@@ -371,6 +388,19 @@ mod tests {
             assert!(d.validate(&json!(ceiling + 1)).is_err(), "{key}");
             assert!(d.validate(&json!(0)).is_err(), "{key}");
         }
+    }
+
+    #[test]
+    fn the_tv_slate_setting_is_an_id_or_empty() {
+        let d = find(TV_SLATE_ASSET).unwrap();
+        assert_eq!(d.default_value(), json!(""));
+        assert_eq!(
+            d.validate(&json!("1234567890123")).unwrap(),
+            json!("1234567890123")
+        );
+        assert!(d.validate(&json!("")).is_ok());
+        assert!(d.validate(&json!("12ab")).is_err());
+        assert!(d.validate(&json!(12)).is_err());
     }
 
     #[test]

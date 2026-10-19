@@ -11,6 +11,7 @@
 //!   `GET /profile-pages/{username}`, `GET /users/{id}/profile-page`, the guestbook under `/users/{id}/guestbook`;
 //! * staff (`REVIEW_PACKAGES`): `/admin/developers/packages*`.
 
+mod appearance;
 mod handlers;
 
 use crate::{routes::messages::error::MsgError, state::AppState};
@@ -121,6 +122,14 @@ pub fn router() -> Router<AppState> {
             "/guilds/{guild_id}/packages/{package_id}/apply",
             post(h::apply_recipe),
         )
+        .route(
+            "/guilds/{guild_id}/packages/{package_id}/import",
+            post(appearance::import_pack),
+        )
+        .route(
+            "/guilds/{guild_id}/appearance",
+            get(appearance::get_appearance).patch(appearance::set_appearance),
+        )
         .route("/users/@me/profile-doc", get(h::own_doc).put(h::set_doc))
         .route("/users/@me/profile-doc/layout", post(h::use_layout))
         .route("/profile-pages/{username}", get(h::page_by_name))
@@ -163,6 +172,9 @@ pub fn router() -> Router<AppState> {
         handlers::enable_for_guild,
         handlers::disable_for_guild,
         handlers::apply_recipe,
+        appearance::get_appearance,
+        appearance::set_appearance,
+        appearance::import_pack,
         handlers::own_doc,
         handlers::set_doc,
         handlers::use_layout,
@@ -183,6 +195,12 @@ pub fn router() -> Router<AppState> {
         sr_packages::service::MyPackage,
         sr_packages::service::PendingVersion,
         sr_packages::service::Enablement,
+        sr_packages::service::Appearance,
+        sr_packages::service::AppearanceTheme,
+        appearance::AppearanceBody,
+        appearance::ImportResult,
+        appearance::Added,
+        appearance::Skipped,
         sr_packages::service::Decision,
         sr_packages::service::PageUser,
         sr_packages::service::ProfilePage,

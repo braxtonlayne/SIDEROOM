@@ -8,7 +8,7 @@ import { useVoiceSettings, userVolumeOf } from '../../voice/settings';
 import { streamKey, useStreams } from '../../voice/streams';
 import { presetLabel, sourceKey, useLocalVideo, useRemoteVideo } from '../../voice/video';
 import { useCurrentUser, useUsers, type VoiceMember } from '../data';
-import { QualityBars } from './QualityBars';
+import { QualityBars, RemoteQualityBars } from './QualityBars';
 import { useStreamPreview } from './useStreamPreview';
 import { useTileViewport } from './useTileViewport';
 import { useVoiceUserMenu } from './useVoiceUserMenu';
@@ -97,6 +97,7 @@ export function ParticipantTile({
   const users = useUsers();
   const me = useCurrentUser();
   const quality = useVoiceSession((s) => s.quality);
+  const remoteQ = useVoiceSession((s) => s.remoteQuality[p.userId]);
   const sessionCamera = useVoiceSession((s) => s.camera);
   const localCamera = useLocalVideo((s) => s.camera);
   const cameraOff = useRemoteVideo((s) => !!s.videoOff[p.userId]);
@@ -182,6 +183,11 @@ export function ParticipantTile({
               <Icon name="video-off" size={16} label={t('lounge.voiceChannel.videoDisabled')} />
             )}
           </div>
+          {!self && remoteQ && (
+            <span className="vc-tile-quality" data-testid="tile-quality-remote">
+              <RemoteQualityBars quality={remoteQ} />
+            </span>
+          )}
           {self && (
             <span className="vc-tile-quality" data-testid="tile-quality">
               <QualityBars quality={quality} />

@@ -75,6 +75,8 @@ export interface Channel {
   is_message_request?: boolean | null;
   /** Voice channels: maximum simultaneous participants (0 or absent = unlimited). */
   user_limit?: number;
+  /** Watch party room (D-208): a voice channel with a standing party. Absent when the server does not report it. */
+  sr_watch_party_room?: boolean;
   /** Voice channels: audio bitrate in bits per second. */
   bitrate?: number;
   /** Age-restricted channel (the Lounge asks the viewer to confirm they are 18 or older). */

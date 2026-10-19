@@ -172,6 +172,8 @@ export interface Channel {
   permissions?: ChannelPermissions;
   userLimit?: number;
   slowmodeSeconds?: number;
+  /** A Watch party room (D-208): a voice channel with a standing party. */
+  watchPartyRoom?: boolean;
 }
 
 export interface DmChannel {

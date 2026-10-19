@@ -529,6 +529,7 @@ describe('Browse Channels and the help menu (LNG-GLD-032, LNG-CHN-018)', () => {
     );
     at('/channels/g1/c1');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Help' }))[0]!);
+    expect(await screen.findByRole('menuitem', { name: 'Help' })).toBeVisible(); // D-270: always offered
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Keyboard shortcuts' }));
     expect(await screen.findByRole('dialog', { name: /shortcut/i })).toBeVisible();
   });

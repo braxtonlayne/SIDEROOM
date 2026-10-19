@@ -19,6 +19,15 @@ const qs = (p: Record<string, string | number | null | undefined>) => {
   return s ? `?${s}` : '';
 };
 
+/** `GET /admin/tv/slate`: the off-air slate loop (L-14, D-269); it is made with `sr-cli tv slate`. */
+export interface AdminSlate {
+  configured: boolean;
+  asset_id?: string;
+  playable: boolean;
+  duration_ms?: number;
+}
+export const getSlate = () => get<AdminSlate>('/admin/tv/slate');
+
 /** The route itself is missing (an app-level 404 carries a `code`; the router's fallback does not). */
 export function isUnavailable(e: unknown): boolean {
   return (

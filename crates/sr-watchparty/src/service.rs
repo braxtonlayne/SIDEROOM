@@ -841,6 +841,18 @@ impl PartyService {
                 age_restricted: row.age_restricted,
                 kind: AnnouncementKind::Ended,
             }));
+            if row.persistent {
+                notices.push(Notice::Announce(Announcement {
+                    party_id: row.id,
+                    channel_id: ch,
+                    host_id: row.host_id,
+                    title: row.title_name.clone(),
+                    episode_label: row.episode_label.clone(),
+                    viewers: 0,
+                    age_restricted: row.age_restricted,
+                    kind: AnnouncementKind::RoomClosed,
+                }));
+            }
         }
         Ok(())
     }
@@ -1160,13 +1172,26 @@ impl PartyService {
         )
         .await?;
         tx.commit().await?;
-        self.flush(vec![Notice::Updated {
+        let mut notices = vec![Notice::Updated {
             party: id,
             kind: "settings",
             card: false,
             also: vec![],
-        }])
-        .await;
+        }];
+        // A standing party made ordinary: the channel is no longer a Watch party room.
+        if let (true, Some(false), Some(ch)) = (row.persistent, input.persistent, row.channel_id) {
+            notices.push(Notice::Announce(Announcement {
+                party_id: id,
+                channel_id: ch,
+                host_id: row.host_id,
+                title: row.title_name.clone(),
+                episode_label: row.episode_label.clone(),
+                viewers: members.len(),
+                age_restricted: row.age_restricted,
+                kind: AnnouncementKind::RoomClosed,
+            }));
+        }
+        self.flush(notices).await;
         self.get(v, id).await
     }
 

@@ -172,4 +172,26 @@ async fn update_attachment_persists_the_new_size() {
         got[0].blurhash.as_deref(),
         Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj")
     );
+
+    // Multipart upload record of a large slot (LNG-CMP-007): set, read, replaced, cleared, and
+    // listed for the abandoned-upload sweep.
+    assert_eq!(store.attachment_multipart(att.id).await.unwrap(), None);
+    store
+        .set_attachment_multipart(att.id, "mp-1", 64 << 20)
+        .await
+        .unwrap();
+    store
+        .set_attachment_multipart(att.id, "mp-2", 64 << 20)
+        .await
+        .unwrap();
+    assert_eq!(
+        store.attachment_multipart(att.id).await.unwrap(),
+        Some(("mp-2".to_owned(), 64 << 20))
+    );
+    let listed = sr_db::chat_repo::attachment_multipart_ids(&pool, &[att.id])
+        .await
+        .unwrap();
+    assert_eq!(listed, vec![(att.id, "mp-2".to_owned())]);
+    store.clear_attachment_multipart(att.id).await.unwrap();
+    assert_eq!(store.attachment_multipart(att.id).await.unwrap(), None);
 }

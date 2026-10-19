@@ -3,6 +3,8 @@ name: E2E
 on:
   push: { branches: [main] }
   pull_request:
+  # L-20 (D-275): a manual dispatch runs only the visual-baselines job.
+  workflow_dispatch:
 concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
@@ -16,6 +18,7 @@ permissions:
   contents: read
 jobs:
   playwright:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -24,28 +27,7 @@ jobs:
         browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with: { targets: wasm32-unknown-unknown }
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with: { tool: "wasm-pack" }
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - name: Start Postgres and Garage
-        run: |
-          docker compose -f deploy/compose/dev.yml up -d --wait postgres
-          docker compose -f deploy/compose/dev.yml up -d garage
-          ./deploy/compose/garage/bootstrap.sh
-      - name: Build sr-server and sr-cli
-        run: cargo build -p sr-server -p sr-cli
-      - run: pnpm install --frozen-lockfile
-      # The Lounge imports the WASM bundle from @sideroom/wasm (packages/wasm/dist); without it Vite
-      # fails with 'Failed to resolve import ../dist/...' and its error overlay blocks every click.
-      - name: Build the WASM bundle
-        run: pnpm --filter @sideroom/wasm build
+      - uses: ./.github/actions/e2e-stack
       - name: Install the browser
         run: pnpm --filter @sideroom/e2e exec playwright install --with-deps ${{ matrix.browser }}
       - name: Migrate, start the server, run Playwright
@@ -67,6 +49,7 @@ jobs:
   # VOX-E2E-003, DEV-ACT-001, D-243/D-244: features that need the SFU, voice E2EE and Activities switched on.
   # One sr-server run per suite (registration allows 20 accounts per address and day, counted in memory).
   live:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -83,26 +66,7 @@ jobs:
       SR_E2E_LIVE: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with: { targets: wasm32-unknown-unknown }
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with: { tool: "wasm-pack" }
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - name: Start Postgres and Garage
-        run: |
-          docker compose -f deploy/compose/dev.yml up -d --wait postgres
-          docker compose -f deploy/compose/dev.yml up -d garage
-          ./deploy/compose/garage/bootstrap.sh
-      - name: Build sr-server and sr-cli
-        run: cargo build -p sr-server -p sr-cli
-      - run: pnpm install --frozen-lockfile
-      - name: Build the WASM bundle
-        run: pnpm --filter @sideroom/wasm build
+      - uses: ./.github/actions/e2e-stack
       - name: Install the browsers
         run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium firefox webkit
       - name: Voice, Activities and message components (Chromium)
@@ -178,3 +142,52 @@ jobs:
             server-e2ee-firefox.log
             e2e/playwright-report-e2ee-firefox
             e2e/test-results-e2ee-firefox
+
+  # L-20, D-275 (P16-E2E-1): generates the linux Chromium baselines for e2e/tests/visual.spec.ts. Manual only; it never
+  # commits or pushes (contents: read). A human downloads the artifact and commits it. The report-only "visual" job
+  # (L-21) lands after the first set is committed.
+  visual-baselines:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-stack
+      - name: Install the browser
+        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+      - name: Generate the baselines
+        run: |
+          ./target/debug/sr-cli migrate
+          ./deploy/compose/e2e-run.sh --project=chromium tests/visual.spec.ts --update-snapshots
+        env:
+          CI: "true"
+          SR_E2E_VISUAL: "1"
+      - name: Job summary
+        if: always()
+        run: |
+          dir=e2e/tests/visual.spec.ts-snapshots
+          count=$(ls "$dir"/*-chromium-linux.png 2>/dev/null | wc -l)
+          {
+            echo "## Visual baselines (linux, Chromium)"
+            echo
+            echo "Generated $count baseline PNG(s). Nothing was committed or pushed."
+            echo
+            echo "1. Download the visual-baselines-linux artifact from this run and unzip it into $dir/."
+            echo "2. Commit the *-chromium-linux.png files on a branch and open a PR."
+            echo "3. Refresh them in the same PR as a Playwright or Chromium bump or an intended change to a captured page."
+            echo
+            ls -1 "$dir"/*-chromium-linux.png 2>/dev/null | sed 's/^/- /' || true
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines-linux
+          path: e2e/tests/visual.spec.ts-snapshots/*-chromium-linux.png
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-baselines-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            server.log

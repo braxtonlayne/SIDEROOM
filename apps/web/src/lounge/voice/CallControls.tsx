@@ -88,6 +88,8 @@ export function CallControls({
   const camera = useLocalVideo((s) => s.camera);
   const videoError = useLocalVideo((s) => s.error);
   const [picker, setPicker] = useState(false);
+  // Phones keep mic, deafen, camera and leave in the bar; the rest sits in a sheet opened from it (VOX-UI-016).
+  const [sheetOpen, setSheetOpen] = useState(false);
   const controller = voiceController();
   const mutedNow = session.selfMute || session.serverMute;
   const deafNow = session.selfDeaf || session.serverDeaf;
@@ -189,6 +191,9 @@ export function CallControls({
         className="vc-controls"
         role="toolbar"
         aria-label={t('lounge.voiceChannel.callControls')}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setSheetOpen(false);
+        }}
       >
         <Split
           menuLabel={t('lounge.callControls.micMenu')}
@@ -246,58 +251,77 @@ export function CallControls({
             </button>
           }
         />
-        <Split
-          menuLabel={t('lounge.callControls.shareMenu')}
-          menu={shareMenu}
-          main={
-            <button
-              type="button"
-              className="vc-ctl"
-              aria-label={
-                session.screen
-                  ? t('lounge.callControls.stopSharing')
-                  : t('lounge.callControls.share')
-              }
-              aria-pressed={session.screen}
-              data-active={session.screen || undefined}
-              onClick={() => (session.screen ? controller.stopScreenShare() : setPicker(true))}
-            >
-              <Icon name="screen-share" size={24} />
-            </button>
-          }
-        />
-        {!hideChat && (
-          <Tooltip content={t('lounge.callControls.textChat')}>
-            <button
-              type="button"
-              className="vc-ctl"
-              aria-label={t('lounge.callControls.textChat')}
-              aria-pressed={layout.chatOpen}
-              data-active={layout.chatOpen || undefined}
-              onClick={() => onLayout({ chatOpen: !layout.chatOpen })}
-            >
-              <Icon name="message" size={24} />
-            </button>
-          </Tooltip>
-        )}
-        <E2eeShield />
-        {guildId !== DM_GUILD_ID && <SoundboardButton guildId={guildId} channelId={channelId} />}
-        <StartPartyButton channelId={channelId} />
-        {guildId !== DM_GUILD_ID && <ActivityButton channelId={channelId} />}
-        <DropdownMenu
-          label={t('lounge.callControls.more')}
-          placement="top"
-          items={moreMenu}
-          trigger={
-            <button
-              type="button"
-              className="vc-ctl"
-              aria-label={t('lounge.callControls.moreOptions')}
-            >
-              <Icon name="more-horizontal" size={24} />
-            </button>
-          }
-        />
+        <button
+          type="button"
+          className="vc-ctl vc-ctl-sheet-toggle"
+          aria-label={t('lounge.callControls.sheet')}
+          aria-expanded={sheetOpen}
+          aria-controls="vc-ctl-sheet"
+          data-active={sheetOpen || undefined}
+          onClick={() => setSheetOpen((o) => !o)}
+        >
+          <Icon name="chevron-up" size={24} />
+        </button>
+        <div
+          id="vc-ctl-sheet"
+          className="vc-ctl-secondary"
+          role="group"
+          aria-label={t('lounge.callControls.sheetGroup')}
+          data-open={sheetOpen || undefined}
+        >
+          <Split
+            menuLabel={t('lounge.callControls.shareMenu')}
+            menu={shareMenu}
+            main={
+              <button
+                type="button"
+                className="vc-ctl"
+                aria-label={
+                  session.screen
+                    ? t('lounge.callControls.stopSharing')
+                    : t('lounge.callControls.share')
+                }
+                aria-pressed={session.screen}
+                data-active={session.screen || undefined}
+                onClick={() => (session.screen ? controller.stopScreenShare() : setPicker(true))}
+              >
+                <Icon name="screen-share" size={24} />
+              </button>
+            }
+          />
+          {!hideChat && (
+            <Tooltip content={t('lounge.callControls.textChat')}>
+              <button
+                type="button"
+                className="vc-ctl"
+                aria-label={t('lounge.callControls.textChat')}
+                aria-pressed={layout.chatOpen}
+                data-active={layout.chatOpen || undefined}
+                onClick={() => onLayout({ chatOpen: !layout.chatOpen })}
+              >
+                <Icon name="message" size={24} />
+              </button>
+            </Tooltip>
+          )}
+          <E2eeShield />
+          {guildId !== DM_GUILD_ID && <SoundboardButton guildId={guildId} channelId={channelId} />}
+          <StartPartyButton channelId={channelId} />
+          {guildId !== DM_GUILD_ID && <ActivityButton channelId={channelId} />}
+          <DropdownMenu
+            label={t('lounge.callControls.more')}
+            placement="top"
+            items={moreMenu}
+            trigger={
+              <button
+                type="button"
+                className="vc-ctl"
+                aria-label={t('lounge.callControls.moreOptions')}
+              >
+                <Icon name="more-horizontal" size={24} />
+              </button>
+            }
+          />
+        </div>
         <button
           type="button"
           className="vc-ctl vc-ctl-danger"

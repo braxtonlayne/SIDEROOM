@@ -24,7 +24,8 @@ describe('routes', () => {
     ['/house-notes', 'House notes'],
     ['/channels', 'Friends'],
     ['/developers', 'Build on SIDE ROOM'],
-    ['/support', 'Help'],
+    ['/help', 'Help'],
+    ['/support', 'Support SIDE ROOM'],
   ])('renders %s', async (path, heading) => {
     at(path);
     expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();

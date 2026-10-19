@@ -527,6 +527,19 @@ pub struct ChannelRecord {
     pub seed: i64,
     pub created_at_ms: i64,
     pub updated_at_ms: i64,
+    /// Where the slate counts on from (D-285); `None` until a viewed programme has aired.
+    pub chain: Option<ChainAnchor>,
+}
+
+/// The per-channel chain anchor (D-285): the end of the last viewed programme and the numbers of the segment
+/// on air at that moment (the last media sequence of the programme + 1, its discontinuity counter + 1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChainAnchor {
+    pub end_ms: i64,
+    pub seq: i64,
+    pub disc: i64,
+    /// The block that anchors it, so an edit of that block can rewrite the anchor.
+    pub block_id: i64,
 }
 
 impl ChannelRecord {

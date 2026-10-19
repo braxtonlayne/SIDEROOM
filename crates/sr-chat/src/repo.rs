@@ -392,6 +392,17 @@ pub trait MessageStore: Send + Sync {
     async fn insert_attachment(&self, attachment: &Attachment) -> StoreResult<()>;
     async fn get_attachments(&self, ids: &[AttachmentId]) -> StoreResult<Vec<Attachment>>;
     async fn update_attachment(&self, attachment: &Attachment) -> StoreResult<()>;
+    /// Remember the multipart upload id and part size behind a large upload slot (LNG-CMP-007).
+    async fn set_attachment_multipart(
+        &self,
+        id: AttachmentId,
+        multipart_id: &str,
+        part_size: u64,
+    ) -> StoreResult<()>;
+    /// The multipart upload id and part size of a slot, if it is a multipart one.
+    async fn attachment_multipart(&self, id: AttachmentId) -> StoreResult<Option<(String, u64)>>;
+    /// Forget the multipart record (after completion or abort).
+    async fn clear_attachment_multipart(&self, id: AttachmentId) -> StoreResult<()>;
     /// Attachments belonging to messages (any state `Attached`).
     async fn attachments_of(
         &self,

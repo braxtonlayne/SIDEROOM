@@ -32,7 +32,15 @@ import {
   type VideoSource,
 } from './protocol';
 import { simulcastEncodings } from './video';
-import { qualityFromStats, type ConnectionQuality } from './quality';
+import {
+  inboundSample,
+  qualityFromStats,
+  remoteQuality,
+  UNKNOWN_REMOTE,
+  type ConnectionQuality,
+  type InboundSample,
+  type RemoteQuality,
+} from './quality';
 
 export type EngineStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting';
 
@@ -72,10 +80,17 @@ export interface EngineE2ee {
   attachReceiver(receiver: unknown, kind: 'audio' | 'video', userId: string): void;
 }
 
+/** The part of an RTCRtpReceiver the engine reads for per-tile quality. */
+export interface StatsReceiver {
+  getStats(): Promise<{ forEach(cb: (s: Record<string, unknown>) => void): void }>;
+}
+
 export interface EngineEvents {
   status(s: EngineStatus): void;
   speaking(userId: string, speaking: boolean, priority: boolean): void;
   quality(q: ConnectionQuality): void;
+  /** Connection quality of a remote person's microphone line, from its receiver's stats; null when they leave (VOX-UI-003). */
+  remoteQuality?(userId: string, q: RemoteQuality | null): void;
   /**
    * The voice session cannot continue. `closed`: ask the gateway for a fresh VOICE_SERVER_UPDATE.
    * `removed` (4014): a moderator disconnected or moved us, wait for the gateway; do not rejoin.
@@ -254,6 +269,15 @@ export class RtcVoiceEngine implements VoiceEngine {
   private userMuted = new Set<string>();
   private deafened = false;
   private remoteStreams = new Map<string, MediaStream>();
+  /** The receivers of remote microphone lines, read for per-tile quality (VOX-UI-003). */
+  private remoteReceivers = new Map<
+    string,
+    {
+      receiver: StatsReceiver;
+      last: InboundSample | null;
+      quality: RemoteQuality;
+    }
+  >();
   /** Our own camera / screen / screen audio lines. */
   private outgoing = new Map<VideoSource, Outgoing>();
   /** The last subscription hints, sent again after a reconnect. */
@@ -520,6 +544,14 @@ export class RtcVoiceEngine implements VoiceEngine {
       if (id.kind !== 'mic') {
         this.addRemoteVideo(id.userId, id.kind, stream);
       } else if (ev.track.kind === 'audio') {
+        const r = ev.receiver as Partial<StatsReceiver> | undefined;
+        if (r?.getStats) {
+          this.remoteReceivers.set(id.userId, {
+            receiver: r as StatsReceiver,
+            last: null,
+            quality: UNKNOWN_REMOTE,
+          });
+        }
         this.addPeer(id.userId, stream);
       }
     };
@@ -649,6 +681,24 @@ export class RtcVoiceEngine implements VoiceEngine {
     }
   }
 
+  /** Read each remote microphone line's receiver and tell the controller how it is doing (VOX-UI-003). */
+  private pollRemote(): void {
+    for (const [userId, entry] of this.remoteReceivers) {
+      entry.receiver
+        .getStats()
+        .then((r) => {
+          if (this.remoteReceivers.get(userId) !== entry) return;
+          const cur = inboundSample(r, Date.now());
+          if (!cur) return;
+          const q = remoteQuality(entry.last, cur, entry.quality);
+          entry.last = cur;
+          entry.quality = q;
+          this.events.remoteQuality?.(userId, q);
+        })
+        .catch(() => undefined);
+    }
+  }
+
   private startQuality(): void {
     if (this.qualityTimer) return;
     const poll = () => {
@@ -657,6 +707,7 @@ export class RtcVoiceEngine implements VoiceEngine {
       pc.getStats()
         .then((r) => this.events.quality(qualityFromStats(r)))
         .catch(() => undefined);
+      this.pollRemote();
     };
     poll();
     this.qualityTimer = setInterval(poll, QUALITY_INTERVAL_MS);
@@ -680,6 +731,7 @@ export class RtcVoiceEngine implements VoiceEngine {
     this.remoteStreams.delete(userId);
     this.playback.remove(userId);
     this.events.peer(userId, false);
+    if (this.remoteReceivers.delete(userId)) this.events.remoteQuality?.(userId, null);
     for (const key of [...this.remoteVideo.keys()]) {
       if (key.startsWith(`${userId}:`)) this.dropRemoteVideo(key);
     }
@@ -889,6 +941,7 @@ export class RtcVoiceEngine implements VoiceEngine {
     clearTimeout(this.retryTimer);
     clearTimeout(this.connectTimer);
     this.qualityTimer = undefined;
+    this.remoteReceivers.clear();
     this.offLevel?.();
     this.offLost?.();
     this.offOnline?.();

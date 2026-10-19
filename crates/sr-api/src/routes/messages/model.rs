@@ -499,6 +499,11 @@ pub struct UploadSlot {
     pub max_size: u64,
     /// Large files expire after this many seconds; absent for normal files.
     pub expires_after: Option<u64>,
+    /// Present for files above 64 MB on a server with multipart storage: send the file in
+    /// `part_size` parts to these URLs (`upload_url` is empty then), resume with
+    /// `GET .../attachments/{upload_id}/parts`, and finish with `/complete`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multipart: Option<sr_library::multipart::MultipartSlot>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

@@ -8,23 +8,37 @@
 //! viewer joining 17 minutes into a programme gets a window around that position and everyone gets the
 //! same window (so two clients are within a segment of each other).
 //!
-//! Numbering. Players follow a live playlist by segment sequence number, so a segment must keep its number
-//! from one reload to the next, whatever else is in the window. Each block therefore stores `seq_base` (the
-//! number of its first on-air segment) and `disc_base` (its discontinuity counter), chained from the block
-//! before it (`seq_base + segments on air`, `disc_base + 1`) and seeded from the wall clock in seconds when
-//! there is no contiguous predecessor (seconds only grow, and a segment lasts at least a second, so numbers
-//! never go backwards). Segment `k` of a block is `seq_base + (k - first on-air k)`.
+//! Numbering (one domain, D-267). Players follow a live playlist by segment sequence number, so a segment
+//! must keep its number from one reload to the next, whatever else is in the window. Every segment the
+//! channel ever airs, programme or slate, is numbered in one chain:
 //!
-//! Programme boundaries carry `#EXT-X-DISCONTINUITY`, a new `#EXT-X-MAP` and a `#EXT-X-PROGRAM-DATE-TIME`.
-//! The window never runs past the end of a programme into a slate: when nothing with media is on air the
-//! caller answers off air.
+//! - A block stores `seq_base` (the number of its first on-air segment) and `disc_base` (its discontinuity
+//!   counter). Chained from the block right before it (`seq_base + segments on air`, `disc_base + 1`).
+//! - With no chained predecessor (none, or a contiguous one that was never viewed) and a slate configured, a block
+//!   chains from the slate segment on air at its start (that segment's number + 1, discontinuity + 1).
+//! - The slate counts on from the per-channel **chain anchor** (D-285, `tv_channels.chain_*`): the end of the last
+//!   viewed programme, with the numbers of the segment on air then ([`SlateChain`]). The repository advances it
+//!   whenever a block gets its bases and the block ends later than the anchor, never moves it back, and a
+//!   schedule edit that moves the end of the anchoring block rewrites it. The slate segment on air at the anchor
+//!   end carries the anchor numbers, each later segment adds one, each wrap of the loop one discontinuity. A
+//!   gap of any length, a removed asset or a never-viewed block change nothing: the numbers are monotone in
+//!   wall time for every viewer.
+//! - Only a channel with no anchor yet seeds: the slate from its own global segment index and loop pass since the
+//!   epoch (they grow by exactly one, as a window lists consecutive numbers), a programme without a slate from
+//!   the wall clock in seconds.
+//!
+//! Programme boundaries, on either side of a slate too, carry `#EXT-X-DISCONTINUITY`, a new `#EXT-X-MAP` and
+//! a `#EXT-X-PROGRAM-DATE-TIME`; the window lists both sides of a boundary while it is young
+//! ([`render_media_with_lead`], [`render_slate_media`]). A wrap of the slate loop carries the same tags.
+//! The window never runs past the end of a programme into nothing: when no programme and no slate is on air
+//! the caller answers off air.
 
 use sr_media::playback::PlaybackAsset;
 use sr_media::playlist::{
     AudioVariant, MediaSet, PlaylistConfig, Segment, UrlSigner, VideoVariant, render_master,
 };
 
-use crate::model::BlockRecord;
+use crate::model::{BlockRecord, ChainAnchor};
 use crate::tz::{MS_DAY, civil_from_days};
 
 /// Segments in a media playlist (spec section 5: "e.g. 6").
@@ -134,6 +148,310 @@ fn signed(signer: &dyn UrlSigner, asset: i64, rel: &str, expires: u64) -> String
     signer.signed_url(&format!("/cdn/hls/{asset}/{rel}"), expires)
 }
 
+/// One segment of a window, whichever side of a programme/slate boundary it is on.
+struct Entry<'a> {
+    /// What the segment belongs to: a programme block (`false`, block id) or one pass of the slate loop
+    /// (`true`, loop number). A change of group is a discontinuity.
+    group: (bool, i64),
+    asset_id: i64,
+    init: &'a str,
+    path: &'a str,
+    dur: f64,
+    /// Wall-clock start (ms) for `#EXT-X-PROGRAM-DATE-TIME` at the head of a group.
+    pdt: i64,
+    seq: i64,
+    disc: i64,
+}
+
+/// The programme-side entries of `lb` that are on air no later than `upto_ms` (all of them when `None`).
+/// `None` when the block's asset has no such track or its numbering bases are not assigned.
+fn block_entries(lb: &LiveBlock, track: Track, upto_ms: Option<i64>) -> Option<Vec<Entry<'_>>> {
+    let (init, segs) = track_of(&lb.asset, track)?;
+    let air = on_air(&lb.block, segs);
+    let first_k = air.first().map_or(0, |a| a.k);
+    let (seq0, disc) = (lb.block.seq_base?, lb.block.disc_base?);
+    Some(
+        air.into_iter()
+            .take_while(|a| upto_ms.is_none_or(|t| a.wall_start <= t))
+            .map(|a| Entry {
+                group: (false, lb.block.id),
+                asset_id: lb.asset.id,
+                init,
+                path: segs[a.k].path.as_str(),
+                dur: a.dur,
+                pdt: a.wall_start,
+                seq: seq0 + (a.k - first_k) as i64,
+                disc,
+            })
+            .collect(),
+    )
+}
+
+/// The playlist text of a window of entries.
+fn emit(window: &[Entry<'_>], signer: &dyn UrlSigner, now_secs: u64) -> String {
+    let head = &window[0];
+    let target = window.iter().map(|e| e.dur).fold(1.0_f64, f64::max).ceil() as u64;
+    let expires = now_secs + URL_TTL_SECS;
+    let mut out = format!(
+        "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:{target}\n#EXT-X-MEDIA-SEQUENCE:{}\n\
+         #EXT-X-DISCONTINUITY-SEQUENCE:{}\n#EXT-X-INDEPENDENT-SEGMENTS\n",
+        head.seq, head.disc
+    );
+    let mut group: Option<(bool, i64)> = None;
+    for e in window {
+        if group != Some(e.group) {
+            if group.is_some() {
+                out.push_str("#EXT-X-DISCONTINUITY\n");
+            }
+            out.push_str(&format!(
+                "#EXT-X-MAP:URI=\"{}\"\n#EXT-X-PROGRAM-DATE-TIME:{}\n",
+                signed(signer, e.asset_id, e.init, expires),
+                iso(e.pdt)
+            ));
+            group = Some(e.group);
+        }
+        out.push_str(&format!(
+            "#EXTINF:{:.6},\n{}\n",
+            e.dur,
+            signed(signer, e.asset_id, e.path, expires)
+        ));
+    }
+    out
+}
+
+/// The slate loop of an asset on one track, laid on the wall clock (anchored at the unix epoch, so every
+/// client sees the same loop). Segment `k` of loop `c` starts at `c * cycle_ms + starts[k]`; the global
+/// index of that segment is `c * n + k`.
+struct SlateLoop<'a> {
+    asset_id: i64,
+    init: &'a str,
+    segs: &'a [Segment],
+    starts: Vec<i64>,
+    cycle_ms: i64,
+}
+
+impl<'a> SlateLoop<'a> {
+    fn of(asset_id: i64, init: &'a str, segs: &'a [Segment]) -> Option<Self> {
+        if segs.is_empty() {
+            return None;
+        }
+        let mut starts = Vec::with_capacity(segs.len());
+        let mut acc = 0.0_f64;
+        for s in segs {
+            starts.push((acc * 1000.0).round() as i64);
+            acc += s.duration_secs;
+        }
+        let cycle_ms = (acc * 1000.0).round() as i64;
+        (cycle_ms > 0).then_some(Self {
+            asset_id,
+            init,
+            segs,
+            starts,
+            cycle_ms,
+        })
+    }
+
+    fn new(asset: &'a PlaybackAsset, track: Track) -> Option<Self> {
+        let (init, segs) = track_of(asset, track)?;
+        Self::of(asset.id, init, segs)
+    }
+
+    /// The loop of the lowest video rung, which the numbering chain counts (as `on_air_count` does).
+    fn lowest(asset: &'a PlaybackAsset) -> Option<Self> {
+        let v = asset.media.videos.iter().min_by_key(|v| v.height)?;
+        Self::of(asset.id, &v.init_path, &v.segments)
+    }
+
+    fn n(&self) -> i64 {
+        self.segs.len() as i64
+    }
+
+    /// The global index of the segment on air at `t_ms`.
+    fn index_at(&self, t_ms: i64) -> i64 {
+        let t = t_ms.max(0);
+        let (cycle, pos) = (t / self.cycle_ms, t % self.cycle_ms);
+        let k = self.starts.partition_point(|s| *s <= pos) as i64 - 1;
+        cycle * self.n() + k
+    }
+
+    fn start_of(&self, g: i64) -> i64 {
+        g.div_euclid(self.n()) * self.cycle_ms + self.starts[g.rem_euclid(self.n()) as usize]
+    }
+
+    /// gap when there is one (D-267), else seeded with the slate's own count since the epoch: the global
+    /// segment index and the loop pass number. Both must grow by exactly one per segment or wrap (a window
+    /// lists consecutive numbers), so a seconds seed would not do; they sit below the seconds-seeded numbers
+    /// of a programme, which only matters for a client that stays on across the two-week search limit.
+    /// wrap, which a seconds seed would not).
+    fn numbering(&self, chain: Option<&SlateChain<'_>>, g: i64) -> (i64, i64) {
+        let cycle = g.div_euclid(self.n());
+        match chain {
+            Some(c) => {
+                let g0 = self.index_at(c.end_ms);
+                (c.seq + (g - g0), c.disc + (cycle - g0.div_euclid(self.n())))
+            }
+            None => (g, cycle),
+        }
+    }
+
+    fn entry(&self, g: i64, chain: Option<&SlateChain<'_>>) -> Entry<'a> {
+        let (seq, disc) = self.numbering(chain, g);
+        let k = g.rem_euclid(self.n()) as usize;
+        Entry {
+            group: (true, g.div_euclid(self.n())),
+            asset_id: self.asset_id,
+            init: self.init,
+            path: self.segs[k].path.as_str(),
+            dur: self.segs[k].duration_secs,
+            pdt: self.start_of(g),
+            seq,
+            disc,
+        }
+    }
+}
+
+/// Where the slate's numbering starts (D-267, D-285): the end of the last viewed programme of the channel (the
+/// stored chain anchor). The slate segment on air at that end carries `seq` and `disc` (the programme's last
+/// media sequence + 1, its discontinuity counter + 1); every later slate segment adds one, each wrap of the loop
+/// one discontinuity.
+#[derive(Debug, Clone, Copy)]
+pub struct SlateChain<'a> {
+    /// When the programme ended (ms).
+    end_ms: i64,
+    seq: i64,
+    disc: i64,
+    /// The programme, so a window just after the boundary can list its tail.
+    prev: Option<&'a LiveBlock>,
+    /// The numbers also hold before `end_ms` (a chain counted back from a programme that follows the slate).
+    unbounded: bool,
+    /// For an unbounded chain: the slate is not listed from before this time (the end of the programme before).
+    lower_ms: Option<i64>,
+}
+
+impl<'a> SlateChain<'a> {
+    /// The chain stored for a channel; `prev` is the anchoring block when its asset is still there.
+    pub fn from_anchor(a: &ChainAnchor, prev: Option<&'a LiveBlock>) -> Self {
+        Self {
+            end_ms: a.end_ms,
+            seq: a.seq,
+            disc: a.disc,
+            prev,
+            unbounded: false,
+            lower_ms: None,
+        }
+    }
+
+    /// The chain after `last`, or `None` when its numbering bases were never assigned.
+    pub fn after(last: &'a LiveBlock) -> Option<Self> {
+        Some(Self {
+            end_ms: last.block.end_ms,
+            seq: last.block.seq_base? + on_air_count(&last.block, &last.asset),
+            disc: last.block.disc_base? + 1,
+            prev: Some(last),
+            unbounded: false,
+            lower_ms: None,
+        })
+    }
+
+    /// The chain of the slate before a programme that starts at `start_ms` with bases `seq_base` and `disc_base`
+    /// taken from the slate segment on air then: counted back, so it needs no stored anchor.
+    pub fn before_programme(
+        start_ms: i64,
+        seq_base: i64,
+        disc_base: i64,
+        lower_ms: Option<i64>,
+    ) -> Self {
+        Self {
+            end_ms: start_ms,
+            seq: seq_base - 1,
+            disc: disc_base - 1,
+            prev: None,
+            unbounded: true,
+            lower_ms,
+        }
+    }
+
+    /// The chain numbers `(seq, disc)` of the slate segment on air at `t_ms` for the slate `asset`.
+    pub fn position(&self, asset: &PlaybackAsset, t_ms: i64) -> Option<(i64, i64)> {
+        slate_position(asset, Some(self), t_ms)
+    }
+}
+
+/// What precedes a programme that has no programme right before it: the slate (`asset`) and the chain it
+/// has been counting on from.
+#[derive(Debug, Clone, Copy)]
+pub struct SlateLead<'a> {
+    pub asset: &'a PlaybackAsset,
+    pub chain: Option<SlateChain<'a>>,
+}
+
+/// (media sequence, discontinuity sequence) of the slate segment on air at `t_ms`, `None` when the asset
+/// has no video segments. The numbering is the same on every track.
+pub fn slate_position(
+    asset: &PlaybackAsset,
+    chain: Option<&SlateChain<'_>>,
+    t_ms: i64,
+) -> Option<(i64, i64)> {
+    let sl = SlateLoop::lowest(asset)?;
+    Some(sl.numbering(chain, sl.index_at(t_ms)))
+}
+
+/// How long the window of a slate takes: the longest segment of its loop times [`WINDOW_SEGMENTS`] (ms).
+pub fn slate_window_ms(asset: &PlaybackAsset) -> i64 {
+    SlateLoop::lowest(asset).map_or(0, |sl| {
+        let longest = sl
+            .segs
+            .iter()
+            .map(|s| (s.duration_secs * 1000.0).ceil() as i64)
+            .max()
+            .unwrap_or(0);
+        longest * WINDOW_SEGMENTS as i64
+    })
+}
+
+/// The numbering bases (`seq_base`, `disc_base`) of a programme starting at `start_ms` with no programme
+/// right before it, chained from the slate segment on air at that moment (D-267): that segment's numbers + 1.
+pub fn bases_after_slate(
+    asset: &PlaybackAsset,
+    chain: Option<&SlateChain<'_>>,
+    start_ms: i64,
+) -> Option<(i64, i64)> {
+    let (s, d) = slate_position(asset, chain, start_ms)?;
+    Some((s + 1, d + 1))
+}
+
+/// The slate-side entries from the programme end (or `WINDOW_SEGMENTS - 1` back) to segment `g`, preceded
+/// by the programme's own tail when the chain's start is reached.
+fn slate_entries<'a>(
+    sl: &SlateLoop<'a>,
+    chain: Option<&SlateChain<'a>>,
+    track: Track,
+    g: i64,
+) -> Vec<Entry<'a>> {
+    let floor = (g - (WINDOW_SEGMENTS as i64 - 1)).max(0);
+    let g0 = chain
+        .and_then(|c| {
+            if c.unbounded {
+                c.lower_ms
+            } else {
+                Some(c.end_ms)
+            }
+        })
+        .map(|ms| sl.index_at(ms));
+    let lo = g0.map_or(floor, |g0| g0.max(floor));
+    let mut out = Vec::new();
+    if let (Some(c), Some(g0)) = (chain, g0)
+        && !c.unbounded
+        && lo == g0
+        && let Some(prev) = c.prev
+        && let Some(tail) = block_entries(prev, track, None)
+    {
+        out.extend(tail);
+    }
+    out.extend((lo..=g).map(|gi| sl.entry(gi, chain)));
+    out
+}
+
 /// The media playlist of a track at `now_ms`, or `None` when no block in `blocks` is on air with that
 /// track. `blocks` are one channel's blocks around `now_ms`, ordered by start, each with `seq_base` and
 /// `disc_base` assigned; only blocks directly joined to the one on air are used before it.
@@ -141,6 +459,20 @@ pub fn render_media(
     blocks: &[LiveBlock],
     track: Track,
     now_ms: i64,
+    signer: &dyn UrlSigner,
+    now_secs: u64,
+) -> Option<String> {
+    render_media_with_lead(blocks, track, now_ms, None, signer, now_secs)
+}
+
+/// [`render_media`], and when the programme on air has no programme right before it and its window is not
+/// yet full, the slate that was on air before it (`lead`) fills the window (D-267): both sides of the
+/// boundary are listed with a discontinuity between them.
+pub fn render_media_with_lead(
+    blocks: &[LiveBlock],
+    track: Track,
+    now_ms: i64,
+    lead: Option<&SlateLead<'_>>,
     signer: &dyn UrlSigner,
     now_secs: u64,
 ) -> Option<String> {
@@ -153,80 +485,54 @@ pub fn render_media(
     {
         first -= 1;
     }
-    struct Entry<'a> {
-        block: usize,
-        seg: OnAir,
-        path: &'a str,
-        first_k: usize,
-    }
     let mut entries: Vec<Entry<'_>> = Vec::new();
     for (bi, lb) in blocks.iter().enumerate().take(cur + 1).skip(first) {
-        let Some((_, segs)) = track_of(&lb.asset, track) else {
-            if bi == cur {
-                return None;
-            }
-            continue;
-        };
-        let air = on_air(&lb.block, segs);
-        let first_k = air.first().map_or(0, |a| a.k);
-        for a in air {
-            if bi == cur && a.wall_start > now_ms {
-                break;
-            }
-            let path = segs[a.k].path.as_str();
-            entries.push(Entry {
-                block: bi,
-                seg: a,
-                path,
-                first_k,
-            });
+        let upto = (bi == cur).then_some(now_ms);
+        match block_entries(lb, track, upto) {
+            Some(e) => entries.extend(e),
+            None if bi == cur => return None,
+            None => {}
         }
     }
-    if entries.is_empty() || entries.last().is_none_or(|e| e.block != cur) {
+    if entries
+        .last()
+        .is_none_or(|e| e.group != (false, blocks[cur].block.id))
+    {
         return None;
     }
-    let start = entries.len().saturating_sub(WINDOW_SEGMENTS);
-    let window = &entries[start..];
-    let head = &window[0];
-    let head_block = &blocks[head.block].block;
-    let media_seq = head_block.seq_base? + (head.seg.k - head.first_k) as i64;
-    let disc_seq = head_block.disc_base?;
-    let target = window
-        .iter()
-        .map(|e| e.seg.dur)
-        .fold(1.0_f64, f64::max)
-        .ceil() as u64;
-    let expires = now_secs + URL_TTL_SECS;
-    let mut out = format!(
-        "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:{target}\n#EXT-X-MEDIA-SEQUENCE:{media_seq}\n\
-         #EXT-X-DISCONTINUITY-SEQUENCE:{disc_seq}\n#EXT-X-INDEPENDENT-SEGMENTS\n"
-    );
-    let mut group: Option<usize> = None;
-    for e in window {
-        if group != Some(e.block) {
-            let lb = &blocks[e.block];
-            if group.is_some() {
-                out.push_str("#EXT-X-DISCONTINUITY\n");
-            }
-            if let Some((init, _)) = track_of(&lb.asset, track) {
-                out.push_str(&format!(
-                    "#EXT-X-MAP:URI=\"{}\"\n",
-                    signed(signer, lb.asset.id, init, expires)
-                ));
-            }
-            out.push_str(&format!(
-                "#EXT-X-PROGRAM-DATE-TIME:{}\n",
-                iso(e.seg.wall_start)
-            ));
-            group = Some(e.block);
-        }
-        out.push_str(&format!(
-            "#EXTINF:{:.6},\n{}\n",
-            e.seg.dur,
-            signed(signer, blocks[e.block].asset.id, e.path, expires)
-        ));
+    if first == cur
+        && entries.len() < WINDOW_SEGMENTS
+        && let Some(lead) = lead
+        && let Some(sl) = SlateLoop::new(lead.asset, track)
+    {
+        let g = sl.index_at(blocks[cur].block.start_ms);
+        let mut before = slate_entries(&sl, lead.chain.as_ref(), track, g);
+        before.append(&mut entries);
+        entries = before;
     }
-    Some(out)
+    let start = entries.len().saturating_sub(WINDOW_SEGMENTS);
+    Some(emit(&entries[start..], signer, now_secs))
+}
+
+/// The media playlist of the slate (TV-HLS-003): the short pre-encoded loop `asset` repeated forever on
+/// the wall clock, so an off-air channel answers a playable live playlist instead of 404. Every client
+/// sees the same window (the loop is anchored at the unix epoch); each wrap of the loop carries a
+/// discontinuity, a new map and a program date time, as a programme boundary does. `chain` (D-267) is the
+/// programme that aired before the gap: the slate counts on from it and, while the window is young, lists
+/// that programme's tail before the first slate segment.
+pub fn render_slate_media(
+    asset: &PlaybackAsset,
+    track: Track,
+    now_ms: i64,
+    chain: Option<&SlateChain<'_>>,
+    signer: &dyn UrlSigner,
+    now_secs: u64,
+) -> Option<String> {
+    let sl = SlateLoop::new(asset, track)?;
+    let g = sl.index_at(now_ms);
+    let entries = slate_entries(&sl, chain, track, g);
+    let start = entries.len().saturating_sub(WINDOW_SEGMENTS);
+    Some(emit(&entries[start..], signer, now_secs))
 }
 
 /// Turn "relative path" into itself: the live master points at sibling endpoints, not at the CDN.
@@ -261,6 +567,39 @@ pub fn render_live_master(assets: &[&PlaybackAsset], now_secs: u64) -> Option<St
     if heights.is_empty() {
         heights = common_heights(&[current]);
     }
+    master_of(current, &heights, now_secs)
+}
+
+/// Heights of the standard transcode ladder (480p, 720p, 1080p; `sr_media::plan`), which the slate is encoded in.
+pub const STANDARD_HEIGHTS: [u32; 3] = [480, 720, 1080];
+
+/// The standard rungs `slate` lacks (empty for a slate made with `sr-cli tv slate`).
+pub fn slate_missing_heights(slate: &PlaybackAsset) -> Vec<u32> {
+    let own = common_heights(&[slate]);
+    STANDARD_HEIGHTS
+        .into_iter()
+        .filter(|h| !own.contains(h))
+        .collect()
+}
+
+/// The master of the slate when a channel is off air (D-267): the standard rung set, so a player switching
+/// between programme and slate keeps its rung; when the slate lacks a rung only the rungs it has are offered
+/// (the caller logs that once), and when it has none of the standard ones its own.
+pub fn render_slate_master(slate: &PlaybackAsset, now_secs: u64) -> Option<String> {
+    let own = common_heights(&[slate]);
+    let standard: Vec<u32> = own
+        .iter()
+        .copied()
+        .filter(|h| STANDARD_HEIGHTS.contains(h))
+        .collect();
+    master_of(
+        slate,
+        if standard.is_empty() { &own } else { &standard },
+        now_secs,
+    )
+}
+
+fn master_of(current: &PlaybackAsset, heights: &[u32], now_secs: u64) -> Option<String> {
     let videos = heights
         .iter()
         .filter_map(|h| {
@@ -563,6 +902,208 @@ pub(crate) mod tests {
         a.media.audios.clear();
         let silent = render_live_master(&[&a], 0).unwrap();
         assert!(!silent.contains("TYPE=AUDIO") && !silent.contains("AUDIO=\"aud\""));
+    }
+
+    /// A slate of three 2 s segments (a 6 s loop).
+    fn slate() -> PlaybackAsset {
+        let mut a = asset(77, 3);
+        for v in &mut a.media.videos {
+            for s in &mut v.segments {
+                s.duration_secs = 2.0;
+            }
+        }
+        for au in &mut a.media.audios {
+            for s in &mut au.segments {
+                s.duration_secs = 2.0;
+            }
+        }
+        a
+    }
+
+    fn header(text: &str, name: &str) -> i64 {
+        text.lines()
+            .find_map(|l| l.strip_prefix(name))
+            .unwrap()
+            .parse()
+            .unwrap()
+    }
+
+    fn disc_tags(text: &str) -> usize {
+        text.matches("#EXT-X-DISCONTINUITY\n").count()
+    }
+
+    #[test]
+    fn the_slate_loops_on_the_wall_clock_with_a_discontinuity_at_each_wrap() {
+        let mut a = slate();
+        // 13 s: cycle 2 (12 s..18 s), segment 0 on air; global index 6. Window 1..=6.
+        let text = render_slate_media(&a, Track::Video(720), 13_000, None, &Sig, 0).unwrap();
+        let (seq, segs) = seqs(&text);
+        // No programme before it: seeded from the wall clock in seconds (global index 1).
+        assert_eq!(seq, 1);
+        assert_eq!(segs.len(), WINDOW_SEGMENTS);
+        assert_eq!(segs[0], "/cdn/hls/77/v/720p/seg_00001.m4s");
+        assert_eq!(segs[5], "/cdn/hls/77/v/720p/seg_00000.m4s");
+        assert_eq!(disc_tags(&text), 2);
+        assert_eq!(text.matches("#EXT-X-MAP").count(), 3);
+        assert_eq!(header(&text, "#EXT-X-DISCONTINUITY-SEQUENCE:"), 0);
+        // Two clients a second apart see the same window.
+        let b = render_slate_media(&a, Track::Video(720), 13_900, None, &Sig, 0).unwrap();
+        assert_eq!(seqs(&b), (seq, segs));
+        // Audio has a loop too; a track the asset lacks has none.
+        assert!(render_slate_media(&a, Track::Audio, 13_000, None, &Sig, 0).is_some());
+        a.media.audios.clear();
+        assert!(render_slate_media(&a, Track::Audio, 13_000, None, &Sig, 0).is_none());
+    }
+
+    #[test]
+    fn programme_to_slate_numbers_continue_with_one_discontinuity_and_both_sides_in_the_window() {
+        // Ten segments, numbers 100..=109, discontinuity 4; ends at 60 s.
+        let b = lb(1, 0, 60_000, 0, 100, 4, 10);
+        let chain = SlateChain::after(&b).unwrap();
+        let s = slate();
+        // 64 s: slate segment 2 of loop 10 (global 32); the first slate segment (global 30) is 110.
+        let text =
+            render_slate_media(&s, Track::Video(720), 64_000, Some(&chain), &Sig, 0).unwrap();
+        let (seq, segs) = seqs(&text);
+        assert_eq!(seq, 107, "the tail of the programme is listed");
+        assert_eq!(
+            segs.iter().map(String::as_str).collect::<Vec<_>>(),
+            [
+                "/cdn/hls/100/v/720p/seg_00007.m4s",
+                "/cdn/hls/100/v/720p/seg_00008.m4s",
+                "/cdn/hls/100/v/720p/seg_00009.m4s",
+                "/cdn/hls/77/v/720p/seg_00000.m4s",
+                "/cdn/hls/77/v/720p/seg_00001.m4s",
+                "/cdn/hls/77/v/720p/seg_00002.m4s",
+            ]
+        );
+        assert_eq!(header(&text, "#EXT-X-DISCONTINUITY-SEQUENCE:"), 4);
+        assert_eq!(disc_tags(&text), 1);
+        let l = lines(&text);
+        let d = l.iter().position(|l| *l == "#EXT-X-DISCONTINUITY").unwrap();
+        assert!(l[d + 1].starts_with("#EXT-X-MAP:URI=\"/cdn/hls/77/v/720p/init.mp4"));
+        assert!(l[d + 2].starts_with("#EXT-X-PROGRAM-DATE-TIME:1970-01-01T00:01:00.000Z"));
+        // 70 s: slate only now, numbers 110..=115, discontinuity 5, one wrap inside.
+        let t2 = render_slate_media(&s, Track::Video(720), 70_000, Some(&chain), &Sig, 0).unwrap();
+        assert_eq!(seqs(&t2).0, 110);
+        assert_eq!(header(&t2, "#EXT-X-DISCONTINUITY-SEQUENCE:"), 5);
+        assert_eq!(disc_tags(&t2), 1);
+        // 80 s: the head is segment 115 (loop 11), which carries discontinuity 6.
+        let t3 = render_slate_media(&s, Track::Video(720), 80_000, Some(&chain), &Sig, 0).unwrap();
+        assert_eq!(seqs(&t3).0, 115);
+        assert_eq!(header(&t3, "#EXT-X-DISCONTINUITY-SEQUENCE:"), 6);
+        // Audio has the same numbers.
+        let au = render_slate_media(&s, Track::Audio, 70_000, Some(&chain), &Sig, 0).unwrap();
+        assert_eq!(seqs(&au).0, 110);
+    }
+
+    #[test]
+    fn slate_to_programme_numbers_continue_with_one_discontinuity_and_both_sides_in_the_window() {
+        let b = lb(1, 0, 60_000, 0, 100, 4, 10);
+        let chain = SlateChain::after(&b).unwrap();
+        let s = slate();
+        // A programme starts at 64 s, in the middle of slate segment 32 (112, discontinuity 5).
+        assert_eq!(slate_position(&s, Some(&chain), 64_000), Some((112, 5)));
+        let (seq, disc) = bases_after_slate(&s, Some(&chain), 64_000).unwrap();
+        assert_eq!((seq, disc), (113, 6));
+        let c = lb(2, 64_000, 130_000, 0, seq, disc, 11);
+        let lead = SlateLead {
+            asset: &s,
+            chain: Some(chain),
+        };
+        let at = |t| {
+            render_media_with_lead(
+                std::slice::from_ref(&c),
+                Track::Video(720),
+                t,
+                Some(&lead),
+                &Sig,
+                0,
+            )
+            .unwrap()
+        };
+        let first = at(65_000);
+        let (s1, segs) = seqs(&first);
+        assert_eq!(s1, 108);
+        assert_eq!(segs.len(), WINDOW_SEGMENTS);
+        assert_eq!(segs[5], "/cdn/hls/200/v/720p/seg_00000.m4s");
+        assert_eq!(segs[4], "/cdn/hls/77/v/720p/seg_00002.m4s");
+        assert_eq!(segs[1], "/cdn/hls/100/v/720p/seg_00009.m4s");
+        // programme -> slate -> programme: two discontinuities, one per boundary.
+        assert_eq!(disc_tags(&first), 2);
+        assert_eq!(header(&first, "#EXT-X-DISCONTINUITY-SEQUENCE:"), 4);
+        // Six seconds later the window moved by one (the new block segment 1 is 114).
+        let later = at(71_000);
+        assert_eq!(seqs(&later).0, 109);
+        // Well into the programme the slate has left the window; numbers stay with the block.
+        let much_later = at(100_000);
+        assert_eq!(seqs(&much_later).0, 114);
+        assert_eq!(disc_tags(&much_later), 0);
+        assert_eq!(header(&much_later, "#EXT-X-DISCONTINUITY-SEQUENCE:"), 6);
+    }
+
+    #[test]
+    fn without_a_slate_or_an_earlier_programme_the_seed_is_the_wall_clock() {
+        let s = slate();
+        // No programme before: slate numbers are seconds; a programme chains from the slate segment.
+        assert_eq!(slate_position(&s, None, 64_000), Some((32, 10)));
+        assert_eq!(bases_after_slate(&s, None, 64_000), Some((33, 11)));
+        // A programme without a lead is numbered by its own bases as before.
+        let c = lb(2, 64_000, 130_000, 0, 64, 64, 11);
+        let text = render_media(&[c], Track::Video(720), 65_000, &Sig, 0).unwrap();
+        assert_eq!(seqs(&text).0, 64);
+        assert_eq!(disc_tags(&text), 0);
+    }
+
+    #[test]
+    fn a_stored_anchor_numbers_like_the_programme_it_was_taken_from() {
+        let b = lb(1, 0, 60_000, 0, 100, 4, 10);
+        let anchor = ChainAnchor {
+            end_ms: 60_000,
+            seq: 110,
+            disc: 5,
+            block_id: 1,
+        };
+        let s = slate();
+        let from_block = SlateChain::after(&b).unwrap();
+        let from_anchor = SlateChain::from_anchor(&anchor, Some(&b));
+        for t in [60_000, 64_000, 70_000, 80_000, 5_000_000] {
+            let (x, y) = (
+                render_slate_media(&s, Track::Video(720), t, Some(&from_block), &Sig, 0),
+                render_slate_media(&s, Track::Video(720), t, Some(&from_anchor), &Sig, 0),
+            );
+            assert_eq!(x, y, "t={t}");
+        }
+        // Without the programme (its asset is gone) the numbers are the same, only the tail is missing.
+        let bare = SlateChain::from_anchor(&anchor, None);
+        let text = render_slate_media(&s, Track::Video(720), 70_000, Some(&bare), &Sig, 0).unwrap();
+        assert_eq!(seqs(&text).0, 110);
+        assert!(!text.contains("/cdn/hls/100/"));
+        // No anchor at all: the slate seeds from its own count since the epoch.
+        assert_eq!(slate_position(&s, None, 64_000), Some((32, 10)));
+    }
+
+    #[test]
+    fn a_chain_needs_assigned_bases() {
+        let mut b = lb(1, 0, 60_000, 0, 100, 4, 10);
+        b.block.seq_base = None;
+        assert!(SlateChain::after(&b).is_none());
+    }
+
+    #[test]
+    fn the_off_air_master_offers_the_standard_rungs() {
+        let mut s = slate();
+        let full = render_slate_master(&s, 0).unwrap();
+        assert!(full.contains("v/720.m3u8") && full.contains("v/1080.m3u8"));
+        assert!(
+            slate_missing_heights(&s).contains(&480),
+            "sample has no 480"
+        );
+        // A slate with only a non-standard rung offers what it has.
+        s.media.videos.retain(|v| v.height == 720);
+        let one = render_slate_master(&s, 0).unwrap();
+        assert!(one.contains("v/720.m3u8") && !one.contains("v/1080.m3u8"));
+        assert!(slate_missing_heights(&s).contains(&1080));
     }
 
     #[test]

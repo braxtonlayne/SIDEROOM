@@ -33,6 +33,7 @@ DELETE	/applications/{application_id}/emojis/{emoji_id}	authenticated	owner	allo
 DELETE	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
 DELETE	/applications/{application_id}/testers/{account_id}	authenticated	owner	deny	-
 DELETE	/channels/{channel_id}	authenticated	membership	allow	-
+DELETE	/channels/{channel_id}/attachments/{upload_id}	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/messages/{message_id}/reactions	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-
@@ -210,6 +211,7 @@ GET	/admin/tv/channels/{channel_id}/schedule	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-
 GET	/admin/tv/guide-template	authenticated	staff	deny	-
 GET	/admin/tv/report	authenticated	staff	deny	-
+GET	/admin/tv/slate	authenticated	staff	deny	-
 GET	/announcements/active	authenticated	user	deny	-
 GET	/app-directory	authenticated	user	allow	-
 GET	/app-directory/tags	authenticated	user	allow	-
@@ -234,6 +236,7 @@ GET	/applications/{application_id}/versions	authenticated	owner	deny	-
 GET	/channels/{channel_id}	authenticated	membership	allow	-
 GET	/channels/{channel_id}/activity	authenticated	membership	allow	-
 GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-
+GET	/channels/{channel_id}/attachments/{upload_id}/parts	authenticated	membership	allow	-
 GET	/channels/{channel_id}/call	authenticated	membership	allow	-
 GET	/channels/{channel_id}/invites	authenticated	membership	allow	-
 GET	/channels/{channel_id}/messages	authenticated	membership	allow	-
@@ -306,6 +309,7 @@ GET	/gifs/trending	authenticated	self	deny	-
 GET	/guilds/templates/builtin	authenticated	membership	allow	-
 GET	/guilds/templates/{code}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/appearance	authenticated	membership	deny	-
 GET	/guilds/{guild_id}/audit-logs	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-
@@ -504,6 +508,7 @@ PATCH	/cinema/comments/{comment_id}	authenticated	author	allow	-
 PATCH	/cinema/lists/{list_id}	authenticated	author	allow	-
 PATCH	/donations/me/preferences	authenticated	self	allow	-
 PATCH	/guilds/{guild_id}	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/appearance	authenticated	membership	deny	-
 PATCH	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/channels	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
@@ -699,6 +704,7 @@ POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/mfa	authenticated	owner	allow	-
 POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/packages/{package_id}/apply	authenticated	membership	deny	-
+POST	/guilds/{guild_id}/packages/{package_id}/import	authenticated	membership	deny	-
 POST	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-

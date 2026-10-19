@@ -342,3 +342,30 @@
   font-size: clamp(18px, 3vw, 32px);
   color: var(--ltv-green);
 }
+
+/* captions over the instance slate loop while a channel is off air (D-266): the picture is the stream */
+.ltv-slate-caption {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 22%;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding-inline: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+.ltv-slate-caption-title,
+.ltv-slate-caption-body {
+  margin: 0;
+  padding: 6px 16px;
+  background: rgb(0 0 0 / 0.75);
+  font-family: var(--sr-teletext-font, ui-monospace, monospace);
+  color: var(--ltv-green);
+}
+.ltv-slate-caption-title {
+  font-size: clamp(18px, 3vw, 32px);
+}
+.ltv-slate-caption-body {
+  font-size: clamp(13px, 1.8vw, 18px);
+}

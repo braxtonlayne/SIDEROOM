@@ -3758,6 +3758,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tv/slate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The off-air slate: whether one is configured (platform setting `tv.slate_asset`, made by `sr-cli tv slate`,
+         *     D-269), its asset id and whether it plays.
+         */
+        get: operations["admin_tv_slate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/announcements/active": {
         parameters: {
             query?: never;
@@ -4430,6 +4450,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/attachments/{upload_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel an upload that was not attached to a message: frees the uploaded parts or the stored object. */
+        delete: operations["abort_upload"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/attachments/{upload_id}/complete": {
         parameters: {
             query?: never;
@@ -4441,6 +4478,23 @@ export interface paths {
         put?: never;
         /** Mark an uploaded file complete and learn its verified content type. */
         post: operations["complete_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/attachments/{upload_id}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resume a multipart upload: the parts that arrived and fresh URLs for the missing ones. */
+        get: operations["upload_parts"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6608,6 +6662,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/appearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The theme tokens and accent colour a member's client applies in this server (any member). */
+        get: operations["get_appearance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set or clear the server accent colour (`MANAGE_GUILD`). */
+        patch: operations["set_appearance"];
+        trace?: never;
+    };
     "/guilds/{guild_id}/audit-logs": {
         parameters: {
             query?: never;
@@ -7180,7 +7252,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** What is turned on in a server (`MANAGE_GUILD`). */
+        /** What is turned on in a server (`MANAGE_GUILD`; `MANAGE_GUILD_EXPRESSIONS` alone sees only the packs, D-282). */
         get: operations["guild_enabled"];
         put?: never;
         post?: never;
@@ -7198,10 +7270,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Turn an approved package on in a server (`MANAGE_GUILD`). Recipes are applied with `/apply` instead. */
+        /**
+         * Turn an approved package on in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack
+         *     `MANAGE_GUILD_EXPRESSIONS` alone is enough, D-282). Recipes are applied with `/apply` instead.
+         */
         put: operations["enable_for_guild"];
         post?: never;
-        /** Turn a package off in a server (`MANAGE_GUILD`). */
+        /**
+         * Turn a package off in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack `MANAGE_GUILD_EXPRESSIONS`
+         *     alone is enough, D-282). A pack takes the items it added with it.
+         */
         delete: operations["disable_for_guild"];
         options?: never;
         head?: never;
@@ -7223,6 +7301,28 @@ export interface paths {
          *     out keep their current value. Nothing is applied if any entry is no longer valid.
          */
         post: operations["apply_recipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/packages/{package_id}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add an approved emoji, sticker or sound pack to the server: the pack is turned on and its items become
+         *     the server's own emoji, stickers or sounds (`MANAGE_GUILD_EXPRESSIONS` alone suffices, `MANAGE_GUILD` too, D-282). Items that do
+         *     not fit (a name the server already uses, no free slot, a file type the list does not take) are listed
+         *     under `skipped`; the rest are added. Take the pack away again with `DELETE /guilds/{id}/packages/{package}`.
+         */
+        post: operations["import_pack"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13247,6 +13347,8 @@ export interface components {
             rate_limit_per_user: number;
             /** @description Voice and stage channels: always `null` (this installation has one voice region). */
             rtc_region?: string | null;
+            /** @description Voice channels: true for a Watch party room (D-208), a channel with a standing watch party. */
+            sr_watch_party_room?: boolean | null;
             thread_metadata?: null | components["schemas"]["ThreadMetadataObject"];
             topic?: string | null;
             /**
@@ -14931,7 +15033,10 @@ export interface components {
             user: components["schemas"]["GuildUserRef"];
         };
         EnableBody: {
-            /** @description Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. */
+            /**
+             * @description Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. For a server
+             *     `all` means the Lounge for a server; a server theme never recolours Cinema, Library or the Entrance (D-281).
+             */
             section?: string | null;
         };
         /** @description State of an application's HTTP interactions endpoint (D-186). */
@@ -16691,6 +16796,7 @@ export interface components {
              * @description The maximum accepted size for this caller.
              */
             max_size: number;
+            multipart?: null | components["schemas"]["MultipartSlot"];
             /** @description Opaque name to pass as `uploaded_filename` when creating the message. */
             upload_filename: string;
             /** @description Server-side upload id; reference it from the message. */
@@ -17183,6 +17289,21 @@ export interface components {
             id: string;
             username?: string | null;
         };
+        /** @description One item copied into the server. */
+        PackImportAdded: {
+            id: string;
+            name: string;
+        };
+        PackImportResult: {
+            added: components["schemas"]["PackImportAdded"][];
+            enablement: components["schemas"]["PackageEnablement"];
+            skipped: components["schemas"]["PackImportSkipped"][];
+        };
+        /** @description An item that was not copied, and why. */
+        PackImportSkipped: {
+            name: string;
+            reason: string;
+        };
         /** @description A sticker inside a pack. */
         PackStickerObject: {
             available: boolean;
@@ -17202,6 +17323,14 @@ export interface components {
              */
             type: number;
         };
+        /** @description Body of `PATCH /guilds/{id}/appearance`. */
+        PackageAppearanceBody: {
+            /**
+             * Format: int32
+             * @description The accent colour as `0xRRGGBB`; `null` clears it. Absent keeps it.
+             */
+            accent_color?: number | null;
+        };
         PackageCreateGuildBody: {
             /** @description 2 to 100 characters. */
             name: string;
@@ -17217,6 +17346,12 @@ export interface components {
             config: Record<string, never>;
             /** Format: int64 */
             enabled_at_ms: number;
+            /**
+             * Format: int64
+             * @description For a pack turned on in a server: how many emoji, stickers or sounds it added and are still there to be
+             *     taken away (D-282). Absent for every other enablement.
+             */
+            item_count?: number | null;
             kind: components["schemas"]["PackageKind"];
             name: string;
             package_id: string;
@@ -17233,6 +17368,25 @@ export interface components {
             path: string;
             /** Format: int64 */
             size: number;
+        };
+        /** @description What a member's client applies for a server (`GET /guilds/{id}/appearance`). */
+        PackageGuildAppearance: {
+            /**
+             * Format: int32
+             * @description The server accent colour as `0xRRGGBB`, null when unset.
+             */
+            accent_color?: number | null;
+            theme?: null | components["schemas"]["PackageGuildTheme"];
+        };
+        PackageGuildTheme: {
+            name: string;
+            package_id: string;
+            /** @description `light` or `dark`. */
+            scheme: string;
+            slug: string;
+            /** @description `--ui-*` design tokens, validated when the package was reviewed. */
+            tokens: Record<string, never>;
+            version_id: string;
         };
         /** @enum {string} */
         PackageKind: "theme" | "profile_layout" | "emoji_pack" | "sticker_pack" | "sound_pack" | "recipe" | "server_template";
@@ -20107,6 +20261,20 @@ export interface components {
             offset_ms?: number | null;
             title_id: string;
         };
+        /** @description The off-air slate for staff (D-269): what is configured and whether it plays. */
+        TvSlate: {
+            /** @description The configured asset id. */
+            asset_id?: string | null;
+            /** @description A slate asset is configured (setting `tv.slate_asset`, or the `SR_TV_SLATE_ASSET` fallback). */
+            configured: boolean;
+            /**
+             * Format: int64
+             * @description Length of one pass of the loop, when known.
+             */
+            duration_ms?: number | null;
+            /** @description The asset exists and has renditions to play. */
+            playable: boolean;
+        };
         /** @description A weekly slot as the API shows and accepts it. */
         TvSlot: {
             /** Format: int32 */
@@ -20143,6 +20311,12 @@ export interface components {
             next?: null | components["schemas"]["TvBlock"];
             /** Format: int64 */
             offset_ms?: number | null;
+            /**
+             * @description True when `master_url` is the instance slate loop played while the channel is off air (D-266):
+             *     `state` stays `off_air` and `current`, `offset_ms` stay null. False when the programme is live or
+             *     there is no slate (then there is no `master_url` either).
+             */
+            slate: boolean;
             state: components["schemas"]["TvTuneState"];
             /** Format: int32 */
             viewers: number;
@@ -23067,6 +23241,15 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The asset is the Live TV slate. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -33493,6 +33676,41 @@ export interface operations {
             };
         };
     };
+    admin_tv_slate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvSlate"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     active: {
         parameters: {
             query?: never;
@@ -35543,6 +35761,54 @@ export interface operations {
             };
         };
     };
+    abort_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Upload id from the slot response */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload discarded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already attached to a message */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     complete_upload: {
         parameters: {
             query?: never;
@@ -35565,6 +35831,55 @@ export interface operations {
                     "application/json": components["schemas"]["AttachmentObject"];
                 };
             };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    upload_parts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Upload id from the slot response */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadParts"];
+                };
+            };
+            /** @description Not a multipart upload, or already completed */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -42268,6 +42583,94 @@ export interface operations {
             };
         };
     };
+    get_appearance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageGuildAppearance"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_appearance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageAppearanceBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageGuildAppearance"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_audit_log: {
         parameters: {
             query?: {
@@ -44432,6 +44835,54 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    import_pack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Package snowflake */
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackImportResult"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

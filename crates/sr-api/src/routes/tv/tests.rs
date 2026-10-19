@@ -351,6 +351,7 @@ async fn every_route_needs_a_session_and_staff_routes_need_manage_tv() {
         ),
         (Method::DELETE, "/admin/tv/blocks/1".to_owned(), None),
         (Method::GET, "/admin/tv/report".to_owned(), None),
+        (Method::GET, "/admin/tv/slate".to_owned(), None),
     ];
     for (m, p, body) in staff_routes {
         let (s, _) = e.call(None, m.clone(), &p, body.clone()).await;
@@ -449,6 +450,10 @@ async fn channels_guide_now_and_tune_have_the_documented_shapes() {
         )
         .await;
     assert_eq!(s, StatusCode::OK, "{t}");
+    assert_eq!(
+        t["slate"], false,
+        "a programme is on air, not the slate (D-266)"
+    );
     assert_eq!(t["state"], "live");
     assert_eq!(
         t["master_url"],
@@ -1075,4 +1080,16 @@ async fn imported_guides_slots_imports_template_and_favorites() {
     for a in ["tv.slots.replace", "tv.guide.import", "tv.guide.confirm"] {
         assert!(actions.iter().any(|x| x == a), "missing {a} in {actions:?}");
     }
+}
+
+#[tokio::test]
+async fn staff_see_whether_a_slate_is_configured() {
+    let e = env().await;
+    let (s, b) = e
+        .call(Some(CURATOR), Method::GET, "/admin/tv/slate", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["configured"], false);
+    assert_eq!(b["playable"], false);
+    assert!(b.get("asset_id").is_none());
 }

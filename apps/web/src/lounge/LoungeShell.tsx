@@ -20,6 +20,8 @@ import { ComingSoon } from '@sideroom/ui';
 import { firstTextChannel, HOME, navigableChannels, step } from './channels';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
+import { useServerAppearance } from '../packages/serverAppearance';
+import { useStoreThemes } from '../packages/themes';
 import { loadMarkdownEngine } from './markdown';
 import { loadPermEngine } from './permEngine';
 import {
@@ -246,6 +248,9 @@ function Shell() {
   useVisualViewport();
   const openSettings = useOpenUserSettings();
   const theme = useAppliedTheme();
+  const serverLook = useServerAppearance(isHome ? undefined : guildId, theme.allowServerTheming);
+  // A Theme Store preview beats the server's look too (D-280): the server theme and accent step aside while it is open.
+  const previewing = useStoreThemes((s) => s.preview !== null);
   useLoungeShortcuts({
     openSwitcher: () => setSwitcher(true),
     toggleSheet: () => setSheet((s) => !s),
@@ -290,12 +295,12 @@ function Shell() {
   return (
     <ThemeProvider
       section="lounge"
-      serverAccent={guild?.accent ?? null}
+      serverAccent={previewing ? null : (serverLook.accent ?? guild?.accent ?? null)}
       allowServerTheming={theme.allowServerTheming}
       userGlobal={theme.userGlobal}
       perSection={theme.perSection}
       appearance={theme.appearance}
-      style={theme.style}
+      style={previewing ? theme.style : { ...theme.style, ...serverLook.style }}
       {...theme.data}
       className="lng-root"
       data-mobile={isMobile || undefined}

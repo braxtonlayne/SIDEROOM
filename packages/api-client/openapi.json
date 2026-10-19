@@ -3278,6 +3278,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The asset is the Live TV slate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -18834,6 +18844,52 @@
         ]
       }
     },
+    "/admin/tv/slate": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The off-air slate: whether one is configured (platform setting `tv.slate_asset`, made by `sr-cli tv slate`,\nD-269), its asset id and whether it plays.",
+        "operationId": "admin_tv_slate",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvSlate"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/announcements/active": {
       "get": {
         "tags": [
@@ -22225,6 +22281,78 @@
         ]
       }
     },
+    "/channels/{channel_id}/attachments/{upload_id}": {
+      "delete": {
+        "tags": [
+          "attachments"
+        ],
+        "summary": "Cancel an upload that was not attached to a message: frees the uploaded parts or the stored object.",
+        "operationId": "abort_upload",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload id from the slot response",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Upload discarded"
+          },
+          "400": {
+            "description": "Already attached to a message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/attachments/{upload_id}/complete": {
       "post": {
         "tags": [
@@ -22265,6 +22393,85 @@
           },
           "400": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/attachments/{upload_id}/parts": {
+      "get": {
+        "tags": [
+          "attachments"
+        ],
+        "summary": "Resume a multipart upload: the parts that arrived and fresh URLs for the missing ones.",
+        "operationId": "upload_parts",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload id from the slot response",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadParts"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a multipart upload, or already completed",
             "content": {
               "application/json": {
                 "schema": {
@@ -32929,6 +33136,138 @@
         ]
       }
     },
+    "/guilds/{guild_id}/appearance": {
+      "get": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "The theme tokens and accent colour a member's client applies in this server (any member).",
+        "operationId": "get_appearance",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageGuildAppearance"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "Set or clear the server accent colour (`MANAGE_GUILD`).",
+        "operationId": "set_appearance",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageAppearanceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageGuildAppearance"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/audit-logs": {
       "get": {
         "tags": [
@@ -36375,7 +36714,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "What is turned on in a server (`MANAGE_GUILD`).",
+        "summary": "What is turned on in a server (`MANAGE_GUILD`; `MANAGE_GUILD_EXPRESSIONS` alone sees only the packs, D-282).",
         "operationId": "guild_enabled",
         "parameters": [
           {
@@ -36425,7 +36764,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "Turn an approved package on in a server (`MANAGE_GUILD`). Recipes are applied with `/apply` instead.",
+        "summary": "Turn an approved package on in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack\n`MANAGE_GUILD_EXPRESSIONS` alone is enough, D-282). Recipes are applied with `/apply` instead.",
         "operationId": "enable_for_guild",
         "parameters": [
           {
@@ -36509,7 +36848,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "Turn a package off in a server (`MANAGE_GUILD`).",
+        "summary": "Turn a package off in a server (`MANAGE_GUILD`; for an emoji, sticker or sound pack `MANAGE_GUILD_EXPRESSIONS`\nalone is enough, D-282). A pack takes the items it added with it.",
         "operationId": "disable_for_guild",
         "parameters": [
           {
@@ -36622,6 +36961,82 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/packages/{package_id}/import": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "Add an approved emoji, sticker or sound pack to the server: the pack is turned on and its items become\nthe server's own emoji, stickers or sounds (`MANAGE_GUILD_EXPRESSIONS` alone suffices, `MANAGE_GUILD` too, D-282). Items that do\nnot fit (a name the server already uses, no free slot, a file type the list does not take) are listed\nunder `skipped`; the rest are added. Take the pack away again with `DELETE /guilds/{id}/packages/{package}`.",
+        "operationId": "import_pack",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "package_id",
+            "in": "path",
+            "description": "Package snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackImportResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -63325,6 +63740,13 @@
             ],
             "description": "Voice and stage channels: always `null` (this installation has one voice region)."
           },
+          "sr_watch_party_room": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Voice channels: true for a Watch party room (D-208), a channel with a standing watch party."
+          },
           "thread_metadata": {
             "oneOf": [
               {
@@ -68725,7 +69147,7 @@
               "string",
               "null"
             ],
-            "description": "Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`."
+            "description": "Where a theme applies: `all` (the default) or a section such as `lounge`, `cinema`, `library`. For a server\n`all` means the Lounge for a server; a server theme never recolours Cinema, Library or the Entrance (D-281)."
           }
         }
       },
@@ -74388,6 +74810,17 @@
             "description": "The maximum accepted size for this caller.",
             "minimum": 0
           },
+          "multipart": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MultipartSlot",
+                "description": "Present for files above 64 MB on a server with multipart storage: send the file in\n`part_size` parts to these URLs (`upload_url` is empty then), resume with\n`GET .../attachments/{upload_id}/parts`, and finish with `/complete`."
+              }
+            ]
+          },
           "upload_filename": {
             "type": "string",
             "description": "Opaque name to pass as `uploaded_filename` when creating the message."
@@ -75999,6 +76432,63 @@
           }
         }
       },
+      "PackImportAdded": {
+        "type": "object",
+        "description": "One item copied into the server.",
+        "required": [
+          "name",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PackImportResult": {
+        "type": "object",
+        "required": [
+          "enablement",
+          "added",
+          "skipped"
+        ],
+        "properties": {
+          "added": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackImportAdded"
+            }
+          },
+          "enablement": {
+            "$ref": "#/components/schemas/PackageEnablement"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackImportSkipped"
+            }
+          }
+        }
+      },
+      "PackImportSkipped": {
+        "type": "object",
+        "description": "An item that was not copied, and why.",
+        "required": [
+          "name",
+          "reason"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "PackStickerObject": {
         "type": "object",
         "description": "A sticker inside a pack.",
@@ -76043,6 +76533,20 @@
             "format": "int32",
             "description": "1 = standard sticker.",
             "minimum": 0
+          }
+        }
+      },
+      "PackageAppearanceBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/appearance`.",
+        "properties": {
+          "accent_color": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The accent colour as `0xRRGGBB`; `null` clears it. Absent keeps it."
           }
         }
       },
@@ -76106,6 +76610,14 @@
             "type": "integer",
             "format": "int64"
           },
+          "item_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "For a pack turned on in a server: how many emoji, stickers or sounds it added and are still there to be\ntaken away (D-282). Absent for every other enablement."
+          },
           "kind": {
             "$ref": "#/components/schemas/PackageKind"
           },
@@ -76154,6 +76666,64 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "PackageGuildAppearance": {
+        "type": "object",
+        "description": "What a member's client applies for a server (`GET /guilds/{id}/appearance`).",
+        "properties": {
+          "accent_color": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The server accent colour as `0xRRGGBB`, null when unset."
+          },
+          "theme": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PackageGuildTheme",
+                "description": "The server-wide theme, null when the server uses the built-in look."
+              }
+            ]
+          }
+        }
+      },
+      "PackageGuildTheme": {
+        "type": "object",
+        "required": [
+          "package_id",
+          "version_id",
+          "slug",
+          "name",
+          "scheme",
+          "tokens"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "package_id": {
+            "type": "string"
+          },
+          "scheme": {
+            "type": "string",
+            "description": "`light` or `dark`."
+          },
+          "slug": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "object",
+            "description": "`--ui-*` design tokens, validated when the package was reviewed."
+          },
+          "version_id": {
+            "type": "string"
           }
         }
       },
@@ -85482,6 +86052,39 @@
           }
         }
       },
+      "TvSlate": {
+        "type": "object",
+        "description": "The off-air slate for staff (D-269): what is configured and whether it plays.",
+        "required": [
+          "configured",
+          "playable"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The configured asset id."
+          },
+          "configured": {
+            "type": "boolean",
+            "description": "A slate asset is configured (setting `tv.slate_asset`, or the `SR_TV_SLATE_ASSET` fallback)."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Length of one pass of the loop, when known."
+          },
+          "playable": {
+            "type": "boolean",
+            "description": "The asset exists and has renditions to play."
+          }
+        }
+      },
       "TvSlot": {
         "type": "object",
         "description": "A weekly slot as the API shows and accepts it.",
@@ -85584,6 +86187,7 @@
         "required": [
           "channel_id",
           "state",
+          "slate",
           "viewers"
         ],
         "properties": {
@@ -85623,6 +86227,10 @@
               "null"
             ],
             "format": "int64"
+          },
+          "slate": {
+            "type": "boolean",
+            "description": "True when `master_url` is the instance slate loop played while the channel is off air (D-266):\n`state` stays `off_air` and `current`, `offset_ms` stay null. False when the programme is live or\nthere is no slate (then there is no `master_url` either)."
           },
           "state": {
             "$ref": "#/components/schemas/TvTuneState"

@@ -8,7 +8,7 @@ Synchronized playback of Cinema content (VOD or a Live TV channel) for a group, 
 ## 2. Where parties live
 | Entry point | Result |
 |---|---|
-| Title page → **Watch together** | Choose: a Lounge text/voice channel you can post in, a DM/group DM, or "Private party" (shareable link to friends) |
+| Title page → **Watch together** | Choose: a Lounge text/voice channel you can post in, a DM/group DM, or "Private party" (shareable link to friends) (the picker lists Watch party rooms first and preselects the last destination used in the server, D-264) |
 | Lounge voice channel → **Start Watch Party** (call bar button) | Party bound to that voice channel. Voice continues as normal (E2EE call) |
 | **Watch party room** preset (create-channel dialog, D-208) | There is no channel type of its own: `POST /guilds/{id}/channels {type: 2, sr_watch_party_room: true, sr_watch_party_title_id?, sr_watch_party_episode_id?}` (the title is optional since D-227: without one the room starts empty, `media: null`) creates the voice channel and a persistent party bound to it in one request (the new channel is removed again when the party cannot start). The creator is not left in the party; the first person to join the empty room becomes host |
 | Lounge message `<cinema:…>` card → **Watch together** | Starts a party in that channel |
@@ -18,7 +18,7 @@ A system message in the channel ("@host started a watch party: *Akira* ▶ Join"
 
 ## 3. Theatre UI
 - Player (same as the Cinema player) + right panel with tabs **Chat** (the bound channel's chat, or the party's own chat for private parties) · **Queue** · **People**.
-- Voice controls bar if bound to voice (mute/deafen/leave). Webcam bubbles as optional small overlays.
+- Voice controls bar if bound to voice (mute/deafen/leave). Webcam bubbles over the stage while in a call, shown by default when a camera is live, hidden per account with Hide cameras (D-265).
 - Reactions overlay (emoji float up on screen, rate-limited).
 - "Ready check" before start (optional).
 - Mini player when navigating elsewhere (Lounge, Library): playback continues in a floating PiP while the voice call continues (D-110).

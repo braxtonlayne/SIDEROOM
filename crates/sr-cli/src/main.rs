@@ -3,7 +3,9 @@
 
 mod commands;
 mod guilds;
+mod library_seed;
 mod ops;
+mod tv;
 
 use std::path::PathBuf;
 
@@ -48,6 +50,9 @@ pub enum Command {
     /// Account recovery tools.
     #[command(subcommand)]
     User(UserCmd),
+    /// Live TV administration.
+    #[command(subcommand)]
+    Tv(TvCmd),
     /// Re-encrypt every stored TOTP secret under `server.secret_key`. Run after
     /// moving the old key into `server.secret_key_previous` (open question 40).
     RotateSecretKey,
@@ -93,6 +98,31 @@ pub enum Command {
         password: String,
         #[arg(long)]
         force: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TvCmd {
+    /// Make the off-air slate loop (colour bars and a tone) with ffmpeg, ingest it as a system-owned asset
+    /// through the ordinary transcode job, wait for it and register it as the platform setting
+    /// `tv.slate_asset`. Run on a machine with ffmpeg and a running sr-server and transcoder worker; a second
+    /// run replaces the asset and removes the previous one. Prints the asset id.
+    Slate {
+        /// The test picture.
+        #[arg(long, value_enum, default_value = "bars", conflicts_with = "remove")]
+        picture: tv::Picture,
+        /// Length of the loop in seconds (1 to 600).
+        #[arg(long, default_value_t = 12, conflicts_with = "remove")]
+        seconds: u32,
+        /// The ffmpeg binary (default: SR_FFMPEG, else ffmpeg on PATH).
+        #[arg(long, conflicts_with = "remove")]
+        ffmpeg: Option<String>,
+        /// How long to wait for the transcode, in seconds.
+        #[arg(long, default_value_t = tv::DEFAULT_WAIT_SECS, conflicts_with = "remove")]
+        wait_secs: u64,
+        /// Instead of making a slate: clear `tv.slate_asset` and retire the slate asset. Prints what it did.
+        #[arg(long)]
+        remove: bool,
     },
 }
 
@@ -196,6 +226,51 @@ mod tests {
 
     #[test]
     fn parses_subcommands() {
+        let slate = Cli::try_parse_from(["sr-cli", "tv", "slate"]).unwrap();
+        assert!(matches!(
+            slate.command,
+            Command::Tv(TvCmd::Slate {
+                seconds: 12,
+                picture: tv::Picture::Bars,
+                ..
+            })
+        ));
+        let remove = Cli::try_parse_from(["sr-cli", "tv", "slate", "--remove"]).unwrap();
+        assert!(matches!(
+            remove.command,
+            Command::Tv(TvCmd::Slate { remove: true, .. })
+        ));
+        // --remove is exclusive with the options of making one.
+        for extra in [
+            ["--picture", "moving"],
+            ["--seconds", "6"],
+            ["--ffmpeg", "ff"],
+            ["--wait-secs", "5"],
+        ] {
+            assert!(
+                Cli::try_parse_from(["sr-cli", "tv", "slate", "--remove", extra[0], extra[1]])
+                    .is_err(),
+                "{extra:?}"
+            );
+        }
+        let moving = Cli::try_parse_from([
+            "sr-cli",
+            "tv",
+            "slate",
+            "--picture",
+            "moving",
+            "--seconds",
+            "6",
+        ])
+        .unwrap();
+        assert!(matches!(
+            moving.command,
+            Command::Tv(TvCmd::Slate {
+                seconds: 6,
+                picture: tv::Picture::Moving,
+                ..
+            })
+        ));
         let c = Cli::try_parse_from([
             "sr-cli",
             "bootstrap",

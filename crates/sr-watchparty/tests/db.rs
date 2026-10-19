@@ -1638,6 +1638,61 @@ impl sr_watchparty::ChatHook for ChatRecorder {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_persistent_party_tells_the_room_hook_when_it_ends_or_turns_ordinary() {
+    use sr_watchparty::AnnouncementKind::RoomClosed;
+    let e = env().await;
+    let rec = Arc::new(ChatRecorder::default());
+    let svc = PartyService::new(e.pool().clone(), e.clock.clone(), Arc::new(uid))
+        .with_play_gate(Arc::new(FakeGate))
+        .with_channels(e.chan.clone())
+        .with_age(e.age.clone())
+        .with_events(e.events.clone())
+        .with_chat(rec.clone());
+    let host = e.user().await;
+    let channel = e.channel(host, &[], host, ChannelKind::Voice).await;
+    let closed = |rec: &ChatRecorder| {
+        rec.0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|a| a.kind == RoomClosed && a.channel_id == channel)
+            .count()
+    };
+    let persistent = |on| {
+        let mut i = create(1);
+        i.channel_id = Some(channel);
+        i.settings = Some(sr_watchparty::model::SettingsInput {
+            persistent: Some(on),
+            ..Default::default()
+        });
+        i
+    };
+    // Ending a standing party closes the room.
+    let a = svc.create(e.v(host).await, persistent(true)).await.unwrap();
+    assert_eq!(closed(&rec), 0);
+    svc.end(e.v(host).await, a.id).await.unwrap();
+    assert_eq!(closed(&rec), 1);
+    // Making it an ordinary party closes it too.
+    let b = svc.create(e.v(host).await, persistent(true)).await.unwrap();
+    svc.update_settings(
+        e.v(host).await,
+        b.id,
+        sr_watchparty::model::SettingsInput {
+            persistent: Some(false),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(closed(&rec), 2);
+    // An ordinary party that ends never was a room.
+    svc.end(e.v(host).await, b.id).await.unwrap();
+    assert_eq!(closed(&rec), 2);
+    e.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn the_chat_card_hears_the_start_the_headcount_and_the_end() {
     use sr_watchparty::AnnouncementKind::{Ended, Started, Updated};
     let e = env().await;

@@ -3,6 +3,11 @@
 // pause, and an IndexedDB ledger keeps the file and the upload slot, so after a refresh the manager asks the
 // server which parts arrived and sends only the missing ones. The server completes the upload itself
 // from the parts it holds, so the browser never needs the part ETags.
+import {
+  IdbLedger as SharedIdbLedger,
+  MemoryLedger as SharedMemoryLedger,
+  type Ledger as SharedLedger,
+} from '../lib/uploadLedger';
 import type * as P from './apiP13';
 
 export const PART_CONCURRENCY = 4;
@@ -27,65 +32,15 @@ export interface LedgerEntry {
   file: File | Blob;
 }
 
-export interface Ledger {
-  put(e: LedgerEntry): Promise<void>;
-  all(): Promise<LedgerEntry[]>;
-  remove(id: string): Promise<void>;
-}
+export type Ledger = SharedLedger<LedgerEntry>;
 
 /** A ledger that lives as long as the page (tests, or browsers without IndexedDB). */
-export class MemoryLedger implements Ledger {
-  private rows = new Map<string, LedgerEntry>();
-  async put(e: LedgerEntry) {
-    this.rows.set(e.id, { ...e });
-  }
-  async all() {
-    return [...this.rows.values()].map((r) => ({ ...r }));
-  }
-  async remove(id: string) {
-    this.rows.delete(id);
-  }
-}
+export class MemoryLedger extends SharedMemoryLedger<LedgerEntry> {}
 
-/** IndexedDB ledger. Every call falls back quietly: a blocked database must never break an upload. */
-export class IdbLedger implements Ledger {
-  private db: Promise<IDBDatabase | null>;
-  constructor(name = 'sideroom-uploads') {
-    this.db = new Promise((resolve) => {
-      try {
-        const req = indexedDB.open(name, 1);
-        req.onupgradeneeded = () => req.result.createObjectStore('uploads', { keyPath: 'id' });
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => resolve(null);
-      } catch {
-        resolve(null);
-      }
-    });
-  }
-  private async run<T>(
-    mode: IDBTransactionMode,
-    f: (s: IDBObjectStore) => IDBRequest<T>,
-  ): Promise<T | null> {
-    const db = await this.db;
-    if (!db) return null;
-    return new Promise((resolve) => {
-      try {
-        const req = f(db.transaction('uploads', mode).objectStore('uploads'));
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => resolve(null);
-      } catch {
-        resolve(null);
-      }
-    });
-  }
-  async put(e: LedgerEntry) {
-    await this.run('readwrite', (s) => s.put(e));
-  }
-  async all() {
-    return (await this.run('readonly', (s) => s.getAll() as IDBRequest<LedgerEntry[]>)) ?? [];
-  }
-  async remove(id: string) {
-    await this.run('readwrite', (s) => s.delete(id));
+/** IndexedDB ledger (the `uploads` store of the shared database, lib/uploadLedger.ts). */
+export class IdbLedger extends SharedIdbLedger<LedgerEntry> {
+  constructor(name?: string) {
+    super('uploads', name);
   }
 }
 

@@ -1,0 +1,34 @@
+name: E2E stack
+description: >-
+  Toolchains, Postgres and Garage, sr-server and sr-cli, pnpm dependencies and the WASM bundle that every
+  e2e job needs. The caller installs its own browsers and runs the specs.
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@stable
+      with: { targets: wasm32-unknown-unknown }
+    - uses: Swatinem/rust-cache@v2
+    - uses: taiki-e/install-action@v2
+      with: { tool: "wasm-pack" }
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+    - name: Start Postgres and Garage
+      shell: bash
+      run: |
+        docker compose -f deploy/compose/dev.yml up -d --wait postgres
+        docker compose -f deploy/compose/dev.yml up -d garage
+        ./deploy/compose/garage/bootstrap.sh
+    - name: Build sr-server and sr-cli
+      shell: bash
+      run: cargo build -p sr-server -p sr-cli
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+    # The Lounge imports the WASM bundle from @sideroom/wasm (packages/wasm/dist); without it Vite
+    # fails with 'Failed to resolve import ../dist/...' and its error overlay blocks every click.
+    - name: Build the WASM bundle
+      shell: bash
+      run: pnpm --filter @sideroom/wasm build

@@ -79,7 +79,7 @@ export function Loaded<T>({
   return (
     <Notice variant="danger" title={t('settings.parts.loadError', { what })}>
       {errorText(res.error)}{' '}
-      <Button variant="link" size="sm" onClick={res.reload}>
+      <Button variant="secondary" size="sm" onClick={res.reload}>
         {t('settings.parts.tryAgain')}
       </Button>
     </Notice>

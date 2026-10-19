@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { browserAudioDeps } from '../../../voice/deps';
+import { usePrefsStore } from '../prefs';
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../../../voice/settings';
 import { FakeAnalyser, FakeAudioContext, FakeStream } from '../../../voice/__tests__/fakes';
 import { openSettings, resetPrefs, signedIn } from './helpers';
@@ -60,6 +61,17 @@ describe('Settings > Voice & Video', () => {
     });
     expect(state().inputVolume).toBe(170);
     expect(state().outputVolume).toBe(35);
+  });
+
+  it('turns the watch party camera bubbles off and on (D-265)', async () => {
+    const user = userEvent.setup();
+    openSettings('voice');
+    const sw = await screen.findByRole('switch', { name: /Show cameras over watch parties/ });
+    expect(sw).toBeChecked();
+    await user.click(sw);
+    expect(usePrefsStore.getState().prefs.watchPartyCameras).toBe(false);
+    await user.click(sw);
+    expect(usePrefsStore.getState().prefs.watchPartyCameras).toBe(true);
   });
 
   it('explains a blocked microphone and offers to check again', async () => {

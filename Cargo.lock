@@ -6044,6 +6044,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "clap",
+ "image",
  "rpassword",
  "serde_json",
  "sha2 0.11.0",
@@ -6054,9 +6055,12 @@ dependencies = [
  "sr-chat",
  "sr-core",
  "sr-db",
+ "sr-library",
+ "sr-media",
  "sr-packages",
  "sr-storage",
  "sr-theme",
+ "sr-transcoder",
  "tokio",
  "tracing",
  "url",
@@ -6437,6 +6441,7 @@ name = "sr-sdk"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "axum",
  "base64 0.23.1",
  "futures",
  "p256 0.13.2",
@@ -6446,6 +6451,9 @@ dependencies = [
  "sr-core",
  "sr-e2ee",
  "sr-gateway",
+ "sr-voice",
+ "sr-voice-proto",
+ "str0m",
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite",

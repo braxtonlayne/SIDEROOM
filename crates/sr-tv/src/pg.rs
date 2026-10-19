@@ -6,8 +6,8 @@ use sqlx::{PgPool, Row, postgres::PgRow};
 
 use crate::error::{TvError, TvResult};
 use crate::model::{
-    BlockKind, BlockRecord, BlockSource, ChannelInput, ChannelKind, ChannelRecord, ChannelRules,
-    Cursor, FillerPolicy, ImportRecord, MediaKind, ReminderRecord, SlotRecord,
+    BlockKind, BlockRecord, BlockSource, ChainAnchor, ChannelInput, ChannelKind, ChannelRecord,
+    ChannelRules, Cursor, FillerPolicy, ImportRecord, MediaKind, ReminderRecord, SlotRecord,
 };
 use crate::repo::TvRepository;
 use crate::schedule::Change;
@@ -31,7 +31,7 @@ fn bad(what: &str, v: &str) -> TvError {
 }
 
 const CHANNEL_COLS: &str = "id, number, name, call_sign, era_label, theme, logo_key, enabled, kind, timezone, \
-     age_restricted, filler_policy, rules, seed, \
+     age_restricted, filler_policy, rules, seed, chain_end_ms, chain_seq, chain_disc, chain_block_id, \
      (extract(epoch FROM created_at) * 1000)::bigint AS created_ms, \
      (extract(epoch FROM updated_at) * 1000)::bigint AS updated_ms";
 
@@ -83,6 +83,22 @@ fn import_of(r: &PgRow) -> TvResult<ImportRecord> {
     })
 }
 
+fn chain_of(r: &PgRow) -> TvResult<Option<ChainAnchor>> {
+    let end: Option<i64> = r.try_get("chain_end_ms").map_err(db)?;
+    let seq: Option<i64> = r.try_get("chain_seq").map_err(db)?;
+    let disc: Option<i64> = r.try_get("chain_disc").map_err(db)?;
+    let block: Option<i64> = r.try_get("chain_block_id").map_err(db)?;
+    Ok(match (end, seq, disc, block) {
+        (Some(end_ms), Some(seq), Some(disc), Some(block_id)) => Some(ChainAnchor {
+            end_ms,
+            seq,
+            disc,
+            block_id,
+        }),
+        _ => None,
+    })
+}
+
 fn channel_of(r: &PgRow) -> TvResult<ChannelRecord> {
     let kind: String = r.try_get("kind").map_err(db)?;
     let filler: String = r.try_get("filler_policy").map_err(db)?;
@@ -92,6 +108,7 @@ fn channel_of(r: &PgRow) -> TvResult<ChannelRecord> {
         seed: r.try_get("seed").map_err(db)?,
         created_at_ms: r.try_get("created_ms").map_err(db)?,
         updated_at_ms: r.try_get("updated_ms").map_err(db)?,
+        chain: chain_of(r)?,
         input: ChannelInput {
             number: r.try_get("number").map_err(db)?,
             name: r.try_get("name").map_err(db)?,
@@ -397,7 +414,14 @@ impl TvRepository for PgTvRepo {
         Ok(written)
     }
 
-    async fn set_bases(&self, id: i64, seq_base: i64, disc_base: i64) -> TvResult<(i64, i64)> {
+    async fn set_bases(
+        &self,
+        id: i64,
+        seq_base: i64,
+        disc_base: i64,
+        on_air: i64,
+    ) -> TvResult<(i64, i64)> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
         sqlx::query(
             "UPDATE tv_blocks SET seq_base = $2, disc_base = $3 \
              WHERE id = $1 AND (seq_base IS NULL OR disc_base IS NULL)",
@@ -405,18 +429,53 @@ impl TvRepository for PgTvRepo {
         .bind(id)
         .bind(seq_base)
         .bind(disc_base)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        let row = sqlx::query(
+            "SELECT channel_id, end_ms, seq_base, disc_base FROM tv_blocks WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?
+        .ok_or(TvError::NotFound("block"))?;
+        let s: Option<i64> = row.try_get("seq_base").map_err(db)?;
+        let d: Option<i64> = row.try_get("disc_base").map_err(db)?;
+        let (seq, disc) = (s.unwrap_or(seq_base), d.unwrap_or(disc_base));
+        let channel: i64 = row.try_get("channel_id").map_err(db)?;
+        let end: i64 = row.try_get("end_ms").map_err(db)?;
+        // The anchor only ever moves to a later end (D-285).
+        sqlx::query(
+            "UPDATE tv_channels SET chain_end_ms = $2, chain_seq = $3, chain_disc = $4, chain_block_id = $5 \
+             WHERE id = $1 AND (chain_end_ms IS NULL OR chain_end_ms < $2)",
+        )
+        .bind(channel)
+        .bind(end)
+        .bind(seq + on_air)
+        .bind(disc + 1)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        tx.commit().await.map_err(db)?;
+        Ok((seq, disc))
+    }
+
+    async fn set_anchor(&self, channel: i64, a: ChainAnchor) -> TvResult<()> {
+        sqlx::query(
+            "UPDATE tv_channels SET chain_end_ms = $2, chain_seq = $3, chain_disc = $4, chain_block_id = $5 \
+             WHERE id = $1",
+        )
+        .bind(channel)
+        .bind(a.end_ms)
+        .bind(a.seq)
+        .bind(a.disc)
+        .bind(a.block_id)
         .execute(&self.pool)
         .await
         .map_err(db)?;
-        let row = sqlx::query("SELECT seq_base, disc_base FROM tv_blocks WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(db)?
-            .ok_or(TvError::NotFound("block"))?;
-        let s: Option<i64> = row.try_get("seq_base").map_err(db)?;
-        let d: Option<i64> = row.try_get("disc_base").map_err(db)?;
-        Ok((s.unwrap_or(seq_base), d.unwrap_or(disc_base)))
+        Ok(())
     }
 
     async fn put_reminder(&self, r: &ReminderRecord) -> TvResult<()> {

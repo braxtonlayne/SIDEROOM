@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { STATE_FILE, type BootstrapState } from '../global-setup';
 import { createInvite } from '../support/cli';
+import { openTheDoor } from '../support/register';
 
 /**
  * Lounge server flows: the Owner (user A) creates a server in the UI and an invite link; a newly registered
@@ -79,8 +80,7 @@ test.describe('Lounge server flows', () => {
     await b.getByLabel('Password', { exact: true }).fill(friend.password);
     await b.getByLabel('Confirm password').fill(friend.password);
     await b.getByLabel(/house notes/).check();
-    await b.getByRole('button', { name: 'Open the door' }).click();
-    await expect(b).toHaveURL(/\/channels/);
+    await openTheDoor(b);
 
     await b.goto(new URL(link).pathname);
     await expect(b.getByRole('heading', { name: serverName })).toBeVisible();

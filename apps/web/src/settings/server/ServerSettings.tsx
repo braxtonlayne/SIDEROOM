@@ -34,6 +34,7 @@ import { OverviewSection } from './sections/Overview';
 import { RolesSection } from './sections/Roles';
 import { ServerSupportSection } from './sections/ServerSupport';
 import { TagSection } from './sections/Tag';
+import { WatchLibrarySection } from './sections/WatchLibrary';
 
 export interface SectionProps {
   guildId: string;
@@ -137,8 +138,16 @@ export const SECTIONS: SectionDef[] = [
     id: 'extensions',
     label: 'settings.server.extensions',
     group: 'APPS',
-    visible: (v) => v.can('MANAGE_GUILD'),
+    // Packs need MANAGE_GUILD_EXPRESSIONS alone; themes, recipes and templates keep MANAGE_GUILD (D-282).
+    visible: (v) => any(v, 'MANAGE_GUILD', 'MANAGE_GUILD_EXPRESSIONS'),
     component: ExtensionsSection,
+  },
+  {
+    id: 'watch-library',
+    label: 'settings.server.watchLibrary',
+    group: 'APPS',
+    visible: (v) => v.can('MANAGE_GUILD'),
+    component: WatchLibrarySection,
   },
   {
     id: 'integrations',
