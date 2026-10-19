@@ -53,3 +53,14 @@ All six items of `docs/dev/answers-followups-p16.md` are done and ticked. Small 
 2. Should Admin get an actual "remove slate" action (clear the setting) in the row, or is the CLI plus the Limits setting enough?
 
 Answered 2026-10-19 by the owner proxy: D-285 (stored per-channel anchor, L-16) and D-286 (no Admin action; `sr-cli tv slate --remove`, L-17) in `docs/01-decisions-log.md`, P16-BE-5 and P16-BE-6 in `docs/open-question-answers.md`.
+
+## Follow-ups, second round (L-16 and L-17, agent backend-2)
+
+Both ticked. Small commits prefixed with the id.
+
+- **L-16 (D-285)**. Migration `1040_tv_channel_chain.sql` adds `chain_end_ms`, `chain_seq`, `chain_disc` and, beyond the follow-up text, `chain_block_id` (the rewrite on an edit has to know which block anchors). The repository advances the anchor in the `set_bases` transaction (later end only) and the service rewrites it after an edit that moved the end of the anchoring block (`refresh_anchor` after place, publish and set-now). Decisions taken while implementing:
+  - The lead (slate before a young programme) cannot read the anchor, because by then the programme itself has moved it. It counts the slate back from the programme's own bases (the slate segment on air at its start is `seq_base - 1`) and lists the programme before it as a tail only when that programme's numbers agree. It is not listed from before the end of the last programme before it (any, even one whose asset is gone), so it never reaches programme numbers.
+  - An anchor in the future (its programme was cut short or removed while viewers were on it, so the slate plays now) moves to now minus one full window of slate, same numbers. Without the padding a later lead window started before an earlier slate window and the head went backwards (the property test found it).
+  - Replacing the slate by a loop of another length can renumber once for a client on it; the CLI says so (heuristic: it warns when the lengths differ or are not both known yet).
+  - An existing channel has no anchor until its next viewed programme: the slate seeds from its own count once more, as D-285 says.
+- **L-17 (D-286)**. `sr-cli tv slate --remove`. The Admin row names it and links to Limits; no button, no route. API-visible output did not change, so OpenAPI was not regenerated.
