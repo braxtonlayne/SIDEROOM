@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+  <title>reading</title>
+  <rect width="320" height="320" rx="44" fill="#c2b08f"/>
+  <rect x="14" y="14" width="292" height="292" rx="32" fill="none" stroke="#111110" stroke-opacity="0.55" stroke-width="2"/>
+  <text x="160" y="180.1" text-anchor="middle" font-family="Newsreader, 'Source Serif 4', Georgia, serif" font-size="67" font-weight="500" font-style="italic" fill="#111110">reading</text>
+</svg>

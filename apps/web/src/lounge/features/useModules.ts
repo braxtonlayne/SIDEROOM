@@ -14,6 +14,7 @@ export const MODULE = {
   rss: 'community.rss',
   libraryFeed: 'community.library_feed',
   watchPartyAnnouncer: 'community.watch_party_announcer',
+  watchPartyCards: 'community.watch_party_cards',
   suggestions: 'community.suggestions',
   tickets: 'community.tickets',
 } as const;

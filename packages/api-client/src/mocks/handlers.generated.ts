@@ -488,6 +488,8 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"list_channels","method":"get","path":"/guilds/:guild_id/channels","status":200,"body":[{"flags":0,"id":"1","nsfw":false,"permission_overwrites":[{}],"position":0,"rate_limit_per_user":0,"type":0}]},
   {"id":"create_channel","method":"post","path":"/guilds/:guild_id/channels","status":201,"body":{"flags":0,"id":"1","nsfw":false,"permission_overwrites":[{}],"position":0,"rate_limit_per_user":0,"type":0}},
   {"id":"reorder_channels","method":"patch","path":"/guilds/:guild_id/channels","status":204,"body":null},
+  {"id":"get_default_stickers","method":"get","path":"/guilds/:guild_id/default-sticker-packs","status":200,"body":{"hidden":false}},
+  {"id":"set_default_stickers","method":"put","path":"/guilds/:guild_id/default-sticker-packs","status":200,"body":{"hidden":false}},
   {"id":"get_own_listing","method":"get","path":"/guilds/:guild_id/directory","status":200,"body":{"category":"string","description":"string","featured":false,"guild_id":"1","requested_at":"2026-01-01T00:00:00.000Z","status":"string"}},
   {"id":"request_listing","method":"put","path":"/guilds/:guild_id/directory","status":200,"body":{"category":"string","description":"string","featured":false,"guild_id":"1","requested_at":"2026-01-01T00:00:00.000Z","status":"string"}},
   {"id":"withdraw_listing","method":"delete","path":"/guilds/:guild_id/directory","status":204,"body":null},

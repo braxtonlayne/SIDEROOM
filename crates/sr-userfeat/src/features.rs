@@ -17,6 +17,7 @@ pub const LEVELING_ID: &str = "community.leveling";
 pub const RSS_ID: &str = "community.rss";
 pub const LIBRARY_FEED_ID: &str = "community.library_feed";
 pub const WATCH_PARTY_ANNOUNCER_ID: &str = "community.watch_party_announcer";
+pub const WATCH_PARTY_CARDS_ID: &str = "community.watch_party_cards";
 pub const SUGGESTIONS_ID: &str = "community.suggestions";
 pub const TICKETS_ID: &str = "community.tickets";
 
@@ -271,6 +272,17 @@ module!(
 );
 
 module!(
+    WatchPartyCardsFeature,
+    WATCH_PARTY_CARDS_ID,
+    "Watch party cards",
+    "Post a live card in the channel when a party starts",
+    "Community",
+    17,
+    true,
+    vec![]
+);
+
+module!(
     SuggestionsFeature,
     SUGGESTIONS_ID,
     "Suggestions",
@@ -319,6 +331,7 @@ pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> 
         RssFeature,
         LibraryFeedFeature,
         WatchPartyAnnouncerFeature,
+        WatchPartyCardsFeature,
         SuggestionsFeature,
         TicketsFeature,
     )
@@ -338,9 +351,9 @@ mod tests {
     }
 
     #[test]
-    fn all_eleven_register_with_unique_ids_and_valid_defaults() {
+    fn all_twelve_register_with_unique_ids_and_valid_defaults() {
         let r = registry();
-        assert_eq!(r.len(), 11);
+        assert_eq!(r.len(), 12);
         for f in r.iter() {
             let schema = f.settings_schema();
             // Defaults must satisfy the schema they come from.
@@ -354,7 +367,13 @@ mod tests {
     #[test]
     fn user_modules_default_on_and_server_modules_default_off() {
         let r = registry();
-        for id in [SCHEDULED_ID, REMINDERS_ID, BOOKMARKS_ID, POLL_TEMPLATES_ID] {
+        for id in [
+            SCHEDULED_ID,
+            REMINDERS_ID,
+            BOOKMARKS_ID,
+            POLL_TEMPLATES_ID,
+            WATCH_PARTY_CARDS_ID,
+        ] {
             assert!(r.get(id).unwrap().meta().default_enabled, "{id}");
         }
         for id in [

@@ -5,6 +5,7 @@ mod commands;
 mod guilds;
 mod library_seed;
 mod ops;
+mod packages;
 mod tv;
 
 use std::path::PathBuf;
@@ -136,6 +137,13 @@ pub enum PackageCmd {
         /// Print the report as JSON.
         #[arg(long)]
         json: bool,
+    },
+    /// Install a starter pack folder (for example packages/starter-packs/side-room-words): validate it, then
+    /// create or update (by id) an approved package authored by the system user and its platform sticker pack.
+    /// Safe to run again.
+    Seed {
+        /// The pack folder.
+        dir: PathBuf,
     },
 }
 

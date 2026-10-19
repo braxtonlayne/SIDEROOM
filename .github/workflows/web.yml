@@ -63,6 +63,8 @@ jobs:
           name: web-dist
           path: apps/web/dist
       - run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+      # D-289: the committed sticker PNGs are reproducible from their SVG sources.
+      - run: node scripts/render-stickers.mjs --check
       - run: pnpm --filter @sideroom/e2e test:static
         env:
           CI: 'true'

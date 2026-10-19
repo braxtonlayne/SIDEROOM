@@ -1,0 +1,166 @@
+{
+  "kind": "sticker_pack",
+  "id": "side-room-words",
+  "name": "Side Room Words",
+  "version": "1.0.0",
+  "author": "SIDE ROOM",
+  "description": "Sixteen typographic stickers: a word on a rounded card, set in the Entrance type. CC0-1.0.",
+  "items": [
+    {
+      "name": "brb",
+      "file": "stickers/brb.png",
+      "description": "The word brb",
+      "tags": [
+        "be right back",
+        "away",
+        "back soon"
+      ]
+    },
+    {
+      "name": "gg",
+      "file": "stickers/gg.png",
+      "description": "The word gg",
+      "tags": [
+        "good game",
+        "well played"
+      ]
+    },
+    {
+      "name": "lol",
+      "file": "stickers/lol.png",
+      "description": "The word lol",
+      "tags": [
+        "laugh",
+        "funny",
+        "haha"
+      ]
+    },
+    {
+      "name": "yes",
+      "file": "stickers/yes.png",
+      "description": "The word yes",
+      "tags": [
+        "agree",
+        "yeah",
+        "yep"
+      ]
+    },
+    {
+      "name": "no",
+      "file": "stickers/no.png",
+      "description": "The word no",
+      "tags": [
+        "nope",
+        "disagree"
+      ]
+    },
+    {
+      "name": "hype",
+      "file": "stickers/hype.png",
+      "description": "The word hype",
+      "tags": [
+        "excited",
+        "lets go",
+        "pumped"
+      ]
+    },
+    {
+      "name": "ok",
+      "file": "stickers/ok.png",
+      "description": "The word ok",
+      "tags": [
+        "okay",
+        "fine",
+        "alright"
+      ]
+    },
+    {
+      "name": "wow",
+      "file": "stickers/wow.png",
+      "description": "The word wow",
+      "tags": [
+        "surprised",
+        "amazed"
+      ]
+    },
+    {
+      "name": "nice",
+      "file": "stickers/nice.png",
+      "description": "The word nice",
+      "tags": [
+        "good",
+        "cool",
+        "well done"
+      ]
+    },
+    {
+      "name": "oof",
+      "file": "stickers/oof.png",
+      "description": "The word oof",
+      "tags": [
+        "ouch",
+        "painful",
+        "yikes"
+      ]
+    },
+    {
+      "name": "sad",
+      "file": "stickers/sad.png",
+      "description": "The word sad",
+      "tags": [
+        "unhappy",
+        "down",
+        "blue"
+      ]
+    },
+    {
+      "name": "popcorn",
+      "file": "stickers/popcorn.png",
+      "description": "The word popcorn",
+      "tags": [
+        "snacks",
+        "watching",
+        "show"
+      ]
+    },
+    {
+      "name": "movie_night",
+      "file": "stickers/movie_night.png",
+      "description": "The word movie night",
+      "tags": [
+        "film",
+        "watch party",
+        "cinema"
+      ]
+    },
+    {
+      "name": "reading",
+      "file": "stickers/reading.png",
+      "description": "The word reading",
+      "tags": [
+        "book",
+        "manga",
+        "library"
+      ]
+    },
+    {
+      "name": "afk",
+      "file": "stickers/afk.png",
+      "description": "The word afk",
+      "tags": [
+        "away from keyboard",
+        "gone"
+      ]
+    },
+    {
+      "name": "gn",
+      "file": "stickers/gn.png",
+      "description": "The word gn",
+      "tags": [
+        "good night",
+        "sleep",
+        "bye"
+      ]
+    }
+  ]
+}

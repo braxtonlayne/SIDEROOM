@@ -113,9 +113,58 @@ pub async fn run(cli: Cli) -> Result<()> {
             };
             crate::tv::make_slate(&pool, &cfg, ids, &opts).await?;
         }
+        Command::Package(PackageCmd::Seed { dir }) => package_seed(&pool, &cfg, ids, &dir).await?,
         // Handled before the database connection above.
-        Command::Storage(_) | Command::Package(_) => {}
+        Command::Storage(_) | Command::Package(PackageCmd::Validate { .. }) => {}
     }
+    Ok(())
+}
+
+/// `package seed <dir>` (M-03, D-289): install a starter pack from the repository as an approved package and
+/// as a platform sticker pack. Idempotent; writes the platform audit row `package.seed`.
+async fn package_seed(
+    pool: &PgPool,
+    cfg: &Config,
+    ids: IdSource,
+    dir: &std::path::Path,
+) -> Result<()> {
+    let s = &cfg.storage;
+    if s.endpoint == "memory:" {
+        bail!("storage.endpoint is memory:, so the sticker images would not outlive this command");
+    }
+    let storage = sr_storage::ObjectStoreStorage::s3(
+        &s.endpoint,
+        &s.bucket,
+        &s.region,
+        s.access_key.expose(),
+        s.secret_key.expose(),
+    )
+    .context("configuring object storage")?;
+    let files = read_package_files(dir)?;
+    let done = crate::packages::seed_pack(pool, Arc::new(storage), ids.clone(), files).await?;
+    let store = PgAuthStore::new(pool.clone(), repo(pool, ids.clone()), ids);
+    store
+        .audit(
+            SYSTEM_USER_ID,
+            "package.seed",
+            None,
+            &crate::packages::audit_detail(&done),
+            now_secs(),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!(
+        "{} {}: {} stickers ({} new){}",
+        done.slug,
+        done.version,
+        done.stickers,
+        done.new_stickers,
+        if done.new_version {
+            ", package approved"
+        } else {
+            ", already installed"
+        }
+    );
     Ok(())
 }
 
@@ -825,6 +874,7 @@ fn package_validate_other(
     files: &std::collections::BTreeMap<String, Vec<u8>>,
     json: bool,
 ) -> Result<()> {
+    let files = &crate::packages::installable(files.clone());
     match sr_packages::validate::validate(files, &sr_packages::Checks::lenient()) {
         Ok(v) => {
             if json {

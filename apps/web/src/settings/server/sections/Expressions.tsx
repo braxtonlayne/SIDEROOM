@@ -6,11 +6,13 @@ import {
   FileDrop,
   Modal,
   MultiSelect,
+  Switch,
   Tabs,
   TextInput,
   type FileRejection,
 } from '@sideroom/ui';
 import { useState } from 'react';
+import { resetDefaultPacks } from '../../../lounge/components/ExpressionPicker';
 import { t as translate, useT } from '../../../i18n';
 import { useGuild } from '../../../store';
 import * as api from '../api';
@@ -323,6 +325,15 @@ function StickerTab({
   const [rejected, setRejected] = useState<string | null>(null);
   const [editing, setEditing] = useState<api.StickerObject | null>(null);
   const [toDelete, setToDelete] = useState<api.StickerObject | null>(null);
+  const hideRes = useResource(`default-stickers:${guildId}`, () => api.getDefaultStickers(guildId));
+  const hide = useAction();
+  const toggleDefaults = async (hidden: boolean) => {
+    const done = await hide.run(() => api.setDefaultStickers(guildId, hidden));
+    if (done) {
+      resetDefaultPacks(guildId);
+      hideRes.set(done);
+    }
+  };
 
   const pick = async (files: File[]) => {
     setRejected(null);
@@ -373,6 +384,14 @@ function StickerTab({
   const nameOk = name.trim().length >= 2 && name.trim().length <= 30;
   return (
     <div className="ss-form" style={{ maxWidth: 'none' }}>
+      <Switch
+        label={t('settings.expressions.hideDefaultStickers')}
+        checked={hideRes.data?.hidden ?? false}
+        disabled={hide.busy || !hideRes.data}
+        onChange={(e) => void toggleDefaults(e.target.checked)}
+      />
+      <p className="ss-sub">{t('settings.expressions.hideDefaultStickersHint')}</p>
+      <ActionStatus error={hide.error} done={null} />
       <p className="ss-sub">
         {t('settings.expressions.stickerRules', { kb: String(LIMITS.maxStickerBytes / 1024) })}
       </p>

@@ -16,6 +16,7 @@
 # Answers can come from the environment (they win over prompts):
 #   SR_DOMAIN SR_IMAGE SR_WEB_DIR SMTP_HOST SMTP_PORT SMTP_TLS SMTP_FROM SMTP_USERNAME SMTP_PASSWORD
 #   SR_OWNER_USERNAME SR_OWNER_EMAIL SR_OWNER_PASSWORD SR_GARAGE_CAPACITY SR_INGEST_DIR
+#   SR_PAYMENTS_ELECTRS (yes turns the electrs `payments` profile on) SR_PAYMENTS_ESPLORA_URL (empty = donations off)
 #
 # Needs Docker with the compose plugin and a source of randomness (openssl, or /dev/urandom with od).
 set -eu
@@ -36,7 +37,7 @@ for arg in "$@"; do
     --yes|--non-interactive) yes=1 ;;
     --force) force=1 ;;
     --no-start) start=0 ;;
-    -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $arg (try --help)" ;;
   esac
 done
@@ -96,9 +97,17 @@ ask SR_OWNER_USERNAME "Owner username" "owner"
 ask SR_OWNER_EMAIL "Owner email" ""
 ask SR_GARAGE_CAPACITY "Object storage capacity to reserve (for example 100G)" "100G"
 ask SR_INGEST_DIR "Folder for local imports, mounted read-only (type none to turn local folders off)" "/srv/sideroom/ingest"
+ask SR_PAYMENTS_ELECTRS "Run the optional electrs container for donations? It needs your own synced bitcoind and a pinned image, see docs/12 (yes/no)" "no"
 SMTP_USERNAME=${SMTP_USERNAME:-}
 SMTP_PASSWORD=${SMTP_PASSWORD:-}
 if [ -z "${SMTP_FROM:-}" ]; then SMTP_FROM="SIDE ROOM <no-reply@${SR_DOMAIN:-example.org}>"; fi
+
+# Donations (D-288): the electrs profile gives the Esplora URL its container address; otherwise an operator-given URL
+# (for example the interim https://mempool.space/api) is kept and an empty one leaves donations off.
+case ${SR_PAYMENTS_ELECTRS:-no} in
+  yes|y|true|1) payments_profile=1; SR_PAYMENTS_ESPLORA_URL=${SR_PAYMENTS_ESPLORA_URL:-http://electrs:3000}; payments_private=1 ;;
+  *) payments_profile=0; SR_PAYMENTS_ESPLORA_URL=${SR_PAYMENTS_ESPLORA_URL:-}; payments_private= ;;
+esac
 
 # --- validation -----------------------------------------------------------------------------------------
 case ${SR_DOMAIN:-} in
@@ -181,10 +190,16 @@ tmp=$env_file.new
     | fill SMTP_PASSWORD "$SMTP_PASSWORD" \
     | fill SR_INGEST_DIR "$SR_INGEST_DIR" \
     | fill SR_INGEST_ROOTS "$ingest_roots" \
+    | fill SR_PAYMENTS_ESPLORA_URL "$SR_PAYMENTS_ESPLORA_URL" \
+    | fill SR_PAYMENTS_ALLOW_PRIVATE_HOSTS "$payments_private" \
     | fill GRAFANA_PASSWORD "$grafana_password"
 } >"$tmp" || { rm -f "$tmp"; die "could not fill the env template (is a key missing from .env.prod.example?)"; }
 if grep -Eq "^[A-Za-z_]+ *=.*CHANGE_ME" "$tmp"; then rm -f "$tmp"; die "a CHANGE_ME placeholder is left in the generated env file"; fi
 mv "$tmp" "$env_file"
+if [ "$payments_profile" = "1" ]; then
+  printf 'COMPOSE_PROFILES=payments\n' >>"$env_file"
+  echo "warning: the payments profile is on. Pin the electrs image by digest in deploy/compose/prod.yml and point SR_ELECTRS_DAEMON_RPC_ADDR / SR_BITCOIND_DIR at your bitcoind before the stack can start it." >&2
+fi
 chmod 600 "$env_file"
 
 # garage.prod.toml: three CHANGE_ME values, in file order rpc_secret, admin_token, metrics_token.
@@ -256,6 +271,20 @@ fi
 export SR_OWNER_PASSWORD
 dc run --rm --no-deps -e SR_OWNER_PASSWORD --entrypoint /usr/local/bin/sr-cli sr-server \
   bootstrap --owner-username "$SR_OWNER_USERNAME" --owner-email "$SR_OWNER_EMAIL"
+
+# Starter packs that ship with the release (packages/starter-packs/<name>, D-289): installed as approved
+# packages and as the default sticker pack. Safe to repeat; a release without the folder just skips this.
+packs_dir=$here/../packages/starter-packs
+if [ -d "$packs_dir" ]; then
+  packs_dir=$(cd "$packs_dir" && pwd)
+  for pack in "$packs_dir"/*/; do
+    [ -f "$pack/pack.json" ] || continue
+    name=$(basename "$pack")
+    say "installing the starter pack $name"
+    dc run --rm --no-deps -v "$packs_dir:/starter-packs:ro" --entrypoint /usr/local/bin/sr-cli sr-server \
+      package seed "/starter-packs/$name"
+  done
+fi
 
 say "starting the server and Caddy"
 dc up -d

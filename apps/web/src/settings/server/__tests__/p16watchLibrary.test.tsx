@@ -75,3 +75,33 @@ describe('Server settings > Watch Parties & Library', () => {
     expect(cap.calls[0]!.body).toEqual({ enabled: true });
   });
 });
+
+describe('Server settings > Watch Parties & Library: party cards (M-14, D-304)', () => {
+  it('shows the watch party cards switch and saves it', async () => {
+    seed({ perms: [MANAGE.guild] });
+    const cap = capture();
+    const cards = announcer({
+      id: 'community.watch_party_cards',
+      name: 'Watch party cards',
+      description: 'Post a live card in the channel when a party starts',
+      enabled: true,
+      default_enabled: true,
+      schema: { fields: [] },
+    });
+    server.use(
+      http.get('*/api/v1/guilds/g1/sr/features', () => HttpResponse.json([cards])),
+      http.patch(
+        '*/api/v1/guilds/g1/sr/features/community.watch_party_cards',
+        async ({ request }) => {
+          await cap.record(request);
+          return HttpResponse.json({ ...cards, enabled: false });
+        },
+      ),
+    );
+    await openSettings('watch-library');
+    expect(await screen.findByRole('heading', { name: 'Watch party cards' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('switch', { name: 'Enable Watch party cards' }));
+    await waitFor(() => expect(cap.calls).toHaveLength(1));
+    expect(cap.calls[0]!.body).toEqual({ enabled: false });
+  });
+});

@@ -100,7 +100,12 @@ pub async fn build(pool: &PgPool, ids: IdSource, bus: Arc<dyn EventBus>) -> Paym
         _ => Arc::new(NoChain),
     };
     let mut sources: Vec<Arc<dyn RateSource>> = Vec::new();
-    if let (Ok(raw), Some(http)) = (std::env::var("SR_PAYMENTS_RATE_SOURCES"), &http) {
+    if let (Some(raw), Some(http)) = (
+        std::env::var("SR_PAYMENTS_RATE_SOURCES")
+            .ok()
+            .filter(|r| !r.trim().is_empty()),
+        &http,
+    ) {
         match serde_json::from_str::<Vec<RateSpec>>(&raw) {
             Ok(specs) => {
                 for s in specs.into_iter().take(5) {

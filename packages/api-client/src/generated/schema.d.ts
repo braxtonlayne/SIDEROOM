@@ -6834,6 +6834,24 @@ export interface paths {
         patch: operations["reorder_channels"];
         trace?: never;
     };
+    "/guilds/{guild_id}/default-sticker-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether this server hides the default sticker packs (any member; the picker reads it). */
+        get: operations["get_default_stickers"];
+        /** Hide or show the default sticker packs in this server's picker (`MANAGE_GUILD_EXPRESSIONS`). */
+        put: operations["set_default_stickers"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/directory": {
         parameters: {
             query?: never;
@@ -14592,6 +14610,11 @@ export interface components {
         DefaultReactionBody: {
             emoji_id?: string | null;
             emoji_name?: string | null;
+        };
+        /** @description Whether a server shows the default sticker packs (D-289). */
+        DefaultStickerPacksBody: {
+            /** @description True when the server hides the default packs from its sticker picker. */
+            hidden: boolean;
         };
         DelegateBody: {
             /**
@@ -43360,6 +43383,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_default_stickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultStickerPacksBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_default_stickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DefaultStickerPacksBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultStickerPacksBody"];
                 };
             };
             403: {

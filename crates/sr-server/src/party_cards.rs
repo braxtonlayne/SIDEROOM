@@ -26,6 +26,8 @@ use sr_api::routes::messages::system::{post_system_card_of, rewrite_system_card}
 use sr_chat::MessageType;
 use sr_chat::message::{Embed, EmbedAuthor};
 use sr_core::{ChannelId, MessageId};
+use sr_userfeat::UserFeatures;
+use sr_userfeat::features::WATCH_PARTY_CARDS_ID;
 use sr_watchparty::{Announcement, AnnouncementKind, ChatHook};
 
 /// Card colour while the party runs (the theme gold) and after it ended.
@@ -86,6 +88,7 @@ struct Slot {
 pub struct PartyCards {
     pool: PgPool,
     chat: ChatSlot,
+    features: Option<UserFeatures>,
     slots: Arc<Mutex<HashMap<i64, Slot>>>,
     gap: Duration,
 }
@@ -95,6 +98,7 @@ impl PartyCards {
         Self {
             pool,
             chat,
+            features: None,
             slots: Arc::new(Mutex::new(HashMap::new())),
             gap: MIN_EDIT_GAP,
         }
@@ -105,6 +109,32 @@ impl PartyCards {
     pub fn with_gap(mut self, gap: Duration) -> Self {
         self.gap = gap;
         self
+    }
+
+    /// Read the per-server `community.watch_party_cards` switch (M-14, D-304) through these features.
+    #[must_use]
+    pub fn with_features(mut self, features: UserFeatures) -> Self {
+        self.features = Some(features);
+        self
+    }
+
+    /// Whether the server wants a card for a new party. On unless the module is switched off; an unreadable
+    /// setting keeps the default (on).
+    async fn cards_wanted(&self, channel: i64) -> bool {
+        let Some(uf) = &self.features else {
+            return true;
+        };
+        let guild: Option<i64> = sqlx::query_scalar("SELECT guild_id FROM channels WHERE id = $1")
+            .bind(channel)
+            .fetch_optional(&self.pool)
+            .await
+            .ok()
+            .flatten()
+            .flatten();
+        let Some(guild) = guild else { return true };
+        uf.enabled(WATCH_PARTY_CARDS_ID, Some(guild))
+            .await
+            .unwrap_or(true)
     }
 
     fn deps(&self) -> Option<&Arc<MessagesDeps>> {
@@ -123,6 +153,9 @@ impl PartyCards {
 
     async fn post(&self, a: &Announcement) {
         let Some(deps) = self.deps() else { return };
+        if !self.cards_wanted(a.channel_id).await {
+            return;
+        }
         let (Ok(channel), id) = (
             u64::try_from(a.channel_id).map(ChannelId::new),
             MessageId::from(deps.next_id()),
@@ -236,6 +269,7 @@ impl PartyCards {
         let me = PartyCards {
             pool: self.pool.clone(),
             chat: self.chat.clone(),
+            features: self.features.clone(),
             slots: self.slots.clone(),
             gap: self.gap,
         };

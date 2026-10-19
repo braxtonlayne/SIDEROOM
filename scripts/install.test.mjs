@@ -262,3 +262,36 @@ test('the ingest folder is asked for, created, and wired as a read-only root (H-
     assert.ok(!existsSync(sb3.env), `${bad} left an env file behind`);
   }
 });
+
+test('starter packs under packages/starter-packs are seeded after the Owner exists (M-03)', () => {
+  const sb = sandbox();
+  const packs = join(sb.dir, 'packages', 'starter-packs', 'side-room-words');
+  mkdirSync(packs, { recursive: true });
+  writeFileSync(join(packs, 'pack.json'), '{}');
+  const r = run(sb, ['--yes']);
+  assert.equal(r.status, 0, r.out);
+  const calls = readFileSync(sb.log, 'utf8').trim().split('\n');
+  const seed = calls.findIndex((c) =>
+    c.includes('sr-cli sr-server package seed /starter-packs/side-room-words'),
+  );
+  const owner = calls.findIndex((c) => c.includes('sr-cli sr-server bootstrap'));
+  assert.ok(seed > owner && owner !== -1, calls.join('\n'));
+  assert.ok(calls[seed].includes(':/starter-packs:ro'), 'the folder is mounted read-only');
+  assert.match(calls.at(-1), / up -d$/);
+});
+
+test('the electrs payments profile is off unless asked for (M-02, D-288)', () => {
+  const off = sandbox();
+  assert.equal(run(off, ['--no-start']).status, 0);
+  const envOff = readFileSync(off.env, 'utf8');
+  assert.match(envOff, /^SR_PAYMENTS_ESPLORA_URL=$/m);
+  assert.doesNotMatch(envOff, /COMPOSE_PROFILES/);
+  assert.match(envOff, /api\.coinbase\.com.*api\.kraken\.com.*api\.coingecko\.com/);
+
+  const on = sandbox();
+  assert.equal(run(on, ['--no-start'], { SR_PAYMENTS_ELECTRS: 'yes' }).status, 0);
+  const envOn = readFileSync(on.env, 'utf8');
+  assert.match(envOn, /^SR_PAYMENTS_ESPLORA_URL=http:\/\/electrs:3000$/m);
+  assert.match(envOn, /^SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1$/m);
+  assert.match(envOn, /^COMPOSE_PROFILES=payments$/m);
+});
