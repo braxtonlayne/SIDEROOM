@@ -1,0 +1,72 @@
+name: SDK compatibility
+# M-16 (D-306, DEV-SDK-003): real Discord libraries against a SIDE ROOM test server, weekly and on demand, never per
+# pull request. Tier 2 of docs/dev/sdk-compat.md. discord.js (e2e/sdk-compat, pinned) and serenity (the
+# `sdk-compat` feature of sr-server, pinned) each walk READY, GUILD_CREATE, a slash command round trip,
+# MESSAGE_CONTENT gating and a 403. A failure opens or updates one issue "SDK compat: <library> <version>".
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+concurrency:
+  group: sdk-compat
+  cancel-in-progress: false
+env:
+  DATABASE_URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+  SR_DATABASE__URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+  CARGO_TERM_COLOR: always
+  # The API's Origin/CSRF allow-list and the gateway URL come from the public URL: the run talks to the server directly.
+  SR_SERVER__PUBLIC_URL: http://127.0.0.1:8080
+  SDK_COMPAT_BASE: http://127.0.0.1:8080
+  SDK_COMPAT_OWNER: owner
+  SDK_COMPAT_PASSWORD: sdk-compat-Owner-Passw0rd!
+permissions:
+  contents: read
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        library: [discord.js, serenity]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-stack
+      - name: Build the serenity sample bot
+        if: matrix.library == 'serenity'
+        run: |
+          cargo build -j 2 -p sr-server --example serenity_bot --features sdk-compat
+          echo "SDK_COMPAT_SERENITY_BIN=$PWD/target/debug/examples/serenity_bot" >> "$GITHUB_ENV"
+      - name: Migrate, bootstrap the Owner, start sr-server
+        run: |
+          ./target/debug/sr-cli migrate
+          SR_OWNER_PASSWORD="$SDK_COMPAT_PASSWORD" ./target/debug/sr-cli bootstrap \
+            --owner-username "$SDK_COMPAT_OWNER" --owner-email owner@example.test
+          set -a; . deploy/compose/.env.example; set +a
+          export SR_STORAGE__ENDPOINT=http://127.0.0.1:3900 SR_STORAGE__REGION=garage
+          export SR_STORAGE__BUCKET="${GARAGE_BUCKET:-sideroom}"
+          export SR_STORAGE__ACCESS_KEY="$GARAGE_ACCESS_KEY" SR_STORAGE__SECRET_KEY="$GARAGE_SECRET_KEY"
+          nohup ./target/debug/sr-server > server.log 2>&1 &
+          echo "$!" > server.pid
+      - name: Walk the tier-2 list with ${{ matrix.library }}
+        run: node e2e/sdk-compat/run.mjs --lib "${{ matrix.library }}" --out "e2e/sdk-compat/report/${{ matrix.library }}.xml"
+      - name: Stop sr-server
+        if: always()
+        run: kill "$(cat server.pid)" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sdk-compat-${{ matrix.library }}
+          path: |
+            e2e/sdk-compat/report
+            server.log
+          if-no-files-found: ignore
+      - name: Open or update the failure issue
+        # The issue script is a dry run unless --create is passed; this workflow is the only place that passes it.
+        if: failure() && hashFiles(format('e2e/sdk-compat/report/{0}.xml', matrix.library)) != ''
+        run: node e2e/sdk-compat/open-issue.mjs --report "e2e/sdk-compat/report/${{ matrix.library }}.xml" --create
+        env:
+          GH_TOKEN: ${{ github.token }}

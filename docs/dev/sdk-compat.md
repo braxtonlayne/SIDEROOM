@@ -36,7 +36,9 @@ It builds the real services (Postgres stores, the real REST router, the real gat
 
 The route level behaviour (every denial, OAuth2, commands, interaction timing, ephemeral messages, follow-ups) is covered by `crates/sr-api/src/routes/developer/{tests,flow_tests}.rs` and `crates/sr-apps/src/tests.rs` without a database.
 
-## Tier 2: real libraries against a test server (planned)
+## Tier 2: real libraries against a test server (running weekly: discord.js 14.27.0, serenity 0.12.5)
+
+`.github/workflows/sdk-compat.yml` (Mondays 06:00 UTC, or dispatch by hand) runs `node e2e/sdk-compat/run.mjs --lib discord.js|serenity` against a freshly bootstrapped server. The driver creates a server, an application and bot, and installs the bot over REST, then walks seven checks: `ready`, `guild-create`, `command-registered`, `message-content-gated`, `forbidden-delete` (403, code 50013), `slash-command-round-trip` and `message-content-delivered` (a second run with the intent enabled). Results go to `e2e/sdk-compat/report/<library>.xml` (JUnit, uploaded as an artifact) and a failure opens or updates the issue "SDK compat: <library> <version>". Locally: start a server with `SR_SERVER__PUBLIC_URL=http://127.0.0.1:8080`, then `node e2e/sdk-compat/run.mjs --lib discord.js`; serenity needs `--features sdk-compat` (the driver runs it with `cargo run`, or set `SDK_COMPAT_SERENITY_BIN`). The versions are pinned exactly (`e2e/sdk-compat/package.json`, `crates/sr-server/Cargo.toml`) and bumped by hand to the newest release at least two weeks old. discord.py and twilight are not run (later, D-306); the table below is the full plan, the checks above are the subset that runs.
 
 Run one sample bot per library against a seeded server (`just serve` plus `sr-cli seed`), with the base URL overridden (`/api/v10` is an alias of `/api/v1`) and `GET /gateway/bot` giving the gateway URL.
 
