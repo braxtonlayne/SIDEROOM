@@ -11,6 +11,9 @@ import { createInvite } from '../support/cli';
  * and the SFU route `GET /voice/ws` (branch feat/p5-voice-sfu), with `voice.announce_ips` set to 127.0.0.1.
  * Set SR_E2E_VOICE=1 when running against such a server. Until the gateway wiring lands on the integration
  * branch this is skipped, and the client side is covered by unit tests with fake sockets and peer connections.
+ *
+ * Voice E2EE is on by default (D-249) in sr-server and the web build, so this runs an encrypted call: the bytes
+ * counted are ciphertext frames. `e2ee/voice-e2ee.spec.ts` checks the frames themselves.
  */
 const VOICE_STACK = process.env.SR_E2E_VOICE === '1';
 

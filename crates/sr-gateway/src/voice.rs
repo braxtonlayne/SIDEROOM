@@ -48,7 +48,8 @@ pub struct VoiceConfig {
     pub session_grace: Duration,
     /// Told when a DM call ends, to write the call record. `None`: no record.
     pub calls: Option<Arc<dyn crate::voice_call::CallHooks>>,
-    /// `voice.e2ee`: the MLS delivery service over op 101 E2EE_MLS (VOX-E2E-004). Off by default.
+    /// `voice.e2ee`: the MLS delivery service over op 101 E2EE_MLS (VOX-E2E-004), and the D-263 join
+    /// rule. Told to clients as `sr_e2ee` in `VOICE_SERVER_UPDATE`. `sr-core` turns it on by default.
     pub e2ee: bool,
 }
 
@@ -682,6 +683,9 @@ impl Gateway {
                     "channel_id": st.channel_id,
                     "endpoint": endpoint,
                     "ice_servers": vc.turn.ice_servers(st.user_id, now),
+                    // SIDE ROOM field: whether this call is end-to-end encrypted (`voice.e2ee`). A client
+                    // runs E2EE only when it is true, so turning it off on the server is enough (doc 12).
+                    "sr_e2ee": vc.e2ee,
                 }),
             );
         }

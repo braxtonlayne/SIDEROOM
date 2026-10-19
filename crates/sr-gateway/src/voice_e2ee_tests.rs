@@ -337,6 +337,10 @@ async fn a_join_without_the_e2ee_declaration_is_refused_and_gets_no_token() {
     c.send_exact(join_frame(Some(true))).await;
     let update = c.event("VOICE_SERVER_UPDATE").await;
     assert!(update["token"].is_string());
+    assert_eq!(
+        update["sr_e2ee"], true,
+        "the client is told the call is E2EE"
+    );
     assert!(e.gw.voice_state(UserId::new(MEMBER)).is_some());
 }
 
@@ -345,7 +349,11 @@ async fn without_e2ee_nothing_is_required_at_join() {
     let e = env_full(true, false);
     let mut c = client(&e, MEMBER).await;
     c.send_exact(join_frame(None)).await;
-    c.event("VOICE_SERVER_UPDATE").await;
+    let update = c.event("VOICE_SERVER_UPDATE").await;
+    assert_eq!(
+        update["sr_e2ee"], false,
+        "the client is told the call is not E2EE"
+    );
     // And there is no hello to wait for.
     e.gw.e2ee_hello_sweep(Instant::now() + Duration::from_secs(60))
         .await;

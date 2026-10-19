@@ -10,7 +10,7 @@ export default {
   'lounge.privacyCodes.verified': 'Verified',
   'lounge.privacyCodes.markVerified': 'Mark as verified',
   'voice.e2ee.unsupported':
-    'Your browser cannot join end-to-end encrypted calls. Try a current version of Chrome, Edge, Firefox or Safari.',
+    "Your browser can't join encrypted calls; use a current Chrome, Edge, Firefox or Safari.",
   'voice.e2ee.failed':
     'End-to-end encryption could not start, so the call was not joined. Try again.',
 } satisfies Record<string, string>;

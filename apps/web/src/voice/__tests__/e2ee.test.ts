@@ -32,18 +32,23 @@ const frame = (bytes: number[], mime?: string): EncodedFrameLike => ({
 });
 
 describe('feature flag and browser support', () => {
-  it('voice.e2ee is off unless the build turns it on', () => {
-    expect(e2eeFlagEnabled({})).toBe(false);
-    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: '0' })).toBe(false);
+  it('voice.e2ee is on unless the build turns it off (D-249)', () => {
+    expect(e2eeFlagEnabled({})).toBe(true);
+    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: '' })).toBe(true);
     expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: '1' })).toBe(true);
-    expect(e2eeFlagEnabled()).toBe(false);
+    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: '0' })).toBe(false);
+    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: 'false' })).toBe(false);
+    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: ' FALSE ' })).toBe(false);
+    expect(e2eeFlagEnabled()).toBe(true);
   });
 
   it('declares sr_e2ee only when the build has the feature and the browser can transform frames', () => {
     expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '1' }, 'script-transform')).toBe(true);
     expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '1' }, 'encoded-streams')).toBe(true);
     expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '1' }, 'none')).toBe(false);
-    expect(e2eeDeclared({}, 'script-transform')).toBe(false);
+    expect(e2eeDeclared({}, 'script-transform')).toBe(true);
+    expect(e2eeDeclared({}, 'none')).toBe(false);
+    expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '0' }, 'script-transform')).toBe(false);
   });
 
   it('prefers RTCRtpScriptTransform, falls back to createEncodedStreams, else none', () => {

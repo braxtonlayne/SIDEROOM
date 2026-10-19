@@ -2,6 +2,7 @@ import { Notice, Switch } from '@sideroom/ui';
 import { useMemo } from 'react';
 import { useT } from '../../../i18n';
 import { e2eeFlagEnabled } from '../../../voice/e2ee/flag';
+import { useServerE2ee } from '../../../voice/e2ee/serverFlag';
 import { useVoiceSettings } from '../../../voice/settings';
 import { Card } from '../parts';
 
@@ -31,7 +32,9 @@ export function AdvancedVoiceCards() {
   const settings = useVoiceSettings((s) => s.settings);
   const update = useVoiceSettings((s) => s.update);
   const accel = useMemo(() => detectHardwareAcceleration(), []);
-  const e2ee = e2eeFlagEnabled();
+  // On unless this build or the server (as of the last call) turned it off.
+  const serverE2ee = useServerE2ee((s) => s.on);
+  const e2ee = e2eeFlagEnabled() && serverE2ee !== false;
   return (
     <>
       <Card

@@ -1,15 +1,25 @@
 import { detectTransformMode, type TransformMode } from './support';
 
+type FlagEnv = { VITE_SR_VOICE_E2EE?: string };
+
 /**
- * `voice.e2ee` on the client (D-053, D-249): off by default. Everything is built (MLS session,
- * media worker, identity keys, shield), but the media path has not run in a real browser yet;
- * D-249 turns it on by default once it has. Set VITE_SR_VOICE_E2EE=1 at build time, together with
- * the server's `voice.e2ee` (which gates the op 101 relay), to use it.
+ * `VITE_SR_VOICE_E2EE` at build time: on unless set to `0` or `false` (D-249). The media path passed
+ * in Chromium and Firefox in CI (VOX-E2E-003), so calls are end-to-end encrypted by default.
+ *
+ * Two switches turn it off:
+ * - the server's `voice.e2ee = false` (the usual one: every client then joins without E2EE, because
+ *   `VOICE_SERVER_UPDATE` says `sr_e2ee: false` and the controller runs E2EE only when it is true);
+ * - this build flag, `VITE_SR_VOICE_E2EE=0`: the build never runs or declares E2EE, so a server
+ *   with `voice.e2ee` on refuses its joins (D-263). Use it only together with the server switch.
  */
-export function e2eeFlagEnabled(
-  env: { VITE_SR_VOICE_E2EE?: string } = import.meta.env as { VITE_SR_VOICE_E2EE?: string },
-): boolean {
-  return env.VITE_SR_VOICE_E2EE === '1' && !e2eOptOut();
+function buildFlagOn(env: FlagEnv): boolean {
+  const v = env.VITE_SR_VOICE_E2EE?.trim().toLowerCase();
+  return v !== '0' && v !== 'false';
+}
+
+/** Does this build run E2EE in calls the server marks as encrypted? */
+export function e2eeFlagEnabled(env: FlagEnv = import.meta.env as FlagEnv): boolean {
+  return buildFlagOn(env) && !e2eOptOut();
 }
 
 /**
@@ -19,10 +29,10 @@ export function e2eeFlagEnabled(
  * it: it only receives and looks at ciphertext, but it is still a client that is allowed in the call.
  */
 export function e2eeDeclared(
-  env: { VITE_SR_VOICE_E2EE?: string } = import.meta.env as { VITE_SR_VOICE_E2EE?: string },
+  env: FlagEnv = import.meta.env as FlagEnv,
   mode: TransformMode = detectTransformMode(),
 ): boolean {
-  return env.VITE_SR_VOICE_E2EE === '1' && mode !== 'none';
+  return buildFlagOn(env) && mode !== 'none';
 }
 
 /**

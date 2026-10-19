@@ -15,6 +15,7 @@ import {
   type VoiceEngine,
 } from '../engine';
 import { HANG_MS } from '../vad';
+import { useServerE2ee } from '../e2ee/serverFlag';
 import { IDLE_SESSION, PING_HISTORY, resetSession, useVoiceSession } from '../session';
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../settings';
 import { fakeAudio } from './fakes';
@@ -138,7 +139,7 @@ function harness(): Harness {
 const target = { guildId: 'g1', channelId: 'c1', name: 'General' };
 
 /** Join and deliver both gateway events so the engine starts. */
-function joinAndServe(h: Harness, t = target) {
+function joinAndServe(h: Harness, t = target, extra: Record<string, unknown> = {}) {
   h.c.join(t);
   h.emit('VOICE_STATE_UPDATE', {
     guild_id: t.guildId,
@@ -151,6 +152,7 @@ function joinAndServe(h: Harness, t = target) {
     endpoint: 'voice.test',
     token: 't0k',
     ice_servers: [{ urls: 'stun:x' }],
+    ...extra,
   });
 }
 async function connected(h: Harness, t = target) {
@@ -817,6 +819,8 @@ describe('end-to-end encryption (VOX-E2E-003)', () => {
   const flushAll = async () => {
     for (let i = 0; i < 6; i++) await Promise.resolve();
   };
+  /** The server marks the call as end-to-end encrypted (`voice.e2ee` on, the default). */
+  const encrypted = { sr_e2ee: true };
 
   it('starts E2EE before the engine, hands it the hooks, and routes E2EE_MLS to the call', async () => {
     const h = harness();
@@ -835,7 +839,7 @@ describe('end-to-end encryption (VOX-E2E-003)', () => {
         });
       },
     });
-    joinAndServe(h);
+    joinAndServe(h, target, encrypted);
     expect(h.engines).toHaveLength(0); // waits for E2EE
     await flushAll();
     expect(h.engines).toHaveLength(1);
@@ -858,20 +862,41 @@ describe('end-to-end encryption (VOX-E2E-003)', () => {
   it('refuses to join when the browser cannot transform frames', async () => {
     const h = harness();
     h.c.configure({ e2ee: () => Promise.resolve('unsupported') });
-    joinAndServe(h);
+    joinAndServe(h, target, encrypted);
     await flushAll();
     expect(h.engines).toHaveLength(0);
     expect(sess().status).toBe('error');
-    expect(sess().error?.message).toMatch(/cannot join end-to-end encrypted calls/);
+    expect(sess().error?.message).toBe(
+      "Your browser can't join encrypted calls; use a current Chrome, Edge, Firefox or Safari.",
+    );
   });
 
   it('a failed E2EE start fails the join instead of joining in the clear', async () => {
     const h = harness();
     h.c.configure({ e2ee: () => Promise.reject(new Error('no wasm')) });
-    joinAndServe(h);
+    joinAndServe(h, target, encrypted);
     await flushAll();
     expect(h.engines).toHaveLength(0);
     expect(sess().status).toBe('error');
+  });
+
+  it('joins without E2EE when the server has voice.e2ee off, even in a build that has it on', async () => {
+    for (const extra of [{ sr_e2ee: false }, {}]) {
+      const h = harness();
+      const starter = vi.fn();
+      h.c.configure({ e2ee: starter, e2eeDeclared: () => true });
+      joinAndServe(h, target, extra);
+      await flushAll();
+      expect(starter).not.toHaveBeenCalled();
+      expect(h.engines).toHaveLength(1);
+      expect(h.last().connectParams!.e2ee).toBeUndefined();
+      expect(h.sent.filter((s) => s.op === Op.E2EE_MLS)).toEqual([]);
+      expect(useServerE2ee.getState().on).toBe(false);
+      h.c.leave();
+    }
+    const h = harness();
+    joinAndServe(h, target, encrypted);
+    expect(useServerE2ee.getState().on).toBe(true);
   });
 });
 
@@ -896,15 +921,26 @@ describe('the E2EE declaration at join (D-263)', () => {
     h.emit('SR_VOICE_ERROR', { guild_id: 'g1', channel_id: 'c1', code: 'e2ee_required' });
     expect(sess().status).toBe('error');
     expect(sess().error?.message).toBe(
-      'This server requires encrypted calls; your browser cannot join.',
+      "Your browser can't join encrypted calls; use a current Chrome, Edge, Firefox or Safari.",
     );
     expect(h.engines).toHaveLength(0);
+  });
+
+  it('a client that declared E2EE and is still refused is told the encryption did not start', () => {
+    const h = harness();
+    h.c.configure({ e2eeDeclared: () => true });
+    h.c.join(target);
+    h.emit('SR_VOICE_ERROR', { guild_id: 'g1', channel_id: 'c1', code: 'e2ee_required' });
+    expect(sess().status).toBe('error');
+    expect(sess().error?.message).toBe(
+      'End-to-end encryption could not start, so the call was not joined. Try again.',
+    );
   });
 
   it('a client that declares but runs no E2EE itself (the e2e observer) still says hello', () => {
     const h = harness();
     h.c.configure({ e2eeDeclared: () => true });
-    joinAndServe(h);
+    joinAndServe(h, target, { sr_e2ee: true });
     expect(h.sent.filter((s) => s.op === Op.E2EE_MLS)).toEqual([
       { op: Op.E2EE_MLS, d: { type: 'hello', channel_id: 'c1' } },
     ]);
