@@ -64,4 +64,4 @@ All phases.
 ## XC-MOD — Moderation hooks reserved now (full build in Phase 7)
 - [x] **XC-MOD-001** [DB] moderation_holds + hold_id on messages/attachments + reason_category on platform bans
 - [x] **XC-MOD-002** [FE] Report menu items present but behind `moderation.reports` flag (off)
-- [x] **XC-MOD-003** [DOC] Phase 7 spec placeholder (reports, cases, takedowns, data-subject requests)
+- [x] **XC-MOD-003** [DOC] Phase 7 spec placeholder (reports, cases, takedowns, data-subject requests) _(The Phase 7 items are enumerated in [19-moderation.md](19-moderation.md).)_
