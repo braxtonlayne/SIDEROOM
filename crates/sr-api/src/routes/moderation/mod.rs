@@ -303,6 +303,7 @@ pub fn router() -> Router<AppState> {
         sr_moderation::model::AppealDecision,
         cases::StateBody,
         cases::CaseNoteBody,
+        cases::OpenCaseBody,
         cases::EscalateBody,
         cases::ReasonOnly,
         cases::ActionBody,

@@ -10,7 +10,7 @@ use sr_core::PlatformPermissions as P;
 use crate::error::{ModError, ModResult, conflict, invalid};
 use crate::holds::{holds_of_case, release_system_holds_in, replace_system_hold_in};
 use crate::model::{
-    Access, AppealView, CaseDetail, CaseEvent, CaseEvidence, CaseFilter, CaseNote, CasePage,
+    Access, AppealView, CaseDetail, CaseEvent, CaseExtras, CaseEvidence, CaseFilter, CaseNote, CasePage,
     CaseReport, CaseSeverity, CaseState, CaseSummary, NewCase, ReportCategory, ReporterView,
     Routing, TargetKind, Who,
 };
@@ -406,6 +406,16 @@ impl Moderation {
     /// Open a case without a report (platform staff, `MANAGE_CASES`): about an account, a Person or anything
     /// that has an id. Takedowns and appeals open cases the same way.
     pub async fn open_case(&self, who: &Who<'_>, c: &NewCase) -> ModResult<CaseSummary> {
+        self.open_case_with(who, c, CaseExtras::default()).await
+    }
+
+    /// [`Self::open_case`] with a server and a severity of the staff member's choosing.
+    pub async fn open_case_with(
+        &self,
+        who: &Who<'_>,
+        c: &NewCase,
+        extras: CaseExtras,
+    ) -> ModResult<CaseSummary> {
         require_staff(who, P::MANAGE_CASES, "MANAGE_CASES")?;
         let summary = c.summary.trim();
         if summary.chars().count() > 200 {
@@ -431,13 +441,14 @@ impl Moderation {
         )
         .bind(id)
         .bind(c.category.as_str())
-        .bind(c.category.default_severity().as_str())
+        .bind(extras.severity.unwrap_or(c.category.default_severity()).as_str())
         .bind(summary)
         .bind(c.target_kind.as_str())
         .bind(c.target_id)
         .bind(person)
         .bind(account)
         .bind(who.user_id())
+        .bind(extras.guild_id)
         .execute(&mut *tx)
         .await?;
         push_event(

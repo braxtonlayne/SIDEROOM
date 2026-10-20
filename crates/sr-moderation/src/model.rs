@@ -394,6 +394,15 @@ pub struct NewCase {
     pub summary: String,
 }
 
+/// Optional extras of a staff-opened case. `NewCase` stays as it was for the callers that build one.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CaseExtras {
+    /// The server the case is about (informational; the case is still platform business).
+    pub guild_id: Option<i64>,
+    /// Defaults to the preset of the category (D-211).
+    pub severity: Option<CaseSeverity>,
+}
+
 /// Who acts on a case: platform staff with their bits, or a server moderator for one server.
 #[derive(Debug, Clone)]
 pub enum Who<'a> {

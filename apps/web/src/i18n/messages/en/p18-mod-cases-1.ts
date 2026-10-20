@@ -236,4 +236,16 @@ export default {
   'admin.moderation.dialog.appealDescription':
     'Somebody other than the staff member who made the ban decides. There is no second appeal.',
   'admin.moderation.dialog.decidedNotice': 'The appeal is decided.',
+
+  // ---- New case (N-22) ----
+  'admin.moderation.newCase.button': 'New case',
+  'admin.moderation.newCase.title': 'Open a case',
+  'admin.moderation.newCase.description':
+    'For something staff noticed without a report. The first note is required.',
+  'admin.moderation.newCase.confirm': 'Open case',
+  'admin.moderation.newCase.account': 'Account id of the person',
+  'admin.moderation.newCase.guild': 'Server id (optional)',
+  'admin.moderation.newCase.category': 'Reason',
+  'admin.moderation.newCase.severity': 'Severity',
+  'admin.moderation.newCase.note': 'First note',
 } satisfies Record<string, string>;

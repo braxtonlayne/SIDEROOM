@@ -5,6 +5,7 @@ import { useT } from '../../i18n';
 import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import * as api from '../../moderation/api';
 import { ApiProblem, LoadMore, fmtMs, usePaged, useAdminViewer } from '../ui';
+import { NewCaseDialog } from './NewCaseDialog';
 import { ROUTING_KEYS, SEVERITY_KEYS, STATE_KEYS, TARGET_KEYS } from './labels';
 
 export function CaseQueue({ onOpen }: { onOpen: (id: string) => void }) {
@@ -15,6 +16,7 @@ export function CaseQueue({ onOpen }: { onOpen: (id: string) => void }) {
   const [severity, setSeverity] = useState<api.Severity | 'any'>('any');
   const [mine, setMine] = useState(false);
   const [oldestFirst, setOldestFirst] = useState(true);
+  const [creating, setCreating] = useState(false);
   const key = `cases:${view}:${category}:${severity}:${mine}:${oldestFirst}`;
   const paged = usePaged<api.CaseSummary>(key, async (cursor) => {
     const page = await api.listCases({
@@ -70,6 +72,9 @@ export function CaseQueue({ onOpen }: { onOpen: (id: string) => void }) {
           checked={oldestFirst}
           onChange={(e) => setOldestFirst(e.target.checked)}
         />
+        {viewer.can('MANAGE_CASES') && (
+          <Button onClick={() => setCreating(true)}>{t('admin.moderation.newCase.button')}</Button>
+        )}
       </div>
       <ApiProblem error={paged.error} />
       {!paged.error && !paged.loading && paged.items.length === 0 && (
@@ -124,6 +129,7 @@ export function CaseQueue({ onOpen }: { onOpen: (id: string) => void }) {
         </ul>
       )}
       <LoadMore paged={paged} />
+      <NewCaseDialog open={creating} onClose={() => setCreating(false)} onCreated={onOpen} />
     </>
   );
 }

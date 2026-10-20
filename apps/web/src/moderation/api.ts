@@ -253,3 +253,16 @@ export const decideAppeal = (id: string, decision: 'upheld' | 'overturned', reas
 /** The ban screen: the credentials prove the (session-less) banned account. */
 export const fileAppeal = (body: { login: string; password: string; message: string }) =>
   send<void>('/moderation/appeals', 'POST', body);
+
+export interface OpenCaseBody {
+  category: ReportCategory;
+  target_kind: TargetKind;
+  target_id?: string;
+  subject_account_id?: string;
+  guild_id?: string;
+  severity?: Severity;
+  summary?: string;
+}
+/** Open a case without a report (`MANAGE_CASES`). */
+export const openCase = (body: OpenCaseBody) =>
+  send<CaseSummary>('/moderation/cases', 'POST', body);

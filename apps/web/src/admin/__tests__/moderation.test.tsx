@@ -301,3 +301,55 @@ describe('Admin > Moderation', () => {
     expect(screen.getByText('Account 71')).toBeInTheDocument();
   });
 });
+
+describe('New case (N-22)', () => {
+  it('needs an account and a first note, sends the case, adds the note and opens it', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES'] });
+    const calls: { path: string; body: unknown }[] = [];
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [], next_cursor: null }),
+      ),
+      http.post('*/api/v1/moderation/cases', async ({ request }) => {
+        calls.push({ path: 'open', body: await readJson(request) });
+        return HttpResponse.json({ ...CASE, id: '9100' }, { status: 201 });
+      }),
+      http.post('*/api/v1/moderation/cases/9100/notes', async ({ request }) => {
+        calls.push({ path: 'note', body: await readJson(request) });
+        return HttpResponse.json(
+          { id: '1', author_id: '1', body: 'x', created_at_ms: 1 },
+          { status: 201 },
+        );
+      }),
+      http.get('*/api/v1/moderation/cases/9100', () =>
+        HttpResponse.json({ ...DETAIL, case: { ...CASE, id: '9100' } }),
+      ),
+    );
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'New case' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Open a case' });
+    const go = within(dialog).getByRole('button', { name: 'Open case' });
+    expect(go).toBeDisabled();
+    await user.type(within(dialog).getByLabelText('Account id of the person'), '71');
+    expect(go).toBeDisabled();
+    await user.type(within(dialog).getByLabelText('First note'), 'Saw chargebacks');
+    await user.type(within(dialog).getByLabelText('Server id (optional)'), '8');
+    await user.click(go);
+    expect(await screen.findByRole('heading', { name: 'Case 9100' })).toBeInTheDocument();
+    expect(calls).toEqual([
+      {
+        path: 'open',
+        body: {
+          category: 'other',
+          target_kind: 'user',
+          target_id: '71',
+          subject_account_id: '71',
+          severity: 'standard',
+          guild_id: '8',
+        },
+      },
+      { path: 'note', body: { body: 'Saw chargebacks' } },
+    ]);
+  });
+});

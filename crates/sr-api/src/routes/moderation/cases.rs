@@ -130,9 +130,23 @@ pub async fn guild_cases(
         .map_err(map_err)
 }
 
+/// Body of a staff-opened case: the case plus an optional server and severity.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct OpenCaseBody {
+    #[serde(flatten)]
+    pub case: NewCase,
+    /// The server the case is about.
+    #[serde(default, with = "sr_admin::model::opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub guild_id: Option<i64>,
+    /// Defaults to the preset of the category.
+    #[serde(default)]
+    pub severity: Option<CaseSeverity>,
+}
+
 /// Open a case without a report (`MANAGE_CASES`).
 #[utoipa::path(
-    post, path = "/moderation/cases", request_body = NewCase,
+    post, path = "/moderation/cases", request_body = OpenCaseBody,
     responses((status = 201, body = CaseSummary), (status = 400, body = ErrorBody),
               (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
               (status = 404, body = ErrorBody)),
@@ -140,10 +154,17 @@ pub async fn guild_cases(
 )]
 pub async fn open_case(
     a: Actor,
-    Json(b): Json<NewCase>,
+    Json(b): Json<OpenCaseBody>,
 ) -> ApiResult<(StatusCode, Json<CaseSummary>)> {
     let ctx = a.staff_only()?;
-    let r = a.svc().open_case(&Who::Staff(&ctx.caller), &b).await;
+    let extras = sr_moderation::model::CaseExtras {
+        guild_id: b.guild_id,
+        severity: b.severity,
+    };
+    let r = a
+        .svc()
+        .open_case_with(&Who::Staff(&ctx.caller), &b.case, extras)
+        .await;
     staff_result(ctx, "moderation.case.open", None, r)
         .await
         .map(|c| (StatusCode::CREATED, Json(c)))
