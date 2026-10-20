@@ -5,6 +5,7 @@ import { ApiError } from '../../api/client';
 import { discordStartUrl, login } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { Divider, DiscordButton, FormError } from '../../components/FormParts';
+import { BanAppeal, isBannedError } from './BanAppeal';
 import { LockIcon } from '../../components/icons';
 import { PasskeyButton } from '../../components/PasskeyButton';
 import { t as tr } from '../../i18n/runtime';
@@ -34,6 +35,7 @@ export function Login() {
   const [id, setId] = useState('');
   const [pw, setPw] = useState('');
   const [touched, setTouched] = useState(false);
+  const [banned, setBanned] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(
     search.error === 'discord_unlinked' ? t('entrance.login.discordUnlinked') : null,
@@ -47,6 +49,7 @@ export function Login() {
     if (!id.trim() || !pw) return;
     setBusy(true);
     setError(null);
+    setBanned(false);
     try {
       const res = await login({ login: id.trim(), password: pw });
       if (res.status === 'mfa_required') {
@@ -54,7 +57,10 @@ export function Login() {
         void router.navigate({ to: '/login/2fa', search: next ? { next } : {} });
       } else finish();
     } catch (err) {
-      setError(loginErrorMessage(err));
+      if (isBannedError(err)) {
+        setBanned(true);
+        setError(t('entrance.appeal.banned'));
+      } else setError(loginErrorMessage(err));
       setBusy(false);
     }
   };
@@ -84,6 +90,7 @@ export function Login() {
       <Divider>{t('entrance.login.divider')}</Divider>
       <form className="ent-form" onSubmit={onSubmit} noValidate>
         <FormError>{error}</FormError>
+        {banned && <BanAppeal login={id.trim()} password={pw} />}
         <TextInput
           label={t('entrance.login.id')}
           value={id}
