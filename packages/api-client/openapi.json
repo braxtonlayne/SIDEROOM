@@ -6433,6 +6433,592 @@
         ]
       }
     },
+    "/admin/data-requests": {
+      "get": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "The queue, active requests by due date first (`MANAGE_TAKEDOWNS`).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "active_only",
+            "in": "query",
+            "description": "Only requests that still need staff (default true)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "At most 200",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDataRequestList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Enter a request that arrived by email or form; the due date is computed now.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}": {
+      "get": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "One request (the read is logged).",
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/decline": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Refuse a request with a stated reason.",
+        "operationId": "decline",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/extend": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Extend the deadline by `days`, once, with a reason (GDPR article 12(3)).",
+        "operationId": "extend",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminExtendDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/run": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Run a verified request. An export queues the self-service data package for the person (they\ndownload it from Settings for 7 days); an erasure deletes the account through account\ndeletion and completes with an outcome that names the records that stay (D-124, G-66).",
+        "operationId": "run",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/verify": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Record that staff checked who is asking; the reason says how.",
+        "operationId": "verify",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/developers/activities": {
       "get": {
         "tags": [
@@ -60804,6 +61390,89 @@
           }
         }
       },
+      "AdminCreateDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests`.",
+        "required": [
+          "kind",
+          "account_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "The account the request is about (decimal snowflake)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DataRequestKind"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Free text: how it arrived, what was asked (at most 1000 characters)."
+          },
+          "received_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When it arrived, Unix milliseconds; defaults to now."
+          }
+        }
+      },
+      "AdminDataRequestList": {
+        "type": "object",
+        "description": "The queue with the settings the page needs.",
+        "required": [
+          "items",
+          "deadline_days",
+          "retained_catalog"
+        ],
+        "properties": {
+          "deadline_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "`compliance.data_request_deadline_days` today (new requests use it).",
+            "minimum": 0
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataRequest"
+            }
+          },
+          "retained_catalog": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetainedRecord"
+            },
+            "description": "The records an erasure keeps, so the page can name them (G-66, D-295)."
+          }
+        }
+      },
+      "AdminExtendDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests/{id}/extend`.",
+        "required": [
+          "days"
+        ],
+        "properties": {
+          "days": {
+            "type": "integer",
+            "format": "int64",
+            "description": "1 to 60 days added to the original due date. Allowed once."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the request is complex or numerous (required, kept in the access log)."
+          }
+        }
+      },
       "AdminGuild": {
         "type": "object",
         "description": "A server in the platform-wide list (staff only).",
@@ -67706,6 +68375,142 @@
             ]
           }
         }
+      },
+      "DataRequest": {
+        "type": "object",
+        "description": "A queue row.",
+        "required": [
+          "id",
+          "kind",
+          "person_id",
+          "account_id",
+          "username",
+          "state",
+          "note",
+          "received_at_ms",
+          "due_at_ms",
+          "effective_due_ms",
+          "overdue",
+          "retained",
+          "created_by"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "completed_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "due_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The deadline computed when the request was entered."
+          },
+          "effective_due_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`extended_until_ms` when extended, else `due_at_ms`."
+          },
+          "export_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `data_exports` row an export run queued."
+          },
+          "extended_until_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The new deadline once the one extension was recorded."
+          },
+          "extension_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DataRequestKind"
+          },
+          "note": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Active and past the effective deadline."
+          },
+          "person_id": {
+            "type": "string"
+          },
+          "received_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "retained": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of the [`RETAINED`] records an erasure named."
+          },
+          "state": {
+            "$ref": "#/components/schemas/DataRequestState"
+          },
+          "username": {
+            "type": "string"
+          },
+          "verified_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "verified_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DataRequestKind": {
+        "type": "string",
+        "description": "What the request asks for.",
+        "enum": [
+          "export",
+          "erasure"
+        ]
+      },
+      "DataRequestState": {
+        "type": "string",
+        "description": "Where the request stands.",
+        "enum": [
+          "open",
+          "verified",
+          "running",
+          "completed",
+          "declined"
+        ]
       },
       "DecideRequestBody": {
         "type": "object",
@@ -80822,6 +81627,26 @@
           "accept": {
             "type": "boolean",
             "description": "`true` to accept (and join the staff), `false` to decline."
+          }
+        }
+      },
+      "RetainedRecord": {
+        "type": "object",
+        "description": "One record kept after an erasure, with the reason (G-66, D-124, D-295).",
+        "required": [
+          "id",
+          "label",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },

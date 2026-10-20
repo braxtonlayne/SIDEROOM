@@ -1209,6 +1209,113 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/data-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The queue, active requests by due date first (`MANAGE_TAKEDOWNS`). */
+        get: operations["list"];
+        put?: never;
+        /** Enter a request that arrived by email or form; the due date is computed now. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One request (the read is logged). */
+        get: operations["get_one"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refuse a request with a stated reason. */
+        post: operations["decline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/extend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extend the deadline by `days`, once, with a reason (GDPR article 12(3)). */
+        post: operations["extend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a verified request. An export queues the self-service data package for the person (they
+         *     download it from Settings for 7 days); an erasure deletes the account through account
+         *     deletion and completes with an outcome that names the records that stay (D-124, G-66).
+         */
+        post: operations["run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record that staff checked who is asking; the reason says how. */
+        post: operations["verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/developers/activities": {
         parameters: {
             query?: never;
@@ -12417,6 +12524,40 @@ export interface components {
             email: string;
             reason?: string | null;
         };
+        /** @description Body of `POST /admin/data-requests`. */
+        AdminCreateDataRequestBody: {
+            /** @description The account the request is about (decimal snowflake). */
+            account_id: string;
+            kind: components["schemas"]["DataRequestKind"];
+            /** @description Free text: how it arrived, what was asked (at most 1000 characters). */
+            note?: string | null;
+            /**
+             * Format: int64
+             * @description When it arrived, Unix milliseconds; defaults to now.
+             */
+            received_at_ms?: number | null;
+        };
+        /** @description The queue with the settings the page needs. */
+        AdminDataRequestList: {
+            /**
+             * Format: int32
+             * @description `compliance.data_request_deadline_days` today (new requests use it).
+             */
+            deadline_days: number;
+            items: components["schemas"]["DataRequest"][];
+            /** @description The records an erasure keeps, so the page can name them (G-66, D-295). */
+            retained_catalog: components["schemas"]["RetainedRecord"][];
+        };
+        /** @description Body of `POST /admin/data-requests/{id}/extend`. */
+        AdminExtendDataRequestBody: {
+            /**
+             * Format: int64
+             * @description 1 to 60 days added to the original due date. Allowed once.
+             */
+            days: number;
+            /** @description Why the request is complex or numerous (required, kept in the access log). */
+            reason?: string | null;
+        };
         /** @description A server in the platform-wide list (staff only). */
         AdminGuild: {
             /** Format: int64 */
@@ -14585,6 +14726,57 @@ export interface components {
             expires_at?: string | null;
             text?: string | null;
         };
+        /** @description A queue row. */
+        DataRequest: {
+            account_id: string;
+            /** Format: int64 */
+            completed_at_ms?: number | null;
+            created_by: string;
+            /**
+             * Format: int64
+             * @description The deadline computed when the request was entered.
+             */
+            due_at_ms: number;
+            /**
+             * Format: int64
+             * @description `extended_until_ms` when extended, else `due_at_ms`.
+             */
+            effective_due_ms: number;
+            /** @description The `data_exports` row an export run queued. */
+            export_id?: string | null;
+            /**
+             * Format: int64
+             * @description The new deadline once the one extension was recorded.
+             */
+            extended_until_ms?: number | null;
+            extension_reason?: string | null;
+            id: string;
+            kind: components["schemas"]["DataRequestKind"];
+            note: string;
+            outcome?: string | null;
+            /** @description Active and past the effective deadline. */
+            overdue: boolean;
+            person_id: string;
+            /** Format: int64 */
+            received_at_ms: number;
+            /** @description Ids of the [`RETAINED`] records an erasure named. */
+            retained: string[];
+            state: components["schemas"]["DataRequestState"];
+            username: string;
+            /** Format: int64 */
+            verified_at_ms?: number | null;
+            verified_by?: string | null;
+        };
+        /**
+         * @description What the request asks for.
+         * @enum {string}
+         */
+        DataRequestKind: "export" | "erasure";
+        /**
+         * @description Where the request stands.
+         * @enum {string}
+         */
+        DataRequestState: "open" | "verified" | "running" | "completed" | "declined";
         DecideRequestBody: {
             approve: boolean;
             note?: string | null;
@@ -18697,6 +18889,12 @@ export interface components {
         RespondBody: {
             /** @description `true` to accept (and join the staff), `false` to decline. */
             accept: boolean;
+        };
+        /** @description One record kept after an erasure, with the reason (G-66, D-124, D-295). */
+        RetainedRecord: {
+            id: string;
+            label: string;
+            reason: string;
         };
         RetranscodeBody: {
             /** @description The asset or title id; required unless the scope is `all`. */
@@ -25437,6 +25635,407 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Only requests that still need staff (default true) */
+                active_only?: boolean;
+                /** @description At most 200 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDataRequestList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateDataRequestBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_one: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    decline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    extend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminExtendDataRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
