@@ -2861,3 +2861,45 @@ Status: `ADOPTED` (D-315). Follow-up: M-25 (the backend, with the M-06 remainder
 ### Still with the owner
 
 Actions only, no decisions: pin the `electrs` image digest (a pull), the lawyer's review named in D-287, D-293 to D-295, D-297, D-309, D-311 and D-314, and the downloads and dispatches already listed in [open-questions.md](open-questions.md).
+
+## Phase 18 modules round (answered 2026-10-20, delegated)
+
+The questions `feat/p18-modules` left in its handoff (`docs/dev/handoff/feat-p18-modules.md`: channel and user scope for feature modules, LNG-CHN-017 and LNG-USET-036), answered by the owner's proxy under the same delegation and limits as the owner round above: decide and document only (no code, build, download or push). Decisions are D-319 to D-323 in [01-decisions-log.md](01-decisions-log.md) (D-316 to D-318 belong to the other Phase 18 branch); follow-ups are N-10 to N-12 under "Phase 18 modules round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md). Discord has no module system, so there is no parity to follow; the branch's conservative defaults are confirmed on all four points, with one addition (auto-thread).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 5 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Channel scope (P18-MOD, branch `feat/p18-modules`)
+
+**P18-M1. A channel can only narrow a module the server has on; it cannot switch on a module the server has off. Confirm, or let a channel opt in on its own?**
+Decision: confirmed, narrowing only. The server switch is the one fact everything else relies on (event delivery, `channel_enabled` = server AND channel, audit, what members are told), and a channel opt-in would make it a suggestion. "Off by default, channels opt in" is, if ever wanted, a server-level setting of a module, not a reversal of the chain. As built: the channel form shows "the server has this module off" and disables the switch; a stored channel `true` under a server `false` is inert.
+Status: `ADOPTED` (D-319). Follow-up: none (built as decided).
+
+**P18-M4. `MANAGE_CHANNELS` is checked in the channel with overwrites applied, so a manager who cannot see the channel cannot configure it. Confirm?**
+Decision: confirmed. Same gate as every other Edit Channel route (`VIEW_CHANNEL` first, then the permission with the channel's overwrites) and Discord's rule for Manage Channel. The GET is gated the same way because the list of modules a private channel runs is itself private. Staff who need in grant themselves access, which the audit log shows.
+Status: `ADOPTED` (D-322). Follow-up: none (built as decided).
+
+### User scope (P18-MOD, branch `feat/p18-modules`)
+
+**P18-M2. User scope has no on/off and applies globally across servers, not per server; the server still decides whether a module runs. Confirm?**
+Decision: confirmed. User scope is preference, not consent: a server decides what runs, the person shapes how it treats them, and that wish ("announce my level-ups") is the same everywhere, like a notification preference. A user-level switch would be a veto or a no-op, neither of which the form needs. Per-server personal settings would be a `Member` scope (guild and user), added only when a module needs one; the existing per-server leveling opt-out stays the escape hatch. One consequence: user-scope rows are the person's data, so the data export has to carry them (account deletion already drops them).
+Status: `ADOPTED` (D-320). Follow-up: N-12 (export).
+
+### Which modules (P18-MOD, branch `feat/p18-modules`)
+
+**P18-M3. Message quotes (channel) and leveling announcements (user) as the first scoped modules: confirm, and should `lounge.auto_thread`, `chat.reminders` or `chat.scheduled_messages` gain scopes now?**
+Decision: the two stand. Auto-thread gains channel scope now: `channels` stays server-level (which channels get threads is the server's), `name_template` and `ignore_bots` go to channel scope (a channel names its own threads and can quiet it), and the per-channel switch narrows it as D-319 says. Reminders and scheduled messages do not: their only fields are per-person caps, which are abuse limits the server sets, must not be user-settable, and have no per-channel meaning (reminders arrive as DMs). A channel-level "no scheduled messages here" waits for a request.
+Status: `ADOPTED` (D-321). Follow-up: N-11 (auto-thread channel scope).
+
+### Stale catalog key (P18-MOD, branch `feat/p18-modules`)
+
+**P18-M5. The `settings.channelTabs.featuresNote` key ("per-channel feature modules are not available yet") in `srvset-5.ts` is no longer rendered. Remove it?**
+Decision: remove it, on the integration branch. Nothing references it and both halves of the sentence are stale (per-channel modules since P18, the text-to-announcement switch since P14). The fragment rule (edit only your own fragment) is why the branch left it, and the rule stands; the integrator deletes the line when the branch lands. Unused keys are not kept for later.
+Status: `ADOPTED` (D-323). Follow-up: N-10.
+
+### Still with the owner
+
+Nothing from this round. The actions already listed in [open-questions.md](open-questions.md) stand.
