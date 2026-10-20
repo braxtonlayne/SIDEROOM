@@ -67,6 +67,7 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/users/@me/scheduled-messages")
         || p.starts_with("/users/@me/bookmarks")
         || p.starts_with("/users/@me/birthday")
+        || p.starts_with("/users/@me/sr/features")
         || p.starts_with("/users/@me/primary-guild")
         || p.starts_with("/tv/reminders")
     {
