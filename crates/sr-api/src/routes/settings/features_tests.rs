@@ -53,6 +53,7 @@ pub(super) fn wire(
     registry
         .register(sr_features::ModerationReportsFeature)
         .unwrap();
+    registry.register(sr_userfeat::LevelingFeature).unwrap();
     let settings = FeatureService::new(
         Arc::new(registry),
         Arc::new(InMemorySettingsStore::new()),
@@ -411,4 +412,245 @@ async fn applying_a_slowmode_preset_checks_the_module_the_permission_and_the_inp
         v["applied"][0]["revert_at"].as_i64().unwrap(),
         T0 + 15 * 60_000
     );
+}
+
+// ---- channel and user scope (LNG-CHN-017, LNG-USET-036) ---------------------------------
+
+impl Env {
+    fn ch_features(&self, rest: &str) -> String {
+        format!("/channels/{}/sr/features{rest}", self.ch)
+    }
+}
+
+const QUOTES: &str = "lounge.message_quotes";
+
+#[tokio::test]
+async fn channel_managers_see_the_modules_that_have_a_channel_scope() {
+    let e = env_features().await;
+    let path = e.ch_features("");
+    assert_eq!(e.get(&path, "bob").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(e.get(&path, "nobody").await.0, StatusCode::UNAUTHORIZED);
+    for who in ["owner", "mod"] {
+        let (s, v) = e.get(&path, who).await;
+        assert_eq!(s, StatusCode::OK, "{who}: {v}");
+        let list = v.as_array().unwrap();
+        // Only modules that declare a channel scope are offered.
+        assert_eq!(list.len(), 1, "{v}");
+        let q = &list[0];
+        assert_eq!(q["id"], QUOTES);
+        assert_eq!(q["guild_enabled"], false);
+        assert_eq!(q["enabled"], false);
+        assert_eq!(q["override_enabled"], Value::Null);
+        assert_eq!(q["settings"]["max_quotes"], 2);
+        // The form is the channel part of the schema.
+        assert_eq!(q["schema"]["fields"][0]["key"], "max_quotes");
+    }
+}
+
+#[tokio::test]
+async fn a_channel_narrows_what_the_server_has_on_and_can_be_reset() {
+    let e = env_features().await;
+    let path = e.ch_features(&format!("/{QUOTES}"));
+    // The channel cannot switch on what the server has off.
+    let (s, v) = e.patch(&path, "mod", json!({"enabled": true})).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["override_enabled"], true);
+    assert_eq!(v["guild_enabled"], false);
+    assert_eq!(v["enabled"], false);
+
+    // The server turns it on with four previews; the channel then takes three.
+    let (s, v) = e
+        .patch(
+            &e.g(&format!("/sr/features/{QUOTES}")),
+            "owner",
+            json!({"enabled": true, "settings": {"max_quotes": 4}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let (_, v) = e.get(&e.ch_features(""), "mod").await;
+    assert_eq!(v[0]["enabled"], true);
+    assert_eq!(
+        v[0]["settings"]["max_quotes"], 4,
+        "inherited from the server"
+    );
+
+    let (s, v) = e
+        .patch(&path, "mod", json!({"settings": {"max_quotes": 3}}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["settings"]["max_quotes"], 3);
+    assert_eq!(v["overrides"]["max_quotes"], 3);
+    // The server keeps its own value.
+    let (_, g) = e.get(&e.g("/sr/features"), "owner").await;
+    let g = g
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["id"] == QUOTES)
+        .unwrap();
+    assert_eq!(g["settings"]["max_quotes"], 4);
+
+    // Off in this channel only.
+    let (_, v) = e.patch(&path, "mod", json!({"enabled": false})).await;
+    assert_eq!(v["enabled"], false);
+    assert_eq!(v["guild_enabled"], true);
+    assert_eq!(v["override_enabled"], false);
+    // Another channel of the server is untouched.
+    let other = e
+        .get(&format!("/channels/{}/sr/features", e.voice), "mod")
+        .await
+        .1;
+    assert_eq!(other[0]["enabled"], true);
+
+    // Reset: back to following the server.
+    assert_eq!(e.delete(&path, "mod").await.0, StatusCode::NO_CONTENT);
+    let (_, v) = e.get(&e.ch_features(""), "mod").await;
+    assert_eq!(v[0]["override_enabled"], Value::Null);
+    assert_eq!(v[0]["overrides"], json!({}));
+    assert_eq!(v[0]["enabled"], true);
+    assert_eq!(v[0]["settings"]["max_quotes"], 4);
+}
+
+#[tokio::test]
+async fn channel_settings_are_checked_and_members_cannot_write() {
+    let e = env_features().await;
+    let path = e.ch_features(&format!("/{QUOTES}"));
+    for bad in [json!({"max_quotes": 0}), json!({"colour": "red"})] {
+        let r = e.patch(&path, "owner", json!({"settings": bad})).await;
+        assert_eq!(r.0, StatusCode::BAD_REQUEST, "{}", r.1);
+    }
+    assert_eq!(
+        e.patch(&path, "bob", json!({"enabled": false})).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(e.delete(&path, "bob").await.0, StatusCode::FORBIDDEN);
+    // A module without a channel scope, and an unknown one.
+    for id in ["lounge.starboard", "lounge.nope", "moderation.reports"] {
+        let r = e
+            .patch(
+                &e.ch_features(&format!("/{id}")),
+                "owner",
+                json!({"enabled": true}),
+            )
+            .await;
+        assert_eq!(r.0, StatusCode::NOT_FOUND, "{id}: {}", r.1);
+    }
+    // Not a channel at all.
+    assert_eq!(
+        e.get("/channels/424242/sr/features", "owner").await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn people_read_and_write_only_their_own_module_preferences() {
+    let e = env_features().await;
+    let leveling = "community.leveling";
+    let path = format!("/users/@me/sr/features/{leveling}");
+    assert_eq!(
+        e.get("/users/@me/sr/features", "nobody").await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    // A bot has no personal settings.
+    assert_eq!(
+        e.get("/users/@me/sr/features", "owner").await.0,
+        StatusCode::FORBIDDEN
+    );
+
+    let (s, v) = e
+        .as_user(BOB, Method::GET, "/users/@me/sr/features", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let list = v.as_array().unwrap();
+    assert_eq!(list.len(), 1, "only modules with a personal scope: {v}");
+    assert_eq!(list[0]["id"], leveling);
+    assert_eq!(list[0]["settings"]["announce_mine"], true);
+    // The personal form only carries the personal field, not the server's.
+    let keys: Vec<_> = list[0]["schema"]["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["key"].as_str().unwrap())
+        .collect();
+    assert_eq!(keys, ["announce_mine"]);
+
+    let (s, v) = e
+        .as_user(
+            BOB,
+            Method::PATCH,
+            &path,
+            Some(json!({"settings": {"announce_mine": false}})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["settings"]["announce_mine"], false);
+    assert_eq!(v["overrides"]["announce_mine"], false);
+
+    // Someone else is unaffected.
+    let (_, v) = e
+        .as_user(CAROL, Method::GET, "/users/@me/sr/features", None)
+        .await;
+    assert_eq!(v[0]["settings"]["announce_mine"], true);
+
+    // A server-level key is not a personal setting, and nothing outside the scope is writable.
+    let (s, v) = e
+        .as_user(
+            BOB,
+            Method::PATCH,
+            &path,
+            Some(json!({"settings": {"announce": false}})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{v}");
+    for id in ["lounge.starboard", "lounge.nope"] {
+        let (s, _) = e
+            .as_user(
+                BOB,
+                Method::PATCH,
+                &format!("/users/@me/sr/features/{id}"),
+                Some(json!({"settings": {}})),
+            )
+            .await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{id}");
+    }
+
+    // Reset.
+    assert_eq!(
+        e.as_user(BOB, Method::DELETE, &path, None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, v) = e
+        .as_user(BOB, Method::GET, "/users/@me/sr/features", None)
+        .await;
+    assert_eq!(v[0]["settings"]["announce_mine"], true);
+    assert_eq!(v[0]["overrides"], json!({}));
+}
+
+#[tokio::test]
+async fn the_server_form_does_not_show_or_accept_personal_fields() {
+    let e = env_features().await;
+    let (_, list) = e.get(&e.g("/sr/features"), "owner").await;
+    let lv = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["id"] == "community.leveling")
+        .unwrap();
+    let keys: Vec<_> = lv["schema"]["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["key"].as_str().unwrap())
+        .collect();
+    assert!(keys.contains(&"announce"));
+    assert!(!keys.contains(&"announce_mine"));
+    assert!(lv["settings"].get("announce_mine").is_none());
+    let r = e
+        .patch(
+            &e.g("/sr/features/community.leveling"),
+            "owner",
+            json!({"settings": {"announce_mine": false}}),
+        )
+        .await;
+    assert_eq!(r.0, StatusCode::BAD_REQUEST, "{}", r.1);
 }
