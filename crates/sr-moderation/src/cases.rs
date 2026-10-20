@@ -10,9 +10,9 @@ use sr_core::PlatformPermissions as P;
 use crate::error::{ModError, ModResult, conflict, invalid};
 use crate::holds::{holds_of_case, release_system_holds_in, replace_system_hold_in};
 use crate::model::{
-    Access, AppealView, CaseDetail, CaseEvent, CaseExtras, CaseEvidence, CaseFilter, CaseNote, CasePage,
-    CaseReport, CaseSeverity, CaseState, CaseSummary, NewCase, ReportCategory, ReporterView,
-    Routing, TargetKind, Who,
+    Access, AppealView, CaseDetail, CaseEvent, CaseEvidence, CaseExtras, CaseFilter, CaseNote,
+    CasePage, CaseReport, CaseSeverity, CaseState, CaseSummary, NewCase, ReportCategory,
+    ReporterView, Routing, TargetKind, Who,
 };
 use crate::rules::{self, CaseHead};
 use crate::service::{Moderation, log_staff, push_event, require_staff};
@@ -217,6 +217,9 @@ impl Moderation {
         }
         if let (Some(g), Who::Staff(_)) = (f.guild_id, who) {
             q.push(" AND c.guild_id = ").push_bind(g);
+        }
+        if let Some(a) = f.subject_account {
+            q.push(" AND c.subject_account_id = ").push_bind(a);
         }
         if let Some(cur) = f.cursor {
             q.push(if f.oldest_first {

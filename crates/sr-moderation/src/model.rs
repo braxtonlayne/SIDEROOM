@@ -371,6 +371,8 @@ pub struct CaseFilter {
     pub severity: Option<CaseSeverity>,
     pub assignee: Option<i64>,
     pub guild_id: Option<i64>,
+    /// Only cases about this account.
+    pub subject_account: Option<i64>,
     /// The id the previous page ended at.
     pub cursor: Option<i64>,
     /// Oldest first (the work queue); otherwise newest first.

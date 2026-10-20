@@ -26,6 +26,16 @@ export const REPORT_CATEGORIES: ReportCategory[] = [
   'other',
 ];
 
+/** The reasons the severity-only admin ban API (`BanReason`) knows; the rest go without one. */
+export const BAN_API_REASONS: ReportCategory[] = [
+  'illegal_content',
+  'child_safety',
+  'fraud',
+  'platform_abuse',
+  'harassment',
+  'ban_evasion',
+];
+
 export type TargetKind =
   'message' | 'user' | 'channel' | 'guild' | 'library' | 'cinema' | 'person' | 'other';
 export type CaseState = 'open' | 'triage' | 'investigating' | 'actioned' | 'dismissed' | 'closed';
@@ -196,6 +206,7 @@ export interface CaseQuery {
   severity?: Severity | '';
   assignee?: string;
   guild_id?: string;
+  subject_account_id?: string;
   cursor?: string | null;
   oldest_first?: boolean;
   limit?: number;

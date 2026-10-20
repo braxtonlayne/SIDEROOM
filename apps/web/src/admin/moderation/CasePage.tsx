@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import * as api from '../../moderation/api';
+import { BanReasonFields } from './BanReasonFields';
 import { Async, FormDialog, ReasonDialog, fmtMs, useResource } from '../ui';
 import {
   EVENT_KEYS,
@@ -603,29 +604,13 @@ function CaseDialogs({
           )()
         }
       >
-        <Select
-          aria-label={t('admin.moderation.dialog.banReason')}
-          options={api.REPORT_CATEGORIES.map((c) => ({ value: c, label: t(CATEGORY_KEYS[c]) }))}
-          value={banReason}
-          onValueChange={(v) => {
-            const c = v as api.ReportCategory;
-            setBanReason(c);
-            // The serious-by-default presets (D-211); staff can change the severity afterwards.
-            setBanSeverity(
-              ['illegal_content', 'child_safety', 'fraud', 'platform_abuse'].includes(c)
-                ? 'serious'
-                : 'standard',
-            );
+        <BanReasonFields
+          reason={banReason}
+          severity={banSeverity}
+          onChange={(r, sev) => {
+            setBanReason(r);
+            setBanSeverity(sev);
           }}
-        />
-        <Select
-          aria-label={t('admin.moderation.dialog.banSeverity')}
-          options={[
-            { value: 'serious', label: t(SEVERITY_KEYS.serious) },
-            { value: 'standard', label: t(SEVERITY_KEYS.standard) },
-          ]}
-          value={banSeverity}
-          onValueChange={(v) => setBanSeverity(v as api.Severity)}
         />
       </ReasonDialog>
       <ReasonDialog

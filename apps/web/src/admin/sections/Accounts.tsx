@@ -2,6 +2,8 @@ import { Button, Checkbox, Drawer, Notice, Select, TextInput } from '@sideroom/u
 import { useState, type FormEvent } from 'react';
 import * as api from '../api';
 import * as donations from '../donations/api';
+import * as mod from '../../moderation/api';
+import { BanReasonFields } from '../moderation/BanReasonFields';
 import { useT, type MessageKey } from '../../i18n';
 import { DataTable, type Column } from '../DataTable';
 import { AccountExtras } from './AccountExtras';
@@ -233,22 +235,13 @@ function AccountDrawer({
   const [email, setEmail] = useState('');
   const [badgeSet, setBadgeSet] = useState<string[]>([]);
   // The ban dialog: the reason category presets "serious" (D-211); staff can change it.
-  const [banReason, setBanReason] = useState<api.BanReason | ''>('');
+  const [banReason, setBanReason] = useState<mod.ReportCategory>('other');
   const [banSerious, setBanSerious] = useState(false);
   const openBan = (serious: boolean) => {
-    setBanReason('');
+    setBanReason('other');
     setBanSerious(serious);
     setPending({ kind: 'ban', category: serious ? 'serious' : 'standard' });
   };
-  const banReasonOptions = [
-    { value: '', label: t('admin.accounts.banReasonNone') },
-    { value: 'illegal_content', label: t('admin.accounts.banReason.illegalContent') },
-    { value: 'child_safety', label: t('admin.accounts.banReason.childSafety') },
-    { value: 'fraud', label: t('admin.accounts.banReason.fraud') },
-    { value: 'platform_abuse', label: t('admin.accounts.banReason.platformAbuse') },
-    { value: 'harassment', label: t('admin.accounts.banReason.harassment') },
-    { value: 'ban_evasion', label: t('admin.accounts.banReason.banEvasion') },
-  ];
   const d = res.data;
 
   const [notice, setNotice] = useState<string | null>(null);
@@ -683,30 +676,53 @@ function AccountDrawer({
                 onCancel={() => setPending(null)}
                 onConfirm={async (reason) => {
                   if (pending?.kind !== 'ban') return;
-                  const r = await api.banAccount(
-                    id,
-                    banSerious ? 'serious' : 'standard',
-                    reason,
-                    banReason || undefined,
-                  );
-                  await finish(t('admin.accounts.banned', { count: r.accounts_banned }));
+                  const severity: mod.Severity = banSerious ? 'serious' : 'standard';
+                  if (!viewer.can('MANAGE_CASES')) {
+                    // Without the case bit there is no case to join: the severity request stays for them.
+                    const r = await api.banAccount(
+                      id,
+                      severity,
+                      reason,
+                      mod.BAN_API_REASONS.includes(banReason)
+                        ? (banReason as api.BanReason)
+                        : undefined,
+                    );
+                    await finish(t('admin.accounts.banned', { count: r.accounts_banned }));
+                    return;
+                  }
+                  // Open or join the person's platform case, so the ban carries a category and an appeal
+                  // has a case to land in (D-215).
+                  const open = await mod.listCases({
+                    open_only: true,
+                    subject_account_id: id,
+                    limit: 25,
+                  });
+                  const caseId =
+                    open.items.find((c) => c.routing === 'platform')?.id ??
+                    (
+                      await mod.openCase({
+                        category: banReason,
+                        target_kind: 'user',
+                        target_id: id,
+                        subject_account_id: id,
+                        severity,
+                      })
+                    ).id;
+                  await mod.banFromCase(caseId, {
+                    reason_category: banReason,
+                    severity,
+                    note: reason,
+                  });
+                  await finish(t('admin.accounts.bannedFromCase'));
                 }}
               >
-                <Select
-                  aria-label={t('admin.accounts.banReasonLabel')}
-                  options={banReasonOptions}
-                  value={banReason}
-                  onValueChange={(v) => {
-                    setBanReason(v as api.BanReason | '');
-                    const preset = api.BAN_REASONS.find((r) => r.value === v);
-                    if (preset) setBanSerious(preset.serious);
+                <BanReasonFields
+                  reason={banReason}
+                  severity={banSerious ? 'serious' : 'standard'}
+                  onChange={(r, sev) => {
+                    setBanReason(r);
+                    setBanSerious(sev === 'serious');
                   }}
-                />
-                <Checkbox
-                  label={t('admin.accounts.banSeriousToggle')}
-                  description={t('admin.accounts.banSeriousToggleHint')}
-                  checked={banSerious}
-                  onChange={(e) => setBanSerious(e.target.checked)}
                 />
               </ReasonDialog>
               <ReasonDialog

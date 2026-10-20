@@ -961,6 +961,15 @@ async fn staff_open_cases_warn_and_ban_notes_and_everything_is_logged() {
             .await
             .unwrap();
     assert_eq!(rc.as_deref(), Some("fraud"));
+    // The ban is on the timeline with its id, which is how an appeal finds the case (N-25).
+    let detail = w.m.get_case(&who, c.id).await.unwrap();
+    let ev = detail
+        .events
+        .iter()
+        .find(|e| e.kind == "platform_ban")
+        .expect("platform_ban event");
+    assert_eq!(ev.detail["ban_id"], ban.to_string());
+    assert_eq!(ev.detail["reason_category"], "fraud");
 }
 
 #[tokio::test]

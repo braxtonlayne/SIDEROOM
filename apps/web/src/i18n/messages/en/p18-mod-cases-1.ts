@@ -228,8 +228,6 @@ export default {
   'admin.moderation.dialog.banDescription':
     'All their accounts are banned. A serious ban also raises suspicion on whoever invited them.',
   'admin.moderation.dialog.banConfirm': 'Ban person',
-  'admin.moderation.dialog.banReason': 'Why',
-  'admin.moderation.dialog.banSeverity': 'Severity',
   'admin.moderation.dialog.bannedNotice': 'The person is banned.',
   'admin.moderation.dialog.upholdTitle': 'Uphold the ban',
   'admin.moderation.dialog.overturnTitle': 'Overturn the ban',
@@ -259,4 +257,7 @@ export default {
   'settings.privacy.reports.stateReceived': 'Received',
   'settings.privacy.reports.stateUnderReview': 'Under review',
   'settings.privacy.reports.stateClosed': 'Closed',
+  // ---- Accounts ban dialog through a case (N-25) ----
+  'admin.accounts.bannedFromCase':
+    'Banned. The case is in Moderation, where the person can appeal.',
 } satisfies Record<string, string>;

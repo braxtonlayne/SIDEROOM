@@ -6,12 +6,8 @@ import { useT } from '../../i18n';
 import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import * as api from '../../moderation/api';
 import { FormDialog } from '../ui';
+import { presetSeverity } from './BanReasonFields';
 import { SEVERITY_KEYS } from './labels';
-
-const presetSeverity = (c: api.ReportCategory): api.Severity =>
-  ['illegal_content', 'child_safety', 'fraud', 'platform_abuse'].includes(c)
-    ? 'serious'
-    : 'standard';
 
 export function NewCaseDialog({
   open,

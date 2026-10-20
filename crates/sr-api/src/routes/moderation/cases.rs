@@ -39,6 +39,8 @@ pub struct CaseParams {
     pub assignee: Option<String>,
     /// Platform staff only: cases of this server.
     pub guild_id: Option<String>,
+    /// Cases about this account.
+    pub subject_account_id: Option<String>,
     /// `next_cursor` of the previous page.
     pub cursor: Option<String>,
     /// Oldest first (the work queue); default newest first.
@@ -72,6 +74,11 @@ fn filter(p: &CaseParams) -> ApiResult<CaseFilter> {
             .map(|s| id(s, "account"))
             .transpose()?,
         guild_id: p.guild_id.as_deref().map(|s| id(s, "server")).transpose()?,
+        subject_account: p
+            .subject_account_id
+            .as_deref()
+            .map(|s| id(s, "account"))
+            .transpose()?,
         cursor: p.cursor.as_deref().map(|s| id(s, "cursor")).transpose()?,
         oldest_first: p.oldest_first.unwrap_or(false),
         limit: p.limit.unwrap_or(25),

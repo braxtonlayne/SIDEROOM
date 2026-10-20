@@ -63,7 +63,8 @@ export function YourReportsCard() {
                   {' '}
                   {t('settings.privacy.reports.filed', {
                     when: formatDate(r.created_at_ms),
-                  })} · {t(STATE_KEYS[r.state])}
+                  })}{' '}
+                  · {t(STATE_KEYS[r.state])}
                   {r.outcome_line ? ` · ${r.outcome_line}` : ''}
                 </span>
               </div>
