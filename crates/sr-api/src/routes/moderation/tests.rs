@@ -35,6 +35,7 @@ use tower::ServiceExt;
 const OWNER: i64 = 10;
 const CASE_STAFF: i64 = 11;
 const BASIC: i64 = 12;
+const CLERK: i64 = 13;
 const MEMBER: i64 = 20;
 const TARGET: i64 = 21;
 
@@ -58,6 +59,7 @@ async fn env(pool: sqlx::PgPool) -> Env {
     for (id, name) in [
         (CASE_STAFF, "casestaff"),
         (BASIC, "basic"),
+        (CLERK, "clerk"),
         (MEMBER, "member"),
         (TARGET, "target"),
     ] {
@@ -66,6 +68,7 @@ async fn env(pool: sqlx::PgPool) -> Env {
     admin.add_role(1, "Owner", 3, P::OWNER);
     admin.add_role(2, "Moderator", 2, P::STAFF_BASIC | P::MANAGE_CASES);
     admin.add_role(3, "Basic", 1, P::STAFF_BASIC);
+    admin.add_role(4, "Takedown clerk", 2, P::STAFF_BASIC | P::MANAGE_TAKEDOWNS);
     admin.set_owner(OWNER);
     let svc = AdminService::new(admin.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
@@ -73,10 +76,11 @@ async fn env(pool: sqlx::PgPool) -> Env {
         .await
         .unwrap();
     svc.appoint(&op, BASIC, &[3], Some("test")).await.unwrap();
+    svc.appoint(&op, CLERK, &[4], Some("test")).await.unwrap();
 
     let sessions = Arc::new(MemorySessions::new());
     let mut tokens = HashMap::new();
-    for (n, uid) in [OWNER, CASE_STAFF, BASIC, MEMBER, TARGET]
+    for (n, uid) in [OWNER, CASE_STAFF, BASIC, CLERK, MEMBER, TARGET]
         .into_iter()
         .enumerate()
     {
@@ -196,6 +200,21 @@ async fn staff_routes_refuse_members_and_staff_without_the_bit() {
         ),
         (Method::POST, "/moderation/holds/5/reviewed", None),
         (Method::GET, "/moderation/appeals", None),
+        (Method::GET, "/moderation/takedowns", None),
+        (Method::GET, "/moderation/takedowns/export", None),
+        (Method::GET, "/moderation/takedowns/5", None),
+        (
+            Method::POST,
+            "/moderation/takedowns",
+            Some(
+                json!({"kind": "copyright", "notifier_name": "n", "notifier_contact": "c", "legal_basis": "b", "original_text": "t"}),
+            ),
+        ),
+        (
+            Method::POST,
+            "/moderation/takedowns/5/uphold",
+            Some(json!({"reason": "x"})),
+        ),
         (
             Method::POST,
             "/moderation/appeals/5/decision",
@@ -532,4 +551,255 @@ async fn report_to_case_to_hold_to_release_over_http() {
         mine[0]["outcome_line"],
         "Thank you, nothing broke the rules."
     );
+}
+
+// ---- the takedown register -----------------------------------------------------------------------------------
+
+/// MANAGE_CASES is not MANAGE_TAKEDOWNS (D-210): the case moderator is refused by name, and it is logged.
+#[tokio::test]
+async fn the_register_needs_manage_takedowns_not_manage_cases() {
+    let e = env(lazy()).await;
+    let (s, body) = e
+        .call(Some(CASE_STAFF), Method::GET, "/moderation/takedowns", None)
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("MANAGE_TAKEDOWNS"),
+        "{body}"
+    );
+    let log = e
+        .admin
+        .list_log(&sr_admin::AccessLogFilter {
+            limit: 50,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(
+        log.iter()
+            .any(|r| r.action == "moderation.takedown.list" && r.actor_id == CASE_STAFF),
+        "the denial is in the access log: {log:?}"
+    );
+}
+
+#[tokio::test]
+async fn takedown_inputs_that_name_nothing_are_client_errors() {
+    let e = env(lazy()).await;
+    let (s, _) = e
+        .call(
+            Some(CLERK),
+            Method::GET,
+            "/moderation/takedowns?state=nonsense",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e
+        .call(
+            Some(CLERK),
+            Method::GET,
+            "/moderation/takedowns/export?format=xml",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/moderation/item-status?kind=message&id=5",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "only library and cinema items");
+    let (s, _) = e
+        .call(Some(CLERK), Method::GET, "/moderation/takedowns/nope", None)
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // Signed out: the item question needs a session.
+    let (s, _) = e
+        .call(
+            None,
+            Method::GET,
+            "/moderation/item-status?kind=library_series&id=5",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn takedown_notice_to_counter_notice_to_export_over_http() {
+    let db = sr_db::testing::TestDb::new().await.expect("test db");
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
+        (BASIC, "basic"),
+        (CLERK, "clerk"),
+        (MEMBER, "member"),
+        (TARGET, "target"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    let e = env(pool.clone()).await;
+    // A published series made by TARGET.
+    sqlx::query(
+        "INSERT INTO reading_series (id, kind, title, created_by, published, published_at) \
+         VALUES (700, 'manga', 'Borrowed Saga', $1, TRUE, now())",
+    )
+    .bind(TARGET)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let (s, n) = e
+        .call(
+            Some(CLERK),
+            Method::POST,
+            "/moderation/takedowns",
+            Some(json!({"kind": "copyright", "notifier_name": "Rights Ltd",
+                        "notifier_contact": "legal@rights.example",
+                        "legal_basis": "Owner of Borrowed Saga",
+                        "locations": ["https://x.example/library/700"],
+                        "original_text": "Please remove."})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{n}");
+    let id = n["id"].as_str().unwrap().to_owned();
+    assert_eq!(n["state"], "received");
+    let base = format!("/moderation/takedowns/{id}");
+
+    // Uphold before triage is a conflict; then name the content and uphold.
+    let (s, _) = e
+        .call(
+            Some(CLERK),
+            Method::POST,
+            &format!("{base}/uphold"),
+            Some(json!({"reason": "valid"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (s, d) = e
+        .call(
+            Some(CLERK),
+            Method::POST,
+            &format!("{base}/items"),
+            Some(json!({"kind": "library_series", "id": "700"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{d}");
+    assert_eq!(d["state"], "triage");
+    assert_eq!(d["items"][0]["label"], "Series Borrowed Saga");
+    let (s, up) = e
+        .call(
+            Some(CLERK),
+            Method::POST,
+            &format!("{base}/uphold"),
+            Some(json!({"reason": "valid"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{up}");
+    assert_eq!(up["items_disabled"], 1);
+
+    // Any signed-in person can ask whether the item is down; the answer is only the state.
+    let (s, st) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/moderation/item-status?kind=library_series&id=700",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(st["state"], "taken_down");
+
+    let (s, c) = e
+        .call(
+            Some(CLERK),
+            Method::POST,
+            &format!("{base}/counter-notice"),
+            Some(json!({"text": "It is mine"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(c["state"], "counter_noticed");
+    assert!(c["restore_after_ms"].as_i64().unwrap() > c["counter_noticed_at_ms"].as_i64().unwrap());
+    let (s, c) = e
+        .call(
+            Some(CLERK),
+            Method::POST,
+            &format!("{base}/court-filing"),
+            Some(json!({"noted": true, "reason": "filed on the 3rd"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(c["court_filing_noted"], true);
+
+    // The register lists it and exports CSV and JSON.
+    let (s, list) = e
+        .call(Some(CLERK), Method::GET, "/moderation/takedowns", None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    let (s, json_rows) = e
+        .call(
+            Some(CLERK),
+            Method::GET,
+            "/moderation/takedowns/export?format=json",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(json_rows[0]["notifier_name"], "Rights Ltd");
+    let raw = Request::builder()
+        .method(Method::GET)
+        .uri("/api/v1/moderation/takedowns/export")
+        .header("cookie", format!("sr_session={}", e.tokens[&CLERK]))
+        .body(Body::empty())
+        .unwrap();
+    let resp = e.app.clone().oneshot(raw).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert!(
+        resp.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/csv")
+    );
+    let csv = String::from_utf8(
+        resp.into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(csv.starts_with("reference,kind,state,"));
+    assert!(csv.contains("Rights Ltd"));
+
+    // Restoring by hand ends it.
+    let (s, r) = e
+        .call(
+            Some(CLERK),
+            Method::POST,
+            &format!("{base}/restore"),
+            Some(json!({"reason": "court dismissed"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["state"], "restored");
+    let (_, st) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/moderation/item-status?kind=library_series&id=700",
+            None,
+        )
+        .await;
+    assert_eq!(st["state"], "none");
 }

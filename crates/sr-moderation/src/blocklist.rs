@@ -66,7 +66,7 @@ struct Cached {
 
 /// The shared, cached view of `blocked_objects`.
 pub struct MediaBlocklist {
-    pool: PgPool,
+    pool: Option<PgPool>,
     ttl: Duration,
     cached: RwLock<Cached>,
 }
@@ -78,7 +78,7 @@ impl MediaBlocklist {
 
     pub fn with_ttl(pool: PgPool, ttl: Duration) -> Self {
         Self {
-            pool,
+            pool: Some(pool),
             ttl,
             cached: RwLock::new(Cached {
                 loaded: None,
@@ -87,10 +87,23 @@ impl MediaBlocklist {
         }
     }
 
+    /// A list that never reloads (tests of the routes that consult it).
+    pub fn fixed(set: BlockSet) -> Self {
+        Self {
+            pool: None,
+            ttl: Duration::MAX,
+            cached: RwLock::new(Cached {
+                loaded: Some(Instant::now()),
+                set,
+            }),
+        }
+    }
+
     /// Reload from the database now. A failed load keeps the copy that was there and logs.
     pub async fn refresh(&self) {
+        let Some(pool) = &self.pool else { return };
         let rows = sqlx::query("SELECT kind, value FROM blocked_objects")
-            .fetch_all(&self.pool)
+            .fetch_all(pool)
             .await;
         match rows {
             Ok(rows) => {

@@ -49540,6 +49540,72 @@
         ]
       }
     },
+    "/moderation/item-status": {
+      "get": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Is this library or cinema item held or taken down? (Any signed-in person; reveals nothing but the state.)",
+        "operationId": "item_status",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`library_series`, `library_chapter`, `cinema_title` or `cinema_episode`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "The series, chapter, title or episode.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TakedownItemStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/reports": {
       "post": {
         "tags": [
@@ -49675,6 +49741,1139 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns": {
+      "get": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "The register, newest first (`MANAGE_TAKEDOWNS`).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Only one state: `received`, `triage`, `rejected`, `removed`, `counter_noticed`, `restored`, `withdrawn`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 500, default 200.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoticeSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Enter a notice (staff only; there is no public form, D-293). Opens its case.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewNotice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/export": {
+      "get": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Export the whole register as CSV or JSON (`MANAGE_TAKEDOWNS`; the read is access-logged).",
+        "operationId": "export",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`csv` (default) or `json`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/csv, or a JSON array of notices"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}": {
+      "get": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "One notice with its items, timeline and strike counts (`MANAGE_TAKEDOWNS`).",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/counter-notice": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Record a counter-notice (staff record it). The content returns after ten business days unless a court\nfiling is noted.",
+        "operationId": "counter_notice",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CounterNoticeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/court-filing": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Note or clear a court filing on a notice that is in force.",
+        "operationId": "court_filing",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourtFilingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/hold": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Freeze the identified items for evidence without removing anything yet (hold, then disable).",
+        "operationId": "hold",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/items": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Name a piece of content the notice covers (triage). 409 when it is already on the notice.",
+        "operationId": "add_item",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/items/{item_id}": {
+      "delete": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Take back an item named by mistake, while it is only identified (not yet held).",
+        "operationId": "remove_item",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/reject": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Reject an incomplete notice. Returns the templated reply staff send to the notifier.",
+        "operationId": "reject",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/restore": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Restore the content now (a logged action).",
+        "operationId": "restore",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/uphold": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Uphold a notice: hold and disable every item, block the stored objects, tell the uploaders, count the\nstrike (a review case opens at the threshold, never a suspension).",
+        "operationId": "uphold",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpholdOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/withdraw": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "The notifier withdrew the notice: the content returns and no strike stands.",
+        "operationId": "withdraw",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -69056,6 +70255,39 @@
           }
         }
       },
+      "CounterNoticeBody": {
+        "type": "object",
+        "description": "Body of a counter-notice.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The counter-notice as received, kept verbatim."
+          }
+        }
+      },
+      "CourtFilingBody": {
+        "type": "object",
+        "description": "Body of a court-filing note.",
+        "required": [
+          "noted"
+        ],
+        "properties": {
+          "noted": {
+            "type": "boolean",
+            "description": "`true` to note that the notifier went to court (the job will not restore); `false` to clear it."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required."
+          }
+        }
+      },
       "CoverBody": {
         "type": "object",
         "description": "Body of `POST /library/submissions/{id}/cover`.",
@@ -74032,6 +75264,11 @@
               "null"
             ]
           },
+          "catalog_rows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Library and cinema rows (series, chapters, titles, episodes) it freezes."
+          },
           "created_at_ms": {
             "type": "integer",
             "format": "int64"
@@ -75276,6 +76513,18 @@
             "description": "`approved`, `rejected` or `pending` (undo)."
           }
         }
+      },
+      "ItemKind": {
+        "type": "string",
+        "description": "What a notice item points at.",
+        "enum": [
+          "message",
+          "attachment",
+          "library_series",
+          "library_chapter",
+          "cinema_title",
+          "cinema_episode"
+        ]
       },
       "ItemState": {
         "type": "string",
@@ -78979,6 +80228,68 @@
           }
         }
       },
+      "NewItem": {
+        "type": "object",
+        "description": "A piece of content found for a notice.",
+        "required": [
+          "kind",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ItemKind"
+          }
+        }
+      },
+      "NewNotice": {
+        "type": "object",
+        "description": "What staff enter for a notice (spec 5, step 1).",
+        "required": [
+          "kind",
+          "notifier_name",
+          "notifier_contact",
+          "legal_basis",
+          "original_text"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TakedownKind"
+          },
+          "legal_basis": {
+            "type": "string",
+            "description": "The work claimed (copyright) or the legal basis (illegal content)."
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The exact URLs or ids the notifier named."
+          },
+          "notifier_contact": {
+            "type": "string",
+            "description": "Email, postal address or phone, as the notifier gave it."
+          },
+          "notifier_name": {
+            "type": "string"
+          },
+          "original_text": {
+            "type": "string",
+            "description": "The notice as received, kept verbatim."
+          },
+          "received_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When it arrived (Unix ms); now when absent."
+          }
+        }
+      },
       "NewReport": {
         "type": "object",
         "description": "What a member sends to report something. The client sends ids and the note; the server snapshots the evidence.",
@@ -79062,6 +80373,203 @@
           },
           "user_id": {
             "type": "string"
+          }
+        }
+      },
+      "NoticeDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/NoticeSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "notifier_contact",
+              "legal_basis",
+              "locations",
+              "original_text",
+              "entered_by",
+              "rejection_reason",
+              "counter_notice_text",
+              "restore_reason",
+              "items",
+              "events",
+              "strikes"
+            ],
+            "properties": {
+              "counter_notice_text": {
+                "type": "string"
+              },
+              "counter_noticed_at_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "entered_by": {
+                "type": "string"
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/NoticeEvent"
+                }
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TakedownItem"
+                }
+              },
+              "legal_basis": {
+                "type": "string"
+              },
+              "locations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "notifier_contact": {
+                "type": "string"
+              },
+              "original_text": {
+                "type": "string"
+              },
+              "rejection_reason": {
+                "type": "string"
+              },
+              "restore_reason": {
+                "type": "string"
+              },
+              "restored_at_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "strikes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StrikeCount"
+                }
+              }
+            }
+          }
+        ],
+        "description": "A notice with everything staff need on its page."
+      },
+      "NoticeEvent": {
+        "type": "object",
+        "description": "One entry of a notice's timeline.",
+        "required": [
+          "id",
+          "kind",
+          "detail",
+          "created_at_ms"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
+      "NoticeState": {
+        "type": "string",
+        "description": "Where a notice is in its life.",
+        "enum": [
+          "received",
+          "triage",
+          "rejected",
+          "removed",
+          "counter_noticed",
+          "restored",
+          "withdrawn"
+        ]
+      },
+      "NoticeSummary": {
+        "type": "object",
+        "description": "A row of the register.",
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "notifier_name",
+          "received_at_ms",
+          "triage_due_at_ms",
+          "triage_overdue",
+          "items",
+          "court_filing_noted"
+        ],
+        "properties": {
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "court_filing_noted": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TakedownKind"
+          },
+          "notifier_name": {
+            "type": "string"
+          },
+          "received_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "removed_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "restore_after_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/NoticeState"
+          },
+          "triage_due_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "triage_overdue": {
+            "type": "boolean",
+            "description": "Received or in triage and past the one-business-day target."
           }
         }
       },
@@ -83262,6 +84770,19 @@
           }
         }
       },
+      "RejectOutcome": {
+        "type": "object",
+        "description": "The reply text for an incomplete notice.",
+        "required": [
+          "reply"
+        ],
+        "properties": {
+          "reply": {
+            "type": "string",
+            "description": "The templated reply staff send to the notifier."
+          }
+        }
+      },
       "RelationshipObject": {
         "type": "object",
         "required": [
@@ -86170,6 +87691,41 @@
           }
         }
       },
+      "StrikeCount": {
+        "type": "object",
+        "description": "The strikes of one Person named by a notice.",
+        "required": [
+          "person_id",
+          "strikes",
+          "window_months",
+          "threshold"
+        ],
+        "properties": {
+          "person_id": {
+            "type": "string"
+          },
+          "review_case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The review case the counter opened for this Person, when it did."
+          },
+          "strikes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Upheld takedowns inside the window, this one included once it is upheld."
+          },
+          "threshold": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "window_months": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "Submission": {
         "type": "object",
         "description": "A submission as stored.",
@@ -86888,6 +88444,94 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "TakedownItem": {
+        "type": "object",
+        "description": "One content item of a notice.",
+        "required": [
+          "id",
+          "kind",
+          "target_id",
+          "label",
+          "state"
+        ],
+        "properties": {
+          "disabled_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "hold_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ItemKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "restored_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ItemState"
+          },
+          "subject_account_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_id": {
+            "type": "string"
+          }
+        }
+      },
+      "TakedownItemStatus": {
+        "type": "object",
+        "description": "Whether a library or cinema item is held or taken down: `none`, `held` or `taken_down`. For the reader and\nplayer pages; the answer is only the state.",
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "`none`, `held` or `taken_down`."
+          }
+        }
+      },
+      "TakedownKind": {
+        "type": "string",
+        "description": "The two kinds of notice (spec 5).",
+        "enum": [
+          "copyright",
+          "illegal_content"
+        ]
+      },
+      "TakedownReasonBody": {
+        "type": "object",
+        "description": "A body that carries a reason.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required."
           }
         }
       },
@@ -89604,6 +91248,32 @@
               "null"
             ],
             "description": "Pass back as `before` for the next page; absent at the end."
+          }
+        }
+      },
+      "UpholdOutcome": {
+        "type": "object",
+        "description": "What upholding a notice did.",
+        "required": [
+          "items_disabled",
+          "notified"
+        ],
+        "properties": {
+          "items_disabled": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "notified": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Uploaders or authors who got the system DM."
+          },
+          "review_case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The review case opened because a Person reached the threshold."
           }
         }
       },

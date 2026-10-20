@@ -1178,12 +1178,16 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Review decisions reach the submitter as a system DM too (REV-CORE-007).
     let _ = review_dm.set(staff_voice.clone());
     // Reports, cases, holds and appeals (Phase 7, step 1); reporting is behind the `moderation.reports` flag.
+    // The takedown register (step 2) reads the strike policy from the compliance module and blocks media.
+    let media_blocklist = Arc::new(sr_moderation::blocklist::MediaBlocklist::new(pool.clone()));
+    let moderation = sr_moderation::Moderation::new(pool.clone(), id_src.clone())
+        .with_notifier(staff_voice.clone())
+        .with_policy(Arc::new(crate::takedown_jobs::TakedownPolicySource::new(
+            features.clone(),
+        )))
+        .with_blocklist(media_blocklist.clone());
     let moderation_deps = Arc::new(
-        routes::moderation::ModerationDeps::new(
-            sr_moderation::Moderation::new(pool.clone(), id_src.clone())
-                .with_notifier(staff_voice.clone()),
-        )
-        .with_features(features.clone()),
+        routes::moderation::ModerationDeps::new(moderation.clone()).with_features(features.clone()),
     );
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
         .with_extras(admin_repo)
@@ -1345,7 +1349,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(review_deps.clone())
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
-            routes::cdn::CdnDeps::new(storage.clone(), cdn_signer).with_playlists(playback_deps),
+            routes::cdn::CdnDeps::new(storage.clone(), cdn_signer)
+                .with_playlists(playback_deps)
+                .with_blocklist(media_blocklist.clone()),
         ))
         .extension(external_images)
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
@@ -1445,6 +1451,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
+    let runner = crate::takedown_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::apps_jobs::register(runner, &pool, (*apps_service).clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
     // The event clock is a leased singleton job: one node advances events (G-92).
@@ -1485,6 +1492,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::library_jobs::schedule_sources(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
+    crate::takedown_jobs::schedule(&pool).await?;
     crate::apps_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
     crate::events_jobs::schedule(&pool).await?;

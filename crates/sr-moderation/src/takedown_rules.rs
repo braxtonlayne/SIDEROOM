@@ -136,8 +136,8 @@ pub fn can_move(from: NoticeState, to: NoticeState) -> bool {
     use NoticeState::{CounterNoticed, Received, Rejected, Removed, Restored, Triage, Withdrawn};
     matches!(
         (from, to),
-        (Received, Triage | Rejected | Removed)
-            | (Triage, Rejected | Removed)
+        (Received, Triage | Rejected | Removed | Withdrawn)
+            | (Triage, Rejected | Removed | Withdrawn)
             | (Removed, CounterNoticed | Restored | Withdrawn)
             | (CounterNoticed, Restored | Withdrawn)
     )
@@ -371,6 +371,7 @@ mod tests {
         assert!(can_move(Removed, CounterNoticed));
         assert!(can_move(CounterNoticed, Restored));
         assert!(can_move(Removed, Withdrawn));
+        assert!(can_move(Triage, Withdrawn));
         assert!(!can_move(Rejected, Removed));
         assert!(!can_move(Restored, Removed));
         assert!(!can_move(Removed, Triage));

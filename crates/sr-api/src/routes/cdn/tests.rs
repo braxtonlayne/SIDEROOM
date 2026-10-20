@@ -536,3 +536,49 @@ async fn originals_and_transcode_outputs_are_signed_only_and_hls_assets_map_to_t
         StatusCode::NOT_FOUND
     );
 }
+
+/// A takedown blocks the stored object on the media path (MOD-TKD-004): a valid link answers 451, a bad
+/// signature still 403 (nothing is revealed to a stranger), and other objects are untouched.
+#[tokio::test]
+async fn blocked_objects_answer_451_after_the_signature_check() {
+    use sr_moderation::blocklist::{BlockSet, MediaBlocklist};
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    storage
+        .put("chat/1/2/a.png", Bytes::from(png()))
+        .await
+        .unwrap();
+    storage
+        .put("chat/1/2/b.png", Bytes::from(png()))
+        .await
+        .unwrap();
+    storage
+        .put("library/7/9/001.webp", Bytes::from(png()))
+        .await
+        .unwrap();
+    let signer = CdnSigner::new(SECRET);
+    let list = BlockSet::from_rows([
+        ("key".to_owned(), "chat/1/2/a.png".to_owned()),
+        ("prefix".to_owned(), "library/7/".to_owned()),
+    ]);
+    let state = AppState::builder()
+        .extension(Arc::new(
+            CdnDeps::new(storage, signer.clone())
+                .with_blocklist(Arc::new(MediaBlocklist::fixed(list))),
+        ))
+        .build();
+    let f = Fx {
+        app: layered(state),
+        signer,
+    };
+    let blocked = f.get(&f.url("/cdn/attachments/1/2/a.png")).await;
+    assert_eq!(blocked.status(), StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS);
+    let by_prefix = f.get(&f.url("/cdn/library/7/9/001.webp")).await;
+    assert_eq!(
+        by_prefix.status(),
+        StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS
+    );
+    let other = f.get(&f.url("/cdn/attachments/1/2/b.png")).await;
+    assert_eq!(other.status(), StatusCode::OK);
+    let unsigned = f.get("/cdn/attachments/1/2/a.png?ex=1&sig=bad").await;
+    assert_eq!(unsigned.status(), StatusCode::FORBIDDEN);
+}

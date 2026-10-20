@@ -658,7 +658,7 @@ pub struct RejectOutcome {
 }
 
 /// What the item pages may show about a piece of content (spec 5; `MOD-TKD-011`).
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ItemStatus {
     /// `none`, `held` (frozen for evidence, still reachable by staff) or `taken_down`.
     pub state: String,
