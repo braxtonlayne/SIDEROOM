@@ -19,7 +19,7 @@ export default {
   'admin.accounts.banSeriousToggleHint':
     'A serious ban raises suspicion on the account that invited this person.',
   'settings.account.removalRetained':
-    'Some records stay after erasure so that bans, invoices and moderation decisions keep their history: your Person record (the link between your accounts), the invite graph, your invoices and the staff-side moderation history. They are kept to stop banned people returning, to meet accounting duties and to keep staff decisions accountable. Your profile and sign-in data are removed.',
+    'Your profile, password, passkeys, sessions and email address are removed; the linked Discord identity is kept only to recognise you if you return. These records stay: Person record, Invite graph, Invoices, Staff-side moderation history, Messages and uploads you did not delete, Content under a moderation hold, Linked Discord identity, This request and its audit trail. They are kept to stop banned people returning, to meet accounting duties and to keep staff decisions accountable.',
   'settings.userNav.invites': 'Invites',
   'settings.userInvites.title': 'Invites',
   'settings.userInvites.what': 'your invites',

@@ -117,6 +117,7 @@ export function DeleteAccountDialog({
         noValidate
       >
         <p>{t('settings.account.removalRetained')}</p>
+        <p>{t('settings.account.removalMessages')}</p>
         {errors.blocked && (
           <Notice variant="danger" role="alert">
             {errors.blocked}

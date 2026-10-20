@@ -282,12 +282,24 @@ This archive holds the data tied to your account, as JSON files.\n\
 Passwords, tokens and keys are never part of this package.\n\
 Messages you deleted are hidden from everyone and are not listed.\n\
 \n\
-What stays after you delete your account\n\
-Some records are kept after erasure so that bans, invoices and moderation decisions keep\n\
-their history: your Person record (the link between your accounts), the invite graph,\n\
-your invoices and the staff-side moderation history. They are kept to stop banned people\n\
-from returning, to meet accounting duties and to keep staff decisions accountable.\n\
-Your profile and your sign-in data are removed.\n";
+";
+
+/// The README: the fixed text, then what stays after erasure. The eight records come from
+/// [`sr_admin::RETAINED`], the same list the staff data-request queue writes into an erasure outcome
+/// (D-318), so the package, the deletion screen and the outcome cannot drift apart.
+pub fn readme() -> String {
+    let mut out = String::from(README);
+    out.push_str("What stays after you delete your account\n");
+    out.push_str(
+        "Your profile, password, passkeys, sessions and email address are removed; the linked Discord\n\
+         identity is kept only to recognise you if you return. These records stay:\n",
+    );
+    for r in sr_admin::RETAINED {
+        out.push_str(&format!("  - {}: {}\n", r.label, r.reason));
+    }
+    out.push_str("Messages you leave in place stay. Delete them first if you want them gone.\n");
+    out
+}
 
 /// Write the package for `user` into `out` (a zip). Returns the number of messages written.
 pub async fn build_package<W: Write + Seek>(
@@ -299,7 +311,7 @@ pub async fn build_package<W: Write + Seek>(
     let mut zip = ZipWriter::new(out);
     zip.start_file("README.txt", SimpleFileOptions::default())
         .map_err(zip_err)?;
-    zip.write_all(README.as_bytes()).map_err(zip_err)?;
+    zip.write_all(readme().as_bytes()).map_err(zip_err)?;
 
     let account = rows(
         pool,

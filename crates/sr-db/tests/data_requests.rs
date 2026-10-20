@@ -155,6 +155,22 @@ async fn lifecycle_stores_the_dates_extends_once_and_logs_every_change() {
     assert_eq!(x.extended_until_ms, Some(q.due_at_ms + 20 * DAY_MS));
     assert_eq!(x.due_at_ms, q.due_at_ms);
     assert_eq!(x.extension_reason.as_deref(), Some("many systems"));
+    assert_eq!(
+        x.member_notified_at_ms, None,
+        "not told until the notice is recorded"
+    );
+    let told = r
+        .member_notice(
+            q.id,
+            true,
+            T0 + 2500,
+            &entry("data_request.extend_notice", q.id),
+        )
+        .await
+        .unwrap();
+    assert_eq!(told.member_notified_at_ms, Some(T0 + 2500));
+    assert_eq!(told.extended_at_ms, Some(T0 + 2000));
+    assert!(!told.with_clock(T0).extended_late);
     assert!(matches!(
         r.extend(
             q.id,
@@ -393,6 +409,15 @@ async fn erasure_run_scrubs_the_account_and_keeps_the_retained_records() {
     .execute(pool)
     .await
     .unwrap();
+    sqlx::query("INSERT INTO sessions (id, account_id, token_hash, ip, user_agent, device_label, expires_at) VALUES (13, 100, decode(repeat('ab', 32), 'hex'), '203.0.113.9', 'Firefox', 'Laptop', now() + interval '1 day')")
+        .execute(pool).await.unwrap();
+    sqlx::query("INSERT INTO login_events (id, account_id, ip, success) VALUES (14, 100, '203.0.113.9', true)")
+        .execute(pool).await.unwrap();
+    sqlx::query("INSERT INTO messages (id, channel_id, author_id) VALUES ($1, 11, 100)")
+        .bind(mid + 1)
+        .execute(pool)
+        .await
+        .unwrap();
     // A Discord link.
     let identities_ok = sqlx::query("INSERT INTO external_identities (id, account_id, provider, provider_user_id) VALUES (12, 100, 'discord', 'd-100')")
         .execute(pool).await.is_ok();
@@ -473,6 +498,21 @@ async fn erasure_run_scrubs_the_account_and_keeps_the_retained_records() {
         one("SELECT count(*) FROM platform_audit_log WHERE id = 7").await,
         1,
         "audit trail"
+    );
+    assert_eq!(
+        one("SELECT count(*) FROM messages WHERE author_id = 100 AND hold_id IS NULL").await,
+        1,
+        "messages the member did not delete stay (D-029, D-123)"
+    );
+    assert_eq!(
+        one("SELECT count(*) FROM sessions WHERE account_id = 100 AND (ip IS NOT NULL OR user_agent IS NOT NULL OR device_label IS NOT NULL)").await,
+        0,
+        "session addresses are scrubbed"
+    );
+    assert_eq!(
+        one("SELECT count(*) FROM login_events WHERE account_id = 100 AND ip IS NOT NULL").await,
+        0,
+        "sign-in addresses are scrubbed"
     );
     assert_eq!(
         one("SELECT count(*) FROM messages WHERE author_id = 100 AND hold_id = 10").await,
@@ -609,4 +649,45 @@ fn nothing_in_the_workspace_purges_data_requests() {
         !sql.contains("on delete"),
         "no cascade or set-null on data_requests"
     );
+}
+
+/// The export README and the deletion screen name the same eight records, in the same order, as the
+/// erasure outcome (N-03, D-318).
+#[test]
+fn readme_and_deletion_screen_list_the_same_eight_records() {
+    assert_eq!(RETAINED.len(), 8);
+    let readme = sr_db::data_export::readme();
+    let frag = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../apps/web/src/i18n/messages/en/p12-admin-mod-be-1.ts"),
+    )
+    .unwrap();
+    let screen = frag
+        .split("'settings.account.removalRetained':")
+        .nth(1)
+        .and_then(|t| t.split("',").next())
+        .expect("deletion screen string");
+    let (mut at_readme, mut at_screen) = (0, 0);
+    for r in RETAINED {
+        let i = readme[at_readme..]
+            .find(r.label)
+            .unwrap_or_else(|| panic!("README names {}", r.label));
+        at_readme += i;
+        let j = screen[at_screen..]
+            .find(r.label)
+            .unwrap_or_else(|| panic!("screen names {}", r.label));
+        at_screen += j;
+        assert!(
+            readme.contains(r.reason),
+            "README carries the reason of {}",
+            r.label
+        );
+    }
+    for text in [&readme, &screen.to_owned()] {
+        assert!(
+            text.contains("Your profile, password, passkeys, sessions and email address are removed; the linked Discord"),
+            "{text}"
+        );
+    }
+    assert!(!readme.contains("sign-in data are removed"));
 }
