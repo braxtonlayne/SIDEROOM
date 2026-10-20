@@ -4,12 +4,12 @@ Main checkout `C:\Users\braxt\Desktop\SIDEROOM_repo`, branch `integration/phase1
 
 ## Resume here
 
-**State (2026-10-20): done, with one open finding (serenity, below).** All five Phase 17 branches are merged; M-20 to M-24 are built and ticked; M-25 (Phase 7 moderation backend, size L) is left for the next wave as asked. Every gate below passes on the merged tree. None of this pass's servers, Vite or cargo processes are running. The scratch databases `sr_p17_int` and `sr_p17_ie2e` were dropped, and so were the three leftover `sr_tpl_*` migration templates (nothing else was connected).
+**State (2026-10-20): done.** All five Phase 17 branches are merged; M-20 to M-24 are built and ticked; M-25 (Phase 7 moderation backend, size L) is left for the next wave as asked. Every gate below passes on the merged tree, and both SDK libraries pass 7 of 7 against a local `sr-server` (section "serenity follow-up" below). None of this pass's servers, Vite or cargo processes are running. All scratch databases of this pass (`sr_p17_int`, `sr_p17_int2`, `sr_p17_ie2e`, `sr_p17_sdk`) were dropped, and so were the leftover `sr_tpl_*` migration templates (nothing else was connected).
 
 **What is left for the owner or CI:**
 
 1. Push `integration/phase17` and let CI run. CI that has never run on GitHub: `sdk-compat.yml` (now builds and deny-checks the nested serenity project, installing `cargo-deny` with `taiki-e/install-action`).
-2. **serenity tier 2 fails locally (0/7).** discord.js 14.27.0 passes 7/7 against a local `sr-server`. serenity 0.12.5 receives the gateway URL and then emits nothing. One cause was found and fixed (READY sent `resume_gateway_url: null`, serenity's `Ready` needs a `String`). After the fix the run is still 0/7, and the next cause is not identified. serenity decodes every frame into typed models, and on a decode error it reconnects with only a `tracing` warning, which the bot has no subscriber for. Next step: let the bot print serenity's warnings. That needs `tracing-subscriber` in `e2e/sdk-compat/serenity-bot` (a new dependency, so the owner decides), or the gateway's READY/GUILD_CREATE can be diffed field by field against serenity's `Ready`, `CurrentUser` and `Guild` models. DEV-SDK-003 is ticked on `feat/p17-sdk`'s say-so; the follow-up item said "ticked when the first scheduled run is green", so expect the first scheduled run to fail the serenity leg until this is fixed.
+2. **SDK compatibility:** serenity 0.12.5 and discord.js 14.27.0 both pass 7 of 7 locally. DEV-SDK-003 is unticked again, with the note that it is ticked when the first scheduled sdk-compat run is green, as the follow-up item says.
 3. Owner actions that stand: pin the electrs image digest and run or point at a node (M-22, D-312); the lawyer notes of D-293 to D-295 and D-311; D-314's lawyer check of the JASSUB reading.
 4. Notices: the libass, FreeType and GNU FriBidi copyright lines in `THIRD_PARTY_NOTICES.md` follow upstream and were not checked against a local copy (the jassub package ships no licence file for its wasm components). The NTP and Zlib texts are the SPDX templates with their placeholders left in. Fill these in from the upstream sources before the instance is opened up.
 
@@ -75,7 +75,32 @@ Main checkout `C:\Users\braxt\Desktop\SIDEROOM_repo`, branch `integration/phase1
    - **Result:** the next run passed 7 of 7.
 2. **`5dd264b6` fix(gateway):** READY carries `resume_gateway_url` (`ws(s)://<public origin>/gateway`) instead of null. serenity's `Ready` requires the field, and Discord always sends it. A unit test covers it. The full Chromium suite and voice E2EE were rerun after this change and passed (below).
 
-No flakes in this pass: every gate passed the first time it was run, except the two sdk-compat driver runs above.
+3. **`81f256aa`, `eab7d678`: the serenity follow-up** (see the section below).
+
+Flakes: one run of the `gateway_pg` Postgres tests failed right after a test edit and passed in the four runs that followed. Its output was not kept, so the cause is unknown. Every other gate passed the first time, apart from the sdk-compat driver runs described here.
+
+## serenity follow-up (coordinator request, after the first handoff)
+
+- **Logging.** `tracing-subscriber` was added to `e2e/sdk-compat/serenity-bot`.
+  - It is 0.3.23 with `env-filter`, the root lockfile's version, resolved `--offline`; nothing was downloaded.
+  - The bot logs to stderr (default `warn,serenity=info`, `RUST_LOG` overrides) and keeps stdout for the JSON-lines protocol. The subscriber stays in the bot so that refused frames show up in the CI logs.
+- **What serenity refused, in the order the logs showed it.** serenity drops any frame that does not fit its typed models. Each place below is where SIDE ROOM differed from Discord, and each fix has a unit test:
+  1. **IDENTIFY.** serenity sends `presence.since` as serde's `SystemTime` object, and the server closed with 4002 "decode error". `PresenceUpdate.since` now reads a number, null or that object (`sr-gateway` `protocol::tests`).
+  2. **GUILD_CREATE.** The payload lacked fields serenity's `Guild` requires: `emojis`, `stickers`, `premium_tier`, `nsfw_level`, `premium_progress_bar_enabled`, `joined_at`, `large`, `member_count` and `guild_scheduled_events`.
+     - The guild's real emojis and stickers are now included.
+     - The others get Discord's values for a server without boosts; scheduled events stay an empty list because they come over REST.
+     - Tests: a unit test, and the `gateway_pg` Postgres test now asserts the fields.
+  3. **Command objects.** `integration_types: null` failed serenity's `Vec`. A command registered without the field now answers `[0]`, guild install (D-305; `sr-apps` test).
+  4. **INTERACTION_CREATE.** `attachment_size_limit` was missing. It is now the invoker's effective upload limit (`flow_tests` assertion).
+- **How the fields were found.** I wrote a throwaway serde probe in the scratchpad, a separate Cargo project on the cached serenity. It decoded the captured READY, GUILD_CREATE, command and interaction payloads into serenity's own types.
+- **Result:** serenity 7 of 7, discord.js 7 of 7. The OpenAPI document did not change; it was regenerated and checked.
+- **Gates rerun after the server changes:**
+  - fmt and workspace clippy `-D warnings`;
+  - the nested bot: clippy, fmt and cargo deny;
+  - `sr-gateway`, `sr-apps`, `sr-api` and `sr-server` with `--include-ignored --test-threads=1` on a scratch DB: 1079 passed, 0 failed;
+  - Playwright Chromium on a fresh DB with the live and visual flags: 35 passed, 1 skipped;
+  - voice E2EE: 1 passed.
+- **DEV-SDK-003:** unticked again. The note says it is ticked when the first scheduled sdk-compat run is green.
 
 ## Gate results (merged tree)
 
@@ -105,8 +130,8 @@ No flakes in this pass: every gate passed the first time it was run, except the 
 | Playwright `test:static` | 19 passed |
 | Playwright `tests/`, Chromium, fresh migrated DB, `SR_E2E_VOICE/ACTIVITIES/LIVE/VISUAL=1`, win32 baselines | 35 passed, 1 skipped (K-22). Includes `entrance-journey` with the two confirmations, the 9 visual baselines and `voice-live`. Run twice: before fix 2 (3.6 min) and after it on a fresh DB (5.2 min). |
 | Playwright `e2ee/voice-e2ee.spec.ts`, Chromium | 1 of 1 passed, before and after fix 2 |
-| sdk-compat driver against the local server | discord.js 14.27.0: **7 of 7** after fix 1. serenity 0.12.5: **0 of 7**, open (see Resume here). |
+| sdk-compat driver against the local server | discord.js 14.27.0: **7 of 7**; serenity 0.12.5: **7 of 7**, both after the serenity follow-up |
 
 ## Owner questions (new)
 
-- Whether `tracing-subscriber` may be added to the nested serenity bot, so the bot can print why serenity drops frames (a new dependency).
+- None. The coordinator approved `tracing-subscriber` for the nested bot because it was already in the root lockfile.
