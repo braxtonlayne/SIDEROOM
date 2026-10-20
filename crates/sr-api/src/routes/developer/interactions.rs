@@ -362,6 +362,11 @@ pub async fn create(
     if let Some(o) = ch.as_object_mut() {
         o.remove("permission_overwrites");
     }
+    // Discord's interaction carries the upload limit that applies to its responses; typed libraries
+    // require it (serenity 0.12's `CommandInteraction::attachment_size_limit`).
+    let attachment_size_limit = messages
+        .effective_upload_limit(uid(p.user_id), Some(GuildId::new(guild as u64)))
+        .await;
     let mut payload = json!({
         "id": row.id.to_string(),
         "application_id": app_id.to_string(),
@@ -379,6 +384,7 @@ pub async fn create(
         "entitlements": [],
         "context": 0,
         "authorizing_integration_owners": {"0": guild.to_string()},
+        "attachment_size_limit": attachment_size_limit,
     });
     if let Some(m) = message_obj {
         payload["message"] = m;

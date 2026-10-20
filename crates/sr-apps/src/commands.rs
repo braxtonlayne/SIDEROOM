@@ -787,9 +787,16 @@ pub fn command_json(c: &Command, storage: bool) -> Value {
     }
     o.insert("nsfw".into(), json!(c.nsfw));
     o.insert("contexts".into(), c.contexts.clone().unwrap_or(Value::Null));
+    // Discord answers `[0]` (guild install) for a command registered without the field, and typed
+    // libraries rely on a list (serenity 0.12's `Command::integration_types` is a `Vec`; null fails to
+    // decode). Only server installs exist (D-305). The merge input keeps "absent".
     o.insert(
         "integration_types".into(),
-        c.integration_types.clone().unwrap_or(Value::Null),
+        match (&c.integration_types, storage) {
+            (Some(v), _) => v.clone(),
+            (None, true) => Value::Null,
+            (None, false) => json!([0]),
+        },
     );
     if storage {
         // Merge input: ids and server fields are ignored by validation.
@@ -986,6 +993,38 @@ mod tests {
                 .is_empty()
         );
         assert!(!bad(json!({"name": "x", "description": "d", "nsfw": "yes"})).is_empty());
+    }
+
+    #[test]
+    fn a_command_without_integration_types_answers_guild_install() {
+        assert_eq!(
+            ok(json!({"name": "x", "description": "d"})).integration_types,
+            None
+        );
+        let c = Command {
+            id: 2,
+            application_id: 1,
+            guild_id: None,
+            kind: 1,
+            name: "x".into(),
+            description: "d".into(),
+            options: json!([]),
+            name_localizations: None,
+            description_localizations: None,
+            default_member_permissions: None,
+            dm_permission: true,
+            nsfw: false,
+            contexts: None,
+            integration_types: None,
+            version: 3,
+        };
+        assert_eq!(command_json(&c, false)["integration_types"], json!([0]));
+        assert_eq!(command_json(&c, true)["integration_types"], Value::Null);
+        let u = Command {
+            integration_types: Some(json!([1])),
+            ..c
+        };
+        assert_eq!(command_json(&u, false)["integration_types"], json!([1]));
     }
 
     #[test]

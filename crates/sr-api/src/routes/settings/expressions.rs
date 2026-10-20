@@ -163,7 +163,8 @@ pub struct EmojiObject {
 }
 
 impl EmojiObject {
-    fn of(
+    /// The Discord emoji object (also the GUILD_CREATE `emojis` entries).
+    pub fn of(
         e: &Emoji,
         users: &std::collections::HashMap<sr_core::UserId, sr_chat::repo::UserSummary>,
     ) -> Self {
@@ -197,7 +198,8 @@ pub struct StickerObject {
 }
 
 impl StickerObject {
-    fn of(
+    /// The Discord sticker object (also the GUILD_CREATE `stickers` entries).
+    pub fn of(
         s: &Sticker,
         users: &std::collections::HashMap<sr_core::UserId, sr_chat::repo::UserSummary>,
     ) -> Self {

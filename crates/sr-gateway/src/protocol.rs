@@ -199,7 +199,10 @@ pub struct PresenceUpdate {
     pub status: String,
     #[serde(default)]
     pub activities: Vec<Value>,
-    #[serde(default)]
+    /// Unix ms the client went idle, or null. Read leniently: serenity 0.12 sends serde's `SystemTime` shape
+    /// (`{"secs_since_epoch", "nanos_since_epoch"}`) and Discord accepts it, so it is converted rather than
+    /// refused with 4002; any other shape reads as null.
+    #[serde(default, deserialize_with = "lenient_since")]
     pub since: Option<u64>,
     #[serde(default)]
     pub afk: bool,
@@ -207,6 +210,25 @@ pub struct PresenceUpdate {
     /// merges sessions; clients cannot set it.
     #[serde(default, skip_deserializing)]
     pub client_status: Value,
+}
+
+fn lenient_since<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u64>, D::Error> {
+    Ok(match Value::deserialize(d)? {
+        Value::Number(n) => n
+            .as_u64()
+            .or_else(|| n.as_f64().filter(|f| *f >= 0.0).map(|f| f as u64)),
+        Value::Object(o) => o
+            .get("secs_since_epoch")
+            .and_then(Value::as_u64)
+            .map(|secs| {
+                let nanos = o
+                    .get("nanos_since_epoch")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0);
+                secs.saturating_mul(1000).saturating_add(nanos / 1_000_000)
+            }),
+        _ => None,
+    })
 }
 
 fn online() -> String {
@@ -240,5 +262,50 @@ impl PresenceUpdate {
         } else {
             &self.status
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn presence_since_accepts_discord_and_serenity_shapes() {
+        let read = |since: Value| {
+            serde_json::from_value::<PresenceUpdate>(serde_json::json!({
+                "status": "online", "afk": false, "activities": [], "since": since
+            }))
+            .expect("a presence with this since must decode")
+            .since
+        };
+        assert_eq!(read(Value::Null), None);
+        assert_eq!(
+            read(serde_json::json!(1_700_000_000_123u64)),
+            Some(1_700_000_000_123)
+        );
+        // serenity 0.12's IDENTIFY: serde's SystemTime shape.
+        assert_eq!(
+            read(
+                serde_json::json!({"secs_since_epoch": 1_700_000_000u64, "nanos_since_epoch": 123_456_789u64})
+            ),
+            Some(1_700_000_000_123)
+        );
+        assert_eq!(read(serde_json::json!("soon")), None);
+    }
+
+    #[test]
+    fn serenity_identify_decodes() {
+        // The IDENTIFY serenity 0.12.5 sends (src/gateway/ws.rs send_identify), token shortened.
+        let id: Identify = serde_json::from_value(serde_json::json!({
+            "compress": true, "token": "Bot x", "large_threshold": 250, "shard": [0, 1],
+            "intents": 513,
+            "properties": {"browser": "serenity", "device": "serenity", "os": "windows"},
+            "presence": {"afk": false, "status": "online",
+                "since": {"secs_since_epoch": 1_700_000_000u64, "nanos_since_epoch": 0},
+                "activities": []}
+        }))
+        .expect("serenity's IDENTIFY decodes");
+        assert_eq!(id.shard, Some(vec![0, 1]));
+        assert_eq!(id.presence.and_then(|p| p.since), Some(1_700_000_000_000));
     }
 }
