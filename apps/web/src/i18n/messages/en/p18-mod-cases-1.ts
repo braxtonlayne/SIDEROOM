@@ -260,4 +260,9 @@ export default {
   // ---- Accounts ban dialog through a case (N-25) ----
   'admin.accounts.bannedFromCase':
     'Banned. The case is in Moderation, where the person can appeal.',
+  // ---- Server audit log: a moderator's case outcomes (N-26) ----
+  'settings.auditText.a210': 'handed a moderation case to platform staff',
+  'settings.auditText.a211': 'dismissed a moderation case',
+  'settings.auditText.a212': 'marked a moderation case actioned',
+  'settings.auditText.a213': 'recorded an action on a moderation case',
 } satisfies Record<string, string>;

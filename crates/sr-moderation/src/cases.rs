@@ -15,7 +15,7 @@ use crate::model::{
     ReporterView, Routing, TargetKind, Who,
 };
 use crate::rules::{self, CaseHead};
-use crate::service::{Moderation, log_staff, push_event, require_staff};
+use crate::service::{GuildAuditKind, Moderation, log_staff, push_event, require_staff};
 
 /// The columns of a case row (aliased `c`) that [`summary_from`] and [`head_from`] read.
 const CASE_COLS: &str = "c.id, c.state, c.category, c.severity, c.routing, \
@@ -592,6 +592,27 @@ impl Moderation {
         .await?;
         let s = load(&mut tx, who, id, Access::Read, false).await?.summary;
         tx.commit().await?;
+        match t.to {
+            CaseState::Dismissed => {
+                self.audit_guild_hat(
+                    who,
+                    GuildAuditKind::Dismissed,
+                    &s,
+                    outcome.as_deref().unwrap_or(""),
+                )
+                .await
+            }
+            CaseState::Actioned => {
+                self.audit_guild_hat(
+                    who,
+                    GuildAuditKind::Actioned,
+                    &s,
+                    outcome.as_deref().unwrap_or(""),
+                )
+                .await
+            }
+            _ => {}
+        }
         Ok(s)
     }
 
@@ -833,6 +854,8 @@ impl Moderation {
         .await?;
         let s = summary_from(&row)?;
         tx.commit().await?;
+        self.audit_guild_hat(who, GuildAuditKind::Escalated, &s, "")
+            .await;
         Ok(s)
     }
 
@@ -932,6 +955,8 @@ impl Moderation {
         .await?;
         let s = load(&mut tx, who, id, Access::Read, false).await?.summary;
         tx.commit().await?;
+        self.audit_guild_hat(who, GuildAuditKind::ActionRecorded, &s, action)
+            .await;
         Ok(s)
     }
 

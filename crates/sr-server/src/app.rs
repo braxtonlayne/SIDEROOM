@@ -1181,7 +1181,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let moderation_deps = Arc::new(
         routes::moderation::ModerationDeps::new(
             sr_moderation::Moderation::new(pool.clone(), id_src.clone())
-                .with_notifier(staff_voice.clone()),
+                .with_notifier(staff_voice.clone())
+                .with_guild_audit(Arc::new(crate::moderation_audit::GuildAuditAdapter(
+                    audit_sink.clone(),
+                ))),
         )
         .with_features(features.clone()),
     );

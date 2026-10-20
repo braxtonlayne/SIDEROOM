@@ -24,4 +24,6 @@ pub mod snapshot;
 pub use cases::{RECORDABLE_ACTIONS, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
-pub use service::{IdSource, Moderation, SubjectNotifier};
+pub use service::{
+    GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, SubjectNotifier,
+};

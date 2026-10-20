@@ -21,12 +21,45 @@ pub trait SubjectNotifier: Send + Sync {
     async fn system_dm(&self, to: i64, text: &str) -> bool;
 }
 
+/// The kinds of guild audit-log row a server moderator's case outcome writes (N-26, D-331).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GuildAuditKind {
+    /// `moderation_case_escalated`
+    Escalated,
+    /// `moderation_case_dismissed`
+    Dismissed,
+    /// `moderation_case_actioned`
+    Actioned,
+    /// `moderation_case_action_recorded`
+    ActionRecorded,
+}
+
+/// What a guild audit row for a case may carry: the case, its category and the outcome line or the kind of
+/// action recorded. Never the reporter and never note text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuildAuditRow {
+    pub guild_id: i64,
+    pub actor: i64,
+    pub kind: GuildAuditKind,
+    pub case_id: i64,
+    pub category: String,
+    pub detail: String,
+}
+
+/// Writes the guild audit-log row for a server moderator's case outcome. Implemented in `sr-server` over the
+/// guild audit writer, like [`SubjectNotifier`]. A failure is logged by the implementation, never surfaced.
+#[async_trait]
+pub trait GuildAudit: Send + Sync {
+    async fn record(&self, row: GuildAuditRow);
+}
+
 /// The moderation backend over one database. Cheap to clone.
 #[derive(Clone)]
 pub struct Moderation {
     pub(crate) pool: PgPool,
     pub(crate) ids: IdSource,
     pub(crate) notifier: Option<Arc<dyn SubjectNotifier>>,
+    pub(crate) guild_audit: Option<Arc<dyn GuildAudit>>,
 }
 
 impl Moderation {
@@ -35,6 +68,7 @@ impl Moderation {
             pool,
             ids,
             notifier: None,
+            guild_audit: None,
         }
     }
 
@@ -42,6 +76,37 @@ impl Moderation {
     pub fn with_notifier(mut self, n: Arc<dyn SubjectNotifier>) -> Self {
         self.notifier = Some(n);
         self
+    }
+
+    /// The guild audit log a server moderator's case outcomes are written to.
+    pub fn with_guild_audit(mut self, a: Arc<dyn GuildAudit>) -> Self {
+        self.guild_audit = Some(a);
+        self
+    }
+
+    /// A server moderator's outcome on a case goes to their server's audit log; platform staff's go to the
+    /// platform access log in the transaction. `claim` and notes write nothing.
+    pub(crate) async fn audit_guild_hat(
+        &self,
+        who: &Who<'_>,
+        kind: GuildAuditKind,
+        case: &crate::model::CaseSummary,
+        detail: &str,
+    ) {
+        let (Who::GuildMod { user_id, .. }, Some(a), Some(guild)) =
+            (who, &self.guild_audit, case.guild_id)
+        else {
+            return;
+        };
+        a.record(GuildAuditRow {
+            guild_id: guild,
+            actor: *user_id,
+            kind,
+            case_id: case.id,
+            category: case.category.as_str().to_owned(),
+            detail: detail.to_owned(),
+        })
+        .await;
     }
 
     pub fn pool(&self) -> &PgPool {

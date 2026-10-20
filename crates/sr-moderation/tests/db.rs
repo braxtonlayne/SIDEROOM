@@ -1456,3 +1456,111 @@ async fn dismissal_releases_the_system_hold_and_reopening_puts_it_back() {
             .unwrap();
     assert_eq!(again.active_holds, 1);
 }
+
+#[derive(Default)]
+struct Rec(std::sync::Mutex<Vec<sr_moderation::GuildAuditRow>>);
+
+#[async_trait::async_trait]
+impl sr_moderation::GuildAudit for Rec {
+    async fn record(&self, row: sr_moderation::GuildAuditRow) {
+        self.0.lock().unwrap().push(row);
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_server_moderators_case_outcomes_write_guild_audit_rows_and_nothing_else_does() {
+    use sr_moderation::GuildAuditKind as K;
+    let w = world().await;
+    let rec = Arc::new(Rec::default());
+    let m = mods(w.pool().clone()).with_guild_audit(rec.clone());
+    w.talk().await;
+    let gm = w.gm();
+    // Four guild cases on four messages.
+    let mut ids = Vec::new();
+    for i in 0..4 {
+        m.file_report(
+            w.reporter,
+            &report(
+                TargetKind::Message,
+                w.base + i,
+                Some(w.channel),
+                ReportCategory::Harassment,
+            ),
+        )
+        .await
+        .unwrap();
+    }
+    for c in m
+        .list_cases(
+            &gm,
+            &CaseFilter {
+                limit: 10,
+                oldest_first: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap()
+        .items
+    {
+        ids.push(c.id);
+    }
+    let t = |to, o: Option<&str>| Transition {
+        to,
+        outcome: o.map(str::to_owned),
+        reporter_line: None,
+    };
+
+    // Claiming and notes write nothing.
+    m.assign(&gm, ids[0], true).await.unwrap();
+    m.add_note(&gm, ids[0], "private note text").await.unwrap();
+    m.set_state(&gm, ids[0], &t(CaseState::Investigating, None))
+        .await
+        .unwrap();
+    assert!(rec.0.lock().unwrap().is_empty());
+
+    m.escalate(&gm, ids[0], Some("too big")).await.unwrap();
+    m.set_state(&gm, ids[1], &t(CaseState::Dismissed, Some("not a breach")))
+        .await
+        .unwrap();
+    m.set_state(
+        &gm,
+        ids[2],
+        &t(CaseState::Actioned, Some("message removed")),
+    )
+    .await
+    .unwrap();
+    m.record_action(&gm, ids[3], "timeout", "10 minutes, the reporter said so")
+        .await
+        .unwrap();
+
+    let rows = rec.0.lock().unwrap().clone();
+    let kinds: Vec<_> = rows.iter().map(|r| r.kind).collect();
+    assert_eq!(
+        kinds,
+        vec![K::Escalated, K::Dismissed, K::Actioned, K::ActionRecorded]
+    );
+    for (r, id) in rows.iter().zip(&ids) {
+        assert_eq!((r.guild_id, r.actor, r.case_id), (w.guild, w.owner, *id));
+        assert_eq!(r.category, "harassment");
+    }
+    assert_eq!(rows[1].detail, "not a breach");
+    assert_eq!(rows[2].detail, "message removed");
+    assert_eq!(
+        rows[3].detail, "timeout",
+        "the kind of action, not the note"
+    );
+    let all = format!("{rows:?}");
+    assert!(
+        !all.contains("private note text") && !all.contains("reporter said"),
+        "{all}"
+    );
+
+    // Platform staff write the platform access log instead: no guild row.
+    let s = staff(w.staff_id, P::MANAGE_CASES);
+    m.set_state(&Who::Staff(&s), ids[0], &t(CaseState::Dismissed, Some("x")))
+        .await
+        .unwrap();
+    assert_eq!(rec.0.lock().unwrap().len(), 4);
+}

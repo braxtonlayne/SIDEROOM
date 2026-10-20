@@ -24,6 +24,7 @@ pub mod lag_bus;
 pub mod library_jobs;
 pub mod lookup_wiring;
 pub mod media_jobs;
+pub mod moderation_audit;
 pub mod party_cards;
 pub mod party_rooms;
 pub mod payments_jobs;

@@ -79,6 +79,10 @@ export const AUDIT_ACTIONS: Record<number, ActionInfo> = {
   166: A('settings.auditText.a166'),
   167: A('settings.auditText.a167'),
   200: A('settings.auditText.a200', 'user'),
+  210: A('settings.auditText.a210'),
+  211: A('settings.auditText.a211'),
+  212: A('settings.auditText.a212'),
+  213: A('settings.auditText.a213'),
 };
 
 /** The action filter options, in number order. */
