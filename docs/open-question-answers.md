@@ -2864,7 +2864,7 @@ Actions only, no decisions: pin the `electrs` image digest (a pull), the lawyer'
 
 ## Phase 18 round (answered 2026-10-20, delegated)
 
-The questions the data-request branch left in its handoff (`docs/dev/handoff/feat-p18-mod-dsr.md`, M-25 step c), answered by the owner's proxy under the same delegation and limits as the owner and Phase 17 rounds above: decide and document only (no code, build, download or push), legal items get a reasoned project default that is plainly not legal advice, with what a lawyer should check. Decisions are D-316 to D-318 and D-324 to D-327 (D-319 to D-323 belong to another branch) in [01-decisions-log.md](01-decisions-log.md); follow-ups are N-01 to N-10 under "Phase 18 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+The questions the data-request branch left in its handoff (`docs/dev/handoff/feat-p18-mod-dsr.md`, M-25 step c), answered by the owner's proxy under the same delegation and limits as the owner and Phase 17 rounds above: decide and document only (no code, build, download or push), legal items get a reasoned project default that is plainly not legal advice, with what a lawyer should check. Decisions are D-316 to D-318 and D-324 to D-327 (D-319 to D-323 belong to another branch) in [01-decisions-log.md](01-decisions-log.md); follow-ups are N-01 to N-13 under "Phase 18 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
 
 | Status | Count |
 |---|---|
@@ -2904,7 +2904,7 @@ Status: `ADOPTED` (D-326). Follow-up: N-09 (S).
 
 **P18-7 (D-317). The extension's DM outcome is a second access-log row, `data_request.extend_notice`, because the DM can only be sent after the extension commits; D-317 asked for it on the extension entry. Accept the deviation?**
 Decision: accepted. The access log is hash-chained and append-only, so a committed row cannot be amended once the DM result is known, and sending the DM inside the transaction would hold a transaction across a network call or record a notice for an extension that rolled back. Two adjacent rows against the same target, the second carrying `member_notified` and `late`, are the log telling it in order. The request row's `member_notified_at` is what the queue reads, so staff never consult the log for it. Conditions: the notice row is written even when the DM fails (an absent row then means a crash between the writes), and the log viewer shows the two rows together (the target filter does). D-317's text is amended.
-Status: `ADOPTED` (D-327). Follow-up: N-10 (docs and a test that the notice row is written on DM failure, XS).
+Status: `ADOPTED` (D-327). Follow-up: N-13 (docs and a test that the notice row is written on DM failure, XS).
 
 ### Still with the owner
 
