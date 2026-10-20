@@ -435,9 +435,9 @@ async fn channel_managers_see_the_modules_that_have_a_channel_scope() {
         assert_eq!(s, StatusCode::OK, "{who}: {v}");
         let list = v.as_array().unwrap();
         // Only modules that declare a channel scope are offered.
-        assert_eq!(list.len(), 1, "{v}");
-        let q = &list[0];
-        assert_eq!(q["id"], QUOTES);
+        let ids: Vec<_> = list.iter().map(|f| f["id"].as_str().unwrap()).collect();
+        assert_eq!(ids, ["lounge.auto_thread", QUOTES], "{v}");
+        let q = list.iter().find(|f| f["id"] == QUOTES).unwrap();
         assert_eq!(q["guild_enabled"], false);
         assert_eq!(q["enabled"], false);
         assert_eq!(q["override_enabled"], Value::Null);
@@ -468,9 +468,9 @@ async fn a_channel_narrows_what_the_server_has_on_and_can_be_reset() {
         .await;
     assert_eq!(s, StatusCode::OK, "{v}");
     let (_, v) = e.get(&e.ch_features(""), "mod").await;
-    assert_eq!(v[0]["enabled"], true);
+    assert_eq!(v[1]["enabled"], true);
     assert_eq!(
-        v[0]["settings"]["max_quotes"], 4,
+        v[1]["settings"]["max_quotes"], 4,
         "inherited from the server"
     );
 
@@ -504,16 +504,16 @@ async fn a_channel_narrows_what_the_server_has_on_and_can_be_reset() {
         .get(&format!("/channels/{}/sr/features", e.voice), "mod")
         .await
         .1;
-    assert_eq!(other[0]["enabled"], true);
+    assert_eq!(other[1]["enabled"], true);
 
     // Reset: back to following the server.
     assert_eq!(e.delete(&path, "mod").await.0, StatusCode::NO_CONTENT);
     let (_, v) = e.get(&e.ch_features(""), "mod").await;
-    assert_eq!(v[0]["override_enabled"], Value::Null);
-    assert_eq!(v[0]["overrides"], json!({}));
-    assert_eq!(v[0]["enabled"], true);
-    assert_eq!(v[0]["inherited"]["max_quotes"], 4);
-    assert_eq!(v[0]["settings"]["max_quotes"], 4);
+    assert_eq!(v[1]["override_enabled"], Value::Null);
+    assert_eq!(v[1]["overrides"], json!({}));
+    assert_eq!(v[1]["enabled"], true);
+    assert_eq!(v[1]["inherited"]["max_quotes"], 4);
+    assert_eq!(v[1]["settings"]["max_quotes"], 4);
 }
 
 #[tokio::test]

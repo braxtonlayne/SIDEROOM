@@ -89,15 +89,17 @@ impl Feature for AutoThread {
                 "Thread name",
                 FieldKind::String { max_len: Some(100) },
             )
+            .at(&[Scope::Platform, Scope::Guild, Scope::Channel])
             .help("Placeholders: {author} {content} {date}")
             .default_value(json!("{author}: {content}")),
             Field::new("ignore_bots", "Skip bot messages", FieldKind::Bool)
+                .at(&[Scope::Platform, Scope::Guild, Scope::Channel])
                 .default_value(json!(true)),
         ])
     }
 
     fn scopes(&self) -> &[Scope] {
-        &[Scope::Platform, Scope::Guild]
+        &[Scope::Platform, Scope::Guild, Scope::Channel]
     }
 
     fn on_event<'a>(
@@ -123,10 +125,16 @@ impl Feature for AutoThread {
             if data.get("type").and_then(Value::as_u64).unwrap_or(0) != 0 {
                 return Ok(());
             }
-            let cfg: Config = ctx.guild_config(AUTO_THREAD_ID, *g).await?;
-            if !snowflakes(&cfg.channels).contains(&channel.get()) {
+            let server: Config = ctx.guild_config(AUTO_THREAD_ID, *g).await?;
+            if !snowflakes(&server.channels).contains(&channel.get()) {
                 return Ok(());
             }
+            // Channel scope (D-321): a channel can switch it off or use its own name template and
+            // bot flag; which channels get threads stays the server's call.
+            if !ctx.channel_enabled(AUTO_THREAD_ID, *g, *channel).await? {
+                return Ok(());
+            }
+            let cfg: Config = ctx.channel_config(AUTO_THREAD_ID, *g, *channel).await?;
             let user = ctx.actions.get_user(*author).await?;
             if cfg.ignore_bots && user.as_ref().is_some_and(|u| u.bot) {
                 return Ok(());
@@ -227,5 +235,68 @@ mod tests {
     fn schema_defaults_validate() {
         let s = AutoThread.settings_schema();
         s.validate(&s.defaults(Scope::Guild)).unwrap();
+    }
+
+    fn channel10() -> crate::ScopeRef {
+        crate::ScopeRef::Channel {
+            guild: G,
+            channel: ChannelId::new(10),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_channel_template_overrides_the_servers() {
+        let h = harness().await;
+        let t = json!({"name_template": "Q: {content}"})
+            .as_object()
+            .cloned()
+            .unwrap();
+        h.ctx
+            .settings
+            .set_settings(AUTO_THREAD_ID, &channel10(), t)
+            .await
+            .unwrap();
+        AutoThread
+            .on_event(
+                &said(10, 5, json!({"type": 0, "content": "any plans?"})),
+                &h.ctx,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            h.actions.calls(),
+            vec![Call::Thread(ChannelId::new(10), 42, "Q: any plans?".into())]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_channel_switched_off_gets_no_thread_although_picked() {
+        let h = harness().await;
+        h.ctx
+            .settings
+            .set_enabled(AUTO_THREAD_ID, &channel10(), Some(false))
+            .await
+            .unwrap();
+        AutoThread
+            .on_event(&said(10, 5, json!({"type": 0, "content": "hi"})), &h.ctx)
+            .await
+            .unwrap();
+        assert!(h.actions.calls().is_empty());
+    }
+
+    #[test]
+    fn the_picked_channels_stay_a_server_setting() {
+        let s = AutoThread.settings_schema();
+        let keys = |scope| -> Vec<String> {
+            s.for_scope(scope)
+                .fields
+                .iter()
+                .map(|f| f.key.clone())
+                .collect()
+        };
+        assert_eq!(keys(Scope::Channel), ["name_template", "ignore_bots"]);
+        assert!(keys(Scope::Guild).contains(&"channels".to_owned()));
+        let bad = json!({"channels": ["10"]}).as_object().cloned().unwrap();
+        assert!(s.validate_at(Scope::Channel, &bad).is_err());
     }
 }
