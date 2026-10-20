@@ -32,6 +32,9 @@ const row = (over: Record<string, unknown> = {}) => ({
   outcome: null,
   retained: [],
   completed_at_ms: null,
+  extended_at_ms: null,
+  extended_late: false,
+  member_notified_at_ms: null,
   created_by: '1',
   ...over,
 });
@@ -164,6 +167,48 @@ describe('Admin data requests', () => {
     expect(await screen.findByText('Request run.')).toBeInTheDocument();
     expect(ran).toBe(1);
     // The closed row names what stayed (the page is filtered to open requests, so show closed too).
+  });
+
+  it('says whether the member was told of an extension and marks a late one', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TAKEDOWNS'] });
+    const ext = {
+      state: 'verified',
+      extended_until_ms: NOW + 20 * DAY,
+      extension_reason: 'complex',
+      effective_due_ms: NOW + 20 * DAY,
+      extended_at_ms: NOW,
+    };
+    server.use(
+      http.get('*/api/v1/admin/data-requests', () =>
+        HttpResponse.json(
+          page([
+            row({ ...ext, id: '910', username: 'carol', member_notified_at_ms: NOW }),
+            row({ ...ext, id: '911', username: 'dave', extended_late: true }),
+          ]),
+        ),
+      ),
+    );
+    openAdmin('data-requests');
+    const list = await screen.findByRole('list', { name: 'Data requests' });
+    const [carol, dave] = within(list).getAllByRole('listitem');
+    expect(within(carol!).getByText(/Member told by DM on/)).toBeInTheDocument();
+    expect(within(carol!).queryByText('Extended late')).toBeNull();
+    expect(within(dave!).getByText(/Not told in-app: reply by email/)).toBeInTheDocument();
+    expect(within(dave!).getByText('Extended late')).toBeInTheDocument();
+  });
+
+  it('tells staff in the extend dialog that the member sees the reason and the unit is days', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TAKEDOWNS'] });
+    server.use(http.get('*/api/v1/admin/data-requests', () => HttpResponse.json(page([row()]))));
+    openAdmin('data-requests');
+    await userEvent.click(
+      await screen.findByRole('button', { name: /Extend the deadline of the request of alice/ }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Extend the deadline' });
+    expect(
+      within(dialog).getByText('Up to 60 days, once. Counted in days, not months.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText('The member will see this reason.')).toBeInTheDocument();
   });
 
   it('enters a new request for an account', async () => {

@@ -12,6 +12,13 @@ Base: integration/phase18 (= main). Migration used: `1100_data_requests.sql` (ra
 - Routes (all `MANAGE_TAKEDOWNS`, session only, re-auth required for the two runs when the platform asks for it): `GET/POST /admin/data-requests`, `GET /admin/data-requests/{id}`, `POST .../verify`, `.../decline`, `.../extend`, `.../run`. Route matrix rows added (authz `staff`, no `?`), OpenAPI, api-client types and MSW mocks regenerated; `KNOWN_CLASHES` still empty (`AdminDataRequestList`, `AdminCreateDataRequestBody`, `AdminExtendDataRequestBody` are explicitly named).
 - Docs: spec `moderation-compliance.md` section 6 table and section 14 item 6 (queue built), doc 09 section 4 paragraph (extension, overdue, rows kept).
 
+## Follow-ups N-01 to N-03 (D-316 to D-318)
+- **N-01** cap stated in days everywhere (code comments, 400 message, dialog hint, doc 09, spec).
+- **N-02** extension DM with the staff reason and new date; `data_requests.member_notified_at` (migration 1101); `extended_late`; queue shows "Member told by DM on ..." or "Not told in-app: reply by email" and an "Extended late" badge. The access log gets the usual `data_request.extend` row and a second `data_request.extend_notice` row carrying `member_notified` true/false (the DM is sent after the extension commits, so the outcome cannot be in the first row).
+- **N-03** eight retained records with the D-318 wording; the export README is generated from `RETAINED`; the deletion-screen string lists the same eight labels in order (Rust source test compares both); "Messages you leave in place stay..." line added.
+- **Finding, `delete_account` and the account row:** it already scrubs username, display name, email (archived for staff in `deleted_accounts`), password hash, avatar, banner, bio, pronouns, colours and profile document, and deletes credentials, devices, settings and relations. It left: (a) `sessions.ip`, `user_agent`, `device_label` on the revoked rows and (b) `login_events.ip`: both are now set to NULL in the same transaction. Still on the row, not identifying on their own and kept as part of the Person record/accounting trail: `locale`, `timezone`, `flags`, `age_declared`/`age_confirmed*`, `created_at`, `invited_by_invite_id`. The staff-only `deleted_accounts` archive (original username, email, display name) is not named in the retained list (owner question 3).
+- **No member bulk self-delete exists**, so the deletion screen has the sentence but no link; open item **N-04** added to answers-followups-p16.md.
+
 ## Still open / not done
 - Doc 13 Phase 7 "in progress" line and `docs/inventory/19-moderation.md` ticks: left to the integrator (the other agent owns the inventory file, and doc 13 is touched by both). The MOD-DSR ids to tick are the six bullets above.
 - Placing the page under Admin > Moderation (see above).
@@ -34,6 +41,6 @@ Base: integration/phase18 (= main). Migration used: `1100_data_requests.sql` (ra
 - The erasure of an account that was already deleted by its owner completes the request with a note instead of failing.
 - The i18n group string "Moderation" is repeated from a key of mine so the page lands in the same nav group as the other agent's pages when they use the same label.
 
-## Owner questions
-- Is 60 days the right ceiling for the single extension, and should the extension be disclosed to the member by system DM automatically? (Not done: no member notice on extend.)
+## Owner questions (updated)
+- Answered by D-316 (60 days, counted in days), D-317 (DM on extension), D-318 (retained list). New: (1) should the member bulk self-delete (N-04) be built, and across DMs too? (2) should the invoice retention period be a stated number of years in the README? (3) should the staff-only `deleted_accounts` archive (original username, email, display name) be named in the retained list? Still: is 60 days the right ceiling for the single extension, and should the extension be disclosed to the member by system DM automatically? (Not done: no member notice on extend.)
 - The retained-record reasons in `RETAINED` restate D-124/D-295 defaults; D-295's lawyer review still applies.
