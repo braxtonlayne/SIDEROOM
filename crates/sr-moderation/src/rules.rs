@@ -84,6 +84,29 @@ pub fn access(head: &CaseHead, who: &Who<'_>) -> Access {
     }
 }
 
+/// Which hat `staff` or a server moderator wears for this case: platform staff when their bits reach it,
+/// otherwise the server's moderator role when the caller moderates the case's server. `None` when neither
+/// reaches the case (the route answers 404, like an unknown case).
+pub fn pick_who<'a>(
+    head: &CaseHead,
+    staff: Option<&'a sr_admin::Caller>,
+    moderates_guild: Option<(i64, i64)>,
+) -> Option<Who<'a>> {
+    if let Some(c) = staff {
+        let w = Who::Staff(c);
+        if access(head, &w) != Access::None {
+            return Some(w);
+        }
+    }
+    if let Some((user_id, guild_id)) = moderates_guild {
+        let w = Who::GuildMod { user_id, guild_id };
+        if access(head, &w) != Access::None {
+            return Some(w);
+        }
+    }
+    None
+}
+
 /// Whether the viewer may see who reported (spec 3.3, D-209). Platform staff always may; server moderators
 /// only when the reporter allowed it. The caller writes the access-log row for platform staff.
 pub fn reporter_visible(who: &Who<'_>, moderators_may_see: bool) -> bool {

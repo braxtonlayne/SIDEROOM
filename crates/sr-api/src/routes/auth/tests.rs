@@ -2616,3 +2616,37 @@ async fn discord_link_routes_are_404_when_not_configured() {
         .await;
     assert_eq!(start.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn appeal_account_passes_only_a_banned_account_with_its_password() {
+    let h = harness();
+    h.add_account(1, "active", "active@x.test", AccountState::Active);
+    h.add_account(2, "ban", "ban@x.test", AccountState::PlatformBanned);
+    h.add_account(3, "gone", "gone@x.test", AccountState::Deleted);
+    let svc = h.state.extension::<AuthService>().unwrap();
+    let now = h.state.now_secs();
+    assert_eq!(
+        svc.appeal_account("10.0.0.1", now, "ban", PW).await.ok(),
+        Some(2)
+    );
+    // Email works too, case is ignored.
+    assert_eq!(
+        svc.appeal_account("10.0.0.2", now, " BAN@x.test ", PW)
+            .await
+            .ok(),
+        Some(2)
+    );
+    // A wrong password, an account that is not banned and one that is gone all look the same.
+    for (who, pw) in [
+        ("ban", "wrong"),
+        ("active", PW),
+        ("gone", PW),
+        ("nobody", PW),
+        ("", PW),
+    ] {
+        assert!(
+            svc.appeal_account("10.0.0.3", now, who, pw).await.is_err(),
+            "{who}"
+        );
+    }
+}

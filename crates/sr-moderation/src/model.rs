@@ -318,6 +318,10 @@ pub struct AppealView {
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub banned_by: Option<i64>,
+    /// The Person the ban is on.
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub person_id: i64,
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub decided_by: Option<i64>,

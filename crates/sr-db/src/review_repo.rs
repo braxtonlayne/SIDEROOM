@@ -846,7 +846,7 @@ impl SubmissionRepository for PgReviewRepo {
 
     async fn idle_drafts(&self, idle_before_ms: i64, limit: u32) -> ReviewResult<Vec<Submission>> {
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT {} FROM submissions s WHERE s.state = 'draft' \
+            "SELECT {} FROM submissions s WHERE s.state = 'draft' AND s.hold_id IS NULL \
                AND greatest(s.updated_at, COALESCE((SELECT max(e.created_at) \
                      FROM submission_events e \
                      WHERE e.submission_id = s.id AND e.kind <> 'stale_warning'), s.created_at)) \
@@ -868,7 +868,7 @@ impl SubmissionRepository for PgReviewRepo {
         limit: u32,
     ) -> ReviewResult<Vec<Submission>> {
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT {} FROM submissions s WHERE s.state = 'rejected' \
+            "SELECT {} FROM submissions s WHERE s.state = 'rejected' AND s.hold_id IS NULL \
                AND s.decided_at < to_timestamp($1) \
                AND NOT EXISTS (SELECT 1 FROM submission_events e \
                                WHERE e.submission_id = s.id AND e.kind = 'purged') \

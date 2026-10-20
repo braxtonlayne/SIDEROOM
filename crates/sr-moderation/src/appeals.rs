@@ -13,12 +13,12 @@ use crate::rules;
 use crate::service::{Moderation, log_staff, push_event, require_staff};
 
 const APPEAL_COLS: &str = "a.id, a.ban_id, a.case_id, a.appellant_account_id, a.message, a.state, \
-    b.banned_by, a.decided_by, a.decision_reason, \
+    b.banned_by, b.person_id, a.decided_by, a.decision_reason, \
     (extract(epoch FROM a.created_at) * 1000)::bigint AS created_ms, \
     (extract(epoch FROM a.decided_at) * 1000)::bigint AS decided_ms";
 
 pub(crate) const APPEAL_SELECT_BY_CASE: &str = "SELECT a.id, a.ban_id, a.case_id, a.appellant_account_id, a.message, a.state, \
-    b.banned_by, a.decided_by, a.decision_reason, \
+    b.banned_by, b.person_id, a.decided_by, a.decision_reason, \
     (extract(epoch FROM a.created_at) * 1000)::bigint AS created_ms, \
     (extract(epoch FROM a.decided_at) * 1000)::bigint AS decided_ms \
     FROM moderation_appeals a JOIN person_bans b ON b.id = a.ban_id WHERE a.case_id = $1";
@@ -32,6 +32,7 @@ pub(crate) fn appeal_from(r: &PgRow) -> ModResult<AppealView> {
         message: r.try_get("message")?,
         state: r.try_get("state")?,
         banned_by: r.try_get("banned_by")?,
+        person_id: r.try_get("person_id")?,
         decided_by: r.try_get("decided_by")?,
         decision_reason: r.try_get("decision_reason")?,
         created_at_ms: r.try_get("created_ms")?,

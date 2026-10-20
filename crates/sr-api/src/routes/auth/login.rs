@@ -399,3 +399,71 @@ pub async fn second_factor(
     }
     Ok((AppendHeaders(cookies), Json(out)))
 }
+
+impl AuthService {
+    /// Prove a banned account for the appeal form (MOD-APL-002; D-215). A banned account has no session, so the
+    /// credentials are checked like sign-in, with the same throttles and lockout, and only an account that is
+    /// platform-banned passes. Everything else answers the same "doesn't match" as a wrong password.
+    pub async fn appeal_account(
+        &self,
+        ip: &str,
+        now: i64,
+        login: &str,
+        password: &str,
+    ) -> Result<i64, AuthRouteError> {
+        let login = login.trim().to_ascii_lowercase();
+        if login.is_empty() || login.len() > 254 || password.len() > 1024 {
+            return Err(no_match());
+        }
+        self.ip_limits
+            .hit(
+                "appeal",
+                ip,
+                now,
+                &[Rule {
+                    limit: 10,
+                    secs: 3600,
+                }],
+            )
+            .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+        self.ip_limits
+            .hit(
+                "login-name",
+                &login,
+                now,
+                &[Rule {
+                    limit: 50,
+                    secs: 3600,
+                }],
+            )
+            .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+        let acct_key = format!("login:{login}\n{ip}");
+        self.account_lock
+            .check(&acct_key, now)
+            .and_then(|()| self.ip_lock.check(ip, now))
+            .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+        let account = self
+            .store
+            .find_by_login(&login)
+            .await?
+            .filter(|a| a.state != AccountState::Deleted);
+        let verified = match &account {
+            Some(a) => self.verify_password(password, &a.password_hash).await,
+            None => {
+                self.dummy_verify(password).await;
+                false
+            }
+        };
+        match account.filter(|a| verified && a.state == AccountState::PlatformBanned) {
+            Some(a) => {
+                self.account_lock.clear(&acct_key);
+                Ok(a.id)
+            }
+            None => {
+                self.account_lock.fail(&acct_key, now);
+                self.ip_lock.fail(ip, now);
+                Err(no_match())
+            }
+        }
+    }
+}

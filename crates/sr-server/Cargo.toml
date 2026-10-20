@@ -52,6 +52,7 @@ sr-watchparty = { path = "../sr-watchparty" }
 sr-review = { path = "../sr-review" }
 sr-search = { path = "../sr-search" }
 sr-unfurl = { path = "../sr-unfurl" }
+sr-moderation = { path = "../sr-moderation" }
 sr-userfeat = { path = "../sr-userfeat" }
 sr-voice = { path = "../sr-voice" }
 sr-voice-proto = { path = "../sr-voice-proto" }

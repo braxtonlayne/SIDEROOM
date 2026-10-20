@@ -1177,6 +1177,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     dev_deps.set_system_dm(staff_voice.clone());
     // Review decisions reach the submitter as a system DM too (REV-CORE-007).
     let _ = review_dm.set(staff_voice.clone());
+    // Reports, cases, holds and appeals (Phase 7, step 1); reporting is behind the `moderation.reports` flag.
+    let moderation_deps = Arc::new(
+        routes::moderation::ModerationDeps::new(
+            sr_moderation::Moderation::new(pool.clone(), id_src.clone())
+                .with_notifier(staff_voice.clone()),
+        )
+        .with_features(features.clone()),
+    );
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
         .with_extras(admin_repo)
         .with_notifier(staff_voice.clone())
@@ -1282,6 +1290,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .session_policy(auth_cfg.session_policy())
         .extension(auth_service)
         .extension(Arc::new(admin))
+        .extension(moderation_deps)
         .sessions(Arc::new(auth_repo))
         .bots(apps_auth.clone())
         .bearers(apps_auth)

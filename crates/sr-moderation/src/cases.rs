@@ -134,6 +134,41 @@ pub const RECORDABLE_ACTIONS: &[&str] = &[
 impl Moderation {
     // ---- reading --------------------------------------------------------------------------------------------
 
+    /// The routing facts of a case, for choosing who is acting ([`rules::pick_who`]). Reveals nothing but
+    /// where the case belongs; the real checks happen in each call.
+    pub async fn case_head(&self, id: i64) -> ModResult<CaseHead> {
+        let row = sqlx::query(
+            "SELECT routing, guild_id, target_kind FROM moderation_cases WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(ModError::NotFound("case"))?;
+        Ok(CaseHead {
+            routing: Routing::parse(&row.try_get::<String, _>("routing")?)
+                .unwrap_or(Routing::Platform),
+            guild_id: row.try_get("guild_id")?,
+            target_kind: TargetKind::parse(&row.try_get::<String, _>("target_kind")?)
+                .unwrap_or(TargetKind::Other),
+        })
+    }
+
+    /// The Person and account a case is about, for platform staff who act on them (a ban from the case).
+    pub async fn case_subject(
+        &self,
+        who: &Who<'_>,
+        id: i64,
+    ) -> ModResult<(Option<i64>, Option<i64>, ReportCategory, CaseSeverity)> {
+        let mut conn = self.pool.acquire().await?;
+        let c = load(&mut conn, who, id, Access::Manage, false).await?;
+        Ok((
+            c.subject_person_id,
+            c.subject_account_id,
+            c.summary.category,
+            c.summary.severity,
+        ))
+    }
+
     /// The queue (spec 9.1). Platform staff see what is routed to platform staff or reviewers; server moderators
     /// see their server's cases.
     pub async fn list_cases(&self, who: &Who<'_>, f: &CaseFilter) -> ModResult<CasePage> {

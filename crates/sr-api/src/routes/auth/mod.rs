@@ -37,7 +37,7 @@ pub mod mail;
 pub mod mail_text;
 pub mod memory;
 
-pub use common::{AuthConfig, AuthRouteError, AuthService, IdSource};
+pub use common::{AuthConfig, AuthRouteError, AuthService, IdSource, Svc};
 
 /// Re-check a signed-in user's password before a sensitive operation outside `/sr/auth`
 /// (the developer portal). Shares the failure lockout with login.

@@ -1296,3 +1296,11 @@ mod tests {
         assert!(t.allow("backup_failed"));
     }
 }
+
+/// Warnings and notices from a moderation case reach the person as a system DM (MOD-CASE-010).
+#[async_trait]
+impl sr_moderation::SubjectNotifier for StaffVoice {
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        StaffNotifier::system_dm(self, to, text).await
+    }
+}
