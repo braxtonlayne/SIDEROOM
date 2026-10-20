@@ -57,7 +57,7 @@ The due date of a data-subject request is computed from the `compliance.data_req
 ## 5. Future: moderation & compliance (Phase 7)
 
 Not built now (D-126); the full Phase 7 design is `docs/specs/moderation-compliance.md`. Reserved now so nothing needs a painful migration later:
-- `moderation_holds` + `messages.hold_id` + `attachments.hold_id` + `submissions.hold_id` (migrations 0011, 0012, 0580). Purge jobs skip held rows.
+- `moderation_holds` + `messages.hold_id` + `attachments.hold_id` + `submissions.hold_id` (migrations 0011, 0012, 0580). Purge jobs skip held rows, including the review housekeeping of held submissions (P18). Holds are placed and released through `sr-moderation` (migration 1090 adds the case link and the release fields); releasing a hold on a message deleted while held gives it a `purge_after`, so it is purgeable at the next run.
 - `reason_category` on platform bans (migration 0580; taxonomy in `docs/specs/moderation-compliance.md` section 8), alongside the `serious`/`standard` severity needed for D-031.
 - Report buttons are designed into the message and profile menus but disabled behind feature flag `moderation.reports`.
 - An operator-facing note in `12-deployment-and-operations.md` lists jurisdiction-dependent obligations (copyright takedown handling, illegal-content reporting, data-subject rights) to address before Phase 7.
