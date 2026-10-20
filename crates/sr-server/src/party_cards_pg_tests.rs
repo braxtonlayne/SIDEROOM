@@ -15,8 +15,13 @@ use sr_chat::{ChatLimits, ChatService};
 use sr_core::{Clock, SnowflakeGenerator, SystemClock, UserId};
 use sr_db::{chat_repo::PgChatRepo, testing::TestDb};
 use sr_events::InProcessBus;
+use sr_features::{FeatureRegistry, FeatureService, ScopeRef};
 use sr_storage::ObjectStoreStorage;
+use sr_userfeat::UserFeatures;
+use sr_userfeat::features::{WATCH_PARTY_CARDS_ID, register_all};
 use sr_watchparty::{Announcement, AnnouncementKind, ChatHook};
+
+use crate::features_store::PgSettingsStore;
 
 use crate::party_cards::PartyCards;
 
@@ -43,6 +48,8 @@ struct Fx {
     db: TestDb,
     pool: PgPool,
     cards: PartyCards,
+    uf: UserFeatures,
+    guild: i64,
     channel: i64,
 }
 
@@ -91,11 +98,31 @@ async fn fx(gap: Duration) -> Fx {
     );
     let slot = ChatSlot::default();
     let _ = slot.set(messages);
-    let cards = PartyCards::new(pool.clone(), slot).with_gap(gap);
+    let mut registry = FeatureRegistry::new();
+    register_all(&mut registry).unwrap();
+    let features = FeatureService::new(
+        Arc::new(registry),
+        Arc::new(PgSettingsStore::new(
+            pool.clone(),
+            Arc::new(SnowflakeGenerator::new(SystemClock, 27, 27).unwrap()),
+        )),
+        None,
+    );
+    let uf_ids = Arc::new(SnowflakeGenerator::new(SystemClock, 28, 28).unwrap());
+    let uf = UserFeatures::new(
+        pool.clone(),
+        features,
+        Arc::new(move || uf_ids.generate().get() as i64),
+    );
+    let cards = PartyCards::new(pool.clone(), slot)
+        .with_features(uf.clone())
+        .with_gap(gap);
     Fx {
         db,
         pool,
         cards,
+        uf,
+        guild: bp.guild.id.get() as i64,
         channel,
     }
 }
@@ -247,5 +274,45 @@ async fn a_restricted_title_is_not_named_and_a_vanished_channel_is_forgotten() {
             .await
             .unwrap();
     assert_eq!(rows, 0);
+    f.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_server_can_switch_cards_off_but_a_running_card_still_ends() {
+    let f = fx(Duration::from_millis(10)).await;
+    let scope = ScopeRef::Guild {
+        guild: sr_core::GuildId::new(f.guild as u64),
+    };
+    // Off: a new party posts nothing and records nothing.
+    f.uf.features
+        .set_enabled(WATCH_PARTY_CARDS_ID, &scope, Some(false))
+        .await
+        .unwrap();
+    f.cards
+        .announce(ann(&f, AnnouncementKind::Started, 1))
+        .await;
+    assert!(card_rows(&f).await.is_empty());
+    let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM watch_party_cards")
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(stored, 0);
+
+    // On (the default again): the card is posted; switching off mid-party still ends it.
+    f.uf.features
+        .set_enabled(WATCH_PARTY_CARDS_ID, &scope, None)
+        .await
+        .unwrap();
+    f.cards
+        .announce(ann(&f, AnnouncementKind::Started, 2))
+        .await;
+    assert_eq!(card_rows(&f).await.len(), 1);
+    f.uf.features
+        .set_enabled(WATCH_PARTY_CARDS_ID, &scope, Some(false))
+        .await
+        .unwrap();
+    f.cards.announce(ann(&f, AnnouncementKind::Ended, 2)).await;
+    assert_eq!(description(&f).await, "Ended after 2 viewers");
     f.db.cleanup().await.unwrap();
 }

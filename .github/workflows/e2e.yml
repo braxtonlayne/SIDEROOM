@@ -146,6 +146,35 @@ jobs:
   # L-20, D-275 (P16-E2E-1): generates the linux Chromium baselines for e2e/tests/visual.spec.ts. Manual only; it never
   # commits or pushes (contents: read). A human downloads the artifact and commits it. The report-only "visual" job
   # (L-21) lands after the first set is committed.
+  # L-21 (D-275): visual regression against the committed linux baselines. Report-only until it has
+  # passed on main for two weeks / 20 runs (L-22); no retries, so a flaky diff shows as one.
+  visual:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-stack
+      - name: Install the browser
+        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+      - name: Visual specs
+        run: |
+          ./target/debug/sr-cli migrate
+          ./deploy/compose/e2e-run.sh --project=chromium tests/visual.spec.ts --retries=0
+        env:
+          CI: "true"
+          SR_E2E_VISUAL: "1"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-visual
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            server.log
+          if-no-files-found: ignore
+
   visual-baselines:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

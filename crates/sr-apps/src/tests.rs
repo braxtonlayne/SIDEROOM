@@ -1805,3 +1805,39 @@ async fn integrations_list_the_installed_applications_and_uninstall_removes_the_
         Some(AppsError::NotFound("integration"))
     );
 }
+
+#[tokio::test]
+async fn user_install_only_commands_are_accepted_but_never_dispatched() {
+    let e = env();
+    let c = app(&e).await;
+    let id = c.application.id;
+    let (guild_cmd, _) = e
+        .svc
+        .create_command(id, None, &json!({"name": "hi", "description": "d"}))
+        .await
+        .unwrap();
+    let (user_cmd, _) = e
+        .svc
+        .create_command(
+            id,
+            None,
+            &json!({"name": "mine", "description": "d", "integration_types": [1], "contexts": [1]}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(user_cmd.integration_types, Some(json!([1])));
+    assert!(guild_cmd.guild_offered() && !user_cmd.guild_offered());
+    assert!(
+        e.svc
+            .command_for_invocation(id, Some(5), guild_cmd.id)
+            .await
+            .is_ok()
+    );
+    assert_eq!(
+        e.svc
+            .command_for_invocation(id, Some(5), user_cmd.id)
+            .await
+            .map(|_| ()),
+        Err(AppsError::UnknownCommand)
+    );
+}

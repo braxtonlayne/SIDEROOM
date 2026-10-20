@@ -9,6 +9,7 @@ import { EntranceShell } from '../../components/EntranceShell';
 import { BookIcon, ChatIcon, DoorIcon, FilmIcon, KeyIcon, LockIcon } from '../../components/icons';
 import { useT } from '../../i18n/react';
 import type { MessageKey } from '../../i18n/messages/en';
+import { useCompliancePublic } from '../../lib/compliancePublic';
 import { formatInviteCode, holdInviteCode, isCompleteInviteCode } from '../../lib/inviteCode';
 import { useRedirectIfLoggedIn } from '../../lib/useRedirectIfLoggedIn';
 
@@ -49,6 +50,7 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
   const hero = useEntranceHero();
   useRedirectIfLoggedIn();
   const t = useT();
+  const compliance = useCompliancePublic();
   const router = useRouter();
   const [code, setCode] = useState(() => formatInviteCode(initialCode));
   const [state, setState] = useState<CheckState>('idle');
@@ -167,6 +169,9 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
               </span>
               <Link to="/no-invitation">{t('entrance.landing.noInvitation')}</Link>
             </div>
+            <p className="ent-footnote">
+              {t('entrance.landing.ageNotice', { age: compliance.minimum_age })}
+            </p>
             {note && (
               <aside className="ent-landing-note">
                 <EntranceMarkdown source={note} />

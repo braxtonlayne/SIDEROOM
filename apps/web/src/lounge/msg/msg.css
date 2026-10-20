@@ -1381,3 +1381,11 @@
   font-size: 14px;
   overflow-wrap: anywhere;
 }
+.lng-sticker-section {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sr-text-2);
+}

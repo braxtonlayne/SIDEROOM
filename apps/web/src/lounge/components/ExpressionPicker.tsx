@@ -30,8 +30,52 @@ export function loadGuildStickers(guildId: string): Promise<GuildSticker[]> {
   }
   return p;
 }
+/** A platform sticker pack (G-44): the default packs the picker shows above a server's own stickers (D-289). */
+export interface StickerPack {
+  id: string;
+  name: string;
+  description?: string | null;
+  stickers: GuildSticker[];
+}
+
+/**
+ * The default sticker packs for a server, fetched once per session. Empty when the server hides them
+ * (`GET /guilds/{id}/default-sticker-packs`) or when the packs cannot be read: the picker never fails over them.
+ */
+const packLists = new Map<string, Promise<StickerPack[]>>();
+export function loadDefaultPacks(guildId: string): Promise<StickerPack[]> {
+  let p = packLists.get(guildId);
+  if (!p) {
+    p = (async () => {
+      try {
+        const flag = await apiFetch<{ hidden: boolean }>(
+          `/guilds/${guildId}/default-sticker-packs`,
+          {
+            retries: 0,
+          },
+        );
+        if (flag.hidden) return [];
+        const r = await apiFetch<{ sticker_packs: StickerPack[] }>('/sticker-packs', {
+          retries: 0,
+        });
+        return r.sticker_packs;
+      } catch {
+        return [];
+      }
+    })();
+    packLists.set(guildId, p);
+  }
+  return p;
+}
+/** Forget the cached default packs of a server (its Hide default packs switch changed). */
+export const resetDefaultPacks = (guildId?: string) =>
+  guildId ? packLists.delete(guildId) : packLists.clear();
+
 /** Test hook. */
-export const resetGuildStickers = () => stickerLists.clear();
+export const resetGuildStickers = () => {
+  stickerLists.clear();
+  packLists.clear();
+};
 
 /** Stickers the picker offers: usable and renderable (Lottie needs a player we do not ship). */
 export function pickableStickers(list: readonly GuildSticker[], query: string): GuildSticker[] {
@@ -82,6 +126,7 @@ export function StickerPicker({
 }) {
   const t = useT();
   const [list, setList] = useState<GuildSticker[] | null>(null);
+  const [packs, setPacks] = useState<StickerPack[]>([]);
   const [error, setError] = useState(false);
   const [q, setQ] = useState('');
   useEffect(() => {
@@ -90,11 +135,20 @@ export function StickerPicker({
     loadGuildStickers(guildId)
       .then((l) => live && setList(l))
       .catch(() => live && setError(true));
+    void loadDefaultPacks(guildId).then((p) => live && setPacks(p));
     return () => {
       live = false;
     };
   }, [guildId]);
   const shown = useMemo(() => pickableStickers(list ?? [], q), [list, q]);
+  const shownDefaults = useMemo(
+    () =>
+      pickableStickers(
+        packs.flatMap((p) => p.stickers),
+        q,
+      ),
+    [packs, q],
+  );
   if (!guildId)
     return <p className="lng-muted lng-expr-note">{t('lounge.expressionPicker.serversOnly')}</p>;
   if (error)
@@ -112,18 +166,33 @@ export function StickerPicker({
         onChange={(e) => setQ(e.target.value)}
       />
       <div className="lng-emoji-scroll">
-        {shown.length === 0 ? (
+        {shownDefaults.length > 0 && (
+          <section aria-label={t('lounge.expressionPicker.defaultStickers')}>
+            <h3 className="lng-sticker-section">{t('lounge.expressionPicker.defaultStickers')}</h3>
+            <div className="lng-sticker-grid">
+              {shownDefaults.map((s) => (
+                <StickerTile key={s.id} guildId={guildId} sticker={s} onPick={onPick} />
+              ))}
+            </div>
+          </section>
+        )}
+        {shownDefaults.length > 0 && shown.length > 0 && (
+          <h3 className="lng-sticker-section">{t('lounge.expressionPicker.serverStickers')}</h3>
+        )}
+        {shown.length === 0 && shownDefaults.length === 0 ? (
           <p className="lng-muted">
-            {list.length === 0
+            {list.length === 0 && packs.length === 0
               ? t('lounge.expressionPicker.noStickersYet')
               : t('lounge.expressionPicker.noStickersFound')}
           </p>
         ) : (
-          <div className="lng-sticker-grid">
-            {shown.map((s) => (
-              <StickerTile key={s.id} guildId={guildId} sticker={s} onPick={onPick} />
-            ))}
-          </div>
+          shown.length > 0 && (
+            <div className="lng-sticker-grid">
+              {shown.map((s) => (
+                <StickerTile key={s.id} guildId={guildId} sticker={s} onPick={onPick} />
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

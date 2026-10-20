@@ -190,6 +190,11 @@ struct LayoutFile {
 struct PackItem {
     name: String,
     file: String,
+    /// Sticker packs only: a short line and search tags (D-289). Other pack kinds refuse them.
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -302,7 +307,7 @@ pub fn validate(files: &Files, checks: &Checks) -> Result<Validated, Vec<String>
         PackageKind::ServerTemplate => template(files, checks, &mut errs, &mut used)?,
     };
     for path in files.keys() {
-        if !used.contains(path) && !path.ends_with(".txt") {
+        if !used.contains(path) && !path.ends_with(".txt") && path != "LICENSE" {
             errs.push(format!("{path}: is not used by the package"));
         }
     }
@@ -489,6 +494,7 @@ fn pack(
     }
     let mut names = BTreeSet::new();
     for it in &f.items {
+        check_item_text(kind, it, errs);
         let ok_name = (2..=32).contains(&it.name.len())
             && it
                 .name
@@ -539,8 +545,52 @@ fn pack(
         f.version,
         f.author,
         f.description,
-        json!({ "items": f.items.iter().map(|i| json!({"name": i.name, "file": i.file})).collect::<Vec<_>>() }),
+        json!({ "items": f.items.iter().map(item_json).collect::<Vec<_>>() }),
     ))
+}
+
+/// The JSON of a pack item as kept in the version's payload (tags and description only when given).
+fn item_json(i: &PackItem) -> Value {
+    let mut o = json!({"name": i.name, "file": i.file});
+    if let Some(d) = i.description.as_ref().filter(|d| !d.is_empty()) {
+        o["description"] = json!(d);
+    }
+    if !i.tags.is_empty() {
+        o["tags"] = json!(i.tags);
+    }
+    o
+}
+
+/// `description` (2 to 100 characters) and `tags` (up to 10, each 1 to 30 characters, 200 in all) exist for stickers.
+fn check_item_text(kind: PackageKind, it: &PackItem, errs: &mut Vec<String>) {
+    if it.description.is_none() && it.tags.is_empty() {
+        return;
+    }
+    if kind != PackageKind::StickerPack {
+        errs.push(format!(
+            "{}: description and tags are for stickers",
+            it.name
+        ));
+        return;
+    }
+    if let Some(d) = &it.description
+        && !(2..=100).contains(&d.chars().count())
+    {
+        errs.push(format!("{}: description is 2 to 100 characters", it.name));
+    }
+    let joined = it.tags.join(", ");
+    if it.tags.len() > 10
+        || it
+            .tags
+            .iter()
+            .any(|t| !(1..=30).contains(&t.chars().count()))
+        || joined.chars().count() > 200
+    {
+        errs.push(format!(
+            "{}: tags are at most 10, 1 to 30 characters each",
+            it.name
+        ));
+    }
 }
 
 fn recipe(
@@ -693,6 +743,37 @@ mod tests {
             "stickers/wave.webp: stickers are PNG, APNG or GIF files"
         );
         assert!(sticker("stickers/wave.png", &png(128, 128)).is_ok());
+    }
+
+    #[test]
+    fn sticker_items_take_tags_and_a_description_and_a_licence_file_is_not_unused() {
+        let pack = |kind: &str, dir: &str, extra: &str| {
+            let m = format!(
+                r#"{{"kind": "{kind}", {HEAD}, "items": [{{"name": "wave", "file": "{dir}/wave.png"{extra}}}]}}"#
+            );
+            validate(
+                &files(&[
+                    ("pack.json", m.as_bytes()),
+                    (&format!("{dir}/wave.png"), &png(64, 64)),
+                    ("LICENSE", b"CC0"),
+                ]),
+                &Checks::lenient(),
+            )
+        };
+        let ok = pack(
+            "sticker_pack",
+            "stickers",
+            r#", "description": "A wave", "tags": ["hello", "hi"]"#,
+        )
+        .unwrap();
+        assert_eq!(ok.payload["items"][0]["tags"][1], "hi");
+        assert_eq!(ok.payload["items"][0]["description"], "A wave");
+        let many = format!(r#", "tags": [{}]"#, [r#""t""#; 11].join(","));
+        assert!(pack("sticker_pack", "stickers", &many).unwrap_err()[0].contains("tags"));
+        assert!(
+            pack("emoji_pack", "emoji", r#", "tags": ["a"]"#).unwrap_err()[0]
+                .contains("for stickers")
+        );
     }
 
     const HEAD: &str = r#""id": "my-pack", "name": "My pack", "version": "1.0.0", "author": "me""#;

@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
+# M-20 (D-310): the serenity sample bot of the SDK compatibility run is its own Cargo project.
+exclude = ["e2e/sdk-compat/serenity-bot"]
 
 [workspace.package]
 edition = "2024"

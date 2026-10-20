@@ -13,6 +13,7 @@
 //! from the environment are never read; redirects are never followed by reqwest itself.
 
 pub mod client;
+pub mod live;
 pub mod policy;
 pub mod resolve;
 
@@ -21,5 +22,6 @@ pub use client::{
     HopRequest, HopResponse, HttpTransport, MAX_REDIRECTS, NetError, PostRequest, PostResponse,
     ReqwestTransport, SafeClient, SafeResponse, TOTAL_TIMEOUT, is_redirect, pinned_builder,
 };
-pub use policy::{Blocked, MAX_URL_LEN, Policy, is_forbidden_ip};
+pub use live::Live;
+pub use policy::{Blocked, HostLists, MAX_URL_LEN, Policy, is_forbidden_ip};
 pub use resolve::{Resolver, SystemResolver, resolve_validated};

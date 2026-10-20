@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { EntranceShell } from '../../components/EntranceShell';
 import { useT } from '../../i18n/react';
+import { useCompliancePublic } from '../../lib/compliancePublic';
 import { EntranceMarkdown, useEntranceCopy } from './entranceCopy';
 
 export function NoInvitation() {
@@ -50,6 +51,7 @@ export function HouseNotes() {
 
 function DefaultHouseNotes() {
   const t = useT();
+  const { operator_country: country, operator_contact: contact } = useCompliancePublic();
   return (
     <>
       <p>{t('entrance.houseNotes.intro')}</p>
@@ -70,6 +72,13 @@ function DefaultHouseNotes() {
         <p>{t('entrance.houseNotes.privacy.body1')}</p>
         <p>{t('entrance.houseNotes.privacy.body2')}</p>
         <p>{t('entrance.houseNotes.privacy.body3')}</p>
+        {country && <p>{t('entrance.houseNotes.privacy.operatorCountry', { country })}</p>}
+        {contact && (
+          <p>
+            {t('entrance.houseNotes.privacy.operatorContact')}{' '}
+            <a href={`mailto:${contact}`}>{contact}</a>
+          </p>
+        )}
       </section>
 
       <section id="terms" aria-labelledby="notes-terms">
@@ -92,6 +101,7 @@ function DefaultHouseNotes() {
 /** The few self-service answers, then "ask whoever invited you"; the body of the /help page. */
 export function HelpSections() {
   const t = useT();
+  const { operator_contact: contact } = useCompliancePublic();
   return (
     <>
       <section aria-labelledby="help-signin">
@@ -119,6 +129,14 @@ export function HelpSections() {
           <Link to="/house-notes">{t('entrance.support.rules.link')}</Link>
         </p>
       </section>
+      {contact && (
+        <section aria-labelledby="help-copyright">
+          <h2 id="help-copyright">{t('entrance.support.copyright.title')}</h2>
+          <p>
+            {t('entrance.support.copyright.body')} <a href={`mailto:${contact}`}>{contact}</a>
+          </p>
+        </section>
+      )}
     </>
   );
 }
@@ -132,6 +150,15 @@ export function Help() {
         <h1>{t('entrance.support.title')}</h1>
         <p>{t('entrance.support.intro')}</p>
         <HelpSections />
+        <section aria-labelledby="help-notices">
+          <h2 id="help-notices">{t('entrance.support.notices.title')}</h2>
+          <p>
+            {t('entrance.support.notices.body')}{' '}
+            <a href="/THIRD_PARTY_NOTICES.md" target="_blank" rel="noreferrer">
+              {t('entrance.support.notices.link')}
+            </a>
+          </p>
+        </section>
       </main>
     </EntranceShell>
   );

@@ -1220,6 +1220,28 @@ async fn sticker_crud_formats_and_limit() {
     assert!(actions.contains(&90) && actions.contains(&91) && actions.contains(&92));
 }
 
+#[tokio::test]
+async fn a_server_can_hide_the_default_sticker_packs() {
+    let e = env().await;
+    let path = e.g("/default-sticker-packs");
+    // Shown by default; any member can read the switch.
+    assert_eq!(e.get(&path, "bob").await.1["hidden"], false);
+    // Only someone who manages expressions can change it.
+    assert_eq!(
+        e.put(&path, "bob", json!({"hidden": true})).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(e.get(&path, "bob").await.1["hidden"], false);
+    let (s, body) = e.put(&path, "mod", json!({"hidden": true})).await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(e.get(&path, "bob").await.1["hidden"], true);
+    assert_eq!(
+        e.put(&path, "mod", json!({"hidden": false})).await.0,
+        StatusCode::OK
+    );
+    assert_eq!(e.get(&path, "bob").await.1["hidden"], false);
+}
+
 // ---- AutoMod ---------------------------------------------------------------------
 
 fn keyword_rule(name: &str, words: &[&str]) -> Value {

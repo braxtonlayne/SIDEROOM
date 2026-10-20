@@ -521,7 +521,7 @@ export default {
   'admin.channelEditor.created': 'Channel created.',
   'admin.channelEditor.create': 'Create channel',
   'admin.channelEditor.manual.body':
-    'Place programmes at a time from the Now control tab. For a lineup that repeats every week, use an imported-guide channel and its weekly grid.',
+    'Place programmes at a time from the Now control tab. For a lineup that repeats every week, choose Imported guide and build the grid in the Guide tab.',
   'admin.channelEditor.guide.body':
     'Build the weekly grid and import a CSV or JSON guide on the Guide tab (save the channel first).',
   'admin.liveTv.kind.ruleBased': 'rule based',

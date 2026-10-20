@@ -34425,6 +34425,134 @@
         ]
       }
     },
+    "/guilds/{guild_id}/default-sticker-packs": {
+      "get": {
+        "tags": [
+          "expressions"
+        ],
+        "summary": "Whether this server hides the default sticker packs (any member; the picker reads it).",
+        "operationId": "get_default_stickers",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultStickerPacksBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "expressions"
+        ],
+        "summary": "Hide or show the default sticker packs in this server's picker (`MANAGE_GUILD_EXPRESSIONS`).",
+        "operationId": "set_default_stickers",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefaultStickerPacksBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultStickerPacksBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/directory": {
       "get": {
         "tags": [],
@@ -50144,6 +50272,27 @@
             "session": []
           }
         ]
+      }
+    },
+    "/sr/compliance/public": {
+      "get": {
+        "tags": [
+          "features"
+        ],
+        "summary": "The minimum registration age and the operator's country and contact (public: the entrance\npages and the privacy page are read before sign-in).",
+        "operationId": "compliance_public",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicComplianceObject"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/sr/csrf": {
@@ -67649,6 +67798,19 @@
           }
         }
       },
+      "DefaultStickerPacksBody": {
+        "type": "object",
+        "description": "Whether a server shows the default sticker packs (D-289).",
+        "required": [
+          "hidden"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "boolean",
+            "description": "True when the server hides the default packs from its sticker picker."
+          }
+        }
+      },
       "DelegateBody": {
         "type": "object",
         "required": [
@@ -79332,6 +79494,35 @@
             "type": "integer",
             "description": "Members that would be (preview) or were (execute) removed.",
             "minimum": 0
+          }
+        }
+      },
+      "PublicComplianceObject": {
+        "type": "object",
+        "description": "What visitors may know about the instance's compliance settings (M-06, D-293 to D-295).",
+        "required": [
+          "minimum_age"
+        ],
+        "properties": {
+          "minimum_age": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The age a person must be to register (13 unless the operator raised it).",
+            "minimum": 0
+          },
+          "operator_contact": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The operator's contact address, also the copyright notice address, when set."
+          },
+          "operator_country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The operator's country (ISO 3166-1 alpha-2), when set."
           }
         }
       },

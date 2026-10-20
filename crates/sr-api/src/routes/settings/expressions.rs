@@ -47,6 +47,10 @@ pub fn routes() -> Router<AppState> {
             get(list_stickers).post(create_sticker),
         )
         .route(
+            "/guilds/{guild_id}/default-sticker-packs",
+            get(get_default_stickers).put(set_default_stickers),
+        )
+        .route(
             "/guilds/{guild_id}/stickers/{sticker_id}",
             get(get_sticker)
                 .patch(modify_sticker)
@@ -159,7 +163,8 @@ pub struct EmojiObject {
 }
 
 impl EmojiObject {
-    fn of(
+    /// The Discord emoji object (also the GUILD_CREATE `emojis` entries).
+    pub fn of(
         e: &Emoji,
         users: &std::collections::HashMap<sr_core::UserId, sr_chat::repo::UserSummary>,
     ) -> Self {
@@ -193,7 +198,8 @@ pub struct StickerObject {
 }
 
 impl StickerObject {
-    fn of(
+    /// The Discord sticker object (also the GUILD_CREATE `stickers` entries).
+    pub fn of(
         s: &Sticker,
         users: &std::collections::HashMap<sr_core::UserId, sr_chat::repo::UserSummary>,
     ) -> Self {
@@ -226,6 +232,13 @@ pub struct CreateEmojiBody {
 pub struct ModifyEmojiBody {
     pub name: Option<String>,
     pub roles: Option<Vec<String>>,
+}
+
+/// Whether a server shows the default sticker packs (D-289).
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct DefaultStickerPacksBody {
+    /// True when the server hides the default packs from its sticker picker.
+    pub hidden: bool,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -564,6 +577,70 @@ pub async fn delete_emoji(
 }
 
 // ---- stickers --------------------------------------------------------------------
+
+/// Whether this server hides the default sticker packs (any member; the picker reads it).
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/default-sticker-packs",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 200, body = DefaultStickerPacksBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn get_default_stickers(
+    p: Principal,
+    Ext(deps): Ext<SettingsDeps>,
+    Path(guild_id): Path<String>,
+) -> ApiResult<Json<DefaultStickerPacksBody>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    deps.guild_access(user, gid).await?;
+    let hidden = deps
+        .service
+        .repo()
+        .default_stickers_hidden(gid)
+        .await
+        .map_err(re)?;
+    Ok(Json(DefaultStickerPacksBody { hidden }))
+}
+
+/// Hide or show the default sticker packs in this server's picker (`MANAGE_GUILD_EXPRESSIONS`).
+#[utoipa::path(
+    put,
+    path = "/guilds/{guild_id}/default-sticker-packs",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    request_body = DefaultStickerPacksBody,
+    responses((status = 200, body = DefaultStickerPacksBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn set_default_stickers(
+    p: Principal,
+    gate: MfaGate,
+    Ext(deps): Ext<SettingsDeps>,
+    Path(guild_id): Path<String>,
+    ApiJson(body): ApiJson<DefaultStickerPacksBody>,
+) -> ApiResult<Json<DefaultStickerPacksBody>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    let acc = deps.guild_access(user, gid).await?;
+    if !acc
+        .perms
+        .has(sr_core::permissions::Permissions::MANAGE_GUILD_EXPRESSIONS)
+    {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
+    acc.require_mfa(
+        &gate,
+        user,
+        sr_core::permissions::Permissions::MANAGE_GUILD_EXPRESSIONS,
+    )
+    .await?;
+    deps.service
+        .repo()
+        .set_default_stickers_hidden(gid, body.hidden, user)
+        .await
+        .map_err(re)?;
+    Ok(Json(body))
+}
 
 /// List a guild's stickers (any member).
 #[utoipa::path(

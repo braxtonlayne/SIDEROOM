@@ -34,6 +34,17 @@ pub fn providers_from(cfg: &LookupConfig) -> Vec<Arc<dyn LookupProvider>> {
     out
 }
 
+/// Every provider that could be offered: the keyless ones always, a keyed one when its key is in
+/// the config. Which of them are offered is the live `platform.integrations` policy (D-300).
+pub fn all_providers_from(cfg: &LookupConfig) -> Vec<Arc<dyn LookupProvider>> {
+    providers_from(&LookupConfig {
+        anilist: true,
+        mangadex: true,
+        mangaupdates: true,
+        ..cfg.clone()
+    })
+}
+
 /// Reads `review.lookup.enabled` from `platform_settings`; off when absent or unreadable.
 pub struct PgLookupSwitch {
     pool: PgPool,

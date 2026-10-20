@@ -28,6 +28,34 @@ use std::sync::Arc;
 
 type BuildResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+/// The GUILD_CREATE-only fields of Discord's guild object that SIDE ROOM has no own value for, set
+/// only when absent. Typed libraries require them (serenity 0.12's `Guild` fails to decode
+/// without `premium_tier`, `nsfw_level`, `joined_at`, `large`, `member_count`, ...) and then
+/// drop the whole event. Boosts do not exist (tier 0, no progress bar); the guild's NSFW level is
+/// "default"; scheduled events are fetched over REST (`GET /guilds/{id}/scheduled-events`).
+fn fill_guild_create_fields(
+    obj: &mut serde_json::Map<String, Value>,
+    member_count: u64,
+    joined_at: Option<String>,
+) {
+    let large = member_count > LARGE_THRESHOLD_DEFAULT;
+    for (k, v) in [
+        ("premium_tier", json!(0)),
+        ("premium_subscription_count", json!(0)),
+        ("premium_progress_bar_enabled", json!(false)),
+        ("nsfw_level", json!(0)),
+        ("emojis", json!([])),
+        ("stickers", json!([])),
+        ("guild_scheduled_events", json!([])),
+        ("member_count", json!(member_count)),
+        ("large", json!(large)),
+        ("unavailable", json!(false)),
+        ("joined_at", joined_at.map_or(Value::Null, Value::String)),
+    ] {
+        obj.entry(k).or_insert(v);
+    }
+}
+
 /// Resolves a gateway token or `sr_session` cookie to a user. A token with dots in it is a bot
 /// token (`base64url(id).base64url(issued).base64url(secret)`, open question 56): it is checked
 /// against the application store, which also decides the privileged intents it may use.
@@ -249,6 +277,56 @@ impl PgGuildDirectory {
                     .collect();
                 obj.insert("members".into(), json!(members));
             }
+            // The guild's expressions, as Discord's GUILD_CREATE carries them.
+            {
+                use sr_chat::settings::repo::ExpressionRepository;
+                let expr = sr_db::settings_repo::PgSettingsRepo::new(self.pool.clone());
+                let emoji = expr.list_emoji(guild).await?;
+                let stickers = expr.list_stickers(guild).await?;
+                let creators: Vec<UserId> = emoji
+                    .iter()
+                    .map(|e| e.creator_id)
+                    .chain(stickers.iter().map(|s| s.creator_id))
+                    .collect();
+                let creators: std::collections::HashMap<UserId, sr_chat::repo::UserSummary> = self
+                    .chat
+                    .users(&creators)
+                    .await?
+                    .into_iter()
+                    .map(|u| (u.id, u))
+                    .collect();
+                obj.insert(
+                    "emojis".into(),
+                    json!(
+                        emoji
+                            .iter()
+                            .map(|e| sr_api::routes::settings::expressions::EmojiObject::of(
+                                e, &creators
+                            ))
+                            .collect::<Vec<_>>()
+                    ),
+                );
+                obj.insert(
+                    "stickers".into(),
+                    json!(
+                        stickers
+                            .iter()
+                            .map(
+                                |s| sr_api::routes::settings::expressions::StickerObject::of(
+                                    s, &creators
+                                )
+                            )
+                            .collect::<Vec<_>>()
+                    ),
+                );
+            }
+            let member_count = self.chat.count_members(guild).await?;
+            let joined_at = self
+                .chat
+                .get_member(guild, user)
+                .await?
+                .map(|m| iso8601(m.joined_at_ms));
+            fill_guild_create_fields(obj, member_count, joined_at);
         }
         Ok(body)
     }
@@ -1020,6 +1098,27 @@ mod tests {
     use sr_chat::social::repo::DmRepository;
     use sr_core::{SnowflakeGenerator, SystemClock};
 
+    #[test]
+    fn guild_create_gets_discords_required_fields_without_overwriting() {
+        let mut obj = serde_json::Map::new();
+        obj.insert("emojis".into(), json!([{"id": "1"}]));
+        fill_guild_create_fields(&mut obj, 3, Some("2026-01-01T00:00:00.000+00:00".into()));
+        assert_eq!(obj["emojis"], json!([{"id": "1"}]), "a real list stays");
+        assert_eq!(obj["stickers"], json!([]));
+        assert_eq!(obj["premium_tier"], json!(0));
+        assert_eq!(obj["nsfw_level"], json!(0));
+        assert_eq!(obj["premium_progress_bar_enabled"], json!(false));
+        assert_eq!(obj["guild_scheduled_events"], json!([]));
+        assert_eq!(obj["member_count"], json!(3));
+        assert_eq!(obj["large"], json!(false));
+        assert_eq!(obj["unavailable"], json!(false));
+        assert_eq!(obj["joined_at"], json!("2026-01-01T00:00:00.000+00:00"));
+        let mut big = serde_json::Map::new();
+        fill_guild_create_fields(&mut big, LARGE_THRESHOLD_DEFAULT + 1, None);
+        assert_eq!(big["large"], json!(true));
+        assert_eq!(big["joined_at"], Value::Null);
+    }
+
     async fn account(pool: &PgPool, ids: &SnowflakeGenerator<Arc<dyn Clock>>) -> UserId {
         let person = ids.generate().get() as i64;
         let acct = ids.generate();
@@ -1393,6 +1492,14 @@ mod tests {
             .collect();
         assert!(listed.contains(&owner.to_string().as_str()));
         assert!(!listed.contains(&system.to_string().as_str()));
+        // Discord's GUILD_CREATE fields that typed libraries require (serenity's `Guild`).
+        for k in ["emojis", "stickers", "guild_scheduled_events"] {
+            assert!(body[k].is_array(), "{k} missing: {body}");
+        }
+        // The system user is not counted, as in the member list.
+        assert_eq!(body["member_count"], json!(2));
+        assert_eq!(body["premium_tier"], json!(0));
+        assert!(body["joined_at"].is_string(), "the viewer's joined_at");
 
         // The sweep removes the temporary member nobody is connected as.
         let bus = Arc::new(InProcessBus::new());

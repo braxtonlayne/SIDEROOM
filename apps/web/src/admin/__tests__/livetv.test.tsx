@@ -543,6 +543,32 @@ describe('Live TV admin: schedule, now control, report', () => {
     expect(await screen.findByText('Block removed.')).toBeInTheDocument();
   });
 
+  it('shows the weekly lineup signpost on manual channels only and switches the kind (M-13)', async () => {
+    asStaff({ perms: [...CURATOR] });
+    const calls = useTvAdmin({ channels: [channel({ kind: 'rule_based' })] });
+    const first = await openTab('Now control');
+    await screen.findByLabelText('On air now');
+    expect(screen.queryByTestId('manual-lineup-hint')).toBeNull();
+    first.unmount();
+
+    const manualCalls = useTvAdmin({ channels: [channel({ kind: 'manual' })] });
+    const { user } = await openTab('Now control');
+    const hint = await screen.findByTestId('manual-lineup-hint');
+    expect(hint).toHaveTextContent('build the grid in the Guide tab');
+    await user.click(within(hint).getByRole('button', { name: 'Switch to Imported guide' }));
+    const dialog = await screen.findByRole('dialog', { name: /Switch Adult Swim/ });
+    expect(dialog).toHaveTextContent('kept until the next publish');
+    await user.click(within(dialog).getByRole('button', { name: 'Switch kind' }));
+    await waitFor(() =>
+      expect(manualCalls.writes.at(-1)).toMatchObject({
+        method: 'PUT',
+        url: '/admin/tv/channels/501',
+        body: { kind: 'imported_guide' },
+      }),
+    );
+    expect(calls.writes).toHaveLength(0);
+  });
+
   it('puts a title on air with an episode and an offset', async () => {
     asStaff({ perms: [...CURATOR] });
     const calls = useTvAdmin();

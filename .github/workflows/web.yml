@@ -17,7 +17,7 @@ jobs:
         with: { targets: wasm32-unknown-unknown }
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
-        with: { tool: "wasm-pack" }
+        with: { tool: 'wasm-pack' }
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -26,10 +26,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Builds packages/wasm/dist, which the web build and tests load.
       - run: pnpm --filter @sideroom/wasm build
+      # M-01 (D-287): the served notices file is a copy of the root file.
+      - run: node scripts/check-notices-copy.mjs
       - run: pnpm -r --if-present lint
       - run: pnpm -r --if-present typecheck
       - run: pnpm -r --if-present test
       - run: pnpm --filter @sideroom/web build
+      # K-13, M-08: production dependency licences against an allow-list (GPL-3.0 only for rvfc-polyfill, LGPL for jassub).
+      - name: Licence allow-list
+        run: pnpm licenses list --json --prod | node scripts/check-licenses.mjs
       # XC-PERF-002: first-load JavaScript per section stays inside the gzip budgets in scripts/bundle-budget.json.
       - name: Bundle budget
         run: node scripts/check-bundle-budget.mjs
@@ -58,9 +63,11 @@ jobs:
           name: web-dist
           path: apps/web/dist
       - run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+      # D-289: the committed sticker PNGs are reproducible from their SVG sources.
+      - run: node scripts/render-stickers.mjs --check
       - run: pnpm --filter @sideroom/e2e test:static
         env:
-          CI: "true"
+          CI: 'true'
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

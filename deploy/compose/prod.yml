@@ -91,6 +91,13 @@ services:
       SR_SMTP__PASSWORD: ${SMTP_PASSWORD:-}
       # Local folders a staff member may point an ingest source at (REV-UP-005). Empty = local folders off.
       SR_INGEST__ROOTS: ${SR_INGEST_ROOTS:-}
+      # Donations (D-288, M-02). The price sources are on by default; the Esplora endpoint is empty (donations off) until
+      # the `payments` profile is on and electrs has synced, or until you set the interim https://mempool.space/api.
+      # These are read from the process environment by sr-server (payments_jobs.rs), not by the config loader.
+      SR_PAYMENTS_ESPLORA_URL: ${SR_PAYMENTS_ESPLORA_URL:-}
+      SR_PAYMENTS_RATE_SOURCES: ${SR_PAYMENTS_RATE_SOURCES:-}
+      # Needed when the endpoint is the private electrs container (the SSRF client refuses private addresses).
+      SR_PAYMENTS_ALLOW_PRIVATE_HOSTS: ${SR_PAYMENTS_ALLOW_PRIVATE_HOSTS:-}
     volumes:
       # Optional, read-only: the folder named above. The ledger never moves or deletes files here.
       - ${SR_INGEST_DIR:-/srv/sideroom/ingest}:/srv/sideroom/ingest:ro
@@ -121,6 +128,38 @@ services:
       - ${SR_WEB_DIR:?set SR_WEB_DIR to the built apps/web/dist}:/srv/web:ro
       - caddy-data:/data
       - caddy-config:/config
+
+  # --- profile: payments (D-288, M-02) ---------------------------------------------------------------
+  # A self-hosted Esplora-compatible electrs, so the invoice addresses this server derives never leave the box.
+  # OFF by default: `--profile payments up -d`, then set in .env.prod
+  #   SR_PAYMENTS_ESPLORA_URL=http://electrs:3000   and   SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1
+  # Cost: electrs needs a fully synced, non-pruned bitcoind (about 700 GB today) and builds its own index (about
+  # 50 GB more); the first sync takes days. bitcoind is NOT part of this stack: point SR_ELECTRS_DAEMON_RPC_ADDR at
+  # yours and mount its data directory through SR_BITCOIND_DIR (cookie auth). No port is published: only services
+  # on the compose network, that is sr-server, can reach it. Until it has synced, use the documented interim
+  # https://mempool.space/api (it learns which addresses this server watches).
+  # IMAGE PLACEHOLDER: no digest was available offline. Before the first start, pull the Esplora-REST electrs build you
+  # trust (Blockstream's electrs fork serves the REST API on port 3000), then replace the tag below with
+  # `@sha256:<digest>` and confirm the flags against that image's --help.
+  electrs:
+    <<: *restart
+    profiles: [payments]
+    image: blockstream/electrs:PIN-BY-DIGEST-BEFORE-FIRST-START
+    command:
+      - electrs
+      - --network=mainnet
+      - --daemon-rpc-addr=${SR_ELECTRS_DAEMON_RPC_ADDR:-host.docker.internal:8332}
+      - --daemon-dir=/bitcoin
+      - --db-dir=/data
+      - --http-addr=0.0.0.0:3000
+      - --electrum-rpc-addr=127.0.0.1:50001
+    # The node stays on the host (D-312); docs/12-deployment-and-operations.md section 2.1 "Running electrs".
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - electrs-data:/data
+      - ${SR_BITCOIND_DIR:-/var/lib/bitcoind}:/bitcoin:ro
+    # No published port: sr-server reaches it as http://electrs:3000 on the compose network only.
 
   # --- profile: monitoring (FND-OBS-003, XC-OPS-007) -------------------------------------------------
   prometheus:
@@ -160,3 +199,4 @@ volumes:
   caddy-config:
   prom-data:
   grafana-data:
+  electrs-data:

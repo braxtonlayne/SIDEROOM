@@ -150,7 +150,7 @@ impl Feature for IntegrationsPolicyFeature {
                     ],
                 },
             )
-            .help("A saved value replaces the config file's [unfurl] value from the next start of the server."),
+            .help("A saved value replaces the config file's [unfurl] value and applies at once."),
             Field::new(
                 "gif",
                 "GIF picker",
@@ -291,6 +291,13 @@ mod tests {
             .await
             .is_err()
         );
+    }
+
+    #[test]
+    fn the_schema_does_not_claim_a_restart_is_needed() {
+        let schema = serde_json::to_string(&IntegrationsPolicyFeature.settings_schema()).unwrap();
+        assert!(!schema.contains("next start"), "{schema}");
+        assert!(schema.contains("applies at once"));
     }
 
     #[tokio::test]

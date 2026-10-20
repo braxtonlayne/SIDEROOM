@@ -6834,6 +6834,24 @@ export interface paths {
         patch: operations["reorder_channels"];
         trace?: never;
     };
+    "/guilds/{guild_id}/default-sticker-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether this server hides the default sticker packs (any member; the picker reads it). */
+        get: operations["get_default_stickers"];
+        /** Hide or show the default sticker packs in this server's picker (`MANAGE_GUILD_EXPRESSIONS`). */
+        put: operations["set_default_stickers"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/directory": {
         parameters: {
             query?: never;
@@ -9866,6 +9884,26 @@ export interface paths {
          *     username. Friends and shared servers receive `USER_UPDATE`.
          */
         put: operations["change_username"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/compliance/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The minimum registration age and the operator's country and contact (public: the entrance
+         *     pages and the privacy page are read before sign-in).
+         */
+        get: operations["compliance_public"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -14573,6 +14611,11 @@ export interface components {
             emoji_id?: string | null;
             emoji_name?: string | null;
         };
+        /** @description Whether a server shows the default sticker packs (D-289). */
+        DefaultStickerPacksBody: {
+            /** @description True when the server hides the default packs from its sticker picker. */
+            hidden: boolean;
+        };
         DelegateBody: {
             /**
              * @description The most the delegate may hand out: `PlatformPermissions` bits as a decimal string.
@@ -18197,6 +18240,18 @@ export interface components {
         PruneResult: {
             /** @description Members that would be (preview) or were (execute) removed. */
             pruned: number;
+        };
+        /** @description What visitors may know about the instance's compliance settings (M-06, D-293 to D-295). */
+        PublicComplianceObject: {
+            /**
+             * Format: int32
+             * @description The age a person must be to register (13 unless the operator raised it).
+             */
+            minimum_age: number;
+            /** @description The operator's contact address, also the copyright notice address, when set. */
+            operator_contact?: string | null;
+            /** @description The operator's country (ISO 3166-1 alpha-2), when set. */
+            operator_country?: string | null;
         };
         /** @description The `keys` of a browser `PushSubscription`. */
         PushKeys: {
@@ -43348,6 +43403,86 @@ export interface operations {
             };
         };
     };
+    get_default_stickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultStickerPacksBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_default_stickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DefaultStickerPacksBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultStickerPacksBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_own_listing: {
         parameters: {
             query?: never;
@@ -53215,6 +53350,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    compliance_public: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicComplianceObject"];
                 };
             };
         };

@@ -249,7 +249,7 @@ function ChannelDetail({ id, onClose }: { id: string | null; onClose: () => void
                   {
                     id: 'now',
                     label: t('admin.liveTv.detail.tab.now'),
-                    content: <NowControl channel={channel} />,
+                    content: <NowControl channel={channel} onKindChanged={saved} />,
                   },
                   {
                     id: 'aired',

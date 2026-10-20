@@ -2,5 +2,6 @@ packages:
   - apps/*
   - packages/*
   - e2e
+  - e2e/sdk-compat
 onlyBuiltDependencies:
   - esbuild

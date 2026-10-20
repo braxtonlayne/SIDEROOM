@@ -8,6 +8,8 @@
 //! * `user.connections.refresh` (hourly singleton) re-reads the public stats of GitHub and
 //!   Reddit connections older than a day (LNG-USET-024); no token is stored, so other
 //!   providers keep the numbers read when the account was linked.
+//! * `profile.media.sweep` (daily singleton, D-302) deletes profile pictures older than a day
+//!   that the owner's saved profile document does not name, with their files.
 
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::Arc;
@@ -34,6 +36,16 @@ pub const EXPORT_SWEEP_KIND: &str = "user.data_export.sweep";
 pub const CONNECTIONS_JOB_ID: i64 = 661;
 /// Kind of the stats refresh.
 pub const CONNECTIONS_KIND: &str = "user.connections.refresh";
+/// Reserved singleton id of the profile media sweep (M-12, D-302).
+pub const PROFILE_MEDIA_JOB_ID: i64 = 662;
+/// Kind of the profile media sweep.
+pub const PROFILE_MEDIA_KIND: &str = "profile.media.sweep";
+/// Run interval of the profile media sweep.
+const PROFILE_MEDIA_INTERVAL: Duration = Duration::from_secs(24 * 3600);
+/// Pictures younger than this are never swept (a document may still be in the editor).
+pub const PROFILE_MEDIA_MIN_AGE_SECS: i64 = 24 * 3600;
+/// Accounts handled per run of the profile media sweep.
+const PROFILE_MEDIA_BATCH: i64 = 200;
 const SWEEP_INTERVAL: Duration = Duration::from_secs(3600);
 /// Stats older than this are re-read.
 const STATS_MAX_AGE_MS: i64 = 24 * 3_600_000;
@@ -236,6 +248,7 @@ pub fn register(
     storage: Arc<dyn ObjectStorage>,
     social: Arc<SocialDeps>,
     client: SafeClient,
+    packages: sr_packages::service::PackageService,
 ) -> JobRunner {
     let (export_pool, export_storage) = (pool.clone(), storage.clone());
     let runner = runner.register(db::JOB_KIND, 1, move |job: Job| {
@@ -252,6 +265,24 @@ pub fn register(
                 Err(e) => tracing::warn!(error = %e, "data package sweep failed"),
             }
             jobs::reschedule_running(&pool, job.id, SWEEP_INTERVAL)
+                .await
+                .map_err(HandlerError::from)?;
+            Ok(())
+        })
+    });
+    let media_pool = pool.clone();
+    let runner = runner.register(PROFILE_MEDIA_KIND, 1, move |job: Job| {
+        let (pool, packages) = (media_pool.clone(), packages.clone());
+        Box::pin(async move {
+            match packages
+                .sweep_unreferenced_media(PROFILE_MEDIA_MIN_AGE_SECS, PROFILE_MEDIA_BATCH)
+                .await
+            {
+                Ok(0) => {}
+                Ok(n) => tracing::info!(pictures = n, "unreferenced profile pictures removed"),
+                Err(e) => tracing::warn!(error = %e, "profile picture sweep failed"),
+            }
+            jobs::reschedule_running(&pool, job.id, PROFILE_MEDIA_INTERVAL)
                 .await
                 .map_err(HandlerError::from)?;
             Ok(())
@@ -289,6 +320,14 @@ pub async fn schedule(pool: &PgPool) -> DbResult<()> {
         CONNECTIONS_KIND,
         &json!({}),
         SWEEP_INTERVAL,
+    )
+    .await?;
+    jobs::schedule_singleton(
+        pool,
+        PROFILE_MEDIA_JOB_ID,
+        PROFILE_MEDIA_KIND,
+        &json!({}),
+        PROFILE_MEDIA_INTERVAL,
     )
     .await?;
     Ok(())

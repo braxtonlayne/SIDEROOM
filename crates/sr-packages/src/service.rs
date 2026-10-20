@@ -1165,7 +1165,7 @@ impl PackageService {
             .bind(serde_json::to_value(&doc).unwrap_or(Value::Null))
             .execute(self.pool())
             .await?;
-        self.drop_unreferenced_media(user, &doc).await?;
+        self.drop_unreferenced_media(user, &doc, None).await?;
         Ok(doc)
     }
 

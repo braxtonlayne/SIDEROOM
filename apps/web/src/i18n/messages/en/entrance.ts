@@ -165,6 +165,11 @@ export default {
   'entrance.support.title': 'Help',
   'entrance.support.intro':
     'The common ways to get unstuck. If none of these fit, ask the person who invited you.',
+  // M-01 (D-287): third-party notices link on /help.
+  'entrance.support.notices.title': 'Third-party notices',
+  'entrance.support.notices.body':
+    'SIDE ROOM includes software under other licences that ask for attribution.',
+  'entrance.support.notices.link': 'Read the third-party notices',
   'entrance.support.signin.title': 'I cannot sign in',
   'entrance.support.signin.body': 'Reset your password with the link on the sign-in page.',
   'entrance.support.signin.link': 'Reset my password',
@@ -323,4 +328,16 @@ export default {
   'entrance.invite.groupInvited': "You've been invited to join a group chat",
   'entrance.invite.groupName': 'a group chat',
   'entrance.invite.groupMembers': '{count} members',
+  // Registration and entrance copy that states the minimum age (M-06, D-294)
+  'entrance.register.ageConfirm': 'I am at least {age} years old.',
+  // Its own checkbox and error since D-311 (M-21).
+  'entrance.register.ageRequired': 'Please confirm you are at least {age}.',
+  'entrance.register.ageNotice': 'You must be at least {age} to join.',
+  'entrance.landing.ageNotice': 'You must be at least {age} to join.',
+  // Operator details on the privacy summary and /help (M-06, D-293, D-295)
+  'entrance.houseNotes.privacy.operatorCountry': 'This server is run from {country}.',
+  'entrance.houseNotes.privacy.operatorContact': 'Contact for questions about your data:',
+  'entrance.support.copyright.title': 'Copyright notices',
+  'entrance.support.copyright.body':
+    'If something here infringes your copyright, send the notice to this address. A person on the staff reads every one:',
 } satisfies Record<string, string>;

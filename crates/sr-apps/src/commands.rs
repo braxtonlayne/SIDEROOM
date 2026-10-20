@@ -302,7 +302,7 @@ pub fn validate_command(body: &Value) -> Result<NewCommand, Problems> {
         }
     };
     let contexts = int_list("contexts", &mut p);
-    let integration_types = int_list("integration_types", &mut p);
+    let integration_types = normalise_integration_types(int_list("integration_types", &mut p));
 
     if total > MAX_TOTAL_CHARS {
         push(
@@ -328,6 +328,36 @@ pub fn validate_command(body: &Value) -> Result<NewCommand, Problems> {
         contexts,
         integration_types,
     })
+}
+
+/// Normalises `integration_types` (D-305): a list containing `0` (guild install) becomes
+/// `[0]`; anything else (for example `[1]`, user install) is stored as given, de-duplicated.
+/// User installs are not supported, so such a command is never offered in a guild (see
+/// [`integration_types_guild_offered`]), but registering it succeeds so libraries keep working.
+pub fn normalise_integration_types(v: Option<Value>) -> Option<Value> {
+    let Some(Value::Array(a)) = v else {
+        return v;
+    };
+    if a.iter().any(|x| x.as_i64() == Some(0)) {
+        return Some(json!([0]));
+    }
+    let mut out: Vec<Value> = Vec::new();
+    for x in a {
+        if !out.contains(&x) {
+            out.push(x);
+        }
+    }
+    Some(Value::Array(out))
+}
+
+/// Is a command with these `integration_types` offered in guilds? Absent or empty means the
+/// default (guild install); a list without `0` (for example `[1]`) is user-install only and is
+/// never offered, listed, autocompleted or dispatched (D-305).
+pub fn integration_types_guild_offered(v: &Option<Value>) -> bool {
+    match v {
+        Some(Value::Array(a)) if !a.is_empty() => a.iter().any(|x| x.as_i64() == Some(0)),
+        _ => true,
+    }
 }
 
 fn validate_options(
@@ -757,9 +787,16 @@ pub fn command_json(c: &Command, storage: bool) -> Value {
     }
     o.insert("nsfw".into(), json!(c.nsfw));
     o.insert("contexts".into(), c.contexts.clone().unwrap_or(Value::Null));
+    // Discord answers `[0]` (guild install) for a command registered without the field, and typed
+    // libraries rely on a list (serenity 0.12's `Command::integration_types` is a `Vec`; null fails to
+    // decode). Only server installs exist (D-305). The merge input keeps "absent".
     o.insert(
         "integration_types".into(),
-        c.integration_types.clone().unwrap_or(Value::Null),
+        match (&c.integration_types, storage) {
+            (Some(v), _) => v.clone(),
+            (None, true) => Value::Null,
+            (None, false) => json!([0]),
+        },
     );
     if storage {
         // Merge input: ids and server fields are ignored by validation.
@@ -956,6 +993,50 @@ mod tests {
                 .is_empty()
         );
         assert!(!bad(json!({"name": "x", "description": "d", "nsfw": "yes"})).is_empty());
+    }
+
+    #[test]
+    fn a_command_without_integration_types_answers_guild_install() {
+        assert_eq!(
+            ok(json!({"name": "x", "description": "d"})).integration_types,
+            None
+        );
+        let c = Command {
+            id: 2,
+            application_id: 1,
+            guild_id: None,
+            kind: 1,
+            name: "x".into(),
+            description: "d".into(),
+            options: json!([]),
+            name_localizations: None,
+            description_localizations: None,
+            default_member_permissions: None,
+            dm_permission: true,
+            nsfw: false,
+            contexts: None,
+            integration_types: None,
+            version: 3,
+        };
+        assert_eq!(command_json(&c, false)["integration_types"], json!([0]));
+        assert_eq!(command_json(&c, true)["integration_types"], Value::Null);
+        let u = Command {
+            integration_types: Some(json!([1])),
+            ..c
+        };
+        assert_eq!(command_json(&u, false)["integration_types"], json!([1]));
+    }
+
+    #[test]
+    fn integration_types_are_normalised_and_filtered() {
+        let c = ok(json!({"name": "x", "description": "d", "integration_types": [1, 0]}));
+        assert_eq!(c.integration_types, Some(json!([0])));
+        assert!(integration_types_guild_offered(&c.integration_types));
+        let u = ok(json!({"name": "x", "description": "d", "integration_types": [1, 1]}));
+        assert_eq!(u.integration_types, Some(json!([1])));
+        assert!(!integration_types_guild_offered(&u.integration_types));
+        assert!(integration_types_guild_offered(&None));
+        assert!(integration_types_guild_offered(&Some(json!([]))));
     }
 
     #[test]

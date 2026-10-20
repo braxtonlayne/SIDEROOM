@@ -317,6 +317,7 @@ GET	/guilds/{guild_id}/bans	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/birthdays	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/channels	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
@@ -413,6 +414,7 @@ GET	/sr/appearance/defaults	public	none	deny	-
 GET	/sr/auth/discord	authenticated	self	deny	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
 GET	/sr/auth/reauth	authenticated	self	deny	-
+GET	/sr/compliance/public	public	none	deny	-
 GET	/sr/csrf	authenticated	self	allow	-
 GET	/sr/emojis/{emoji_id}	authenticated	visibility	allow	-
 GET	/sr/emojis/{emoji_id}/url	authenticated	user	allow	-
@@ -844,6 +846,7 @@ PUT	/cinema/titles/{title_id}/progress	authenticated	self	allow	-
 PUT	/cinema/titles/{title_id}/rating	authenticated	self	allow	-
 PUT	/cinema/titles/{title_id}/review	authenticated	self	allow	-
 PUT	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/incident-actions	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-

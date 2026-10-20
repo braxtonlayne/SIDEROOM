@@ -231,6 +231,10 @@ fn the_server_environment_loads_through_the_real_config_loader() {
     let mut pairs: Vec<(String, String)> = Vec::new();
     for l in server.section("environment") {
         let (k, v) = l.split_once(':').expect("KEY: value");
+        // Read from the process environment by sr-server's payments module, not by the config loader (M-02).
+        if k.trim().starts_with("SR_PAYMENTS_") {
+            continue;
+        }
         let v = expand(v.trim().trim_matches('"'), &env);
         pairs.push((k.trim().to_owned(), v));
     }
@@ -644,4 +648,44 @@ fn the_ingest_folder_is_a_read_only_mount_with_a_matching_root() {
             .any(|l| l.starts_with("SR_INGEST__ROOTS:") && l.contains("${SR_INGEST_ROOTS:-}")),
         "SR_INGEST__ROOTS must come from SR_INGEST_ROOTS (empty = local folders off)"
     );
+}
+
+#[test]
+fn electrs_is_an_optional_private_payments_profile_with_default_price_sources() {
+    let c = compose();
+    let e = &c.services["electrs"];
+    assert_eq!(e.section("profiles"), ["[payments]"]);
+    assert!(
+        c.text.contains("profiles: [payments]"),
+        "electrs sits under the payments profile"
+    );
+    assert!(
+        e.section("ports").is_empty(),
+        "electrs publishes no port: only the compose network reaches it"
+    );
+    // D-312: bitcoind stays on the host; the container reaches it through the host gateway.
+    assert_eq!(
+        e.section("extra_hosts"),
+        ["- \"host.docker.internal:host-gateway\""],
+        "electrs reaches the host-run bitcoind through extra_hosts"
+    );
+    assert!(
+        e.section("command")
+            .iter()
+            .any(|l| l.contains("SR_ELECTRS_DAEMON_RPC_ADDR:-host.docker.internal:8332")),
+        "electrs defaults to the host's bitcoind RPC port"
+    );
+    let env = env_file("deploy/compose/.env.prod.example");
+    // Off until the operator turns the profile on: donations stay off with an empty endpoint.
+    assert_eq!(env["SR_PAYMENTS_ESPLORA_URL"], "");
+    assert!(env["SR_PAYMENTS_RATE_SOURCES"].contains("api.coinbase.com"));
+    let server = &c.services["sr-server"];
+    let vars = server.section("environment").join("\n");
+    for k in [
+        "SR_PAYMENTS_ESPLORA_URL",
+        "SR_PAYMENTS_RATE_SOURCES",
+        "SR_PAYMENTS_ALLOW_PRIVATE_HOSTS",
+    ] {
+        assert!(vars.contains(k), "sr-server does not receive {k}");
+    }
 }

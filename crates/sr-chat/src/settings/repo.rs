@@ -71,6 +71,14 @@ pub trait ExpressionRepository: Send + Sync {
     async fn insert_sound(&self, sound: &Sound) -> RepoResult<()>;
     async fn update_sound(&self, sound: &Sound) -> RepoResult<()>;
     async fn delete_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<bool>;
+    /// Whether this server hides the default (platform) sticker packs from its picker (D-289).
+    async fn default_stickers_hidden(&self, guild: GuildId) -> RepoResult<bool>;
+    async fn set_default_stickers_hidden(
+        &self,
+        guild: GuildId,
+        hidden: bool,
+        by: UserId,
+    ) -> RepoResult<()>;
 }
 
 #[async_trait]

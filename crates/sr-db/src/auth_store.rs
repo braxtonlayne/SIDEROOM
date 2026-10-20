@@ -367,6 +367,16 @@ impl AuthStore for PgAuthStore {
         Ok(())
     }
 
+    async fn set_declared_min_age(&self, account_id: i64, age: u8) -> StoreResult<()> {
+        sqlx::query("UPDATE accounts SET age_declared = $2 WHERE id = $1")
+            .bind(account_id)
+            .bind(i16::from(age))
+            .execute(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(())
+    }
+
     async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()> {
         sqlx::query(
             "UPDATE accounts SET age_confirmed = $2, \

@@ -13,6 +13,7 @@ import {
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { Divider, DiscordButton, FormError } from '../../components/FormParts';
 import { useT } from '../../i18n/react';
+import { useCompliancePublic } from '../../lib/compliancePublic';
 import { clearInviteCode, heldInviteCode } from '../../lib/inviteCode';
 import {
   USERNAME_HINT,
@@ -21,7 +22,7 @@ import {
   validateUsername,
 } from '../../lib/validation';
 
-type Field = 'email' | 'username' | 'display_name' | 'password' | 'confirm' | 'rules';
+type Field = 'email' | 'username' | 'display_name' | 'password' | 'confirm' | 'rules' | 'age';
 type UsernameState = 'idle' | 'checking' | 'free' | 'taken';
 
 function fieldErrorsFrom(e: ApiError): Partial<Record<Field, string>> {
@@ -37,12 +38,14 @@ export function Register() {
   const t = useT();
   const router = useRouter();
   const [code] = useState(() => heldInviteCode());
+  const { minimum_age: minimumAge } = useCompliancePublic();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [rules, setRules] = useState(false);
+  const [age, setAge] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -106,6 +109,7 @@ export function Register() {
     if (pw) e.password = pw;
     if (confirm !== password) e.confirm = t('entrance.register.mismatch');
     if (!rules) e.rules = t('entrance.register.rulesRequired');
+    if (!age) e.age = t('entrance.register.ageRequired', { age: minimumAge });
     return e;
   };
 
@@ -135,6 +139,8 @@ export function Register() {
         display_name: displayName.trim() || undefined,
         password,
         accepted_house_notes: true,
+        // D-311: sent only with the age box ticked; the server's 400 `errors.age` stays the backstop.
+        confirmed_min_age: age ? minimumAge : undefined,
       });
       clearInviteCode();
       router.history.push('/channels');
@@ -261,9 +267,22 @@ export function Register() {
             </p>
           )}
         </div>
+        <div>
+          <Checkbox
+            label={t('entrance.register.ageConfirm', { age: minimumAge })}
+            checked={age}
+            onChange={(e) => setAge(e.target.checked)}
+          />
+          {errors.age && (
+            <p role="alert" className="ent-footnote">
+              {errors.age}
+            </p>
+          )}
+        </div>
         <GoldButton type="submit" arrow disabled={busy} aria-busy={busy}>
           {busy ? t('entrance.register.submitting') : t('entrance.register.submit')}
         </GoldButton>
+        <p className="ent-footnote">{t('entrance.register.ageNotice', { age: minimumAge })}</p>
         <p className="ent-footnote">{t('entrance.register.footnote')}</p>
       </form>
     </AuthSplit>

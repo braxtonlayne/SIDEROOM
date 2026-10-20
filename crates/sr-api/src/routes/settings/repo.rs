@@ -131,6 +131,17 @@ impl ExpressionRepository for DynRepo {
     async fn delete_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<bool> {
         self.0.delete_sound(guild, id).await
     }
+    async fn default_stickers_hidden(&self, guild: GuildId) -> RepoResult<bool> {
+        self.0.default_stickers_hidden(guild).await
+    }
+    async fn set_default_stickers_hidden(
+        &self,
+        guild: GuildId,
+        hidden: bool,
+        by: UserId,
+    ) -> RepoResult<()> {
+        self.0.set_default_stickers_hidden(guild, hidden, by).await
+    }
 }
 
 #[async_trait]

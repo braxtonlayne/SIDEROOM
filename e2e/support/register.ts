@@ -1,6 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
+ * Ticks the two confirmations of the registration form: the house notes and, since D-311 (M-21), the
+ * separate minimum-age box ("I am at least {age} years old.").
+ */
+export async function tickConfirmations(page: Page): Promise<void> {
+  await page.getByLabel(/house notes/).check();
+  await page.getByLabel(/at least/).check();
+}
+
+/**
  * Presses "Open the door" on the filled-in registration form and waits for the Lounge.
  *
  * Registration allows 5 accounts per minute per address (`POST /sr/register`, doc 06), and every spec

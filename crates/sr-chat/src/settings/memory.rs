@@ -37,6 +37,8 @@ pub struct Store {
     pub emoji: Vec<Emoji>,
     pub stickers: Vec<Sticker>,
     pub sounds: Vec<Sound>,
+    /// Servers that hide the default sticker packs (D-289).
+    pub hidden_default_stickers: HashSet<GuildId>,
     pub rules: Vec<AutoModRule>,
     pub alerts: Vec<AutoModAlert>,
     pub webhooks: Vec<Webhook>,
@@ -175,6 +177,26 @@ impl AuditRepository for MemorySettingsRepo {
 
 #[async_trait]
 impl ExpressionRepository for MemorySettingsRepo {
+    async fn default_stickers_hidden(&self, guild: GuildId) -> RepoResult<bool> {
+        Ok(self.with(|s| s.hidden_default_stickers.contains(&guild)))
+    }
+
+    async fn set_default_stickers_hidden(
+        &self,
+        guild: GuildId,
+        hidden: bool,
+        _by: UserId,
+    ) -> RepoResult<()> {
+        self.with(|s| {
+            if hidden {
+                s.hidden_default_stickers.insert(guild);
+            } else {
+                s.hidden_default_stickers.remove(&guild);
+            }
+        });
+        Ok(())
+    }
+
     async fn list_emoji(&self, guild: GuildId) -> RepoResult<Vec<Emoji>> {
         Ok(self.with(|s| {
             s.emoji

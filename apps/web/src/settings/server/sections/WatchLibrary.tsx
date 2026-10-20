@@ -11,6 +11,7 @@ import type { SectionProps } from '../ServerSettings';
 import { FeatureCard, useFeaturePickers } from './Features';
 
 export const WATCH_LIBRARY_FEATURE_IDS = [
+  'community.watch_party_cards',
   'community.watch_party_announcer',
   'community.library_feed',
 ] as const;

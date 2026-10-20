@@ -6,6 +6,7 @@ use moka::future::Cache;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 use url::Url;
 
@@ -77,7 +78,7 @@ pub enum UnfurlError {
 
 /// Sliding one-minute window per host.
 pub struct HostLimiter {
-    per_minute: u32,
+    per_minute: AtomicU32,
     hosts: Mutex<HashMap<String, (Instant, u32)>>,
 }
 
@@ -87,9 +88,14 @@ impl HostLimiter {
 
     pub fn new(per_minute: u32) -> Self {
         Self {
-            per_minute,
+            per_minute: AtomicU32::new(per_minute),
             hosts: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Change the budget; applies from the next request (D-300).
+    pub fn set_per_minute(&self, per_minute: u32) {
+        self.per_minute.store(per_minute, Ordering::Relaxed);
     }
 
     /// Count one request to `host` at `now`; false when the host is over its budget.
@@ -102,7 +108,7 @@ impl HostLimiter {
         if now.saturating_duration_since(e.0) >= Self::WINDOW {
             *e = (now, 0);
         }
-        if e.1 >= self.per_minute {
+        if e.1 >= self.per_minute.load(Ordering::Relaxed) {
             return false;
         }
         e.1 += 1;
@@ -134,6 +140,11 @@ impl Unfurler {
         }
     }
 
+    /// Change the per-host request budget while running (D-300).
+    pub fn set_per_host_per_minute(&self, per_minute: u32) {
+        self.limiter.set_per_minute(per_minute.max(1));
+    }
+
     /// Whether the operator's deny list or the URL rules refuse this link outright.
     pub fn parse_link(&self, raw: &str) -> Option<Url> {
         let url = Url::parse(raw.trim()).ok()?;
@@ -146,17 +157,18 @@ impl Unfurler {
     pub async fn unfurl(&self, raw: &str) -> Result<Option<UnfurledEmbed>, UnfurlError> {
         let url = Url::parse(raw.trim()).map_err(|e| FetchError::BadUrl(e.to_string()))?;
         let key = url.as_str().to_owned();
+        // The policy comes first, even for a cached preview: a host the operator just denied is
+        // refused on the next request (D-300), and no rate budget is spent on it.
+        self.fetcher
+            .policy()
+            .check_url(&url)
+            .map_err(FetchError::from)?;
         if let Some(hit) = self.ok.get(&key).await {
             return Ok(hit);
         }
         if self.failed.get(&key).await.is_some() {
             return Err(FetchError::Http("recently failed".into()).into());
         }
-        // Refuse before spending rate budget on a link the policy rejects anyway.
-        self.fetcher
-            .policy()
-            .check_url(&url)
-            .map_err(FetchError::from)?;
         let host = url.host_str().unwrap_or_default().to_owned();
         if !self.limiter.allow(&host, Instant::now()) {
             return Err(UnfurlError::RateLimited(host));
@@ -448,6 +460,38 @@ mod tests {
             u.unfurl("http://site.test/c").await,
             Err(UnfurlError::RateLimited(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn a_host_denied_later_is_refused_on_the_next_request_even_when_cached() {
+        let page = html(r#"<head><title>One</title></head>"#);
+        let live = sr_net::Live::new(sr_net::HostLists::default());
+        let mut r = TableResolver::default();
+        r.0.insert("site.test".into(), vec![ip("93.184.216.34")]);
+        let t = Arc::new(ScriptedTransport {
+            routes: [("http://site.test/a".to_owned(), page)]
+                .into_iter()
+                .collect(),
+            ..ScriptedTransport::default()
+        });
+        let policy = Policy {
+            live_hosts: Some(live.clone()),
+            ..Policy::default()
+        };
+        let resolver: Arc<dyn Resolver> = Arc::new(r);
+        let u = Unfurler::new(SafeFetcher::new(policy, resolver, t), 10);
+        assert!(u.unfurl("http://site.test/a").await.unwrap().is_some());
+        live.store(sr_net::HostLists {
+            deny_hosts: vec!["site.test".into()],
+            allow_hosts: vec![],
+        });
+        assert!(u.unfurl("http://site.test/a").await.is_err());
+        assert!(u.parse_link("http://site.test/a").is_none());
+        live.store(sr_net::HostLists::default());
+        assert!(u.unfurl("http://site.test/a").await.is_ok());
+        // The rate budget can change too.
+        u.set_per_host_per_minute(1);
+        assert!(u.parse_link("http://site.test/b").is_some());
     }
 
     #[tokio::test]

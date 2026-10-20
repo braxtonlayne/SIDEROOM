@@ -843,6 +843,11 @@ async fn a_member_invokes_a_command_and_the_bot_receives_it() {
     assert!(ev["member"]["permissions"].is_string());
     assert!(ev["app_permissions"].is_string());
     assert_eq!(ev["version"], 1);
+    // Required by typed libraries (serenity 0.12).
+    assert!(
+        ev["attachment_size_limit"].as_u64().is_some_and(|n| n > 0),
+        "{ev}"
+    );
 }
 
 #[tokio::test]
