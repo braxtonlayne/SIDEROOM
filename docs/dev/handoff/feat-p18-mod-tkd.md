@@ -42,6 +42,8 @@ Base `feat/p18-mod-cases` (step 1: cases, reports, holds). Migration range used:
 
 ## Owner questions
 
+Answered 2026-10-20 (delegated): D-333 to D-336 in `docs/01-decisions-log.md`, P18-TKD-1 to -4 in `docs/open-question-answers.md`, follow-ups N-30 to N-35 in `docs/dev/answers-followups-p16.md`.
+
 1. Should a counter-noticed takedown (content still down, counter-notice pending) count as a strike, as it does now? Counting only after the wait would delay a review.
 2. Is `illegal_content` the right case category for a copyright notice, or should the case vocabulary get a `copyright` value (it would then also have to be hidden from the member report dialog)?
 3. D-293's legal points stand: designated-agent registration, DSA articles 16 and 17 (a statement of reasons to the uploader is the DM; the notifier gets only the staff-sent reply), and whether ten business days matches local law. Not legal advice.
