@@ -265,4 +265,19 @@ export default {
   'settings.auditText.a211': 'dismissed a moderation case',
   'settings.auditText.a212': 'marked a moderation case actioned',
   'settings.auditText.a213': 'recorded an action on a moderation case',
+  // ---- Actions performed from a case (N-21) ----
+  'admin.moderation.event.actionPerformed': 'Action done: {action}',
+  'admin.moderation.perform.button': 'Take action',
+  'admin.moderation.perform.title': 'Take action on this case',
+  'admin.moderation.perform.description':
+    'This does it for real, as you, with your own permissions in the server. It is written to the audit log with this case.',
+  'admin.moderation.perform.confirm': 'Do it',
+  'admin.moderation.perform.kind': 'What to do',
+  'admin.moderation.perform.minutes': 'Timeout length in minutes',
+  'admin.moderation.perform.done': 'Done.',
+  'admin.moderation.perform.deleteMessage': 'Delete the reported message',
+  'admin.moderation.perform.timeout': 'Time the person out',
+  'admin.moderation.perform.kick': 'Kick the person from the server',
+  'admin.moderation.perform.guildBan': 'Ban the person from the server',
+  'admin.moderation.perform.suspendAccount': 'Suspend the account (platform)',
 } satisfies Record<string, string>;

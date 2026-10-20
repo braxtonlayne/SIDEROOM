@@ -44,6 +44,7 @@ struct Env {
     admin: Arc<MemoryAdminRepo>,
     features: FeatureService,
     tokens: HashMap<i64, String>,
+    actions: Arc<Fake>,
 }
 
 async fn env(pool: sqlx::PgPool) -> Env {
@@ -109,10 +110,12 @@ async fn env(pool: sqlx::PgPool) -> Env {
         None,
     );
     let ids = std::sync::atomic::AtomicI64::new(5_000_000);
+    let actions = Arc::new(Fake::default());
     let moderation = Moderation::new(
         pool,
         Arc::new(move || ids.fetch_add(1, std::sync::atomic::Ordering::Relaxed)),
-    );
+    )
+    .with_case_actions(actions.clone());
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
     let state = AppState::builder()
@@ -128,6 +131,7 @@ async fn env(pool: sqlx::PgPool) -> Env {
         admin,
         features,
         tokens,
+        actions,
     }
 }
 
@@ -618,4 +622,197 @@ async fn a_reviewer_sees_only_the_cases_routed_to_reviewers() {
         .call(Some(CASE_STAFF), Method::GET, "/moderation/cases", None)
         .await;
     assert_eq!(all["items"].as_array().unwrap().len(), 2);
+}
+
+/// Records what the services were asked to do.
+#[derive(Default)]
+struct Fake(std::sync::Mutex<Vec<String>>);
+
+impl Fake {
+    fn note(&self, s: String) -> Result<String, sr_moderation::ActionError> {
+        self.0.lock().unwrap().push(s.clone());
+        Ok(s)
+    }
+}
+
+#[async_trait::async_trait]
+impl sr_moderation::CaseActions for Fake {
+    async fn delete_message(
+        &self,
+        _: &Caller,
+        case: i64,
+        _: i64,
+        m: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!("delete {case} {m}"))
+    }
+    async fn restore_message(
+        &self,
+        _: &Caller,
+        _: i64,
+        _: i64,
+        _: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        Err(sr_moderation::ActionError::Unsupported)
+    }
+    async fn remove_attachment(
+        &self,
+        _: &Caller,
+        _: i64,
+        _: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        Err(sr_moderation::ActionError::Unsupported)
+    }
+    async fn timeout_member(
+        &self,
+        _: &Caller,
+        case: i64,
+        g: i64,
+        u: i64,
+        _: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!("timeout {case} {g} {u}"))
+    }
+    async fn kick_member(
+        &self,
+        _: &Caller,
+        case: i64,
+        g: i64,
+        u: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!("kick {case} {g} {u}"))
+    }
+    async fn guild_ban(
+        &self,
+        _: &Caller,
+        case: i64,
+        g: i64,
+        u: i64,
+        _: &str,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!("ban {case} {g} {u}"))
+    }
+    async fn suspend_account(
+        &self,
+        _: &Caller,
+        case: i64,
+        a: i64,
+        _: &str,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!("suspend {case} {a}"))
+    }
+}
+
+/// N-21: each kind of action over HTTP reaches the service with the case's own target and lands on the timeline.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn actions_from_a_case_reach_the_services() {
+    let db = sr_db::testing::TestDb::new().await.expect("test db");
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
+        (BASIC, "basic"),
+        (REVIEWER, "reviewer"),
+        (MEMBER, "member"),
+        (TARGET, "target"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    let e = env(pool).await;
+    let (st, case) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/cases",
+            Some(json!({"category": "harassment", "target_kind": "user",
+                        "target_id": TARGET.to_string(), "subject_account_id": TARGET.to_string(),
+                        "guild_id": "77"})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CREATED, "{case}");
+    let id = case["id"].as_str().unwrap().to_owned();
+    let act = |action: &str, extra: Value| {
+        let mut b = json!({"action": action, "perform": true, "note": "because"});
+        if let (Some(m), Some(x)) = (b.as_object_mut(), extra.as_object()) {
+            m.extend(x.clone());
+        }
+        b
+    };
+    let path = format!("/moderation/cases/{id}/actions");
+    for (action, extra) in [
+        ("timeout", json!({"timeout_minutes": 10})),
+        ("kick", json!({})),
+        ("guild_ban", json!({})),
+        ("suspend_account", json!({})),
+    ] {
+        let (s, b) = e
+            .call(
+                Some(CASE_STAFF),
+                Method::POST,
+                &path,
+                Some(act(action, extra)),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{action}: {b}");
+    }
+    let t = TARGET;
+    let calls = e.actions.0.lock().unwrap().clone();
+    assert_eq!(
+        calls,
+        vec![
+            format!("timeout {id} 77 {t}"),
+            format!("kick {id} 77 {t}"),
+            format!("ban {id} 77 {t}"),
+            format!("suspend {id} {t}"),
+        ]
+    );
+    // A bad request, an unsupported action and a person with no standing on the case.
+    for (who, body, want) in [
+        (
+            CASE_STAFF,
+            act("explode", json!({})),
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            CASE_STAFF,
+            act("timeout", json!({})),
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            CASE_STAFF,
+            act("restore_message", json!({})),
+            StatusCode::CONFLICT,
+        ),
+        (
+            CASE_STAFF,
+            act("delete_message", json!({})),
+            StatusCode::CONFLICT,
+        ),
+        (MEMBER, act("kick", json!({})), StatusCode::NOT_FOUND),
+        (BASIC, act("kick", json!({})), StatusCode::NOT_FOUND),
+    ] {
+        let (s, b) = e.call(Some(who), Method::POST, &path, Some(body)).await;
+        assert_eq!(s, want, "{who}: {b}");
+    }
+    let (_, d) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            &format!("/moderation/cases/{id}"),
+            None,
+        )
+        .await;
+    let kinds: Vec<&str> = d["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        kinds.iter().filter(|k| **k == "action_performed").count(),
+        4,
+        "{kinds:?}"
+    );
+    assert_eq!(d["case"]["state"], "actioned");
 }

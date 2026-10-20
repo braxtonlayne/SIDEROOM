@@ -366,9 +366,17 @@ pub struct ActionBody {
     /// or `other`. Recording does not perform it.
     pub action: String,
     pub note: Option<String>,
+    /// `true` performs the action through the server's services (`delete_message`, `restore_message`,
+    /// `remove_attachment`, `timeout`, `kick`, `guild_ban`, `suspend_account`) on the case's own target;
+    /// otherwise it only records work done elsewhere.
+    #[serde(default)]
+    pub perform: bool,
+    /// `timeout` when performing: minutes, 1 to 40320.
+    pub timeout_minutes: Option<i64>,
 }
 
-/// Record that an action was taken with the server's own tools; the case moves to `actioned`.
+/// Record that an action was taken with the server's own tools, or (`perform`) do it through the server's services
+/// on the case's own target; either way the case moves to `actioned`.
 #[utoipa::path(
     post, path = "/moderation/cases/{case_id}/actions", request_body = ActionBody,
     params(("case_id" = String, Path, description = "Case snowflake")),
@@ -384,6 +392,28 @@ pub async fn record_action(
 ) -> ApiResult<Json<CaseSummary>> {
     let cid = id(&case_id, "case")?;
     let who = a.who_for(cid).await?;
+    if b.perform {
+        let action = sr_moderation::PerformedAction::parse(&b.action)
+            .ok_or_else(|| map_err(ModError::Invalid("unknown action".into())))?;
+        let r = a
+            .svc()
+            .perform_action(
+                &who,
+                cid,
+                &sr_moderation::PerformRequest {
+                    action,
+                    note: b.note.clone().unwrap_or_default(),
+                    timeout_minutes: b.timeout_minutes,
+                },
+            )
+            .await;
+        return match a.staff.as_ref() {
+            Some(ctx) => staff_result(ctx, "moderation.case.perform", Some(("case", cid)), r)
+                .await
+                .map(Json),
+            None => r.map(Json).map_err(map_err),
+        };
+    }
     a.svc()
         .record_action(&who, cid, &b.action, b.note.as_deref().unwrap_or(""))
         .await

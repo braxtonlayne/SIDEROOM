@@ -60,6 +60,7 @@ pub struct Moderation {
     pub(crate) ids: IdSource,
     pub(crate) notifier: Option<Arc<dyn SubjectNotifier>>,
     pub(crate) guild_audit: Option<Arc<dyn GuildAudit>>,
+    pub(crate) case_actions: Option<Arc<dyn crate::actions::CaseActions>>,
 }
 
 impl Moderation {
@@ -69,6 +70,7 @@ impl Moderation {
             ids,
             notifier: None,
             guild_audit: None,
+            case_actions: None,
         }
     }
 

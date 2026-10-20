@@ -23,6 +23,7 @@ type Dialog =
   | { kind: 'close' }
   | { kind: 'reopen' }
   | { kind: 'action' }
+  | { kind: 'perform' }
   | { kind: 'warn' }
   | { kind: 'hold' }
   | { kind: 'ban' }
@@ -36,6 +37,23 @@ const MOVE_KEYS: Record<api.CaseState, MessageKey> = {
   actioned: 'admin.moderation.case.moveActioned',
   dismissed: 'admin.moderation.case.moveDismissed',
   closed: 'admin.moderation.case.moveClosed',
+};
+
+/** What can be done from this case: the reported message, the account in the case's server, a suspension. */
+function performable(d: api.CaseDetail, manage: boolean): api.PerformedAction[] {
+  const out: api.PerformedAction[] = [];
+  if (d.case.target_kind === 'message' && d.case.target_id) out.push('delete_message');
+  if (d.case.guild_id && d.subject_account_id) out.push('timeout', 'kick', 'guild_ban');
+  if (manage && d.subject_account_id) out.push('suspend_account');
+  return out;
+}
+
+const PERFORM_KEYS: Record<api.PerformedAction, MessageKey> = {
+  delete_message: 'admin.moderation.perform.deleteMessage',
+  timeout: 'admin.moderation.perform.timeout',
+  kick: 'admin.moderation.perform.kick',
+  guild_ban: 'admin.moderation.perform.guildBan',
+  suspend_account: 'admin.moderation.perform.suspendAccount',
 };
 
 const HOLD_KINDS: { id: api.HoldKind; key: MessageKey }[] = [
@@ -226,6 +244,11 @@ export function CasePage({ id, onBack }: { id: string; onBack: () => void }) {
                   {c.state === 'closed' && (
                     <Button variant="secondary" onClick={() => setDialog({ kind: 'reopen' })}>
                       {t('admin.moderation.case.reopen')}
+                    </Button>
+                  )}
+                  {performable(d, manage).length > 0 && (
+                    <Button variant="secondary" onClick={() => setDialog({ kind: 'perform' })}>
+                      {t('admin.moderation.perform.button')}
                     </Button>
                   )}
                   <Button variant="secondary" onClick={() => setDialog({ kind: 'action' })}>
@@ -430,6 +453,10 @@ function CaseDialogs({
   const [outcome, setOutcome] = useState('');
   const [line, setLine] = useState('');
   const [action, setAction] = useState('timeout');
+  const [performKind, setPerformKind] = useState<api.PerformedAction>(
+    performable(data, data.access === 'manage')[0] ?? 'kick',
+  );
+  const [minutes, setMinutes] = useState('60');
   const [text, setText] = useState('');
   const [holdKind, setHoldKind] = useState<api.HoldKind>('message');
   const [holdId, setHoldId] = useState('');
@@ -510,6 +537,45 @@ function CaseDialogs({
           value={action}
           onValueChange={setAction}
         />
+      </ReasonDialog>
+      <ReasonDialog
+        open={dialog?.kind === 'perform'}
+        danger
+        title={t('admin.moderation.perform.title')}
+        description={t('admin.moderation.perform.description')}
+        confirmLabel={t('admin.moderation.perform.confirm')}
+        valid={performKind !== 'timeout' || Number(minutes) >= 1}
+        onCancel={close}
+        onConfirm={async (reason) =>
+          done(
+            () =>
+              api.performCaseAction(
+                id,
+                performKind,
+                reason,
+                performKind === 'timeout' ? Number(minutes) : undefined,
+              ),
+            t('admin.moderation.perform.done'),
+          )()
+        }
+      >
+        <Select
+          aria-label={t('admin.moderation.perform.kind')}
+          options={performable(data, data.access === 'manage').map((a) => ({
+            value: a,
+            label: t(PERFORM_KEYS[a]),
+          }))}
+          value={performKind}
+          onValueChange={(v) => setPerformKind(v as api.PerformedAction)}
+        />
+        {performKind === 'timeout' && (
+          <TextInput
+            label={t('admin.moderation.perform.minutes')}
+            value={minutes}
+            inputMode="numeric"
+            onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ''))}
+          />
+        )}
       </ReasonDialog>
       <FormDialog
         open={dialog?.kind === 'warn'}

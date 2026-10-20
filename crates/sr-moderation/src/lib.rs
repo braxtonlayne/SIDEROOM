@@ -11,6 +11,7 @@
 //!   [`Moderation::place_hold`] / [`Moderation::release_hold`] on their own.
 //! * [`rules`] holds everything that needs no database: routing (D-209), access, lifecycle, reviewer rule.
 
+mod actions;
 mod appeals;
 mod cases;
 pub mod error;
@@ -21,6 +22,7 @@ pub mod rules;
 pub mod service;
 pub mod snapshot;
 
+pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};
 pub use cases::{RECORDABLE_ACTIONS, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};

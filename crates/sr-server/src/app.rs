@@ -1177,21 +1177,27 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     dev_deps.set_system_dm(staff_voice.clone());
     // Review decisions reach the submitter as a system DM too (REV-CORE-007).
     let _ = review_dm.set(staff_voice.clone());
+    let admin_service = sr_admin::AdminService::new(admin_repo.clone())
+        .with_extras(admin_repo)
+        .with_notifier(staff_voice.clone())
+        .with_bus(bus.clone());
     // Reports, cases, holds and appeals (Phase 7, step 1); reporting is behind the `moderation.reports` flag.
+    // Actions from a case run through the guild, message and account services (N-21).
     let moderation_deps = Arc::new(
         routes::moderation::ModerationDeps::new(
             sr_moderation::Moderation::new(pool.clone(), id_src.clone())
                 .with_notifier(staff_voice.clone())
                 .with_guild_audit(Arc::new(crate::moderation_audit::GuildAuditAdapter(
                     audit_sink.clone(),
-                ))),
+                )))
+                .with_case_actions(Arc::new(crate::moderation_actions::ChatCaseActions {
+                    guilds: guilds.0.clone(),
+                    messages: messages.clone(),
+                    admin: admin_service.clone(),
+                })),
         )
         .with_features(features.clone()),
     );
-    let admin_service = sr_admin::AdminService::new(admin_repo.clone())
-        .with_extras(admin_repo)
-        .with_notifier(staff_voice.clone())
-        .with_bus(bus.clone());
     // Incident "Resume invites" cards close once the pause is over, whoever ended it (D-253).
     let resume_voice = staff_voice.clone();
     let resume_cards_task = tokio::spawn(async move {

@@ -369,3 +369,50 @@ describe('Reviewers (N-23)', () => {
     expect(screen.queryByRole('button', { name: 'New case' })).toBeNull();
   });
 });
+
+describe('Take action (N-21)', () => {
+  it('offers what the case allows and sends perform with the reason', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES'] });
+    let sent: unknown;
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [CASE], next_cursor: null }),
+      ),
+      http.get('*/api/v1/moderation/cases/9001', () =>
+        HttpResponse.json({ ...DETAIL, case: { ...CASE, guild_id: '8' } }),
+      ),
+      http.post('*/api/v1/moderation/cases/9001/actions', async ({ request }) => {
+        sent = await readJson(request);
+        return HttpResponse.json(CASE);
+      }),
+    );
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Open case 9001' }));
+    await screen.findByRole('heading', { name: 'Case 9001' });
+    await user.click(screen.getByRole('button', { name: 'Take action' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Take action on this case' });
+    await user.click(within(dialog).getByRole('combobox', { name: 'What to do' }));
+    // The reported message, the member in the case's server, and a suspension for staff.
+    for (const name of [
+      'Delete the reported message',
+      'Time the person out',
+      'Kick the person from the server',
+      'Ban the person from the server',
+      'Suspend the account (platform)',
+    ])
+      expect(await screen.findByRole('option', { name })).toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Time the person out' }));
+    await user.clear(within(dialog).getByLabelText('Timeout length in minutes'));
+    await user.type(within(dialog).getByLabelText('Timeout length in minutes'), '15');
+    await user.type(within(dialog).getByLabelText(/Reason/, { selector: 'textarea' }), 'cool off');
+    await user.click(within(dialog).getByRole('button', { name: 'Do it' }));
+    expect(await screen.findByText('Done.')).toBeInTheDocument();
+    expect(sent).toEqual({
+      action: 'timeout',
+      note: 'cool off',
+      perform: true,
+      timeout_minutes: 15,
+    });
+  });
+});

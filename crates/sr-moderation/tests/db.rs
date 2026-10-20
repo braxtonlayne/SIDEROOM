@@ -1564,3 +1564,239 @@ async fn a_server_moderators_case_outcomes_write_guild_audit_rows_and_nothing_el
         .unwrap();
     assert_eq!(rec.0.lock().unwrap().len(), 4);
 }
+
+#[derive(Default)]
+struct FakeActions {
+    calls: std::sync::Mutex<Vec<String>>,
+    refuse: std::sync::atomic::AtomicBool,
+}
+
+impl FakeActions {
+    fn note(&self, s: String) -> Result<String, sr_moderation::ActionError> {
+        if self.refuse.load(Ordering::SeqCst) {
+            return Err(sr_moderation::ActionError::Refused("no".into()));
+        }
+        self.calls.lock().unwrap().push(s.clone());
+        Ok(format!("ref:{s}"))
+    }
+}
+
+#[async_trait::async_trait]
+impl sr_moderation::CaseActions for FakeActions {
+    async fn delete_message(
+        &self,
+        by: &Caller,
+        case: i64,
+        ch: i64,
+        m: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!("delete {} {case} {ch} {m}", by.user_id))
+    }
+    async fn restore_message(
+        &self,
+        _: &Caller,
+        _: i64,
+        _: i64,
+        _: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        Err(sr_moderation::ActionError::Unsupported)
+    }
+    async fn remove_attachment(
+        &self,
+        _: &Caller,
+        _: i64,
+        _: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        Err(sr_moderation::ActionError::Unsupported)
+    }
+    async fn timeout_member(
+        &self,
+        by: &Caller,
+        case: i64,
+        g: i64,
+        u: i64,
+        until: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!(
+            "timeout {} {case} {g} {u} {}",
+            by.user_id,
+            until > 0
+        ))
+    }
+    async fn kick_member(
+        &self,
+        by: &Caller,
+        case: i64,
+        g: i64,
+        u: i64,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!("kick {} {case} {g} {u}", by.user_id))
+    }
+    async fn guild_ban(
+        &self,
+        by: &Caller,
+        case: i64,
+        g: i64,
+        u: i64,
+        why: &str,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!("ban {} {case} {g} {u} {why}", by.user_id))
+    }
+    async fn suspend_account(
+        &self,
+        by: &Caller,
+        case: i64,
+        a: i64,
+        why: &str,
+    ) -> Result<String, sr_moderation::ActionError> {
+        self.note(format!("suspend {} {case} {a} {why}", by.user_id))
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn actions_are_performed_on_the_cases_own_target_through_the_services() {
+    use sr_moderation::{PerformRequest, PerformedAction as A};
+    let w = world().await;
+    let fake = Arc::new(FakeActions::default());
+    let m = mods(w.pool().clone()).with_case_actions(fake.clone());
+    let target = w.talk().await;
+    m.file_report(
+        w.reporter,
+        &report(
+            TargetKind::Message,
+            target,
+            Some(w.channel),
+            ReportCategory::Harassment,
+        ),
+    )
+    .await
+    .unwrap();
+    let gm = w.gm();
+    let id = m
+        .list_cases(
+            &gm,
+            &CaseFilter {
+                limit: 10,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap()
+        .items[0]
+        .id;
+    let req = |action, note: &str, minutes| PerformRequest {
+        action,
+        note: note.into(),
+        timeout_minutes: minutes,
+    };
+
+    // A timeout needs a sensible length; a refusal changes nothing; an unsupported action says so.
+    assert!(matches!(
+        m.perform_action(&gm, id, &req(A::Timeout, "", None)).await,
+        Err(ModError::Invalid(_))
+    ));
+    fake.refuse.store(true, Ordering::SeqCst);
+    assert_eq!(
+        m.perform_action(&gm, id, &req(A::Kick, "", None))
+            .await
+            .err(),
+        Some(ModError::Forbidden)
+    );
+    fake.refuse.store(false, Ordering::SeqCst);
+    assert!(matches!(
+        m.perform_action(&gm, id, &req(A::RestoreMessage, "", None))
+            .await,
+        Err(ModError::Conflict(_))
+    ));
+    assert_eq!(
+        m.get_case(&gm, id).await.unwrap().case.state,
+        CaseState::Open
+    );
+    assert!(fake.calls.lock().unwrap().is_empty());
+
+    // The server's moderator acts as themself, on the reported message and its author in this server.
+    m.perform_action(&gm, id, &req(A::DeleteMessage, "rude", None))
+        .await
+        .unwrap();
+    m.perform_action(&gm, id, &req(A::Timeout, "cool off", Some(10)))
+        .await
+        .unwrap();
+    m.perform_action(&gm, id, &req(A::Kick, "", None))
+        .await
+        .unwrap();
+    m.perform_action(&gm, id, &req(A::GuildBan, "repeat", None))
+        .await
+        .unwrap();
+    let (o, a, g, c) = (w.owner, w.author, w.guild, w.channel);
+    let calls = fake.calls.lock().unwrap().clone();
+    assert_eq!(
+        calls,
+        vec![
+            format!("delete {o} {id} {c} {target}"),
+            format!("timeout {o} {id} {g} {a} true"),
+            format!("kick {o} {id} {g} {a}"),
+            format!("ban {o} {id} {g} {a} case:{id} repeat"),
+        ]
+    );
+    let d = m.get_case(&gm, id).await.unwrap();
+    assert_eq!(d.case.state, CaseState::Actioned);
+    assert_eq!(
+        d.events
+            .iter()
+            .filter(|e| e.kind == "action_performed")
+            .count(),
+        4
+    );
+    assert!(d.events.iter().any(|e| {
+        e.detail["audit_ref"]
+            .as_str()
+            .is_some_and(|r| r.starts_with("ref:delete"))
+    }));
+
+    // A suspension is a platform action: not for a server moderator, `manage` for staff with a case of their own.
+    assert_eq!(
+        m.perform_action(&gm, id, &req(A::SuspendAccount, "x", None))
+            .await
+            .err(),
+        Some(ModError::Forbidden)
+    );
+    let s = staff(w.staff_id, P::MANAGE_CASES);
+    let sw = Who::Staff(&s);
+    let own = m
+        .open_case(
+            &sw,
+            &NewCase {
+                category: ReportCategory::Fraud,
+                target_kind: TargetKind::User,
+                target_id: Some(w.author),
+                subject_account_id: Some(w.author),
+                summary: String::new(),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        m.perform_action(&sw, own.id, &req(A::SuspendAccount, "", None))
+            .await,
+        Err(ModError::ReasonRequired)
+    ));
+    m.perform_action(&sw, own.id, &req(A::SuspendAccount, "chargebacks", None))
+        .await
+        .unwrap();
+    assert_eq!(
+        fake.calls.lock().unwrap().last().cloned().unwrap(),
+        format!(
+            "suspend {} {} {} case:{} chargebacks",
+            w.staff_id, own.id, w.author, own.id
+        )
+    );
+    assert_eq!(log_count(w.pool(), "moderation.case.perform").await, 1);
+    // Without services wired, performing is not available.
+    let bare = mods(w.pool().clone());
+    assert!(matches!(
+        bare.perform_action(&sw, own.id, &req(A::Kick, "", None))
+            .await,
+        Err(ModError::Conflict(_))
+    ));
+}

@@ -132,6 +132,12 @@ pub const RECORDABLE_ACTIONS: &[&str] = &[
 ];
 
 impl Moderation {
+    /// The summary of a case the caller can see (after an action changed it).
+    pub(crate) async fn case_summary_for(&self, who: &Who<'_>, id: i64) -> ModResult<CaseSummary> {
+        let mut conn = self.pool.acquire().await?;
+        Ok(load(&mut conn, who, id, Access::Read, false).await?.summary)
+    }
+
     // ---- reading --------------------------------------------------------------------------------------------
 
     /// The routing facts of a case, for choosing who is acting ([`rules::pick_who`]). Reveals nothing but
@@ -439,8 +445,8 @@ impl Moderation {
         let id = self.next_id();
         sqlx::query(
             "INSERT INTO moderation_cases (id, category, severity, routing, summary, target_kind, target_id, \
-             subject_person_id, subject_account_id, opened_by_kind, opened_by_id) \
-             VALUES ($1, $2, $3, 'platform', $4, $5, $6, $7, $8, 'staff', $9)",
+             subject_person_id, subject_account_id, opened_by_kind, opened_by_id, guild_id) \
+             VALUES ($1, $2, $3, 'platform', $4, $5, $6, $7, $8, 'staff', $9, $10)",
         )
         .bind(id)
         .bind(c.category.as_str())

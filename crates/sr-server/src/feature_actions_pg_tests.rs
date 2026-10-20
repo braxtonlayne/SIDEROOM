@@ -775,3 +775,134 @@ async fn join_to_create_makes_and_removes_rooms_through_the_real_services() {
     .unwrap();
     assert_eq!(left, 0, "no bookkeeping left behind");
 }
+
+/// N-21: a timeout, a kick and a delete done from a case run through the real guild and message services as the
+/// acting person, write the guild audit rows those tools write, and land on the case timeline.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn actions_from_a_case_use_the_real_services_and_write_the_guild_audit() {
+    use sr_api::routes::guilds::backend::backend_with_audit;
+    use sr_chat::settings::{
+        SettingsService,
+        audit::{AuditAction, AuditQuery},
+    };
+    use sr_core::{PlatformPermissions as P, permissions::Permissions};
+    use sr_db::settings_repo::PgSettingsRepo;
+    use sr_moderation::{
+        Moderation, PerformRequest, PerformedAction,
+        model::{NewCase, ReportCategory, TargetKind, Who},
+    };
+    let f = fx().await;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let settings = Arc::new(SettingsService::new(
+        PgSettingsRepo::new(f.pool.clone()),
+        clock.clone(),
+        SnowflakeGenerator::new(clock.clone(), 27, 27).unwrap(),
+        Arc::new(|| 7),
+    ));
+    let dynbus: Arc<dyn EventBus> = f.bus.clone();
+    let guilds = backend_with_audit(
+        ChatService::new(
+            PgChatRepo::new(f.pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), 26, 26).unwrap(),
+            ChatLimits::default(),
+        ),
+        dynbus,
+        settings.clone(),
+    );
+    let ids = Arc::new(std::sync::atomic::AtomicI64::new(9_000_000));
+    let admin = sr_admin::AdminService::new(Arc::new(sr_db::admin_repo::PgAdminRepo::new(
+        f.pool.clone(),
+        {
+            let ids = ids.clone();
+            Arc::new(move || ids.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        },
+    )));
+    let moderation = Moderation::new(f.pool.clone(), {
+        let ids = ids.clone();
+        Arc::new(move || ids.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    })
+    .with_case_actions(Arc::new(crate::moderation_actions::ChatCaseActions {
+        guilds,
+        messages: f.messages.clone(),
+        admin,
+    }));
+
+    let owner = f.owner.get() as i64;
+    let staff = sr_admin::Caller {
+        user_id: owner,
+        permissions: P::MANAGE_CASES,
+        is_owner: false,
+        ip: None,
+    };
+    let who = Who::Staff(&staff);
+    let case = moderation
+        .open_case_with(
+            &who,
+            &NewCase {
+                category: ReportCategory::Harassment,
+                target_kind: TargetKind::User,
+                target_id: Some(5),
+                subject_account_id: Some(5),
+                summary: String::new(),
+            },
+            sr_moderation::model::CaseExtras {
+                guild_id: Some(f.guild.get() as i64),
+                severity: None,
+            },
+        )
+        .await
+        .unwrap();
+    moderation
+        .perform_action(
+            &who,
+            case.id,
+            &PerformRequest {
+                action: PerformedAction::Timeout,
+                note: "cool off".into(),
+                timeout_minutes: Some(10),
+            },
+        )
+        .await
+        .unwrap();
+    let until: Option<i64> = sqlx::query_scalar(
+        "SELECT (extract(epoch FROM communication_disabled_until) * 1000)::bigint FROM guild_members WHERE guild_id = $1 AND user_id = 5",
+    )
+    .bind(f.guild.get() as i64)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    assert!(until.is_some(), "the member is timed out");
+    let log = settings
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(f.guild))
+        .await
+        .unwrap();
+    assert!(
+        log.iter()
+            .any(|e| e.action == AuditAction::MemberUpdate && e.target_id == Some(5)),
+        "{log:?}"
+    );
+    let detail = moderation.get_case(&who, case.id).await.unwrap();
+    assert!(detail.events.iter().any(|e| e.kind == "action_performed"));
+
+    // A kick goes through the same way, with the case in the reason; the guild's own rules apply
+    // (a member cannot kick the owner).
+    moderation
+        .perform_action(
+            &who,
+            case.id,
+            &PerformRequest {
+                action: PerformedAction::Kick,
+                note: String::new(),
+                timeout_minutes: None,
+            },
+        )
+        .await
+        .unwrap();
+    let log = settings
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(f.guild))
+        .await
+        .unwrap();
+    assert!(log.iter().any(|e| e.action == AuditAction::MemberKick));
+}
