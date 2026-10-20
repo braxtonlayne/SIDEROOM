@@ -12,6 +12,7 @@
 //! * [`rules`] holds everything that needs no database: routing (D-209), access, lifecycle, reviewer rule.
 
 mod appeals;
+pub mod blocklist;
 mod cases;
 pub mod error;
 pub mod holds;
@@ -20,8 +21,11 @@ mod reports;
 pub mod rules;
 pub mod service;
 pub mod snapshot;
+pub mod takedown_rules;
+mod takedowns;
 
 pub use cases::{RECORDABLE_ACTIONS, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
-pub use service::{IdSource, Moderation, SubjectNotifier};
+pub use service::{IdSource, Moderation, PolicySource, SubjectNotifier};
+pub use takedowns::register_csv;

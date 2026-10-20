@@ -293,6 +293,9 @@ pub struct HoldView {
     pub messages: i64,
     pub attachments: i64,
     pub submissions: i64,
+    /// Library and cinema rows (series, chapters, titles, episodes) it freezes.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub catalog_rows: i64,
     /// Older than `moderation.hold_review_days`, so it is flagged for review (D-212).
     pub review_due: bool,
 }
@@ -459,4 +462,224 @@ pub mod keys {
     pub const HOLD_REVIEW_DAYS: &str = "moderation.hold_review_days";
     pub const CASE_REOPEN_DAYS: &str = "moderation.case_reopen_days";
     pub const DELETED_MESSAGE_DAYS: &str = "retention.deleted_message_days";
+}
+
+fn is_zero(n: &i64) -> bool {
+    *n == 0
+}
+
+// ---- the takedown register (step 2, spec 5) ----------------------------------------------------------------------
+
+text_enum! {
+    /// The two kinds of notice (spec 5).
+    TakedownKind {
+        Copyright => "copyright",
+        IllegalContent => "illegal_content",
+    }
+}
+
+text_enum! {
+    /// Where a notice is in its life.
+    NoticeState {
+        Received => "received",
+        Triage => "triage",
+        Rejected => "rejected",
+        Removed => "removed",
+        CounterNoticed => "counter_noticed",
+        Restored => "restored",
+        Withdrawn => "withdrawn",
+    }
+}
+
+text_enum! {
+    /// What a notice item points at.
+    ItemKind {
+        Message => "message",
+        Attachment => "attachment",
+        LibrarySeries => "library_series",
+        LibraryChapter => "library_chapter",
+        CinemaTitle => "cinema_title",
+        CinemaEpisode => "cinema_episode",
+    }
+}
+
+text_enum! {
+    /// Where one piece of content is: identified, held for evidence, or unavailable.
+    ItemState {
+        Identified => "identified",
+        Held => "held",
+        Disabled => "disabled",
+        Restored => "restored",
+    }
+}
+
+/// What staff enter for a notice (spec 5, step 1).
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct NewNotice {
+    pub kind: TakedownKind,
+    pub notifier_name: String,
+    /// Email, postal address or phone, as the notifier gave it.
+    pub notifier_contact: String,
+    /// The work claimed (copyright) or the legal basis (illegal content).
+    pub legal_basis: String,
+    /// The exact URLs or ids the notifier named.
+    #[serde(default)]
+    pub locations: Vec<String>,
+    /// The notice as received, kept verbatim.
+    pub original_text: String,
+    /// When it arrived (Unix ms); now when absent.
+    #[serde(default)]
+    pub received_at_ms: Option<i64>,
+}
+
+/// A piece of content found for a notice.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct NewItem {
+    pub kind: ItemKind,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+}
+
+/// One content item of a notice.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct TakedownItem {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub kind: ItemKind,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub target_id: i64,
+    pub label: String,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub subject_account_id: Option<i64>,
+    pub state: ItemState,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub hold_id: Option<i64>,
+    pub disabled_at_ms: Option<i64>,
+    pub restored_at_ms: Option<i64>,
+}
+
+/// A row of the register.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct NoticeSummary {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub kind: TakedownKind,
+    pub state: NoticeState,
+    pub notifier_name: String,
+    pub received_at_ms: i64,
+    pub triage_due_at_ms: i64,
+    /// Received or in triage and past the one-business-day target.
+    pub triage_overdue: bool,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub case_id: Option<i64>,
+    pub items: i64,
+    pub removed_at_ms: Option<i64>,
+    pub restore_after_ms: Option<i64>,
+    pub court_filing_noted: bool,
+}
+
+/// One entry of a notice's timeline.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct NoticeEvent {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub actor_id: Option<i64>,
+    pub kind: String,
+    #[schema(value_type = Object)]
+    pub detail: Value,
+    pub created_at_ms: i64,
+}
+
+/// The strikes of one Person named by a notice.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct StrikeCount {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub person_id: i64,
+    /// Upheld takedowns inside the window, this one included once it is upheld.
+    pub strikes: i64,
+    pub window_months: i64,
+    pub threshold: i64,
+    /// The review case the counter opened for this Person, when it did.
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub review_case_id: Option<i64>,
+}
+
+/// A notice with everything staff need on its page.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct NoticeDetail {
+    #[serde(flatten)]
+    pub summary: NoticeSummary,
+    pub notifier_contact: String,
+    pub legal_basis: String,
+    pub locations: Vec<String>,
+    pub original_text: String,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub entered_by: i64,
+    pub rejection_reason: String,
+    pub counter_notice_text: String,
+    pub counter_noticed_at_ms: Option<i64>,
+    pub restored_at_ms: Option<i64>,
+    pub restore_reason: String,
+    pub items: Vec<TakedownItem>,
+    pub events: Vec<NoticeEvent>,
+    pub strikes: Vec<StrikeCount>,
+}
+
+/// What upholding a notice did.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct UpholdOutcome {
+    pub items_disabled: i64,
+    /// Uploaders or authors who got the system DM.
+    pub notified: i64,
+    /// The review case opened because a Person reached the threshold.
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub review_case_id: Option<i64>,
+}
+
+/// The reply text for an incomplete notice.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RejectOutcome {
+    /// The templated reply staff send to the notifier.
+    pub reply: String,
+}
+
+/// What the item pages may show about a piece of content (spec 5; `MOD-TKD-011`).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ItemStatus {
+    /// `none`, `held` (frozen for evidence, still reachable by staff) or `taken_down`.
+    pub state: String,
+}
+
+/// The settings the takedown backend reads: the strike policy (D-293) and the operator's details.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TakedownPolicy {
+    pub strike_review_threshold: u32,
+    pub strike_window_months: u32,
+    pub operator_country: Option<String>,
+    pub operator_contact: Option<String>,
+}
+
+impl Default for TakedownPolicy {
+    fn default() -> Self {
+        Self {
+            strike_review_threshold: 3,
+            strike_window_months: 12,
+            operator_country: None,
+            operator_contact: None,
+        }
+    }
 }

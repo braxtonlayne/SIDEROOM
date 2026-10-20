@@ -29,6 +29,14 @@ pub enum HoldScope {
     Attachment(i64),
     /// A library or cinema submission.
     Submission(i64),
+    /// A library series and all its chapters (a takedown; the rows are not deleted while held).
+    LibrarySeries(i64),
+    /// One library chapter and its pages.
+    LibraryChapter(i64),
+    /// A cinema title and all its episodes.
+    CinemaTitle(i64),
+    /// One cinema episode.
+    CinemaEpisode(i64),
     /// Every message of an account inside a window (Unix ms, `since` inclusive, `until` exclusive), with their
     /// attachments.
     UserMessages {
@@ -44,6 +52,10 @@ impl HoldScope {
             HoldScope::Message(id) => ("message", id),
             HoldScope::Attachment(id) => ("attachment", id),
             HoldScope::Submission(id) => ("submission", id),
+            HoldScope::LibrarySeries(id) => ("library_series", id),
+            HoldScope::LibraryChapter(id) => ("library_chapter", id),
+            HoldScope::CinemaTitle(id) => ("cinema_title", id),
+            HoldScope::CinemaEpisode(id) => ("cinema_episode", id),
             HoldScope::UserMessages { account_id, .. } => ("user_messages", account_id),
         }
     }
@@ -67,6 +79,8 @@ pub struct HoldOutcome {
     pub messages: i64,
     pub attachments: i64,
     pub submissions: i64,
+    /// Library and cinema rows frozen (series, chapters, titles, episodes).
+    pub catalog_rows: i64,
     /// Rows in scope that an earlier hold already freezes (they keep that hold).
     pub already_held: i64,
 }
@@ -107,6 +121,7 @@ pub async fn place_hold_in(
         messages: 0,
         attachments: 0,
         submissions: 0,
+        catalog_rows: 0,
         already_held: 0,
     };
     match req.scope {
@@ -184,6 +199,36 @@ pub async fn place_hold_in(
                 out.already_held += 1;
             }
         }
+        HoldScope::LibrarySeries(id) => {
+            let n = freeze(conn, "reading_series", "id", id, hold_id).await?;
+            if n == 0 {
+                catalog_missing_or_held(conn, "reading_series", id, "series", &mut out).await?;
+            }
+            out.catalog_rows += n;
+            out.catalog_rows += freeze(conn, "reading_chapters", "series_id", id, hold_id).await?;
+        }
+        HoldScope::LibraryChapter(id) => {
+            let n = freeze(conn, "reading_chapters", "id", id, hold_id).await?;
+            if n == 0 {
+                catalog_missing_or_held(conn, "reading_chapters", id, "chapter", &mut out).await?;
+            }
+            out.catalog_rows += n;
+        }
+        HoldScope::CinemaTitle(id) => {
+            let n = freeze(conn, "video_titles", "id", id, hold_id).await?;
+            if n == 0 {
+                catalog_missing_or_held(conn, "video_titles", id, "title", &mut out).await?;
+            }
+            out.catalog_rows += n;
+            out.catalog_rows += freeze(conn, "video_episodes", "title_id", id, hold_id).await?;
+        }
+        HoldScope::CinemaEpisode(id) => {
+            let n = freeze(conn, "video_episodes", "id", id, hold_id).await?;
+            if n == 0 {
+                catalog_missing_or_held(conn, "video_episodes", id, "episode", &mut out).await?;
+            }
+            out.catalog_rows += n;
+        }
         HoldScope::UserMessages {
             account_id,
             since_ms,
@@ -227,7 +272,7 @@ pub async fn place_hold_in(
         }
     }
 
-    if out.messages + out.attachments + out.submissions == 0 {
+    if out.messages + out.attachments + out.submissions + out.catalog_rows == 0 {
         // Nothing new to freeze: do not leave an empty hold behind.
         sqlx::query("DELETE FROM moderation_holds WHERE id = $1")
             .bind(hold_id)
@@ -250,10 +295,58 @@ pub async fn place_hold_in(
             "messages": out.messages,
             "attachments": out.attachments,
             "submissions": out.submissions,
+            "catalog_rows": out.catalog_rows,
         }),
     )
     .await?;
     Ok(out)
+}
+
+/// The catalogue tables a hold can freeze (library and cinema rows).
+const CATALOG_TABLES: [&str; 4] = [
+    "reading_series",
+    "reading_chapters",
+    "video_titles",
+    "video_episodes",
+];
+
+/// Set `hold_id` on the rows of `table` whose `col` is `value` and that no hold freezes yet. Both names are
+/// literals of this module, never input.
+async fn freeze(
+    conn: &mut PgConnection,
+    table: &'static str,
+    col: &'static str,
+    value: i64,
+    hold_id: i64,
+) -> ModResult<i64> {
+    let sql = format!("UPDATE {table} SET hold_id = $1 WHERE {col} = $2 AND hold_id IS NULL");
+    let n = sqlx::query(sqlx::AssertSqlSafe(sql))
+        .bind(hold_id)
+        .bind(value)
+        .execute(&mut *conn)
+        .await?
+        .rows_affected();
+    Ok(i64::try_from(n).unwrap_or(0))
+}
+
+/// Nothing was frozen by id: either the row is not there (`NotFound`) or an earlier hold has it.
+async fn catalog_missing_or_held(
+    conn: &mut PgConnection,
+    table: &'static str,
+    id: i64,
+    what: &'static str,
+    out: &mut HoldOutcome,
+) -> ModResult<()> {
+    let sql = format!("SELECT id FROM {table} WHERE id = $1");
+    let there: Option<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(id)
+        .fetch_optional(&mut *conn)
+        .await?;
+    if there.is_none() {
+        return Err(ModError::NotFound(what));
+    }
+    out.already_held += 1;
+    Ok(())
 }
 
 /// What releasing a hold did.
@@ -262,6 +355,7 @@ pub struct ReleaseOutcome {
     pub messages: i64,
     pub attachments: i64,
     pub submissions: i64,
+    pub catalog_rows: i64,
     /// Released messages that were already deleted from user view: the next purge run takes them.
     pub purgeable_messages: i64,
 }
@@ -319,6 +413,16 @@ pub async fn release_hold_in(
         .execute(&mut *conn)
         .await?
         .rows_affected();
+    let mut catalog_rows = 0_i64;
+    for table in CATALOG_TABLES {
+        let sql = format!("UPDATE {table} SET hold_id = NULL WHERE hold_id = $1");
+        let n = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(hold_id)
+            .execute(&mut *conn)
+            .await?
+            .rows_affected();
+        catalog_rows += i64::try_from(n).unwrap_or(0);
+    }
     sqlx::query(
         "UPDATE moderation_holds SET released_at = now(), released_by = $2, release_reason = $3 WHERE id = $1",
     )
@@ -331,6 +435,7 @@ pub async fn release_hold_in(
         messages,
         attachments: i64::try_from(attachments).unwrap_or(0),
         submissions: i64::try_from(submissions).unwrap_or(0),
+        catalog_rows,
         purgeable_messages,
     };
     if let Some(case_id) = case_id {
@@ -346,6 +451,7 @@ pub async fn release_hold_in(
                 "messages": out.messages,
                 "attachments": out.attachments,
                 "submissions": out.submissions,
+                "catalog_rows": out.catalog_rows,
                 "purgeable_messages": out.purgeable_messages,
             }),
         )
@@ -367,6 +473,10 @@ const HOLD_SELECT: &str = "SELECT h.id, h.case_id, h.scope_kind, h.scope_id, h.r
     (SELECT count(*) FROM messages m WHERE m.hold_id = h.id) AS messages, \
     (SELECT count(*) FROM attachments a WHERE a.hold_id = h.id) AS attachments, \
     (SELECT count(*) FROM submissions s WHERE s.hold_id = h.id) AS submissions, \
+    ((SELECT count(*) FROM reading_series x WHERE x.hold_id = h.id) \
+     + (SELECT count(*) FROM reading_chapters x WHERE x.hold_id = h.id) \
+     + (SELECT count(*) FROM video_titles x WHERE x.hold_id = h.id) \
+     + (SELECT count(*) FROM video_episodes x WHERE x.hold_id = h.id)) AS catalog_rows, \
     (h.released_at IS NULL AND coalesce(h.reviewed_at, h.created_at) < now() - make_interval(days => $1)) AS review_due \
     FROM moderation_holds h";
 
@@ -384,6 +494,7 @@ fn hold_from(r: &sqlx::postgres::PgRow) -> Result<HoldView, sqlx::Error> {
         messages: r.try_get("messages")?,
         attachments: r.try_get("attachments")?,
         submissions: r.try_get("submissions")?,
+        catalog_rows: r.try_get("catalog_rows")?,
         review_due: r.try_get("review_due")?,
     })
 }

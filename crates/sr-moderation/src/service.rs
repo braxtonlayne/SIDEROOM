@@ -7,8 +7,9 @@ use serde_json::Value;
 use sqlx::{PgConnection, PgPool, Row};
 use sr_admin::{AccessKind, AuditEntry};
 
+use crate::blocklist::MediaBlocklist;
 use crate::error::{ModError, ModResult};
-use crate::model::{Limits, Who, keys};
+use crate::model::{Limits, TakedownPolicy, Who, keys};
 
 /// Source of snowflake ids.
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -21,12 +22,21 @@ pub trait SubjectNotifier: Send + Sync {
     async fn system_dm(&self, to: i64, text: &str) -> bool;
 }
 
+/// Where the strike policy and the operator details come from (the `compliance` feature module, D-293). The
+/// server implements it over the feature settings; without one the defaults apply.
+#[async_trait]
+pub trait PolicySource: Send + Sync {
+    async fn takedown_policy(&self) -> TakedownPolicy;
+}
+
 /// The moderation backend over one database. Cheap to clone.
 #[derive(Clone)]
 pub struct Moderation {
     pub(crate) pool: PgPool,
     pub(crate) ids: IdSource,
     pub(crate) notifier: Option<Arc<dyn SubjectNotifier>>,
+    pub(crate) policy: Option<Arc<dyn PolicySource>>,
+    pub(crate) blocklist: Option<Arc<MediaBlocklist>>,
 }
 
 impl Moderation {
@@ -35,6 +45,8 @@ impl Moderation {
             pool,
             ids,
             notifier: None,
+            policy: None,
+            blocklist: None,
         }
     }
 
@@ -42,6 +54,25 @@ impl Moderation {
     pub fn with_notifier(mut self, n: Arc<dyn SubjectNotifier>) -> Self {
         self.notifier = Some(n);
         self
+    }
+
+    /// The strike policy and operator details the takedown register reads.
+    pub fn with_policy(mut self, p: Arc<dyn PolicySource>) -> Self {
+        self.policy = Some(p);
+        self
+    }
+
+    /// The media blocklist a takedown reloads after it changes `blocked_objects`.
+    pub fn with_blocklist(mut self, b: Arc<MediaBlocklist>) -> Self {
+        self.blocklist = Some(b);
+        self
+    }
+
+    pub(crate) async fn policy(&self) -> TakedownPolicy {
+        match &self.policy {
+            Some(p) => p.takedown_policy().await,
+            None => TakedownPolicy::default(),
+        }
     }
 
     pub fn pool(&self) -> &PgPool {
