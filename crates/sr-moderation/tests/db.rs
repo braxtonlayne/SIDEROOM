@@ -1609,6 +1609,11 @@ impl sr_moderation::CaseActions for FakeActions {
         m: i64,
         a: i64,
     ) -> Result<String, sr_moderation::ActionError> {
+        if a == 0 {
+            return Err(sr_moderation::ActionError::Conflict(
+                "not on the message".into(),
+            ));
+        }
         self.note(format!(
             "remove_attachment {} {case} {ch} {m} {a}",
             by.user_id
@@ -1710,9 +1715,18 @@ async fn actions_are_performed_on_the_cases_own_target_through_the_services() {
         Some(ModError::Forbidden)
     );
     fake.refuse.store(false, Ordering::SeqCst);
+    // Removing an attachment names which one; a service saying it is not on the message is a conflict.
     assert!(matches!(
-        m.perform_action(&gm, id, &req(A::RestoreMessage, "", None))
+        m.perform_action(&gm, id, &req(A::RemoveAttachment, "", None))
             .await,
+        Err(ModError::Invalid(_))
+    ));
+    let with_attachment = |a| PerformRequest {
+        attachment_id: Some(a),
+        ..req(A::RemoveAttachment, "", None)
+    };
+    assert!(matches!(
+        m.perform_action(&gm, id, &with_attachment(0)).await,
         Err(ModError::Conflict(_))
     ));
     assert_eq!(
@@ -1723,6 +1737,12 @@ async fn actions_are_performed_on_the_cases_own_target_through_the_services() {
 
     // The server's moderator acts as themself, on the reported message and its author in this server.
     m.perform_action(&gm, id, &req(A::DeleteMessage, "rude", None))
+        .await
+        .unwrap();
+    m.perform_action(&gm, id, &req(A::RestoreMessage, "", None))
+        .await
+        .unwrap();
+    m.perform_action(&gm, id, &with_attachment(77))
         .await
         .unwrap();
     m.perform_action(&gm, id, &req(A::Timeout, "cool off", Some(10)))
@@ -1740,6 +1760,8 @@ async fn actions_are_performed_on_the_cases_own_target_through_the_services() {
         calls,
         vec![
             format!("delete {o} {id} {c} {target}"),
+            format!("restore {o} {id} {c} {target}"),
+            format!("remove_attachment {o} {id} {c} {target} 77"),
             format!("timeout {o} {id} {g} {a} true"),
             format!("kick {o} {id} {g} {a}"),
             format!("ban {o} {id} {g} {a} case:{id} repeat"),
@@ -1752,7 +1774,7 @@ async fn actions_are_performed_on_the_cases_own_target_through_the_services() {
             .iter()
             .filter(|e| e.kind == "action_performed")
             .count(),
-        4
+        6
     );
     assert!(d.events.iter().any(|e| {
         e.detail["audit_ref"]

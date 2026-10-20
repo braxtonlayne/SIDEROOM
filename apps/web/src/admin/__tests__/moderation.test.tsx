@@ -396,6 +396,8 @@ describe('Take action (N-21)', () => {
     // The reported message, the member in the case's server, and a suspension for staff.
     for (const name of [
       'Delete the reported message',
+      'Restore the reported message',
+      'Remove one attachment from the reported message',
       'Time the person out',
       'Kick the person from the server',
       'Ban the person from the server',
@@ -414,5 +416,49 @@ describe('Take action (N-21)', () => {
       perform: true,
       timeout_minutes: 15,
     });
+  });
+
+  it('restores the message and removes one attachment, sending which', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES'] });
+    const sent: unknown[] = [];
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [CASE], next_cursor: null }),
+      ),
+      http.get('*/api/v1/moderation/cases/9001', () => HttpResponse.json(DETAIL)),
+      http.post('*/api/v1/moderation/cases/9001/actions', async ({ request }) => {
+        sent.push(await readJson(request));
+        return HttpResponse.json(CASE);
+      }),
+    );
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Open case 9001' }));
+    await screen.findByRole('heading', { name: 'Case 9001' });
+    for (const [option, reason] of [
+      ['Restore the reported message', 'wrongly removed'],
+      ['Remove one attachment from the reported message', 'illegal file'],
+    ] as const) {
+      await user.click(screen.getByRole('button', { name: 'Take action' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Take action on this case' });
+      await user.click(within(dialog).getByRole('combobox', { name: 'What to do' }));
+      await user.click(await screen.findByRole('option', { name: option }));
+      if (option.startsWith('Remove'))
+        expect(
+          within(dialog).getByRole('combobox', { name: 'Attachment to remove' }),
+        ).toHaveTextContent('pic.png');
+      await user.type(within(dialog).getByLabelText(/Reason/, { selector: 'textarea' }), reason);
+      await user.click(within(dialog).getByRole('button', { name: 'Do it' }));
+      expect(await screen.findByText('Done.')).toBeInTheDocument();
+    }
+    expect(sent).toEqual([
+      { action: 'restore_message', note: 'wrongly removed', perform: true },
+      {
+        action: 'remove_attachment',
+        note: 'illegal file',
+        perform: true,
+        attachment_id: '6',
+      },
+    ]);
   });
 });

@@ -821,3 +821,101 @@ async fn actions_from_a_case_reach_the_services() {
     );
     assert_eq!(d["case"]["state"], "actioned");
 }
+
+/// N-21: the message actions (delete, restore, remove one attachment) over HTTP reach the service with the case's
+/// own message and channel, an attachment is required for the removal, and the case lands on `actioned`.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn message_actions_from_a_case_reach_the_services() {
+    let db = sr_db::testing::TestDb::new().await.expect("test db");
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
+        (BASIC, "basic"),
+        (MEMBER, "member"),
+        (TARGET, "target"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    let e = env(pool.clone()).await;
+    let (st, case) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/cases",
+            Some(
+                json!({"category": "spam", "target_kind": "message", "target_id": "555",
+                        "subject_account_id": TARGET.to_string(), "guild_id": "77"}),
+            ),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CREATED, "{case}");
+    let id = case["id"].as_str().unwrap().to_owned();
+    // Reports fill the channel in; a case opened by hand does not.
+    sqlx::query("UPDATE moderation_cases SET target_channel_id = 444 WHERE id = $1")
+        .bind(id.parse::<i64>().unwrap())
+        .execute(&pool)
+        .await
+        .unwrap();
+    let path = format!("/moderation/cases/{id}/actions");
+    let act = |action: &str, extra: Value| {
+        let mut b = json!({"action": action, "perform": true, "note": "because"});
+        if let (Some(m), Some(x)) = (b.as_object_mut(), extra.as_object()) {
+            m.extend(x.clone());
+        }
+        b
+    };
+    // Removing an attachment needs one, and a bad id is not found.
+    for (body, want) in [
+        (act("remove_attachment", json!({})), StatusCode::BAD_REQUEST),
+        (
+            act("remove_attachment", json!({"attachment_id": "x"})),
+            StatusCode::NOT_FOUND,
+        ),
+    ] {
+        let (s, b) = e
+            .call(Some(CASE_STAFF), Method::POST, &path, Some(body))
+            .await;
+        assert_eq!(s, want, "{b}");
+    }
+    assert!(e.actions.0.lock().unwrap().is_empty());
+    for body in [
+        act("delete_message", json!({})),
+        act("restore_message", json!({})),
+        act("remove_attachment", json!({"attachment_id": "9001"})),
+    ] {
+        let (s, b) = e
+            .call(Some(CASE_STAFF), Method::POST, &path, Some(body))
+            .await;
+        assert_eq!(s, StatusCode::OK, "{b}");
+    }
+    let staff = CASE_STAFF;
+    assert_eq!(
+        e.actions.0.lock().unwrap().clone(),
+        vec![
+            format!("delete {id} 555"),
+            format!("restore {staff} {id} 444 555"),
+            format!("remove_attachment {staff} {id} 444 555 9001"),
+        ]
+    );
+    // A person with no standing on the case sees nothing of it.
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            &path,
+            Some(act("restore_message", json!({}))),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (_, d) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            &format!("/moderation/cases/{id}"),
+            None,
+        )
+        .await;
+    assert_eq!(d["case"]["state"], "actioned");
+}
